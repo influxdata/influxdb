@@ -84,6 +84,8 @@ func NewInstrumentedReplicationHandler(log *zap.Logger, reg prometheus.Registere
 	svc = newMetricCollectingService(reg, svc)
 	// Wrap logging.
 	svc = newLoggingService(log, svc)
+	// Wrap authz.
+	svc = newAuthCheckingService(svc)
 
 	return newReplicationHandler(log, svc)
 }
