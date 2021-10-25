@@ -6,7 +6,7 @@ edition = "2021"
 
 [features]
 flight = ["arrow", "arrow-flight", "arrow_util", "serde/derive", "serde_json", "futures-util"]
-format = ["arrow"]
+format = ["arrow", "arrow_util"]
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
