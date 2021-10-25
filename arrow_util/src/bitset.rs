@@ -29,6 +29,12 @@ impl BitSet {
         bitset
     }
 
+    /// Reserve space for `count` further bits
+    pub fn reserve(&mut self, count: usize) {
+        let new_buf_len = (self.len + count + 7) >> 3;
+        self.buffer.reserve(new_buf_len);
+    }
+
     /// Appends `count` unset bits
     pub fn append_unset(&mut self, count: usize) {
         self.len += count;
