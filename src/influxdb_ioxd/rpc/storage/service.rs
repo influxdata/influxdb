@@ -1116,11 +1116,11 @@ mod tests {
 
         let chunk0 = TestChunk::new("h2o")
             .with_id(0)
-            .with_predicate_match(PredicateMatch::AtLeastOne);
+            .with_predicate_match(PredicateMatch::AtLeastOneNonNullField);
 
         let chunk1 = TestChunk::new("o2")
             .with_id(1)
-            .with_predicate_match(PredicateMatch::AtLeastOne);
+            .with_predicate_match(PredicateMatch::AtLeastOneNonNullField);
 
         fixture
             .test_storage
@@ -1474,7 +1474,8 @@ mod tests {
             tag_key: [0].into(),
         };
 
-        let chunk = TestChunk::new("h2o").with_predicate_match(PredicateMatch::AtLeastOne);
+        let chunk =
+            TestChunk::new("h2o").with_predicate_match(PredicateMatch::AtLeastOneNonNullField);
 
         fixture
             .test_storage

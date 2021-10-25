@@ -124,7 +124,7 @@ impl UserDefinedLogicalNode for SchemaPivotNode {
 // ------ The implementation of SchemaPivot code follows -----
 
 /// Create the schema describing the output
-pub fn make_schema_pivot_output_schema() -> DFSchemaRef {
+fn make_schema_pivot_output_schema() -> DFSchemaRef {
     let nullable = false;
     Schema::new(vec![Field::new(
         "non_null_column",

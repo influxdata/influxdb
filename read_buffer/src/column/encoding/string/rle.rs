@@ -262,23 +262,17 @@ impl RLE {
                 self.run_lengths.push((NULL_ID, additional));
                 self.contains_null = true; // set null marker.
             }
-
-            // update the rows associated with the value.
-            self.index_row_ids
-                .get_mut(NULL_ID as usize)
-                .unwrap()
-                .add_range(self.num_rows, self.num_rows + additional);
         } else {
             // very first run-length in column...
             self.run_lengths.push((NULL_ID, additional));
             self.contains_null = true; // set null marker.
-
-            // update the rows associated with the value.
-            self.index_row_ids
-                .get_mut(NULL_ID as usize)
-                .unwrap()
-                .add_range(self.num_rows, self.num_rows + additional);
         }
+
+        // update the rows associated with the value.
+        self.index_row_ids
+            .get_mut(NULL_ID as usize)
+            .unwrap()
+            .add_range(self.num_rows, self.num_rows + additional);
 
         self.num_rows += additional;
     }

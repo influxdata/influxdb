@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 
 use entry::SequencedEntry;
 use observability_deps::tracing::{debug, error, info, warn};
+use trace::span::SpanRecorder;
 use write_buffer::core::{FetchHighWatermark, WriteBufferError, WriteBufferReading};
 
 use crate::Db;
@@ -151,12 +152,20 @@ async fn stream_in_sequenced_entries<'a>(
         // store entry
         let mut logged_hard_limit = false;
         loop {
+            let mut span_recorder = SpanRecorder::new(
+                sequenced_entry
+                    .span_context()
+                    .map(|parent| parent.child("IOx write buffer")),
+            );
+
             match db.store_sequenced_entry(
                 Arc::clone(&sequenced_entry),
                 crate::db::filter_table_batch_keep_all,
             ) {
                 Ok(_) => {
                     metrics.success();
+                    span_recorder.ok("stored entry");
+
                     break;
                 }
                 Err(crate::db::Error::HardLimitReached {}) => {
@@ -169,6 +178,8 @@ async fn stream_in_sequenced_entries<'a>(
                         );
                         logged_hard_limit = true;
                     }
+                    span_recorder.error("hard limit reached");
+
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     continue;
                 }
@@ -179,6 +190,7 @@ async fn stream_in_sequenced_entries<'a>(
                         sequencer_id,
                         "Error storing SequencedEntry from write buffer in database"
                     );
+                    span_recorder.error("cannot store entry");
 
                     // no retry
                     break;

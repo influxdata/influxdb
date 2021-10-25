@@ -2,11 +2,12 @@
 
 use crate::column::{Column, ColumnData, INVALID_DID};
 use crate::MutableBatch;
-use arrow_util::bitset::iter_set_positions;
-use data_types::partition_metadata::{StatValues, Statistics};
+use arrow_util::bitset::{iter_set_positions, iter_set_positions_with_offset, BitSet};
+use data_types::partition_metadata::{IsNan, StatValues, Statistics};
 use schema::{InfluxColumnType, InfluxFieldType};
 use snafu::Snafu;
 use std::num::NonZeroU64;
+use std::ops::Range;
 
 #[allow(missing_docs, missing_copy_implementations)]
 #[derive(Debug, Snafu)]
@@ -41,6 +42,8 @@ pub struct Writer<'a> {
     statistics: Vec<(usize, Statistics)>,
     /// The initial number of rows in the MutableBatch
     initial_rows: usize,
+    /// The initial number of columns in the MutableBatch
+    initial_cols: usize,
     /// The number of rows to insert
     to_insert: usize,
     /// If this Writer committed successfully
@@ -53,10 +56,12 @@ impl<'a> Writer<'a> {
     /// If the writer is dropped without calling commit all changes will be rolled back
     pub fn new(batch: &'a mut MutableBatch, to_insert: usize) -> Self {
         let initial_rows = batch.rows();
+        let initial_cols = batch.columns.len();
         Self {
             batch,
             statistics: vec![],
             initial_rows,
+            initial_cols,
             to_insert,
             success: false,
         }
@@ -488,6 +493,117 @@ impl<'a> Writer<'a> {
         Ok(())
     }
 
+    /// Write `range` rows from the provided MutableBatch
+    pub(crate) fn write_batch_range(
+        &mut self,
+        src: &MutableBatch,
+        range: Range<usize>,
+    ) -> Result<()> {
+        self.write_batch_ranges(src, &[range])
+    }
+
+    /// Write the rows identified by `ranges` to the provided MutableBatch
+    pub(crate) fn write_batch_ranges(
+        &mut self,
+        src: &MutableBatch,
+        ranges: &[Range<usize>],
+    ) -> Result<()> {
+        let to_insert = self.to_insert;
+
+        if to_insert == src.row_count {
+            return self.write_batch(src);
+        }
+
+        for (src_col_name, src_col_idx) in &src.column_names {
+            let src_col = &src.columns[*src_col_idx];
+            let (dst_col_idx, dst_col) = self.column_mut(src_col_name, src_col.influx_type)?;
+            let stats = match (&mut dst_col.data, &src_col.data) {
+                (ColumnData::F64(dst_data, _), ColumnData::F64(src_data, _)) => Statistics::F64(
+                    write_slice(to_insert, ranges, src_col.valid.bytes(), src_data, dst_data),
+                ),
+                (ColumnData::I64(dst_data, _), ColumnData::I64(src_data, _)) => Statistics::I64(
+                    write_slice(to_insert, ranges, src_col.valid.bytes(), src_data, dst_data),
+                ),
+                (ColumnData::U64(dst_data, _), ColumnData::U64(src_data, _)) => Statistics::U64(
+                    write_slice(to_insert, ranges, src_col.valid.bytes(), src_data, dst_data),
+                ),
+                (ColumnData::Bool(dst_data, _), ColumnData::Bool(src_data, _)) => {
+                    dst_data.reserve(to_insert);
+                    let mut stats = StatValues::new_empty();
+                    for range in ranges {
+                        dst_data.extend_from_range(src_data, range.clone());
+                        compute_bool_stats(
+                            src_col.valid.bytes(),
+                            range.clone(),
+                            src_data,
+                            &mut stats,
+                        )
+                    }
+                    Statistics::Bool(stats)
+                }
+                (ColumnData::String(dst_data, _), ColumnData::String(src_data, _)) => {
+                    let mut stats = StatValues::new_empty();
+                    for range in ranges {
+                        dst_data.extend_from_range(src_data, range.clone());
+                        compute_stats(src_col.valid.bytes(), range.clone(), &mut stats, |x| {
+                            src_data.get(x).unwrap()
+                        })
+                    }
+                    Statistics::String(stats)
+                }
+                (
+                    ColumnData::Tag(dst_data, dst_dict, _),
+                    ColumnData::Tag(src_data, src_dict, _),
+                ) => {
+                    dst_data.reserve(to_insert);
+
+                    let mut mapping: Vec<_> = vec![None; src_dict.values().len()];
+                    let mut stats = StatValues::new_empty();
+                    for range in ranges {
+                        dst_data.extend(src_data[range.clone()].iter().map(
+                            |src_id| match *src_id {
+                                INVALID_DID => {
+                                    stats.update_for_nulls(1);
+                                    INVALID_DID
+                                }
+                                _ => {
+                                    let maybe_did = &mut mapping[*src_id as usize];
+                                    match maybe_did {
+                                        Some(did) => {
+                                            stats.total_count += 1;
+                                            *did
+                                        }
+                                        None => {
+                                            let value = src_dict.lookup_id(*src_id).unwrap();
+                                            stats.update(value);
+
+                                            let did = dst_dict.lookup_value_or_insert(value);
+                                            *maybe_did = Some(did);
+                                            did
+                                        }
+                                    }
+                                }
+                            },
+                        ));
+                    }
+
+                    Statistics::String(stats)
+                }
+                _ => unreachable!(),
+            };
+
+            dst_col.valid.reserve(to_insert);
+            for range in ranges {
+                dst_col
+                    .valid
+                    .extend_from_range(&src_col.valid, range.clone());
+            }
+
+            self.statistics.push((dst_col_idx, stats));
+        }
+        Ok(())
+    }
+
     fn column_mut(
         &mut self,
         name: &str,
@@ -610,10 +726,77 @@ fn append_valid_mask(column: &mut Column, valid_mask: Option<&[u8]>, to_insert: 
     }
 }
 
+fn compute_bool_stats(
+    valid: &[u8],
+    range: Range<usize>,
+    col_data: &BitSet,
+    stats: &mut StatValues<bool>,
+) {
+    // There are likely faster ways to do this
+    let indexes =
+        iter_set_positions_with_offset(valid, range.start).take_while(|idx| *idx < range.end);
+
+    for index in indexes {
+        let value = col_data.get(index);
+        stats.update(&value)
+    }
+
+    let count = range.end - range.start;
+    stats.update_for_nulls(count as u64 - stats.total_count);
+}
+
+fn write_slice<T>(
+    to_insert: usize,
+    ranges: &[Range<usize>],
+    valid: &[u8],
+    src_data: &[T],
+    dst_data: &mut Vec<T>,
+) -> StatValues<T>
+where
+    T: Clone + PartialOrd + IsNan,
+{
+    dst_data.reserve(to_insert);
+    let mut stats = StatValues::new_empty();
+    for range in ranges {
+        dst_data.extend_from_slice(&src_data[range.clone()]);
+        compute_stats(valid, range.clone(), &mut stats, |x| &src_data[x]);
+    }
+    stats
+}
+
+fn compute_stats<'a, T, U, F>(
+    valid: &[u8],
+    range: Range<usize>,
+    stats: &mut StatValues<T>,
+    accessor: F,
+) where
+    U: 'a + ToOwned<Owned = T> + PartialOrd + ?Sized + IsNan,
+    F: Fn(usize) -> &'a U,
+    T: std::borrow::Borrow<U>,
+{
+    let values = iter_set_positions_with_offset(valid, range.start)
+        .take_while(|idx| *idx < range.end)
+        .map(accessor);
+
+    for value in values {
+        stats.update(value)
+    }
+
+    let count = range.end - range.start;
+    stats.update_for_nulls(count as u64 - stats.total_count);
+}
+
 impl<'a> Drop for Writer<'a> {
     fn drop(&mut self) {
         if !self.success {
             let initial_rows = self.initial_rows;
+            let initial_cols = self.initial_cols;
+
+            if self.batch.columns.len() != initial_cols {
+                self.batch.columns.truncate(initial_cols);
+                self.batch.column_names.retain(|_, v| *v < initial_cols)
+            }
+
             for col in &mut self.batch.columns {
                 col.valid.truncate(initial_rows);
                 match &mut col.data {

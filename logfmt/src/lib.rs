@@ -19,12 +19,18 @@ use tracing_subscriber::{fmt::MakeWriter, layer::Context, registry::LookupSpan, 
 /// looked very small and did not (obviously) work with the tracing subscriber
 ///
 /// [logfmt]: https://brandur.org/logfmt
-pub struct LogFmtLayer<W: MakeWriter> {
+pub struct LogFmtLayer<W>
+where
+    W: for<'writer> MakeWriter<'writer>,
+{
     writer: W,
     display_target: bool,
 }
 
-impl<W: MakeWriter> LogFmtLayer<W> {
+impl<W> LogFmtLayer<W>
+where
+    W: for<'writer> MakeWriter<'writer>,
+{
     /// Create a new logfmt Layer to pass into tracing_subscriber
     ///
     /// Note this layer simply formats and writes to the specified writer. It
@@ -68,7 +74,7 @@ impl<W: MakeWriter> LogFmtLayer<W> {
 
 impl<S, W> Layer<S> for LogFmtLayer<W>
 where
-    W: MakeWriter + 'static,
+    W: for<'writer> MakeWriter<'writer> + 'static,
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     fn register_callsite(
@@ -78,7 +84,7 @@ where
         Interest::always()
     }
 
-    fn new_span(&self, attrs: &tracing::span::Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
+    fn on_new_span(&self, attrs: &tracing::span::Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let writer = self.writer.make_writer();
         let metadata = ctx.metadata(id).expect("span should have metadata");
         let mut p = FieldPrinter::new(writer, metadata.level(), self.display_target);

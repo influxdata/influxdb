@@ -159,8 +159,8 @@ mod tests {
     use super::*;
 
     use crate::{
-        tests::{list_with_delimiter, put_get_delete_list},
-        ObjectStore, ObjectStoreApi, ObjectStorePath,
+        tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
+        Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
     use futures::TryStreamExt;
 
@@ -193,5 +193,32 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(&*read_data, expected_data);
+    }
+
+    const NON_EXISTENT_NAME: &str = "nonexistentname";
+
+    #[tokio::test]
+    async fn nonexistent_location() {
+        let integration = ObjectStore::new_in_memory();
+
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
+
+        let err = get_nonexistent_object(&integration, Some(location))
+            .await
+            .unwrap_err();
+        if let Some(ObjectStoreError::NotFound { location, source }) =
+            err.downcast_ref::<ObjectStoreError>()
+        {
+            let source_variant = source.downcast_ref::<Error>();
+            assert!(
+                matches!(source_variant, Some(Error::NoDataInMemory { .. }),),
+                "got: {:?}",
+                source_variant
+            );
+            assert_eq!(location, NON_EXISTENT_NAME);
+        } else {
+            panic!("unexpected error type: {:?}", err);
+        }
     }
 }

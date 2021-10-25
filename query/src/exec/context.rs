@@ -24,6 +24,7 @@ use trace::{ctx::SpanContext, span::SpanRecorder};
 
 use crate::exec::{
     fieldlist::{FieldList, IntoFieldList},
+    non_null_checker::NonNullCheckerExec,
     query_tracing::TracedStream,
     schema_pivot::{SchemaPivotExec, SchemaPivotNode},
     seriesset::{
@@ -43,7 +44,10 @@ use crate::plan::{
 // Reuse DataFusion error and Result types for this module
 pub use datafusion::error::{DataFusionError as Error, Result};
 
-use super::{seriesset::series::Either, split::StreamSplitNode, task::DedicatedExecutor};
+use super::{
+    non_null_checker::NonNullCheckerNode, seriesset::series::Either, split::StreamSplitNode,
+    task::DedicatedExecutor,
+};
 
 // The default catalog name - this impacts what SQL queries use if not specified
 pub const DEFAULT_CATALOG: &str = "public";
@@ -93,6 +97,13 @@ impl ExtensionPlanner for IOxExtensionPlanner {
             Some(Arc::new(SchemaPivotExec::new(
                 Arc::clone(&physical_inputs[0]),
                 schema_pivot.schema().as_ref().clone().into(),
+            )) as Arc<dyn ExecutionPlan>)
+        } else if let Some(non_null_checker) = any.downcast_ref::<NonNullCheckerNode>() {
+            assert_eq!(physical_inputs.len(), 1, "Inconsistent number of inputs");
+            Some(Arc::new(NonNullCheckerExec::new(
+                Arc::clone(&physical_inputs[0]),
+                non_null_checker.schema().as_ref().clone().into(),
+                non_null_checker.value(),
             )) as Arc<dyn ExecutionPlan>)
         } else if let Some(stream_split) = any.downcast_ref::<StreamSplitNode>() {
             assert_eq!(
@@ -524,5 +535,10 @@ impl IOxExecutionContext {
             exec: self.exec.clone(),
             recorder: self.recorder.child(name),
         }
+    }
+
+    /// Number of currently active tasks.
+    pub fn tasks(&self) -> usize {
+        self.exec.tasks()
     }
 }

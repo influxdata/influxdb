@@ -52,7 +52,6 @@ use std::{
 };
 use tokio_util::sync::CancellationToken;
 use tower::Layer;
-use trace::TraceCollector;
 use trace_http::tower::TraceLayer;
 
 /// Constants used in API error codes.
@@ -865,12 +864,12 @@ pub async fn serve<M>(
     shutdown: CancellationToken,
     max_request_size: usize,
     trace_header_parser: TraceHeaderParser,
-    trace_collector: Option<Arc<dyn TraceCollector>>,
 ) -> Result<(), hyper::Error>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     let metric_registry = Arc::clone(application.metric_registry());
+    let trace_collector = application.trace_collector().clone();
 
     let trace_layer = TraceLayer::new(trace_header_parser, metric_registry, trace_collector, false);
     let lp_metrics = Arc::new(LineProtocolMetrics::new(
@@ -924,6 +923,7 @@ mod tests {
         Arc::new(ApplicationState::new(
             Arc::new(ObjectStore::new_in_memory()),
             None,
+            None,
         ))
     }
 
@@ -939,7 +939,7 @@ mod tests {
     async fn test_health() {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));
-        let server_url = test_server(application, Arc::clone(&app_server), None);
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         let client = Client::new();
         let response = client.get(&format!("{}/health", server_url)).send().await;
@@ -958,7 +958,7 @@ mod tests {
             .register_metric("my_metric", "description");
 
         let app_server = make_server(Arc::clone(&application));
-        let server_url = test_server(application, Arc::clone(&app_server), None);
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         metric.recorder(&[("tag", "value")]).inc(20);
 
@@ -998,15 +998,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_tracing() {
-        let application = make_application();
-        let app_server = make_server(Arc::clone(&application));
         let trace_collector = Arc::new(RingBufferTraceCollector::new(5));
-
-        let server_url = test_server(
-            application,
-            Arc::clone(&app_server),
+        let application = Arc::new(ApplicationState::new(
+            Arc::new(ObjectStore::new_in_memory()),
+            None,
             Some(Arc::<RingBufferTraceCollector>::clone(&trace_collector)),
-        );
+        ));
+        let app_server = make_server(Arc::clone(&application));
+
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         let client = Client::new();
         let response = client
@@ -1036,7 +1036,7 @@ mod tests {
             .create_database(make_rules("MyOrg_MyBucket"))
             .await
             .unwrap();
-        let server_url = test_server(application, Arc::clone(&app_server), None);
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         let client = Client::new();
 
@@ -1083,7 +1083,7 @@ mod tests {
             .create_database(make_rules("MyOrg_MyBucket"))
             .await
             .unwrap();
-        let server_url = test_server(application, Arc::clone(&app_server), None);
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         // Set up client
         let client = Client::new();
@@ -1209,7 +1209,7 @@ mod tests {
             .await
             .unwrap();
 
-        let server_url = test_server(application, Arc::clone(&app_server), None);
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         let client = Client::new();
 
@@ -1399,7 +1399,7 @@ mod tests {
             .create_database(make_rules("MyOrg_MyBucket"))
             .await
             .unwrap();
-        let server_url = test_server(application, Arc::clone(&app_server), None);
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         let client = Client::new();
 
@@ -1693,7 +1693,6 @@ mod tests {
     fn test_server(
         application: Arc<ApplicationState>,
         server: Arc<AppServer<ConnectionManagerImpl>>,
-        trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> String {
         // NB: specify port 0 to let the OS pick the port.
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
@@ -1710,7 +1709,6 @@ mod tests {
             CancellationToken::new(),
             TEST_MAX_REQUEST_SIZE,
             trace_header_parser,
-            trace_collector,
         ));
         println!("Started server at {}", server_url);
         server_url
@@ -1734,7 +1732,7 @@ mod tests {
             .create_database(make_rules("MyOrg_MyBucket"))
             .await
             .unwrap();
-        let server_url = test_server(application, Arc::clone(&app_server), None);
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         (app_server, server_url)
     }

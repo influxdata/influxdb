@@ -139,12 +139,8 @@ struct Create {
 /// Get list of databases
 #[derive(Debug, StructOpt)]
 struct List {
-    /// Whether to list databases marked as deleted instead, to restore or permanently delete.
-    #[structopt(long)]
-    deleted: bool,
-
-    /// Whether to list detailed information, including generation IDs, about all databases,
-    /// whether they are active or marked as deleted.
+    /// Whether to list detailed information about the databases, such as generation IDs along
+    /// with their names.
     #[structopt(long)]
     detailed: bool,
 }
@@ -264,12 +260,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::List(list) => {
             let mut client = management::Client::new(connection);
-            if list.deleted || list.detailed {
-                let databases = if list.deleted {
-                    client.list_deleted_databases().await?
-                } else {
-                    client.list_detailed_databases().await?
-                };
+            if list.detailed {
+                let databases = client.list_detailed_databases().await?;
 
                 let mut table = Table::new();
                 table.load_preset("||--+-++|    ++++++");

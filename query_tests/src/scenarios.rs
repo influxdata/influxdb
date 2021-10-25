@@ -843,6 +843,7 @@ impl DbSetup for OneMeasurementManyFields {
             "h2o,tag1=foo,tag2=bar field1=70.4,field2=\"ss\" 100",
             "h2o,tag1=foo,tag2=bar field1=70.5,field2=\"ss\" 100",
             "h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000",
+            "h2o,tag1=foo,tag2=bar field1=70.3,field5=false 3000",
         ];
 
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
@@ -863,16 +864,17 @@ impl DbSetup for OneMeasurementManyFieldsWithDelete {
             "h2o,tag1=foo,tag2=bar field1=70.4,field2=\"ss\" 100",
             "h2o,tag1=foo,tag2=bar field1=70.5,field2=\"ss\" 100",
             "h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000",
+            "h2o,tag1=foo,tag2=bar field1=70.3,field5=false 3000",
         ];
 
-        // pred: delete from h2o where 1000 <= time <= 1000
+        // pred: delete from h2o where 1000 <= time <= 1100
         // 1 rows of h2o with timestamp 1000 will be deleted which means
         // field4 no longer available
         let delete_table_name = "h2o";
         let pred = DeletePredicate {
             range: TimestampRange {
                 start: 1000,
-                end: 3000,
+                end: 1100,
             },
             exprs: vec![],
         };

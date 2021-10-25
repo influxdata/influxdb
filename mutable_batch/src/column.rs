@@ -1,10 +1,9 @@
 //! A [`Column`] stores the rows for a given column name
 
 use std::fmt::Formatter;
-use std::iter::Enumerate;
+use std::iter::{Enumerate, Zip};
 use std::mem;
 use std::sync::Arc;
-use std::{convert::TryInto, iter::Zip};
 
 use arrow::error::ArrowError;
 use arrow::{
@@ -113,30 +112,33 @@ impl Column {
             | InfluxColumnType::Field(InfluxFieldType::Boolean) => {
                 let mut data = BitSet::new();
                 data.append_unset(row_count);
-                ColumnData::Bool(data, StatValues::new_all_null(total_count))
+                ColumnData::Bool(data, StatValues::new_all_null(total_count, None))
             }
             InfluxColumnType::IOx(IOxValueType::U64)
-            | InfluxColumnType::Field(InfluxFieldType::UInteger) => {
-                ColumnData::U64(vec![0; row_count], StatValues::new_all_null(total_count))
-            }
+            | InfluxColumnType::Field(InfluxFieldType::UInteger) => ColumnData::U64(
+                vec![0; row_count],
+                StatValues::new_all_null(total_count, None),
+            ),
             InfluxColumnType::IOx(IOxValueType::F64)
-            | InfluxColumnType::Field(InfluxFieldType::Float) => {
-                ColumnData::F64(vec![0.0; row_count], StatValues::new_all_null(total_count))
-            }
+            | InfluxColumnType::Field(InfluxFieldType::Float) => ColumnData::F64(
+                vec![0.0; row_count],
+                StatValues::new_all_null(total_count, None),
+            ),
             InfluxColumnType::IOx(IOxValueType::I64)
             | InfluxColumnType::Field(InfluxFieldType::Integer)
-            | InfluxColumnType::Timestamp => {
-                ColumnData::I64(vec![0; row_count], StatValues::new_all_null(total_count))
-            }
+            | InfluxColumnType::Timestamp => ColumnData::I64(
+                vec![0; row_count],
+                StatValues::new_all_null(total_count, None),
+            ),
             InfluxColumnType::IOx(IOxValueType::String)
             | InfluxColumnType::Field(InfluxFieldType::String) => ColumnData::String(
                 PackedStringArray::new_empty(row_count),
-                StatValues::new_all_null(total_count),
+                StatValues::new_all_null(total_count, Some(1)),
             ),
             InfluxColumnType::Tag => ColumnData::Tag(
                 vec![INVALID_DID; row_count],
                 Default::default(),
-                StatValues::new_all_null(total_count),
+                StatValues::new_all_null(total_count, Some(1)),
             ),
             InfluxColumnType::IOx(IOxValueType::Bytes) => todo!(),
         };

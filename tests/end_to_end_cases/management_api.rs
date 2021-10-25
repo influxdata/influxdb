@@ -237,15 +237,6 @@ async fn test_list_databases() {
         assert!(rules.lifecycle_rules.is_some());
     }
 
-    // validate that neither database appears in the list of deleted databases
-    let deleted_databases = client
-        .list_deleted_databases()
-        .await
-        .expect("list deleted databases failed");
-    let names: Vec<_> = deleted_databases.into_iter().map(|db| db.db_name).collect();
-    assert!(!names.contains(&name1));
-    assert!(!names.contains(&name2));
-
     // now fetch without defaults, and neither should have their rules filled in
     let omit_defaults = true;
     let databases: Vec<_> = client
@@ -299,20 +290,6 @@ async fn test_list_databases() {
     let names: Vec<_> = databases.iter().map(|rules| rules.name.clone()).collect();
     assert!(!dbg!(&names).contains(&name1));
     assert!(dbg!(&names).contains(&name2));
-
-    // The deleted database should be included in the list of deleted databases
-    let deleted_databases = client
-        .list_deleted_databases()
-        .await
-        .expect("list deleted databases failed");
-
-    assert!(
-        deleted_databases
-            .iter()
-            .any(|db| db.db_name == name1 && db.generation_id == 0),
-        "could not find expected database in {:?}",
-        deleted_databases
-    );
 }
 
 #[tokio::test]
@@ -1144,8 +1121,8 @@ async fn test_get_server_status_global_error() {
     let server_fixture = ServerFixture::create_single_use().await;
     let mut client = server_fixture.management_client();
 
-    // we need to "break" the object store AFTER the server was started, otherwise the server process will exit
-    // immediately
+    // we need to "break" the object store AFTER the server was started, otherwise the server
+    // process will exit immediately
     let metadata = server_fixture.dir().metadata().unwrap();
     let mut permissions = metadata.permissions();
     permissions.set_mode(0o000);
@@ -1160,7 +1137,8 @@ async fn test_get_server_status_global_error() {
         loop {
             let status = client.get_server_status().await.unwrap();
             if let Some(err) = status.error {
-                assert!(dbg!(err.message).starts_with("error listing databases in object storage:"));
+                assert!(dbg!(err.message)
+                    .starts_with("error getting server config from object storage:"));
                 assert!(status.database_statuses.is_empty());
                 return;
             }
@@ -1230,6 +1208,33 @@ async fn test_get_server_status_db_error() {
     std::fs::write(owner_info_path, &owner_info_bytes).unwrap();
     other_gen_path.push("rules.pb");
     std::fs::write(other_gen_path, "foo").unwrap();
+
+    // create the server config listing the ownership of these three databases
+    let mut path = server_fixture.dir().to_path_buf();
+    path.push("42");
+    path.push("config.pb");
+
+    let data = ServerConfig {
+        databases: vec![
+            (String::from("my_db"), String::from("42/my_db")),
+            (
+                String::from("soft_deleted"),
+                String::from("42/soft_deleted"),
+            ),
+            (
+                String::from("multiple_active"),
+                String::from("42/multiple_active"),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    };
+
+    let mut encoded = bytes::BytesMut::new();
+    generated_types::server_config::encode_persisted_server_config(&data, &mut encoded)
+        .expect("server config serialization should be valid");
+    let encoded = encoded.freeze();
+    std::fs::write(path, encoded).unwrap();
 
     // initialize
     client.update_server_id(42).await.expect("set ID failed");

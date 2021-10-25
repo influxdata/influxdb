@@ -23,8 +23,11 @@ use hashbrown::HashMap;
 use schema::selection::Selection;
 use schema::{builder::SchemaBuilder, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use std::ops::Range;
 
 pub mod column;
+pub mod filter;
+pub mod partition;
 pub mod writer;
 
 #[allow(missing_docs)]
@@ -160,6 +163,28 @@ impl MutableBatch {
     pub fn extend_from(&mut self, other: &Self) -> writer::Result<()> {
         let mut writer = writer::Writer::new(self, other.row_count);
         writer.write_batch(other)?;
+        writer.commit();
+        Ok(())
+    }
+
+    /// Extend this [`MutableBatch`] with `range` rows from `other`
+    pub fn extend_from_range(&mut self, other: &Self, range: Range<usize>) -> writer::Result<()> {
+        let mut writer = writer::Writer::new(self, range.end - range.start);
+        writer.write_batch_range(other, range)?;
+        writer.commit();
+        Ok(())
+    }
+
+    /// Extend this [`MutableBatch`] with `ranges` rows from `other`
+    pub fn extend_from_ranges(
+        &mut self,
+        other: &Self,
+        ranges: &[Range<usize>],
+    ) -> writer::Result<()> {
+        let to_insert = ranges.iter().map(|x| x.end - x.start).sum();
+
+        let mut writer = writer::Writer::new(self, to_insert);
+        writer.write_batch_ranges(other, ranges)?;
         writer.commit();
         Ok(())
     }

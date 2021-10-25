@@ -7,11 +7,7 @@
 #
 # kubectl logs deploy/iox-router-1000 -c iox -f | ./scripts/logfmts
 #
-#
-# If you want to render into UTC timestamps:
-#
-# kubectl logs deploy/iox-router-1000 -c iox -f | TZ=UTC ./scripts/logfmts
-#
+# Timestamps are printed in UTC
 #
 
 set -eu -o pipefail
@@ -23,6 +19,7 @@ if ! command -v gawk &> /dev/null; then
   echo "  ...."
 fi
 
+# portable way of saying TZ=UTC
 export TZ=C
 
 exec gawk -F"time=" '{print strftime("%Y-%m-%d %H:%M:%S", $2/1000000000), $1 }'

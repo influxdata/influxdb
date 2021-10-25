@@ -2,7 +2,7 @@
 name = "read_buffer"
 version = "0.1.0"
 authors = ["Edd Robinson <me@edd.io>"]
-edition = "2018"
+edition = "2021"
 
 # Note this crate is designed to be standalone, and should not depend
 # on the IOx Query Engine. The rationale is:

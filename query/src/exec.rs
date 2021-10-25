@@ -4,6 +4,7 @@
 pub(crate) mod context;
 pub mod field;
 pub mod fieldlist;
+mod non_null_checker;
 mod query_tracing;
 mod schema_pivot;
 pub mod seriesset;
@@ -22,7 +23,7 @@ use datafusion::{
 pub use context::{IOxExecutionConfig, IOxExecutionContext};
 use schema_pivot::SchemaPivotNode;
 
-use self::{split::StreamSplitNode, task::DedicatedExecutor};
+use self::{non_null_checker::NonNullCheckerNode, split::StreamSplitNode, task::DedicatedExecutor};
 
 /// Configuration for an Executor
 #[derive(Debug, Clone)]
@@ -138,6 +139,44 @@ impl Drop for Executor {
 ///   "ColB"
 pub fn make_schema_pivot(input: LogicalPlan) -> LogicalPlan {
     let node = Arc::new(SchemaPivotNode::new(input));
+
+    LogicalPlan::Extension { node }
+}
+
+/// Make a NonNullChecker node takes an arbitrary input array and
+/// produces a single string output column that contains
+///
+/// 1. the single `table_name` string if any of the input columns are non-null
+/// 2. zero rows if all of the input columns are null
+///
+/// For this input:
+///
+///  ColA | ColB | ColC
+/// ------+------+------
+///   1   | NULL | NULL
+///   2   | 2    | NULL
+///   3   | 2    | NULL
+///
+/// The output would be (given 'the_table_name' was the table name)
+///
+///   non_null_column
+///  -----------------
+///   the_table_name
+///
+/// However, for this input (All NULL)
+///
+///  ColA | ColB | ColC
+/// ------+------+------
+///  NULL | NULL | NULL
+///  NULL | NULL | NULL
+///  NULL | NULL | NULL
+///
+/// There would be no output rows
+///
+///   non_null_column
+///  -----------------
+pub fn make_non_null_checker(table_name: &str, input: LogicalPlan) -> LogicalPlan {
+    let node = Arc::new(NonNullCheckerNode::new(table_name, input));
 
     LogicalPlan::Extension { node }
 }

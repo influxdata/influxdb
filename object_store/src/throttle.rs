@@ -1,5 +1,5 @@
 //! This module contains the IOx implementation for wrapping existing object store types into an artificial "sleep" wrapper.
-use std::convert::TryInto;
+use std::{convert::TryInto, sync::Mutex};
 
 use crate::{ListResult, ObjectStoreApi, Result};
 use async_trait::async_trait;
@@ -82,23 +82,30 @@ pub struct ThrottleConfig {
 #[derive(Debug)]
 pub struct ThrottledStore<T: ObjectStoreApi> {
     inner: T,
-    config: ThrottleConfig,
+    config: Mutex<ThrottleConfig>,
 }
 
 impl<T: ObjectStoreApi> ThrottledStore<T> {
     /// Create new wrapper with zero waiting times.
     pub fn new(inner: T, config: ThrottleConfig) -> Self {
-        Self { inner, config }
+        Self {
+            inner,
+            config: Mutex::new(config),
+        }
     }
 
-    /// Return a mutable reference to the configuration information
-    pub fn config_mut(&mut self) -> &mut ThrottleConfig {
-        &mut self.config
+    /// Mutate config.
+    pub fn config_mut<F>(&self, f: F)
+    where
+        F: Fn(&mut ThrottleConfig),
+    {
+        let mut guard = self.config.lock().expect("lock poissened");
+        f(&mut guard)
     }
 
-    /// Return a mutable reference to the configuration information
-    pub fn config(&self) -> &ThrottleConfig {
-        &self.config
+    /// Return copy of current config.
+    pub fn config(&self) -> ThrottleConfig {
+        *self.config.lock().expect("lock poissened")
     }
 }
 
@@ -117,7 +124,7 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error> {
-        sleep(self.config.wait_put_per_call).await;
+        sleep(self.config().wait_put_per_call).await;
 
         self.inner.put(location, bytes).await
     }
@@ -126,10 +133,10 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
         &self,
         location: &Self::Path,
     ) -> Result<BoxStream<'static, Result<Bytes, Self::Error>>, Self::Error> {
-        sleep(self.config.wait_get_per_call).await;
+        sleep(self.config().wait_get_per_call).await;
 
         // need to copy to avoid moving / referencing `self`
-        let wait_get_per_byte = self.config.wait_get_per_byte;
+        let wait_get_per_byte = self.config().wait_get_per_byte;
 
         self.inner.get(location).await.map(|stream| {
             stream
@@ -148,7 +155,7 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
     }
 
     async fn delete(&self, location: &Self::Path) -> Result<(), Self::Error> {
-        sleep(self.config.wait_delete_per_call).await;
+        sleep(self.config().wait_delete_per_call).await;
 
         self.inner.delete(location).await
     }
@@ -157,10 +164,10 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
         &'a self,
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>, Self::Error>>, Self::Error> {
-        sleep(self.config.wait_list_per_call).await;
+        sleep(self.config().wait_list_per_call).await;
 
         // need to copy to avoid moving / referencing `self`
-        let wait_list_per_entry = self.config.wait_list_per_entry;
+        let wait_list_per_entry = self.config().wait_list_per_entry;
 
         self.inner.list(prefix).await.map(|stream| {
             stream
@@ -182,12 +189,12 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
         &self,
         prefix: &Self::Path,
     ) -> Result<ListResult<Self::Path>, Self::Error> {
-        sleep(self.config.wait_list_with_delimiter_per_call).await;
+        sleep(self.config().wait_list_with_delimiter_per_call).await;
 
         match self.inner.list_with_delimiter(prefix).await {
             Ok(list_result) => {
                 let entries_len = usize_to_u32_saturate(list_result.objects.len());
-                sleep(self.config.wait_list_with_delimiter_per_entry * entries_len).await;
+                sleep(self.config().wait_list_with_delimiter_per_entry * entries_len).await;
                 Ok(list_result)
             }
             Err(err) => Err(err),
@@ -242,13 +249,13 @@ mod tests {
     #[tokio::test]
     async fn delete_test() {
         let inner = InMemory::new();
-        let mut store = ThrottledStore::new(inner, ThrottleConfig::default());
+        let store = ThrottledStore::new(inner, ThrottleConfig::default());
 
         assert_bounds!(measure_delete(&store, None).await, 0);
         assert_bounds!(measure_delete(&store, Some(0)).await, 0);
         assert_bounds!(measure_delete(&store, Some(10)).await, 0);
 
-        store.config_mut().wait_delete_per_call = WAIT_TIME;
+        store.config_mut(|cfg| cfg.wait_delete_per_call = WAIT_TIME);
         assert_bounds!(measure_delete(&store, None).await, 1);
         assert_bounds!(measure_delete(&store, Some(0)).await, 1);
         assert_bounds!(measure_delete(&store, Some(10)).await, 1);
@@ -257,81 +264,93 @@ mod tests {
     #[tokio::test]
     async fn get_test() {
         let inner = InMemory::new();
-        let mut store = ThrottledStore::new(inner, ThrottleConfig::default());
+        let store = ThrottledStore::new(inner, ThrottleConfig::default());
 
         assert_bounds!(measure_get(&store, None).await, 0);
         assert_bounds!(measure_get(&store, Some(0)).await, 0);
         assert_bounds!(measure_get(&store, Some(10)).await, 0);
 
-        store.config_mut().wait_get_per_call = WAIT_TIME;
+        store.config_mut(|cfg| cfg.wait_get_per_call = WAIT_TIME);
         assert_bounds!(measure_get(&store, None).await, 1);
         assert_bounds!(measure_get(&store, Some(0)).await, 1);
         assert_bounds!(measure_get(&store, Some(10)).await, 1);
 
-        store.config_mut().wait_get_per_call = ZERO;
-        store.config_mut().wait_get_per_byte = WAIT_TIME;
+        store.config_mut(|cfg| {
+            cfg.wait_get_per_call = ZERO;
+            cfg.wait_get_per_byte = WAIT_TIME;
+        });
         assert_bounds!(measure_get(&store, Some(2)).await, 2);
 
-        store.config_mut().wait_get_per_call = WAIT_TIME;
-        store.config_mut().wait_get_per_byte = WAIT_TIME;
+        store.config_mut(|cfg| {
+            cfg.wait_get_per_call = WAIT_TIME;
+            cfg.wait_get_per_byte = WAIT_TIME;
+        });
         assert_bounds!(measure_get(&store, Some(2)).await, 3);
     }
 
     #[tokio::test]
     async fn list_test() {
         let inner = InMemory::new();
-        let mut store = ThrottledStore::new(inner, ThrottleConfig::default());
+        let store = ThrottledStore::new(inner, ThrottleConfig::default());
 
         assert_bounds!(measure_list(&store, 0).await, 0);
         assert_bounds!(measure_list(&store, 10).await, 0);
 
-        store.config_mut().wait_list_per_call = WAIT_TIME;
+        store.config_mut(|cfg| cfg.wait_list_per_call = WAIT_TIME);
         assert_bounds!(measure_list(&store, 0).await, 1);
         assert_bounds!(measure_list(&store, 10).await, 1);
 
-        store.config_mut().wait_list_per_call = ZERO;
-        store.config_mut().wait_list_per_entry = WAIT_TIME;
+        store.config_mut(|cfg| {
+            cfg.wait_list_per_call = ZERO;
+            cfg.wait_list_per_entry = WAIT_TIME;
+        });
         assert_bounds!(measure_list(&store, 2).await, 2);
 
-        store.config_mut().wait_list_per_call = WAIT_TIME;
-        store.config_mut().wait_list_per_entry = WAIT_TIME;
+        store.config_mut(|cfg| {
+            cfg.wait_list_per_call = WAIT_TIME;
+            cfg.wait_list_per_entry = WAIT_TIME;
+        });
         assert_bounds!(measure_list(&store, 2).await, 3);
     }
 
     #[tokio::test]
     async fn list_with_delimiter_test() {
         let inner = InMemory::new();
-        let mut store = ThrottledStore::new(inner, ThrottleConfig::default());
+        let store = ThrottledStore::new(inner, ThrottleConfig::default());
 
         assert_bounds!(measure_list_with_delimiter(&store, 0).await, 0);
         assert_bounds!(measure_list_with_delimiter(&store, 10).await, 0);
 
-        store.config_mut().wait_list_with_delimiter_per_call = WAIT_TIME;
+        store.config_mut(|cfg| cfg.wait_list_with_delimiter_per_call = WAIT_TIME);
         assert_bounds!(measure_list_with_delimiter(&store, 0).await, 1);
         assert_bounds!(measure_list_with_delimiter(&store, 10).await, 1);
 
-        store.config_mut().wait_list_with_delimiter_per_call = ZERO;
-        store.config_mut().wait_list_with_delimiter_per_entry = WAIT_TIME;
+        store.config_mut(|cfg| {
+            cfg.wait_list_with_delimiter_per_call = ZERO;
+            cfg.wait_list_with_delimiter_per_entry = WAIT_TIME;
+        });
         assert_bounds!(measure_list_with_delimiter(&store, 2).await, 2);
 
-        store.config_mut().wait_list_with_delimiter_per_call = WAIT_TIME;
-        store.config_mut().wait_list_with_delimiter_per_entry = WAIT_TIME;
+        store.config_mut(|cfg| {
+            cfg.wait_list_with_delimiter_per_call = WAIT_TIME;
+            cfg.wait_list_with_delimiter_per_entry = WAIT_TIME;
+        });
         assert_bounds!(measure_list_with_delimiter(&store, 2).await, 3);
     }
 
     #[tokio::test]
     async fn put_test() {
         let inner = InMemory::new();
-        let mut store = ThrottledStore::new(inner, ThrottleConfig::default());
+        let store = ThrottledStore::new(inner, ThrottleConfig::default());
 
         assert_bounds!(measure_put(&store, 0).await, 0);
         assert_bounds!(measure_put(&store, 10).await, 0);
 
-        store.config_mut().wait_put_per_call = WAIT_TIME;
+        store.config_mut(|cfg| cfg.wait_put_per_call = WAIT_TIME);
         assert_bounds!(measure_put(&store, 0).await, 1);
         assert_bounds!(measure_put(&store, 10).await, 1);
 
-        store.config_mut().wait_put_per_call = ZERO;
+        store.config_mut(|cfg| cfg.wait_put_per_call = ZERO);
         assert_bounds!(measure_put(&store, 0).await, 0);
     }
 

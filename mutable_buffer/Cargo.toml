@@ -2,7 +2,7 @@
 name = "mutable_buffer"
 version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies] # In alphabetical order
 arrow = { version = "6.0", features = ["prettyprint"] }
