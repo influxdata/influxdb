@@ -2,7 +2,7 @@
 name = "observability_deps"
 version = "0.1.0"
 authors = ["Paul Dix <paul@pauldix.net>"]
-edition = "2018"
+edition = "2021"
 description = "Observability ecosystem dependencies for InfluxDB IOx, to ensure consistent versions and unified updates"
 
 [dependencies] # In alphabetical order

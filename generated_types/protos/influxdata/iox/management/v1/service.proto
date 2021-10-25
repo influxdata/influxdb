@@ -37,10 +37,7 @@ service ManagementService {
 
   rpc RestoreDatabase(RestoreDatabaseRequest) returns (RestoreDatabaseResponse);
 
-  // List deleted databases and their metadata.
-  rpc ListDeletedDatabases(ListDeletedDatabasesRequest) returns (ListDeletedDatabasesResponse);
-
-  // List all databases and their metadata.
+  // List databases with their metadata.
   rpc ListDetailedDatabases(ListDetailedDatabasesRequest) returns (ListDetailedDatabasesResponse);
 
   // List chunks available on this database
@@ -188,12 +185,6 @@ message RestoreDatabaseRequest {
 }
 
 message RestoreDatabaseResponse {}
-
-message ListDeletedDatabasesRequest {}
-
-message ListDeletedDatabasesResponse {
-  repeated DetailedDatabase deleted_databases = 1;
-}
 
 message ListDetailedDatabasesRequest {}
 

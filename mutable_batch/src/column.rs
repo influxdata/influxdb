@@ -1,10 +1,9 @@
 //! A [`Column`] stores the rows for a given column name
 
 use std::fmt::Formatter;
-use std::iter::Enumerate;
+use std::iter::{Enumerate, Zip};
 use std::mem;
 use std::sync::Arc;
-use std::{convert::TryInto, iter::Zip};
 
 use arrow::error::ArrowError;
 use arrow::{

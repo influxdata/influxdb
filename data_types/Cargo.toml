@@ -3,7 +3,7 @@ name = "data_types"
 version = "0.1.0"
 authors = ["pauldix <paul@pauldix.net>"]
 description = "InfluxDB IOx data_types, shared between IOx instances and IOx clients"
-edition = "2018"
+edition = "2021"
 readme = "README.md"
 
 [dependencies] # In alphabetical order

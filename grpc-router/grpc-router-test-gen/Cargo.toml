@@ -2,7 +2,7 @@
 name = "grpc-router-test-gen"
 version = "0.1.0"
 authors = ["Marko Mikulicic <mkm@influxdata.com>"]
-edition = "2018"
+edition = "2021"
 description = "Protobuf used in test for the grpc-router crate; need to be in a separate create because of linter limitations"
 
 [dependencies]

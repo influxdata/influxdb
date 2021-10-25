@@ -105,7 +105,7 @@ impl LoggingConfig {
 
     pub fn with_builder<W>(&self, builder: Builder<W>) -> Builder<BoxMakeWriter>
     where
-        W: MakeWriter + Send + Sync + Clone + 'static,
+        W: for<'writer> MakeWriter<'writer> + Send + Sync + Clone + 'static,
     {
         builder
             .with_log_filter(&self.log_filter)
@@ -129,7 +129,7 @@ pub trait LoggingConfigBuilderExt {
 
 impl<W> LoggingConfigBuilderExt for Builder<W>
 where
-    W: MakeWriter + Send + Sync + Clone + 'static,
+    W: for<'writer> MakeWriter<'writer> + Send + Sync + Clone + 'static,
 {
     fn with_logging_config(self, config: &LoggingConfig) -> Builder<BoxMakeWriter> {
         config.with_builder(self)

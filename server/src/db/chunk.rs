@@ -20,6 +20,7 @@ use predicate::{
 };
 use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
 use read_buffer::RBChunk;
+use schema::InfluxColumnType;
 use schema::{selection::Selection, sort::SortKey, Schema};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -237,6 +238,31 @@ impl DbChunk {
         debug!(?rub_preds, "RUB delete predicates");
         Ok(rub_preds)
     }
+
+    /// Return true if any of the fields called for in the `predicate`
+    /// contain at least 1 null value. Returns false ONLY if all
+    /// fields that pass `predicate` are entirely non null
+    fn fields_have_nulls(&self, predicate: &Predicate) -> bool {
+        self.meta.schema.iter().any(|(influx_column_type, field)| {
+            if matches!(influx_column_type, Some(InfluxColumnType::Field(_)))
+                && predicate.should_include_field(field.name())
+            {
+                match self.meta.table_summary.column(field.name()) {
+                    Some(column_summary) => {
+                        // only if this is false can we return false
+                        column_summary.null_count() > 0
+                    }
+                    None => {
+                        // don't know the stats for this column, so assume there can be nulls
+                        true
+                    }
+                }
+            } else {
+                // not a field column
+                false
+            }
+        })
+    }
 }
 
 impl QueryChunk for DbChunk {
@@ -264,23 +290,12 @@ impl QueryChunk for DbChunk {
             return Ok(PredicateMatch::Zero);
         }
 
-        // TODO apply predicate pruning here...
-
         let pred_result = match &self.state {
             State::MutableBuffer { chunk, .. } => {
-                if predicate.has_exprs() {
-                    // TODO: Support more predicates
+                if predicate.has_exprs() || chunk.has_timerange(&predicate.range) {
+                    // TODO some more work to figure out if we
+                    // definite have / do not have result
                     PredicateMatch::Unknown
-                } else if chunk.has_timerange(&predicate.range) {
-                    // Note: this isn't precise / correct: if the
-                    // chunk has the timerange, some other part of the
-                    // predicate may rule out the rows, and thus
-                    // without further work this clause should return
-                    // "Unknown" rather than falsely claiming that
-                    // there is at least one row:
-                    //
-                    // https://github.com/influxdata/influxdb_iox/issues/1590
-                    PredicateMatch::AtLeastOne
                 } else {
                     PredicateMatch::Zero
                 }
@@ -305,19 +320,21 @@ impl QueryChunk for DbChunk {
                 // on meta-data only. This should be possible without needing to
                 // know the execution engine the chunk is held in.
                 if chunk.satisfies_predicate(&rb_predicate) {
-                    PredicateMatch::AtLeastOne
+                    // if any of the fields referred to in the
+                    // predicate has nulls, don't know without more
+                    // work if the rows that matched had non null values
+                    if self.fields_have_nulls(predicate) {
+                        PredicateMatch::Unknown
+                    } else {
+                        PredicateMatch::AtLeastOneNonNullField
+                    }
                 } else {
                     PredicateMatch::Zero
                 }
             }
             State::ParquetFile { chunk, .. } => {
-                if predicate.has_exprs() {
-                    // TODO: Support more predicates
+                if predicate.has_exprs() || chunk.has_timerange(predicate.range.as_ref()) {
                     PredicateMatch::Unknown
-                } else if chunk.has_timerange(predicate.range.as_ref()) {
-                    // As above, this should really be "Unknown" rather than AtLeastOne
-                    // for precision / correctness.
-                    PredicateMatch::AtLeastOne
                 } else {
                     PredicateMatch::Zero
                 }

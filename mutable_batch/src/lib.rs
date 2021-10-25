@@ -175,6 +175,20 @@ impl MutableBatch {
         Ok(())
     }
 
+    /// Extend this [`MutableBatch`] with `ranges` rows from `other`
+    pub fn extend_from_ranges(
+        &mut self,
+        other: &Self,
+        ranges: &[Range<usize>],
+    ) -> writer::Result<()> {
+        let to_insert = ranges.iter().map(|x| x.end - x.start).sum();
+
+        let mut writer = writer::Writer::new(self, to_insert);
+        writer.write_batch_ranges(other, ranges)?;
+        writer.commit();
+        Ok(())
+    }
+
     /// Returns a reference to the specified column
     pub(crate) fn column(&self, column: &str) -> Result<&Column> {
         let idx = self

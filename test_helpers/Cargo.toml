@@ -2,11 +2,11 @@
 name = "test_helpers"
 version = "0.1.0"
 authors = ["Paul Dix <paul@pauldix.net>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies] # In alphabetical order
 dotenv = "0.15.0"
 parking_lot = "0.11.2"
 tempfile = "3.1.0"
-tracing-subscriber = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 observability_deps = { path = "../observability_deps" }

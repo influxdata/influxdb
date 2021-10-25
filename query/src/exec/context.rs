@@ -22,20 +22,17 @@ use futures::TryStreamExt;
 use observability_deps::tracing::{debug, trace};
 use trace::{ctx::SpanContext, span::SpanRecorder};
 
-use crate::{
-    exec::{
-        fieldlist::{FieldList, IntoFieldList},
-        non_null_checker::NonNullCheckerExec,
-        query_tracing::TracedStream,
-        schema_pivot::{SchemaPivotExec, SchemaPivotNode},
-        seriesset::{
-            converter::{GroupGenerator, SeriesSetConverter},
-            series::Series,
-        },
-        split::StreamSplitExec,
-        stringset::{IntoStringSet, StringSetRef},
+use crate::exec::{
+    fieldlist::{FieldList, IntoFieldList},
+    non_null_checker::NonNullCheckerExec,
+    query_tracing::TracedStream,
+    schema_pivot::{SchemaPivotExec, SchemaPivotNode},
+    seriesset::{
+        converter::{GroupGenerator, SeriesSetConverter},
+        series::Series,
     },
-    plan::stringset::TableNamePlanBuilder,
+    split::StreamSplitExec,
+    stringset::{IntoStringSet, StringSetRef},
 };
 
 use crate::plan::{
@@ -487,25 +484,6 @@ impl IOxExecutionContext {
                 .into_stringset()
                 .map_err(|e| Error::Execution(format!("Error converting to stringset: {}", e))),
         }
-    }
-
-    /// Executes table_plans and, if returns some rows, add that table into the return list
-    /// Tables discovered from meta data won't need any plan
-    pub async fn to_table_names(&self, builder: TableNamePlanBuilder) -> Result<StringSetRef> {
-        let ctx = self.child_ctx("to_table_names");
-
-        // first get all meta data tables
-        let mut tables = builder.meta_data_table_names().clone();
-
-        // Now run each plan and if it returns data, add it table in
-        let table_plans = builder.table_plans();
-        for (table, plan) in table_plans {
-            if !ctx.run_logical_plan(plan).await?.is_empty() {
-                tables.insert(table.clone());
-            }
-        }
-
-        Ok(Arc::new(tables))
     }
 
     /// Run the plan and return a record batch reader for reading the results
