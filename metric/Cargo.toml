@@ -2,7 +2,7 @@
 name = "metric"
 version = "0.1.0"
 authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies] # In alphabetical order
 
