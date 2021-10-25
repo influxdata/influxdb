@@ -6,7 +6,8 @@ use crate::{
     end_to_end_cases::scenario::{rand_name, DatabaseBuilder},
 };
 use arrow_util::assert_batches_sorted_eq;
-use entry::{test_helpers::lp_to_entry, Entry};
+use entry::test_helpers::lp_to_entry;
+use futures::StreamExt;
 use generated_types::influxdata::iox::management::v1::{
     write_buffer_connection::Direction as WriteBufferDirection, WriteBufferConnection,
 };
@@ -14,36 +15,35 @@ use influxdb_iox_client::{
     management::{generated_types::WriteBufferCreationConfig, CreateDatabaseError},
     write::WriteError,
 };
-use rdkafka::{
-    consumer::{Consumer, StreamConsumer},
-    producer::{FutureProducer, FutureRecord},
-    ClientConfig, Message, Offset, TopicPartitionList,
-};
-use std::convert::TryFrom;
+use std::sync::Arc;
 use tempfile::TempDir;
 use test_helpers::assert_contains;
-use write_buffer::{kafka::test_utils::kafka_sequencer_options, maybe_skip_kafka_integration};
+use time::SystemProvider;
+use write_buffer::{
+    core::{WriteBufferReading, WriteBufferWriting},
+    file::{FileBufferConsumer, FileBufferProducer},
+};
 
 #[tokio::test]
-async fn writes_go_to_kafka() {
-    let kafka_connection = maybe_skip_kafka_integration!();
+async fn writes_go_to_write_buffer() {
+    let write_buffer_dir = TempDir::new().unwrap();
 
-    // set up a database with a write buffer pointing at kafka
+    // set up a database with a write buffer pointing at write buffer
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
         direction: WriteBufferDirection::Write.into(),
-        r#type: "kafka".to_string(),
-        connection: kafka_connection.to_string(),
+        r#type: "file".to_string(),
+        connection: write_buffer_dir.path().display().to_string(),
         creation_config: Some(WriteBufferCreationConfig {
             n_sequencers: 1,
-            options: kafka_sequencer_options(),
+            ..Default::default()
         }),
         ..Default::default()
     };
 
     DatabaseBuilder::new(db_name.clone())
-        .write_buffer(write_buffer_connection)
+        .write_buffer(write_buffer_connection.clone())
         .build(server.grpc_channel())
         .await;
 
@@ -62,43 +62,32 @@ async fn writes_go_to_kafka() {
         .expect("cannot write");
     assert_eq!(num_lines_written, 3);
 
-    // check the data is in kafka
-    let mut cfg = ClientConfig::new();
-    cfg.set("bootstrap.servers", kafka_connection);
-    cfg.set("session.timeout.ms", "6000");
-    cfg.set("enable.auto.commit", "false");
-    cfg.set("group.id", "placeholder");
-
-    let consumer: StreamConsumer = cfg.create().unwrap();
-    let mut topics = TopicPartitionList::new();
-    topics.add_partition(&db_name, 0);
-    topics
-        .set_partition_offset(&db_name, 0, Offset::Beginning)
-        .unwrap();
-    consumer.assign(&topics).unwrap();
-
-    let message = consumer.recv().await.unwrap();
-    assert_eq!(message.topic(), db_name);
-
-    let entry = Entry::try_from(message.payload().unwrap().to_vec()).unwrap();
+    // check the data is in write buffer
+    let mut consumer =
+        FileBufferConsumer::new(write_buffer_dir.path(), &db_name, Default::default(), None)
+            .await
+            .unwrap();
+    let (_, mut stream) = consumer.streams().into_iter().next().unwrap();
+    let sequenced_entry = stream.stream.next().await.unwrap().unwrap();
+    let entry = sequenced_entry.entry();
     let partition_writes = entry.partition_writes().unwrap();
     assert_eq!(partition_writes.len(), 2);
 }
 
 #[tokio::test]
-async fn writes_go_to_kafka_whitelist() {
-    let kafka_connection = maybe_skip_kafka_integration!();
+async fn writes_go_to_write_buffer_whitelist() {
+    let write_buffer_dir = TempDir::new().unwrap();
 
-    // set up a database with a write buffer pointing at kafka
+    // set up a database with a write buffer pointing at write buffer
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
         direction: WriteBufferDirection::Write.into(),
-        r#type: "kafka".to_string(),
-        connection: kafka_connection.to_string(),
+        r#type: "file".to_string(),
+        connection: write_buffer_dir.path().display().to_string(),
         creation_config: Some(WriteBufferCreationConfig {
             n_sequencers: 1,
-            options: kafka_sequencer_options(),
+            ..Default::default()
         }),
         ..Default::default()
     };
@@ -125,99 +114,74 @@ async fn writes_go_to_kafka_whitelist() {
         .expect("cannot write");
     assert_eq!(num_lines_written, 4);
 
-    // check the data is in kafka
-    let mut cfg = ClientConfig::new();
-    cfg.set("bootstrap.servers", kafka_connection);
-    cfg.set("session.timeout.ms", "6000");
-    cfg.set("enable.auto.commit", "false");
-    cfg.set("group.id", "placeholder");
-
-    let consumer: StreamConsumer = cfg.create().unwrap();
-    let mut topics = TopicPartitionList::new();
-    topics.add_partition(&db_name, 0);
-    topics
-        .set_partition_offset(&db_name, 0, Offset::Beginning)
-        .unwrap();
-    consumer.assign(&topics).unwrap();
-
-    let message = consumer.recv().await.unwrap();
-    assert_eq!(message.topic(), db_name);
-
-    let entry = Entry::try_from(message.payload().unwrap().to_vec()).unwrap();
+    // check the data is in write buffer
+    let mut consumer =
+        FileBufferConsumer::new(write_buffer_dir.path(), &db_name, Default::default(), None)
+            .await
+            .unwrap();
+    let (_, mut stream) = consumer.streams().into_iter().next().unwrap();
+    let sequenced_entry = stream.stream.next().await.unwrap().unwrap();
+    let entry = sequenced_entry.entry();
     let partition_writes = entry.partition_writes().unwrap();
     assert_eq!(partition_writes.len(), 1);
 }
 
-async fn produce_to_kafka_directly(
-    producer: &FutureProducer,
-    lp: &str,
-    topic: &str,
-    partition: Option<i32>,
-) {
-    let entry = lp_to_entry(lp);
-    let mut record: FutureRecord<'_, String, _> = FutureRecord::to(topic).payload(entry.data());
-
-    if let Some(pid) = partition {
-        record = record.partition(pid);
-    }
-
-    producer
-        .send_result(record)
-        .unwrap()
-        .await
-        .unwrap()
-        .unwrap();
-}
-
 #[tokio::test]
-async fn reads_come_from_kafka() {
-    let kafka_connection = maybe_skip_kafka_integration!();
+async fn reads_come_from_write_buffer() {
+    let write_buffer_dir = TempDir::new().unwrap();
 
-    // set up a database to read from Kafka
+    // set up a database to read from write buffer
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
         direction: WriteBufferDirection::Read.into(),
-        r#type: "kafka".to_string(),
-        connection: kafka_connection.to_string(),
+        r#type: "file".to_string(),
+        connection: write_buffer_dir.path().display().to_string(),
         creation_config: Some(WriteBufferCreationConfig {
             n_sequencers: 2,
-            options: kafka_sequencer_options(),
+            ..Default::default()
         }),
         ..Default::default()
     };
-
-    // Common Kafka config
-    let mut cfg = ClientConfig::new();
-    cfg.set("bootstrap.servers", &kafka_connection);
-    cfg.set("message.timeout.ms", "5000");
 
     DatabaseBuilder::new(db_name.clone())
         .write_buffer(write_buffer_connection)
         .build(server.grpc_channel())
         .await;
 
-    // put some points in Kafka
-    let producer: FutureProducer = cfg.create().unwrap();
+    // put some points in write buffer
+    let time_provider = Arc::new(SystemProvider::new());
+    let producer = FileBufferProducer::new(
+        write_buffer_dir.path(),
+        &db_name,
+        Default::default(),
+        time_provider,
+    )
+    .await
+    .unwrap();
+    let mut sequencer_ids = producer.sequencer_ids().into_iter();
+    let sequencer_id_1 = sequencer_ids.next().unwrap();
+    let sequencer_id_2 = sequencer_ids.next().unwrap();
 
-    // Kafka partitions must be configured based on the primary key because ordering across Kafka
-    // partitions is undefined, so the upsert semantics would be undefined. Entries that can
-    // potentially be merged must end up in the same Kafka partition. This test follows that
-    // constraint, but doesn't actually encode it.
-
-    // Put some data for `upc,region=west` in partition 0
+    // Put some data for `upc,region=west` in sequencer 1
     let lp_lines = [
         "upc,region=west user=23.2 100",
         "upc,region=west user=21.0 150",
     ];
-    produce_to_kafka_directly(&producer, &lp_lines.join("\n"), &db_name, Some(0)).await;
+    producer
+        .store_entry(&lp_to_entry(&lp_lines.join("\n")), sequencer_id_1, None)
+        .await
+        .unwrap();
 
-    // Put some data for `upc,region=east` in partition 1
+    // Put some data for `upc,region=east` in sequencer 2
     let lp_lines = [
         "upc,region=east user=76.2 300",
         "upc,region=east user=88.7 350",
     ];
-    produce_to_kafka_directly(&producer, &lp_lines.join("\n"), &db_name, Some(1)).await;
+    producer
+        .store_entry(&lp_to_entry(&lp_lines.join("\n")), sequencer_id_2, None)
+        .await
+        .unwrap();
 
     let check = async {
         let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
@@ -265,19 +229,19 @@ async fn reads_come_from_kafka() {
 }
 
 #[tokio::test]
-async fn cant_write_to_db_reading_from_kafka() {
-    let kafka_connection = maybe_skip_kafka_integration!();
+async fn cant_write_to_db_reading_from_write_buffer() {
+    let write_buffer_dir = TempDir::new().unwrap();
 
     // set up a database to read from Kafka
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
         direction: WriteBufferDirection::Read.into(),
-        r#type: "kafka".to_string(),
-        connection: kafka_connection.to_string(),
+        r#type: "file".to_string(),
+        connection: write_buffer_dir.path().display().to_string(),
         creation_config: Some(WriteBufferCreationConfig {
             n_sequencers: 1,
-            options: kafka_sequencer_options(),
+            ..Default::default()
         }),
         ..Default::default()
     };
@@ -306,15 +270,15 @@ async fn cant_write_to_db_reading_from_kafka() {
 
 #[tokio::test]
 async fn test_create_database_missing_write_buffer_sequencers() {
-    let kafka_connection = maybe_skip_kafka_integration!();
+    let write_buffer_dir = TempDir::new().unwrap();
 
     // set up a database to read from Kafka
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
         direction: WriteBufferDirection::Read.into(),
-        r#type: "kafka".to_string(),
-        connection: kafka_connection.to_string(),
+        r#type: "file".to_string(),
+        connection: write_buffer_dir.path().display().to_string(),
         ..Default::default()
     };
 
@@ -359,7 +323,7 @@ pub async fn test_cross_write_buffer_tracing() {
         connection: write_buffer_dir.path().display().to_string(),
         creation_config: Some(WriteBufferCreationConfig {
             n_sequencers: 1,
-            options: kafka_sequencer_options(),
+            ..Default::default()
         }),
         ..Default::default()
     };

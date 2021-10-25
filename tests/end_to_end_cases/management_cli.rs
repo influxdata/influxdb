@@ -8,8 +8,8 @@ use generated_types::google::longrunning::IoxOperation;
 use generated_types::influxdata::iox::management::v1::{
     operation_metadata::Job, WipePreservedCatalog,
 };
+use tempfile::TempDir;
 use test_helpers::make_temp_file;
-use write_buffer::maybe_skip_kafka_integration;
 
 use crate::{
     common::server_fixture::ServerFixture,
@@ -910,9 +910,9 @@ async fn test_wipe_persisted_catalog_error_db_exists() {
 
 #[tokio::test]
 async fn test_skip_replay() {
-    let kafka_connection = maybe_skip_kafka_integration!();
+    let write_buffer_dir = TempDir::new().unwrap();
     let db_name = rand_name();
-    let server_fixture = fixture_replay_broken(&db_name, &kafka_connection).await;
+    let server_fixture = fixture_replay_broken(&db_name, write_buffer_dir.path()).await;
     let addr = server_fixture.grpc_base();
 
     Command::cargo_bin("influxdb_iox")
