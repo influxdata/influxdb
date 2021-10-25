@@ -139,6 +139,10 @@ const (
 	NotebooksResourceType = ResourceType("notebooks") // 18
 	// AnnotationsResourceType gives permission to one or more annotations.
 	AnnotationsResourceType = ResourceType("annotations") // 19
+	// RemotesResourceType gives permission to one or more remote connections.
+	RemotesResourceType = ResourceType("remotes") // 20
+	// ReplicationsResourceType gives permission to one or more replications.
+	ReplicationsResourceType = ResourceType("replications") // 21
 )
 
 // AllResourceTypes is the list of all known resource types.
@@ -163,26 +167,9 @@ var AllResourceTypes = []ResourceType{
 	DBRPResourceType,                 // 17
 	NotebooksResourceType,            // 18
 	AnnotationsResourceType,          // 19
+	RemotesResourceType,              // 20
+	ReplicationsResourceType,         // 21
 	// NOTE: when modifying this list, please update the swagger for components.schemas.Permission resource enum.
-}
-
-// OrgResourceTypes is the list of all known resource types that belong to an organization.
-var OrgResourceTypes = []ResourceType{
-	BucketsResourceType,              // 1
-	DashboardsResourceType,           // 2
-	SourcesResourceType,              // 4
-	TasksResourceType,                // 5
-	TelegrafsResourceType,            // 6
-	UsersResourceType,                // 7
-	VariablesResourceType,            // 8
-	SecretsResourceType,              // 10
-	DocumentsResourceType,            // 13
-	NotificationRuleResourceType,     // 14
-	NotificationEndpointResourceType, // 15
-	ChecksResourceType,               // 16
-	DBRPResourceType,                 // 17
-	NotebooksResourceType,            // 18
-	AnnotationsResourceType,          // 19
 }
 
 // Valid checks if the resource type is a member of the ResourceType enum.
@@ -213,6 +200,8 @@ func (t ResourceType) Valid() (err error) {
 	case DBRPResourceType: // 17
 	case NotebooksResourceType: // 18
 	case AnnotationsResourceType: // 19
+	case RemotesResourceType: // 20
+	case ReplicationsResourceType: // 21
 	default:
 		err = ErrInvalidResourceType
 	}

@@ -43,5 +43,7 @@ var Migrations = [...]migration.Spec{
 	Migration0017_AddAnnotationsNotebooksToAllAccessTokens,
 	// repair missing shard group durations
 	Migration0018_RepairMissingShardGroupDurations,
+	// add remotes and replications resource types to operator and all-access tokens
+	Migration0019_AddRemotesReplicationsToTokens,
 	// {{ do_not_edit . }}
 }

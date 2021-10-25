@@ -43,6 +43,8 @@ func TestResourceListHandler(t *testing.T) {
 		string(influxdb.DBRPResourceType),
 		string(influxdb.NotebooksResourceType),
 		string(influxdb.AnnotationsResourceType),
+		string(influxdb.RemotesResourceType),
+		string(influxdb.ReplicationsResourceType),
 	}
 
 	resp := w.Result()
