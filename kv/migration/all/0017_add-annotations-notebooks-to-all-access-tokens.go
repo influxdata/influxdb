@@ -36,7 +36,7 @@ var Migration0017_AddAnnotationsNotebooksToAllAccessTokens = UpOnlyMigration(
 
 				// Add any tokens to the list that match the list of permission from an
 				// "old" all-access token
-				if permListsMatch(oldAllAccessPerms(t.OrgID), t.Permissions) {
+				if permListsMatch(oldAllAccessPerms(t.OrgID, t.UserID), t.Permissions) {
 					tokens = append(tokens, t)
 				}
 
@@ -88,10 +88,24 @@ func extraAllAccessPerms(orgId platform.ID) []influxdb.Permission {
 
 // oldAllAccessPerms is the list of permissions from an "old" all-access token - prior to
 // the addition of the notebooks an annotations resource type.
-func oldAllAccessPerms(orgId platform.ID) []influxdb.Permission {
-	perms := oldOpPerms()
-	for i := range perms {
-		perms[i].Resource.OrgID = &orgId
+func oldAllAccessPerms(orgId platform.ID, userId platform.ID) []influxdb.Permission {
+	opPerms := oldOpPerms()
+	perms := make([]influxdb.Permission, 0, len(opPerms)-1) // -1 because write-org permission isn't included.
+	for _, p := range opPerms {
+		if p.Resource.Type == influxdb.OrgsResourceType {
+			// All-access grants read-only access to the enclosing org.
+			if p.Action == influxdb.WriteAction {
+				continue
+			}
+			p.Resource.ID = &orgId
+		} else if p.Resource.Type == influxdb.UsersResourceType {
+			// It grants read and write access to the associated user.
+			p.Resource.ID = &userId
+		} else {
+			// It grants read and write access to all other resources in the enclosing org.
+			p.Resource.OrgID = &orgId
+		}
+		perms = append(perms, p)
 	}
 	return perms
 }
