@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/opentracing/opentracing-go/log"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/influxdata/influxdb/v2"
@@ -216,9 +217,6 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 	}
 	if request.MaxQueueSizeBytes != nil {
 		updates["max_queue_size_bytes"] = *request.MaxQueueSizeBytes
-		if err := s.durableQueueManager.UpdateMaxQueueSize(*request.RemoteID, *request.MaxQueueSizeBytes); err != nil {
-			return nil, err
-		}
 	}
 
 	q := sq.Update("replications").SetMap(updates).Where(sq.Eq{"id": id}).
@@ -238,6 +236,12 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 			return nil, errRemoteNotFound(*request.RemoteID, err)
 		}
 		return nil, err
+	}
+
+	if request.MaxQueueSizeBytes != nil {
+		if err := s.durableQueueManager.UpdateMaxQueueSize(*request.RemoteID, *request.MaxQueueSizeBytes); err != nil {
+			return nil, err
+		}
 	}
 	return &r, nil
 }
@@ -271,10 +275,6 @@ func (s service) DeleteReplication(ctx context.Context, id platform.ID) error {
 	s.store.Mu.Lock()
 	defer s.store.Mu.Unlock()
 
-	if err := s.durableQueueManager.DeleteQueue(id); err != nil {
-		return err
-	}
-
 	q := sq.Delete("replications").Where(sq.Eq{"id": id}).Suffix("RETURNING id")
 	query, args, err := q.ToSql()
 	if err != nil {
@@ -288,6 +288,11 @@ func (s service) DeleteReplication(ctx context.Context, id platform.ID) error {
 		}
 		return err
 	}
+
+	if err := s.durableQueueManager.DeleteQueue(id); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -306,19 +311,26 @@ func (s service) DeleteBucketReplications(ctx context.Context, localBucketID pla
 		return err
 	}
 
+	errOccurred := false
 	for _, replication := range deleted {
 		id, err := platform.IDFromString(replication)
 		if err != nil {
-			return err
+			log.Error(err)
+			errOccurred = true
 		}
 
 		if err := s.durableQueueManager.DeleteQueue(*id); err != nil {
-			return err
+			log.Error(err)
+			errOccurred = true
 		}
 	}
 
 	s.log.Debug("Deleted all replications for local bucket",
 		zap.String("bucket_id", localBucketID.String()), zap.Strings("ids", deleted))
+
+	if errOccurred {
+		return fmt.Errorf("deleting replications for bucket %q failed, see server logs for details", localBucketID)
+	}
 
 	return nil
 }

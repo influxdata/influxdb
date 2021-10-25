@@ -30,14 +30,18 @@ func NewDurableQueueManager(log *zap.Logger, enginePath string) *durableQueueMan
 
 // InitializeQueue creates a new durable queue which is associated with a replication stream.
 func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error {
+	// Check for duplicate replication ID
+	if _, exists := qm.replicationQueues[replicationID]; exists {
+		return fmt.Errorf("durable queue already exists for replication ID %q", replicationID)
+	}
+
 	// Set up path for new queue on disk
 	dir := filepath.Join(
 		qm.enginePath,
 		"replicationq",
 		replicationID.String(),
 	)
-	err := os.MkdirAll(dir, 0777)
-	if err != nil {
+	if err := os.MkdirAll(dir, 0777); err != nil {
 		return err
 	}
 
@@ -61,8 +65,7 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 	qm.replicationQueues[replicationID] = newQueue
 
 	// Open the new queue
-	err = newQueue.Open()
-	if err != nil {
+	if err := newQueue.Open(); err != nil {
 		return err
 	}
 
@@ -79,18 +82,20 @@ func (qm *durableQueueManager) DeleteQueue(replicationID platform.ID) error {
 	}
 
 	// Close the queue
-	err := qm.replicationQueues[replicationID].Close()
-	if err != nil {
+	if err := qm.replicationQueues[replicationID].Close(); err != nil {
 		return err
 	}
+
+	qm.logger.Debug("Closed replication stream durable queue",
+		zap.String("id", replicationID.String()), zap.String("path", qm.replicationQueues[replicationID].Dir()))
+
 
 	// Delete any enqueued, un-flushed data on disk for this queue
-	err = qm.replicationQueues[replicationID].Remove()
-	if err != nil {
+	if err := qm.replicationQueues[replicationID].Remove(); err != nil {
 		return err
 	}
 
-	qm.logger.Debug("Closed replication stream durable queue and deleted its data on disk",
+	qm.logger.Debug("Deleted data associated with replication stream durable queue",
 		zap.String("id", replicationID.String()), zap.String("path", qm.replicationQueues[replicationID].Dir()))
 
 	// Remove entry from replicationQueues map
@@ -105,8 +110,7 @@ func (qm *durableQueueManager) UpdateMaxQueueSize(replicationID platform.ID, max
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}
 
-	err := qm.replicationQueues[replicationID].SetMaxSize(maxQueueSizeBytes)
-	if err != nil {
+	if err := qm.replicationQueues[replicationID].SetMaxSize(maxQueueSizeBytes); err != nil {
 		return err
 	}
 

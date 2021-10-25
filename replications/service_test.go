@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	sq "github.com/Masterminds/squirrel"
@@ -96,6 +98,8 @@ func TestCreateAndGetReplication(t *testing.T) {
 	created, err := svc.CreateReplication(ctx, createReq)
 	require.NoError(t, err)
 	require.Equal(t, replication, *created)
+	queuePath := filepath.Join(os.Getenv("HOME"), ".influxdbv2", "engine", "replicationq", initID.String())
+	require.DirExists(t, queuePath)
 
 	// Read the created replication and assert it matches the creation response.
 	got, err = svc.GetReplication(ctx, initID)
@@ -556,6 +560,7 @@ func TestListReplications(t *testing.T) {
 type mocks struct {
 	bucketSvc *replicationsMock.MockBucketService
 	validator *replicationsMock.MockReplicationValidator
+	durableQueueManager *replicationsMock.MockDurableQueueManager
 }
 
 func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
@@ -572,6 +577,7 @@ func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
 	mocks := mocks{
 		bucketSvc: replicationsMock.NewMockBucketService(ctrl),
 		validator: replicationsMock.NewMockReplicationValidator(ctrl),
+		durableQueueManager: replicationsMock.NewMockDurableQueueManager(ctrl),
 	}
 	svc := service{
 		store:         store,
@@ -579,6 +585,7 @@ func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
 		bucketService: mocks.bucketSvc,
 		validator:     mocks.validator,
 		log:           logger,
+		durableQueueManager: mocks.durableQueueManager,
 	}
 
 	return &svc, mocks, clean
