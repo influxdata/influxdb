@@ -355,14 +355,14 @@ jobs:
       - rust_components
       - cache_restore
       - run:
-          name: Print rustc target CPU options
-          command: cargo run --release --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc" --bin print_cpu
-      - run:
           name: Cargo release build with target arch set for CRoaring
           command: cargo build --release --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc"
       - run: |
           echo sha256sum after build is
           sha256sum target/release/influxdb_iox
+      - run:
+          name: Print rustc target CPU options
+          command: target/release/influxdb_iox debug print-cpu
       - setup_remote_docker:
           # There seems to be a cache invalidation bug in docker
           # or in the way that circleci implements layer caching.

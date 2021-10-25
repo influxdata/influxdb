@@ -2,6 +2,7 @@ use snafu::{ResultExt, Snafu};
 use structopt::StructOpt;
 
 mod dump_catalog;
+mod print_cpu;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -22,6 +23,9 @@ pub struct Config {
 enum Command {
     /// Dump preserved catalog.
     DumpCatalog(dump_catalog::Config),
+
+    /// Prints what CPU features are used by the compiler by default.
+    PrintCpu,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -29,5 +33,9 @@ pub async fn command(config: Config) -> Result<()> {
         Command::DumpCatalog(dump_catalog) => dump_catalog::command(dump_catalog)
             .await
             .context(DumpCatalogError),
+        Command::PrintCpu => {
+            print_cpu::main();
+            Ok(())
+        }
     }
 }
