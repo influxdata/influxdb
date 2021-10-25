@@ -62,6 +62,8 @@ workflows:
           - << pipeline.parameters.aws_teardown >>
           - << pipeline.parameters.build_and_sign >>
     jobs:
+      - changelog:
+          nightly: false
       - godeps
       - test-race:
           # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
@@ -1123,18 +1125,10 @@ jobs:
     parameters:
       nightly:
         type: boolean
-    machine:
-      image: ubuntu-2004:202010-01
+    docker:
+      - image: quay.io/influxdb/changelogger:latest
     steps:
       - checkout
-      - install_core_deps
-      - run:
-          name: Install git-cliff
-          command: |
-            set -x
-            git clone --depth=1 --branch v0.2.5 https://github.com/orhun/git-cliff
-            cd git-cliff
-            cargo install git-cliff
       - when:
           condition: << parameters.nightly >>
           steps:
