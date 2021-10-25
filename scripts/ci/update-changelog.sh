@@ -1,7 +1,7 @@
 #!/bin/bash -ex
 
 
-dependencies="cargo git git-cliff"
+dependencies="git git-cliff"
 
 for dependency in $dependencies
 do
