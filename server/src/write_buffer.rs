@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 
 use entry::SequencedEntry;
 use observability_deps::tracing::{debug, error, info, warn};
+use trace::span::SpanRecorder;
 use write_buffer::core::{FetchHighWatermark, WriteBufferError, WriteBufferReading};
 
 use crate::Db;
@@ -151,9 +152,11 @@ async fn stream_in_sequenced_entries<'a>(
         // store entry
         let mut logged_hard_limit = false;
         loop {
-            let span_context = sequenced_entry
-                .span_context()
-                .map(|parent| parent.child("IOx write buffer"));
+            let mut span_recorder = SpanRecorder::new(
+                sequenced_entry
+                    .span_context()
+                    .map(|parent| parent.child("IOx write buffer")),
+            );
 
             match db.store_sequenced_entry(
                 Arc::clone(&sequenced_entry),
@@ -161,11 +164,7 @@ async fn stream_in_sequenced_entries<'a>(
             ) {
                 Ok(_) => {
                     metrics.success();
-
-                    if let Some(mut span_context) = span_context {
-                        span_context.ok("stored entry");
-                        span_context.export();
-                    }
+                    span_recorder.ok("stored entry");
 
                     break;
                 }
@@ -179,11 +178,7 @@ async fn stream_in_sequenced_entries<'a>(
                         );
                         logged_hard_limit = true;
                     }
-
-                    if let Some(mut span_context) = span_context {
-                        span_context.error("hard limit reached");
-                        span_context.export();
-                    }
+                    span_recorder.error("hard limit reached");
 
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     continue;
@@ -195,11 +190,7 @@ async fn stream_in_sequenced_entries<'a>(
                         sequencer_id,
                         "Error storing SequencedEntry from write buffer in database"
                     );
-
-                    if let Some(mut span_context) = span_context {
-                        span_context.error("cannot store entry");
-                        span_context.export();
-                    }
+                    span_recorder.error("cannot store entry");
 
                     // no retry
                     break;
