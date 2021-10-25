@@ -189,10 +189,9 @@ where
     ) -> Result<Response<RestoreDatabaseResponse>, Status> {
         let request = request.into_inner();
         let db_name = DatabaseName::new(request.db_name).field("db_name")?;
-        let generation_id = request.generation_id;
 
         self.server
-            .restore_database(&db_name, generation_id)
+            .restore_database(&db_name)
             .await
             .map_err(default_server_error_handler)?;
 
@@ -209,7 +208,12 @@ where
             .await
             .map_err(default_server_error_handler)?
             .into_iter()
-            .map(Into::into)
+            .map(|name| {
+                DetailedDatabase {
+                    db_name: name,
+                    deleted_at: None, // TEMP: this will be removed
+                }
+            })
             .collect();
 
         Ok(Response::new(ListDetailedDatabasesResponse { databases }))

@@ -139,8 +139,7 @@ struct Create {
 /// Get list of databases
 #[derive(Debug, StructOpt)]
 struct List {
-    /// Whether to list detailed information about the databases, such as generation IDs along
-    /// with their names.
+    /// Whether to list detailed information about the databases along with their names.
     #[structopt(long)]
     detailed: bool,
 }
@@ -189,13 +188,10 @@ struct Delete {
     name: String,
 }
 
-/// Restore a deleted database generation
+/// Restore a deleted database
 #[derive(Debug, StructOpt)]
 struct Restore {
-    /// The generation ID of the database to restore
-    generation_id: usize,
-
-    /// The name of the database to delete
+    /// The name of the database to restore
     name: String,
 }
 
@@ -264,12 +260,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 let databases = client.list_detailed_databases().await?;
 
                 let mut table = Table::new();
-                table.load_preset("||--+-++|    ++++++");
-                table.set_header(vec![
-                    Cell::new("Deleted at"),
-                    Cell::new("Generation ID"),
-                    Cell::new("Name"),
-                ]);
+                table.load_preset("|    ++++++");
+                table.set_header(vec![Cell::new("Deleted at"), Cell::new("Name")]);
 
                 for database in databases {
                     let deleted_at = database
@@ -279,11 +271,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                             dt.ok().map(|d| d.to_string())
                         })
                         .unwrap_or_else(String::new);
-                    table.add_row(vec![
-                        Cell::new(&deleted_at),
-                        Cell::new(&database.generation_id.to_string()),
-                        Cell::new(&database.db_name),
-                    ]);
+                    table.add_row(vec![Cell::new(&deleted_at), Cell::new(&database.db_name)]);
                 }
 
                 print!("{}", table);
@@ -359,9 +347,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Restore(command) => {
             let mut client = management::Client::new(connection);
-            client
-                .restore_database(&command.name, command.generation_id)
-                .await?;
+            client.restore_database(&command.name).await?;
             println!("Restored database {}", command.name);
         }
     }

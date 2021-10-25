@@ -177,8 +177,9 @@ message DeleteDatabaseRequest {
 message DeleteDatabaseResponse {}
 
 message RestoreDatabaseRequest {
-  // The generation ID of the deleted database.
-  uint64 generation_id = 1;
+  // Was the generation ID of the deleted database.
+  reserved 1;
+  reserved "generation_id";
 
   // the name of the database
   string db_name = 2;
@@ -194,8 +195,9 @@ message ListDetailedDatabasesResponse {
 
 // This resource represents detailed information about a database.
 message DetailedDatabase {
-  // The generation ID of the database.
-  uint64 generation_id = 1;
+  // Was the generation ID of the database.
+  reserved 1;
+  reserved "generation_id";
 
   // The UTC datetime at which this database was deleted, if applicable.
   google.protobuf.Timestamp deleted_at = 2;
@@ -418,7 +420,7 @@ message DatabaseStatus {
     // Error during replay
     DATABASE_STATE_REPLAY_ERROR = 7;
 
-    // Error encountered identifying active generation
+    // Error encountered finding the database's directory in object storage
     DATABASE_STATE_DATABASE_OBJECT_STORE_LOOKUP_ERROR = 9;
   }
 

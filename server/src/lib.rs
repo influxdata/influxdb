@@ -74,7 +74,6 @@ use connection::{ConnectionManager, RemoteServer};
 use data_types::{
     chunk_metadata::ChunkId,
     database_rules::{NodeGroup, RoutingRules, ShardId, Sink},
-    detailed_database::DetailedDatabase,
     error::ErrorLogger,
     job::Job,
     server_id::ServerId,
@@ -260,12 +259,6 @@ pub enum Error {
         stop_time: String,
         predicate: String,
     },
-
-    #[snafu(display("error listing deleted databases in object storage: {}", source))]
-    ListDeletedDatabases { source: object_store::Error },
-
-    #[snafu(display("error listing detailed databases in object storage: {}", source))]
-    ListDetailedDatabases { source: object_store::Error },
 
     #[snafu(display("error persisting server config to object storage: {}", source))]
     PersistServerConfig { source: object_store::Error },
@@ -758,11 +751,7 @@ where
     /// Restore a database and generation that has been marked as deleted. Return an error if no
     /// database with this generation can be found, or if there's already an active database with
     /// this name.
-    pub async fn restore_database(
-        &self,
-        db_name: &DatabaseName<'static>,
-        generation_id: u64,
-    ) -> Result<()> {
+    pub async fn restore_database(&self, db_name: &DatabaseName<'static>) -> Result<()> {
         let database = {
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
@@ -783,30 +772,23 @@ where
             database
         };
 
-        database
-            .restore(generation_id as usize)
-            .await
-            .context(CannotRestoreDatabase)?;
+        database.restore().await.context(CannotRestoreDatabase)?;
 
         database.wait_for_init().await.context(DatabaseInit)?;
 
         Ok(())
     }
 
-    /// List this server's databases in object storage, including their generation IDs.
-    pub async fn list_detailed_databases(&self) -> Result<Vec<DetailedDatabase>> {
-        let server_id = {
-            let state = self.shared.state.read();
-            let initialized = state.initialized()?;
-            initialized.server_id
-        };
-
-        Ok(IoxObjectStore::list_detailed_databases(
-            self.shared.application.object_store(),
-            server_id,
-        )
-        .await
-        .context(ListDetailedDatabases)?)
+    /// List active databases owned by this server
+    pub async fn list_detailed_databases(&self) -> Result<Vec<String>> {
+        Ok(self
+            .databases()?
+            .iter()
+            .filter_map(|db| {
+                db.provided_rules()
+                    .map(|_rules| db.config().name.to_string())
+            })
+            .collect())
     }
 
     /// Write this server's databases out to the server config in object storage.

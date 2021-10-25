@@ -676,12 +676,10 @@ impl Client {
     pub async fn restore_database(
         &mut self,
         db_name: impl Into<String> + Send,
-        generation_id: usize,
     ) -> Result<(), RestoreDatabaseError> {
         self.inner
             .restore_database(RestoreDatabaseRequest {
                 db_name: db_name.into(),
-                generation_id: generation_id as u64,
             })
             .await
             .map_err(|status| match status.code() {

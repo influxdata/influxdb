@@ -8,10 +8,7 @@ use crate::{
     rules::ProvidedDatabaseRules,
     ApplicationState, Db,
 };
-use data_types::{
-    database_rules::WriteBufferDirection, detailed_database::GenerationId, server_id::ServerId,
-    DatabaseName,
-};
+use data_types::{database_rules::WriteBufferDirection, server_id::ServerId, DatabaseName};
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
@@ -286,10 +283,10 @@ impl Database {
         Ok(())
     }
 
-    /// Mark this database generation as restored.
-    pub async fn restore(&self, generation_id: usize) -> Result<(), Error> {
+    /// Create a restored database without any any state.
+    pub async fn restore(&self) -> Result<(), Error> {
         let db_name = &self.shared.config.name;
-        info!(%db_name, %generation_id, "restoring database");
+        info!(%db_name, "restoring database");
 
         let handle = self.shared.state.read().freeze();
         let handle = handle.await;
@@ -304,9 +301,6 @@ impl Database {
             Arc::clone(self.shared.application.object_store()),
             self.shared.config.server_id,
             db_name,
-            GenerationId {
-                inner: generation_id,
-            },
         )
         .await
         .context(CannotRestoreDatabaseInObjectStorage)?;
@@ -1152,8 +1146,7 @@ impl DatabaseStateKnown {
             &shared.config.location,
         )
         .await
-        .context(DatabaseObjectStoreLookup)?
-        .context(NoActiveDatabase)?;
+        .context(DatabaseObjectStoreLookup)?;
 
         Ok(DatabaseStateDatabaseObjectStoreFound {
             iox_object_store: Arc::new(iox_object_store),
@@ -1524,7 +1517,7 @@ mod tests {
             InitError::NoActiveDatabase
         ));
 
-        database.restore(0).await.unwrap();
+        database.restore().await.unwrap();
 
         // Database should re-initialize correctly
         tokio::time::timeout(Duration::from_millis(1), database.wait_for_init())

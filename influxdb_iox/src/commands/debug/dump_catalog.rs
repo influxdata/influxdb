@@ -27,9 +27,6 @@ pub enum Error {
         source: iox_object_store::IoxObjectStoreError,
     },
 
-    #[snafu(display("Cannot find existing IOx object store"))]
-    NoIoxObjectStore,
-
     #[snafu(display("Cannot dump catalog: {}", source))]
     DumpCatalogFailure {
         source: parquet_catalog::dump::Error,
@@ -107,11 +104,9 @@ pub async fn command(config: Config) -> Result<()> {
         ObjectStore::try_from(&config.object_store_config).context(ObjectStoreParsing)?;
     let database_name = DatabaseName::try_from(config.db_name).context(InvalidDbName)?;
     let server_id = config.server_id_config.server_id.context(NoServerId)?;
-    let iox_object_store =
-        IoxObjectStore::load(Arc::new(object_store), server_id, &database_name)
-            .await
-            .context(IoxObjectStoreFailure)?
-            .context(NoIoxObjectStore)?;
+    let iox_object_store = IoxObjectStore::load(Arc::new(object_store), server_id, &database_name)
+        .await
+        .context(IoxObjectStoreFailure)?;
 
     let mut writer = std::io::stdout();
     let options = config.dump_options.into();
