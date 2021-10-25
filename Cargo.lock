@@ -2219,6 +2219,7 @@ dependencies = [
  "bytes",
  "criterion",
  "flate2",
+ "hashbrown",
  "influxdb_line_protocol",
  "mutable_batch",
  "schema",
