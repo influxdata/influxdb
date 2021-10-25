@@ -2,8 +2,7 @@
 
 use crate::{
     influxdb_ioxd::{self, serving_readiness::ServingReadinessState},
-    object_store::ObjectStoreConfig,
-    server_id::ServerIdConfig,
+    structopt_blocks::{object_store::ObjectStoreConfig, server_id::ServerIdConfig},
 };
 use std::{net::SocketAddr, net::ToSocketAddrs};
 use structopt::StructOpt;

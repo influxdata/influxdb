@@ -5,13 +5,13 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{convert::TryFrom, sync::Arc};
 use structopt::StructOpt;
 
-use crate::{object_store::ObjectStoreConfig, server_id::ServerIdConfig};
+use crate::structopt_blocks::{object_store::ObjectStoreConfig, server_id::ServerIdConfig};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Cannot parse object store config: {}", source))]
     ObjectStoreParsing {
-        source: crate::object_store::ParseError,
+        source: crate::structopt_blocks::object_store::ParseError,
     },
 
     #[snafu(display("No server ID provided"))]

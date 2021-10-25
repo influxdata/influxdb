@@ -32,8 +32,7 @@ mod commands {
     pub mod tracing;
 }
 
-mod object_store;
-mod server_id;
+mod structopt_blocks;
 
 pub mod influxdb_ioxd;
 

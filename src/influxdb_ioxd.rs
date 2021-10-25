@@ -1,6 +1,6 @@
 use crate::{
     commands::run::Config,
-    object_store::{check_object_store, warn_about_inmem_store},
+    structopt_blocks::object_store::{check_object_store, warn_about_inmem_store},
 };
 use futures::{future::FusedFuture, pin_mut, FutureExt};
 use hyper::server::conn::AddrIncoming;
@@ -44,12 +44,12 @@ pub enum Error {
 
     #[snafu(display("Cannot parse object store config: {}", source))]
     ObjectStoreParsing {
-        source: crate::object_store::ParseError,
+        source: crate::structopt_blocks::object_store::ParseError,
     },
 
     #[snafu(display("Cannot check object store config: {}", source))]
     ObjectStoreCheck {
-        source: crate::object_store::CheckError,
+        source: crate::structopt_blocks::object_store::CheckError,
     },
 
     #[snafu(display("Cannot create tracing pipeline: {}", source))]
