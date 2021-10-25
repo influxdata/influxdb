@@ -2,7 +2,7 @@
 name = "parquet_file"
 version = "0.1.0"
 authors = ["Nga Tran <nga-tran@live.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies] # In alphabetical order
 arrow = { version = "6.0", features = ["prettyprint"] }

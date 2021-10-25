@@ -2,7 +2,7 @@
 name = "influxdb_line_protocol"
 version = "0.1.0"
 authors = ["Paul Dix <paul@pauldix.net>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies] # In alphabetical order
 nom = "7"

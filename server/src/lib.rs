@@ -876,6 +876,9 @@ where
         // immediately to the client and abort all other outstanding requests.
         futures_util::future::try_join_all(sharded_entries.into_iter().map(
             |sharded_entry| async {
+                // capture entire entry in closure
+                let sharded_entry = sharded_entry;
+
                 let sink = match &rules.routing_rules {
                     Some(RoutingRules::ShardConfig(shard_config)) => {
                         let id = sharded_entry.shard_id.expect("sharded entry");

@@ -2,7 +2,7 @@
 name = "influxdb_tsm"
 version = "0.1.0"
 authors = ["Edd Robinson <me@edd.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies] # In alphabetical order
 integer-encoding = "3.0.2"

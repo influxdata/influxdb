@@ -2,7 +2,7 @@
 name = "server_benchmarks"
 version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
-edition = "2018"
+edition = "2021"
 description = "Server related bechmarks, grouped into their own crate to minimize build dev build times"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
