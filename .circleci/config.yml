@@ -187,6 +187,8 @@ workflows:
               only:
                 - "2.1"
     jobs:
+      - changelog:
+          nightly: true
       - godeps
       - test-race:
           # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
