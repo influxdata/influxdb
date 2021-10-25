@@ -1655,6 +1655,8 @@ func (s *Store) TagKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs
 		return nil, err
 	}
 
+	filterExpr = fixBadQuoteTagValueClause(filterExpr)
+
 	// Get all the shards we're interested in.
 	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
 	s.mu.RLock()
@@ -1820,6 +1822,27 @@ func isTagKeyClause(e influxql.Expr) (bool, error) {
 		return isTagKeyClause(e.Expr)
 	}
 	return false, nil
+}
+
+func fixBadQuoteTagValueClause(e influxql.Expr) influxql.Expr {
+	switch e := e.(type) {
+	case *influxql.BinaryExpr:
+		switch e.Op {
+		case influxql.EQ, influxql.NEQ:
+			_, lOk := e.LHS.(*influxql.VarRef)
+			_, rOk := e.RHS.(*influxql.VarRef)
+			if lOk && rOk {
+				return &influxql.BooleanLiteral{Val: false}
+			}
+		case influxql.OR, influxql.AND:
+			e.LHS = fixBadQuoteTagValueClause(e.LHS)
+			e.RHS = fixBadQuoteTagValueClause(e.RHS)
+			return e
+		}
+	case *influxql.ParenExpr:
+		return fixBadQuoteTagValueClause(e.Expr)
+	}
+	return e
 }
 
 // TagValues returns the tag keys and values for the provided shards, where the
