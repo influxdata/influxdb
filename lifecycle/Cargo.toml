@@ -2,7 +2,7 @@
 name = "lifecycle"
 version = "0.1.0"
 authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Implements the IOx data lifecycle"
 
 [dependencies]

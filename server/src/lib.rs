@@ -876,6 +876,9 @@ where
         // immediately to the client and abort all other outstanding requests.
         futures_util::future::try_join_all(sharded_entries.into_iter().map(
             |sharded_entry| async {
+                // capture entire entry in closure
+                let sharded_entry = sharded_entry;
+
                 let sink = match &rules.routing_rules {
                     Some(RoutingRules::ShardConfig(shard_config)) => {
                         let id = sharded_entry.shard_id.expect("sharded entry");
@@ -1345,6 +1348,7 @@ pub mod test_utils {
     pub fn make_application() -> Arc<ApplicationState> {
         Arc::new(ApplicationState::new(
             Arc::new(ObjectStore::new_in_memory()),
+            None,
             None,
         ))
     }
@@ -2078,7 +2082,7 @@ mod tests {
     async fn init_error_generic() {
         // use an object store that will hopefully fail to read
         let store = Arc::new(ObjectStore::new_failing_store().unwrap());
-        let application = Arc::new(ApplicationState::new(store, None));
+        let application = Arc::new(ApplicationState::new(store, None, None));
         let server = make_server(application);
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();

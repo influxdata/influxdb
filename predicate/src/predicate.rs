@@ -31,8 +31,9 @@ pub const EMPTY_PREDICATE: Predicate = Predicate {
 #[derive(Debug, Clone, Copy)]
 /// The result of evaluating a predicate on a set of rows
 pub enum PredicateMatch {
-    /// There is at least one row that matches the predicate
-    AtLeastOne,
+    /// There is at least one row that matches the predicate that has
+    /// at least one non null value in each field of the predicate
+    AtLeastOneNonNullField,
 
     /// There are exactly zero rows that match the predicate
     Zero,

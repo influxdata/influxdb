@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
 use arrow_util::util::str_iter_to_batch;
 use datafusion::logical_plan::LogicalPlan;
@@ -97,7 +97,7 @@ impl StringSetPlanBuilder {
 
     /// Append the strings from the passed plan into ourselves if possible, or
     /// passes on the plan
-    pub fn append(mut self, other: StringSetPlan) -> Self {
+    pub fn append_other(mut self, other: StringSetPlan) -> Self {
         match other {
             StringSetPlan::Known(ssref) => match Arc::try_unwrap(ssref) {
                 Ok(mut ss) => {
@@ -115,6 +115,23 @@ impl StringSetPlanBuilder {
         }
 
         self
+    }
+
+    /// Return true if we know already that `s` is contained in the
+    /// StringSet. Note that if `contains()` returns false, `s` may be
+    /// in the stringset after execution.
+    pub fn contains(&self, s: impl AsRef<str>) -> bool {
+        self.strings.contains(s.as_ref())
+    }
+
+    /// Append a single string to the known set of strings in this builder
+    pub fn append_string(&mut self, s: impl Into<String>) {
+        self.strings.insert(s.into());
+    }
+
+    /// returns an iterator over the currently known strings in this builder
+    pub fn known_strings_iter(&self) -> impl Iterator<Item = &String> {
+        self.strings.iter()
     }
 
     /// Create a StringSetPlan that produces the deduplicated (union)
@@ -143,39 +160,6 @@ impl StringSetPlanBuilder {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct TableNamePlanBuilder {
-    /// Known tables achieved from meta data
-    meta_data_tables: StringSet,
-    /// Other tables and their general plans
-    plans: BTreeMap<String, LogicalPlan>,
-}
-
-impl TableNamePlanBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
-    pub fn append_meta_data_table(&mut self, table: String) {
-        self.meta_data_tables.insert(table);
-    }
-
-    pub fn append_plans(&mut self, table_name: String, plan: LogicalPlan) {
-        self.plans.insert(table_name, plan);
-    }
-
-    pub fn contains_meta_data_table(&self, table: String) -> bool {
-        self.meta_data_tables.contains(&table)
-    }
-
-    pub fn meta_data_table_names(&self) -> StringSet {
-        self.meta_data_tables.clone()
-    }
-
-    pub fn table_plans(&self) -> BTreeMap<String, LogicalPlan> {
-        self.plans.clone()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::exec::{Executor, ExecutorType};
@@ -196,8 +180,8 @@ mod tests {
     #[test]
     fn test_builder_strings_only() {
         let plan = StringSetPlanBuilder::new()
-            .append(to_string_set(&["foo", "bar"]).into())
-            .append(to_string_set(&["bar", "baz"]).into())
+            .append_other(to_string_set(&["foo", "bar"]).into())
+            .append_other(to_string_set(&["bar", "baz"]).into())
             .build()
             .unwrap();
 
@@ -228,9 +212,9 @@ mod tests {
 
         // when a df plan is appended the whole plan should be different
         let plan = StringSetPlanBuilder::new()
-            .append(to_string_set(&["foo", "bar"]).into())
-            .append(vec![df_plan].into())
-            .append(to_string_set(&["baz"]).into())
+            .append_other(to_string_set(&["foo", "bar"]).into())
+            .append_other(vec![df_plan].into())
+            .append_other(to_string_set(&["baz"]).into())
             .build()
             .unwrap();
 

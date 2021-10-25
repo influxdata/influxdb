@@ -86,7 +86,7 @@ impl Builder {
 impl<W> Builder<W> {
     pub fn with_writer<W2>(self, make_writer: W2) -> Builder<W2>
     where
-        W2: MakeWriter + Send + Sync + 'static,
+        W2: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
     {
         Builder::<W2> {
             make_writer,
@@ -103,7 +103,7 @@ impl<W> Builder<W> {
 // This needs to be a separate impl block because they place different bounds on the type parameters.
 impl<W> Builder<W>
 where
-    W: MakeWriter + Send + Sync + 'static,
+    W: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
 {
     pub const DEFAULT_LOG_FILTER: &'static str = "warn";
 
@@ -277,17 +277,30 @@ impl Drop for TroggingGuard {
 
 fn make_writer<M>(m: M) -> BoxMakeWriter
 where
-    M: MakeWriter + Send + Sync + 'static,
+    M: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
 {
-    fmt::writer::BoxMakeWriter::new(move || {
-        std::io::LineWriter::with_capacity(
-            MAX_LINE_LENGTH,
-            LimitedWriter(MAX_LINE_LENGTH, m.make_writer()),
-        )
+    BoxMakeWriter::new(MakeWriterHelper {
+        inner: BoxMakeWriter::new(m),
     })
 }
 
+struct MakeWriterHelper {
+    inner: BoxMakeWriter,
+}
+
+impl<'a> MakeWriter<'a> for MakeWriterHelper {
+    type Writer = Box<dyn Write + 'a>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        Box::new(std::io::LineWriter::with_capacity(
+            MAX_LINE_LENGTH,
+            LimitedWriter(MAX_LINE_LENGTH, self.inner.make_writer()),
+        ))
+    }
+}
+
 struct LimitedWriter<W: Write>(usize, W);
+
 impl<W: Write> Write for LimitedWriter<W> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         if buf.is_empty() {
@@ -341,7 +354,7 @@ pub mod test_util {
         }
     }
 
-    impl MakeWriter for TestWriter {
+    impl MakeWriter<'_> for TestWriter {
         type Writer = SynchronizedWriter<Vec<u8>>;
 
         fn make_writer(&self) -> Self::Writer {
@@ -356,9 +369,9 @@ pub mod test_util {
         /// Removes non-determinism by removing timestamps from the log lines.
         /// It supports the built-in tracing timestamp format and the logfmt timestamps.
         pub fn without_timestamps(&self) -> String {
-            // logfmt or fmt::layer() time format
+            // logfmt (e.g. `time=12345`) or fmt::layer() (e.g. `2021-10-25T13:48:50.555258`) time format
             let timestamp = regex::Regex::new(
-                r"(?m)( ?time=[0-9]+|^([A-Z][a-z]{2}) \d{1,2} \d{2}:\d{2}:\d{2}.\d{3} *)",
+                r"(?m)( ?time=[0-9]+|^(\d{4})-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}.\d+Z *)",
             )
             .unwrap();
             timestamp.replace_all(&self.to_string(), "").to_string()
@@ -379,7 +392,7 @@ pub mod test_util {
     /// the logging macros invoked by the function.
     pub fn log_test<W, F>(builder: Builder<W>, f: F) -> Captured
     where
-        W: MakeWriter + Send + Sync + 'static,
+        W: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
         F: Fn(),
     {
         let (writer, output) = TestWriter::new();
@@ -401,7 +414,7 @@ pub mod test_util {
     /// and returns the captured output.
     pub fn simple_test<W>(builder: Builder<W>) -> Captured
     where
-        W: MakeWriter + Send + Sync + 'static,
+        W: for<'writer> MakeWriter<'writer> + Send + Sync + 'static,
     {
         log_test(builder, || {
             error!("foo");
@@ -598,7 +611,8 @@ ERROR foo
     #[test]
     fn line_buffering() {
         let (test_writer, captured) = TestWriter::new();
-        let mut writer = make_writer(test_writer).make_writer();
+        let mw = make_writer(test_writer);
+        let mut writer = mw.make_writer();
         writer.write_all("foo".as_bytes()).unwrap();
         // wasn't flushed yet because there was no newline yet
         assert_eq!(captured.to_string(), "");
@@ -611,7 +625,8 @@ ERROR foo
 
         // another case when the line buffer flushes even before a newline is when the internal buffer limit
         let (test_writer, captured) = TestWriter::new();
-        let mut writer = make_writer(test_writer).make_writer();
+        let mw = make_writer(test_writer);
+        let mut writer = mw.make_writer();
         let long = std::iter::repeat(b'X')
             .take(MAX_LINE_LENGTH)
             .collect::<Vec<u8>>();

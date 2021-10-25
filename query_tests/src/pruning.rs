@@ -103,11 +103,11 @@ async fn chunk_pruning_influxrpc() {
 
     let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
-    let builder = InfluxRpcPlanner::new()
+    let plan = InfluxRpcPlanner::new()
         .table_names(db.as_ref(), predicate)
         .unwrap();
 
-    let result = ctx.to_table_names(builder).await.unwrap();
+    let result = ctx.to_string_set(plan).await.unwrap();
 
     assert_eq!(&expected, result.as_ref());
 

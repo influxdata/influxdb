@@ -11,7 +11,6 @@ use trace_http::ctx::TraceHeaderParser;
 
 use crate::influxdb_ioxd::serving_readiness::ServingReadiness;
 use server::{connection::ConnectionManager, ApplicationState, Server};
-use trace::TraceCollector;
 
 pub mod error;
 mod flight;
@@ -90,7 +89,6 @@ pub async fn serve<M>(
     application: Arc<ApplicationState>,
     server: Arc<Server<M>>,
     trace_header_parser: TraceHeaderParser,
-    trace_collector: Option<Arc<dyn TraceCollector>>,
     shutdown: CancellationToken,
     serving_readiness: ServingReadiness,
 ) -> Result<()>
@@ -109,7 +107,7 @@ where
     let mut builder = builder.layer(trace_http::tower::TraceLayer::new(
         trace_header_parser,
         Arc::clone(application.metric_registry()),
-        trace_collector,
+        application.trace_collector().clone(),
         true,
     ));
 
