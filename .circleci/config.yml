@@ -921,20 +921,13 @@ jobs:
             docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:latest
             docker push quay.io/influxdb/oss-acceptance:latest
   changelog:
-    machine:
-      image: ubuntu-2004:202010-01
+    docker:
+      - image: quay.io/influxdb/changelogger:latest
     steps:
       - checkout
-      - install_core_deps
       - run:
           name: Run script
           command: |
-            set -x
-            git clone --depth=1 --branch v0.2.5 https://github.com/orhun/git-cliff
-            cd git-cliff
-            cargo install git-cliff
-            cd ..
-
             S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/master"
             curl -o CHANGELOG.md ${S3_PATH}/CHANGELOG.md
             curl -o scripts/ci/changelog-commit.txt ${S3_PATH}/changelog-commit.txt
