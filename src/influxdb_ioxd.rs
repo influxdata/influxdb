@@ -79,7 +79,10 @@ async fn wait_for_signal() {
     let _ = tokio::signal::ctrl_c().await;
 }
 
-async fn make_application(config: &Config) -> Result<Arc<ApplicationState>> {
+async fn make_application(
+    config: &Config,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
+) -> Result<Arc<ApplicationState>> {
     warn_about_inmem_store(&config.object_store_config);
     let object_store =
         ObjectStore::try_from(&config.object_store_config).context(ObjectStoreParsing)?;
@@ -91,6 +94,7 @@ async fn make_application(config: &Config) -> Result<Arc<ApplicationState>> {
     Ok(Arc::new(ApplicationState::new(
         object_storage,
         config.num_worker_threads,
+        trace_collector,
     )))
 }
 
@@ -178,7 +182,11 @@ pub async fn main(config: Config) -> Result<()> {
     let f = SendPanicsToTracing::new();
     std::mem::forget(f);
 
-    let application = make_application(&config).await?;
+    let async_exporter = config.tracing_config.build().context(Tracing)?;
+    let trace_collector = async_exporter
+        .clone()
+        .map(|x| -> Arc<dyn TraceCollector> { x });
+    let application = make_application(&config, trace_collector).await?;
 
     // Register jemalloc metrics
     application
@@ -189,17 +197,12 @@ pub async fn main(config: Config) -> Result<()> {
 
     let grpc_listener = grpc_listener(config.grpc_bind_address).await?;
     let http_listener = http_listener(config.http_bind_address).await?;
-    let async_exporter = config.tracing_config.build().context(Tracing)?;
-    let trace_collector = async_exporter
-        .clone()
-        .map(|x| -> Arc<dyn TraceCollector> { x });
 
     let r = serve(
         config,
         application,
         grpc_listener,
         http_listener,
-        trace_collector,
         app_server,
     )
     .await;
@@ -241,7 +244,6 @@ async fn serve(
     application: Arc<ApplicationState>,
     grpc_listener: tokio::net::TcpListener,
     http_listener: AddrIncoming,
-    trace_collector: Option<Arc<dyn TraceCollector>>,
     app_server: Arc<AppServer<ConnectionManager>>,
 ) -> Result<()> {
     // Construct a token to trigger shutdown of API services
@@ -262,7 +264,6 @@ async fn serve(
         Arc::clone(&application),
         Arc::clone(&app_server),
         trace_header_parser.clone(),
-        trace_collector.clone(),
         frontend_shutdown.clone(),
         config.initial_serving_state.into(),
     )
@@ -279,7 +280,6 @@ async fn serve(
         frontend_shutdown.clone(),
         max_http_request_size,
         trace_header_parser,
-        trace_collector,
     )
     .fuse();
     info!("HTTP server listening");
@@ -381,7 +381,7 @@ mod tests {
     use super::*;
     use ::http::{header::HeaderName, HeaderValue};
     use data_types::{database_rules::DatabaseRules, DatabaseName};
-    use influxdb_iox_client::connection::Connection;
+    use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
     use server::rules::ProvidedDatabaseRules;
     use std::{convert::TryInto, num::NonZeroU64};
     use structopt::StructOpt;
@@ -412,16 +412,9 @@ mod tests {
         let grpc_listener = grpc_listener(config.grpc_bind_address).await.unwrap();
         let http_listener = http_listener(config.grpc_bind_address).await.unwrap();
 
-        serve(
-            config,
-            application,
-            grpc_listener,
-            http_listener,
-            None,
-            server,
-        )
-        .await
-        .unwrap()
+        serve(config, application, grpc_listener, http_listener, server)
+            .await
+            .unwrap()
     }
 
     #[tokio::test]
@@ -430,7 +423,7 @@ mod tests {
 
         // Create a server and wait for it to initialize
         let config = test_config(Some(23));
-        let application = make_application(&config).await.unwrap();
+        let application = make_application(&config, None).await.unwrap();
         let server = make_server(Arc::clone(&application), &config);
         server.wait_for_init().await.unwrap();
 
@@ -458,7 +451,7 @@ mod tests {
     async fn test_server_shutdown_uninit() {
         // Create a server but don't set a server id
         let config = test_config(None);
-        let application = make_application(&config).await.unwrap();
+        let application = make_application(&config, None).await.unwrap();
         let server = make_server(Arc::clone(&application), &config);
 
         let serve_fut = test_serve(config, application, Arc::clone(&server)).fuse();
@@ -489,7 +482,7 @@ mod tests {
     async fn test_server_panic() {
         // Create a server and wait for it to initialize
         let config = test_config(Some(999999999));
-        let application = make_application(&config).await.unwrap();
+        let application = make_application(&config, None).await.unwrap();
         let server = make_server(Arc::clone(&application), &config);
         server.wait_for_init().await.unwrap();
 
@@ -516,7 +509,7 @@ mod tests {
     async fn test_database_panic() {
         // Create a server and wait for it to initialize
         let config = test_config(Some(23));
-        let application = make_application(&config).await.unwrap();
+        let application = make_application(&config, None).await.unwrap();
         let server = make_server(Arc::clone(&application), &config);
         server.wait_for_init().await.unwrap();
 
@@ -597,7 +590,9 @@ mod tests {
         JoinHandle<Result<()>>,
     ) {
         let config = test_config(Some(23));
-        let application = make_application(&config).await.unwrap();
+        let application = make_application(&config, Some(Arc::<T>::clone(collector)))
+            .await
+            .unwrap();
         let server = make_server(Arc::clone(&application), &config);
         server.wait_for_init().await.unwrap();
 
@@ -611,7 +606,6 @@ mod tests {
             application,
             grpc_listener,
             http_listener,
-            Some(Arc::<T>::clone(collector)),
             Arc::clone(&server),
         );
 
@@ -690,6 +684,11 @@ mod tests {
         join.await.unwrap().unwrap();
     }
 
+    /// Ensure that query is fully executed.
+    async fn consume_query(mut query: PerformQuery) {
+        while query.next().await.unwrap().is_some() {}
+    }
+
     #[tokio::test]
     async fn test_query_tracing() {
         let collector = Arc::new(RingBufferTraceCollector::new(100));
@@ -721,10 +720,13 @@ mod tests {
             .unwrap();
 
         let mut flight = influxdb_iox_client::flight::Client::new(conn.clone());
-        flight
-            .perform_query(db_info.db_name(), "select * from cpu;")
-            .await
-            .unwrap();
+        consume_query(
+            flight
+                .perform_query(db_info.db_name(), "select * from cpu;")
+                .await
+                .unwrap(),
+        )
+        .await;
 
         flight
             .perform_query("nonexistent", "select * from cpu;")
