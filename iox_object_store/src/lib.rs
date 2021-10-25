@@ -1,3 +1,8 @@
+//! Wraps the object_store crate with IOx-specific semantics. The main responsibility of this crate
+//! is to be the single source of truth for the paths of files in object storage. There is a
+//! specific path type for each IOx-specific reason an object storage file exists. Content of the
+//! files is managed outside of this crate.
+
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
@@ -8,11 +13,6 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr
 )]
-
-//! Wraps the object_store crate with IOx-specific semantics. The main responsibility of this crate
-//! is to be the single source of truth for the paths of files in object storage. There is a
-//! specific path type for each IOx-specific reason an object storage file exists. Content of the
-//! files is managed outside of this crate.
 
 use bytes::{Bytes, BytesMut};
 use chrono::{DateTime, Utc};
