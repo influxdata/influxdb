@@ -996,9 +996,9 @@ impl InfluxRpcPlanner {
         };
 
         // Select only fields requested
-        let predicate = normalizer.normalized(table_name, Arc::clone(&schema));
+        let predicate = normalizer.normalized(table_name);
         let select_exprs: Vec<_> = filtered_fields_iter(&schema, &predicate)
-            .map(|field| col(field.name().as_str()))
+            .map(|field| col(field.name))
             .collect();
 
         let plan = plan_builder
