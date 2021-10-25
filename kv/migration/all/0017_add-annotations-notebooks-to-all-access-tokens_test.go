@@ -43,7 +43,7 @@ func TestMigration_AnnotationsNotebooksAllAccessToken(t *testing.T) {
 			ID:          id2, // an all-access token
 			OrgID:       OrgID,
 			UserID:      UserID,
-			Permissions: oldAllAccessPerms(OrgID),
+			Permissions: oldAllAccessPerms(OrgID, UserID),
 		},
 	}
 
@@ -96,7 +96,7 @@ func TestMigration_AnnotationsNotebooksAllAccessToken(t *testing.T) {
 		var token influxdb.Authorization
 		require.NoError(t, json.Unmarshal(b, &token))
 
-		require.ElementsMatch(t, append(oldAllAccessPerms(OrgID), extraAllAccessPerms(OrgID)...), token.Permissions)
+		require.ElementsMatch(t, append(oldAllAccessPerms(OrgID, UserID), extraAllAccessPerms(OrgID)...), token.Permissions)
 		return nil
 	})
 	require.NoError(t, err)

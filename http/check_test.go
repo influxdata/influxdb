@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -309,7 +309,7 @@ func TestService_handleGetChecks(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetChecks() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -594,7 +594,7 @@ func TestService_handleGetCheck(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			t.Logf(res.Header.Get("X-Influx-Error"))
 
 			if res.StatusCode != tt.wants.statusCode {
@@ -756,7 +756,7 @@ func TestService_handlePostCheck(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePostCheck() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -865,7 +865,7 @@ func TestService_handleDeleteCheck(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleDeleteCheck() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -1042,7 +1042,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePatchCheck() = %v, want %v %v", tt.name, res.StatusCode, tt.wants.statusCode, w.Header())
@@ -1232,7 +1232,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePutCheck() = %v, want %v %v %v", tt.name, res.StatusCode, tt.wants.statusCode, w.Header(), string(body))
@@ -1333,7 +1333,7 @@ func TestService_handlePostCheckMember(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePostCheckMember() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -1427,7 +1427,7 @@ func TestService_handlePostCheckOwner(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePostCheckOwner() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)

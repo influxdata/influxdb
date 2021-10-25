@@ -1,5 +1,0 @@
-m0,tag0=value0,tag1=value0,tag2=value0,tag3=value0,tag4=value0,tag5=value0 v0=1
-m1,tag0=value1,tag1=value0,tag2=value0,tag3=value0,tag4=value0,tag5=value0 v0=1
-m2,tag0=value2,tag1=value0,tag2=value0,tag3=value0,tag4=value0,tag5=value0 v0=1
-m3,tag0=value3,tag1=value0,tag2=value0,tag3=value0,tag4=value0,tag5=value0 v0=1
-m4,tag0=value4,tag1=value0,tag2=value0,tag3=value0,tag4=value0,tag5=value0 v0=1

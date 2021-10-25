@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -270,7 +269,7 @@ func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 }
 
 func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
-	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), TombstoneFileExtension)
+	tmp, err := os.CreateTemp(filepath.Dir(t.Path), TombstoneFileExtension)
 	if err != nil {
 		return err
 	}

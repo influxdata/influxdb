@@ -4,14 +4,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 func Test_newTaskMatchFN(t *testing.T) {
-	ct := func(typ string, name string) *taskmodel.Task {
-		return &taskmodel.Task{
+	ct := func(typ string, name string) *basicKvTask {
+		return &basicKvTask{
 			Type:           typ,
 			OrganizationID: 1,
 			Name:           name,
@@ -19,20 +17,12 @@ func Test_newTaskMatchFN(t *testing.T) {
 	}
 
 	const (
-		NoOrg = platform.ID(0)
 		NoTyp = "-"
 		NoNam = "-"
 	)
 
-	newMatch := func(orgID platform.ID, typ string, name string) taskMatchFn {
-		var (
-			org *influxdb.Organization
-			fil taskmodel.TaskFilter
-		)
-
-		if orgID != NoOrg {
-			org = &influxdb.Organization{ID: orgID}
-		}
+	newMatch := func(typ string, name string) taskMatchFn {
+		var fil taskmodel.TaskFilter
 
 		if typ != NoTyp {
 			fil.Type = &typ
@@ -42,12 +32,12 @@ func Test_newTaskMatchFN(t *testing.T) {
 			fil.Name = &name
 		}
 
-		return newTaskMatchFn(fil, org)
+		return newTaskMatchFn(fil)
 	}
 
 	type test struct {
 		name string
-		task *taskmodel.Task
+		task matchableTask
 		fn   taskMatchFn
 		exp  bool
 	}
@@ -57,47 +47,36 @@ func Test_newTaskMatchFN(t *testing.T) {
 		tests []test
 	}{
 		{
-			"match org",
-			[]test{
-				{
-					name: "equal",
-					task: ct(taskmodel.TaskSystemType, "Foo"),
-					fn:   newMatch(1, NoTyp, NoNam),
-					exp:  true,
-				},
-				{
-					name: "not org",
-					task: ct(taskmodel.TaskSystemType, "Foo"),
-					fn:   newMatch(2, NoTyp, NoNam),
-					exp:  false,
-				},
-			},
-		},
-		{
 			"match type",
 			[]test{
 				{
 					name: "empty with system type",
 					task: ct("", "Foo"),
-					fn:   newMatch(NoOrg, taskmodel.TaskSystemType, NoNam),
+					fn:   newMatch(taskmodel.TaskSystemType, NoNam),
 					exp:  true,
 				},
 				{
 					name: "system with system type",
 					task: ct(taskmodel.TaskSystemType, "Foo"),
-					fn:   newMatch(NoOrg, taskmodel.TaskSystemType, NoNam),
+					fn:   newMatch(taskmodel.TaskSystemType, NoNam),
+					exp:  true,
+				},
+				{
+					name: "system with basic type",
+					task: ct(taskmodel.TaskSystemType, "Foo"),
+					fn:   newMatch(taskmodel.TaskBasicType, NoNam),
 					exp:  true,
 				},
 				{
 					name: "equal",
 					task: ct("other type", "Foo"),
-					fn:   newMatch(NoOrg, "other type", NoNam),
+					fn:   newMatch("other type", NoNam),
 					exp:  true,
 				},
 				{
 					name: "not type",
 					task: ct(taskmodel.TaskSystemType, "Foo"),
-					fn:   newMatch(NoOrg, "other type", NoNam),
+					fn:   newMatch("other type", NoNam),
 					exp:  false,
 				},
 			},
@@ -108,88 +87,13 @@ func Test_newTaskMatchFN(t *testing.T) {
 				{
 					name: "equal",
 					task: ct(taskmodel.TaskSystemType, "Foo"),
-					fn:   newMatch(NoOrg, NoTyp, "Foo"),
+					fn:   newMatch(NoTyp, "Foo"),
 					exp:  true,
 				},
 				{
 					name: "not name",
 					task: ct(taskmodel.TaskSystemType, "Foo"),
-					fn:   newMatch(NoOrg, NoTyp, "Bar"),
-					exp:  false,
-				},
-			},
-		},
-		{
-			"match org type",
-			[]test{
-				{
-					name: "equal",
-					task: ct(taskmodel.TaskSystemType, "Foo"),
-					fn:   newMatch(1, taskmodel.TaskSystemType, NoNam),
-					exp:  true,
-				},
-				{
-					name: "not type",
-					task: ct(taskmodel.TaskSystemType, "Foo"),
-					fn:   newMatch(1, "wrong type", NoNam),
-					exp:  false,
-				},
-				{
-					name: "not org",
-					task: ct(taskmodel.TaskSystemType, "Foo"),
-					fn:   newMatch(2, taskmodel.TaskSystemType, NoNam),
-					exp:  false,
-				},
-				{
-					name: "not org and type",
-					task: ct("check", "Foo"),
-					fn:   newMatch(2, taskmodel.TaskSystemType, NoNam),
-					exp:  false,
-				},
-			},
-		},
-		{
-			"match org name",
-			[]test{
-				{
-					name: "equal",
-					task: ct(taskmodel.TaskSystemType, "Foo"),
-					fn:   newMatch(1, NoTyp, "Foo"),
-					exp:  true,
-				},
-				{
-					name: "not org",
-					task: ct(taskmodel.TaskSystemType, "Foo"),
-					fn:   newMatch(2, NoTyp, "Foo"),
-					exp:  false,
-				},
-			},
-		},
-		{
-			"match org name type",
-			[]test{
-				{
-					name: "equal",
-					task: ct("check", "Foo"),
-					fn:   newMatch(1, "check", "Foo"),
-					exp:  true,
-				},
-				{
-					name: "not org",
-					task: ct("check", "Foo"),
-					fn:   newMatch(2, "check", "Foo"),
-					exp:  false,
-				},
-				{
-					name: "not name",
-					task: ct("check", "Foo"),
-					fn:   newMatch(1, "check", "Bar"),
-					exp:  false,
-				},
-				{
-					name: "not type",
-					task: ct("check", "Foo"),
-					fn:   newMatch(1, "other", "Foo"),
+					fn:   newMatch(NoTyp, "Bar"),
 					exp:  false,
 				},
 			},
@@ -208,7 +112,7 @@ func Test_newTaskMatchFN(t *testing.T) {
 	}
 
 	t.Run("match returns nil for no filter", func(t *testing.T) {
-		fn := newTaskMatchFn(taskmodel.TaskFilter{}, nil)
+		fn := newTaskMatchFn(taskmodel.TaskFilter{})
 		if fn != nil {
 			t.Error("expected nil")
 		}

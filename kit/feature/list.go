@@ -170,6 +170,20 @@ func ReplicationStreamBackend() BoolFlag {
 	return replicationStreamBackend
 }
 
+var newAutoRefresh = MakeBoolFlag(
+	"New Dashboard Autorefresh",
+	"newAutoRefresh",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// NewDashboardAutorefresh - Enables the new dashboard autorefresh controls in the UI
+func NewDashboardAutorefresh() BoolFlag {
+	return newAutoRefresh
+}
+
 var all = []Flag{
 	appMetrics,
 	groupWindowAggregateTranspose,
@@ -183,6 +197,7 @@ var all = []Flag{
 	cursorAtEOF,
 	refreshSingleCell,
 	replicationStreamBackend,
+	newAutoRefresh,
 }
 
 var byKey = map[string]Flag{
@@ -198,4 +213,5 @@ var byKey = map[string]Flag{
 	"cursorAtEOF":                   cursorAtEOF,
 	"refreshSingleCell":             refreshSingleCell,
 	"replicationStreamBackend":      replicationStreamBackend,
+	"newAutoRefresh":                newAutoRefresh,
 }

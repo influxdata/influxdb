@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -2299,7 +2298,7 @@ func (e *Engine) reloadCache() error {
 // cleanup removes all temp files and dirs that exist on disk.  This is should only be run at startup to avoid
 // removing tmp files that are still in use.
 func (e *Engine) cleanup() error {
-	allfiles, err := ioutil.ReadDir(e.path)
+	allfiles, err := os.ReadDir(e.path)
 	if os.IsNotExist(err) {
 		return nil
 	} else if err != nil {

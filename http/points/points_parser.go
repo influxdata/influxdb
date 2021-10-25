@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"time"
 
 	io2 "github.com/influxdata/influxdb/v2/kit/io"
@@ -113,7 +112,7 @@ func readAll(ctx context.Context, rc io.ReadCloser) (data []byte, err error) {
 		span.Finish()
 	}()
 
-	data, err = ioutil.ReadAll(rc)
+	data, err = io.ReadAll(rc)
 	if err != nil {
 		return nil, err
 

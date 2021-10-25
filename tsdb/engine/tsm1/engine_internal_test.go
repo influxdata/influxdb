@@ -2,7 +2,6 @@ package tsm1
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,7 +14,7 @@ import (
 )
 
 func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "shard_test")
+	tmpDir, err := os.MkdirTemp("", "shard_test")
 	require.NoError(t, err, "error creating temporary directory")
 	defer os.RemoveAll(tmpDir)
 
@@ -83,7 +82,7 @@ func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
 func NewSeriesFile(tb testing.TB, tmpDir string) *tsdb.SeriesFile {
 	tb.Helper()
 
-	dir, err := ioutil.TempDir(tmpDir, "tsdb-series-file-")
+	dir, err := os.MkdirTemp(tmpDir, "tsdb-series-file-")
 	if err != nil {
 		panic(err)
 	}

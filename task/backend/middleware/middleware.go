@@ -16,7 +16,6 @@ type Coordinator interface {
 	TaskUpdated(ctx context.Context, from, to *taskmodel.Task) error
 	TaskDeleted(context.Context, platform.ID) error
 	RunCancelled(ctx context.Context, runID platform.ID) error
-	RunRetried(ctx context.Context, task *taskmodel.Task, run *taskmodel.Run) error
 	RunForced(ctx context.Context, task *taskmodel.Task, run *taskmodel.Run) error
 }
 
@@ -109,7 +108,7 @@ func (s *CoordinatingTaskService) RetryRun(ctx context.Context, taskID, runID pl
 		return r, err
 	}
 
-	return r, s.coordinator.RunRetried(ctx, t, r)
+	return r, s.coordinator.RunForced(ctx, t, r)
 }
 
 // ForceRun create the forced run in the task system and publish to the pubSub.
