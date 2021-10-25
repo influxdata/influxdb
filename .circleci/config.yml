@@ -923,7 +923,7 @@ jobs:
             docker push quay.io/influxdb/oss-acceptance:latest
   changelog:
     docker:
-      - image: quay.io/influxdb/ui-pipeline:latest
+      - image: quay.io/influxdb/changelogger:latest
     steps:
       - checkout
       - run:
