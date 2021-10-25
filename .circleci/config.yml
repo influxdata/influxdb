@@ -53,6 +53,7 @@ workflows:
     when:
       not: << pipeline.parameters.aws_teardown >>
     jobs:
+      - changelog
       - godeps
       - test-race:
           # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
@@ -929,11 +930,7 @@ jobs:
       - run:
           name: Run script
           command: |
-            set -x
-            git clone --depth=1 --branch v0.2.5 https://github.com/orhun/git-cliff
-            cd git-cliff
-            cargo install git-cliff
-            cd ..
+            cargo install --version 0.2.5 git-cliff
 
             S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/master"
             curl -o CHANGELOG.md ${S3_PATH}/CHANGELOG.md
