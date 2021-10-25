@@ -53,7 +53,6 @@ workflows:
     when:
       not: << pipeline.parameters.aws_teardown >>
     jobs:
-      - changelog
       - godeps
       - test-race:
           # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
