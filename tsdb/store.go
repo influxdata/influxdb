@@ -1654,8 +1654,9 @@ func (s *Store) TagKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs
 	if err != nil {
 		return nil, err
 	}
-
-	filterExpr = fixBadQuoteTagValueClause(filterExpr)
+	if err = isBadQuoteTagValueClause(filterExpr); err != nil {
+		return nil, err
+	}
 
 	// Get all the shards we're interested in.
 	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
@@ -1824,7 +1825,7 @@ func isTagKeyClause(e influxql.Expr) (bool, error) {
 	return false, nil
 }
 
-func fixBadQuoteTagValueClause(e influxql.Expr) influxql.Expr {
+func isBadQuoteTagValueClause(e influxql.Expr) error {
 	switch e := e.(type) {
 	case *influxql.BinaryExpr:
 		switch e.Op {
@@ -1832,17 +1833,21 @@ func fixBadQuoteTagValueClause(e influxql.Expr) influxql.Expr {
 			_, lOk := e.LHS.(*influxql.VarRef)
 			_, rOk := e.RHS.(*influxql.VarRef)
 			if lOk && rOk {
-				return &influxql.BooleanLiteral{Val: false}
+				return fmt.Errorf("bad WHERE clause. tag value must be inside single quotes: %s", e.String())
 			}
 		case influxql.OR, influxql.AND:
-			e.LHS = fixBadQuoteTagValueClause(e.LHS)
-			e.RHS = fixBadQuoteTagValueClause(e.RHS)
-			return e
+			if err := isBadQuoteTagValueClause(e.LHS); err != nil {
+				return err
+			} else if err = isBadQuoteTagValueClause(e.RHS); err != nil {
+				return err
+			} else {
+				return nil
+			}
 		}
 	case *influxql.ParenExpr:
-		return fixBadQuoteTagValueClause(e.Expr)
+		return isBadQuoteTagValueClause(e.Expr)
 	}
-	return e
+	return nil
 }
 
 // TagValues returns the tag keys and values for the provided shards, where the
