@@ -1884,7 +1884,7 @@ func (s *Store) TagValues(ctx context.Context, auth query.FineAuthorizer, shardI
 	if err != nil {
 		return nil, err
 	}
-	if  err = isBadQuoteTagValueClause(filterExpr); err != nil {
+	if err = isBadQuoteTagValueClause(filterExpr); err != nil {
 		return nil, err
 	}
 	// Build index set to work on.
