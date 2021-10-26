@@ -19,7 +19,7 @@ use std::u64;
 /// # use std::io::BufReader;
 /// # use std::io::Cursor;
 /// # use std::io::Read;
-/// # let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
+/// # let file = File::open("../test_fixtures/000000000000005-000000002.tsm.gz");
 /// # let mut decoder = GzDecoder::new(file.unwrap());
 /// # let mut buf = Vec::new();
 /// # decoder.read_to_end(&mut buf).unwrap();
@@ -687,7 +687,7 @@ mod tests {
 
     #[test]
     fn read_tsm_index() {
-        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../test_fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
@@ -700,7 +700,7 @@ mod tests {
 
     #[test]
     fn read_tsm_block() {
-        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../test_fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
@@ -754,7 +754,7 @@ mod tests {
 
     #[test]
     fn decode_tsm_blocks() {
-        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../test_fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
@@ -833,12 +833,12 @@ mod tests {
 
     #[test]
     fn check_tsm_cpu_usage() {
-        walk_index_and_check_for_errors("../tests/fixtures/cpu_usage.tsm.gz");
+        walk_index_and_check_for_errors("../test_fixtures/cpu_usage.tsm.gz");
     }
 
     #[test]
     fn check_tsm_000000000000005_000000002() {
-        walk_index_and_check_for_errors("../tests/fixtures/000000000000005-000000002.tsm.gz");
+        walk_index_and_check_for_errors("../test_fixtures/000000000000005-000000002.tsm.gz");
     }
 
     #[test]

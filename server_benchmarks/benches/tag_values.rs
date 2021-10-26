@@ -38,7 +38,7 @@ use server::db::Db;
 // The timespan of the points in the line protocol is around 1m or wall-clock
 // time.
 async fn setup_scenarios() -> Vec<DbScenario> {
-    let raw = include_bytes!("../../tests/fixtures/lineproto/tag_values.lp.gz");
+    let raw = include_bytes!("../../test_fixtures/lineproto/tag_values.lp.gz");
     let mut gz = GzDecoder::new(&raw[..]);
     let mut lp = String::new();
     gz.read_to_string(&mut lp).unwrap();

@@ -7,7 +7,7 @@ use flate2::read::GzDecoder;
 use mutable_batch_lp::lines_to_batches;
 
 fn generate_lp_bytes() -> Bytes {
-    let raw = include_bytes!("../../tests/fixtures/lineproto/read_filter.lp.gz");
+    let raw = include_bytes!("../../test_fixtures/lineproto/read_filter.lp.gz");
     let mut gz = GzDecoder::new(&raw[..]);
 
     let mut buffer = Vec::new();

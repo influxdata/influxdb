@@ -1725,7 +1725,8 @@ mod tests {
         // Note we don't include the actual line / column in the
         // expected panic message to avoid needing to update the test
         // whenever the source code file changed.
-        let expected_error = "panicked at 'This is a test panic', src/influxdb_ioxd/rpc/testing.rs";
+        let expected_error =
+            "panicked at 'This is a test panic', influxdb_iox/src/influxdb_ioxd/rpc/testing.rs";
         assert_contains!(captured_logs, expected_error);
 
         // Ensure that panics don't exhaust the tokio executor by
