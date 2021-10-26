@@ -2,7 +2,7 @@
 name = "grpc-router"
 version = "0.1.0"
 authors = ["Marko Mikulicic <mkm@influxdata.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 bytes = "1.0"
@@ -25,4 +25,4 @@ prost-build = "0.8"
 tonic-build = "0.5"
 
 [dev-dependencies]
-grpc-router-test-gen = { path = "./grpc-router-test-gen" }
+grpc-router-test-gen = { path = "../grpc-router-test-gen" }

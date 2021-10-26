@@ -1,0 +1,58 @@
+syntax = "proto3";
+package influxdata.iox.management.v1;
+option go_package = "github.com/influxdata/iox/management/v1";
+
+// Configures the use of a write buffer.
+message WriteBufferConnection {
+  enum Direction {
+    // Unspecified direction, will be treated as an error.
+    DIRECTION_UNSPECIFIED = 0;
+
+    // Writes into the buffer aka "producer".
+    DIRECTION_WRITE = 1;
+
+    // Reads from the buffer aka "consumer".
+    DIRECTION_READ = 2;
+  }
+
+  // If the buffer is used for reading or writing.
+  Direction direction = 1;
+
+  // Which type should be used (e.g. "kafka", "mock")
+  string type = 2;
+
+  // Connection string, depends on `type`.
+  string connection = 3;
+
+  // Old non-nested auto-creation config.
+  reserved 4, 5, 7;
+
+  // Special configs to be applied when establishing the connection.
+  //
+  // This depends on `type` and can configure aspects like timeouts.
+  map<string, string> connection_config = 6;
+
+  // Specifies if the sequencers (e.g. for Kafka in form of a topic w/ `n_sequencers` partitions) should be
+  // automatically created if they do not existing prior to reading or writing.
+  WriteBufferCreationConfig creation_config = 8;
+}
+
+// Configs sequencer auto-creation for write buffers.
+//
+// What that means depends on the used write buffer, e.g. for Kafka this will create a new topic w/ `n_sequencers`
+// partitions.
+message WriteBufferCreationConfig {
+  // Number of sequencers.
+  //
+  // How they are implemented depends on `type`, e.g. for Kafka this is mapped to the number of partitions.
+  //
+  // If 0, a server-side default is used
+  uint32 n_sequencers = 1;
+
+  // Special configs to by applied when sequencers are created.
+  //
+  // This depends on `type` and can setup parameters like retention policy.
+  //
+  // Contains 0 or more key value pairs
+  map<string, string> options = 2;
+}

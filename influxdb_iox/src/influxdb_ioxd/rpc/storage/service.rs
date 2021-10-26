@@ -724,14 +724,14 @@ where
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let ctx = db.new_query_context(span_ctx);
 
-    let builder = Planner::new(&ctx)
+    let plan = Planner::new(&ctx)
         .table_names(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingTables { db_name })?;
 
     let table_names = ctx
-        .to_table_names(builder)
+        .to_string_set(plan)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingTables { db_name })?;
@@ -1116,11 +1116,11 @@ mod tests {
 
         let chunk0 = TestChunk::new("h2o")
             .with_id(0)
-            .with_predicate_match(PredicateMatch::AtLeastOne);
+            .with_predicate_match(PredicateMatch::AtLeastOneNonNullField);
 
         let chunk1 = TestChunk::new("o2")
             .with_id(1)
-            .with_predicate_match(PredicateMatch::AtLeastOne);
+            .with_predicate_match(PredicateMatch::AtLeastOneNonNullField);
 
         fixture
             .test_storage
@@ -1474,7 +1474,8 @@ mod tests {
             tag_key: [0].into(),
         };
 
-        let chunk = TestChunk::new("h2o").with_predicate_match(PredicateMatch::AtLeastOne);
+        let chunk =
+            TestChunk::new("h2o").with_predicate_match(PredicateMatch::AtLeastOneNonNullField);
 
         fixture
             .test_storage
@@ -1724,7 +1725,8 @@ mod tests {
         // Note we don't include the actual line / column in the
         // expected panic message to avoid needing to update the test
         // whenever the source code file changed.
-        let expected_error = "panicked at 'This is a test panic', src/influxdb_ioxd/rpc/testing.rs";
+        let expected_error =
+            "panicked at 'This is a test panic', influxdb_iox/src/influxdb_ioxd/rpc/testing.rs";
         assert_contains!(captured_logs, expected_error);
 
         // Ensure that panics don't exhaust the tokio executor by

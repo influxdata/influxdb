@@ -655,7 +655,7 @@ mod tests {
 
     #[test]
     fn map_tsm_index() {
-        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../test_fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
@@ -671,7 +671,7 @@ mod tests {
 
     #[test]
     fn map_field_columns_file() {
-        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../test_fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
@@ -714,7 +714,7 @@ mod tests {
 
     #[test]
     fn measurement_table_columns() {
-        let file = File::open("../tests/fixtures/000000000000005-000000002.tsm.gz");
+        let file = File::open("../test_fixtures/000000000000005-000000002.tsm.gz");
         let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();

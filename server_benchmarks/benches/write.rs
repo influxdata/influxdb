@@ -33,7 +33,7 @@ fn write_chunk(count: usize, entries: &[Entry]) {
 }
 
 fn load_entries() -> Vec<Entry> {
-    let raw = include_bytes!("../../tests/fixtures/lineproto/tag_values.lp.gz");
+    let raw = include_bytes!("../../test_fixtures/lineproto/tag_values.lp.gz");
     let mut gz = GzDecoder::new(&raw[..]);
     let mut lp = String::new();
     gz.read_to_string(&mut lp).unwrap();

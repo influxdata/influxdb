@@ -1,7 +1,7 @@
 [package]
 name = "persistence_windows"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 data_types = { path = "../data_types" }

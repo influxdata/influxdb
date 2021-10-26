@@ -68,6 +68,11 @@ pub enum Error {
         bucket: String,
         location: String,
     },
+
+    NotFound {
+        location: String,
+        source: cloud_storage::Error,
+    },
 }
 
 /// Configuration for connecting to [Google Cloud Storage](https://cloud.google.com/storage/).
@@ -122,9 +127,18 @@ impl ObjectStoreApi for GoogleCloudStorage {
             .object()
             .download(&bucket_name, &location_copy)
             .await
-            .context(UnableToGetData {
-                bucket: &self.bucket_name,
-                location,
+            .map_err(|e| match e {
+                cloud_storage::Error::Other(ref text) if text.starts_with("No such object") => {
+                    Error::NotFound {
+                        location,
+                        source: e,
+                    }
+                }
+                _ => Error::UnableToGetData {
+                    bucket: bucket_name.clone(),
+                    location,
+                    source: e,
+                },
             })?;
 
         Ok(futures::stream::once(async move { Ok(bytes.into()) }).boxed())
@@ -337,21 +351,15 @@ mod test {
             .await
             .unwrap_err();
 
-        if let Some(ObjectStoreError::GcsObjectStoreError {
-            source:
-                Error::UnableToGetData {
-                    source,
-                    bucket,
-                    location,
-                },
-        }) = err.downcast_ref::<ObjectStoreError>()
+        if let Some(ObjectStoreError::NotFound { location, source }) =
+            err.downcast_ref::<ObjectStoreError>()
         {
+            let source_variant = source.downcast_ref::<cloud_storage::Error>();
             assert!(
-                matches!(source, cloud_storage::Error::Other(_)),
+                matches!(source_variant, Some(cloud_storage::Error::Other(_))),
                 "got: {:?}",
-                source
+                source_variant
             );
-            assert_eq!(bucket, &config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type: {:?}", err)

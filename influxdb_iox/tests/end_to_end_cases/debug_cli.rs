@@ -27,3 +27,16 @@ async fn test_dump_catalog() {
             predicate::str::contains("Transaction").and(predicate::str::contains("DecodeError")),
         );
 }
+
+#[tokio::test]
+async fn test_print_cpu() {
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("debug")
+        .arg("print-cpu")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "rustc is using the following target options",
+        ));
+}

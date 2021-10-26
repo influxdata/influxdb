@@ -1,6 +1,5 @@
-use std::convert::TryFrom;
 use std::iter::once;
-use std::num::NonZeroU32;
+use std::path::Path;
 use std::time::Duration;
 use std::{convert::TryInto, str, u32};
 use std::{sync::Arc, time::SystemTime};
@@ -31,9 +30,9 @@ use generated_types::{
     ReadSource, TimestampRange,
 };
 use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
+use time::SystemProvider;
 use write_buffer::core::WriteBufferWriting;
-use write_buffer::kafka::test_utils::{kafka_sequencer_options, purge_kafka_topic};
-use write_buffer::kafka::KafkaBufferProducer;
+use write_buffer::file::FileBufferProducer;
 
 use crate::common::server_fixture::{ServerFixture, TestConfig, DEFAULT_SERVER_ID};
 
@@ -655,7 +654,7 @@ pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
 }
 
 /// Creates a database that cannot be replayed
-pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> ServerFixture {
+pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> ServerFixture {
     let server_id = DEFAULT_SERVER_ID;
 
     let test_config = TestConfig::new().with_env("INFLUXDB_IOX_SKIP_REPLAY", "no");
@@ -680,11 +679,11 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
             name: db_name.to_string(),
             write_buffer_connection: Some(WriteBufferConnection {
                 direction: write_buffer_connection::Direction::Read.into(),
-                r#type: "kafka".to_string(),
-                connection: kafka_connection.to_string(),
+                r#type: "file".to_string(),
+                connection: write_buffer_path.display().to_string(),
                 creation_config: Some(WriteBufferCreationConfig {
                     n_sequencers: 1,
-                    options: kafka_sequencer_options(),
+                    ..Default::default()
                 }),
                 ..Default::default()
             }),
@@ -708,45 +707,42 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
         .unwrap();
 
     // ingest data as mixed throughput
-    let creation_config = Some(data_types::database_rules::WriteBufferCreationConfig {
-        n_sequencers: NonZeroU32::try_from(1).unwrap(),
-        options: kafka_sequencer_options(),
-    });
-    let producer = KafkaBufferProducer::new(
-        kafka_connection,
+    let time_provider = Arc::new(SystemProvider::new());
+    let producer = FileBufferProducer::new(
+        write_buffer_path,
         db_name,
-        &Default::default(),
-        creation_config.as_ref(),
-        Arc::new(time::SystemProvider::new()),
+        Default::default(),
+        time_provider,
     )
     .await
     .unwrap();
-    producer
+    let sequencer_id = producer.sequencer_ids().into_iter().next().unwrap();
+    let (sequence_1, _) = producer
         .store_entry(
             &lp_to_entries("table_1,partition_by=a foo=1 10", &partition_template)
                 .pop()
                 .unwrap(),
-            0,
+            sequencer_id,
             None,
         )
         .await
         .unwrap();
-    producer
+    let (sequence_2, _) = producer
         .store_entry(
             &lp_to_entries("table_1,partition_by=b foo=2 20", &partition_template)
                 .pop()
                 .unwrap(),
-            0,
+            sequencer_id,
             None,
         )
         .await
         .unwrap();
-    producer
+    let (sequence_3, _) = producer
         .store_entry(
             &lp_to_entries("table_1,partition_by=b foo=3 30", &partition_template)
                 .pop()
                 .unwrap(),
-            0,
+            sequencer_id,
             None,
         )
         .await
@@ -766,8 +762,7 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
     )
     .await;
 
-    // purge data from Kafka
-    purge_kafka_topic(kafka_connection, db_name).await;
+    // add new entry to the end
     producer
         .store_entry(
             &lp_to_entries("table_1,partition_by=c foo=4 40", &partition_template)
@@ -778,6 +773,29 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
         )
         .await
         .unwrap();
+
+    // purge data from write buffer
+    write_buffer::file::test_utils::remove_entry(
+        write_buffer_path,
+        db_name,
+        sequencer_id,
+        sequence_1.number,
+    )
+    .await;
+    write_buffer::file::test_utils::remove_entry(
+        write_buffer_path,
+        db_name,
+        sequencer_id,
+        sequence_2.number,
+    )
+    .await;
+    write_buffer::file::test_utils::remove_entry(
+        write_buffer_path,
+        db_name,
+        sequencer_id,
+        sequence_3.number,
+    )
+    .await;
 
     // Try to replay and error
     let fixture = fixture.restart_server().await;

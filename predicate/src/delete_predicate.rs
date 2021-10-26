@@ -120,6 +120,7 @@ impl From<DeletePredicate> for crate::predicate::Predicate {
             partition_key: None,
             range: Some(pred.range),
             exprs: pred.exprs.into_iter().map(|expr| expr.into()).collect(),
+            value_expr: vec![],
         }
     }
 }

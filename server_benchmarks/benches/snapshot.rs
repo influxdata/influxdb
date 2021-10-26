@@ -12,7 +12,7 @@ fn snapshot_chunk(chunk: &MBChunk) {
 fn chunk(count: usize) -> MBChunk {
     let mut chunk: Option<MBChunk> = None;
 
-    let raw = include_bytes!("../../tests/fixtures/lineproto/tag_values.lp.gz");
+    let raw = include_bytes!("../../test_fixtures/lineproto/tag_values.lp.gz");
     let mut gz = GzDecoder::new(&raw[..]);
     let mut lp = String::new();
     gz.read_to_string(&mut lp).unwrap();

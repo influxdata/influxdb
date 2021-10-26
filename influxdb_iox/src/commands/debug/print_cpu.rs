@@ -1,4 +1,3 @@
-#![recursion_limit = "512"]
 /// Prints what CPU features are used by the compiler by default.
 ///
 /// Script from:
@@ -29,7 +28,7 @@ macro_rules! print_if_feature_enabled {
     }
 }
 
-fn main() {
+pub fn main() {
     println!("rustc is using the following target options");
 
     print_if_feature_enabled!(
