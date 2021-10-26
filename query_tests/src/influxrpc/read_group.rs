@@ -103,8 +103,9 @@ impl DbSetup for OneMeasurementNoTagsWithDelete {
     }
 }
 
-/// This will create many scenarios (at least 15), some that have a chunk with soft deleted data,
-/// some has no chunks because we do create RUB (and hence OS) chunks for all soft deleted data in MUB
+/// This will create many scenarios (at least 15), some have a chunk with
+/// soft deleted data, some have no chunks because there is no point to
+/// create a RUB for one or many compacted MUB with all deleted data.
 struct OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {}
 #[async_trait]
 impl DbSetup for OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {
