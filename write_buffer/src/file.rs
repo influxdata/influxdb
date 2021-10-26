@@ -413,7 +413,8 @@ impl ConsumerStream {
                             std::io::ErrorKind::NotFound => {
                                 // figure out watermark and see if there's a gap in the stream
                                 if let Ok(watermark) = watermark(&path).await {
-                                    if watermark > sequence_number {
+                                    // watermark is "last sequence number + 1", so substract 1 before comparing
+                                    if watermark.saturating_sub(1) > sequence_number {
                                         // update position
                                         // failures are OK here since we'll re-read this value next round
                                         next_sequence_number
@@ -771,7 +772,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ignores_missing_files() {
+    async fn test_ignores_missing_files_multi() {
         let adapter = FileTestAdapter::new();
         let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
 
@@ -827,5 +828,41 @@ mod tests {
         );
         assert_eq!(&entry_1, sequenced_entry_1.entry());
         assert_eq!(&entry_4, sequenced_entry_4.entry());
+    }
+
+    #[tokio::test]
+    async fn test_ignores_missing_files_single() {
+        let adapter = FileTestAdapter::new();
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let writer = ctx.writing(true).await.unwrap();
+        let sequencer_id = writer.sequencer_ids().into_iter().next().unwrap();
+        let entry_1 = lp_to_entry("upc,region=east user=1 100");
+        let entry_2 = lp_to_entry("upc,region=east user=2 200");
+        let (sequence_1, _) = writer
+            .store_entry(&entry_1, sequencer_id, None)
+            .await
+            .unwrap();
+        let (sequence_2, _) = writer
+            .store_entry(&entry_2, sequencer_id, None)
+            .await
+            .unwrap();
+
+        remove_entry(
+            &ctx.path,
+            &ctx.database_name,
+            sequencer_id,
+            sequence_1.number,
+        )
+        .await;
+
+        let mut reader = ctx.reading(true).await.unwrap();
+        let mut stream = reader.streams().remove(&sequencer_id).unwrap();
+        let sequenced_entry_2 = stream.stream.next().await.unwrap().unwrap();
+        assert_eq!(
+            sequence_2.number,
+            sequenced_entry_2.sequence().unwrap().number
+        );
+        assert_eq!(&entry_2, sequenced_entry_2.entry());
     }
 }
