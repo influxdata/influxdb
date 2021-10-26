@@ -157,7 +157,7 @@ jobs:
           no_output_timeout: 1500s
   changelog_nightly:
     docker:
-      - image: quay.io/influxdb/changelogger:250bf04063b97d5cbad31e1a18ac479fc123788b
+      - image: quay.io/influxdb/changelogger:12126fe5b2660d6862e8133069b02d44dedf9f6d
     steps:
       - checkout
       - run:
