@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/sqlite/test_migrations"
@@ -80,6 +81,9 @@ func TestUpWithBackups(t *testing.T) {
 	// Backup file should exist.
 	backup1Fi, err := os.Stat(backupPath)
 	require.NoError(t, err)
+
+	// Sleep for a bit so the mod-time on subsequent files is reliably different.
+	time.Sleep(100 * time.Millisecond)
 
 	// Run the remaining migrations.
 	require.NoError(t, migrator.Up(ctx, test_migrations.Rest))
