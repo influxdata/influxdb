@@ -200,6 +200,7 @@ workflows:
       - unit_test
       - unit_test_tsi
       - unit_test_race
+      - changelog_nightly
   daily:
     triggers:
       - schedule:
