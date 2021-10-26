@@ -1,7 +1,3 @@
--- The user_version should match the "000X" from the file name
--- Ex: 0001_create_notebooks_table should have a user_verison of 1
-PRAGMA user_version=3;
-
 CREATE TABLE remotes (
     id VARCHAR(16) NOT NULL PRIMARY KEY,
     org_id VARCHAR(16) NOT NULL,

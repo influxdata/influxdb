@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"os"
 	"testing"
@@ -29,32 +30,64 @@ func TestUp(t *testing.T) {
 	defer clean(t)
 	ctx := context.Background()
 
-	// a new database should have a user_version of 0
-	v, err := store.userVersion()
+	// empty db contains no migrations
+	names, err := store.allMigrationNames()
 	require.NoError(t, err)
-	require.Equal(t, 0, v)
+	require.Equal(t, []string(nil), names)
 
+	// run the first migrations
 	migrator := NewMigrator(store, zaptest.NewLogger(t))
-	migrator.Up(ctx, test_migrations.All)
-
-	// user_version should now be 3 after applying the migrations
-	v, err = store.userVersion()
+	require.NoError(t, migrator.Up(ctx, test_migrations.First))
+	names, err = store.allMigrationNames()
 	require.NoError(t, err)
-	require.Equal(t, 3, v)
+	migrationNamesMatch(t, names, test_migrations.First)
 
-	// make sure that test_table_1 had the "id" column renamed to "org_id"
-	table1Info := []*tableInfo{}
+	// run the rest of the migrations
+	err = migrator.Up(ctx, test_migrations.All)
+	require.NoError(t, err)
+	names, err = store.allMigrationNames()
+	require.NoError(t, err)
+	migrationNamesMatch(t, names, test_migrations.All)
+
+	// test_table_1 had the "id" column renamed to "org_id"
+	var table1Info []*tableInfo
 	err = store.DB.Select(&table1Info, "PRAGMA table_info(test_table_1)")
 	require.NoError(t, err)
 	require.Len(t, table1Info, 3)
 	require.Equal(t, "org_id", table1Info[0].Name)
 
-	// make sure that test_table_2 was created correctly
-	table2Info := []*tableInfo{}
+	// test_table_2 was created correctly
+	var table2Info []*tableInfo
 	err = store.DB.Select(&table2Info, "PRAGMA table_info(test_table_2)")
 	require.NoError(t, err)
 	require.Len(t, table2Info, 3)
 	require.Equal(t, "user_id", table2Info[0].Name)
+}
+
+func TestUpErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("only unknown migration exists", func(t *testing.T) {
+		store, clean := NewTestStore(t)
+		defer clean(t)
+		ctx := context.Background()
+
+		migrator := NewMigrator(store, zaptest.NewLogger(t))
+		require.NoError(t, migrator.Up(ctx, test_migrations.MigrationTable))
+		require.NoError(t, store.execTrans(ctx, `INSERT INTO migrations (name) VALUES ("0010_some_bad_migration")`))
+		require.Equal(t, errInvalidMigration("0010_some_bad_migration"), migrator.Up(ctx, test_migrations.All))
+	})
+
+	t.Run("known + unknown migrations exist", func(t *testing.T) {
+		store, clean := NewTestStore(t)
+		defer clean(t)
+		ctx := context.Background()
+
+		migrator := NewMigrator(store, zaptest.NewLogger(t))
+		require.NoError(t, migrator.Up(ctx, test_migrations.First))
+		require.NoError(t, store.execTrans(ctx, `INSERT INTO migrations (name) VALUES ("0010_some_bad_migration")`))
+		require.Equal(t, errInvalidMigration("0010_some_bad_migration"), migrator.Up(ctx, test_migrations.All))
+	})
 }
 
 func TestUpWithBackups(t *testing.T) {
@@ -69,25 +102,21 @@ func TestUpWithBackups(t *testing.T) {
 	backupPath := fmt.Sprintf("%s.bak", store.path)
 	migrator.SetBackupPath(backupPath)
 
-	// Run the first migration.
+	// Run the first migrations.
 	require.NoError(t, migrator.Up(ctx, test_migrations.First))
-
-	// user_version should now be 1.
-	v, err := store.userVersion()
+	names, err := store.allMigrationNames()
 	require.NoError(t, err)
-	require.Equal(t, 1, v)
+	migrationNamesMatch(t, names, test_migrations.First)
 
 	// Backup file shouldn't exist, because there was nothing to back up.
 	_, err = os.Stat(backupPath)
 	require.True(t, os.IsNotExist(err))
 
 	// Run the remaining migrations.
-	require.NoError(t, migrator.Up(ctx, test_migrations.Rest))
-
-	// user_version should now be 3.
-	v, err = store.userVersion()
+	require.NoError(t, migrator.Up(ctx, test_migrations.All))
+	names, err = store.allMigrationNames()
 	require.NoError(t, err)
-	require.Equal(t, 3, v)
+	migrationNamesMatch(t, names, test_migrations.All)
 
 	// Backup file should now exist.
 	_, err = os.Stat(backupPath)
@@ -98,19 +127,19 @@ func TestUpWithBackups(t *testing.T) {
 	require.NoError(t, err)
 	defer backupStore.Close()
 
-	// user_version should be 1 in the backup.
-	v, err = backupStore.userVersion()
+	// Backup store contains the first migrations records.
+	backupNames, err := backupStore.allMigrationNames()
 	require.NoError(t, err)
-	require.Equal(t, 1, v)
+	migrationNamesMatch(t, backupNames, test_migrations.First)
 
 	// Run the remaining migrations on the backup.
 	backupMigrator := NewMigrator(backupStore, logger)
-	require.NoError(t, backupMigrator.Up(ctx, test_migrations.Rest))
+	require.NoError(t, backupMigrator.Up(ctx, test_migrations.All))
 
-	// user_version should now be 3 in the backup.
-	v, err = backupStore.userVersion()
+	// Backup store now contains the rest of the migration records.
+	backupNames, err = backupStore.allMigrationNames()
 	require.NoError(t, err)
-	require.Equal(t, 3, v)
+	migrationNamesMatch(t, backupNames, test_migrations.All)
 }
 
 func TestScriptVersion(t *testing.T) {
@@ -154,5 +183,41 @@ func TestScriptVersion(t *testing.T) {
 				require.Error(t, err)
 			}
 		})
+	}
+}
+
+func TestDropExtension(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{
+			input: "0001_some_migration.sql",
+			want:  "0001_some_migration",
+		},
+		{
+			input: "0001_some_migration.down.sql",
+			want:  "0001_some_migration",
+		},
+		{
+			input: "0001_some_migration.something.anything.else",
+			want:  "0001_some_migration",
+		},
+	}
+
+	for _, tt := range tests {
+		got := dropExtension(tt.input)
+		require.Equal(t, tt.want, got)
+	}
+}
+
+func migrationNamesMatch(t *testing.T, names []string, files embed.FS) {
+	t.Helper()
+	storedMigrations, err := files.ReadDir(".")
+	require.NoError(t, err)
+	require.Equal(t, len(storedMigrations), len(names))
+
+	for idx := range storedMigrations {
+		require.Equal(t, dropExtension(storedMigrations[idx].Name()), names[idx])
 	}
 }

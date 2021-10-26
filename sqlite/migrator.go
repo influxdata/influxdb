@@ -9,8 +9,16 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"go.uber.org/zap"
 )
+
+func errInvalidMigration(n string) *errors.Error {
+	return &errors.Error{
+		Code: errors.EInternal,
+		Msg:  fmt.Sprintf(`encountered invalid migration record %q - if you are downgrading from a more recent version of influxdb, please run the "influxd downgrade" command from that version to revert your metadata to be compatible with this version prior to starting influxd.`, n),
+	}
+}
 
 type Migrator struct {
 	store *SqlStore
@@ -32,23 +40,41 @@ func (m *Migrator) SetBackupPath(path string) {
 }
 
 func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
-	list, err := source.ReadDir(".")
+	knownMigrations, err := source.ReadDir(".")
 	if err != nil {
 		return err
 	}
+
 	// sort the list according to the version number to ensure the migrations are applied in the correct order
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].Name() < list[j].Name()
+	sort.Slice(knownMigrations, func(i, j int) bool {
+		return knownMigrations[i].Name() < knownMigrations[j].Name()
 	})
 
-	// get the current value for user_version from the database
-	current, err := m.store.userVersion()
+	executedMigrations, err := m.store.allMigrationNames()
 	if err != nil {
 		return err
+	}
+
+	var lastMigration string
+	for idx := range executedMigrations {
+		if idx > len(knownMigrations)-1 || executedMigrations[idx] != dropExtension(knownMigrations[idx].Name()) {
+			return errInvalidMigration(executedMigrations[idx])
+		}
+
+		lastMigration = executedMigrations[idx]
+	}
+
+	var current int
+	// lastMigration will be an empty string if there are no migration records with a fresh database. In this case,
+	// "current" will be 0.
+	if lastMigration != "" {
+		if current, err = scriptVersion(lastMigration); err != nil {
+			return err
+		}
 	}
 
 	// get the migration number of the latest migration for logging purposes
-	final, err := scriptVersion(list[len(list)-1].Name())
+	final, err := scriptVersion(knownMigrations[len(knownMigrations)-1].Name())
 	if err != nil {
 		return err
 	}
@@ -77,33 +103,27 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 
 	m.log.Info("Bringing up metadata migrations", zap.Int("migration_count", final-current))
 
-	for _, f := range list {
+	for _, f := range knownMigrations {
 		n := f.Name()
-		// get the version of this migration script
 		v, err := scriptVersion(n)
 		if err != nil {
 			return err
 		}
 
-		// get the current value for user_version from the database. this is done in the loop as well to ensure
-		// that if for some reason the migrations are out of order, newer migrations are not applied after older ones.
-		c, err := m.store.userVersion()
-		if err != nil {
-			return err
-		}
-
-		// if the version of the script is greater than the current user_version,
-		// execute the script to apply the migration
-		if v > c {
+		if v > current {
 			m.log.Debug("Executing metadata migration", zap.String("migration_name", n))
 			mBytes, err := source.ReadFile(n)
 			if err != nil {
 				return err
 			}
 
-			if err := m.store.execTrans(ctx, string(mBytes)); err != nil {
+			mRecord := fmt.Sprintf(`INSERT INTO migrations (name) VALUES (%q);`, dropExtension(n))
+
+			if err := m.store.execTrans(ctx, string(mBytes)+mRecord); err != nil {
 				return err
 			}
+
+			current = v
 		}
 	}
 
@@ -119,4 +139,9 @@ func scriptVersion(filename string) (int, error) {
 	}
 
 	return vInt, nil
+}
+
+// dropExtension returns the filename excluding anything after the first "."
+func dropExtension(filename string) string {
+	return filename[:strings.Index(filename, ".")]
 }
