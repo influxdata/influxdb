@@ -8,7 +8,11 @@ use std::{
 
 use arrow_util::assert_batches_sorted_eq;
 use object_store::{ObjectStore, ObjectStoreIntegration};
-use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryChunk};
+use query::{
+    exec::{ExecutionContextProvider, IOxExecutionContext},
+    frontend::sql::SqlQueryPlanner,
+    QueryChunk,
+};
 use server::{db::test_helpers::write_lp, utils::TestDb};
 
 #[tokio::test]
@@ -58,7 +62,7 @@ async fn test_query_cancellation_slow_store() {
 
     // setup query context
     let ctx = db.new_query_context(None);
-    assert_eq!(ctx.tasks(), 0);
+    wait_for_tasks(&ctx, 0).await;
 
     // query fast part
     let expected_fast = vec![
@@ -75,7 +79,7 @@ async fn test_query_cancellation_slow_store() {
         .unwrap();
     let batches = ctx.collect(physical_plan).await.unwrap();
     assert_batches_sorted_eq!(&expected_fast, &batches);
-    assert_eq!(ctx.tasks(), 0);
+    wait_for_tasks(&ctx, 0).await;
 
     // query blocked part
     let query_slow = "select * from cpu where region='west'";
@@ -92,7 +96,7 @@ async fn test_query_cancellation_slow_store() {
     });
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     assert!(!passed.load(Ordering::SeqCst));
-    assert_eq!(ctx.tasks(), 1);
+    wait_for_tasks(&ctx, 1).await;
 
     // querying fast part should not be blocked
     let physical_plan = SqlQueryPlanner::default()
@@ -101,14 +105,20 @@ async fn test_query_cancellation_slow_store() {
         .unwrap();
     let batches = ctx.collect(physical_plan).await.unwrap();
     assert_batches_sorted_eq!(&expected_fast, &batches);
-    assert_eq!(ctx.tasks(), 1);
+    wait_for_tasks(&ctx, 1).await;
 
     // canceling the blocking query should free resources again
     // cancelation might take a short while
     join_handle.abort();
+    wait_for_tasks(&ctx, 0).await;
+    assert!(!passed.load(Ordering::SeqCst));
+}
+
+/// Wait up to 10s for correct task count.
+async fn wait_for_tasks(ctx: &IOxExecutionContext, n: usize) {
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
-            if dbg!(ctx.tasks()) == 0 {
+            if dbg!(ctx.tasks()) == n {
                 return;
             }
             tokio::time::sleep(Duration::from_millis(1)).await;
@@ -116,5 +126,4 @@ async fn test_query_cancellation_slow_store() {
     })
     .await
     .unwrap();
-    assert!(!passed.load(Ordering::SeqCst));
 }
