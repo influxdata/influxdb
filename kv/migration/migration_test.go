@@ -3,15 +3,19 @@ package migration_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
@@ -40,7 +44,66 @@ func Test_Bolt_Migrator(t *testing.T) {
 	influxdbtesting.Migrator(t, store, newMigrator)
 }
 
-func newTestBoltStoreWithoutMigrations(t *testing.T) (kv.SchemaStore, func(), error) {
+func Test_Bolt_MigratorWithBackup(t *testing.T) {
+	store, closeBolt, err := newTestBoltStoreWithoutMigrations(t)
+	require.NoError(t, err)
+	defer closeBolt()
+
+	ctx := context.Background()
+	migrator := newMigrator(t, zaptest.NewLogger(t), store, time.Now)
+	backupPath := fmt.Sprintf("%s.bak", store.DB().Path())
+	migrator.SetBackupPath(backupPath)
+
+	// Run the first migration.
+	migrator.AddMigrations(all.Migration0001_InitialMigration)
+	require.NoError(t, migrator.Up(ctx))
+
+	// List of applied migrations should now have length 1.
+	ms, err := migrator.List(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(ms))
+
+	// Backup file should exist.
+	backup1Fi, err := os.Stat(backupPath)
+	require.NoError(t, err)
+
+	// Run a few more migrations.
+	migrator.AddMigrations(all.Migrations[1:5]...)
+	require.NoError(t, migrator.Up(ctx))
+
+	// List of applied migrations should now have length 5.
+	ms, err = migrator.List(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 5, len(ms))
+
+	// Backup file should have been overwritten.
+	backup2Fi, err := os.Stat(backupPath)
+	require.NoError(t, err)
+	require.True(t, backup2Fi.ModTime().After(backup1Fi.ModTime()))
+
+	// Open a 2nd store using the backup file.
+	backupStore := bolt.NewKVStore(zaptest.NewLogger(t), backupPath, bolt.WithNoSync)
+	require.NoError(t, backupStore.Open(ctx))
+	defer backupStore.Close()
+
+	// List of applied migrations in the backup should be 1.
+	backupMigrator := newMigrator(t, zaptest.NewLogger(t), backupStore, time.Now)
+	backupMigrator.AddMigrations(all.Migration0001_InitialMigration)
+	backupMs, err := backupMigrator.List(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(backupMs))
+
+	// Run the other migrations on the backup.
+	backupMigrator.AddMigrations(all.Migrations[1:5]...)
+	require.NoError(t, backupMigrator.Up(ctx))
+
+	// List of applied migrations in the backup should be 5.
+	backupMs, err = backupMigrator.List(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 5, len(backupMs))
+}
+
+func newTestBoltStoreWithoutMigrations(t *testing.T) (*bolt.KVStore, func(), error) {
 	f, err := ioutil.TempFile("", "influxdata-bolt-")
 	if err != nil {
 		return nil, nil, errors.New("unable to open temporary boltdb file")
