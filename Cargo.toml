@@ -9,7 +9,7 @@ members = [
     "entry",
     "generated_types",
     "grpc-router",
-    "grpc-router/grpc-router-test-gen",
+    "grpc-router-test-gen",
     "influxdb2_client",
     "influxdb_iox",
     "influxdb_iox_client",
