@@ -387,6 +387,7 @@ impl TestServer {
         let child = Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("run")
+            .arg("query")
             .env("LOG_FILTER", log_filter)
             .env("INFLUXDB_IOX_OBJECT_STORE", "file")
             .env("INFLUXDB_IOX_DB_DIR", dir.path())

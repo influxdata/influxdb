@@ -17,7 +17,7 @@ pub fn init_logs_and_tracing(
     log_verbose_count: u8,
     config: &crate::commands::run::Config,
 ) -> Result<TroggingGuard, trogging::Error> {
-    let mut logging_config = config.logging_config.clone();
+    let mut logging_config = config.run_config().logging_config.clone();
 
     // Handle the case if -v/-vv is specified both before and after the server
     // command

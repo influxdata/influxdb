@@ -14,21 +14,21 @@ Some examples
 
 ```bash
 # Default verbosity
-$ ./influxdb_iox run
+$ ./influxdb_iox run query
 # More verbose
-$ ./influxdb_iox run -v
+$ ./influxdb_iox run query -v
 # Even more verbose
-$ ./influxdb_iox run -vv
+$ ./influxdb_iox run query -vv
 # Everything!!
-$ ./influxdb_iox run --log-filter trace
+$ ./influxdb_iox run query --log-filter trace
 # Default info, but debug within http module
-$ ./influxdb_iox run --log-filter info,influxdb_iox::influxdb_ioxd::http=debug
+$ ./influxdb_iox run query --log-filter info,influxdb_iox::influxdb_ioxd::http=debug
 ```
 
 Additionally, the output format can be controlled with `--log-format`
 
 ```bash
-$ ./influxdb_iox run --log-filter debug --log-format logfmt
+$ ./influxdb_iox run query --log-filter debug --log-format logfmt
 ```
 
 ## Developer Guide
@@ -69,7 +69,7 @@ will strip out all trace level callsites from the release binary.
 
 ### Format
 
-IOx supports logging in many formats. For a list run `influxdb_iox run --help` and view the help output
+IOx supports logging in many formats. For a list run `influxdb_iox run query --help` and view the help output
 for `--log-format`.
 
 <sup>1.</sup> This span propagation uses thread-local storage and therefore does not automatically carry across

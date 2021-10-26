@@ -215,6 +215,7 @@ impl TestServer {
 
             Command::new("docker")
                 .arg("run")
+                .arg("query")
                 .arg("--name")
                 .arg(&container_name)
                 .arg("--publish")

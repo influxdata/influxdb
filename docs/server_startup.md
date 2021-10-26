@@ -3,10 +3,10 @@
 An IOx node can be started from the command line:
 
 ```shell
-influxdb_iox run
+influxdb_iox run query
 ```
 
-See help (via `influxdb_iox run --help`) for arguments.
+See help (via `influxdb_iox run query --help`) for arguments.
 
 
 ## Server ID
