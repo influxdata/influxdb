@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
 	"github.com/opentracing/opentracing-go/log"
 
 	sq "github.com/Masterminds/squirrel"
@@ -117,13 +118,14 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 		return nil, errLocalBucketNotFound(request.LocalBucketID, err)
 	}
 
-	if err := s.durableQueueManager.InitializeQueue(request.RemoteID, request.MaxQueueSizeBytes); err != nil {
+	newID := s.idGenerator.ID()
+	if err := s.durableQueueManager.InitializeQueue(newID, request.MaxQueueSizeBytes); err != nil {
 		return nil, err
 	}
 
 	q := sq.Insert("replications").
 		SetMap(sq.Eq{
-			"id":                       s.idGenerator.ID(),
+			"id":                       newID,
 			"org_id":                   request.OrgID,
 			"name":                     request.Name,
 			"description":              request.Description,
@@ -239,7 +241,7 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 	}
 
 	if request.MaxQueueSizeBytes != nil {
-		if err := s.durableQueueManager.UpdateMaxQueueSize(*request.RemoteID, *request.MaxQueueSizeBytes); err != nil {
+		if err := s.durableQueueManager.UpdateMaxQueueSize(id, *request.MaxQueueSizeBytes); err != nil {
 			return nil, err
 		}
 	}

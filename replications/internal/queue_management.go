@@ -13,7 +13,7 @@ import (
 type durableQueueManager struct {
 	replicationQueues map[platform.ID]*durablequeue.Queue
 	logger            *zap.Logger
-	enginePath		  string
+	enginePath        string
 }
 
 // NewDurableQueueManager creates a new durableQueueManager struct, for managing durable queues associated with
@@ -24,7 +24,7 @@ func NewDurableQueueManager(log *zap.Logger, enginePath string) *durableQueueMan
 	return &durableQueueManager{
 		replicationQueues: replicationQueues,
 		logger:            log,
-		enginePath:		   enginePath,
+		enginePath:        enginePath,
 	}
 }
 
@@ -88,7 +88,6 @@ func (qm *durableQueueManager) DeleteQueue(replicationID platform.ID) error {
 
 	qm.logger.Debug("Closed replication stream durable queue",
 		zap.String("id", replicationID.String()), zap.String("path", qm.replicationQueues[replicationID].Dir()))
-
 
 	// Delete any enqueued, un-flushed data on disk for this queue
 	if err := qm.replicationQueues[replicationID].Remove(); err != nil {
