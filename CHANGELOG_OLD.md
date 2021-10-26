@@ -59,7 +59,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [22669](https://github.com/influxdata/influxdb/pull/22669): Enable new dashboard autorefresh
 1. [22674](https://github.com/influxdata/influxdb/pull/22674): list-bucket API supports pagination when filtering by org
 1. [22671](https://github.com/influxdata/influxdb/pull/22671): Update flux to `v0.134.0`
-1. [22692](https://github.com/influxdata/influxdb/pull/22692): Update UI to `OSS-2.1.0`
+1. [22752](https://github.com/influxdata/influxdb/pull/22752): Update UI to `OSS-2.1.1`
 
 ### Bug Fixes
 
