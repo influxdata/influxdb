@@ -2,12 +2,13 @@ package internal
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
-	"go.uber.org/zap"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
+	"go.uber.org/zap"
 )
 
 type durableQueueManager struct {
