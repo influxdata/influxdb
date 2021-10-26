@@ -1,17 +1,17 @@
 //! Code for defining values and tag sets with tags that are dependent on other tags.
 
 use crate::specification::{DataSpec, ValuesSpec};
-use crate::substitution::{FormatNowHelper, RandomHelper};
-use crate::RandomNumberGenerator;
+use crate::substitution::new_handlebars_registry;
+use crate::tag_pair::StaticTagPair;
 use handlebars::Handlebars;
 use itertools::Itertools;
 use serde_json::json;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::fmt::Formatter;
-use std::sync::Arc;
 /// Module for pre-generated values and tag sets that can be used when generating samples from
 /// agents.
-use std::{collections::BTreeMap, sync::Mutex};
+use std::collections::BTreeMap;
+use std::fmt::Formatter;
+use std::sync::Arc;
 
 /// Errors that may happen while reading a TOML specification.
 #[derive(Snafu, Debug)]
@@ -64,7 +64,7 @@ pub struct GeneratedValueCollection {
 #[derive(Debug)]
 pub struct GeneratedValue {
     id: usize,
-    tag_pair: Arc<TagPair>,
+    tag_pair: Arc<StaticTagPair>,
 }
 
 /// All generated tag sets specified
@@ -96,16 +96,7 @@ impl GeneratedTagSets {
     /// Generate tag sets from a `DataSpec`
     pub fn from_spec(spec: &DataSpec) -> Result<Self> {
         let mut generated_tag_sets = Self::default();
-
-        let rng: RandomNumberGenerator<rand::rngs::SmallRng> = RandomNumberGenerator::new(
-            spec.base_seed
-                .to_owned()
-                .unwrap_or_else(|| "default seed".to_string()),
-        );
-        let random_helper = RandomHelper::new(Mutex::new(rng));
-        let mut template = Handlebars::new();
-        template.register_helper("format-time", Box::new(FormatNowHelper));
-        template.register_helper("random", Box::new(random_helper));
+        let mut template = new_handlebars_registry();
 
         let mut leftover_specs = -1;
 
@@ -183,7 +174,7 @@ impl GeneratedTagSets {
         // iteration and then just do a single clone at the very end.
         let mut tag_pairs: Vec<_> = (0..for_each.len())
             .map(|_| {
-                Arc::new(TagPair {
+                Arc::new(StaticTagPair {
                     key: Arc::new("default".to_string()),
                     value: Arc::new("default".to_string()),
                 })
@@ -200,7 +191,7 @@ impl GeneratedTagSets {
         &self,
         parent_id: Option<usize>,
         keys: &[Key<'_>],
-        tag_pairs: &mut Vec<Arc<TagPair>>,
+        tag_pairs: &mut Vec<Arc<StaticTagPair>>,
         position: usize,
     ) -> Result<Vec<TagSet>> {
         let key = &keys[position];
@@ -325,7 +316,7 @@ impl GeneratedTagSets {
 
                     vals.push(Arc::new(GeneratedValue {
                         id: i,
-                        tag_pair: Arc::new(TagPair {
+                        tag_pair: Arc::new(StaticTagPair {
                             key: Arc::clone(&tag_key),
                             value,
                         }),
@@ -398,7 +389,7 @@ impl GeneratedTagSets {
                 let data = json!({
                     belongs_to: {
                         "id": parent.id,
-                        "value": &parent.tag_pair.value,
+                        "value": &parent.tag_pair.value.as_ref(),
                     },
                     "id": child_value_id,
                 });
@@ -413,7 +404,7 @@ impl GeneratedTagSets {
 
                 let child_value = Arc::new(GeneratedValue {
                     id: child_value_id,
-                    tag_pair: Arc::new(TagPair {
+                    tag_pair: Arc::new(StaticTagPair {
                         key: Arc::clone(&tag_key),
                         value,
                     }),
@@ -453,11 +444,11 @@ fn has_one_values_key(parent: &str, child: &str) -> String {
 #[derive(Debug)]
 pub struct TagSet {
     /// The tags in the set
-    pub tags: Vec<Arc<TagPair>>,
+    pub tags: Vec<Arc<StaticTagPair>>,
 }
 
 impl TagSet {
-    fn new(tags: Vec<Arc<TagPair>>) -> Self {
+    fn new(tags: Vec<Arc<StaticTagPair>>) -> Self {
         Self { tags }
     }
 }
@@ -466,21 +457,6 @@ impl std::fmt::Display for TagSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let s = self.tags.iter().map(|t| t.to_string()).join(",");
         write!(f, "{}", s)
-    }
-}
-
-/// A tag key/value pair
-#[derive(Debug, PartialEq, PartialOrd)]
-pub struct TagPair {
-    /// the key
-    pub key: Arc<String>,
-    /// the value
-    pub value: Arc<String>,
-}
-
-impl std::fmt::Display for TagPair {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}={}", self.key, self.value)
     }
 }
 
@@ -493,7 +469,6 @@ mod test {
     fn generate_tag_sets_basic() {
         let toml = r#"
 name = "demo"
-base_seed = "foo"
 
 [[values]]
 name = "foo"
@@ -505,7 +480,6 @@ name = "testage"
 for_each = ["foo"]
 
 [[agents]]
-name = "basic"
 
 [[agents.measurements]]
 name = "cpu"
@@ -530,7 +504,6 @@ foo=3#foo"#;
     fn generate_tag_sets_belongs_to() {
         let toml = r#"
 name = "demo"
-base_seed = "foo"
 
 [[values]]
 name = "foo"
@@ -551,7 +524,6 @@ for_each = [
 ]
 
 [[agents]]
-name = "basic"
 
 [[agents.measurements]]
 name = "cpu"
@@ -577,7 +549,6 @@ bar=4-2-2#foo,foo=2#foo"#;
     fn generate_tag_sets_test() {
         let toml = r#"
 name = "demo"
-base_seed = "foo"
 
 [[values]]
 name = "foo"
@@ -618,7 +589,6 @@ for_each = [
 ]
 
 [[agents]]
-name = "basic"
 
 [[agents.measurements]]
 name = "cpu"

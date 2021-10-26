@@ -1,7 +1,8 @@
 //! Writing generated points
 
+use crate::measurement::LineToGenerate;
 use futures::stream;
-use influxdb2_client::models::{DataPoint, PostBucketRequest, WriteDataPoint};
+use influxdb2_client::models::{PostBucketRequest, WriteDataPoint};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 #[cfg(test)]
 use std::{
@@ -103,7 +104,7 @@ enum PointsWriterConfig {
         perform_write: bool,
     },
     #[cfg(test)]
-    Vector(BTreeMap<String, Arc<Mutex<Vec<u8>>>>),
+    Vector(BTreeMap<usize, Arc<Mutex<Vec<u8>>>>),
     Stdout,
 }
 
@@ -183,7 +184,7 @@ impl PointsWriterBuilder {
 
     /// Create a writer out of this writer's configuration for a particular
     /// agent that runs in a separate thread/task.
-    pub fn build_for_agent(&mut self, agent_name: &str) -> Result<PointsWriter> {
+    pub fn build_for_agent(&mut self, id: usize) -> Result<PointsWriter> {
         let inner_writer = match &mut self.config {
             PointsWriterConfig::Api {
                 client,
@@ -196,7 +197,7 @@ impl PointsWriterBuilder {
             },
             PointsWriterConfig::Directory(dir_path) => {
                 let mut filename = dir_path.clone();
-                filename.push(agent_name);
+                filename.push(format!("agent_{}", id));
                 filename.set_extension("txt");
 
                 let file = OpenOptions::new()
@@ -215,7 +216,7 @@ impl PointsWriterBuilder {
             #[cfg(test)]
             PointsWriterConfig::Vector(ref mut agents_by_name) => {
                 let v = agents_by_name
-                    .entry(agent_name.to_string())
+                    .entry(id)
                     .or_insert_with(|| Arc::new(Mutex::new(Vec::new())));
                 InnerPointsWriter::Vec(Arc::clone(v))
             }
@@ -234,7 +235,10 @@ pub struct PointsWriter {
 
 impl PointsWriter {
     /// Write these points
-    pub async fn write_points(&mut self, points: Vec<DataPoint>) -> Result<()> {
+    pub async fn write_points(
+        &mut self,
+        points: impl Iterator<Item = LineToGenerate> + Send + Sync + 'static,
+    ) -> Result<()> {
         self.inner_writer.write_points(points).await
     }
 }
@@ -258,7 +262,10 @@ enum InnerPointsWriter {
 }
 
 impl InnerPointsWriter {
-    async fn write_points(&mut self, points: Vec<DataPoint>) -> Result<()> {
+    async fn write_points(
+        &mut self,
+        points: impl Iterator<Item = LineToGenerate> + Send + Sync + 'static,
+    ) -> Result<()> {
         match self {
             Self::Api {
                 client,
@@ -313,7 +320,7 @@ impl InnerPointsWriter {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{generate, now_ns, specification::*, ZeroRng};
+    use crate::{generate, now_ns, specification::*};
     use std::str::FromStr;
 
     type Error = Box<dyn std::error::Error>;
@@ -326,11 +333,11 @@ mod test {
             }
         }
 
-        fn written_data(self, agent_name: &str) -> String {
+        fn written_data(self, agent_id: usize) -> String {
             match self.config {
                 PointsWriterConfig::Vector(agents_by_name) => {
                     let bytes_ref =
-                        Arc::clone(agents_by_name.get(agent_name).expect(
+                        Arc::clone(agents_by_name.get(&agent_id).expect(
                             "Should have written some data, did not find any for this agent",
                         ));
                     let bytes = bytes_ref
@@ -347,24 +354,22 @@ mod test {
     async fn test_generate() -> Result<()> {
         let toml = r#"
 name = "demo_schema"
-base_seed = "this is a demo"
 
 [[agents]]
-name = "basic"
 
 [[agents.measurements]]
 name = "cpu"
 
 [[agents.measurements.fields]]
-name = "up"
-bool = true"#;
+name = "val"
+i64_range = [3,3]"#;
 
         let data_spec = DataSpec::from_str(toml).unwrap();
         let mut points_writer_builder = PointsWriterBuilder::new_vec();
 
         let now = now_ns();
 
-        generate::<ZeroRng>(
+        generate(
             &data_spec,
             &mut points_writer_builder,
             Some(now),
@@ -376,10 +381,10 @@ bool = true"#;
         )
         .await?;
 
-        let line_protocol = points_writer_builder.written_data("basic");
+        let line_protocol = points_writer_builder.written_data(0);
 
         let expected_line_protocol = format!(
-            r#"cpu,data_spec=demo_schema up=f {}
+            r#"cpu val=3i {}
 "#,
             now
         );
@@ -392,25 +397,23 @@ bool = true"#;
     async fn test_generate_batches() -> Result<()> {
         let toml = r#"
 name = "demo_schema"
-base_seed = "this is a demo"
 
 [[agents]]
-name = "basic"
 sampling_interval = "1s" # seconds
 
 [[agents.measurements]]
 name = "cpu"
 
 [[agents.measurements.fields]]
-name = "up"
-bool = true"#;
+name = "val"
+i64_range = [2, 2]"#;
 
         let data_spec = DataSpec::from_str(toml).unwrap();
         let mut points_writer_builder = PointsWriterBuilder::new_vec();
 
         let now = now_ns();
 
-        generate::<ZeroRng>(
+        generate(
             &data_spec,
             &mut points_writer_builder,
             Some(now - 1_000_000_000),
@@ -422,11 +425,11 @@ bool = true"#;
         )
         .await?;
 
-        let line_protocol = points_writer_builder.written_data("basic");
+        let line_protocol = points_writer_builder.written_data(0);
 
         let expected_line_protocol = format!(
-            r#"cpu,data_spec=demo_schema up=f {}
-cpu,data_spec=demo_schema up=f {}
+            r#"cpu val=2i {}
+cpu val=2i {}
 "#,
             now - 1_000_000_000,
             now

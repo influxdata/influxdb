@@ -1,29 +1,22 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use iox_data_generator::agent::Agent;
 use iox_data_generator::{
     specification::{AgentSpec, DataSpec, FieldSpec, FieldValueSpec, MeasurementSpec},
-    write::PointsWriterBuilder,
     tag_set::GeneratedTagSets,
+    write::PointsWriterBuilder,
 };
-use iox_data_generator::agent::Agent;
-use rand::Rng;
 
 pub fn single_agent(c: &mut Criterion) {
     let spec = DataSpec {
-        base_seed: Some("faster faster faster".into()),
-        include_spec_tag: Some(true),
         name: "benchmark".into(),
         values: vec![],
         tag_sets: vec![],
         agents: vec![AgentSpec {
-            name: "agent-1".into(),
             count: None,
             sampling_interval: Some("1s".to_string()),
-            name_tag_key: None,
-            tags: vec![],
             measurements: vec![MeasurementSpec {
                 name: "measurement-1".into(),
                 count: None,
-                tags: vec![],
                 fields: vec![FieldSpec {
                     name: "field-1".into(),
                     field_value_spec: FieldValueSpec::Bool(true),
@@ -32,6 +25,8 @@ pub fn single_agent(c: &mut Criterion) {
                 tag_set: None,
                 tag_pairs: vec![],
             }],
+            has_one: vec![],
+            tag_pairs: vec![],
         }],
     };
 
@@ -49,18 +44,16 @@ pub fn single_agent(c: &mut Criterion) {
 
     group.bench_function("single agent with basic configuration", |b| {
         b.iter(|| {
-            let r = block_on({
-                iox_data_generator::generate::<rand::rngs::SmallRng>(
-                    &spec,
-                    &mut points_writer,
-                    start_datetime,
-                    end_datetime,
-                    0,
-                    false,
-                    1,
-                    false,
-                )
-            });
+            let r = block_on(iox_data_generator::generate(
+                &spec,
+                &mut points_writer,
+                start_datetime,
+                end_datetime,
+                0,
+                false,
+                1,
+                false,
+            ));
             let n_points = r.expect("Could not generate data");
             assert_eq!(n_points, expected_points as usize);
         })
@@ -69,54 +62,87 @@ pub fn single_agent(c: &mut Criterion) {
 
 pub fn agent_pre_generated(c: &mut Criterion) {
     let spec: DataSpec = toml::from_str(r#"
-    name = "benchmark"
+name = "storage_cardinality_example"
+base_seed = "this is a demo"
 
-    [[values]]
-    name = "parent"
-    template = "parent{{id}}"
-    cardinality = 10
-    has_one = ["has_one"]
+# Values are automatically generated before the agents are intialized. They generate tag key/value pairs
+# with the name of the value as the tag key and the evaluated template as the value. These pairs
+# are Arc wrapped so they can be shared across tagsets and used in the agents as pre-generated data.
+[[values]]
+# the name must not have a . in it, which is used to access children later. Otherwise it's open.
+name = "role"
+# the template can use a number of helpers to get an id, a random string and the name, see below for examples
+template = "storage"
+# this number of tag pairs will be generated. If this is > 1, the id or a random character string should be
+# used in the template to ensure that the tag key/value pairs are unique.
+cardinality = 1
 
-    [[values]]
-    name = "child"
-    template = "child{{id}}"
-    belongs_to = "parent"
-    cardinality = 5
+[[values]]
+name = "url"
+template = "http://127.0.0.1:6060/metrics/usage"
+cardinality = 1
 
-    [[values]]
-    name = "has_one"
-    template = "has_one{{id}}"
-    cardinality = 3
+[[values]]
+name = "org_id"
+# Fill in the value with the cardinality counter and 15 random alphanumeric characters
+template = "{{id}}_{{random 15}}"
+cardinality = 1000
+has_one = ["env"]
 
-    [[tag_sets]]
-    name = "the-set"
-    for_each = [
-      "parent",
-      "parent.has_one",
-      "parent.child",
-    ]
+[[values]]
+name = "env"
+template = "whatever-environment-{{id}}"
+cardinality = 10
 
-    [[agents]]
-    name = "agent-1"
-    sampling_interval = "1s"
+[[values]]
+name = "bucket_id"
+# a bucket belongs to an org. With this, you would be able to access the org.id or org.value in the template
+belongs_to = "org_id"
+# each bucket will have a unique id, which is used here to guarantee uniqueness even across orgs. We also
+# have a random 15 character alphanumeric sequence to pad out the value length.
+template = "{{id}}_{{random 15}}"
+# For each org, 3 buckets will be generated
+cardinality = 3
 
-    [[agents.measurements]]
-    name = "measurement-1"
-    tag_set = "the-set"
-    tag_pairs = [
-        {key = "foo", template = "bar{{measurement.id}}"},
-        {key = "hello", template = "world"},
-    ]
+[[values]]
+name = "partition_id"
+template = "{{id}}"
+cardinality = 10
 
-    [[agents.measurements.fields]]
-    name = "field-1"
-    bool = true
-    "#).unwrap();
+# makes a tagset so every bucket appears in every partition. The other tags are descriptive and don't
+# increase the cardiality beyond count(bucket) * count(partition). Later this example will use the
+# agent and measurement generation to take this base tagset and increase cardinality on a per-agent basis.
+[[tag_sets]]
+name = "bucket_set"
+for_each = [
+    "role",
+    "url",
+    "org_id",
+    "org_id.env",
+    "org_id.bucket_id",
+    "partition_id",
+]
 
-    let seed = spec.base_seed.to_owned().unwrap_or_else(|| {
-        let mut rng = rand::thread_rng();
-        format!("{:04}", rng.gen_range(0..10000))
-    });
+[[agents]]
+name = "metric-scraper"
+# create this many agents
+count = 3
+
+[[agents.measurements]]
+name = "storage_usage_bucket_cardinality"
+# each sampling will have all the tag sets from this collection in addition to the tags and tag_pairs specified
+tag_set = "bucket_set"
+# for each agent, this specific measurement will be decorated with these additional tags.
+tag_pairs = [
+    {key = "node_id", template = "{{agent.id}}"},
+    {key = "hostname", template = "{{agent.id}}"},
+    {key = "host", template = "storage-{{agent.id}}"},
+]
+
+[[agents.measurements.fields]]
+name = "gauge"
+i64_range = [1, 8147240]
+"#).unwrap();
 
     let generated_tag_sets = GeneratedTagSets::from_spec(&spec).unwrap();
 
@@ -127,19 +153,17 @@ pub fn agent_pre_generated(c: &mut Criterion) {
     let ns_per_second = 1_000_000_000;
     let end_datetime = Some(one_hour_s * ns_per_second);
 
-    let mut agent = Agent::<rand::rngs::SmallRng>::new(
+    let mut agents = Agent::from_spec(
         &spec.agents[0],
-        "foo",
-        1,
-        seed,
-        vec![],
         start_datetime,
         end_datetime,
         0,
         false,
         &generated_tag_sets,
-    ).unwrap();
-    let expected_points = 180050;
+    )
+    .unwrap();
+    let agent = agents.first_mut().unwrap();
+    let expected_points = 30000;
 
     let mut group = c.benchmark_group("agent_pre_generated");
     group.measurement_time(std::time::Duration::from_secs(50));
@@ -148,10 +172,8 @@ pub fn agent_pre_generated(c: &mut Criterion) {
     group.bench_function("single agent with basic configuration", |b| {
         b.iter(|| {
             agent.reset_current_date_time(0);
-            let points_writer = points_writer.build_for_agent("foo").unwrap();
-            let r = block_on({
-              agent.generate_all(points_writer, 1)
-            });
+            let points_writer = points_writer.build_for_agent(1).unwrap();
+            let r = block_on(agent.generate_all(points_writer, 1));
             let n_points = r.expect("Could not generate data");
             assert_eq!(n_points, expected_points as usize);
         })

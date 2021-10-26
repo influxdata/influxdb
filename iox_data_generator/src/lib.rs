@@ -27,23 +27,21 @@
     clippy::clone_on_ref_ptr
 )]
 
-use crate::substitution::Substitute;
-use crate::tag_set::GeneratedTagSets;
-use rand::Rng;
-use rand_seeder::Seeder;
+use crate::{agent::Agent, tag_set::GeneratedTagSets};
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 use std::{
     convert::TryFrom,
     time::{SystemTime, UNIX_EPOCH},
 };
+use tracing::info;
 
 pub mod agent;
 pub mod field;
 pub mod measurement;
 pub mod specification;
 pub mod substitution;
-pub mod tag;
+mod tag_pair;
 pub mod tag_set;
 pub mod write;
 
@@ -72,10 +70,8 @@ pub enum Error {
     },
 
     /// Error that may happen when creating agents
-    #[snafu(display("Could not create agent `{}`, caused by:\n{}", name, source))]
+    #[snafu(display("Could not create agents, caused by:\n{}", source))]
     CouldNotCreateAgent {
-        /// The name of the relevant agent
-        name: String,
         /// Underlying `agent` module error that caused this problem
         source: agent::Error,
     },
@@ -106,7 +102,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// If `start_datetime` or `end_datetime` are `None`,  the current datetime will
 /// be used.
 #[allow(clippy::too_many_arguments)]
-pub async fn generate<T: DataGenRng>(
+pub async fn generate(
     spec: &specification::DataSpec,
     points_writer_builder: &mut write::PointsWriterBuilder,
     start_datetime: Option<i64>,
@@ -116,66 +112,47 @@ pub async fn generate<T: DataGenRng>(
     batch_size: usize,
     one_agent_at_a_time: bool, // run one agent after another, if printing to stdout
 ) -> Result<usize> {
-    let seed = spec.base_seed.to_owned().unwrap_or_else(|| {
-        let mut rng = rand::thread_rng();
-        format!("{:04}", rng.gen_range(0..10000))
-    });
-
     let mut handles = vec![];
 
     let generated_tag_sets = GeneratedTagSets::from_spec(spec).context(CouldNotGenerateTagSets)?;
 
     let lock = Arc::new(tokio::sync::Mutex::new(()));
 
-    // for each agent specification
-    for agent_spec in &spec.agents {
-        // create iterators to `cycle` through for `agent_spec.tags`
-        let tag_set_iterator = tag::AgentTagIterator::new(&agent_spec.tags);
+    let start = std::time::Instant::now();
 
-        // create `count` number of agent instances, or 1 agent if no count is specified
-        let n_agents = agent_spec.count.unwrap_or(1);
-
-        for (agent_id, mut agent_tags) in tag_set_iterator.take(n_agents).enumerate() {
-            let agent_name =
-                Substitute::once(&agent_spec.name, &[("agent_id", &agent_id.to_string())])
-                    .context(CouldNotCreateAgentName)?;
-
-            agent_tags.push(tag::Tag::new("data_spec", &spec.name));
-
-            if let Some(name_tag_key) = &agent_spec.name_tag_key {
-                agent_tags.push(tag::Tag::new(name_tag_key, &agent_name));
-            }
-
-            let mut agent = agent::Agent::<T>::new(
-                agent_spec,
-                &agent_name,
-                agent_id,
-                &seed,
-                agent_tags,
+    let agents = spec
+        .agents
+        .iter()
+        .map(|spec| {
+            Agent::from_spec(
+                spec,
                 start_datetime,
                 end_datetime,
                 execution_start_time,
                 continue_on,
                 &generated_tag_sets,
             )
-            .context(CouldNotCreateAgent { name: &agent_name })?;
+            .context(CouldNotCreateAgent)
+        })
+        .collect::<Result<Vec<Vec<Agent>>>>()?;
+    let agents = agents.into_iter().flatten();
 
-            let agent_points_writer = points_writer_builder
-                .build_for_agent(&agent_name)
-                .context(CouldNotCreateAgentWriter { name: &agent_name })?;
+    for mut agent in agents {
+        let agent_points_writer = points_writer_builder
+            .build_for_agent(agent.id)
+            .context(CouldNotCreateAgentWriter { name: "whatevs" })?;
 
-            let lock_ref = Arc::clone(&lock);
+        let lock_ref = Arc::clone(&lock);
 
-            handles.push(tokio::task::spawn(async move {
-                // did this weird hack because otherwise the stdout outputs would be jumbled together garbage
-                if one_agent_at_a_time {
-                    let _l = lock_ref.lock().await;
-                    agent.generate_all(agent_points_writer, batch_size).await
-                } else {
-                    agent.generate_all(agent_points_writer, batch_size).await
-                }
-            }));
-        }
+        handles.push(tokio::task::spawn(async move {
+            // did this weird hack because otherwise the stdout outputs would be jumbled together garbage
+            if one_agent_at_a_time {
+                let _l = lock_ref.lock().await;
+                agent.generate_all(agent_points_writer, batch_size).await
+            } else {
+                agent.generate_all(agent_points_writer, batch_size).await
+            }
+        }));
     }
 
     let mut total_points = 0;
@@ -186,70 +163,19 @@ pub async fn generate<T: DataGenRng>(
             .context(AgentCouldNotGeneratePoints)?;
     }
 
+    let elapsed = start.elapsed();
+
+    let points_sec = if elapsed.as_secs() == 0 {
+        0
+    } else {
+        total_points as u64 / elapsed.as_secs()
+    };
+    info!(
+        "wrote {} total points in {:?} for a rate of {}/sec",
+        total_points, elapsed, points_sec
+    );
+
     Ok(total_points)
-}
-
-/// Shorthand trait for the functionality this crate needs a random number generator to have
-pub trait DataGenRng: rand::Rng + rand::SeedableRng + Send + 'static {}
-
-impl<T: rand::Rng + rand::SeedableRng + Send + 'static> DataGenRng for T {}
-
-/// Encapsulating the creation of an optionally-seedable random number generator
-/// to make this easy to change. Uses a 4-digit number expressed as a `String`
-/// as the seed type to enable easy creation of another instance using the same
-/// seed.
-#[derive(Debug)]
-pub struct RandomNumberGenerator<T: DataGenRng> {
-    rng: T,
-    /// The seed used for this instance.
-    pub seed: String,
-}
-
-impl<T: DataGenRng> Default for RandomNumberGenerator<T> {
-    fn default() -> Self {
-        let mut rng = rand::thread_rng();
-        let seed = format!("{:04}", rng.gen_range(0..10000));
-        Self::new(seed)
-    }
-}
-
-impl<T: DataGenRng> RandomNumberGenerator<T> {
-    /// Create a new instance using the specified seed.
-    pub fn new(seed: impl Into<String>) -> Self {
-        let seed = seed.into();
-        Self {
-            rng: Seeder::from(&seed).make_rng(),
-            seed,
-        }
-    }
-
-    /// Generate a random GUID
-    pub fn guid(&mut self) -> uuid::Uuid {
-        let mut bytes = [0u8; 16];
-        self.rng.fill_bytes(&mut bytes);
-        uuid::Builder::from_bytes(bytes)
-            .set_variant(uuid::Variant::RFC4122)
-            .set_version(uuid::Version::Random)
-            .build()
-    }
-}
-
-impl<T: DataGenRng> rand::RngCore for RandomNumberGenerator<T> {
-    fn next_u32(&mut self) -> u32 {
-        self.rng.next_u32()
-    }
-
-    fn next_u64(&mut self) -> u64 {
-        self.rng.next_u64()
-    }
-
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.rng.fill_bytes(dest);
-    }
-
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> std::result::Result<(), rand::Error> {
-        self.rng.try_fill_bytes(dest)
-    }
 }
 
 /// Gets the current time in nanoseconds since the epoch
@@ -259,56 +185,6 @@ pub fn now_ns() -> i64 {
         .expect("Time went backwards");
     i64::try_from(since_the_epoch.as_nanos()).expect("Time does not fit")
 }
-
-// Always returns 0.
-#[cfg(test)]
-#[derive(Default)]
-struct ZeroRng;
-
-#[cfg(test)]
-impl rand::RngCore for ZeroRng {
-    fn next_u32(&mut self) -> u32 {
-        self.next_u64() as u32
-    }
-
-    fn next_u64(&mut self) -> u64 {
-        0
-    }
-
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        rand_core::impls::fill_bytes_via_next(self, dest)
-    }
-
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> std::result::Result<(), rand::Error> {
-        self.fill_bytes(dest);
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-impl rand::SeedableRng for ZeroRng {
-    type Seed = Vec<u8>;
-
-    // Ignore the seed value
-    fn from_seed(_seed: Self::Seed) -> Self {
-        Self
-    }
-}
-
-// The test rng ignores the seed anyway, so the seed specified doesn't matter.
-#[cfg(test)]
-const TEST_SEED: &str = "";
-
-#[cfg(test)]
-fn test_rng() -> RandomNumberGenerator<ZeroRng> {
-    RandomNumberGenerator::<ZeroRng>::new(TEST_SEED)
-}
-
-// A random number type that does *not* have a predictable sequence of values for use in tests
-// that assert on properties rather than exact values. Aliased for convenience in changing to
-// a different Rng type.
-#[cfg(test)]
-type DynamicRng = rand::rngs::SmallRng;
 
 #[cfg(test)]
 mod test {
@@ -326,20 +202,16 @@ mod test {
 name = "demo_schema"
 
 [[agents]]
-name = "basic"
 sampling_interval = "10s" # seconds
 
 [[agents.measurements]]
 name = "cpu"
 
 [[agents.measurements.fields]]
-name = "up"
-bool = true"#;
+name = "val"
+i64_range = [1, 1]"#;
         let data_spec = DataSpec::from_str(toml).unwrap();
-        let agent_id = 0;
         let agent_spec = &data_spec.agents[0];
-        // Take agent_tags out of the equation for the purposes of this test
-        let agent_tags = vec![];
 
         let execution_start_time = now_ns();
 
@@ -351,12 +223,8 @@ bool = true"#;
 
         let generated_tag_sets = GeneratedTagSets::default();
 
-        let mut agent = agent::Agent::<ZeroRng>::new(
+        let mut agent = agent::Agent::from_spec(
             agent_spec,
-            &agent_spec.name,
-            agent_id,
-            TEST_SEED,
-            agent_tags,
             start_datetime,
             end_datetime,
             execution_start_time,
@@ -364,7 +232,7 @@ bool = true"#;
             &generated_tag_sets,
         )?;
 
-        let data_points = agent.generate().await?;
+        let data_points = agent[0].generate().await?.into_iter().flatten();
         let mut v = Vec::new();
         for data_point in data_points {
             data_point.write_data_point_to(&mut v).unwrap();
@@ -372,10 +240,10 @@ bool = true"#;
         let line_protocol = String::from_utf8(v).unwrap();
 
         // Get a point for time 0
-        let expected_line_protocol = "cpu up=f 0\n";
+        let expected_line_protocol = "cpu val=1i 0\n";
         assert_eq!(line_protocol, expected_line_protocol);
 
-        let data_points = agent.generate().await?;
+        let data_points = agent[0].generate().await?.into_iter().flatten();
         let mut v = Vec::new();
         for data_point in data_points {
             data_point.write_data_point_to(&mut v).unwrap();
@@ -383,11 +251,12 @@ bool = true"#;
         let line_protocol = String::from_utf8(v).unwrap();
 
         // Get a point for time 10s
-        let expected_line_protocol = "cpu up=f 10000000000\n";
+        let expected_line_protocol = "cpu val=1i 10000000000\n";
         assert_eq!(line_protocol, expected_line_protocol);
 
         // Don't get any points anymore because we're past the ending datetime
-        let data_points = agent.generate().await?;
+        let data_points = agent[0].generate().await?.into_iter().flatten();
+        let data_points: Vec<_> = data_points.collect();
         assert!(
             data_points.is_empty(),
             "expected no data points, got {:?}",

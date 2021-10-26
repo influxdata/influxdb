@@ -200,7 +200,7 @@ Logging:
         panic!("One of --print or --output or --host must be provided.");
     };
 
-    let result = iox_data_generator::generate::<rand::rngs::SmallRng>(
+    let result = iox_data_generator::generate(
         &data_spec,
         &mut points_writer_builder,
         start_datetime,

@@ -1,4 +1,4 @@
-name = "storage_cardinality_example"
+name = "full_example"
 
 # Values are automatically generated before the agents are intialized. They generate tag key/value pairs
 # with the name of the value as the tag key and the evaluated template as the value. These pairs
@@ -21,7 +21,7 @@ cardinality = 1
 name = "org_id"
 # Fill in the value with the cardinality counter and 15 random alphanumeric characters
 template = "{{id}}_{{random 15}}"
-cardinality = 100
+cardinality = 20
 has_one = ["env"]
 
 [[values]]
@@ -61,7 +61,7 @@ for_each = [
 [[agents]]
 # create this many agents
 count = 1
-sampling_interval = "10s"
+sampling_interval = "10ms"
 
 [[agents.measurements]]
 name = "storage_usage_bucket_cardinality"
