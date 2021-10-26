@@ -318,12 +318,7 @@ impl WriteBufferReading for FileBufferConsumer {
             let fetch_high_watermark = move || {
                 let committed = committed.clone();
 
-                let fut = async move {
-                    let files = scan_dir::<u64>(&committed, FileType::File).await?;
-                    let watermark = files.keys().max().map(|n| n + 1).unwrap_or(0);
-
-                    Ok(watermark)
-                };
+                let fut = async move { watermark(&committed).await };
                 fut.boxed() as FetchHighWatermarkFut<'_>
             };
             let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
@@ -385,40 +380,67 @@ impl ConsumerStream {
 
                 // read file
                 let file_path = path.join(sequence_number.to_string());
-                let data = match tokio::fs::read(&file_path).await {
-                    Ok(data) => data,
-                    Err(_) => {
-                        // just wait a bit
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        continue;
-                    }
-                };
-
-                // decode file
-                let sequence = Sequence {
-                    id: sequencer_id,
-                    number: sequence_number,
-                };
-                let msg = match Self::decode_file(data, sequence, trace_collector.clone()) {
-                    Ok(sequence) => {
-                        match next_sequence_number.compare_exchange(
-                            sequence_number,
-                            sequence_number + 1,
-                            Ordering::SeqCst,
-                            Ordering::SeqCst,
-                        ) {
-                            Ok(_) => {
-                                // can send to output
-                                Ok(sequence)
+                let msg = match tokio::fs::read(&file_path).await {
+                    Ok(data) => {
+                        // decode file
+                        let sequence = Sequence {
+                            id: sequencer_id,
+                            number: sequence_number,
+                        };
+                        match Self::decode_file(data, sequence, trace_collector.clone()) {
+                            Ok(sequence) => {
+                                match next_sequence_number.compare_exchange(
+                                    sequence_number,
+                                    sequence_number + 1,
+                                    Ordering::SeqCst,
+                                    Ordering::SeqCst,
+                                ) {
+                                    Ok(_) => {
+                                        // can send to output
+                                        Ok(sequence)
+                                    }
+                                    Err(_) => {
+                                        // interleaving change, retry
+                                        continue;
+                                    }
+                                }
                             }
-                            Err(_) => {
-                                // interleaving change, retry
+                            e => e,
+                        }
+                    }
+                    Err(error) => {
+                        match error.kind() {
+                            std::io::ErrorKind::NotFound => {
+                                // figure out watermark and see if there's a gap in the stream
+                                if let Ok(watermark) = watermark(&path).await {
+                                    // watermark is "last sequence number + 1", so substract 1 before comparing
+                                    if watermark.saturating_sub(1) > sequence_number {
+                                        // update position
+                                        // failures are OK here since we'll re-read this value next round
+                                        next_sequence_number
+                                            .compare_exchange(
+                                                sequence_number,
+                                                sequence_number + 1,
+                                                Ordering::SeqCst,
+                                                Ordering::SeqCst,
+                                            )
+                                            .ok();
+                                        continue;
+                                    }
+                                };
+
+                                // no gap detected, just wait a bit for new data
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                                 continue;
+                            }
+                            _ => {
+                                // cannot read file => communicate to user
+                                Err(Box::new(error) as WriteBufferError)
                             }
                         }
                     }
-                    e => e,
                 };
+
                 if tx.send(msg).await.is_err() {
                     // Receiver is gone
                     return;
@@ -627,15 +649,46 @@ where
     Ok(results)
 }
 
+async fn watermark(path: &Path) -> Result<u64, WriteBufferError> {
+    let files = scan_dir::<u64>(path, FileType::File).await?;
+    let watermark = files.keys().max().map(|n| n + 1).unwrap_or(0);
+    Ok(watermark)
+}
+
+pub mod test_utils {
+    use std::path::Path;
+
+    /// Remove specific entry from write buffer.
+    pub async fn remove_entry(
+        write_buffer_path: &Path,
+        database_name: &str,
+        sequencer_id: u32,
+        sequence_number: u64,
+    ) {
+        tokio::fs::remove_file(
+            write_buffer_path
+                .join(database_name)
+                .join("active")
+                .join(sequencer_id.to_string())
+                .join("committed")
+                .join(sequence_number.to_string()),
+        )
+        .await
+        .unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU32;
 
+    use entry::test_helpers::lp_to_entry;
     use tempfile::TempDir;
     use trace::RingBufferTraceCollector;
 
     use crate::core::test_utils::{perform_generic_tests, TestAdapter, TestContext};
 
+    use super::test_utils::remove_entry;
     use super::*;
 
     struct FileTestAdapter {
@@ -716,5 +769,100 @@ mod tests {
     #[tokio::test]
     async fn test_generic() {
         perform_generic_tests(FileTestAdapter::new()).await;
+    }
+
+    #[tokio::test]
+    async fn test_ignores_missing_files_multi() {
+        let adapter = FileTestAdapter::new();
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let writer = ctx.writing(true).await.unwrap();
+        let sequencer_id = writer.sequencer_ids().into_iter().next().unwrap();
+        let entry_1 = lp_to_entry("upc,region=east user=1 100");
+        let entry_2 = lp_to_entry("upc,region=east user=2 200");
+        let entry_3 = lp_to_entry("upc,region=east user=3 300");
+        let entry_4 = lp_to_entry("upc,region=east user=4 400");
+        let (sequence_1, _) = writer
+            .store_entry(&entry_1, sequencer_id, None)
+            .await
+            .unwrap();
+        let (sequence_2, _) = writer
+            .store_entry(&entry_2, sequencer_id, None)
+            .await
+            .unwrap();
+        let (sequence_3, _) = writer
+            .store_entry(&entry_3, sequencer_id, None)
+            .await
+            .unwrap();
+        let (sequence_4, _) = writer
+            .store_entry(&entry_4, sequencer_id, None)
+            .await
+            .unwrap();
+
+        remove_entry(
+            &ctx.path,
+            &ctx.database_name,
+            sequencer_id,
+            sequence_2.number,
+        )
+        .await;
+        remove_entry(
+            &ctx.path,
+            &ctx.database_name,
+            sequencer_id,
+            sequence_3.number,
+        )
+        .await;
+
+        let mut reader = ctx.reading(true).await.unwrap();
+        let mut stream = reader.streams().remove(&sequencer_id).unwrap();
+        let sequenced_entry_1 = stream.stream.next().await.unwrap().unwrap();
+        let sequenced_entry_4 = stream.stream.next().await.unwrap().unwrap();
+        assert_eq!(
+            sequence_1.number,
+            sequenced_entry_1.sequence().unwrap().number
+        );
+        assert_eq!(
+            sequence_4.number,
+            sequenced_entry_4.sequence().unwrap().number
+        );
+        assert_eq!(&entry_1, sequenced_entry_1.entry());
+        assert_eq!(&entry_4, sequenced_entry_4.entry());
+    }
+
+    #[tokio::test]
+    async fn test_ignores_missing_files_single() {
+        let adapter = FileTestAdapter::new();
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let writer = ctx.writing(true).await.unwrap();
+        let sequencer_id = writer.sequencer_ids().into_iter().next().unwrap();
+        let entry_1 = lp_to_entry("upc,region=east user=1 100");
+        let entry_2 = lp_to_entry("upc,region=east user=2 200");
+        let (sequence_1, _) = writer
+            .store_entry(&entry_1, sequencer_id, None)
+            .await
+            .unwrap();
+        let (sequence_2, _) = writer
+            .store_entry(&entry_2, sequencer_id, None)
+            .await
+            .unwrap();
+
+        remove_entry(
+            &ctx.path,
+            &ctx.database_name,
+            sequencer_id,
+            sequence_1.number,
+        )
+        .await;
+
+        let mut reader = ctx.reading(true).await.unwrap();
+        let mut stream = reader.streams().remove(&sequencer_id).unwrap();
+        let sequenced_entry_2 = stream.stream.next().await.unwrap().unwrap();
+        assert_eq!(
+            sequence_2.number,
+            sequenced_entry_2.sequence().unwrap().number
+        );
+        assert_eq!(&entry_2, sequenced_entry_2.entry());
     }
 }

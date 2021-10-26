@@ -1635,7 +1635,6 @@ dependencies = [
  "prost",
  "query",
  "rand",
- "rdkafka",
  "read_buffer",
  "reqwest",
  "rustyline",
