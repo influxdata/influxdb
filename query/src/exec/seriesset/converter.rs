@@ -90,7 +90,6 @@ impl SeriesSetConverter {
         // for now, only handle a single record batch
         if let Some(batch) = it.next().await {
             let batch = batch.context(ReadingRecordBatch)?;
-
             if it.next().await.is_some() {
                 // but not yet
                 unimplemented!("Computing series across multiple record batches not yet supported");
@@ -156,6 +155,7 @@ impl SeriesSetConverter {
 
             results.extend(series_sets);
         }
+
         Ok(results)
     }
 

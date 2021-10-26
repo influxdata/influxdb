@@ -415,6 +415,15 @@ impl IOxExecutionContext {
         let mut data: Vec<Series> = vec![];
         for series_sets in all_series_sets {
             for series_set in series_sets {
+                // If all timestamp of all returned columns are nulls,
+                // there must be no data. We need to check this because
+                // aggregate (e.g. count, min, max) returns one rows that are
+                // all null (even values of aggregate) for min, max and 0 for count.
+                // For influx query series and group, we do not want to return 0 for count either
+                if series_set.is_timestamp_all_null() {
+                    continue;
+                }
+
                 let series: Vec<Series> = series_set
                     .try_into()
                     .map_err(|e| Error::Execution(format!("Error converting to series: {}", e)))?;

@@ -150,6 +150,19 @@ impl SeriesSet {
         (start_row..end_row).all(|i| arr.is_null(i))
     }
 
+    pub fn is_timestamp_all_null(&self) -> bool {
+        let start_row = self.start_row;
+        let num_rows = self.num_rows;
+
+        for field_index in self.field_indexes.iter() {
+            let array = self.batch.column(field_index.timestamp_index);
+            if !Self::is_all_null(array, start_row, num_rows) {
+                return false;
+            }
+        }
+        true
+    }
+
     // Convert and append the values from a single field to a Series
     // appended to `frames`
     fn field_to_series(&self, index: &FieldIndex) -> Result<Option<Series>> {

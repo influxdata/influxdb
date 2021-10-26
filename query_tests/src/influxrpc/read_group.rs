@@ -103,9 +103,40 @@ impl DbSetup for OneMeasurementNoTagsWithDelete {
     }
 }
 
-struct OneMeasurementNoTagsWithDeleteAll {}
+// struct OneMeasurementNoTagsWithDeleteAllStillHaveChunk {}
+// #[async_trait]
+// impl DbSetup for OneMeasurementNoTagsWithDeleteAllStillHaveChunk {
+//     async fn make(&self) -> Vec<DbScenario> {
+//         let partition_key = "1970-01-01T00";
+//         let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
+
+//         // pred: delete from m0 where 1 <= time <= 2
+//         let delete_table_name = "m0";
+//         let pred = DeletePredicate {
+//             range: TimestampRange { start: 1, end: 2 },
+//             exprs: vec![],
+//         };
+
+//         // Apply predicate at the end to make all scenarios have same schema:
+//         // there exists a chunk (either MUB, RUB, or OS) with all soft deleted row.
+//         // This means the scenarios that rows deleted before the chunk is moved
+//         // are not included.
+//         all_scenarios_for_one_chunk(
+//             vec![],
+//             vec![&pred],
+//             lp_lines,
+//             delete_table_name,
+//             partition_key,
+//         )
+//         .await
+//     }
+// }
+
+/// This will create many scenarios (at least 15), some that have a chunk with soft deleted data,
+/// some has no chunks because we do create RUB (and hence OS) chunks for all soft deleted data in MUB
+struct OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {}
 #[async_trait]
-impl DbSetup for OneMeasurementNoTagsWithDeleteAll {
+impl DbSetup for OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
         let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
@@ -117,13 +148,11 @@ impl DbSetup for OneMeasurementNoTagsWithDeleteAll {
             exprs: vec![],
         };
 
-        // Apply predicate at the end to make all scenarios have same schema:
-        // there exists a chunk (either MUB, RUB, or OS) with all soft deleted row.
-        // This means the scenarios that rows deleted before the chunk is moved
-        // are not included.
+        // Apply predicate before the chunk is moved if any. There will be
+        // scenario without chunks as a consequence of deleted data won't be moved from MUB to RUB
         all_scenarios_for_one_chunk(
-            vec![],
             vec![&pred],
+            vec![],
             lp_lines,
             delete_table_name,
             partition_key,
@@ -170,10 +199,9 @@ async fn test_read_group_data_no_tag_columns() {
 }
 
 #[tokio::test]
-async fn test_read_group_data_no_tag_columns_with_delete() {
+async fn test_read_group_data_no_tag_columns_count_with_delete() {
     let predicate = Predicate::default();
 
-    // count
     let agg = Aggregate::Count;
     let group_columns = vec![];
     let expected_results = vec![
@@ -188,9 +216,14 @@ async fn test_read_group_data_no_tag_columns_with_delete() {
         expected_results,
     )
     .await;
+}
 
-    // min
+#[tokio::test]
+async fn test_read_group_data_no_tag_columns_min_with_delete() {
+    let predicate = Predicate::default();
+
     let agg = Aggregate::Min;
+    let group_columns = vec![];
     let expected_results = vec![
         "Group tag_keys: _field, _measurement partition_key_vals: ",
         "Series tags={_field=foo, _measurement=m0}\n  FloatPoints timestamps: [2], values: [2.0]",
@@ -211,13 +244,10 @@ async fn test_read_group_data_no_tag_columns_count_with_delete_all() {
     let predicate = Predicate::default();
     let agg = Aggregate::Count;
     let group_columns = vec![];
-    let expected_results = vec![
-        "Group tag_keys: _field, _measurement partition_key_vals: ",
-        "Series tags={_field=foo, _measurement=m0}\n  IntegerPoints timestamps: [0], values: [0]",
-    ];
+    let expected_results = vec![];
 
     run_read_group_test_case(
-        OneMeasurementNoTagsWithDeleteAll {},
+        OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {},
         predicate.clone(),
         agg,
         group_columns.clone(),
@@ -234,7 +264,7 @@ async fn test_read_group_data_no_tag_columns_min_with_delete_all() {
     let expected_results = vec![];
 
     run_read_group_test_case(
-        OneMeasurementNoTagsWithDeleteAll {},
+        OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {},
         predicate,
         agg,
         group_columns,
