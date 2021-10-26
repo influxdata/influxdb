@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -71,7 +72,8 @@ type Migrator struct {
 
 	Specs []Spec
 
-	now func() time.Time
+	now        func() time.Time
+	backupPath string
 }
 
 // NewMigrator constructs and configures a new Migrator.
@@ -97,6 +99,11 @@ func NewMigrator(logger *zap.Logger, store Store, ms ...Spec) (*Migrator, error)
 // AddMigrations appends the provided migration specs onto the Migrator.
 func (m *Migrator) AddMigrations(ms ...Spec) {
 	m.Specs = append(m.Specs, ms...)
+}
+
+// SetBackupPath records the filepath where pre-migration state should be written prior to running migrations.
+func (m *Migrator) SetBackupPath(path string) {
+	m.backupPath = path
 }
 
 // List returns a list of migrations and their states within the provided store.
@@ -149,10 +156,29 @@ func (m *Migrator) Up(ctx context.Context) error {
 	}
 
 	migrationsToDo := len(m.Specs[lastMigration:])
-	if migrationsToDo > 0 {
-		m.logger.Info("Bringing up metadata migrations", zap.Int("migration_count", migrationsToDo))
+	if migrationsToDo == 0 {
+		return nil
 	}
 
+	if m.backupPath != "" {
+		m.logger.Info("Backing up pre-migration metadata", zap.String("backup_path", m.backupPath))
+		if err := func() error {
+			out, err := os.Create(m.backupPath)
+			if err != nil {
+				return err
+			}
+			defer out.Close()
+
+			if err := m.store.Backup(ctx, out); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return fmt.Errorf("failed to back up pre-migration metadata: %w", err)
+		}
+	}
+
+	m.logger.Info("Bringing up metadata migrations", zap.Int("migration_count", migrationsToDo))
 	for idx, spec := range m.Specs[lastMigration:] {
 		startedAt := m.now()
 		migration := Migration{
