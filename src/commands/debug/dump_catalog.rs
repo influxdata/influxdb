@@ -5,13 +5,13 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{convert::TryFrom, sync::Arc};
 use structopt::StructOpt;
 
-use crate::{object_store::ObjectStoreConfig, server_id::ServerIdConfig};
+use crate::structopt_blocks::{object_store::ObjectStoreConfig, server_id::ServerIdConfig};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Cannot parse object store config: {}", source))]
     ObjectStoreParsing {
-        source: crate::object_store::ParseError,
+        source: crate::structopt_blocks::object_store::ParseError,
     },
 
     #[snafu(display("No server ID provided"))]
@@ -38,22 +38,9 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Interrogate internal database data
-#[derive(Debug, StructOpt)]
-pub struct Config {
-    #[structopt(subcommand)]
-    command: Command,
-}
-
-#[derive(Debug, StructOpt)]
-enum Command {
-    /// Dump preserved catalog.
-    DumpCatalog(DumpCatalog),
-}
-
 /// Dump preserved catalog.
 #[derive(Debug, StructOpt)]
-struct DumpCatalog {
+pub struct Config {
     // object store config
     #[structopt(flatten)]
     object_store_config: ObjectStoreConfig,
@@ -71,7 +58,7 @@ struct DumpCatalog {
 }
 
 #[derive(Debug, StructOpt)]
-struct DumpOptions {
+pub struct DumpOptions {
     /// Show debug output of `DecodedIoxParquetMetaData` if decoding succeeds, show the decoding error otherwise.
     ///
     /// Since this contains the entire Apache Parquet metadata object this is quite verbose and is usually not
@@ -116,29 +103,21 @@ impl From<DumpOptions> for parquet_catalog::dump::DumpOptions {
 }
 
 pub async fn command(config: Config) -> Result<()> {
-    match config.command {
-        Command::DumpCatalog(dump_catalog) => {
-            let object_store = ObjectStore::try_from(&dump_catalog.object_store_config)
-                .context(ObjectStoreParsing)?;
-            let database_name =
-                DatabaseName::try_from(dump_catalog.db_name).context(InvalidDbName)?;
-            let server_id = dump_catalog
-                .server_id_config
-                .server_id
-                .context(NoServerId)?;
-            let iox_object_store =
-                IoxObjectStore::find_existing(Arc::new(object_store), server_id, &database_name)
-                    .await
-                    .context(IoxObjectStoreFailure)?
-                    .context(NoIoxObjectStore)?;
+    let object_store =
+        ObjectStore::try_from(&config.object_store_config).context(ObjectStoreParsing)?;
+    let database_name = DatabaseName::try_from(config.db_name).context(InvalidDbName)?;
+    let server_id = config.server_id_config.server_id.context(NoServerId)?;
+    let iox_object_store =
+        IoxObjectStore::find_existing(Arc::new(object_store), server_id, &database_name)
+            .await
+            .context(IoxObjectStoreFailure)?
+            .context(NoIoxObjectStore)?;
 
-            let mut writer = std::io::stdout();
-            let options = dump_catalog.dump_options.into();
-            parquet_catalog::dump::dump(&iox_object_store, &mut writer, options)
-                .await
-                .context(DumpCatalogFailure)?;
-        }
-    }
+    let mut writer = std::io::stdout();
+    let options = config.dump_options.into();
+    parquet_catalog::dump::dump(&iox_object_store, &mut writer, options)
+        .await
+        .context(DumpCatalogFailure)?;
 
     Ok(())
 }

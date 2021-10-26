@@ -26,10 +26,6 @@ exclude = [
 ]
 
 
-[[bin]]
-name = "print_cpu"
-path = "src/print_cpu.rs"
-
 [workspace] # In alphabetical order
 members = [
     "arrow_util",

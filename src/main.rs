@@ -1,4 +1,5 @@
 //! Entrypoint of InfluxDB IOx binary
+#![recursion_limit = "512"] // required for print_cpu
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_debug_implementations,
@@ -31,8 +32,7 @@ mod commands {
     pub mod tracing;
 }
 
-mod object_store;
-mod server_id;
+mod structopt_blocks;
 
 pub mod influxdb_ioxd;
 
