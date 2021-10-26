@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 )
 
@@ -13,10 +14,10 @@ var Migration0016_AddAnnotationsNotebooksToOperToken = UpOnlyMigration(
 	"add annotations and notebooks resource types to operator token",
 	migrateTokensMigration(
 		func(t influxdb.Authorization) bool {
-			return permListsMatch(oldOpPerms(), t.Permissions)
+			return permListsMatch(preNotebooksAnnotationsOpPerms(), t.Permissions)
 		},
 		func(t *influxdb.Authorization) {
-			t.Permissions = append(t.Permissions, extraPerms()...)
+			t.Permissions = append(t.Permissions, notebooksAndAnnotationsPerms(0)...)
 		},
 	),
 )
@@ -87,9 +88,9 @@ func migrateTokensMigration(
 	}
 }
 
-// extraPerms returns the list of additional permissions that need added for
+// notebooksAndAnnotationsPerms returns the list of additional permissions that need added for
 // annotations and notebooks.
-func extraPerms() []influxdb.Permission {
+func notebooksAndAnnotationsPerms(orgID platform.ID) []influxdb.Permission {
 	resTypes := []influxdb.Resource{
 		{
 			Type: influxdb.AnnotationsResourceType,
@@ -98,13 +99,18 @@ func extraPerms() []influxdb.Permission {
 			Type: influxdb.NotebooksResourceType,
 		},
 	}
-
-	return permListFromResources(resTypes)
+	perms := permListFromResources(resTypes)
+	if orgID.Valid() {
+		for i := range perms {
+			perms[i].Resource.OrgID = &orgID
+		}
+	}
+	return perms
 }
 
-// oldOpPerms is the list of permissions from an "old" operator token - prior to
-// the addition of the notebooks an annotations resource type.
-func oldOpPerms() []influxdb.Permission {
+// preNotebooksAnnotationsOpPerms is the list of permissions from a 2.0.x operator token,
+// prior to the addition of the notebooks and annotations resource types.
+func preNotebooksAnnotationsOpPerms() []influxdb.Permission {
 	resTypes := []influxdb.Resource{
 		{
 			Type: influxdb.AuthorizationsResourceType,

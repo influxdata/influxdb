@@ -23,11 +23,11 @@ var Migration0019_AddRemotesReplicationsToTokens = UpOnlyMigration(
 )
 
 func preReplicationOpPerms() []influxdb.Permission {
-	return append(oldOpPerms(), extraPerms()...)
+	return append(preNotebooksAnnotationsOpPerms(), notebooksAndAnnotationsPerms(0)...)
 }
 
 func preReplicationAllAccessPerms(orgID platform.ID, userID platform.ID) []influxdb.Permission {
-	return append(oldAllAccessPerms(orgID, userID), extraAllAccessPerms(orgID)...)
+	return append(preNotebooksAnnotationsAllAccessPerms(orgID, userID), notebooksAndAnnotationsPerms(orgID)...)
 }
 
 func remotesAndReplicationsPerms(orgID platform.ID) []influxdb.Permission {

@@ -9,28 +9,18 @@ var Migration0017_AddAnnotationsNotebooksToAllAccessTokens = UpOnlyMigration(
 	"add annotations and notebooks resource types to all-access tokens",
 	migrateTokensMigration(
 		func(t influxdb.Authorization) bool {
-			return permListsMatch(oldAllAccessPerms(t.OrgID, t.UserID), t.Permissions)
+			return permListsMatch(preNotebooksAnnotationsAllAccessPerms(t.OrgID, t.UserID), t.Permissions)
 		},
 		func(t *influxdb.Authorization) {
-			t.Permissions = append(t.Permissions, extraAllAccessPerms(t.OrgID)...)
+			t.Permissions = append(t.Permissions, notebooksAndAnnotationsPerms(t.OrgID)...)
 		},
 	),
 )
 
-// extraAllAccessPerms returns the list of additional permissions that need added for
-// annotations and notebooks.
-func extraAllAccessPerms(orgId platform.ID) []influxdb.Permission {
-	perms := extraPerms()
-	for i := range perms {
-		perms[i].Resource.OrgID = &orgId
-	}
-	return perms
-}
-
-// oldAllAccessPerms is the list of permissions from an "old" all-access token - prior to
-// the addition of the notebooks an annotations resource type.
-func oldAllAccessPerms(orgId platform.ID, userId platform.ID) []influxdb.Permission {
-	opPerms := oldOpPerms()
+// preNotebooksAnnotationsAllAccessPerms is the list of permissions from a 2.0.x all-access token,
+// prior to the addition of the notebooks and annotations resource types.
+func preNotebooksAnnotationsAllAccessPerms(orgId platform.ID, userId platform.ID) []influxdb.Permission {
+	opPerms := preNotebooksAnnotationsOpPerms()
 	perms := make([]influxdb.Permission, 0, len(opPerms)-1) // -1 because write-org permission isn't included.
 	for _, p := range opPerms {
 		if p.Resource.Type == influxdb.OrgsResourceType {

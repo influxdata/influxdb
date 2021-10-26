@@ -60,7 +60,7 @@ func TestMigration_AnnotationsNotebooksOperToken(t *testing.T) {
 			ID:          id2, // an operator token
 			OrgID:       OrgID,
 			UserID:      UserID,
-			Permissions: oldOpPerms(),
+			Permissions: preNotebooksAnnotationsOpPerms(),
 		},
 	}
 
@@ -113,7 +113,7 @@ func TestMigration_AnnotationsNotebooksOperToken(t *testing.T) {
 		var token influxdb.Authorization
 		require.NoError(t, json.Unmarshal(b, &token))
 
-		require.ElementsMatch(t, append(oldOpPerms(), extraPerms()...), token.Permissions)
+		require.ElementsMatch(t, append(preNotebooksAnnotationsOpPerms(), notebooksAndAnnotationsPerms(0)...), token.Permissions)
 		return nil
 	})
 	require.NoError(t, err)
