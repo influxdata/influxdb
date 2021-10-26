@@ -93,6 +93,7 @@ func TestCreateAndGetReplication(t *testing.T) {
 	require.Equal(t, errReplicationNotFound, svc.ValidateReplication(ctx, initID))
 
 	// Create a replication, check the results.
+	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
 	created, err := svc.CreateReplication(ctx, createReq)
 	require.NoError(t, err)
 	require.Equal(t, replication, *created)
@@ -143,6 +144,8 @@ func TestCreateMissingRemote(t *testing.T) {
 	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
 		Return(&influxdb.Bucket{}, nil)
 
+	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
+	mocks.durableQueueManager.EXPECT().DeleteQueue(initID)
 	created, err := svc.CreateReplication(ctx, createReq)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), fmt.Sprintf("remote %q not found", createReq.RemoteID))
@@ -239,11 +242,13 @@ func TestUpdateAndGetReplication(t *testing.T) {
 	require.Nil(t, updated)
 
 	// Create a replication.
+	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
 	created, err := svc.CreateReplication(ctx, createReq)
 	require.NoError(t, err)
 	require.Equal(t, replication, *created)
 
 	// Update the replication.
+	mocks.durableQueueManager.EXPECT().UpdateMaxQueueSize(initID, *updateReq.MaxQueueSizeBytes)
 	updated, err = svc.UpdateReplication(ctx, initID, updateReq)
 	require.NoError(t, err)
 	require.Equal(t, updatedReplication, *updated)
@@ -262,6 +267,7 @@ func TestUpdateMissingRemote(t *testing.T) {
 		Return(&influxdb.Bucket{}, nil)
 
 	// Create a replication.
+	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
 	created, err := svc.CreateReplication(ctx, createReq)
 	require.NoError(t, err)
 	require.Equal(t, replication, *created)
@@ -291,6 +297,7 @@ func TestUpdateNoop(t *testing.T) {
 		Return(&influxdb.Bucket{}, nil)
 
 	// Create a replication.
+	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
 	created, err := svc.CreateReplication(ctx, createReq)
 	require.NoError(t, err)
 	require.Equal(t, replication, *created)
@@ -317,6 +324,7 @@ func TestValidateUpdatedReplicationWithoutPersisting(t *testing.T) {
 			Return(&influxdb.Bucket{}, nil)
 
 		// Create a replication.
+		mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
 		created, err := svc.CreateReplication(ctx, createReq)
 		require.NoError(t, err)
 		require.Equal(t, replication, *created)
@@ -345,6 +353,7 @@ func TestValidateUpdatedReplicationWithoutPersisting(t *testing.T) {
 			Return(&influxdb.Bucket{}, nil)
 
 		// Create a replication.
+		mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
 		created, err := svc.CreateReplication(ctx, createReq)
 		require.NoError(t, err)
 		require.Equal(t, replication, *created)
@@ -375,6 +384,7 @@ func TestValidateUpdatedReplicationWithoutPersisting(t *testing.T) {
 			Return(&influxdb.Bucket{}, nil)
 
 		// Create a replication.
+		mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
 		created, err := svc.CreateReplication(ctx, createReq)
 		require.NoError(t, err)
 		require.Equal(t, replication, *created)
@@ -407,9 +417,11 @@ func TestDeleteReplication(t *testing.T) {
 	require.Equal(t, errReplicationNotFound, svc.DeleteReplication(ctx, initID))
 
 	// Create a replication, then delete it.
+	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
 	created, err := svc.CreateReplication(ctx, createReq)
 	require.NoError(t, err)
 	require.Equal(t, replication, *created)
+	mocks.durableQueueManager.EXPECT().DeleteQueue(initID)
 	require.NoError(t, svc.DeleteReplication(ctx, initID))
 
 	// Looking up the ID should again produce an error.
@@ -440,6 +452,7 @@ func TestDeleteReplications(t *testing.T) {
 	insertRemote(t, svc.store, createReq3.RemoteID)
 
 	for _, req := range []influxdb.CreateReplicationRequest{createReq, createReq2, createReq3} {
+		mocks.durableQueueManager.EXPECT().InitializeQueue(gomock.Any(), req.MaxQueueSizeBytes)
 		_, err := svc.CreateReplication(ctx, req)
 		require.NoError(t, err)
 	}
@@ -449,6 +462,7 @@ func TestDeleteReplications(t *testing.T) {
 	require.Len(t, listed.Replications, 3)
 
 	// Delete 2/3 by bucket ID.
+	mocks.durableQueueManager.EXPECT().DeleteQueue(gomock.Any()).Times(2)
 	require.NoError(t, svc.DeleteBucketReplications(ctx, createReq.LocalBucketID))
 
 	// Ensure they were deleted.
@@ -476,6 +490,7 @@ func TestListReplications(t *testing.T) {
 
 		var allReplications []influxdb.Replication
 		for _, req := range []influxdb.CreateReplicationRequest{createReq, createReq2, createReq3} {
+			mocks.durableQueueManager.EXPECT().InitializeQueue(gomock.Any(), createReq.MaxQueueSizeBytes)
 			created, err := svc.CreateReplication(ctx, req)
 			require.NoError(t, err)
 			allReplications = append(allReplications, *created)
@@ -554,8 +569,9 @@ func TestListReplications(t *testing.T) {
 }
 
 type mocks struct {
-	bucketSvc *replicationsMock.MockBucketService
-	validator *replicationsMock.MockReplicationValidator
+	bucketSvc           *replicationsMock.MockBucketService
+	validator           *replicationsMock.MockReplicationValidator
+	durableQueueManager *replicationsMock.MockDurableQueueManager
 }
 
 func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
@@ -570,15 +586,17 @@ func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
 
 	ctrl := gomock.NewController(t)
 	mocks := mocks{
-		bucketSvc: replicationsMock.NewMockBucketService(ctrl),
-		validator: replicationsMock.NewMockReplicationValidator(ctrl),
+		bucketSvc:           replicationsMock.NewMockBucketService(ctrl),
+		validator:           replicationsMock.NewMockReplicationValidator(ctrl),
+		durableQueueManager: replicationsMock.NewMockDurableQueueManager(ctrl),
 	}
 	svc := service{
-		store:         store,
-		idGenerator:   mock.NewIncrementingIDGenerator(initID),
-		bucketService: mocks.bucketSvc,
-		validator:     mocks.validator,
-		log:           logger,
+		store:               store,
+		idGenerator:         mock.NewIncrementingIDGenerator(initID),
+		bucketService:       mocks.bucketSvc,
+		validator:           mocks.validator,
+		log:                 logger,
+		durableQueueManager: mocks.durableQueueManager,
 	}
 
 	return &svc, mocks, clean

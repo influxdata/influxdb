@@ -38,13 +38,14 @@ func errLocalBucketNotFound(id platform.ID, cause error) error {
 	}
 }
 
-func NewService(store *sqlite.SqlStore, bktSvc BucketService, log *zap.Logger) *service {
+func NewService(store *sqlite.SqlStore, bktSvc BucketService, log *zap.Logger, enginePath string) *service {
 	return &service{
-		store:         store,
-		idGenerator:   snowflake.NewIDGenerator(),
-		bucketService: bktSvc,
-		validator:     internal.NewValidator(),
-		log:           log,
+		store:               store,
+		idGenerator:         snowflake.NewIDGenerator(),
+		bucketService:       bktSvc,
+		validator:           internal.NewValidator(),
+		log:                 log,
+		durableQueueManager: internal.NewDurableQueueManager(log, enginePath),
 	}
 }
 
@@ -58,12 +59,19 @@ type BucketService interface {
 	FindBucketByID(ctx context.Context, id platform.ID) (*influxdb.Bucket, error)
 }
 
+type DurableQueueManager interface {
+	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error
+	DeleteQueue(replicationID platform.ID) error
+	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
+}
+
 type service struct {
-	store         *sqlite.SqlStore
-	idGenerator   platform.IDGenerator
-	bucketService BucketService
-	validator     ReplicationValidator
-	log           *zap.Logger
+	store               *sqlite.SqlStore
+	idGenerator         platform.IDGenerator
+	bucketService       BucketService
+	validator           ReplicationValidator
+	durableQueueManager DurableQueueManager
+	log                 *zap.Logger
 }
 
 func (s service) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
@@ -108,9 +116,14 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 		return nil, errLocalBucketNotFound(request.LocalBucketID, err)
 	}
 
+	newID := s.idGenerator.ID()
+	if err := s.durableQueueManager.InitializeQueue(newID, request.MaxQueueSizeBytes); err != nil {
+		return nil, err
+	}
+
 	q := sq.Insert("replications").
 		SetMap(sq.Eq{
-			"id":                       s.idGenerator.ID(),
+			"id":                       newID,
 			"org_id":                   request.OrgID,
 			"name":                     request.Name,
 			"description":              request.Description,
@@ -124,18 +137,29 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 		}).
 		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes, current_queue_size_bytes")
 
+	cleanupQueue := func() {
+		if cleanupErr := s.durableQueueManager.DeleteQueue(newID); cleanupErr != nil {
+			s.log.Warn("durable queue remaining on disk after initialization failure", zap.Error(cleanupErr), zap.String("ID", newID.String()))
+		}
+	}
+
 	query, args, err := q.ToSql()
 	if err != nil {
+		cleanupQueue()
 		return nil, err
 	}
 
 	var r influxdb.Replication
+
 	if err := s.store.DB.GetContext(ctx, &r, query, args...); err != nil {
 		if sqlErr, ok := err.(sqlite3.Error); ok && sqlErr.ExtendedCode == sqlite3.ErrConstraintForeignKey {
+			cleanupQueue()
 			return nil, errRemoteNotFound(request.RemoteID, err)
 		}
+		cleanupQueue()
 		return nil, err
 	}
+
 	return &r, nil
 }
 
@@ -222,6 +246,13 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 		}
 		return nil, err
 	}
+
+	if request.MaxQueueSizeBytes != nil {
+		if err := s.durableQueueManager.UpdateMaxQueueSize(id, *request.MaxQueueSizeBytes); err != nil {
+			s.log.Warn("actual max queue size does not match the max queue size recorded in database", zap.String("ID", id.String()))
+			return nil, err
+		}
+	}
 	return &r, nil
 }
 
@@ -267,6 +298,11 @@ func (s service) DeleteReplication(ctx context.Context, id platform.ID) error {
 		}
 		return err
 	}
+
+	if err := s.durableQueueManager.DeleteQueue(id); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -284,8 +320,27 @@ func (s service) DeleteBucketReplications(ctx context.Context, localBucketID pla
 	if err := s.store.DB.SelectContext(ctx, &deleted, query, args...); err != nil {
 		return err
 	}
+
+	errOccurred := false
+	for _, replication := range deleted {
+		id, err := platform.IDFromString(replication)
+		if err != nil {
+			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err), zap.String("ID", replication))
+			errOccurred = true
+		}
+
+		if err := s.durableQueueManager.DeleteQueue(*id); err != nil {
+			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err), zap.String("ID", replication))
+			errOccurred = true
+		}
+	}
+
 	s.log.Debug("Deleted all replications for local bucket",
 		zap.String("bucket_id", localBucketID.String()), zap.Strings("ids", deleted))
+
+	if errOccurred {
+		return fmt.Errorf("deleting replications for bucket %q failed, see server logs for details", localBucketID)
+	}
 
 	return nil
 }
