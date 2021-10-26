@@ -103,35 +103,6 @@ impl DbSetup for OneMeasurementNoTagsWithDelete {
     }
 }
 
-// struct OneMeasurementNoTagsWithDeleteAllStillHaveChunk {}
-// #[async_trait]
-// impl DbSetup for OneMeasurementNoTagsWithDeleteAllStillHaveChunk {
-//     async fn make(&self) -> Vec<DbScenario> {
-//         let partition_key = "1970-01-01T00";
-//         let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
-
-//         // pred: delete from m0 where 1 <= time <= 2
-//         let delete_table_name = "m0";
-//         let pred = DeletePredicate {
-//             range: TimestampRange { start: 1, end: 2 },
-//             exprs: vec![],
-//         };
-
-//         // Apply predicate at the end to make all scenarios have same schema:
-//         // there exists a chunk (either MUB, RUB, or OS) with all soft deleted row.
-//         // This means the scenarios that rows deleted before the chunk is moved
-//         // are not included.
-//         all_scenarios_for_one_chunk(
-//             vec![],
-//             vec![&pred],
-//             lp_lines,
-//             delete_table_name,
-//             partition_key,
-//         )
-//         .await
-//     }
-// }
-
 /// This will create many scenarios (at least 15), some that have a chunk with soft deleted data,
 /// some has no chunks because we do create RUB (and hence OS) chunks for all soft deleted data in MUB
 struct OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {}

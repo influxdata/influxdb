@@ -1168,6 +1168,7 @@ impl InfluxRpcPlanner {
         // will group and
         // order in the same order)
         let tag_columns: Vec<_> = schema.tags_iter().map(|f| f.name() as &str).collect();
+
         // Group by all tag columns
         let group_exprs = tag_columns
             .iter()
