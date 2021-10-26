@@ -74,6 +74,8 @@ func NewInstrumentedRemotesHandler(log *zap.Logger, reg prometheus.Registerer, s
 	svc = newMetricCollectingService(reg, svc)
 	// Wrap logging.
 	svc = newLoggingService(log, svc)
+	// Wrap authz.
+	svc = newAuthCheckingService(svc)
 
 	return newRemoteConnectionHandler(log, svc)
 }

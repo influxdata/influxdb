@@ -156,6 +156,10 @@ func TestOnboardAuth(t *testing.T) {
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.NotebooksResourceType}},
 		{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.AnnotationsResourceType}},
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.AnnotationsResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.RemotesResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.RemotesResourceType}},
+		{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.ReplicationsResourceType}},
+		{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.ReplicationsResourceType}},
 	}
 	if !cmp.Equal(auth.Permissions, expectedPerm) {
 		t.Fatalf("unequal permissions: \n %+v", cmp.Diff(auth.Permissions, expectedPerm))

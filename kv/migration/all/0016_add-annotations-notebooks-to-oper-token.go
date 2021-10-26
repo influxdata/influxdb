@@ -6,27 +6,36 @@ import (
 	"sort"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 )
 
 var Migration0016_AddAnnotationsNotebooksToOperToken = UpOnlyMigration(
 	"add annotations and notebooks resource types to operator token",
-	func(ctx context.Context, store kv.SchemaStore) error {
+	migrateTokensMigration(
+		func(t influxdb.Authorization) bool {
+			return permListsMatch(preNotebooksAnnotationsOpPerms(), t.Permissions)
+		},
+		func(t *influxdb.Authorization) {
+			t.Permissions = append(t.Permissions, notebooksAndAnnotationsPerms(0)...)
+		},
+	),
+)
+
+func migrateTokensMigration(
+	checkToken func(influxdb.Authorization) bool,
+	updateToken func(*influxdb.Authorization),
+) func(context.Context, kv.SchemaStore) error {
+	return func(ctx context.Context, store kv.SchemaStore) error {
 		authBucket := []byte("authorizationsv1")
 
-		// Find the operator token that needs updated
-
-		// There will usually be 1 operator token. If somebody has deleted their
-		// operator token, we don't necessarily want to make it so that influxdb
-		// won't start, so store a list of the found operator tokens so that it can
-		// be iterated on later.
-		opTokens := []influxdb.Authorization{}
+		// First find all tokens matching the predicate.
+		var tokens []influxdb.Authorization
 		if err := store.View(ctx, func(tx kv.Tx) error {
 			bkt, err := tx.Bucket(authBucket)
 			if err != nil {
 				return err
 			}
-
 			cursor, err := bkt.ForwardCursor(nil)
 			if err != nil {
 				return err
@@ -37,54 +46,51 @@ var Migration0016_AddAnnotationsNotebooksToOperToken = UpOnlyMigration(
 				if err := json.Unmarshal(v, &t); err != nil {
 					return false, err
 				}
-
-				// Add any tokens to the list that match the list of permission from an
-				// "old" operator token
-				if permListsMatch(oldOpPerms(), t.Permissions) {
-					opTokens = append(opTokens, t)
+				if checkToken(t) {
+					tokens = append(tokens, t)
 				}
-
 				return true, nil
 			})
 		}); err != nil {
 			return err
 		}
 
-		// Go through the list of operator tokens found and update their permissions
-		// list. There should be only 1, but if there are somehow more this will
-		// update all of them.
-		for _, t := range opTokens {
-			encodedID, err := t.ID.Encode()
+		// Next, update all the extracted tokens.
+		for i := range tokens {
+			updateToken(&tokens[i])
+		}
+
+		// Finally, persist the updated tokens back to the DB.
+		if err := store.Update(ctx, func(tx kv.Tx) error {
+			bkt, err := tx.Bucket(authBucket)
 			if err != nil {
 				return err
 			}
-
-			t.Permissions = append(t.Permissions, extraPerms()...)
-
-			v, err := json.Marshal(t)
-			if err != nil {
-				return err
-			}
-
-			if err := store.Update(ctx, func(tx kv.Tx) error {
-				bkt, err := tx.Bucket(authBucket)
+			for _, t := range tokens {
+				encodedID, err := t.ID.Encode()
 				if err != nil {
 					return err
 				}
-
-				return bkt.Put(encodedID, v)
-			}); err != nil {
-				return err
+				v, err := json.Marshal(t)
+				if err != nil {
+					return err
+				}
+				if err := bkt.Put(encodedID, v); err != nil {
+					return err
+				}
 			}
+			return nil
+		}); err != nil {
+			return err
 		}
 
 		return nil
-	},
-)
+	}
+}
 
-// extraPerms returns the list of additional permissions that need added for
+// notebooksAndAnnotationsPerms returns the list of additional permissions that need added for
 // annotations and notebooks.
-func extraPerms() []influxdb.Permission {
+func notebooksAndAnnotationsPerms(orgID platform.ID) []influxdb.Permission {
 	resTypes := []influxdb.Resource{
 		{
 			Type: influxdb.AnnotationsResourceType,
@@ -93,13 +99,18 @@ func extraPerms() []influxdb.Permission {
 			Type: influxdb.NotebooksResourceType,
 		},
 	}
-
-	return permListFromResources(resTypes)
+	perms := permListFromResources(resTypes)
+	if orgID.Valid() {
+		for i := range perms {
+			perms[i].Resource.OrgID = &orgID
+		}
+	}
+	return perms
 }
 
-// oldOpPerms is the list of permissions from an "old" operator token - prior to
-// the addition of the notebooks an annotations resource type.
-func oldOpPerms() []influxdb.Permission {
+// preNotebooksAnnotationsOpPerms is the list of permissions from a 2.0.x operator token,
+// prior to the addition of the notebooks and annotations resource types.
+func preNotebooksAnnotationsOpPerms() []influxdb.Permission {
 	resTypes := []influxdb.Resource{
 		{
 			Type: influxdb.AuthorizationsResourceType,
