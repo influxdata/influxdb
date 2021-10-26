@@ -2,18 +2,19 @@ package internal
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
 	"go.uber.org/zap"
+	"os"
+	"path/filepath"
+	"sync"
 )
 
 type durableQueueManager struct {
 	replicationQueues map[platform.ID]*durablequeue.Queue
 	logger            *zap.Logger
 	enginePath        string
+	mutex             sync.RWMutex
 }
 
 // NewDurableQueueManager creates a new durableQueueManager struct, for managing durable queues associated with
@@ -30,6 +31,9 @@ func NewDurableQueueManager(log *zap.Logger, enginePath string) *durableQueueMan
 
 // InitializeQueue creates a new durable queue which is associated with a replication stream.
 func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error {
+	qm.mutex.Lock()
+	defer qm.mutex.Unlock()
+
 	// Check for duplicate replication ID
 	if _, exists := qm.replicationQueues[replicationID]; exists {
 		return fmt.Errorf("durable queue already exists for replication ID %q", replicationID)
@@ -77,6 +81,9 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 
 // DeleteQueue deletes a durable queue and its associated data on disk.
 func (qm *durableQueueManager) DeleteQueue(replicationID platform.ID) error {
+	qm.mutex.Lock()
+	defer qm.mutex.Unlock()
+
 	if qm.replicationQueues[replicationID] == nil {
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}
@@ -105,6 +112,9 @@ func (qm *durableQueueManager) DeleteQueue(replicationID platform.ID) error {
 
 // UpdateMaxQueueSize updates the maximum size of the durable queue.
 func (qm *durableQueueManager) UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error {
+	qm.mutex.RLock()
+	defer qm.mutex.RUnlock()
+
 	if qm.replicationQueues[replicationID] == nil {
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}

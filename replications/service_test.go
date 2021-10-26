@@ -145,6 +145,7 @@ func TestCreateMissingRemote(t *testing.T) {
 		Return(&influxdb.Bucket{}, nil)
 
 	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
+	mocks.durableQueueManager.EXPECT().DeleteQueue(initID)
 	created, err := svc.CreateReplication(ctx, createReq)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), fmt.Sprintf("remote %q not found", createReq.RemoteID))

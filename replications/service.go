@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/opentracing/opentracing-go/log"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -141,6 +139,9 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 
 	query, args, err := q.ToSql()
 	if err != nil {
+		if cleanupErr := s.durableQueueManager.DeleteQueue(newID); cleanupErr != nil {
+			s.log.Warn("durable queue remaining on disk after initialization failure", zap.Error(cleanupErr))
+		}
 		return nil, err
 	}
 
@@ -148,7 +149,13 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 
 	if err := s.store.DB.GetContext(ctx, &r, query, args...); err != nil {
 		if sqlErr, ok := err.(sqlite3.Error); ok && sqlErr.ExtendedCode == sqlite3.ErrConstraintForeignKey {
+			if cleanupErr := s.durableQueueManager.DeleteQueue(newID); cleanupErr != nil {
+				s.log.Warn("durable queue remaining on disk after initialization failure", zap.Error(cleanupErr))
+			}
 			return nil, errRemoteNotFound(request.RemoteID, err)
+		}
+		if cleanupErr := s.durableQueueManager.DeleteQueue(newID); cleanupErr != nil {
+			s.log.Warn("durable queue remaining on disk after initialization failure", zap.Error(cleanupErr))
 		}
 		return nil, err
 	}
@@ -242,6 +249,7 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 
 	if request.MaxQueueSizeBytes != nil {
 		if err := s.durableQueueManager.UpdateMaxQueueSize(id, *request.MaxQueueSizeBytes); err != nil {
+			s.log.Warn("actual max queue size does not match the max queue size recorded in database")
 			return nil, err
 		}
 	}
@@ -317,12 +325,12 @@ func (s service) DeleteBucketReplications(ctx context.Context, localBucketID pla
 	for _, replication := range deleted {
 		id, err := platform.IDFromString(replication)
 		if err != nil {
-			log.Error(err)
+			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err))
 			errOccurred = true
 		}
 
 		if err := s.durableQueueManager.DeleteQueue(*id); err != nil {
-			log.Error(err)
+			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err))
 			errOccurred = true
 		}
 	}
