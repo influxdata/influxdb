@@ -4,13 +4,13 @@ use std::{
     sync::Arc,
 };
 
-use arrow::datatypes::{DataType, Field};
+use arrow::datatypes::DataType;
 use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
     logical_plan::{
-        binary_expr, lit, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan, LogicalPlanBuilder,
-        Operator,
+        binary_expr, lit, when, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan,
+        LogicalPlanBuilder, Operator,
     },
     optimizer::utils::expr_to_columns,
     prelude::col,
@@ -20,7 +20,7 @@ use datafusion_util::AsExpr;
 
 use hashbrown::{HashMap, HashSet};
 use observability_deps::tracing::{debug, trace};
-use predicate::predicate::{Predicate, PredicateMatch};
+use predicate::predicate::{BinaryExpr, Predicate, PredicateMatch};
 use schema::selection::Selection;
 use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -243,7 +243,6 @@ impl InfluxRpcPlanner {
         // and which chunks needs full plan and group them into their table
         for chunk in database.chunks(normalizer.unnormalized()) {
             let table_name = chunk.table_name();
-            let schema = chunk.schema();
             trace!(chunk_id=%chunk.id(), table_name, "Considering table");
 
             // Table is already in the returned table list, no longer needs to discover it from other chunks
@@ -263,7 +262,7 @@ impl InfluxRpcPlanner {
                 // See if we have enough info only from the chunk's
                 // meta data to know if the table has data that
                 // matches the predicate
-                let predicate = normalizer.normalized(table_name, schema);
+                let predicate = normalizer.normalized(table_name);
 
                 // Try and apply the predicate using only metadata
                 let pred_result = chunk
@@ -349,7 +348,7 @@ impl InfluxRpcPlanner {
             let mut do_full_plan = chunk.has_delete_predicates();
 
             let table_name = chunk.table_name();
-            let predicate = normalizer.normalized(table_name, chunk.schema());
+            let predicate = normalizer.normalized(table_name);
 
             // Try and apply the predicate using only metadata
             let pred_result = chunk
@@ -477,7 +476,7 @@ impl InfluxRpcPlanner {
             let mut do_full_plan = chunk.has_delete_predicates();
 
             let table_name = chunk.table_name();
-            let predicate = normalizer.normalized(table_name, chunk.schema());
+            let predicate = normalizer.normalized(table_name);
 
             // Try and apply the predicate using only metadata
             let pred_result = chunk
@@ -824,7 +823,7 @@ impl InfluxRpcPlanner {
     {
         let mut table_chunks = BTreeMap::new();
         for chunk in chunks {
-            let predicate = normalizer.normalized(chunk.table_name(), chunk.schema());
+            let predicate = normalizer.normalized(chunk.table_name());
             // Try and apply the predicate using only metadata
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
@@ -997,9 +996,9 @@ impl InfluxRpcPlanner {
         };
 
         // Select only fields requested
-        let predicate = normalizer.normalized(table_name, Arc::clone(&schema));
+        let predicate = normalizer.normalized(table_name);
         let select_exprs: Vec<_> = filtered_fields_iter(&schema, &predicate)
-            .map(|field| col(field.name().as_str()))
+            .map(|field| col(field.name))
             .collect();
 
         let plan = plan_builder
@@ -1035,9 +1034,8 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.as_ref();
-        let scan_and_filter =
-            self.scan_and_filter(table_name, Arc::clone(&schema), normalizer, chunks)?;
-        let predicate = normalizer.normalized(table_name, schema);
+        let scan_and_filter = self.scan_and_filter(table_name, schema, normalizer, chunks)?;
+        let predicate = normalizer.normalized(table_name);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1063,9 +1061,9 @@ impl InfluxRpcPlanner {
         // Select away anything that isn't in the influx data model
         let tags_fields_and_timestamps: Vec<Expr> = schema
             .tags_iter()
-            .chain(filtered_fields_iter(&schema, &predicate))
-            .chain(schema.time_iter())
             .map(|field| field.name().as_expr())
+            .chain(filtered_fields_iter(&schema, &predicate).map(|f| f.expr))
+            .chain(schema.time_iter().map(|field| field.name().as_expr()))
             .collect();
 
         let plan_builder = plan_builder
@@ -1080,7 +1078,7 @@ impl InfluxRpcPlanner {
             .collect();
 
         let field_columns = filtered_fields_iter(&schema, &predicate)
-            .map(|field| Arc::from(field.name().as_str()))
+            .map(|field| Arc::from(field.name))
             .collect();
 
         // TODO: remove the use of tag_columns and field_column names
@@ -1147,9 +1145,8 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter =
-            self.scan_and_filter(&table_name, Arc::clone(&schema), normalizer, chunks)?;
-        let predicate = normalizer.normalized(&table_name, schema);
+        let scan_and_filter = self.scan_and_filter(&table_name, schema, normalizer, chunks)?;
+        let predicate = normalizer.normalized(&table_name);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1258,9 +1255,8 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter =
-            self.scan_and_filter(&table_name, Arc::clone(&schema), normalizer, chunks)?;
-        let predicate = normalizer.normalized(&table_name, schema);
+        let scan_and_filter = self.scan_and_filter(&table_name, schema, normalizer, chunks)?;
+        let predicate = normalizer.normalized(&table_name);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1337,7 +1333,7 @@ impl InfluxRpcPlanner {
     where
         C: QueryChunk + 'static,
     {
-        let predicate = normalizer.normalized(table_name, Arc::clone(&schema));
+        let predicate = normalizer.normalized(table_name);
 
         // Scan all columns to begin with (DataFusion projection
         // push-down optimization will prune out unneeded columns later)
@@ -1477,14 +1473,56 @@ pub(crate) struct AggExprs {
     field_columns: FieldColumns,
 }
 
-/// Returns an iterator of fields from schema that pass the predicate
+// Encapsulates a field column projection as an expression. In the simplest case
+// the expression is a `Column` expression. In more complex cases it might be
+// a predicate that filters rows for the projection.
+#[derive(Clone)]
+struct FieldExpr<'a> {
+    expr: Expr,
+    name: &'a str,
+    datatype: &'a DataType,
+}
+
+// Returns an iterator of fields from schema that pass the predicate. If there
+// are expressions associated with field column projections then these are
+// applied to the column via `CASE` statements.
+//
+// TODO(edd): correctly support multiple `_value` expressions. Right now they
+// are OR'd together, which makes sense for equality operators like `_value == xyz`.
 fn filtered_fields_iter<'a>(
     schema: &'a Schema,
     predicate: &'a Predicate,
-) -> impl Iterator<Item = &'a Field> {
-    schema
-        .fields_iter()
-        .filter(move |f| predicate.should_include_field(f.name()))
+) -> impl Iterator<Item = FieldExpr<'a>> {
+    schema.fields_iter().filter_map(move |f| {
+        if !predicate.should_include_field(f.name()) {
+            return None;
+        }
+
+        // For example, assume two fields (`field1` and `field2`) along with
+        // a predicate like: `_value = 1.32 OR _value = 2.87`. The projected
+        // field columns become:
+        //
+        // SELECT
+        //  CASE WHEN #field1 = Float64(1.32) OR #field1 = Float64(2.87) THEN #field1 END AS field1,
+        //  CASE WHEN #field2 = Float64(1.32) OR #field2 = Float64(2.87) THEN #field2 END AS field2
+        //
+        let expr = predicate
+            .value_expr
+            .iter()
+            .map(|BinaryExpr { left: _, op, right }| {
+                binary_expr(col(f.name()), *op, right.as_expr())
+            })
+            .reduce(|a, b| a.or(b))
+            .map(|when_expr| when(when_expr, col(f.name())).end())
+            .unwrap_or_else(|| Ok(col(f.name())))
+            .unwrap();
+
+        Some(FieldExpr {
+            expr: expr.alias(f.name()),
+            name: f.name(),
+            datatype: f.data_type(),
+        })
+    })
 }
 
 /// Creates aggregate expressions and tracks field output according to
@@ -1543,26 +1581,25 @@ impl AggExprs {
         let mut field_list = Vec::new();
 
         for field in filtered_fields_iter(schema, predicate) {
+            let field_name = field.name;
             agg_exprs.push(make_selector_expr(
                 agg,
                 SelectorOutput::Value,
-                field.name(),
-                field.data_type(),
-                field.name(),
+                field.clone(),
+                field_name,
             )?);
 
-            let time_column_name = format!("{}_{}", TIME_COLUMN_NAME, field.name());
+            let time_column_name = format!("{}_{}", TIME_COLUMN_NAME, field_name);
 
             agg_exprs.push(make_selector_expr(
                 agg,
                 SelectorOutput::Time,
-                field.name(),
-                field.data_type(),
+                field,
                 &time_column_name,
             )?);
 
             field_list.push((
-                Arc::from(field.name().as_str()), // value name
+                Arc::from(field_name), // value name
                 Arc::from(time_column_name.as_str()),
             ));
         }
@@ -1585,12 +1622,21 @@ impl AggExprs {
     //  agg_function(time) as time
     fn agg_for_read_group(agg: Aggregate, schema: &Schema, predicate: &Predicate) -> Result<Self> {
         let agg_exprs = filtered_fields_iter(schema, predicate)
-            .chain(schema.time_iter())
-            .map(|field| make_agg_expr(agg, field.name()))
+            .map(|field| make_agg_expr(agg, field))
+            .chain(schema.time_iter().map(|field| {
+                make_agg_expr(
+                    agg,
+                    FieldExpr {
+                        expr: col(field.name()),
+                        datatype: field.data_type(),
+                        name: field.name(),
+                    },
+                )
+            }))
             .collect::<Result<Vec<_>>>()?;
 
         let field_columns = filtered_fields_iter(schema, predicate)
-            .map(|field| Arc::from(field.name().as_str()))
+            .map(|field| Arc::from(field.name))
             .collect::<Vec<_>>()
             .into();
 
@@ -1616,11 +1662,11 @@ impl AggExprs {
         predicate: &Predicate,
     ) -> Result<Self> {
         let agg_exprs = filtered_fields_iter(schema, predicate)
-            .map(|field| make_agg_expr(agg, field.name()))
+            .map(|field| make_agg_expr(agg, field))
             .collect::<Result<Vec<_>>>()?;
 
         let field_columns = filtered_fields_iter(schema, predicate)
-            .map(|field| Arc::from(field.name().as_str()))
+            .map(|field| Arc::from(field.name))
             .collect::<Vec<_>>()
             .into();
 
@@ -1634,43 +1680,55 @@ impl AggExprs {
 /// Creates a DataFusion expression suitable for calculating an aggregate:
 ///
 /// equivalent to `CAST agg(field) as field`
-fn make_agg_expr(agg: Aggregate, field_name: &str) -> Result<Expr> {
+fn make_agg_expr(agg: Aggregate, field_expr: FieldExpr<'_>) -> Result<Expr> {
     // For timestamps, use `MAX` which corresponds to the last
     // timestamp in the group, unless `MIN` was specifically requested
     // to be consistent with the Go implementation which takes the
     // timestamp at the end of the window
-    let agg = if field_name == TIME_COLUMN_NAME && agg != Aggregate::Min {
+    let agg = if field_expr.name == TIME_COLUMN_NAME && agg != Aggregate::Min {
         Aggregate::Max
     } else {
         agg
     };
 
-    agg.to_datafusion_expr(col(field_name))
+    let field_name = field_expr.name;
+    agg.to_datafusion_expr(field_expr.expr)
         .context(CreatingAggregates)
         .map(|agg| agg.alias(field_name))
 }
 
-/// Creates a DataFusion expression suitable for calculating the time
-/// part of a selector:
+/// Creates a DataFusion expression suitable for calculating the time part of a
+/// selector:
 ///
-/// equivalent to `CAST selector_time(field) as column_name`
-fn make_selector_expr(
+/// The output expression is equivalent to `CAST selector_time(field_expression)
+/// as col_name`.
+///
+/// In the simplest scenarios the field expressions are `Column` expressions.
+/// In some cases the field expressions are `CASE` statements such as for
+/// example:
+///
+/// CAST selector_time(
+///     CASE WHEN field = 1.87 OR field = 1.99 THEN field
+///     ELSE NULL
+/// END) as col_name
+///
+fn make_selector_expr<'a>(
     agg: Aggregate,
     output: SelectorOutput,
-    field_name: &str,
-    data_type: &DataType,
-    column_name: &str,
+    field: FieldExpr<'a>,
+    col_name: &'a str,
 ) -> Result<Expr> {
     let uda = match agg {
-        Aggregate::First => selector_first(data_type, output),
-        Aggregate::Last => selector_last(data_type, output),
-        Aggregate::Min => selector_min(data_type, output),
-        Aggregate::Max => selector_max(data_type, output),
+        Aggregate::First => selector_first(field.datatype, output),
+        Aggregate::Last => selector_last(field.datatype, output),
+        Aggregate::Min => selector_min(field.datatype, output),
+        Aggregate::Max => selector_max(field.datatype, output),
         _ => return InternalAggregateNotSelector { agg }.fail(),
     };
+
     Ok(uda
-        .call(vec![col(field_name), col(TIME_COLUMN_NAME)])
-        .alias(column_name))
+        .call(vec![field.expr, col(TIME_COLUMN_NAME)])
+        .alias(col_name))
 }
 
 /// Creates specialized / normalized predicates that are tailored to a specific
@@ -1696,13 +1754,13 @@ impl PredicateNormalizer {
 
     /// Return a reference to a predicate specialized for `table_name` based on
     /// its `schema`.
-    fn normalized(&mut self, table_name: &str, schema: Arc<Schema>) -> Arc<Predicate> {
+    fn normalized(&mut self, table_name: &str) -> Arc<Predicate> {
         if let Some(normalized_predicate) = self.normalized.get(table_name) {
             return normalized_predicate.inner();
         }
 
         let normalized_predicate =
-            TableNormalizedPredicate::new(table_name, schema, self.unnormalized.clone());
+            TableNormalizedPredicate::new(table_name, self.unnormalized.clone());
 
         self.normalized
             .entry(table_name.to_string())
@@ -1747,13 +1805,18 @@ struct TableNormalizedPredicate {
 }
 
 impl TableNormalizedPredicate {
-    fn new(table_name: &str, schema: Arc<Schema>, mut inner: Predicate) -> Self {
+    fn new(table_name: &str, mut inner: Predicate) -> Self {
         let mut field_projections = BTreeSet::new();
+        let mut field_value_exprs = vec![];
+
         inner.exprs = inner
             .exprs
             .into_iter()
             .map(|e| rewrite_measurement_references(table_name, e))
-            .map(|e| rewrite_field_value_references(Arc::clone(&schema), e))
+            // Rewrite any references to `_value = some_value` to literal true values.
+            // Keeps track of these expressions, which can then be used to
+            // augment field projections with conditions using `CASE` statements.
+            .map(|e| rewrite_field_value_references(&mut field_value_exprs, e))
             .map(|e| {
                 // Rewrite any references to `_field = a_field_name` with a literal true
                 // and keep track of referenced field names to add to the field
@@ -1761,6 +1824,8 @@ impl TableNormalizedPredicate {
                 rewrite_field_column_references(&mut field_projections, e)
             })
             .collect::<Vec<_>>();
+        // Store any field value (`_value`) expressions on the `Predicate`.
+        inner.value_expr = field_value_exprs;
 
         if !field_projections.is_empty() {
             match &mut inner.field_columns {
@@ -1806,23 +1871,19 @@ impl ExprRewriter for MeasurementRewriter<'_> {
     }
 }
 
-/// Rewrites a predicate on `_value` to a disjunctive set of expressions on each
-/// distinct field column in the table.
-///
-/// For example, the predicate `_value = 1.77` on a table with three field
-/// columns would be rewritten to:
-///
-/// `(field1 = 1.77 OR field2 = 1.77 OR field3 = 1.77)`.
-fn rewrite_field_value_references(schema: Arc<Schema>, expr: Expr) -> Expr {
-    let mut rewriter = FieldValueRewriter { schema };
+/// Rewrites an expression on `_value` as a boolean true literal, pushing any
+/// encountered expressions onto `value_exprs` so they can be moved onto column
+/// projections.
+fn rewrite_field_value_references(value_exprs: &mut Vec<BinaryExpr>, expr: Expr) -> Expr {
+    let mut rewriter = FieldValueRewriter { value_exprs };
     expr.rewrite(&mut rewriter).expect("rewrite is infallible")
 }
 
-struct FieldValueRewriter {
-    schema: Arc<Schema>,
+struct FieldValueRewriter<'a> {
+    value_exprs: &'a mut Vec<BinaryExpr>,
 }
 
-impl ExprRewriter for FieldValueRewriter {
+impl<'a> ExprRewriter for FieldValueRewriter<'a> {
     fn mutate(&mut self, expr: Expr) -> DatafusionResult<Expr> {
         Ok(match expr {
             Expr::BinaryExpr {
@@ -1831,21 +1892,16 @@ impl ExprRewriter for FieldValueRewriter {
                 ref right,
             } => {
                 if let Expr::Column(inner) = &**left {
-                    if inner.name != VALUE_COLUMN_NAME {
-                        return Ok(expr); // column name not `_value`.
+                    if inner.name == VALUE_COLUMN_NAME {
+                        self.value_exprs.push(BinaryExpr {
+                            left: inner.to_owned(),
+                            op,
+                            right: right.as_expr(),
+                        });
+                        return Ok(Expr::Literal(ScalarValue::Boolean(Some(true))));
                     }
-
-                    // build a disjunctive expression using binary expressions
-                    // for each field column and the original expression's
-                    // operator and rhs.
-                    self.schema
-                        .fields_iter()
-                        .map(|field| binary_expr(col(field.name()), op, *right.clone()))
-                        .reduce(|a, b| a.or(b))
-                        .expect("at least one field column")
-                } else {
-                    expr
                 }
+                expr
             }
             _ => expr,
         })
@@ -1910,7 +1966,7 @@ pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use datafusion::logical_plan::Operator;
+    use datafusion::logical_plan::{binary_expr, Operator};
     use schema::builder::SchemaBuilder;
 
     use super::*;
@@ -1950,56 +2006,57 @@ mod tests {
 
     #[test]
     fn test_field_value_rewriter() {
-        let schema = SchemaBuilder::new()
-            .tag("t1")
-            .tag("t2")
-            .field("f1", DataType::Float64)
-            .field("f2", DataType::Float64)
-            .timestamp()
-            .build()
-            .unwrap();
-
         let mut rewriter = FieldValueRewriter {
-            schema: Arc::new(schema),
+            value_exprs: &mut vec![],
         };
 
         let cases = vec![
             (
                 binary_expr(col("f1"), Operator::Eq, lit(1.82)),
                 binary_expr(col("f1"), Operator::Eq, lit(1.82)),
+                vec![],
             ),
-            (col("t2"), col("t2")),
+            (col("t2"), col("t2"), vec![]),
             (
                 binary_expr(col(VALUE_COLUMN_NAME), Operator::Eq, lit(1.82)),
-                //
-                // _value = 1.82 -> f1 = (1.82 OR f2 = 1.82)
-                //
-                binary_expr(
-                    binary_expr(col("f1"), Operator::Eq, lit(1.82)),
-                    Operator::Or,
-                    binary_expr(col("f2"), Operator::Eq, lit(1.82)),
-                ),
+                // _value = 1.82 -> true
+                lit(true),
+                vec![BinaryExpr {
+                    left: Column {
+                        relation: None,
+                        name: VALUE_COLUMN_NAME.into(),
+                    },
+                    op: Operator::Eq,
+                    right: lit(1.82),
+                }],
             ),
         ];
 
-        for (input, exp) in cases {
+        for (input, exp, mut value_exprs) in cases {
             let rewritten = input.rewrite(&mut rewriter).unwrap();
             assert_eq!(rewritten, exp);
+            assert_eq!(rewriter.value_exprs, &mut value_exprs);
         }
 
         // Test case with single field.
-        let schema = SchemaBuilder::new()
-            .field("f1", DataType::Float64)
-            .timestamp()
-            .build()
-            .unwrap();
         let mut rewriter = FieldValueRewriter {
-            schema: Arc::new(schema),
+            value_exprs: &mut vec![],
         };
 
         let input = binary_expr(col(VALUE_COLUMN_NAME), Operator::Gt, lit(1.88));
         let rewritten = input.rewrite(&mut rewriter).unwrap();
-        assert_eq!(rewritten, binary_expr(col("f1"), Operator::Gt, lit(1.88)));
+        assert_eq!(rewritten, lit(true));
+        assert_eq!(
+            rewriter.value_exprs,
+            &mut vec![BinaryExpr {
+                left: Column {
+                    relation: None,
+                    name: VALUE_COLUMN_NAME.into(),
+                },
+                op: Operator::Gt,
+                right: lit(1.88),
+            }]
+        );
     }
 
     #[test]
