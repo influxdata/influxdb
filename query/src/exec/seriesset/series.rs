@@ -154,13 +154,11 @@ impl SeriesSet {
         let start_row = self.start_row;
         let num_rows = self.num_rows;
 
-        for field_index in self.field_indexes.iter() {
+       self.field_indexes.iter()
+         .all(|field_index| {
             let array = self.batch.column(field_index.timestamp_index);
-            if !Self::is_all_null(array, start_row, num_rows) {
-                return false;
-            }
-        }
-        true
+            Self::is_all_null(array, start_row, num_rows)
+          });
     }
 
     // Convert and append the values from a single field to a Series
