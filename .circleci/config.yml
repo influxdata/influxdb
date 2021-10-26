@@ -163,20 +163,16 @@ jobs:
       - run:
           name: Generate changelog
           command: |
-            mkdir changelog_artifacts/CHANGELOG.md
+            mkdir changelog_artifacts
+            echo "CHANGELOG for << pipeline.git.branch >> commit ${CIRCLE_SHA1}\n\n" > changelog_artifacts/CHANGELOG.md
 
             if [[ "<< pipeline.git.branch >>" == "master-1.x" ]] ;  then
-               echo "CHANGELOG for master-1.x commit ${CIRCLE_SHA1}\n\n" > changelog_artifacts/CHANGELOG.md
                LATEST_19X="$(git tag | grep '^v1\.9\.[0-9]*$' | sort -V | tail -1)"
-
                # build 1.9.0 to 1.9.x changelog, plus unreleased from master
                build-multibranch-changelog.sh HEAD "$LATEST_19X" v1.9.0 >> changelog_artifacts/CHANGELOG.md
-
             elif [[ "<< pipeline.git.branch >>" == "1.9" ]] ;  then
-               echo "CHANGELOG for 1.9 branch\n\n" > changelog_artifacts/CHANGELOG.md
                # build 1.9.0 to current 1.9 changelog
                build-simple-changelog.sh HEAD v1.9.0 >> changelog_artifacts/CHANGELOG.md
-
             fi
 
             cat ./scripts/ci/scripts/ci/CHANGELOG_frozen.md >> changelog_artifacts/CHANGELOG.md
@@ -199,6 +195,12 @@ workflows:
       - unit_test
       - unit_test_tsi
       - unit_test_race
+      - changelog_nightly:
+          filters:
+            branches:
+              only:
+                - "master-1.x"
+                - "1.9"
   daily:
     triggers:
       - schedule:
