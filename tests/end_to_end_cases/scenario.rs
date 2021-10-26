@@ -654,7 +654,7 @@ pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
 }
 
 /// Creates a database that cannot be replayed
-pub async fn fixture_replay_broken(db_name: &str, path: &Path) -> ServerFixture {
+pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> ServerFixture {
     let server_id = DEFAULT_SERVER_ID;
 
     let test_config = TestConfig::new().with_env("INFLUXDB_IOX_SKIP_REPLAY", "no");
@@ -680,7 +680,7 @@ pub async fn fixture_replay_broken(db_name: &str, path: &Path) -> ServerFixture 
             write_buffer_connection: Some(WriteBufferConnection {
                 direction: write_buffer_connection::Direction::Read.into(),
                 r#type: "file".to_string(),
-                connection: path.display().to_string(),
+                connection: write_buffer_path.display().to_string(),
                 creation_config: Some(WriteBufferCreationConfig {
                     n_sequencers: 1,
                     ..Default::default()
@@ -708,9 +708,14 @@ pub async fn fixture_replay_broken(db_name: &str, path: &Path) -> ServerFixture 
 
     // ingest data as mixed throughput
     let time_provider = Arc::new(SystemProvider::new());
-    let producer = FileBufferProducer::new(path, db_name, Default::default(), time_provider)
-        .await
-        .unwrap();
+    let producer = FileBufferProducer::new(
+        write_buffer_path,
+        db_name,
+        Default::default(),
+        time_provider,
+    )
+    .await
+    .unwrap();
     let sequencer_id = producer.sequencer_ids().into_iter().next().unwrap();
     let (sequence_1, _) = producer
         .store_entry(
@@ -770,12 +775,27 @@ pub async fn fixture_replay_broken(db_name: &str, path: &Path) -> ServerFixture 
         .unwrap();
 
     // purge data from write buffer
-    write_buffer::file::test_utils::remove_entry(path, db_name, sequencer_id, sequence_1.number)
-        .await;
-    write_buffer::file::test_utils::remove_entry(path, db_name, sequencer_id, sequence_2.number)
-        .await;
-    write_buffer::file::test_utils::remove_entry(path, db_name, sequencer_id, sequence_3.number)
-        .await;
+    write_buffer::file::test_utils::remove_entry(
+        write_buffer_path,
+        db_name,
+        sequencer_id,
+        sequence_1.number,
+    )
+    .await;
+    write_buffer::file::test_utils::remove_entry(
+        write_buffer_path,
+        db_name,
+        sequencer_id,
+        sequence_2.number,
+    )
+    .await;
+    write_buffer::file::test_utils::remove_entry(
+        write_buffer_path,
+        db_name,
+        sequencer_id,
+        sequence_3.number,
+    )
+    .await;
 
     // Try to replay and error
     let fixture = fixture.restart_server().await;

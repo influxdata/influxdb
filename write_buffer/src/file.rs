@@ -659,13 +659,14 @@ pub mod test_utils {
 
     /// Remove specific entry from write buffer.
     pub async fn remove_entry(
-        root: &Path,
+        write_buffer_path: &Path,
         database_name: &str,
         sequencer_id: u32,
         sequence_number: u64,
     ) {
         tokio::fs::remove_file(
-            root.join(database_name)
+            write_buffer_path
+                .join(database_name)
                 .join("active")
                 .join(sequencer_id.to_string())
                 .join("committed")

@@ -232,7 +232,7 @@ async fn reads_come_from_write_buffer() {
 async fn cant_write_to_db_reading_from_write_buffer() {
     let write_buffer_dir = TempDir::new().unwrap();
 
-    // set up a database to read from Kafka
+    // set up a database to read from write buffer
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
@@ -251,7 +251,7 @@ async fn cant_write_to_db_reading_from_write_buffer() {
         .build(server.grpc_channel())
         .await;
 
-    // Writing to this database is an error; all data comes from Kafka
+    // Writing to this database is an error; all data comes from write buffer
     let mut write_client = server.write_client();
     let err = write_client
         .write(&db_name, "temp,region=south color=1")
@@ -272,7 +272,7 @@ async fn cant_write_to_db_reading_from_write_buffer() {
 async fn test_create_database_missing_write_buffer_sequencers() {
     let write_buffer_dir = TempDir::new().unwrap();
 
-    // set up a database to read from Kafka
+    // set up a database to read from write buffer
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
@@ -306,7 +306,7 @@ pub async fn test_cross_write_buffer_tracing() {
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())
         .with_client_header("jaeger-debug-id", "some-debug-id");
 
-    // we need to use two servers but the same DB name here because the Kafka topic is named after the DB name
+    // we need to use two servers but the same DB name here because the write buffer topic is named after the DB name
     let db_name = rand_name();
 
     // create producer server
