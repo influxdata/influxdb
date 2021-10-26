@@ -1884,7 +1884,9 @@ func (s *Store) TagValues(ctx context.Context, auth query.FineAuthorizer, shardI
 	if err != nil {
 		return nil, err
 	}
-
+	if  err = isBadQuoteTagValueClause(filterExpr); err != nil {
+		return nil, err
+	}
 	// Build index set to work on.
 	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
 	s.mu.RLock()
