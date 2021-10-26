@@ -175,7 +175,7 @@ jobs:
                build-simple-changelog.sh HEAD v1.9.0 >> changelog_artifacts/CHANGELOG.md
             fi
 
-            cat ./scripts/ci/scripts/ci/CHANGELOG_frozen.md >> changelog_artifacts/CHANGELOG.md
+            cat ./scripts/ci/CHANGELOG_frozen.md >> changelog_artifacts/CHANGELOG.md
       - store_artifacts:
           path: changelog_artifacts/
       - aws-s3/copy:
