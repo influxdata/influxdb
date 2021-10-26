@@ -121,7 +121,7 @@ impl DbSetup for OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {
         };
 
         // Apply predicate before the chunk is moved if any. There will be
-        // scenario without chunks as a consequence of deleted data won't be moved from MUB to RUB
+        // scenario without chunks as a consequence of not-compacting-deleted-data
         all_scenarios_for_one_chunk(
             vec![&pred],
             vec![],
