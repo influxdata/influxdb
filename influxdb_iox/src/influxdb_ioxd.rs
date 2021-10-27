@@ -1,5 +1,6 @@
 use crate::{
     commands::run::database::Config,
+    influxdb_ioxd::run_modes::database::DatabaseRunMode,
     structopt_blocks::{
         object_store::{check_object_store, warn_about_inmem_store},
         run_config::RunConfig,
@@ -23,6 +24,7 @@ mod http;
 mod jemalloc;
 mod planner;
 mod rpc;
+mod run_modes;
 pub(crate) mod serving_readiness;
 
 #[derive(Debug, Snafu)]
@@ -277,12 +279,15 @@ async fn serve(
 
     let max_http_request_size = config.max_http_request_size;
 
-    let http_server = http::serve(
-        http_listener,
+    let run_mode = Arc::new(DatabaseRunMode::new(
         Arc::clone(&application),
         Arc::clone(&app_server),
-        frontend_shutdown.clone(),
         max_http_request_size,
+    ));
+    let http_server = http::serve(
+        http_listener,
+        run_mode,
+        frontend_shutdown.clone(),
         trace_header_parser,
     )
     .fuse();
