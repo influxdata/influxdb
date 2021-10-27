@@ -1537,6 +1537,9 @@ func (s *Store) TagKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs
 		}
 		return e
 	}), nil)
+	if err := isBadQuoteTagValueClause(filterExpr); err != nil {
+		return nil, err
+	}
 
 	// Get all the shards we're interested in.
 	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
@@ -1679,6 +1682,31 @@ func (a tagValuesSlice) Len() int           { return len(a) }
 func (a tagValuesSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a tagValuesSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
 
+func isBadQuoteTagValueClause(e influxql.Expr) error {
+	switch e := e.(type) {
+	case *influxql.BinaryExpr:
+		switch e.Op {
+		case influxql.EQ, influxql.NEQ:
+			_, lOk := e.LHS.(*influxql.VarRef)
+			_, rOk := e.RHS.(*influxql.VarRef)
+			if lOk && rOk {
+				return fmt.Errorf("bad WHERE clause for metaquery; one term must be a string literal tag value within single quotes: %s", e.String())
+			}
+		case influxql.OR, influxql.AND:
+			if err := isBadQuoteTagValueClause(e.LHS); err != nil {
+				return err
+			} else if err = isBadQuoteTagValueClause(e.RHS); err != nil {
+				return err
+			} else {
+				return nil
+			}
+		}
+	case *influxql.ParenExpr:
+		return isBadQuoteTagValueClause(e.Expr)
+	}
+	return nil
+}
+
 // TagValues returns the tag keys and values for the provided shards, where the
 // tag values satisfy the provided condition.
 func (s *Store) TagValues(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]TagValues, error) {
@@ -1716,6 +1744,9 @@ func (s *Store) TagValues(ctx context.Context, auth query.FineAuthorizer, shardI
 		return e
 	}), nil)
 
+	if err := isBadQuoteTagValueClause(filterExpr); err != nil {
+		return nil, err
+	}
 	// Build index set to work on.
 	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
 	s.mu.RLock()
