@@ -198,7 +198,6 @@ require (
 	github.com/sirupsen/logrus v1.7.0 // indirect
 	github.com/spf13/afero v1.1.2 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
-	github.com/stretchr/objx v0.1.1 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/uber-go/tally v3.3.15+incompatible // indirect
 	github.com/uber/athenadriver v1.1.4 // indirect

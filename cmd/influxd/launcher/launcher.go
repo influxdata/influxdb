@@ -54,10 +54,6 @@ import (
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
-	"github.com/influxdata/influxdb/v2/remotes"
-	remotesTransport "github.com/influxdata/influxdb/v2/remotes/transport"
-	"github.com/influxdata/influxdb/v2/replications"
-	replicationTransport "github.com/influxdata/influxdb/v2/replications/transport"
 	"github.com/influxdata/influxdb/v2/secret"
 	"github.com/influxdata/influxdb/v2/session"
 	"github.com/influxdata/influxdb/v2/snowflake"
@@ -651,17 +647,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		NotificationRuleFinder:     notificationRuleSvc,
 	}
 
-	remotesSvc := remotes.NewService(m.sqlStore)
-	remotesServer := remotesTransport.NewInstrumentedRemotesHandler(
-		m.log.With(zap.String("handler", "remotes")), m.reg, remotesSvc)
-
-	replicationSvc := replications.NewService(m.sqlStore, ts, m.log.With(zap.String("service", "replications")))
-	replicationServer := replicationTransport.NewInstrumentedReplicationHandler(
-		m.log.With(zap.String("handler", "replications")), m.reg, replicationSvc)
-
-	ts.BucketService = replications.NewBucketService(
-		m.log.With(zap.String("service", "replication_buckets")), ts.BucketService, replicationSvc)
-
 	errorHandler := kithttp.NewErrorHandler(m.log.With(zap.String("handler", "error_logger")))
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           opts.AssetsPath,
@@ -885,8 +870,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		http.WithResourceHandler(dashboardServer),
 		http.WithResourceHandler(notebookServer),
 		http.WithResourceHandler(annotationServer),
-		http.WithResourceHandler(remotesServer),
-		http.WithResourceHandler(replicationServer),
 	)
 
 	httpLogger := m.log.With(zap.String("service", "http"))
