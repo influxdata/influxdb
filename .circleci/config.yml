@@ -164,7 +164,7 @@ jobs:
           name: Generate changelog
           command: |
             mkdir changelog_artifacts
-            echo "CHANGELOG for << pipeline.git.branch >> commit ${CIRCLE_SHA1}\n\n" > changelog_artifacts/CHANGELOG.md
+            echo "CHANGELOG for InfluxDB OSS << pipeline.git.branch >> commit ${CIRCLE_SHA1}" > changelog_artifacts/CHANGELOG.md
 
             if [[ "<< pipeline.git.branch >>" == "master-1.x" ]] ;  then
                LATEST_19X="$(git tag | grep '^v1\.9\.[0-9]*$' | sort -V | tail -1)"
@@ -195,12 +195,6 @@ workflows:
       - unit_test
       - unit_test_tsi
       - unit_test_race
-      - changelog_nightly:
-          filters:
-            branches:
-              only:
-                - "master-1.x"
-                - "1.9"
   daily:
     triggers:
       - schedule:
