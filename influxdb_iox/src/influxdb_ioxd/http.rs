@@ -910,7 +910,7 @@ mod tests {
     use reqwest::{Client, Response};
 
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
-    use metric::{Attributes, DurationHistogram, Metric, U64Counter};
+    use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Histogram};
     use object_store::ObjectStore;
     use serde::de::DeserializeOwned;
     use server::{
@@ -1343,6 +1343,20 @@ mod tests {
             .unwrap()
             .fetch();
         assert_eq!(observation, 98);
+
+        // Batch size distribution is measured
+        let observation = metric_registry
+            .get_instrument::<Metric<U64Histogram>>("ingest_batch_size_bytes")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation.total, 98);
+        assert_eq!(observation.buckets[0].count, 1);
+        assert_eq!(observation.buckets[1].count, 0);
 
         // Write to a non-existent database
         client

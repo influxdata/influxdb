@@ -67,10 +67,13 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> PackedStringArray<K> {
     pub fn extend_from(&mut self, other: &PackedStringArray<K>) {
         let offset = self.storage.len();
         self.storage.push_str(other.storage.as_str());
+        // Copy offsets skipping the first element as this string start delimiter is already
+        // provided by the end delimiter of the current offsets array
         self.offsets.extend(
             other
                 .offsets
                 .iter()
+                .skip(1)
                 .map(|x| K::from_usize(x.as_() + offset).expect("failed to fit into offset type")),
         )
     }
@@ -235,6 +238,29 @@ mod tests {
         assert_eq!(array.len(), 2);
         assert_eq!(array.get(0).unwrap(), "hello");
         assert_eq!(array.get(1).unwrap(), "world");
+    }
+
+    #[test]
+    fn test_extend_from() {
+        let mut a = PackedStringArray::<i32>::new();
+
+        a.append("hello");
+        a.append("world");
+        a.append("cupcake");
+        a.append("");
+
+        let mut b = PackedStringArray::<i32>::new();
+
+        b.append("foo");
+        b.append("bar");
+
+        a.extend_from(&b);
+
+        let a_content: Vec<_> = a.iter().collect();
+        assert_eq!(
+            a_content,
+            vec!["hello", "world", "cupcake", "", "foo", "bar"]
+        );
     }
 
     #[test]
