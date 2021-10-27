@@ -1,5 +1,5 @@
 use crate::{
-    commands::run::query::Config,
+    commands::run::database::Config,
     structopt_blocks::{
         object_store::{check_object_store, warn_about_inmem_store},
         run_config::RunConfig,

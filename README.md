@@ -120,7 +120,7 @@ This which will create a binary at `target/debug/influxdb_iox`.
 To start the InfluxDB IOx server, run:
 
 ```shell
-./target/debug/influxdb_iox run query
+./target/debug/influxdb_iox run database
 ```
 
 By default the server will start an HTTP server on port `8080` and a gRPC server on port `8082`.
@@ -128,20 +128,20 @@ By default the server will start an HTTP server on port `8080` and a gRPC server
 You can also compile and run with one command:
 
 ```shell
-cargo run -- run query
+cargo run -- run database
 ```
 
 To compile for performance testing, build in release mode:
 
 ```shell
 cargo build --release
-./target/release/influxdb_iox run query
+./target/release/influxdb_iox run database
 ```
 
 You can also run in release mode with one step:
 
 ```shell
-cargo run --release -- run query
+cargo run --release -- run database
 ```
 
 To run all available tests in debug mode, you may want to set min stack size to avoid the current known stack overflow issue:

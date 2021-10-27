@@ -18,8 +18,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "run",
-    about = "Runs in query mode",
-    long_about = "Run the IOx query server.\n\nThe configuration options below can be \
+    about = "Runs in database mode",
+    long_about = "Run the IOx database server.\n\nThe configuration options below can be \
     set either with the command line flags or with the specified environment \
     variable. If there is a file named '.env' in the current working directory, \
     it is sourced before loading the configuration.
@@ -45,7 +45,7 @@ pub struct Config {
     #[structopt(long = "--num-worker-threads", env = "INFLUXDB_IOX_NUM_WORKER_THREADS")]
     pub num_worker_threads: Option<usize>,
 
-    // TODO(marco): Remove once the query-run-mode (aka the `server` crate) cannot handle routing anymore and we're
+    // TODO(marco): Remove once the database-run-mode (aka the `server` crate) cannot handle routing anymore and we're
     //              fully migrated to the new router code.
     /// When IOx nodes need to talk to remote peers they consult an internal remote address
     /// mapping. This mapping is populated via API calls. If the mapping doesn't produce

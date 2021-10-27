@@ -27,16 +27,16 @@ If you're profiling IOx, be sure you've compiled and are running a release build
 
 ```
 cargo build --release
-./target/release/influxdb_iox run query --server-id 1
+./target/release/influxdb_iox run database --server-id 1
 ```
 
 or:
 
 ```
-cargo run --release -- run query --server-id 1
+cargo run --release -- run database --server-id 1
 ```
 
-Server ID is the only required attribute for running IOx; see `influxdb_iox run query --help` for all the
+Server ID is the only required attribute for running IOx; see `influxdb_iox run database --help` for all the
 other configuration options for the server you may want to set for your experiment. Note that the
 default HTTP API address is `127.0.0.1:8080` unless you set something different with `--api-bind`
 and the default gRPC address is `127.0.0.1:8082` unless you set something different using
@@ -46,8 +46,8 @@ For the Kafka setup, you'll need to start two IOx servers, so you'll need to set
 for at least one of them. Here's an example of the two commands to run:
 
 ```
-cargo run --release -- run query --server-id 1
-cargo run --release -- run query --server-id 2 --api-bind 127.0.0.1:8084 --grpc-bind 127.0.0.1:8086
+cargo run --release -- run database --server-id 1
+cargo run --release -- run database --server-id 2 --api-bind 127.0.0.1:8084 --grpc-bind 127.0.0.1:8086
 ```
 
 You'll also need to run a Kafka instance. There's a Docker compose script in the influxdb_iox

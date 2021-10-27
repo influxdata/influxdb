@@ -18,7 +18,7 @@ fn test_unreadable_store_early_exit() {
     let mut process = Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("run")
-        .arg("query")
+        .arg("database")
         .env("INFLUXDB_IOX_OBJECT_STORE", "s3")
         .env("AWS_ACCESS_KEY_ID", "foo")
         .env("AWS_SECRET_ACCESS_KEY", "bar")
