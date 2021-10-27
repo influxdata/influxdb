@@ -1833,7 +1833,7 @@ func isBadQuoteTagValueClause(e influxql.Expr) error {
 			_, lOk := e.LHS.(*influxql.VarRef)
 			_, rOk := e.RHS.(*influxql.VarRef)
 			if lOk && rOk {
-				return fmt.Errorf("bad WHERE clause. tag value must be inside single quotes: %s", e.String())
+				return fmt.Errorf("bad WHERE clause for metaquery; one term must be a string literal tag value within single quotes: %s", e.String())
 			}
 		case influxql.OR, influxql.AND:
 			if err := isBadQuoteTagValueClause(e.LHS); err != nil {
