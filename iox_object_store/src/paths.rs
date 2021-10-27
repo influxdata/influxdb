@@ -1,11 +1,12 @@
 //! Paths for specific types of files within a database's object storage.
 
-use data_types::{server_id::ServerId, DatabaseName};
+use data_types::server_id::ServerId;
 use object_store::{
     path::{ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
 use std::fmt;
+use uuid::Uuid;
 
 pub mod parquet_file;
 use parquet_file::ParquetFilePath;
@@ -44,13 +45,9 @@ pub struct RootPath {
 
 impl RootPath {
     /// How the root of a database is defined in object storage.
-    pub(crate) fn new(
-        object_store: &ObjectStore,
-        server_id: ServerId,
-        database_name: &DatabaseName<'_>,
-    ) -> Self {
+    pub(crate) fn new(object_store: &ObjectStore, server_id: ServerId, uuid: Uuid) -> Self {
         let mut inner = all_databases_path(object_store, server_id);
-        inner.push_dir(database_name.as_str());
+        inner.push_dir(uuid.to_string());
         Self { inner }
     }
 
@@ -226,38 +223,34 @@ mod tests {
     fn root_path_contains_server_id_and_db_name() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let database_name = DatabaseName::new("clouds").unwrap();
-        let root_path = RootPath::new(&object_store, server_id, &database_name);
+        let uuid = Uuid::new_v4();
+        let root_path = RootPath::new(&object_store, server_id, uuid);
 
-        assert_eq!(root_path.inner.to_string(), "mem:1/clouds/")
+        assert_eq!(root_path.inner.to_string(), format!("mem:1/{}/", uuid));
     }
 
     #[test]
     fn root_path_join_concatenates() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let database_name = DatabaseName::new("clouds").unwrap();
-        let root_path = RootPath::new(&object_store, server_id, &database_name);
+        let uuid = Uuid::new_v4();
+        let root_path = RootPath::new(&object_store, server_id, uuid);
 
         let path = root_path.join("foo");
-        assert_eq!(path.to_string(), "mem:1/clouds/foo/");
+        assert_eq!(path.to_string(), format!("mem:1/{}/foo/", uuid));
     }
 
     #[test]
     fn transactions_path_is_relative_to_root_path() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let database_name = DatabaseName::new("clouds").unwrap();
-        let root_path = RootPath::new(&object_store, server_id, &database_name);
-        let iox_object_store = IoxObjectStore::existing(
-            Arc::clone(&object_store),
-            server_id,
-            &database_name,
-            root_path,
-        );
+        let uuid = Uuid::new_v4();
+        let root_path = RootPath::new(&object_store, server_id, uuid);
+        let iox_object_store =
+            IoxObjectStore::existing(Arc::clone(&object_store), server_id, root_path);
         assert_eq!(
             iox_object_store.transactions_path.inner.to_string(),
-            "mem:1/clouds/transactions/"
+            format!("mem:1/{}/transactions/", uuid)
         );
     }
 
@@ -265,17 +258,13 @@ mod tests {
     fn data_path_is_relative_to_root_path() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let database_name = DatabaseName::new("clouds").unwrap();
-        let root_path = RootPath::new(&object_store, server_id, &database_name);
-        let iox_object_store = IoxObjectStore::existing(
-            Arc::clone(&object_store),
-            server_id,
-            &database_name,
-            root_path,
-        );
+        let uuid = Uuid::new_v4();
+        let root_path = RootPath::new(&object_store, server_id, uuid);
+        let iox_object_store =
+            IoxObjectStore::existing(Arc::clone(&object_store), server_id, root_path);
         assert_eq!(
             iox_object_store.data_path.inner.to_string(),
-            "mem:1/clouds/data/"
+            format!("mem:1/{}/data/", uuid)
         );
     }
 }
