@@ -1,6 +1,5 @@
 //! This module implements the `database` CLI command
 
-use chrono::{DateTime, Utc};
 use comfy_table::{Cell, Table};
 use influxdb_iox_client::{
     connection::Connection,
@@ -12,12 +11,10 @@ use influxdb_iox_client::{
     },
     write::{self, WriteError},
 };
-use std::{
-    convert::TryInto, fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr,
-    time::Duration,
-};
+use std::{fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr, time::Duration};
 use structopt::StructOpt;
 use thiserror::Error;
+use uuid::Uuid;
 
 mod chunk;
 mod partition;
@@ -191,11 +188,11 @@ struct Delete {
 /// Restore a deleted database
 #[derive(Debug, StructOpt)]
 struct Restore {
-    /// The UUID of the database to restore
-    uuid: String,
-
     /// The name to give the database upon restoring it
     name: String,
+
+    /// The UUID of the database to restore
+    uuid: String,
 }
 
 /// All possible subcommands for database
@@ -262,25 +259,25 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             if list.detailed {
                 let databases = client.list_detailed_databases().await?;
 
-                let mut table = Table::new();
-                table.load_preset("|    ++++++");
-                table.set_header(vec![Cell::new("Deleted at"), Cell::new("Name")]);
+                if !databases.is_empty() {
+                    let mut table = Table::new();
+                    table.set_header(vec![Cell::new("Name"), Cell::new("UUID")]);
 
-                for database in databases {
-                    let deleted_at = database
-                        .deleted_at
-                        .and_then(|t| {
-                            let dt: Result<DateTime<Utc>, _> = t.try_into();
-                            dt.ok().map(|d| d.to_string())
-                        })
-                        .unwrap_or_else(String::new);
-                    table.add_row(vec![Cell::new(&deleted_at), Cell::new(&database.db_name)]);
+                    for database in databases {
+                        let uuid = Uuid::from_slice(&database.uuid)
+                            .map(|u| u.to_string())
+                            .unwrap_or_else(|_| String::from("<UUID parsing failed>"));
+
+                        table.add_row(vec![Cell::new(&database.db_name), Cell::new(&uuid)]);
+                    }
+
+                    print!("{}", table);
                 }
-
-                print!("{}", table);
             } else {
                 let names = client.list_database_names().await?;
-                println!("{}", names.join("\n"))
+                if !names.is_empty() {
+                    println!("{}", names.join("\n"))
+                }
             }
         }
         Command::Get(get) => {

@@ -206,11 +206,15 @@ message DetailedDatabase {
   reserved 1;
   reserved "generation_id";
 
-  // The UTC datetime at which this database was deleted, if applicable.
-  google.protobuf.Timestamp deleted_at = 2;
+  // Was the datetime at which this database was deleted, if applicable.
+  reserved 2;
+  reserved "deleted_at";
 
   // The name of the database.
   string db_name = 3;
+
+  // The UUID of the database.
+  bytes uuid = 4;
 }
 
 message ListChunksRequest {

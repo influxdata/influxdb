@@ -222,12 +222,7 @@ where
             .await
             .map_err(default_server_error_handler)?
             .into_iter()
-            .map(|name| {
-                DetailedDatabase {
-                    db_name: name,
-                    deleted_at: None, // TEMP: this will be removed
-                }
-            })
+            .map(Into::into)
             .collect();
 
         Ok(Response::new(ListDetailedDatabasesResponse { databases }))

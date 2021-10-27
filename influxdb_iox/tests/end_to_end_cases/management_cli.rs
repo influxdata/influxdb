@@ -1,25 +1,21 @@
-use std::time::Duration;
-
-use assert_cmd::Command;
-use predicates::prelude::*;
-
-use data_types::chunk_metadata::ChunkStorage;
-use generated_types::google::longrunning::IoxOperation;
-use generated_types::influxdata::iox::management::v1::{
-    operation_metadata::Job, WipePreservedCatalog,
-};
-use tempfile::TempDir;
-use test_helpers::make_temp_file;
-
+use super::scenario::{create_readable_database, rand_name};
 use crate::{
     common::server_fixture::ServerFixture,
-    end_to_end_cases::scenario::{wait_for_exact_chunk_states, DatabaseBuilder},
+    end_to_end_cases::scenario::{
+        fixture_broken_catalog, fixture_replay_broken, list_chunks, wait_for_exact_chunk_states,
+        DatabaseBuilder,
+    },
 };
-
-use super::scenario::{create_readable_database, rand_name};
-use crate::end_to_end_cases::scenario::{
-    fixture_broken_catalog, fixture_replay_broken, list_chunks,
+use assert_cmd::Command;
+use data_types::chunk_metadata::ChunkStorage;
+use generated_types::{
+    google::longrunning::IoxOperation,
+    influxdata::iox::management::v1::{operation_metadata::Job, WipePreservedCatalog},
 };
+use predicates::prelude::*;
+use std::time::Duration;
+use tempfile::TempDir;
+use test_helpers::make_temp_file;
 
 #[tokio::test]
 async fn test_server_id() {
@@ -185,24 +181,6 @@ async fn test_create_database_immutable() {
         .stdout(predicate::str::contains(r#""immutable": true"#));
 }
 
-const DELETED_DB_DATETIME: &str = r#"[\d-]+\s[\d:\.]+\s[A-Z]+"#;
-
-fn deleted_db_match(db: &str, generation_id: usize) -> predicates::str::RegexPredicate {
-    predicate::str::is_match(format!(
-        r#"(?m)^\|\s+{}\s+\|\s+{}\s+\|\s+{}\s+\|$"#,
-        DELETED_DB_DATETIME, generation_id, db
-    ))
-    .unwrap()
-}
-
-fn active_db_match(db: &str, generation_id: usize) -> predicates::str::RegexPredicate {
-    predicate::str::is_match(format!(
-        r#"(?m)^\|\s+\|\s+{}\s+\|\s+{}\s+\|$"#,
-        generation_id, db
-    ))
-    .unwrap()
-}
-
 #[tokio::test]
 async fn delete_database() {
     let server_fixture = ServerFixture::create_shared().await;
@@ -232,7 +210,7 @@ async fn delete_database() {
         .success()
         .stdout(predicate::str::contains(db));
 
-    // Listing detailed database info does include the active database, along with its generation
+    // Listing detailed database info includes the active database
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
@@ -242,7 +220,7 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(active_db_match(db, 0));
+        .stdout(predicate::str::contains(db));
 
     // Delete the database, returns the UUID
     let db_uuid = String::from_utf8(
@@ -273,18 +251,6 @@ async fn delete_database() {
         .assert()
         .success()
         .stdout(predicate::str::contains(db).not());
-
-    // Listing detailed database info does include the deleted database
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("database")
-        .arg("list")
-        .arg("--detailed")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(deleted_db_match(db, 0));
 
     // Deleting the database again is an error
     Command::cargo_bin("influxdb_iox")
@@ -323,7 +289,7 @@ async fn delete_database() {
         .success()
         .stdout(predicate::str::contains(db));
 
-    // Delete the 2nd database, returns its UUID
+    // Delete the 2nd database
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
@@ -335,7 +301,7 @@ async fn delete_database() {
         .success()
         .stderr(predicate::str::contains(format!("Deleted database {}", db)));
 
-    // This database should no longer be in the active list
+    // The 2nd database should no longer be in the active list
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
@@ -346,25 +312,13 @@ async fn delete_database() {
         .success()
         .stdout(predicate::str::contains(db).not());
 
-    // Listing detailed database info includes both deleted generations
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("database")
-        .arg("list")
-        .arg("--detailed")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(deleted_db_match(db, 0).and(deleted_db_match(db, 1)));
-
-    // Restore generation 0
+    // Restore the 1st database
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
         .arg("restore")
-        .arg(db_uuid)
         .arg(db)
+        .arg(db_uuid)
         .arg("--host")
         .arg(addr)
         .assert()
@@ -384,18 +338,6 @@ async fn delete_database() {
         .assert()
         .success()
         .stdout(predicate::str::contains(db));
-
-    // Listing detailed database info includes both active and deleted
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("database")
-        .arg("list")
-        .arg("--detailed")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(active_db_match(db, 0).and(deleted_db_match(db, 1)));
 }
 
 #[tokio::test]

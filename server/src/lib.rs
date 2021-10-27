@@ -74,6 +74,7 @@ use connection::{ConnectionManager, RemoteServer};
 use data_types::{
     chunk_metadata::ChunkId,
     database_rules::{NodeGroup, RoutingRules, ShardId, Sink},
+    detailed_database::ActiveDatabase,
     error::ErrorLogger,
     job::Job,
     server_id::ServerId,
@@ -823,14 +824,16 @@ where
         Ok(())
     }
 
-    /// List active databases owned by this server
-    pub async fn list_detailed_databases(&self) -> Result<Vec<String>> {
+    /// List active databases owned by this server, including their UUIDs.
+    pub async fn list_detailed_databases(&self) -> Result<Vec<ActiveDatabase>> {
         Ok(self
             .databases()?
             .iter()
             .filter_map(|db| {
-                db.provided_rules()
-                    .map(|_rules| db.config().name.to_string())
+                db.provided_rules().map(|rules| ActiveDatabase {
+                    name: db.config().name.clone(),
+                    uuid: rules.uuid(),
+                })
             })
             .collect())
     }
