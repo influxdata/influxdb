@@ -315,6 +315,7 @@ mod tests {
         test_helpers::{assert_catalog_state_implementation, new_empty},
     };
     use std::convert::TryFrom;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn load_or_create_preserved_catalog_recovers_from_error() {
@@ -322,8 +323,9 @@ mod tests {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(time::SystemProvider::new());
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = DatabaseName::new("preserved_catalog_test").unwrap();
+        let db_uuid = Uuid::new_v4();
         let iox_object_store = Arc::new(
-            IoxObjectStore::create(object_store, server_id, &db_name)
+            IoxObjectStore::create(object_store, server_id, db_uuid)
                 .await
                 .unwrap(),
         );

@@ -151,8 +151,6 @@ pub struct Database {
 pub struct DatabaseConfig {
     pub name: DatabaseName<'static>,
     pub location: String,
-    // TODO: this should be required when UUID is used in the database's object store path
-    pub uuid: Option<Uuid>,
     pub server_id: ServerId,
     pub wipe_catalog_on_error: bool,
     pub skip_replay: bool,
@@ -197,13 +195,10 @@ impl Database {
     ) -> Result<String, InitError> {
         let db_name = provided_rules.db_name();
         let iox_object_store = Arc::new(
-            match IoxObjectStore::create(Arc::clone(application.object_store()), server_id, db_name)
+            match IoxObjectStore::create(Arc::clone(application.object_store()), server_id, uuid)
                 .await
             {
                 Ok(ios) => ios,
-                Err(iox_object_store::IoxObjectStoreError::DatabaseAlreadyExists { name }) => {
-                    return Err(InitError::DatabaseAlreadyExists { name })
-                }
                 Err(source) => return Err(InitError::IoxObjectStoreError { source }),
             },
         );
@@ -380,14 +375,9 @@ impl Database {
         self.shared.state.read().owner_info()
     }
 
-    /// Always-constructable location in object store; may not actually exist yet
+    /// Location in object store; may not actually exist yet
     pub fn location(&self) -> String {
-        IoxObjectStore::root_path_for(
-            self.shared.application.object_store(),
-            self.shared.config.server_id,
-            &self.shared.config.name,
-        )
-        .to_string()
+        self.shared.config.location.clone()
     }
 
     /// Update the database rules, panic'ing if the state is invalid
@@ -405,30 +395,25 @@ impl Database {
         let handle = handle.await;
 
         // scope so we drop the read lock
-        let iox_object_store = {
+        let (iox_object_store, uuid) = {
             let state = self.shared.state.read();
             let state_code = state.state_code();
             let db_name = new_provided_rules.db_name();
 
-            // A handle to the object store so we can update the rules
-            // in object store prior to obtaining exclusive write
-            // access to the `DatabaseState` (which we can't hold
-            // across the await to write to the object store)
-            let iox_object_store = state.iox_object_store().context(RulesNotUpdateable {
+            // ensure the database is in initialized state (since we
+            // hold the freeze handle, nothing can change this
+            let initialized = state.get_initialized().context(RulesNotUpdateable {
                 db_name,
                 state: state_code,
             })?;
 
-            // ensure the database is in initialized state (since we
-            // hold the freeze handle, nothing can change this
-            ensure!(
-                state_code == DatabaseStateCode::Initialized,
-                RulesNotUpdateable {
-                    db_name,
-                    state: state_code,
-                }
-            );
-            iox_object_store
+            // A handle to the object store and a copy of the UUID so we can update the rules
+            // in object store prior to obtaining exclusive write access to the `DatabaseState`
+            // (which we can't hold across the await to write to the object store)
+            (
+                initialized.db.iox_object_store(),
+                initialized.provided_rules.uuid(),
+            )
         }; // drop read lock
 
         // Attempt to persist to object store, if that fails, roll
@@ -437,12 +422,7 @@ impl Database {
         // Even though we don't hold a lock here, the freeze handle
         // ensures the state can not be modified.
         new_provided_rules
-            .persist(
-                // TODO: Transition: this default value will go away once `uuid` can be read from
-                // the object store path; we'll always have it in that case.
-                self.config().uuid.unwrap_or_else(Uuid::new_v4),
-                &iox_object_store,
-            )
+            .persist(uuid, &iox_object_store)
             .await
             .context(CannotPersistUpdatedRules)?;
 
@@ -1142,7 +1122,6 @@ impl DatabaseStateKnown {
         let iox_object_store = IoxObjectStore::load_at_root_path(
             Arc::clone(shared.application.object_store()),
             shared.config.server_id,
-            &shared.config.name,
             &shared.config.location,
         )
         .await
@@ -1391,7 +1370,6 @@ mod tests {
             DatabaseConfig {
                 name: DatabaseName::new("test").unwrap(),
                 location: String::from("arbitrary"),
-                uuid: Some(Uuid::new_v4()),
                 server_id: ServerId::new(NonZeroU32::new(23).unwrap()),
                 wipe_catalog_on_error: false,
                 skip_replay: false,
@@ -1446,7 +1424,7 @@ mod tests {
 
         let db_name = DatabaseName::new("test").unwrap();
         let uuid = Uuid::new_v4();
-        let provided_rules = ProvidedDatabaseRules::new_empty(db_name.clone());
+        let provided_rules = ProvidedDatabaseRules::new_empty(db_name.clone(), uuid);
 
         let location = Database::create(Arc::clone(&application), uuid, &provided_rules, server_id)
             .await
@@ -1455,7 +1433,6 @@ mod tests {
         let db_config = DatabaseConfig {
             name: db_name,
             location,
-            uuid: Some(uuid),
             server_id,
             wipe_catalog_on_error: false,
             skip_replay: false,
@@ -1616,7 +1593,6 @@ mod tests {
         let db_config = DatabaseConfig {
             name: db_name,
             location,
-            uuid: Some(uuid),
             server_id,
             wipe_catalog_on_error: false,
             skip_replay: false,

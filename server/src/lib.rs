@@ -700,11 +700,6 @@ where
         )
         .await;
 
-        ensure!(
-            !matches!(res, Err(database::InitError::DatabaseAlreadyExists { .. })),
-            DatabaseAlreadyExists { db_name }
-        );
-
         let location = res.context(CannotCreateDatabase)?;
 
         let database = {
@@ -720,7 +715,6 @@ where
                         DatabaseConfig {
                             name: db_name.clone(),
                             location,
-                            uuid: Some(uuid),
                             server_id,
                             wipe_catalog_on_error: false,
                             skip_replay: false,
@@ -1212,10 +1206,6 @@ async fn maybe_initialize_server(shared: &ServerShared) {
                         DatabaseConfig {
                             name: db_name,
                             location,
-                            // TODO: this will be the UUID from the object store path once we
-                            // make that switch; we'll be guaranteed to have it then and this
-                            // won't be an `Option`
-                            uuid: None,
                             server_id: init_ready.server_id,
                             wipe_catalog_on_error: init_ready.wipe_catalog_on_error,
                             skip_replay: init_ready.skip_replay_and_seek_instead,
@@ -1284,8 +1274,11 @@ where
         let db = match self.db(&db_name) {
             Ok(db) => db,
             Err(Error::DatabaseNotFound { .. }) => {
-                self.create_database(ProvidedDatabaseRules::new_empty(db_name.clone()))
-                    .await?;
+                self.create_database(ProvidedDatabaseRules::new_empty(
+                    db_name.clone(),
+                    Uuid::new_v4(),
+                ))
+                .await?;
                 self.db(&db_name).expect("db not inserted")
             }
             Err(e) => return Err(e),
@@ -2416,7 +2409,10 @@ mod tests {
         // 4. existing one, but catalog is broken => can be wiped, will exist afterwards
         // 5. recently (during server lifecycle) created one => cannot be wiped
         let db_name_existing = DatabaseName::new("db_existing").unwrap();
+
         let db_name_non_existing = DatabaseName::new("db_non_existing").unwrap();
+        let db_uuid_non_existing = Uuid::new_v4();
+
         let db_name_rules_broken = DatabaseName::new("db_broken_rules").unwrap();
         let db_name_catalog_broken = DatabaseName::new("db_broken_catalog").unwrap();
         let db_name_created = DatabaseName::new("db_created").unwrap();
@@ -2529,7 +2525,7 @@ mod tests {
             IoxObjectStore::create(
                 Arc::clone(application.object_store()),
                 server_id,
-                &db_name_non_existing,
+                db_uuid_non_existing,
             )
             .await
             .unwrap(),
