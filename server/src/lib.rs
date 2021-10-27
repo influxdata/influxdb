@@ -1369,14 +1369,10 @@ mod tests {
         },
     };
     use entry::test_helpers::lp_to_entry;
-    use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
     use iox_object_store::IoxObjectStore;
     use metric::{Attributes, Metric, U64Counter};
-    use object_store::{
-        path::{parsed::DirsAndFileName, ObjectStorePath},
-        ObjectStore, ObjectStoreApi,
-    };
+    use object_store::ObjectStore;
     use parquet_catalog::{
         core::{PreservedCatalog, PreservedCatalogConfig},
         test_helpers::{load_ok, new_empty},
@@ -1489,6 +1485,7 @@ mod tests {
         let read_rules = ProvidedDatabaseRules::load(&iox_object_store)
             .await
             .unwrap();
+        let bananas_uuid = read_rules.uuid();
 
         // Same rules that were provided are read
         assert_eq!(provided_rules.original(), read_rules.original());
@@ -1506,24 +1503,28 @@ mod tests {
 
         // assert server config file exists and has 1 entry
         let config = server_config(application.object_store(), server_id).await;
-        assert_config_contents(&config, &[(&name, String::from("1/bananas/"))]);
+        assert_config_contents(
+            &config,
+            &[(&name, format!("{}/{}/", server_id, bananas_uuid))],
+        );
 
         let db2 = DatabaseName::new("db_awesome").unwrap();
         let rules2 = DatabaseRules::new(db2.clone());
         let provided_rules2 = make_provided_rules(rules2);
 
-        server
+        let awesome = server
             .create_database(provided_rules2)
             .await
             .expect("failed to create 2nd db");
+        let awesome_uuid = awesome.provided_rules().unwrap().uuid();
 
         // assert server config file exists and has 2 entries
         let config = server_config(application.object_store(), server_id).await;
         assert_config_contents(
             &config,
             &[
-                (&name, String::from("1/bananas/")),
-                (&db2, String::from("1/db_awesome/")),
+                (&name, format!("{}/{}/", server_id, bananas_uuid)),
+                (&db2, format!("{}/{}/", server_id, awesome_uuid)),
             ],
         );
 
@@ -1545,8 +1546,8 @@ mod tests {
         assert_config_contents(
             &config,
             &[
-                (&name, String::from("1/bananas/")),
-                (&db2, String::from("1/db_awesome/")),
+                (&name, format!("{}/{}/", server_id, bananas_uuid)),
+                (&db2, format!("{}/{}/", server_id, awesome_uuid)),
             ],
         );
     }
@@ -1613,6 +1614,7 @@ mod tests {
         let bananas = create_simple_database(&server, "bananas")
             .await
             .expect("failed to create database");
+        let bananas_uuid = bananas.provided_rules().unwrap().uuid();
 
         std::mem::drop(server);
 
@@ -1623,6 +1625,7 @@ mod tests {
         let apples = create_simple_database(&server, "apples")
             .await
             .expect("failed to create database");
+        let apples_uuid = apples.provided_rules().unwrap().uuid();
 
         assert_eq!(server.db_names_sorted(), vec!["apples", "bananas"]);
 
@@ -1647,8 +1650,14 @@ mod tests {
         assert_config_contents(
             &config,
             &[
-                (&apples.config().name, String::from("1/apples/")),
-                (&bananas.config().name, String::from("1/bananas/")),
+                (
+                    &apples.config().name,
+                    format!("{}/{}/", server_id, apples_uuid),
+                ),
+                (
+                    &bananas.config().name,
+                    format!("{}/{}/", server_id, bananas_uuid),
+                ),
             ],
         );
 
@@ -1659,10 +1668,10 @@ mod tests {
         let bananas_database = server.database(&bananas_name).unwrap();
 
         apples_database.wait_for_init().await.unwrap();
-        let err = bananas_database.wait_for_init().await.unwrap_err();
-
         assert!(apples_database.init_error().is_none());
-        assert_contains!(err.to_string(), "error fetching rules");
+
+        let err = bananas_database.wait_for_init().await.unwrap_err();
+        assert_contains!(err.to_string(), "No rules found to load");
         assert!(Arc::ptr_eq(&err, &bananas_database.init_error().unwrap()));
     }
 
@@ -2193,9 +2202,10 @@ mod tests {
         server.wait_for_init().await.unwrap();
 
         // create database
-        create_simple_database(&server, &foo_db_name)
+        let foo = create_simple_database(&server, &foo_db_name)
             .await
             .expect("failed to create database");
+        let foo_uuid = foo.provided_rules().unwrap().uuid();
 
         // delete database
         server
@@ -2214,35 +2224,23 @@ mod tests {
         // server is initialized
         assert!(server.initialized());
 
-        // DB names contains foo
-        assert_eq!(server.db_names_sorted().len(), 1);
-        assert!(server.db_names_sorted().contains(&String::from("foo")));
-
-        // server config contains foo
-        let config = server_config(application.object_store(), server_id).await;
-        assert_config_contents(&config, &[(&foo_db_name, String::from("1/foo/"))]);
+        // DB names is empty
+        assert!(server.db_names_sorted().is_empty());
 
         // can't delete an inactive database
         let err = server.delete_database(&foo_db_name).await;
         assert!(
-            matches!(&err, Err(Error::CannotMarkDatabaseDeleted { .. })),
+            matches!(&err, Err(Error::DatabaseNotFound { .. })),
             "got {:?}",
             err
         );
-
-        let foo_database = server.database(&foo_db_name).unwrap();
-        let err = foo_database.wait_for_init().await.unwrap_err();
-        assert!(
-            matches!(err.as_ref(), database::InitError::NoActiveDatabase),
-            "got {:?}",
-            err
-        );
-        assert!(Arc::ptr_eq(&err, &foo_database.init_error().unwrap()));
 
         // creating a new DB with the deleted db's name works
-        create_simple_database(&server, &foo_db_name)
+        let new_foo = create_simple_database(&server, &foo_db_name)
             .await
             .expect("failed to create database");
+        let new_foo_uuid = new_foo.provided_rules().unwrap().uuid();
+        assert_ne!(foo_uuid, new_foo_uuid);
 
         // DB names contains foo
         assert_eq!(server.db_names_sorted().len(), 1);
@@ -2250,103 +2248,13 @@ mod tests {
 
         // server config contains foo
         let config = server_config(application.object_store(), server_id).await;
-        assert_config_contents(&config, &[(&foo_db_name, String::from("1/foo/"))]);
+        assert_config_contents(
+            &config,
+            &[(&foo_db_name, format!("{}/{}/", server_id, new_foo_uuid))],
+        );
 
         // calling delete database works
         server.delete_database(&foo_db_name).await.unwrap();
-
-        // DB names still contains foo
-        assert_eq!(server.db_names_sorted().len(), 1);
-        assert!(server.db_names_sorted().contains(&String::from("foo")));
-
-        // creating another new DB with the deleted db's name works
-        create_simple_database(&server, &foo_db_name)
-            .await
-            .expect("failed to create database");
-
-        // DB names still contains foo
-        assert_eq!(server.db_names_sorted().len(), 1);
-        assert!(server.db_names_sorted().contains(&String::from("foo")));
-    }
-
-    #[tokio::test]
-    async fn init_too_many_active_generation_directories() {
-        let application = make_application();
-        let server_id = ServerId::try_from(1).unwrap();
-
-        let server = make_server(Arc::clone(&application));
-        server.set_id(server_id).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        let foo_db_name = DatabaseName::new("foo").unwrap();
-
-        // Create database
-        create_simple_database(&server, &foo_db_name)
-            .await
-            .expect("failed to create database");
-
-        // Delete it
-        server.delete_database(&foo_db_name).await.unwrap();
-
-        // Create it again
-        create_simple_database(&server, &foo_db_name)
-            .await
-            .expect("failed to create database");
-
-        // Delete it again
-        server.delete_database(&foo_db_name).await.unwrap();
-
-        std::mem::drop(server);
-
-        // Remove the tombstone files from both database generation directories
-        let mut db_path = application.object_store().new_path();
-        db_path.push_all_dirs(&[server_id.to_string().as_str(), foo_db_name.as_str()]);
-        let database_files: Vec<_> = application
-            .object_store()
-            .list(Some(&db_path))
-            .await
-            .unwrap()
-            .try_collect::<Vec<_>>()
-            .await
-            .unwrap()
-            .into_iter()
-            .flatten()
-            .collect();
-
-        // Delete all tombstone files
-        let mut deleted_something = false;
-        for file in database_files {
-            let parsed: DirsAndFileName = file.clone().into();
-            if parsed.file_name.unwrap().to_string() == "DELETED" {
-                application.object_store().delete(&file).await.unwrap();
-                deleted_something = true;
-            }
-        }
-        assert!(deleted_something);
-
-        // Restart the server
-        let server = make_server(Arc::clone(&application));
-        server.set_id(server_id).unwrap();
-        server.wait_for_init().await.unwrap();
-        // generic error MUST NOT be set
-        assert!(server.server_init_error().is_none());
-        // server is initialized
-        assert!(server.initialized());
-
-        // The database should be in an error state
-        let foo_database = server.database(&foo_db_name).unwrap();
-        let err = foo_database.wait_for_init().await.unwrap_err();
-        assert!(
-            matches!(
-                err.as_ref(),
-                database::InitError::DatabaseObjectStoreLookup {
-                    source: iox_object_store::IoxObjectStoreError::MultipleActiveDatabasesFound
-                }
-            ),
-            "got {:?}",
-            err
-        );
-        assert!(Arc::ptr_eq(&err, &foo_database.init_error().unwrap()));
     }
 
     #[tokio::test]
@@ -2617,41 +2525,6 @@ mod tests {
             PreservedCatalog::exists(&created.iox_object_store().unwrap())
                 .await
                 .unwrap()
-        );
-    }
-
-    #[tokio::test]
-    async fn cannot_create_db_when_catalog_is_present() {
-        let application = make_application();
-        let server_id = ServerId::try_from(1).unwrap();
-        let db_name = DatabaseName::new("my_db").unwrap();
-
-        // setup server
-        let server = make_server(Arc::clone(&application));
-        server.set_id(server_id).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        let iox_object_store = Arc::new(
-            IoxObjectStore::create(Arc::clone(application.object_store()), server_id, &db_name)
-                .await
-                .unwrap(),
-        );
-
-        let config = PreservedCatalogConfig::new(
-            iox_object_store,
-            db_name.to_string(),
-            Arc::clone(application.time_provider()),
-        );
-
-        // create catalog
-        new_empty(config).await;
-
-        // creating database will now result in an error
-        let err = create_simple_database(&server, db_name).await.unwrap_err();
-        assert!(
-            matches!(err, Error::DatabaseAlreadyExists { .. }),
-            "got: {:?}",
-            err
         );
     }
 
