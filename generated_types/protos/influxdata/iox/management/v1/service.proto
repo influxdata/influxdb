@@ -157,7 +157,9 @@ message CreateDatabaseRequest {
   DatabaseRules rules = 1;
 }
 
-message CreateDatabaseResponse {}
+message CreateDatabaseResponse {
+  bytes uuid = 1;
+}
 
 // Update a database.
 message UpdateDatabaseRequest {

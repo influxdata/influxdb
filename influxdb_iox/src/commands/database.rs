@@ -219,7 +219,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             let mut client = management::Client::new(connection);
             #[allow(deprecated)]
             let rules = DatabaseRules {
-                name: command.name,
+                name: command.name.clone(),
                 lifecycle_rules: Some(LifecycleRules {
                     buffer_size_soft: command.buffer_size_soft as _,
                     buffer_size_hard: command.buffer_size_hard as _,
@@ -253,9 +253,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 ..Default::default()
             };
 
-            client.create_database(rules).await?;
+            let uuid = client.create_database(rules).await?;
 
-            println!("Ok");
+            println!("Created database {} ({})", command.name, uuid);
         }
         Command::List(list) => {
             let mut client = management::Client::new(connection);

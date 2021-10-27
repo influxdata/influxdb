@@ -671,7 +671,7 @@ where
     ///
     /// Waits until the database has initialized or failed to do so
     pub async fn create_database(&self, rules: ProvidedDatabaseRules) -> Result<Arc<Database>> {
-        let uuid = Uuid::new_v4();
+        let uuid = rules.uuid();
         let db_name = rules.db_name();
 
         // Wait for exclusive access to mutate server state
@@ -682,13 +682,11 @@ where
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
 
-            if let Some(existing) = initialized.databases.get(db_name) {
-                if let Some(init_error) = existing.init_error() {
-                    if !matches!(&*init_error, database::InitError::NoActiveDatabase) {
-                        return DatabaseAlreadyExists { db_name }.fail();
-                    }
-                }
-            }
+            ensure!(
+                !initialized.databases.contains_key(db_name),
+                DatabaseAlreadyExists { db_name }
+            );
+
             initialized.server_id
         };
 

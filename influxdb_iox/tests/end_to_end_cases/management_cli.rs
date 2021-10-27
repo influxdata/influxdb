@@ -85,7 +85,7 @@ async fn test_create_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Ok"));
+        .stdout(predicate::str::contains(format!("Created database {}", db)));
 
     // Listing the databases includes the newly created database
     Command::cargo_bin("influxdb_iox")
@@ -136,7 +136,7 @@ async fn test_create_database_size() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Ok"));
+        .stdout(predicate::str::contains("Created"));
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -170,7 +170,7 @@ async fn test_create_database_immutable() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Ok"));
+        .stdout(predicate::str::contains("Created"));
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -219,7 +219,7 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Ok"));
+        .stdout(predicate::str::contains("Created"));
 
     // Listing the databases includes the newly created database
     Command::cargo_bin("influxdb_iox")
@@ -310,7 +310,7 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Ok"));
+        .stdout(predicate::str::contains("Created"));
 
     // The newly-created database will be in the active list
     Command::cargo_bin("influxdb_iox")

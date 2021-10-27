@@ -63,6 +63,10 @@ pub enum CreateDatabaseError {
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
+
+    /// UUID returned as bytes from server could not be converted to a `Uuid`
+    #[error("Invalid UUID: {}: {:?}", .0, .0)]
+    InvalidUuid(uuid::Error),
 }
 
 /// Errors returned by Client::update_database
@@ -535,8 +539,9 @@ impl Client {
     pub async fn create_database(
         &mut self,
         rules: DatabaseRules,
-    ) -> Result<(), CreateDatabaseError> {
-        self.inner
+    ) -> Result<Uuid, CreateDatabaseError> {
+        let response = self
+            .inner
             .create_database(CreateDatabaseRequest { rules: Some(rules) })
             .await
             .map_err(|status| match status.code() {
@@ -547,7 +552,10 @@ impl Client {
                 _ => CreateDatabaseError::ServerError(status),
             })?;
 
-        Ok(())
+        let uuid = Uuid::from_slice(&response.into_inner().uuid)
+            .map_err(CreateDatabaseError::InvalidUuid)?;
+
+        Ok(uuid)
     }
 
     /// Updates the configuration for a database.

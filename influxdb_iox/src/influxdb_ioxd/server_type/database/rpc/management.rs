@@ -128,18 +128,28 @@ where
                 description: e.to_string(),
             })?;
 
-        match self.server.create_database(provided_rules).await {
-            Ok(_) => Ok(Response::new(CreateDatabaseResponse {})),
-            Err(Error::DatabaseAlreadyExists { db_name }) => {
-                return Err(AlreadyExists {
+        let database = self
+            .server
+            .create_database(provided_rules)
+            .await
+            .map_err(|e| match e {
+                Error::DatabaseAlreadyExists { db_name } => AlreadyExists {
                     resource_type: "database".to_string(),
                     resource_name: db_name,
                     ..Default::default()
                 }
-                .into())
-            }
-            Err(e) => Err(default_server_error_handler(e)),
-        }
+                .into(),
+                _ => default_server_error_handler(e),
+            })?;
+
+        let uuid = database
+            .provided_rules()
+            .expect("Database should be initialized or an error should have been returned")
+            .uuid();
+
+        Ok(Response::new(CreateDatabaseResponse {
+            uuid: uuid.as_bytes().to_vec(),
+        }))
     }
 
     async fn update_database(
