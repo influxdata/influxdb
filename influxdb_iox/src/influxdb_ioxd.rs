@@ -1,6 +1,9 @@
 use crate::{
-    commands::run::Config,
-    structopt_blocks::object_store::{check_object_store, warn_about_inmem_store},
+    commands::run::database::Config,
+    structopt_blocks::{
+        object_store::{check_object_store, warn_about_inmem_store},
+        run_config::RunConfig,
+    },
 };
 use futures::{future::FusedFuture, pin_mut, FutureExt};
 use hyper::server::conn::AddrIncoming;
@@ -83,9 +86,9 @@ async fn make_application(
     config: &Config,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 ) -> Result<Arc<ApplicationState>> {
-    warn_about_inmem_store(&config.object_store_config);
-    let object_store =
-        ObjectStore::try_from(&config.object_store_config).context(ObjectStoreParsing)?;
+    warn_about_inmem_store(&config.run_config.object_store_config);
+    let object_store = ObjectStore::try_from(&config.run_config.object_store_config)
+        .context(ObjectStoreParsing)?;
     check_object_store(&object_store)
         .await
         .context(ObjectStoreCheck)?;
@@ -108,11 +111,12 @@ fn make_server(
         skip_replay_and_seek_instead: config.skip_replay_and_seek_instead.into(),
     };
 
-    if config.grpc_bind_address == config.http_bind_address && config.grpc_bind_address.port() != 0
+    if (config.run_config.grpc_bind_address == config.run_config.http_bind_address)
+        && (config.run_config.grpc_bind_address.port() != 0)
     {
         error!(
-            %config.grpc_bind_address,
-            %config.http_bind_address,
+            %config.run_config.grpc_bind_address,
+            %config.run_config.http_bind_address,
             "grpc and http bind addresses must differ",
         );
         std::process::exit(1);
@@ -127,7 +131,7 @@ fn make_server(
 
     // if this ID isn't set the server won't be usable until this is set via an API
     // call
-    if let Some(id) = config.server_id_config.server_id {
+    if let Some(id) = config.run_config.server_id_config.server_id {
         app_server.set_id(id).expect("server id already set");
     } else {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
@@ -182,7 +186,7 @@ pub async fn main(config: Config) -> Result<()> {
     let f = SendPanicsToTracing::new();
     std::mem::forget(f);
 
-    let async_exporter = config.tracing_config.build().context(Tracing)?;
+    let async_exporter = config.run_config.tracing_config.build().context(Tracing)?;
     let trace_collector = async_exporter
         .clone()
         .map(|x| -> Arc<dyn TraceCollector> { x });
@@ -195,11 +199,11 @@ pub async fn main(config: Config) -> Result<()> {
 
     let app_server = make_server(Arc::clone(&application), &config);
 
-    let grpc_listener = grpc_listener(config.grpc_bind_address).await?;
-    let http_listener = http_listener(config.http_bind_address).await?;
+    let grpc_listener = grpc_listener(config.run_config.grpc_bind_address.into()).await?;
+    let http_listener = http_listener(config.run_config.http_bind_address.into()).await?;
 
     let r = serve(
-        config,
+        config.run_config,
         application,
         grpc_listener,
         http_listener,
@@ -240,7 +244,7 @@ async fn http_listener(addr: SocketAddr) -> Result<AddrIncoming> {
 ///
 /// This is effectively the "main loop" for influxdb_iox
 async fn serve(
-    config: Config,
+    config: RunConfig,
     application: Arc<ApplicationState>,
     grpc_listener: tokio::net::TcpListener,
     http_listener: AddrIncoming,
@@ -400,17 +404,21 @@ mod tests {
             "--grpc-bind",
             "127.0.0.1:0",
         ]);
-        config.server_id_config.server_id = server_id.map(|x| x.try_into().unwrap());
+        config.run_config.server_id_config.server_id = server_id.map(|x| x.try_into().unwrap());
         config
     }
 
     async fn test_serve(
-        config: Config,
+        config: RunConfig,
         application: Arc<ApplicationState>,
         server: Arc<AppServer<ConnectionManager>>,
     ) {
-        let grpc_listener = grpc_listener(config.grpc_bind_address).await.unwrap();
-        let http_listener = http_listener(config.grpc_bind_address).await.unwrap();
+        let grpc_listener = grpc_listener(config.grpc_bind_address.into())
+            .await
+            .unwrap();
+        let http_listener = http_listener(config.grpc_bind_address.into())
+            .await
+            .unwrap();
 
         serve(config, application, grpc_listener, http_listener, server)
             .await
@@ -428,7 +436,7 @@ mod tests {
         server.wait_for_init().await.unwrap();
 
         // Start serving
-        let serve_fut = test_serve(config, application, Arc::clone(&server)).fuse();
+        let serve_fut = test_serve(config.run_config, application, Arc::clone(&server)).fuse();
         pin_mut!(serve_fut);
 
         // Nothing to trigger termination, so serve future should continue running
@@ -454,7 +462,7 @@ mod tests {
         let application = make_application(&config, None).await.unwrap();
         let server = make_server(Arc::clone(&application), &config);
 
-        let serve_fut = test_serve(config, application, Arc::clone(&server)).fuse();
+        let serve_fut = test_serve(config.run_config, application, Arc::clone(&server)).fuse();
         pin_mut!(serve_fut);
 
         // Nothing should have triggered shutdown so serve shouldn't finish
@@ -486,7 +494,7 @@ mod tests {
         let server = make_server(Arc::clone(&application), &config);
         server.wait_for_init().await.unwrap();
 
-        let serve_fut = test_serve(config, application, Arc::clone(&server)).fuse();
+        let serve_fut = test_serve(config.run_config, application, Arc::clone(&server)).fuse();
         pin_mut!(serve_fut);
 
         // Nothing should have triggered shutdown so serve shouldn't finish
@@ -522,7 +530,12 @@ mod tests {
 
         let other_db = server.database(&other_db_name).unwrap();
 
-        let serve_fut = test_serve(config, Arc::clone(&application), Arc::clone(&server)).fuse();
+        let serve_fut = test_serve(
+            config.run_config,
+            Arc::clone(&application),
+            Arc::clone(&server),
+        )
+        .fuse();
         pin_mut!(serve_fut);
 
         // Nothing should have triggered shutdown so serve shouldn't finish
@@ -596,13 +609,17 @@ mod tests {
         let server = make_server(Arc::clone(&application), &config);
         server.wait_for_init().await.unwrap();
 
-        let grpc_listener = grpc_listener(config.grpc_bind_address).await.unwrap();
-        let http_listener = http_listener(config.grpc_bind_address).await.unwrap();
+        let grpc_listener = grpc_listener(config.run_config.grpc_bind_address.into())
+            .await
+            .unwrap();
+        let http_listener = http_listener(config.run_config.grpc_bind_address.into())
+            .await
+            .unwrap();
 
         let addr = grpc_listener.local_addr().unwrap();
 
         let fut = serve(
-            config,
+            config.run_config,
             application,
             grpc_listener,
             http_listener,

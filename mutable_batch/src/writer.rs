@@ -282,6 +282,7 @@ impl<'a> Writer<'a> {
                     col_data.append(value);
                     stats.update(value);
                 }
+                col_data.extend(initial_rows + to_insert - col_data.len());
             }
             x => unreachable!("expected tag got {} for column \"{}\"", x, name),
         }
@@ -651,7 +652,8 @@ impl<'a> Writer<'a> {
     /// and pad any unwritten columns with nulls
     pub fn commit(mut self) {
         let initial_rows = self.initial_rows;
-        let final_rows = initial_rows + self.to_insert;
+        let to_insert = self.to_insert;
+        let final_rows = initial_rows + to_insert;
 
         self.statistics
             .sort_unstable_by_key(|(col_idx, _)| *col_idx);
@@ -669,29 +671,36 @@ impl<'a> Writer<'a> {
                     final_rows,
                     col_idx,
                     col.valid.len(),
-                    self.to_insert
+                    to_insert
                 );
 
                 let (stats_col_idx, stats) = statistics.next().unwrap();
                 assert_eq!(*stats_col_idx, col_idx);
+                assert_eq!(stats.total_count(), to_insert as u64);
 
                 match (&mut col.data, stats) {
-                    (ColumnData::F64(_, stats), Statistics::F64(new)) => {
+                    (ColumnData::F64(col_data, stats), Statistics::F64(new)) => {
+                        assert_eq!(col_data.len(), final_rows);
                         stats.update_from(new);
                     }
-                    (ColumnData::I64(_, stats), Statistics::I64(new)) => {
+                    (ColumnData::I64(col_data, stats), Statistics::I64(new)) => {
+                        assert_eq!(col_data.len(), final_rows);
                         stats.update_from(new);
                     }
-                    (ColumnData::U64(_, stats), Statistics::U64(new)) => {
+                    (ColumnData::U64(col_data, stats), Statistics::U64(new)) => {
+                        assert_eq!(col_data.len(), final_rows);
                         stats.update_from(new);
                     }
-                    (ColumnData::String(_, stats), Statistics::String(new)) => {
+                    (ColumnData::String(col_data, stats), Statistics::String(new)) => {
+                        assert_eq!(col_data.len(), final_rows);
                         stats.update_from(new);
                     }
-                    (ColumnData::Bool(_, stats), Statistics::Bool(new)) => {
+                    (ColumnData::Bool(col_data, stats), Statistics::Bool(new)) => {
+                        assert_eq!(col_data.len(), final_rows);
                         stats.update_from(new);
                     }
-                    (ColumnData::Tag(_, dict, stats), Statistics::String(new)) => {
+                    (ColumnData::Tag(col_data, dict, stats), Statistics::String(new)) => {
+                        assert_eq!(col_data.len(), final_rows);
                         stats.update_from(new);
                         stats.distinct_count = match stats.null_count {
                             0 => NonZeroU64::new(dict.values().len() as u64),
@@ -736,13 +745,15 @@ fn compute_bool_stats(
     let indexes =
         iter_set_positions_with_offset(valid, range.start).take_while(|idx| *idx < range.end);
 
+    let mut non_null_count = 0_u64;
     for index in indexes {
         let value = col_data.get(index);
-        stats.update(&value)
+        stats.update(&value);
+        non_null_count += 1;
     }
 
-    let count = range.end - range.start;
-    stats.update_for_nulls(count as u64 - stats.total_count);
+    let to_insert = range.end - range.start;
+    stats.update_for_nulls(to_insert as u64 - non_null_count);
 }
 
 fn write_slice<T>(
@@ -778,12 +789,14 @@ fn compute_stats<'a, T, U, F>(
         .take_while(|idx| *idx < range.end)
         .map(accessor);
 
+    let mut non_null_count = 0_u64;
     for value in values {
-        stats.update(value)
+        stats.update(value);
+        non_null_count += 1;
     }
 
-    let count = range.end - range.start;
-    stats.update_for_nulls(count as u64 - stats.total_count);
+    let to_insert = range.end - range.start;
+    stats.update_for_nulls(to_insert as u64 - non_null_count);
 }
 
 impl<'a> Drop for Writer<'a> {

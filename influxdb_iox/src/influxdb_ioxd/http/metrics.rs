@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use metric::{Attributes, Metric, U64Counter};
+use metric::{Attributes, Metric, U64Counter, U64Histogram, U64HistogramOptions};
 use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
 
 /// Line protocol ingest metrics
@@ -13,6 +13,9 @@ pub struct LineProtocolMetrics {
 
     /// The number of LP bytes ingested
     ingest_bytes: Metric<U64Counter>,
+
+    /// Distribution of LP batch sizes.
+    ingest_batch_size_bytes: Metric<U64Histogram>,
 
     /// Database metrics keyed by database name
     databases: Mutex<HashMap<String, LineProtocolDatabaseMetrics>>,
@@ -38,6 +41,12 @@ struct LineProtocolDatabaseMetrics {
 
     /// The number of LP bytes ingested unsuccessfully
     ingest_bytes_error: U64Counter,
+
+    /// Distribution of LP batch sizes ingested successfully
+    ingest_batch_size_bytes_ok: U64Histogram,
+
+    /// Distribution of LP batch sizes ingested unsuccessfully
+    ingest_batch_size_bytes_error: U64Histogram,
 }
 
 impl LineProtocolMetrics {
@@ -47,6 +56,28 @@ impl LineProtocolMetrics {
             ingest_fields: registry
                 .register_metric("ingest_fields", "total LP field values ingested"),
             ingest_bytes: registry.register_metric("ingest_bytes", "total LP bytes ingested"),
+            ingest_batch_size_bytes: registry.register_metric_with_options(
+                "ingest_batch_size_bytes",
+                "distribution of ingested LP batch sizes",
+                || {
+                    U64HistogramOptions::new([
+                        1024,
+                        16 * 1024,
+                        32 * 1024,
+                        128 * 1024,
+                        256 * 1024,
+                        512 * 1024,
+                        768 * 1024,
+                        1024 * 1024,
+                        4 * 1024 * 1024,
+                        8 * 1024 * 1024,
+                        16 * 1024 * 1024,
+                        24 * 1024 * 1024,
+                        32 * 1024 * 1024,
+                        u64::MAX,
+                    ])
+                },
+            ),
             databases: Default::default(),
         }
     }
@@ -66,11 +97,13 @@ impl LineProtocolMetrics {
                 metrics.ingest_lines_ok.inc(lines as u64);
                 metrics.ingest_fields_ok.inc(fields as u64);
                 metrics.ingest_bytes_ok.inc(bytes as u64);
+                metrics.ingest_batch_size_bytes_ok.record(bytes as u64);
             }
             false => {
                 metrics.ingest_lines_error.inc(lines as u64);
                 metrics.ingest_fields_error.inc(fields as u64);
                 metrics.ingest_bytes_error.inc(bytes as u64);
+                metrics.ingest_batch_size_bytes_error.record(bytes as u64);
             }
         }
     }
@@ -97,11 +130,15 @@ impl LineProtocolDatabaseMetrics {
         let ingest_lines_ok = metrics.ingest_lines.recorder(attributes.clone());
         let ingest_fields_ok = metrics.ingest_fields.recorder(attributes.clone());
         let ingest_bytes_ok = metrics.ingest_bytes.recorder(attributes.clone());
+        let ingest_batch_size_bytes_ok =
+            metrics.ingest_batch_size_bytes.recorder(attributes.clone());
 
         attributes.insert("status", "error");
         let ingest_lines_error = metrics.ingest_lines.recorder(attributes.clone());
         let ingest_fields_error = metrics.ingest_fields.recorder(attributes.clone());
         let ingest_bytes_error = metrics.ingest_bytes.recorder(attributes.clone());
+        let ingest_batch_size_bytes_error =
+            metrics.ingest_batch_size_bytes.recorder(attributes.clone());
 
         Self {
             ingest_lines_ok,
@@ -110,6 +147,8 @@ impl LineProtocolDatabaseMetrics {
             ingest_fields_error,
             ingest_bytes_ok,
             ingest_bytes_error,
+            ingest_batch_size_bytes_ok,
+            ingest_batch_size_bytes_error,
         }
     }
 }
