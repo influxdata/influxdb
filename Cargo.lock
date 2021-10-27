@@ -2211,6 +2211,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mutable_batch_entry"
+version = "0.1.0"
+dependencies = [
+ "arrow_util",
+ "data_types",
+ "entry",
+ "flatbuffers",
+ "hashbrown",
+ "mutable_batch",
+ "schema",
+ "snafu",
+]
+
+[[package]]
 name = "mutable_batch_lp"
 version = "0.1.0"
 dependencies = [

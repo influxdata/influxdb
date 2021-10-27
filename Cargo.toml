@@ -24,6 +24,7 @@ members = [
     "metric",
     "metric_exporters",
     "mutable_batch",
+    "mutable_batch_entry",
     "mutable_batch_lp",
     "mutable_batch_pb",
     "mutable_buffer",
