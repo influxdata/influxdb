@@ -1032,8 +1032,10 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 
 	// If we're migrating a persistent data store, take a backup of the pre-migration state for rollback.
 	if opts.StoreType == DiskStore || opts.StoreType == BoltStore {
-		kvMigrator.SetBackupPath(fmt.Sprintf("%s.bak", opts.BoltPath))
-		sqlMigrator.SetBackupPath(fmt.Sprintf("%s.bak", opts.SqLitePath))
+		backupPattern := "%s.pre-%s-upgrade.backup"
+		info := platform.GetBuildInfo()
+		kvMigrator.SetBackupPath(fmt.Sprintf(backupPattern, opts.BoltPath, info.Version))
+		sqlMigrator.SetBackupPath(fmt.Sprintf(backupPattern, opts.SqLitePath, info.Version))
 	}
 	if err := kvMigrator.Up(ctx); err != nil {
 		m.log.Error("Failed to apply KV migrations", zap.Error(err))

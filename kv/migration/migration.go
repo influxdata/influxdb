@@ -160,7 +160,7 @@ func (m *Migrator) Up(ctx context.Context) error {
 		return nil
 	}
 
-	if m.backupPath != "" {
+	if m.backupPath != "" && lastMigration != 0 {
 		m.logger.Info("Backing up pre-migration metadata", zap.String("backup_path", m.backupPath))
 		if err := func() error {
 			out, err := os.Create(m.backupPath)

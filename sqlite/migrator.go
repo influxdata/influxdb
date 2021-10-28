@@ -57,7 +57,7 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 		return nil
 	}
 
-	if m.backupPath != "" {
+	if m.backupPath != "" && current != 0 {
 		m.log.Info("Backing up pre-migration metadata", zap.String("backup_path", m.backupPath))
 		if err := func() error {
 			out, err := os.Create(m.backupPath)

@@ -63,12 +63,12 @@ func Test_Bolt_MigratorWithBackup(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(ms))
 
-	// Backup file should exist.
-	backup1Fi, err := os.Stat(backupPath)
-	require.NoError(t, err)
+	// Backup file shouldn't exist because there was no previous state to back up.
+	_, err = os.Stat(backupPath)
+	require.True(t, os.IsNotExist(err))
 
 	// Sleep for a bit so the mod-time on subsequent files is reliably different.
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
 	// Run a few more migrations.
 	migrator.AddMigrations(all.Migrations[1:5]...)
@@ -79,10 +79,9 @@ func Test_Bolt_MigratorWithBackup(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 5, len(ms))
 
-	// Backup file should have been overwritten.
-	backup2Fi, err := os.Stat(backupPath)
+	// Backup file should now exist.
+	_, err = os.Stat(backupPath)
 	require.NoError(t, err)
-	require.True(t, backup2Fi.ModTime().After(backup1Fi.ModTime()))
 
 	// Open a 2nd store using the backup file.
 	backupStore := bolt.NewKVStore(zaptest.NewLogger(t), backupPath, bolt.WithNoSync)

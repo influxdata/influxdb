@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/sqlite/test_migrations"
@@ -78,12 +77,9 @@ func TestUpWithBackups(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
 
-	// Backup file should exist.
-	backup1Fi, err := os.Stat(backupPath)
-	require.NoError(t, err)
-
-	// Sleep for a bit so the mod-time on subsequent files is reliably different.
-	time.Sleep(100 * time.Millisecond)
+	// Backup file shouldn't exist, because there was nothing to back up.
+	_, err = os.Stat(backupPath)
+	require.True(t, os.IsNotExist(err))
 
 	// Run the remaining migrations.
 	require.NoError(t, migrator.Up(ctx, test_migrations.Rest))
@@ -93,11 +89,9 @@ func TestUpWithBackups(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 3, v)
 
-	// Backup file should have been overwritten.
-	backup2Fi, err := os.Stat(backupPath)
+	// Backup file should now exist.
+	_, err = os.Stat(backupPath)
 	require.NoError(t, err)
-	require.Greater(t, backup2Fi.Size(), backup1Fi.Size())
-	require.True(t, backup2Fi.ModTime().After(backup1Fi.ModTime()))
 
 	// Open a 2nd store using the backup file.
 	backupStore, err := NewSqlStore(backupPath, zap.NewNop())
