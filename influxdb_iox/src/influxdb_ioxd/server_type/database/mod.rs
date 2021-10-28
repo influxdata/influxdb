@@ -6,9 +6,15 @@ use metric::Registry;
 use server::{connection::ConnectionManager, ApplicationState, Server};
 use trace::TraceCollector;
 
-use crate::influxdb_ioxd::{http::metrics::LineProtocolMetrics, server_type::ServerType};
+use crate::influxdb_ioxd::{
+    http::metrics::LineProtocolMetrics,
+    rpc::RpcBuilderInput,
+    server_type::{RpcError, ServerType},
+    serving_readiness::ServingReadiness,
+};
 
 mod http;
+mod rpc;
 
 pub use self::http::ApplicationError;
 
@@ -21,6 +27,7 @@ where
     pub server: Arc<Server<M>>,
     pub lp_metrics: Arc<LineProtocolMetrics>,
     pub max_request_size: usize,
+    pub serving_readiness: ServingReadiness,
 }
 
 impl<M> DatabaseServerType<M>
@@ -31,6 +38,7 @@ where
         application: Arc<ApplicationState>,
         server: Arc<Server<M>>,
         max_request_size: usize,
+        serving_readiness: ServingReadiness,
     ) -> Self {
         let lp_metrics = Arc::new(LineProtocolMetrics::new(
             application.metric_registry().as_ref(),
@@ -41,6 +49,7 @@ where
             server,
             lp_metrics,
             max_request_size,
+            serving_readiness,
         }
     }
 }
@@ -65,5 +74,9 @@ where
         req: Request<Body>,
     ) -> Result<Response<Body>, Self::RouteError> {
         self::http::route_request(self, req).await
+    }
+
+    async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
+        self::rpc::server_grpc(self, builder_input).await
     }
 }

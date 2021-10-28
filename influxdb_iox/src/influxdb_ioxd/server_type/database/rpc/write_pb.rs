@@ -1,9 +1,10 @@
-use super::error::default_server_error_handler;
 use generated_types::google::FieldViolation;
 use generated_types::influxdata::pbdata::v1::*;
 use server::{connection::ConnectionManager, Server};
 use std::fmt::Debug;
 use std::sync::Arc;
+
+use crate::influxdb_ioxd::rpc::error::default_server_error_handler;
 
 struct PBWriteService<M: ConnectionManager> {
     server: Arc<Server<M>>,

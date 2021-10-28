@@ -27,7 +27,7 @@ use server::DatabaseStore;
 
 use crate::influxdb_ioxd::{
     planner::Planner,
-    rpc::storage::{
+    server_type::database::rpc::storage::{
         data::{
             fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
             tag_keys_to_byte_vecs,
@@ -2282,9 +2282,11 @@ mod tests {
                     true,
                 ))
                 .add_service(crate::influxdb_ioxd::rpc::testing::make_server())
-                .add_service(crate::influxdb_ioxd::rpc::storage::make_server(Arc::clone(
-                    &test_storage,
-                )));
+                .add_service(
+                    crate::influxdb_ioxd::server_type::database::rpc::storage::make_server(
+                        Arc::clone(&test_storage),
+                    ),
+                );
 
             let server = async move {
                 let stream = TcpListenerStream::new(socket);

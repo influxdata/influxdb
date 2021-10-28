@@ -567,6 +567,7 @@ mod tests {
     use crate::influxdb_ioxd::{
         http::test_utils::{check_response, get_content_type, TestServer},
         server_type::ServerType,
+        serving_readiness::ServingReadiness,
     };
 
     use super::*;
@@ -1304,6 +1305,7 @@ mod tests {
             application,
             server,
             TEST_MAX_REQUEST_SIZE,
+            ServingReadiness::new(Default::default()),
         ));
         TestServer::new(server_type)
     }

@@ -14,7 +14,7 @@ use influxdb_line_protocol::parse_lines;
 use observability_deps::tracing::debug;
 use server::{connection::ConnectionManager, Server};
 
-use super::error::default_server_error_handler;
+use crate::influxdb_ioxd::rpc::error::default_server_error_handler;
 
 /// Implementation of the write service
 struct WriteService<M: ConnectionManager> {

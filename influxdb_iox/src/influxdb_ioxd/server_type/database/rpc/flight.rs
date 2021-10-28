@@ -27,9 +27,7 @@ use observability_deps::tracing::{info, warn};
 use query::exec::{ExecutionContextProvider, IOxExecutionContext};
 use server::{connection::ConnectionManager, Server};
 
-use crate::influxdb_ioxd::rpc::error::default_server_error_handler;
-
-use super::super::planner::Planner;
+use crate::influxdb_ioxd::{planner::Planner, rpc::error::default_server_error_handler};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -69,7 +67,7 @@ pub enum Error {
 
     #[snafu(display("Error while planning query: {}", source))]
     Planning {
-        source: super::super::planner::Error,
+        source: crate::influxdb_ioxd::planner::Error,
     },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
