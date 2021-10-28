@@ -157,10 +157,9 @@ where
                 description: e.to_string(),
             })?;
 
-        let db_name = provided_rules.db_name().clone();
         let updated_rules = self
             .server
-            .update_db_rules(&db_name, provided_rules)
+            .update_db_rules(provided_rules)
             .await
             .map_err(default_server_error_handler)?;
 
