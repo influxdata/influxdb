@@ -322,7 +322,6 @@ func (s *SqlStore) execTrans(ctx context.Context, stmt string) error {
 	return nil
 }
 
-// returns all the names. empty list if no table.
 func (s *SqlStore) allMigrationNames() ([]string, error) {
 	checkStmt := fmt.Sprintf(`SELECT name FROM sqlite_master WHERE type='table' AND name='%s'`, migrationsTableName)
 	tbls, err := s.queryToStrings(checkStmt)
