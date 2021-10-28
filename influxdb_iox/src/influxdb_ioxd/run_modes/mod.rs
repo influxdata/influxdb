@@ -87,7 +87,7 @@ pub trait RunMode: std::fmt::Debug + Send + Sync + 'static {
 
     /// Route given HTTP request.
     ///
-    /// Note that this is only called if none of default routes (e.g. `/health`) match.
+    /// Note that this is only called if none of the shared, common routes (e.g. `/health`) match.
     async fn route_http_request(
         &self,
         req: Request<Body>,
