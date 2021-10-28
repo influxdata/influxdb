@@ -2,11 +2,14 @@ package sqlite
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/sqlite/test_migrations"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -52,6 +55,62 @@ func TestUp(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, table2Info, 3)
 	require.Equal(t, "user_id", table2Info[0].Name)
+}
+
+func TestUpWithBackups(t *testing.T) {
+	t.Parallel()
+
+	store, clean := NewTestStore(t)
+	defer clean(t)
+	ctx := context.Background()
+
+	logger := zaptest.NewLogger(t)
+	migrator := NewMigrator(store, logger)
+	backupPath := fmt.Sprintf("%s.bak", store.path)
+	migrator.SetBackupPath(backupPath)
+
+	// Run the first migration.
+	require.NoError(t, migrator.Up(ctx, test_migrations.First))
+
+	// user_version should now be 1.
+	v, err := store.userVersion()
+	require.NoError(t, err)
+	require.Equal(t, 1, v)
+
+	// Backup file shouldn't exist, because there was nothing to back up.
+	_, err = os.Stat(backupPath)
+	require.True(t, os.IsNotExist(err))
+
+	// Run the remaining migrations.
+	require.NoError(t, migrator.Up(ctx, test_migrations.Rest))
+
+	// user_version should now be 3.
+	v, err = store.userVersion()
+	require.NoError(t, err)
+	require.Equal(t, 3, v)
+
+	// Backup file should now exist.
+	_, err = os.Stat(backupPath)
+	require.NoError(t, err)
+
+	// Open a 2nd store using the backup file.
+	backupStore, err := NewSqlStore(backupPath, zap.NewNop())
+	require.NoError(t, err)
+	defer backupStore.Close()
+
+	// user_version should be 1 in the backup.
+	v, err = backupStore.userVersion()
+	require.NoError(t, err)
+	require.Equal(t, 1, v)
+
+	// Run the remaining migrations on the backup.
+	backupMigrator := NewMigrator(backupStore, logger)
+	require.NoError(t, backupMigrator.Up(ctx, test_migrations.Rest))
+
+	// user_version should now be 3 in the backup.
+	v, err = backupStore.userVersion()
+	require.NoError(t, err)
+	require.Equal(t, 3, v)
 }
 
 func TestScriptVersion(t *testing.T) {
