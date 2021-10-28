@@ -10,16 +10,7 @@
 //! Long term, we expect to create IOx specific api in terms of
 //! database names and may remove this quasi /v2 API.
 
-#[cfg(feature = "heappy")]
-mod heappy;
-
-#[cfg(feature = "pprof")]
-mod pprof;
-
-mod metrics;
-
 // Influx crates
-use super::planner::Planner;
 use data_types::{
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     DatabaseName,
@@ -28,57 +19,29 @@ use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
 use predicate::delete_predicate::{parse_delete, DeletePredicate};
 use query::exec::ExecutionContextProvider;
-use server::{connection::ConnectionManager, ApplicationState, Error, Server as AppServer};
+use server::{connection::ConnectionManager, Error};
 
 // External crates
 use bytes::{Bytes, BytesMut};
 use chrono::Utc;
 use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
-use hyper::{http::HeaderValue, Body, Method, Request, Response, StatusCode};
+use hyper::{Body, Method, Request, Response, StatusCode};
 use observability_deps::tracing::{debug, error};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
-use trace_http::ctx::TraceHeaderParser;
 
-use crate::influxdb_ioxd::http::metrics::LineProtocolMetrics;
-use hyper::server::conn::{AddrIncoming, AddrStream};
-use std::convert::Infallible;
-use std::num::NonZeroI32;
+use crate::influxdb_ioxd::{
+    planner::Planner,
+    server_type::{ApiErrorCode, RouteError},
+};
 use std::{
     fmt::Debug,
     str::{self, FromStr},
     sync::Arc,
 };
-use tokio_util::sync::CancellationToken;
-use tower::Layer;
-use trace_http::tower::TraceLayer;
 
-/// Constants used in API error codes.
-///
-/// Expressing this as a enum prevents reuse of discriminants, and as they're
-/// effectively consts this uses UPPER_SNAKE_CASE.
-#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
-#[derive(Debug, PartialEq)]
-pub enum ApiErrorCode {
-    /// An unknown/unhandled error
-    UNKNOWN = 100,
-
-    /// The database name in the request is invalid.
-    DB_INVALID_NAME = 101,
-
-    /// The database referenced already exists.
-    DB_ALREADY_EXISTS = 102,
-
-    /// The database referenced does not exist.
-    DB_NOT_FOUND = 103,
-}
-
-impl From<ApiErrorCode> for u32 {
-    fn from(v: ApiErrorCode) -> Self {
-        v as Self
-    }
-}
+use super::DatabaseServerType;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Snafu)]
@@ -220,25 +183,9 @@ pub enum ApplicationError {
     },
 
     #[snafu(display("Error while planning query: {}", source))]
-    Planning { source: super::planner::Error },
-
-    #[snafu(display("PProf error: {}", source))]
-    PProf {
-        source: Box<dyn std::error::Error + Send + Sync>,
+    Planning {
+        source: crate::influxdb_ioxd::planner::Error,
     },
-
-    #[cfg(feature = "heappy")]
-    #[snafu(display("Heappy error: {}", source))]
-    HeappyError { source: heappy::Error },
-
-    #[snafu(display("Protobuf error: {}", source))]
-    Prost { source: prost::EncodeError },
-
-    #[snafu(display("Protobuf error: {}", source))]
-    ProstIO { source: std::io::Error },
-
-    #[snafu(display("Empty flamegraph"))]
-    EmptyFlamegraph,
 
     #[snafu(display("Server id not set"))]
     ServerIdNotSet,
@@ -251,18 +198,12 @@ pub enum ApplicationError {
 
     #[snafu(display("Internal server error"))]
     InternalServerError,
-
-    #[snafu(display("heappy support is not compiled"))]
-    HeappyIsNotCompiled,
-
-    #[snafu(display("pprof support is not compiled"))]
-    PProfIsNotCompiled,
 }
 
 type Result<T, E = ApplicationError> = std::result::Result<T, E>;
 
-impl ApplicationError {
-    pub fn response(&self) -> Response<Body> {
+impl RouteError for ApplicationError {
+    fn response(&self) -> Response<Body> {
         match self {
             Self::BucketByName { .. } => self.internal_error(),
             Self::BucketMappingError { .. } => self.internal_error(),
@@ -292,54 +233,11 @@ impl ApplicationError {
             Self::FormattingResult { .. } => self.internal_error(),
             Self::ParsingFormat { .. } => self.bad_request(),
             Self::Planning { .. } => self.bad_request(),
-            Self::PProf { .. } => self.internal_error(),
-            Self::Prost { .. } => self.internal_error(),
-            Self::ProstIO { .. } => self.internal_error(),
-            Self::EmptyFlamegraph => self.no_content(),
             Self::ServerIdNotSet => self.bad_request(),
             Self::ServerNotInitialized => self.bad_request(),
             Self::DatabaseNotInitialized { .. } => self.bad_request(),
             Self::InternalServerError => self.internal_error(),
-            Self::HeappyIsNotCompiled => self.internal_error(),
-            Self::PProfIsNotCompiled => self.internal_error(),
-            #[cfg(feature = "heappy")]
-            Self::HeappyError { .. } => self.internal_error(),
         }
-    }
-
-    fn bad_request(&self) -> Response<Body> {
-        Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .body(self.body())
-            .unwrap()
-    }
-
-    fn internal_error(&self) -> Response<Body> {
-        Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(self.body())
-            .unwrap()
-    }
-
-    fn not_found(&self) -> Response<Body> {
-        Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::empty())
-            .unwrap()
-    }
-
-    fn no_content(&self) -> Response<Body> {
-        Response::builder()
-            .status(StatusCode::NO_CONTENT)
-            .body(self.body())
-            .unwrap()
-    }
-
-    fn body(&self) -> Body {
-        let json =
-            serde_json::json!({"error": self.to_string(), "error_code": self.api_error_code()})
-                .to_string();
-        Body::from(json)
     }
 
     /// Map the error type into an API error code.
@@ -371,21 +269,10 @@ impl From<server::Error> for ApplicationError {
     }
 }
 
-#[derive(Debug)]
-struct Server<M>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
-    application: Arc<ApplicationState>,
-    app_server: Arc<AppServer<M>>,
-    lp_metrics: Arc<LineProtocolMetrics>,
-    max_request_size: usize,
-}
-
-async fn route_request<M>(
-    server: Arc<Server<M>>,
+pub async fn route_request<M>(
+    server_type: &DatabaseServerType<M>,
     mut req: Request<Body>,
-) -> Result<Response<Body>, Infallible>
+) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
@@ -395,34 +282,16 @@ where
 
     let method = req.method().clone();
     let uri = req.uri().clone();
-    let content_length = req.headers().get("content-length").cloned();
 
-    let response = match (method.clone(), uri.path()) {
-        (Method::GET, "/health") => health(),
-        (Method::GET, "/metrics") => handle_metrics(server.application.as_ref()),
-        (Method::POST, "/api/v2/write") => write(req, server.as_ref()).await,
-        (Method::POST, "/api/v2/delete") => delete(req, server.as_ref()).await,
-        (Method::GET, "/api/v3/query") => query(req, server.as_ref()).await,
-        (Method::GET, "/debug/pprof") => pprof_home(req).await,
-        (Method::GET, "/debug/pprof/profile") => pprof_profile(req).await,
-        (Method::GET, "/debug/pprof/allocs") => pprof_heappy_profile(req).await,
+    match (method.clone(), uri.path()) {
+        (Method::POST, "/api/v2/write") => write(req, server_type).await,
+        (Method::POST, "/api/v2/delete") => delete(req, server_type).await,
+        (Method::GET, "/api/v3/query") => query(req, server_type).await,
 
         (method, path) => Err(ApplicationError::RouteNotFound {
             method,
             path: path.to_string(),
         }),
-    };
-
-    // TODO: Move logging to TraceLayer
-    match response {
-        Ok(response) => {
-            debug!(?response, "Successfully processed request");
-            Ok(response)
-        }
-        Err(error) => {
-            error!(%error, %method, %uri, ?content_length, "Error while handling request");
-            Ok(error.response())
-        }
     }
 }
 
@@ -487,18 +356,18 @@ async fn parse_body(req: hyper::Request<Body>, max_size: usize) -> Result<Bytes,
 
 async fn write<M>(
     req: Request<Body>,
-    server: &Server<M>,
+    server_type: &DatabaseServerType<M>,
 ) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     let span_ctx = req.extensions().get().cloned();
-    let Server {
-        app_server: server,
+    let DatabaseServerType {
+        server,
         lp_metrics,
         max_request_size,
         ..
-    } = server;
+    } = server_type;
 
     let max_request_size = *max_request_size;
     let server = Arc::clone(server);
@@ -567,16 +436,16 @@ where
 
 async fn delete<M>(
     req: Request<Body>,
-    server: &Server<M>,
+    server_type: &DatabaseServerType<M>,
 ) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    let Server {
-        app_server: server,
+    let DatabaseServerType {
+        server,
         max_request_size,
         ..
-    } = server;
+    } = server_type;
     let max_request_size = *max_request_size;
     let server = Arc::clone(server);
 
@@ -650,9 +519,9 @@ fn default_format() -> String {
 
 async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
-    server: &Server<M>,
+    server_type: &DatabaseServerType<M>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = &server.app_server;
+    let server = &server_type.server;
 
     let uri_query = req.uri().query().context(ExpectedQueryString {})?;
 
@@ -693,228 +562,26 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     Ok(response)
 }
 
-fn health() -> Result<Response<Body>, ApplicationError> {
-    let response_body = "OK";
-    Ok(Response::new(Body::from(response_body.to_string())))
-}
-
-fn handle_metrics(application: &ApplicationState) -> Result<Response<Body>, ApplicationError> {
-    let mut body: Vec<u8> = Default::default();
-    let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
-    application.metric_registry().report(&mut reporter);
-
-    Ok(Response::new(Body::from(body)))
-}
-
-async fn pprof_home(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
-    let default_host = HeaderValue::from_static("localhost");
-    let host = req
-        .headers()
-        .get("host")
-        .unwrap_or(&default_host)
-        .to_str()
-        .unwrap_or_default();
-    let profile_cmd = format!(
-        "/debug/pprof/profile?seconds={}",
-        PProfArgs::default_seconds()
-    );
-    let allocs_cmd = format!(
-        "/debug/pprof/allocs?seconds={}",
-        PProfAllocsArgs::default_seconds()
-    );
-    Ok(Response::new(Body::from(format!(
-        r#"<a href="{}">http://{}{}</a><br><a href="{}">http://{}{}</a>"#,
-        profile_cmd, host, profile_cmd, allocs_cmd, host, allocs_cmd,
-    ))))
-}
-
-#[derive(Debug, Deserialize)]
-struct PProfArgs {
-    #[serde(default = "PProfArgs::default_seconds")]
-    seconds: u64,
-    #[serde(default = "PProfArgs::default_frequency")]
-    frequency: NonZeroI32,
-}
-
-impl PProfArgs {
-    fn default_seconds() -> u64 {
-        30
-    }
-
-    // 99Hz to avoid coinciding with special periods
-    fn default_frequency() -> NonZeroI32 {
-        NonZeroI32::new(99).unwrap()
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct PProfAllocsArgs {
-    #[serde(default = "PProfAllocsArgs::default_seconds")]
-    seconds: u64,
-    // The sampling interval is a number of bytes that have to cumulatively allocated for a sample to be taken.
-    //
-    // For example if the sampling interval is 99, and you're doing a million of 40 bytes allocations,
-    // the allocations profile will account for 16MB instead of 40MB.
-    // Heappy will adjust the estimate for sampled recordings, but now that feature is not yet implemented.
-    #[serde(default = "PProfAllocsArgs::default_interval")]
-    interval: NonZeroI32,
-}
-
-impl PProfAllocsArgs {
-    fn default_seconds() -> u64 {
-        30
-    }
-
-    // 1 means: sample every allocation.
-    fn default_interval() -> NonZeroI32 {
-        NonZeroI32::new(1).unwrap()
-    }
-}
-
-#[cfg(feature = "pprof")]
-async fn pprof_profile(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
-    use ::pprof::protos::Message;
-    let query_string = req.uri().query().unwrap_or_default();
-    let query: PProfArgs =
-        serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
-
-    let report = self::pprof::dump_rsprof(query.seconds, query.frequency.get())
-        .await
-        .map_err(|e| Box::new(e) as _)
-        .context(PProf)?;
-
-    let mut body: Vec<u8> = Vec::new();
-
-    // render flamegraph when opening in the browser
-    // otherwise render as protobuf; works great with: go tool pprof http://..../debug/pprof/profile
-    if req
-        .headers()
-        .get_all("Accept")
-        .iter()
-        .flat_map(|i| i.to_str().unwrap_or_default().split(','))
-        .any(|i| i == "text/html" || i == "image/svg+xml")
-    {
-        report
-            .flamegraph(&mut body)
-            .map_err(|e| Box::new(e) as _)
-            .context(PProf)?;
-        if body.is_empty() {
-            return EmptyFlamegraph.fail();
-        }
-    } else {
-        let profile = report
-            .pprof()
-            .map_err(|e| Box::new(e) as _)
-            .context(PProf)?;
-        profile.encode(&mut body).context(Prost)?;
-    }
-
-    Ok(Response::new(Body::from(body)))
-}
-
-#[cfg(not(feature = "pprof"))]
-async fn pprof_profile(_req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
-    PProfIsNotCompiled {}.fail()
-}
-
-// If heappy support is enabled, call it
-#[cfg(feature = "heappy")]
-async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
-    let query_string = req.uri().query().unwrap_or_default();
-    let query: PProfAllocsArgs =
-        serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
-
-    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.interval.get())
-        .await
-        .context(HeappyError)?;
-
-    let mut body: Vec<u8> = Vec::new();
-
-    // render flamegraph when opening in the browser
-    // otherwise render as protobuf;
-    // works great with: go tool pprof http://..../debug/pprof/allocs
-    if req
-        .headers()
-        .get_all("Accept")
-        .iter()
-        .flat_map(|i| i.to_str().unwrap_or_default().split(','))
-        .any(|i| i == "text/html" || i == "image/svg+xml")
-    {
-        report.flamegraph(&mut body);
-        if body.is_empty() {
-            return EmptyFlamegraph.fail();
-        }
-    } else {
-        report.write_pprof(&mut body).context(ProstIO)?
-    }
-
-    Ok(Response::new(Body::from(body)))
-}
-
-//  Return error if heappy not enabled
-#[cfg(not(feature = "heappy"))]
-async fn pprof_heappy_profile(_req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
-    HeappyIsNotCompiled {}.fail()
-}
-
-pub async fn serve<M>(
-    addr: AddrIncoming,
-    application: Arc<ApplicationState>,
-    app_server: Arc<AppServer<M>>,
-    shutdown: CancellationToken,
-    max_request_size: usize,
-    trace_header_parser: TraceHeaderParser,
-) -> Result<(), hyper::Error>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
-    let metric_registry = Arc::clone(application.metric_registry());
-    let trace_collector = application.trace_collector().clone();
-
-    let trace_layer = TraceLayer::new(trace_header_parser, metric_registry, trace_collector, false);
-    let lp_metrics = Arc::new(LineProtocolMetrics::new(
-        application.metric_registry().as_ref(),
-    ));
-
-    let server = Arc::new(Server {
-        application,
-        app_server,
-        lp_metrics,
-        max_request_size,
-    });
-
-    hyper::Server::builder(addr)
-        .serve(hyper::service::make_service_fn(|_conn: &AddrStream| {
-            let server = Arc::clone(&server);
-            let service = hyper::service::service_fn(move |request: Request<_>| {
-                route_request(Arc::clone(&server), request)
-            });
-
-            let service = trace_layer.layer(service);
-            futures::future::ready(Ok::<_, Infallible>(service))
-        }))
-        .with_graceful_shutdown(shutdown.cancelled())
-        .await
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::{
-        convert::TryFrom,
-        net::{IpAddr, Ipv4Addr, SocketAddr},
+    use crate::influxdb_ioxd::{
+        http::test_utils::{check_response, get_content_type, TestServer},
+        server_type::ServerType,
     };
+
+    use super::*;
+    use std::convert::TryFrom;
 
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
-    use reqwest::{Client, Response};
+    use reqwest::Client;
 
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
     use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Histogram};
     use object_store::ObjectStore;
-    use serde::de::DeserializeOwned;
     use server::{
         connection::ConnectionManagerImpl, db::Db, rules::ProvidedDatabaseRules, ApplicationState,
+        Server,
     };
     use tokio_stream::wrappers::ReceiverStream;
     use trace::RingBufferTraceCollector;
@@ -927,8 +594,8 @@ mod tests {
         ))
     }
 
-    fn make_server(application: Arc<ApplicationState>) -> Arc<AppServer<ConnectionManagerImpl>> {
-        Arc::new(AppServer::new(
+    fn make_server(application: Arc<ApplicationState>) -> Arc<Server<ConnectionManagerImpl>> {
+        Arc::new(Server::new(
             ConnectionManagerImpl::new(),
             application,
             Default::default(),
@@ -939,10 +606,13 @@ mod tests {
     async fn test_health() {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let test_server = test_server(application, Arc::clone(&app_server));
 
         let client = Client::new();
-        let response = client.get(&format!("{}/health", server_url)).send().await;
+        let response = client
+            .get(&format!("{}/health", test_server.url()))
+            .send()
+            .await;
 
         // Print the response so if the test fails, we have a log of what went wrong
         check_response("health", response, StatusCode::OK, Some("OK")).await;
@@ -958,13 +628,13 @@ mod tests {
             .register_metric("my_metric", "description");
 
         let app_server = make_server(Arc::clone(&application));
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let test_server = test_server(application, Arc::clone(&app_server));
 
         metric.recorder(&[("tag", "value")]).inc(20);
 
         let client = Client::new();
         let response = client
-            .get(&format!("{}/metrics", server_url))
+            .get(&format!("{}/metrics", test_server.url()))
             .send()
             .await
             .unwrap();
@@ -974,7 +644,7 @@ mod tests {
         assert!(data.contains(&"\nmy_metric_total{tag=\"value\"} 20\n"));
 
         let response = client
-            .get(&format!("{}/nonexistent", server_url))
+            .get(&format!("{}/nonexistent", test_server.url()))
             .send()
             .await
             .unwrap();
@@ -982,7 +652,7 @@ mod tests {
         assert_eq!(response.status().as_u16(), 404);
 
         let response = client
-            .get(&format!("{}/metrics", server_url))
+            .get(&format!("{}/metrics", test_server.url()))
             .send()
             .await
             .unwrap();
@@ -1006,11 +676,11 @@ mod tests {
         ));
         let app_server = make_server(Arc::clone(&application));
 
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let test_server = test_server(application, Arc::clone(&app_server));
 
         let client = Client::new();
         let response = client
-            .get(&format!("{}/health", server_url))
+            .get(&format!("{}/health", test_server.url()))
             .header("uber-trace-id", "34f3495:36e34:0:1")
             .send()
             .await;
@@ -1028,15 +698,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_write() {
-        let application = make_application();
-        let app_server = make_server(Arc::clone(&application));
-        app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        app_server.wait_for_init().await.unwrap();
-        app_server
-            .create_database(make_rules("MyOrg_MyBucket"))
-            .await
-            .unwrap();
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let (app_server, test_server) = setup_server().await;
 
         let client = Client::new();
 
@@ -1048,7 +710,9 @@ mod tests {
         let response = client
             .post(&format!(
                 "{}/api/v2/write?bucket={}&org={}",
-                server_url, bucket_name, org_name
+                test_server.url(),
+                bucket_name,
+                org_name
             ))
             .body(lp_data)
             .send()
@@ -1075,15 +739,7 @@ mod tests {
     #[tokio::test]
     async fn test_delete() {
         // Set up server
-        let application = make_application();
-        let app_server = make_server(Arc::clone(&application));
-        app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        app_server.wait_for_init().await.unwrap();
-        app_server
-            .create_database(make_rules("MyOrg_MyBucket"))
-            .await
-            .unwrap();
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let (app_server, test_server) = setup_server().await;
 
         // Set up client
         let client = Client::new();
@@ -1095,7 +751,9 @@ mod tests {
         let response = client
             .post(&format!(
                 "{}/api/v2/delete?bucket={}&org={}",
-                server_url, bucket_name, org_name
+                test_server.url(),
+                bucket_name,
+                org_name
             ))
             .body(delete_line)
             .send()
@@ -1108,7 +766,9 @@ mod tests {
         let response = client
             .post(&format!(
                 "{}/api/v2/write?bucket={}&org={}",
-                server_url, bucket_name, org_name
+                test_server.url(),
+                bucket_name,
+                org_name
             ))
             .body(lp_data)
             .send()
@@ -1139,7 +799,9 @@ mod tests {
         let response = client
             .post(&format!(
                 "{}/api/v2/delete?bucket={}&org={}",
-                server_url, bucket_name, org_name
+                test_server.url(),
+                bucket_name,
+                org_name
             ))
             .body(delete_line)
             .send()
@@ -1164,7 +826,9 @@ mod tests {
         let response = client
             .post(&format!(
                 "{}/api/v2/delete?bucket={}&org={}",
-                server_url, bucket_name, org_name
+                test_server.url(),
+                bucket_name,
+                org_name
             ))
             .body(delete_line)
             .send()
@@ -1182,7 +846,9 @@ mod tests {
         let response = client
             .post(&format!(
                 "{}/api/v2/delete?bucket={}&org={}",
-                server_url, bucket_name, org_name
+                test_server.url(),
+                bucket_name,
+                org_name
             ))
             .body(delete_line)
             .send()
@@ -1198,18 +864,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_metrics() {
-        let application = make_application();
-        let app_server = make_server(Arc::clone(&application));
-        let metric_registry = Arc::clone(application.metric_registry());
-
-        app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        app_server.wait_for_init().await.unwrap();
-        app_server
-            .create_database(make_rules("MetricsOrg_MetricsBucket"))
-            .await
-            .unwrap();
-
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let (_, test_server) = setup_server().await;
+        let metric_registry = test_server.server_type().metric_registry();
 
         let client = Client::new();
 
@@ -1217,11 +873,13 @@ mod tests {
         let incompatible_lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=\"incompatible\" 1568756170";
 
         // send good data
-        let org_name = "MetricsOrg";
-        let bucket_name = "MetricsBucket";
+        let org_name = "MyOrg";
+        let bucket_name = "MyBucket";
         let post_url = format!(
             "{}/api/v2/write?bucket={}&org={}",
-            server_url, bucket_name, org_name
+            test_server.url(),
+            bucket_name,
+            org_name
         );
         client
             .post(&post_url)
@@ -1275,7 +933,7 @@ mod tests {
 
         let entry_ingest_ok = entry_ingest
             .get_observer(&Attributes::from(&[
-                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("db_name", "MyOrg_MyBucket"),
                 ("status", "ok"),
             ]))
             .unwrap()
@@ -1283,7 +941,7 @@ mod tests {
 
         let entry_ingest_error = entry_ingest
             .get_observer(&Attributes::from(&[
-                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("db_name", "MyOrg_MyBucket"),
                 ("status", "error"),
             ]))
             .unwrap()
@@ -1303,7 +961,7 @@ mod tests {
 
         let ingest_lines_ok = ingest_lines
             .get_observer(&Attributes::from(&[
-                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("db_name", "MyOrg_MyBucket"),
                 ("status", "ok"),
             ]))
             .unwrap()
@@ -1311,7 +969,7 @@ mod tests {
 
         let ingest_lines_error = ingest_lines
             .get_observer(&Attributes::from(&[
-                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("db_name", "MyOrg_MyBucket"),
                 ("status", "error"),
             ]))
             .unwrap()
@@ -1325,7 +983,7 @@ mod tests {
             .get_instrument::<Metric<U64Counter>>("ingest_fields")
             .unwrap()
             .get_observer(&Attributes::from(&[
-                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("db_name", "MyOrg_MyBucket"),
                 ("status", "ok"),
             ]))
             .unwrap()
@@ -1337,7 +995,7 @@ mod tests {
             .get_instrument::<Metric<U64Counter>>("ingest_bytes")
             .unwrap()
             .get_observer(&Attributes::from(&[
-                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("db_name", "MyOrg_MyBucket"),
                 ("status", "ok"),
             ]))
             .unwrap()
@@ -1349,7 +1007,7 @@ mod tests {
             .get_instrument::<Metric<U64Histogram>>("ingest_batch_size_bytes")
             .unwrap()
             .get_observer(&Attributes::from(&[
-                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("db_name", "MyOrg_MyBucket"),
                 ("status", "ok"),
             ]))
             .unwrap()
@@ -1362,7 +1020,7 @@ mod tests {
         client
             .post(&format!(
                 "{}/api/v2/write?bucket=NotMyBucket&org=NotMyOrg",
-                server_url,
+                test_server.url(),
             ))
             .body(lp_data)
             .send()
@@ -1404,16 +1062,11 @@ mod tests {
     /// Sets up a test database with some data for testing the query endpoint
     /// returns a client for communicating with the server, and the server
     /// endpoint
-    async fn setup_test_data() -> (Client, String) {
-        let application = make_application();
-        let app_server = make_server(Arc::clone(&application));
-        app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        app_server.wait_for_init().await.unwrap();
-        app_server
-            .create_database(make_rules("MyOrg_MyBucket"))
-            .await
-            .unwrap();
-        let server_url = test_server(application, Arc::clone(&app_server));
+    async fn setup_test_data() -> (
+        Client,
+        TestServer<DatabaseServerType<ConnectionManagerImpl>>,
+    ) {
+        let (_, test_server) = setup_server().await;
 
         let client = Client::new();
 
@@ -1425,25 +1078,28 @@ mod tests {
         let response = client
             .post(&format!(
                 "{}/api/v2/write?bucket={}&org={}",
-                server_url, bucket_name, org_name
+                test_server.url(),
+                bucket_name,
+                org_name
             ))
             .body(lp_data)
             .send()
             .await;
 
         check_response("write", response, StatusCode::NO_CONTENT, Some("")).await;
-        (client, server_url)
+        (client, test_server)
     }
 
     #[tokio::test]
     async fn test_query_pretty() {
-        let (client, server_url) = setup_test_data().await;
+        let (client, test_server) = setup_test_data().await;
 
         // send query data
         let response = client
             .get(&format!(
                 "{}/api/v3/query?d=MyOrg_MyBucket&q={}",
-                server_url, "select%20*%20from%20h2o_temperature"
+                test_server.url(),
+                "select%20*%20from%20h2o_temperature"
             ))
             .send()
             .await;
@@ -1462,7 +1118,8 @@ mod tests {
         let response = client
             .get(&format!(
                 "{}/api/v3/query?d=MyOrg_MyBucket&q={}&format=pretty",
-                server_url, "select%20*%20from%20h2o_temperature"
+                test_server.url(),
+                "select%20*%20from%20h2o_temperature"
             ))
             .send()
             .await;
@@ -1473,13 +1130,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_csv() {
-        let (client, server_url) = setup_test_data().await;
+        let (client, test_server) = setup_test_data().await;
 
         // send query data
         let response = client
             .get(&format!(
                 "{}/api/v3/query?d=MyOrg_MyBucket&q={}&format=csv",
-                server_url, "select%20*%20from%20h2o_temperature"
+                test_server.url(),
+                "select%20*%20from%20h2o_temperature"
             ))
             .send()
             .await;
@@ -1493,7 +1151,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_json() {
-        let (client, server_url) = setup_test_data().await;
+        let (client, test_server) = setup_test_data().await;
 
         // send a second line of data to demonstrate how that works
         let lp_data =
@@ -1505,7 +1163,9 @@ mod tests {
         let response = client
             .post(&format!(
                 "{}/api/v2/write?bucket={}&org={}",
-                server_url, bucket_name, org_name
+                test_server.url(),
+                bucket_name,
+                org_name
             ))
             .body(lp_data)
             .send()
@@ -1517,7 +1177,8 @@ mod tests {
         let response = client
             .get(&format!(
                 "{}/api/v3/query?d=MyOrg_MyBucket&q={}&format=json",
-                server_url, "select%20*%20from%20h2o_temperature%20order%20by%20surface_degrees"
+                test_server.url(),
+                "select%20*%20from%20h2o_temperature%20order%20by%20surface_degrees"
             ))
             .send()
             .await;
@@ -1539,7 +1200,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_gzip_write() {
-        let (app_server, server_url) = setup_server().await;
+        let (app_server, test_server) = setup_server().await;
 
         let client = Client::new();
         let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1617286224000000000";
@@ -1550,7 +1211,9 @@ mod tests {
         let response = client
             .post(&format!(
                 "{}/api/v2/write?bucket={}&org={}",
-                server_url, bucket_name, org_name
+                test_server.url(),
+                bucket_name,
+                org_name
             ))
             .header(CONTENT_ENCODING, "gzip")
             .body(gzip_str(lp_data))
@@ -1578,7 +1241,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_to_invalid_database() {
-        let (_, server_url) = setup_server().await;
+        let (_, test_server) = setup_server().await;
 
         let client = Client::new();
 
@@ -1587,7 +1250,9 @@ mod tests {
         let response = client
             .post(&format!(
                 "{}/api/v2/write?bucket={}&org={}",
-                server_url, bucket_name, org_name
+                test_server.url(),
+                bucket_name,
+                org_name
             ))
             .send()
             .await;
@@ -1631,101 +1296,16 @@ mod tests {
         );
     }
 
-    fn get_content_type(response: &Result<Response, reqwest::Error>) -> String {
-        if let Ok(response) = response {
-            response
-                .headers()
-                .get(CONTENT_TYPE)
-                .map(|v| v.to_str().unwrap())
-                .unwrap_or("")
-                .to_string()
-        } else {
-            "".to_string()
-        }
-    }
-
-    /// checks a http response against expected results
-    async fn check_response(
-        description: &str,
-        response: Result<Response, reqwest::Error>,
-        expected_status: StatusCode,
-        expected_body: Option<&str>,
-    ) {
-        // Print the response so if the test fails, we have a log of
-        // what went wrong
-        println!("{} response: {:?}", description, response);
-
-        if let Ok(response) = response {
-            let status = response.status();
-            let body = response
-                .text()
-                .await
-                .expect("Converting request body to string");
-
-            assert_eq!(status, expected_status);
-            if let Some(expected_body) = expected_body {
-                assert!(
-                    body.contains(expected_body),
-                    "Could not find expected in body.\n\nExpected:\n{}\n\nBody:\n{}",
-                    expected_body,
-                    body
-                );
-            }
-        } else {
-            panic!("Unexpected error response: {:?}", response);
-        }
-    }
-
-    #[allow(dead_code)]
-    async fn check_json_response<T: DeserializeOwned + Eq + Debug>(
-        client: &Client,
-        url: &str,
-        expected_status: StatusCode,
-    ) -> T {
-        let response = client.get(url).send().await;
-
-        // Print the response so if the test fails, we have a log of
-        // what went wrong
-        println!("{} response: {:?}", url, response);
-
-        if let Ok(response) = response {
-            let status = response.status();
-            let body: T = response
-                .json()
-                .await
-                .expect("Converting request body to string");
-
-            assert_eq!(status, expected_status);
-            body
-        } else {
-            panic!("Unexpected error response: {:?}", response);
-        }
-    }
-
-    /// creates an instance of the http service backed by a in-memory
-    /// testable database.  Returns the url of the server
     fn test_server(
         application: Arc<ApplicationState>,
-        server: Arc<AppServer<ConnectionManagerImpl>>,
-    ) -> String {
-        // NB: specify port 0 to let the OS pick the port.
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
-        let addr = AddrIncoming::bind(&bind_addr).expect("failed to bind server");
-        let server_url = format!("http://{}", addr.local_addr());
-
-        let trace_header_parser = trace_http::ctx::TraceHeaderParser::new()
-            .with_jaeger_trace_context_header_name("uber-trace-id");
-
-        tokio::task::spawn(serve(
-            addr,
+        server: Arc<Server<ConnectionManagerImpl>>,
+    ) -> TestServer<DatabaseServerType<ConnectionManagerImpl>> {
+        let server_type = Arc::new(DatabaseServerType::new(
             application,
             server,
-            CancellationToken::new(),
             TEST_MAX_REQUEST_SIZE,
-            trace_header_parser,
         ));
-        println!("Started server at {}", server_url);
-        server_url
+        TestServer::new(server_type)
     }
 
     /// Run the specified SQL query and return formatted results as a string
@@ -1737,7 +1317,10 @@ mod tests {
     }
 
     /// return a test server and the url to contact it for `MyOrg_MyBucket`
-    async fn setup_server() -> (Arc<AppServer<ConnectionManagerImpl>>, String) {
+    async fn setup_server() -> (
+        Arc<Server<ConnectionManagerImpl>>,
+        TestServer<DatabaseServerType<ConnectionManagerImpl>>,
+    ) {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
@@ -1746,9 +1329,9 @@ mod tests {
             .create_database(make_rules("MyOrg_MyBucket"))
             .await
             .unwrap();
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let test_server = test_server(application, Arc::clone(&app_server));
 
-        (app_server, server_url)
+        (app_server, test_server)
     }
 
     fn make_rules(db_name: impl Into<String>) -> ProvidedDatabaseRules {

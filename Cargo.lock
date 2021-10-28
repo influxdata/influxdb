@@ -1585,6 +1585,7 @@ dependencies = [
  "arrow-flight",
  "arrow_util",
  "assert_cmd",
+ "async-trait",
  "backtrace",
  "byteorder",
  "bytes",

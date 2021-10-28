@@ -40,6 +40,7 @@ time = { path = "../time" }
 # Crates.io dependencies, in alphabetical order
 arrow = { version = "6.0", features = ["prettyprint"] }
 arrow-flight = "6.0"
+async-trait = "0.1"
 backtrace = "0.3"
 byteorder = "1.3.4"
 bytes = "1.0"
