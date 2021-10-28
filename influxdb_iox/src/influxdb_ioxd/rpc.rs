@@ -1,164 +1,182 @@
-use std::fmt::Debug;
 use std::sync::Arc;
 
-use snafu::{ResultExt, Snafu};
 use tokio::net::TcpListener;
-use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
-use tonic::codegen::InterceptedService;
 use tonic::transport::NamedService;
+use tonic_health::server::HealthReporter;
 use trace_http::ctx::TraceHeaderParser;
 
-use crate::influxdb_ioxd::serving_readiness::ServingReadiness;
-use server::{connection::ConnectionManager, ApplicationState, Server};
+use crate::influxdb_ioxd::server_type::{RpcError, ServerType};
 
 pub mod error;
-mod flight;
-mod management;
-mod operations;
-mod storage;
-mod testing;
-mod write;
-mod write_pb;
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("gRPC transport error: {}{}", source, details))]
-    TransportError {
-        source: tonic::transport::Error,
-        details: String,
-    },
-
-    #[snafu(display("gRPC reflection error: {}", source))]
-    ReflectionError {
-        source: tonic_reflection::server::Error,
-    },
-}
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-// Custom impl to include underlying source (not included in tonic
-// transport error)
-impl From<tonic::transport::Error> for Error {
-    fn from(source: tonic::transport::Error) -> Self {
-        use std::error::Error;
-        let details = source
-            .source()
-            .map(|e| format!(" ({})", e))
-            .unwrap_or_else(|| "".to_string());
-
-        Self::TransportError { source, details }
-    }
-}
+pub(crate) mod testing;
 
 /// Returns the name of the gRPC service S.
-fn service_name<S: NamedService>(_: &S) -> &'static str {
+pub fn service_name<S: NamedService>(_: &S) -> &'static str {
     S::NAME
+}
+
+pub struct RpcBuilderInput {
+    pub socket: TcpListener,
+    pub trace_header_parser: TraceHeaderParser,
+    pub shutdown: CancellationToken,
+}
+
+pub struct RpcBuilder<T> {
+    pub inner: T,
+    pub health_reporter: HealthReporter,
+    pub shutdown: CancellationToken,
+    pub socket: TcpListener,
 }
 
 /// Adds a gRPC service to the builder, and registers it with the
 /// health reporter
 macro_rules! add_service {
-    ($builder:ident, $health_reporter:expr, $svc:expr) => {
-        let service = $svc;
-        let status = tonic_health::ServingStatus::Serving;
-        $health_reporter
-            .set_service_status(service_name(&service), status)
-            .await;
-        let $builder = $builder.add_service(service);
+    ($builder:ident, $svc:expr) => {
+        let $builder = {
+            // `inner` might be required to be `mut` or not depending if we're acting on:
+            // - a `Server`, no service added yet, no `mut` required
+            // - a `Router`, some service was added already, `mut` required
+            #[allow(unused_mut)]
+            {
+                use $crate::influxdb_ioxd::rpc::{service_name, RpcBuilder};
+
+                let RpcBuilder {
+                    mut inner,
+                    mut health_reporter,
+                    shutdown,
+                    socket,
+                } = $builder;
+                let service = $svc;
+
+                let status = tonic_health::ServingStatus::Serving;
+                health_reporter
+                    .set_service_status(service_name(&service), status)
+                    .await;
+
+                let inner = inner.add_service(service);
+
+                RpcBuilder {
+                    inner,
+                    health_reporter,
+                    shutdown,
+                    socket,
+                }
+            }
+        };
     };
 }
+
+pub(crate) use add_service;
 
 /// Adds a gRPC service to the builder gated behind the serving
 /// readiness check, and registers it with the health reporter
 macro_rules! add_gated_service {
-    ($builder:ident, $health_reporter:expr, $serving_readiness:expr, $svc:expr) => {
-        let service = $svc;
-        let interceptor = $serving_readiness.clone().into_interceptor();
-        let service = InterceptedService::new(service, interceptor);
-        add_service!($builder, $health_reporter, service);
+    ($builder:ident, $serving_readiness:expr, $svc:expr) => {
+        let $builder = {
+            let service = $svc;
+
+            let interceptor = $serving_readiness.clone().into_interceptor();
+            let service = tonic::codegen::InterceptedService::new(service, interceptor);
+
+            add_service!($builder, service);
+
+            $builder
+        };
     };
 }
+
+pub(crate) use add_gated_service;
+
+/// Creates a [`RpcBuilder`] from [`RpcBuilderInput`].
+///
+/// The resulting builder can be used w/ [`add_service`] and [`add_gated_service`]. After adding all services it should
+/// be used w/ [`serve_builder`].
+macro_rules! setup_builder {
+    ($input:ident, $run_mode:ident) => {{
+        use $crate::influxdb_ioxd::{
+            rpc::{add_service, testing, RpcBuilder},
+            server_type::ServerType,
+        };
+
+        let RpcBuilderInput {
+            socket,
+            trace_header_parser,
+            shutdown,
+        } = $input;
+
+        let (health_reporter, health_service) = tonic_health::server::health_reporter();
+        let reflection_service = tonic_reflection::server::Builder::configure()
+            .register_encoded_file_descriptor_set(generated_types::FILE_DESCRIPTOR_SET)
+            .build()
+            .expect("gRPC reflection data broken");
+
+        let builder = tonic::transport::Server::builder();
+        let builder = builder.layer(trace_http::tower::TraceLayer::new(
+            trace_header_parser,
+            $run_mode.metric_registry(),
+            $run_mode.trace_collector(),
+            true,
+        ));
+
+        let builder = RpcBuilder {
+            inner: builder,
+            health_reporter,
+            shutdown,
+            socket,
+        };
+
+        // important that this one is NOT gated so that it can answer health requests
+        add_service!(builder, health_service);
+        add_service!(builder, reflection_service);
+        add_service!(builder, testing::make_server());
+
+        builder
+    }};
+}
+
+pub(crate) use setup_builder;
+
+/// Serve a server constructed using [`RpcBuilder`].
+macro_rules! serve_builder {
+    ($builder:ident) => {{
+        use tokio_stream::wrappers::TcpListenerStream;
+        use $crate::influxdb_ioxd::rpc::RpcBuilder;
+
+        let RpcBuilder {
+            inner,
+            shutdown,
+            socket,
+            ..
+        } = $builder;
+
+        let stream = TcpListenerStream::new(socket);
+        inner
+            .serve_with_incoming_shutdown(stream, shutdown.cancelled())
+            .await?;
+    }};
+}
+
+pub(crate) use serve_builder;
 
 /// Instantiate a server listening on the specified address
 /// implementing the IOx, Storage, and Flight gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
 /// shutdown.
-pub async fn serve<M>(
+pub async fn serve<T>(
     socket: TcpListener,
-    application: Arc<ApplicationState>,
-    server: Arc<Server<M>>,
+    run_mode: Arc<T>,
     trace_header_parser: TraceHeaderParser,
     shutdown: CancellationToken,
-    serving_readiness: ServingReadiness,
-) -> Result<()>
+) -> Result<(), RpcError>
 where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
+    T: ServerType,
 {
-    let stream = TcpListenerStream::new(socket);
-
-    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
-    let reflection_service = tonic_reflection::server::Builder::configure()
-        .register_encoded_file_descriptor_set(generated_types::FILE_DESCRIPTOR_SET)
-        .build()
-        .context(ReflectionError)?;
-
-    let builder = tonic::transport::Server::builder();
-    let mut builder = builder.layer(trace_http::tower::TraceLayer::new(
+    let builder_input = RpcBuilderInput {
+        socket,
         trace_header_parser,
-        Arc::clone(application.metric_registry()),
-        application.trace_collector().clone(),
-        true,
-    ));
+        shutdown,
+    };
 
-    // important that this one is NOT gated so that it can answer health requests
-    add_service!(builder, health_reporter, health_service);
-    add_service!(builder, health_reporter, reflection_service);
-    add_service!(builder, health_reporter, testing::make_server());
-    add_gated_service!(
-        builder,
-        health_reporter,
-        serving_readiness,
-        storage::make_server(Arc::clone(&server),)
-    );
-    add_gated_service!(
-        builder,
-        health_reporter,
-        serving_readiness,
-        flight::make_server(Arc::clone(&server))
-    );
-    add_gated_service!(
-        builder,
-        health_reporter,
-        serving_readiness,
-        write::make_server(Arc::clone(&server))
-    );
-    add_gated_service!(
-        builder,
-        health_reporter,
-        serving_readiness,
-        write_pb::make_server(Arc::clone(&server))
-    );
-    // Also important this is not behind a readiness check (as it is
-    // used to change the check!)
-    add_service!(
-        builder,
-        health_reporter,
-        management::make_server(
-            Arc::clone(&application),
-            Arc::clone(&server),
-            serving_readiness.clone()
-        )
-    );
-    add_service!(
-        builder,
-        health_reporter,
-        operations::make_server(Arc::clone(application.job_registry()))
-    );
-
-    builder
-        .serve_with_incoming_shutdown(stream, shutdown.cancelled())
-        .await?;
-
-    Ok(())
+    run_mode.server_grpc(builder_input).await
 }

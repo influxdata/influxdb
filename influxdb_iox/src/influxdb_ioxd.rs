@@ -23,7 +23,7 @@ use trace_http::ctx::TraceHeaderParser;
 mod http;
 mod jemalloc;
 mod planner;
-mod rpc;
+pub(crate) mod rpc;
 mod server_type;
 pub(crate) mod serving_readiness;
 
@@ -45,7 +45,7 @@ pub enum Error {
     ServingHttp { source: hyper::Error },
 
     #[snafu(display("Error serving RPC: {}", source))]
-    ServingRpc { source: rpc::Error },
+    ServingRpc { source: server_type::RpcError },
 
     #[snafu(display("Cannot parse object store config: {}", source))]
     ObjectStoreParsing {
@@ -263,27 +263,25 @@ async fn serve(
         )
         .with_jaeger_debug_name(config.tracing_config.traces_jaeger_debug_name);
 
+    let server_type = Arc::new(DatabaseServerType::new(
+        Arc::clone(&application),
+        Arc::clone(&app_server),
+        config.max_http_request_size,
+        config.initial_serving_state.into(),
+    ));
+
     // Construct and start up gRPC server
 
     let grpc_server = rpc::serve(
         grpc_listener,
-        Arc::clone(&application),
-        Arc::clone(&app_server),
+        Arc::clone(&server_type),
         trace_header_parser.clone(),
         frontend_shutdown.clone(),
-        config.initial_serving_state.into(),
     )
     .fuse();
 
     info!("gRPC server listening");
 
-    let max_http_request_size = config.max_http_request_size;
-
-    let server_type = Arc::new(DatabaseServerType::new(
-        Arc::clone(&application),
-        Arc::clone(&app_server),
-        max_http_request_size,
-    ));
     let http_server = http::serve(
         http_listener,
         server_type,
