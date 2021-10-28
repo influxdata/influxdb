@@ -6,7 +6,10 @@ use tonic::transport::NamedService;
 use tonic_health::server::HealthReporter;
 use trace_http::ctx::TraceHeaderParser;
 
-use crate::influxdb_ioxd::server_type::{RpcError, ServerType};
+use crate::influxdb_ioxd::{
+    server_type::{RpcError, ServerType},
+    serving_readiness::ServingReadiness,
+};
 
 pub mod error;
 pub(crate) mod testing;
@@ -16,17 +19,21 @@ pub fn service_name<S: NamedService>(_: &S) -> &'static str {
     S::NAME
 }
 
+#[derive(Debug)]
 pub struct RpcBuilderInput {
     pub socket: TcpListener,
     pub trace_header_parser: TraceHeaderParser,
     pub shutdown: CancellationToken,
+    pub serving_readiness: ServingReadiness,
 }
 
+#[derive(Debug)]
 pub struct RpcBuilder<T> {
     pub inner: T,
     pub health_reporter: HealthReporter,
     pub shutdown: CancellationToken,
     pub socket: TcpListener,
+    pub serving_readiness: ServingReadiness,
 }
 
 /// Adds a gRPC service to the builder, and registers it with the
@@ -46,6 +53,7 @@ macro_rules! add_service {
                     mut health_reporter,
                     shutdown,
                     socket,
+                    serving_readiness,
                 } = $builder;
                 let service = $svc;
 
@@ -61,6 +69,7 @@ macro_rules! add_service {
                     health_reporter,
                     shutdown,
                     socket,
+                    serving_readiness,
                 }
             }
         };
@@ -72,11 +81,11 @@ pub(crate) use add_service;
 /// Adds a gRPC service to the builder gated behind the serving
 /// readiness check, and registers it with the health reporter
 macro_rules! add_gated_service {
-    ($builder:ident, $serving_readiness:expr, $svc:expr) => {
+    ($builder:ident, $svc:expr) => {
         let $builder = {
             let service = $svc;
 
-            let interceptor = $serving_readiness.clone().into_interceptor();
+            let interceptor = $builder.serving_readiness.clone().into_interceptor();
             let service = tonic::codegen::InterceptedService::new(service, interceptor);
 
             add_service!($builder, service);
@@ -103,6 +112,7 @@ macro_rules! setup_builder {
             socket,
             trace_header_parser,
             shutdown,
+            serving_readiness,
         } = $input;
 
         let (health_reporter, health_service) = tonic_health::server::health_reporter();
@@ -124,6 +134,7 @@ macro_rules! setup_builder {
             health_reporter,
             shutdown,
             socket,
+            serving_readiness,
         };
 
         // important that this one is NOT gated so that it can answer health requests
@@ -168,6 +179,7 @@ pub async fn serve<T>(
     server_type: Arc<T>,
     trace_header_parser: TraceHeaderParser,
     shutdown: CancellationToken,
+    serving_readiness: ServingReadiness,
 ) -> Result<(), RpcError>
 where
     T: ServerType,
@@ -176,6 +188,7 @@ where
         socket,
         trace_header_parser,
         shutdown,
+        serving_readiness,
     };
 
     server_type.server_grpc(builder_input).await

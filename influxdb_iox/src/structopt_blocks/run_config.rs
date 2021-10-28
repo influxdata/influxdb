@@ -16,7 +16,7 @@ pub const DEFAULT_API_BIND_ADDR: &str = "127.0.0.1:8080";
 pub const DEFAULT_GRPC_BIND_ADDR: &str = "127.0.0.1:8082";
 
 /// Common config for all `run` commands.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, StructOpt, Clone)]
 pub struct RunConfig {
     /// logging options
     #[structopt(flatten)]
