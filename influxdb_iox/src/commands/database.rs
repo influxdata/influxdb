@@ -1,5 +1,6 @@
 //! This module implements the `database` CLI command
 
+use crate::TABLE_STYLE_SINGLE_LINE_BORDERS;
 use comfy_table::{Cell, Table};
 use influxdb_iox_client::{
     connection::Connection,
@@ -261,6 +262,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
                 if !databases.is_empty() {
                     let mut table = Table::new();
+                    table.load_preset(TABLE_STYLE_SINGLE_LINE_BORDERS);
                     table.set_header(vec![Cell::new("Name"), Cell::new("UUID")]);
 
                     for database in databases {

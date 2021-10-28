@@ -9,17 +9,14 @@
     clippy::future_not_send
 )]
 
+use crate::commands::tracing::{init_logs_and_tracing, init_simple_logs, TroggingGuard};
 use dotenv::dotenv;
+use influxdb_iox_client::connection::Builder;
+use observability_deps::tracing::warn;
 use once_cell::sync::Lazy;
+use std::str::FromStr;
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
-
-use commands::tracing::{init_logs_and_tracing, init_simple_logs};
-use observability_deps::tracing::warn;
-
-use crate::commands::tracing::TroggingGuard;
-use influxdb_iox_client::connection::Builder;
-use std::str::FromStr;
 
 mod commands {
     pub mod database;
@@ -47,6 +44,19 @@ static VERSION_STRING: Lazy<String> = Lazy::new(|| {
         option_env!("GIT_HASH").unwrap_or("UNKNOWN")
     )
 });
+
+/// A comfy_table style that uses single ASCII lines for all borders with plusses at intersections.
+///
+/// Example:
+///
+/// ```
+/// +------+--------------------------------------+
+/// | Name | UUID                                 |
+/// +------+--------------------------------------+
+/// | bar  | ccc2b8bc-f25d-4341-9b64-b9cfe50d26de |
+/// | foo  | 3317ff2b-bbab-43ae-8c63-f0e9ea2f3bdb |
+/// +------+--------------------------------------+
+const TABLE_STYLE_SINGLE_LINE_BORDERS: &str = "||--+-++|    ++++++";
 
 #[cfg(all(feature = "heappy", feature = "jemalloc_replacing_malloc"))]
 compile_error!("heappy and jemalloc_replacing_malloc features are mutually exclusive");
