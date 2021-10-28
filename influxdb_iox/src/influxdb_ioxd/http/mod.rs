@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use tower::Layer;
 use trace_http::{ctx::TraceHeaderParser, tower::TraceLayer};
 
-use crate::influxdb_ioxd::run_modes::{RouteError, RunMode};
+use crate::influxdb_ioxd::server_type::{RouteError, ServerType};
 
 #[cfg(feature = "heappy")]
 mod heappy;
@@ -83,23 +83,23 @@ impl RouteError for ApplicationError {
 
 pub async fn serve<M>(
     addr: AddrIncoming,
-    run_mode: Arc<M>,
+    server_type: Arc<M>,
     shutdown: CancellationToken,
     trace_header_parser: TraceHeaderParser,
 ) -> Result<(), hyper::Error>
 where
-    M: RunMode,
+    M: ServerType,
 {
-    let metric_registry = run_mode.metric_registry();
-    let trace_collector = run_mode.trace_collector();
+    let metric_registry = server_type.metric_registry();
+    let trace_collector = server_type.trace_collector();
 
     let trace_layer = TraceLayer::new(trace_header_parser, metric_registry, trace_collector, false);
 
     hyper::Server::builder(addr)
         .serve(hyper::service::make_service_fn(|_conn: &AddrStream| {
-            let run_mode = Arc::clone(&run_mode);
+            let server_type = Arc::clone(&server_type);
             let service = hyper::service::service_fn(move |request: Request<_>| {
-                route_request(Arc::clone(&run_mode), request)
+                route_request(Arc::clone(&server_type), request)
             });
 
             let service = trace_layer.layer(service);
@@ -110,11 +110,11 @@ where
 }
 
 async fn route_request<M>(
-    run_mode: Arc<M>,
+    server_type: Arc<M>,
     mut req: Request<Body>,
 ) -> Result<Response<Body>, Infallible>
 where
-    M: RunMode,
+    M: ServerType,
 {
     // we don't need the authorization header and we don't want to accidentally log it.
     req.headers_mut().remove("authorization");
@@ -126,11 +126,11 @@ where
 
     let response = match (method.clone(), uri.path()) {
         (Method::GET, "/health") => health(),
-        (Method::GET, "/metrics") => handle_metrics(run_mode.as_ref()),
+        (Method::GET, "/metrics") => handle_metrics(server_type.as_ref()),
         (Method::GET, "/debug/pprof") => pprof_home(req).await,
         (Method::GET, "/debug/pprof/profile") => pprof_profile(req).await,
         (Method::GET, "/debug/pprof/allocs") => pprof_heappy_profile(req).await,
-        _ => run_mode
+        _ => server_type
             .route_http_request(req)
             .await
             .map_err(|e| Box::new(e) as _)
@@ -155,13 +155,13 @@ fn health() -> Result<Response<Body>, ApplicationError> {
     Ok(Response::new(Body::from(response_body.to_string())))
 }
 
-fn handle_metrics<M>(run_mode: &M) -> Result<Response<Body>, ApplicationError>
+fn handle_metrics<M>(server_type: &M) -> Result<Response<Body>, ApplicationError>
 where
-    M: RunMode,
+    M: ServerType,
 {
     let mut body: Vec<u8> = Default::default();
     let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
-    run_mode.metric_registry().report(&mut reporter);
+    server_type.metric_registry().report(&mut reporter);
 
     Ok(Response::new(Body::from(body)))
 }

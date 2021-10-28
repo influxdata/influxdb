@@ -6,14 +6,14 @@ use metric::Registry;
 use server::{connection::ConnectionManager, ApplicationState, Server};
 use trace::TraceCollector;
 
-use crate::influxdb_ioxd::{http::metrics::LineProtocolMetrics, run_modes::RunMode};
+use crate::influxdb_ioxd::{http::metrics::LineProtocolMetrics, server_type::ServerType};
 
 mod http;
 
 pub use self::http::ApplicationError;
 
 #[derive(Debug)]
-pub struct DatabaseRunMode<M>
+pub struct DatabaseServerType<M>
 where
     M: ConnectionManager + std::fmt::Debug + Send + Sync + 'static,
 {
@@ -23,7 +23,7 @@ where
     pub max_request_size: usize,
 }
 
-impl<M> DatabaseRunMode<M>
+impl<M> DatabaseServerType<M>
 where
     M: ConnectionManager + std::fmt::Debug + Send + Sync + 'static,
 {
@@ -46,7 +46,7 @@ where
 }
 
 #[async_trait]
-impl<M> RunMode for DatabaseRunMode<M>
+impl<M> ServerType for DatabaseServerType<M>
 where
     M: ConnectionManager + std::fmt::Debug + Send + Sync + 'static,
 {

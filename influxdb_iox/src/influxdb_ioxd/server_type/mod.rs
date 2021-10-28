@@ -78,7 +78,7 @@ pub trait RouteError: std::error::Error + snafu::AsErrorSource {
 }
 
 #[async_trait]
-pub trait RunMode: std::fmt::Debug + Send + Sync + 'static {
+pub trait ServerType: std::fmt::Debug + Send + Sync + 'static {
     type RouteError: RouteError;
 
     fn metric_registry(&self) -> Arc<Registry>;

@@ -33,7 +33,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 
 use crate::influxdb_ioxd::{
     planner::Planner,
-    run_modes::{ApiErrorCode, RouteError},
+    server_type::{ApiErrorCode, RouteError},
 };
 use std::{
     fmt::Debug,
@@ -41,7 +41,7 @@ use std::{
     sync::Arc,
 };
 
-use super::DatabaseRunMode;
+use super::DatabaseServerType;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Snafu)]
@@ -270,7 +270,7 @@ impl From<server::Error> for ApplicationError {
 }
 
 pub async fn route_request<M>(
-    run_mode: &DatabaseRunMode<M>,
+    server_type: &DatabaseServerType<M>,
     mut req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError>
 where
@@ -284,9 +284,9 @@ where
     let uri = req.uri().clone();
 
     match (method.clone(), uri.path()) {
-        (Method::POST, "/api/v2/write") => write(req, run_mode).await,
-        (Method::POST, "/api/v2/delete") => delete(req, run_mode).await,
-        (Method::GET, "/api/v3/query") => query(req, run_mode).await,
+        (Method::POST, "/api/v2/write") => write(req, server_type).await,
+        (Method::POST, "/api/v2/delete") => delete(req, server_type).await,
+        (Method::GET, "/api/v3/query") => query(req, server_type).await,
 
         (method, path) => Err(ApplicationError::RouteNotFound {
             method,
@@ -356,18 +356,18 @@ async fn parse_body(req: hyper::Request<Body>, max_size: usize) -> Result<Bytes,
 
 async fn write<M>(
     req: Request<Body>,
-    run_mode: &DatabaseRunMode<M>,
+    server_type: &DatabaseServerType<M>,
 ) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     let span_ctx = req.extensions().get().cloned();
-    let DatabaseRunMode {
+    let DatabaseServerType {
         server,
         lp_metrics,
         max_request_size,
         ..
-    } = run_mode;
+    } = server_type;
 
     let max_request_size = *max_request_size;
     let server = Arc::clone(server);
@@ -436,16 +436,16 @@ where
 
 async fn delete<M>(
     req: Request<Body>,
-    run_mode: &DatabaseRunMode<M>,
+    server_type: &DatabaseServerType<M>,
 ) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    let DatabaseRunMode {
+    let DatabaseServerType {
         server,
         max_request_size,
         ..
-    } = run_mode;
+    } = server_type;
     let max_request_size = *max_request_size;
     let server = Arc::clone(server);
 
@@ -519,9 +519,9 @@ fn default_format() -> String {
 
 async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
-    run_mode: &DatabaseRunMode<M>,
+    server_type: &DatabaseServerType<M>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = &run_mode.server;
+    let server = &server_type.server;
 
     let uri_query = req.uri().query().context(ExpectedQueryString {})?;
 
@@ -566,7 +566,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 mod tests {
     use crate::influxdb_ioxd::{
         http::test_utils::{check_response, get_content_type, TestServer},
-        run_modes::RunMode,
+        server_type::ServerType,
     };
 
     use super::*;
@@ -865,7 +865,7 @@ mod tests {
     #[tokio::test]
     async fn test_write_metrics() {
         let (_, test_server) = setup_server().await;
-        let metric_registry = test_server.run_mode().metric_registry();
+        let metric_registry = test_server.server_type().metric_registry();
 
         let client = Client::new();
 
@@ -1062,7 +1062,10 @@ mod tests {
     /// Sets up a test database with some data for testing the query endpoint
     /// returns a client for communicating with the server, and the server
     /// endpoint
-    async fn setup_test_data() -> (Client, TestServer<DatabaseRunMode<ConnectionManagerImpl>>) {
+    async fn setup_test_data() -> (
+        Client,
+        TestServer<DatabaseServerType<ConnectionManagerImpl>>,
+    ) {
         let (_, test_server) = setup_server().await;
 
         let client = Client::new();
@@ -1296,13 +1299,13 @@ mod tests {
     fn test_server(
         application: Arc<ApplicationState>,
         server: Arc<Server<ConnectionManagerImpl>>,
-    ) -> TestServer<DatabaseRunMode<ConnectionManagerImpl>> {
-        let run_mode = Arc::new(DatabaseRunMode::new(
+    ) -> TestServer<DatabaseServerType<ConnectionManagerImpl>> {
+        let server_type = Arc::new(DatabaseServerType::new(
             application,
             server,
             TEST_MAX_REQUEST_SIZE,
         ));
-        TestServer::new(run_mode)
+        TestServer::new(server_type)
     }
 
     /// Run the specified SQL query and return formatted results as a string
@@ -1316,7 +1319,7 @@ mod tests {
     /// return a test server and the url to contact it for `MyOrg_MyBucket`
     async fn setup_server() -> (
         Arc<Server<ConnectionManagerImpl>>,
-        TestServer<DatabaseRunMode<ConnectionManagerImpl>>,
+        TestServer<DatabaseServerType<ConnectionManagerImpl>>,
     ) {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));

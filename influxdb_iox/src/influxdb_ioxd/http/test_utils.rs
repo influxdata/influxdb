@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use crate::influxdb_ioxd::{http::serve, run_modes::RunMode};
+use crate::influxdb_ioxd::{http::serve, server_type::ServerType};
 
 /// checks a http response against expected results
 pub async fn check_response(
@@ -85,18 +85,18 @@ pub fn get_content_type(response: &Result<reqwest::Response, reqwest::Error>) ->
 
 pub struct TestServer<M>
 where
-    M: RunMode,
+    M: ServerType,
 {
     join_handle: JoinHandle<()>,
     url: String,
-    run_mode: Arc<M>,
+    server_type: Arc<M>,
 }
 
 impl<M> TestServer<M>
 where
-    M: RunMode,
+    M: ServerType,
 {
-    pub fn new(run_mode: Arc<M>) -> Self {
+    pub fn new(server_type: Arc<M>) -> Self {
         // NB: specify port 0 to let the OS pick the port.
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
         let addr = AddrIncoming::bind(&bind_addr).expect("failed to bind server");
@@ -105,11 +105,11 @@ where
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new()
             .with_jaeger_trace_context_header_name("uber-trace-id");
 
-        let run_mode_captured = Arc::clone(&run_mode);
+        let server_type_captured = Arc::clone(&server_type);
         let join_handle = tokio::task::spawn(async {
             serve(
                 addr,
-                run_mode_captured,
+                server_type_captured,
                 CancellationToken::new(),
                 trace_header_parser,
             )
@@ -121,7 +121,7 @@ where
         Self {
             join_handle,
             url,
-            run_mode,
+            server_type,
         }
     }
 
@@ -129,14 +129,14 @@ where
         &self.url
     }
 
-    pub fn run_mode(&self) -> &Arc<M> {
-        &self.run_mode
+    pub fn server_type(&self) -> &Arc<M> {
+        &self.server_type
     }
 }
 
 impl<M> Drop for TestServer<M>
 where
-    M: RunMode,
+    M: ServerType,
 {
     fn drop(&mut self) {
         self.join_handle.abort();

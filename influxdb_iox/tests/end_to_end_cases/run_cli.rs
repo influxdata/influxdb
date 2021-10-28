@@ -45,7 +45,7 @@ fn test_unreadable_store_early_exit() {
 }
 
 #[test]
-fn test_deprecated_cli_without_run_mode() {
+fn test_deprecated_cli_without_server_type() {
     let addrs = BindAddresses::default();
 
     let (log_file, log_path) = NamedTempFile::new()
