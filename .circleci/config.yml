@@ -81,10 +81,10 @@ jobs:
       - checkout
       - run:
           name: checkfmt
-          command: ../check-fmt.sh
+          command: ~/check-fmt.sh
       - run:
           name: codegen
-          command: ../check-generate.sh
+          command: ~/check-generate.sh
       - run:
           name: go vet
           command: go vet ./...
