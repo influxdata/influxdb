@@ -39,10 +39,6 @@ name = "snapshot"
 harness = false
 
 [[bench]]
-name = "write"
-harness = false
-
-[[bench]]
 name = "encoders"
 harness = false
 

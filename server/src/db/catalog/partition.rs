@@ -430,8 +430,8 @@ impl Display for Partition {
 
 #[cfg(test)]
 mod tests {
-    use entry::test_helpers::lp_to_entry;
-    use mutable_buffer::{ChunkMetrics, MBChunk};
+    use mutable_buffer::test_helpers::write_lp_to_new_chunk;
+    use mutable_buffer::MBChunk;
 
     use crate::db::catalog::metrics::CatalogMetrics;
 
@@ -479,10 +479,6 @@ mod tests {
     }
 
     fn make_mb_chunk(table_name: &str) -> MBChunk {
-        let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
-        let write = entry.partition_writes().unwrap().remove(0);
-        let batch = write.table_batches().remove(0);
-
-        MBChunk::new(ChunkMetrics::new_unregistered(), batch, None).unwrap()
+        write_lp_to_new_chunk(&format!("{} bar=1 10", table_name))
     }
 }

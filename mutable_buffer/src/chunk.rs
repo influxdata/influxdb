@@ -1,12 +1,11 @@
-use std::{collections::BTreeSet, sync::Arc};
+use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
 use parking_lot::Mutex;
 
 use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummary};
-use entry::TableBatch;
-use mutable_batch::MutableBatch;
 pub use mutable_batch::{Error, Result};
+use mutable_batch::{MutableBatch, WritePayload};
 use schema::selection::Selection;
 use schema::{InfluxColumnType, Schema};
 use snapshot::ChunkSnapshot;
@@ -56,46 +55,26 @@ pub struct MBChunk {
 }
 
 impl MBChunk {
-    /// Create a new batch and write the contents of the [`TableBatch`] into it. Chunks
-    /// shouldn't exist without some data.
+    /// Create a new chunk with the contents of [`WritePayload`].
     ///
-    /// If `mask` is provided, only entries that are marked w/ `true` are written.
-    pub fn new(
-        metrics: ChunkMetrics,
-        batch: TableBatch<'_>,
-        mask: Option<&[bool]>,
-    ) -> Result<Self> {
-        let table_name = Arc::from(batch.name());
-
+    /// Chunks shouldn't exist without some data.
+    pub fn new(table_name: Arc<str>, metrics: ChunkMetrics, write: &impl WritePayload) -> Self {
         let mut mutable_batch = MutableBatch::new();
-        mutable_batch.write_table_batch(batch, mask)?;
+        write
+            .write_to_batch(&mut mutable_batch)
+            .expect("failed to write to empty batch");
 
-        Ok(Self {
+        Self {
             table_name,
             mutable_batch,
             metrics,
             snapshot: Mutex::new(None),
-        })
+        }
     }
 
-    /// Write the contents of a [`TableBatch`] into this Chunk.
-    ///
-    /// If `mask` is provided, only entries that are marked w/ `true` are written.
-    ///
-    /// Panics if the batch specifies a different name for the table in this Chunk
-    pub fn write_table_batch(
-        &mut self,
-        batch: TableBatch<'_>,
-        mask: Option<&[bool]>,
-    ) -> Result<()> {
-        let table_name = batch.name();
-        assert_eq!(
-            table_name,
-            self.table_name.as_ref(),
-            "can only insert table batch for a single table to chunk"
-        );
-
-        self.mutable_batch.write_table_batch(batch, mask)?;
+    /// Write the contents of a [`WritePayload`] into this Chunk.
+    pub fn write(&mut self, write: &impl WritePayload) -> Result<()> {
+        write.write_to_batch(&mut self.mutable_batch)?;
 
         // Invalidate chunk snapshot
         *self
@@ -209,64 +188,27 @@ impl MBChunk {
 
 /// Test helper utilities
 pub mod test_helpers {
-    use entry::test_helpers::lp_to_entry;
+    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 
     use super::*;
 
     /// A helper that will write line protocol string to the passed in Chunk.
     /// All data will be under a single partition with a clock value and
     /// server id of 1.
-    pub fn write_lp_to_chunk(lp: &str, chunk: &mut MBChunk) -> Result<()> {
-        let entry = lp_to_entry(lp);
-
-        for w in entry.partition_writes().unwrap() {
-            let table_batches = w.table_batches();
-            // ensure they are all to the same table
-            let table_names: BTreeSet<String> =
-                table_batches.iter().map(|b| b.name().to_string()).collect();
-
-            assert!(
-                table_names.len() <= 1,
-                "Can only write 0 or one tables to chunk. Found {:?}",
-                table_names
-            );
-
-            for batch in table_batches {
-                chunk.write_table_batch(batch, None)?;
-            }
-        }
-
-        Ok(())
+    pub fn write_lp_to_chunk(lp: &str, chunk: &mut MBChunk) {
+        let (table_name, payload) = lp_to_mutable_batch(lp);
+        assert_eq!(chunk.table_name.as_ref(), table_name.as_str());
+        chunk.write(&payload).unwrap();
     }
 
     /// Create a new [`MBChunk`] with the given write
-    pub fn write_lp_to_new_chunk(lp: &str) -> Result<MBChunk> {
-        let entry = lp_to_entry(lp);
-        let mut chunk: Option<MBChunk> = None;
-
-        for w in entry.partition_writes().unwrap() {
-            let table_batches = w.table_batches();
-            // ensure they are all to the same table
-            let table_names: BTreeSet<String> =
-                table_batches.iter().map(|b| b.name().to_string()).collect();
-
-            assert!(
-                table_names.len() <= 1,
-                "Can only write 0 or one tables to chunk. Found {:?}",
-                table_names
-            );
-
-            for batch in table_batches {
-                match chunk {
-                    Some(ref mut c) => c.write_table_batch(batch, None)?,
-                    None => {
-                        chunk = Some(MBChunk::new(ChunkMetrics::new_unregistered(), batch, None)?);
-                    }
-                }
-            }
-        }
-
-        Ok(chunk.expect("Must write at least one table batch to create a chunk"))
+    pub fn write_lp_to_new_chunk(lp: &str) -> MBChunk {
+        let (table_name, payload) = lp_to_mutable_batch(lp);
+        MBChunk::new(
+            Arc::from(table_name),
+            ChunkMetrics::new_unregistered(),
+            &payload,
+        )
     }
 }
 
@@ -280,7 +222,8 @@ mod tests {
     use data_types::partition_metadata::{
         ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
     };
-    use entry::test_helpers::lp_to_entry;
+    use mutable_batch::PartitionWrite;
+    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::builder::SchemaBuilder;
 
     use super::{
@@ -291,7 +234,7 @@ mod tests {
     #[test]
     fn writes_table_batches() {
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
-        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let chunk = write_lp_to_new_chunk(&lp);
 
         let expected = vec![
             "+------+--------------------------------+-----+",
@@ -308,13 +251,13 @@ mod tests {
     #[test]
     fn writes_table_3_batches() {
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
-        let mut chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let mut chunk = write_lp_to_new_chunk(&lp);
 
         let lp = vec!["cpu,host=c val=11 1"].join("\n");
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        write_lp_to_chunk(&lp, &mut chunk);
 
         let lp = vec!["cpu,host=a val=14 2"].join("\n");
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        write_lp_to_chunk(&lp, &mut chunk);
 
         let expected = vec![
             "+------+--------------------------------+-----+",
@@ -338,7 +281,7 @@ mod tests {
             cpu,host=c,env=stage val=11 1
             cpu,host=a,env=prod val=14 2
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
 
         let summary = chunk.table_summary();
         assert_eq!(summary.name, "cpu");
@@ -412,10 +355,10 @@ mod tests {
         // final write has only new field
         let lp4 = "cpu new_field=200 4";
 
-        let mut chunk = write_lp_to_new_chunk(lp1).unwrap();
-        write_lp_to_chunk(lp2, &mut chunk).unwrap();
-        write_lp_to_chunk(lp3, &mut chunk).unwrap();
-        write_lp_to_chunk(lp4, &mut chunk).unwrap();
+        let mut chunk = write_lp_to_new_chunk(lp1);
+        write_lp_to_chunk(lp2, &mut chunk);
+        write_lp_to_chunk(lp3, &mut chunk);
+        write_lp_to_chunk(lp4, &mut chunk);
 
         let summary = chunk.table_summary();
 
@@ -498,7 +441,7 @@ mod tests {
             cpu,host2=a v=1 40
             cpu,host=c  v=1 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "host".into(),
             influxdb_type: Some(InfluxDbType::Tag),
@@ -523,7 +466,7 @@ mod tests {
             cpu,host=a val=false 40
             cpu,host=c other_val=2 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -547,7 +490,7 @@ mod tests {
             cpu,host=a val=1u 40
             cpu,host=c other_val=2 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -571,7 +514,7 @@ mod tests {
             cpu,host=a val=1.0 40
             cpu,host=c other_val=2.0 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -595,7 +538,7 @@ mod tests {
             cpu,host=a val=1i 40
             cpu,host=c other_val=2.0 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -619,7 +562,7 @@ mod tests {
             cpu,host=a val="v3" 40
             cpu,host=c other_val=2.0 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -643,7 +586,7 @@ mod tests {
             cpu,host=a val=4 2
             cpu,host=c val=25 12
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "time".into(),
             influxdb_type: Some(InfluxDbType::Timestamp),
@@ -666,13 +609,13 @@ mod tests {
             cpu,host=b  v=1 20
             cpu,host=a  v=1 30
         "#;
-        let mut chunk = write_lp_to_new_chunk(lp1).unwrap();
+        let mut chunk = write_lp_to_new_chunk(lp1);
 
         let lp2 = r#"
             cpu,host2=z v=1 40
             cpu,host=c  v=1 5
         "#;
-        write_lp_to_chunk(lp2, &mut chunk).unwrap();
+        write_lp_to_chunk(lp2, &mut chunk);
 
         let expected = ColumnSummary {
             name: "host".into(),
@@ -707,14 +650,14 @@ mod tests {
     #[cfg(not(feature = "nocache"))]
     fn test_snapshot() {
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
-        let mut chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let mut chunk = write_lp_to_new_chunk(&lp);
 
         let (s1, c1) = chunk.snapshot();
         assert!(c1);
         let (s2, c2) = chunk.snapshot();
         assert!(!c2);
 
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        write_lp_to_chunk(&lp, &mut chunk);
         let (s3, c3) = chunk.snapshot();
         assert!(c3);
         let (s4, c4) = chunk.snapshot();
@@ -736,13 +679,13 @@ mod tests {
             "h2o,state=MA,city=Boston temp=72.4 250",
         ]
         .join("\n");
-        let mut chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let mut chunk = write_lp_to_new_chunk(&lp);
         let s1 = chunk.size();
 
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        write_lp_to_chunk(&lp, &mut chunk);
         let s2 = chunk.size();
 
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        write_lp_to_chunk(&lp, &mut chunk);
         let s3 = chunk.size();
 
         // Should increase or stay identical (if array capacities are sufficient) each time
@@ -756,7 +699,7 @@ mod tests {
     #[test]
     fn test_to_arrow_schema_all() {
         let lp = "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,uint_field=42u,bool_field=t,string_field=\"foo\" 100";
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
 
         let selection = Selection::All;
         let actual_schema = chunk.schema(selection).unwrap();
@@ -782,7 +725,7 @@ mod tests {
     #[test]
     fn test_to_arrow_schema_subset() {
         let lp = "h2o,state=MA,city=Boston float_field=70.4 100";
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
 
         let selection = Selection::Some(&["float_field"]);
         let actual_schema = chunk.schema(selection).unwrap();
@@ -800,17 +743,17 @@ mod tests {
 
     #[test]
     fn test_mask() {
-        let mut entries = vec![];
-        let mut masks = vec![];
-
         let lp = [
             "table,tag=a float_field=1.1,int_field=11i,uint_field=111u,bool_field=t,string_field=\"axx\" 100",
             "table,tag=b float_field=2.2,int_field=22i,uint_field=222u,bool_field=f,string_field=\"bxx\" 200",
             "table,tag=c float_field=3.3,int_field=33i,uint_field=333u,bool_field=f,string_field=\"cxx\" 300",
             "table,tag=d float_field=4.4,int_field=44i,uint_field=444u,bool_field=t,string_field=\"dxx\" 400",
         ].join("\n");
-        masks.push(vec![false, true, true, false]);
-        entries.push(lp_to_entry(&lp));
+
+        let b1 = lp_to_mutable_batch(&lp).1;
+        let wb1 = PartitionWrite::new(&b1)
+            .filter(|t| t == 200 || t == 300)
+            .unwrap();
 
         let lp = [
             "table,tag=e float_field=5.5,int_field=55i,uint_field=555u,bool_field=f,string_field=\"exx\" 500",
@@ -819,30 +762,14 @@ mod tests {
             "table foo=2 800",
             "table foo=3 900",
         ].join("\n");
-        masks.push(vec![true, false, true, false, false]);
-        entries.push(lp_to_entry(&lp));
 
-        let mut chunk: Option<MBChunk> = None;
-        for (entry, mask) in entries.into_iter().zip(masks.into_iter()) {
-            for w in entry.partition_writes().unwrap() {
-                for batch in w.table_batches() {
-                    match chunk {
-                        Some(ref mut c) => c.write_table_batch(batch, Some(mask.as_ref())).unwrap(),
-                        None => {
-                            chunk = Some(
-                                MBChunk::new(
-                                    ChunkMetrics::new_unregistered(),
-                                    batch,
-                                    Some(mask.as_ref()),
-                                )
-                                .unwrap(),
-                            );
-                        }
-                    }
-                }
-            }
-        }
-        let chunk = chunk.unwrap();
+        let b2 = lp_to_mutable_batch(&lp).1;
+        let wb2 = PartitionWrite::new(&b2)
+            .filter(|t| t == 500 || t == 700)
+            .unwrap();
+
+        let mut chunk = MBChunk::new(Arc::from("table"), ChunkMetrics::new_unregistered(), &wb1);
+        chunk.write(&wb2).unwrap();
 
         let expected = ColumnSummary {
             name: "float_field".into(),
@@ -934,30 +861,5 @@ mod tests {
             }),
         };
         assert_summary_eq!(expected, chunk, "tag");
-    }
-
-    #[test]
-    fn test_mask_wrong_length() {
-        let lp = [
-            "table,tag=a float_field=1.1,int_field=11i,uint_field=111u,bool_field=t,string_field=\"axx\" 100",
-            "table,tag=b float_field=2.2,int_field=22i,uint_field=222u,bool_field=f,string_field=\"bxx\" 200",
-        ].join("\n");
-        let entry = lp_to_entry(&lp);
-        let partition_write = entry.partition_writes().unwrap().pop().unwrap();
-        let mask = vec![false, true, true, false];
-
-        let batch = partition_write.table_batches().pop().unwrap();
-        let err =
-            MBChunk::new(ChunkMetrics::new_unregistered(), batch, Some(mask.as_ref())).unwrap_err();
-        assert!(matches!(err, Error::IncorrectMaskLength { .. }));
-
-        let batch = partition_write.table_batches().pop().unwrap();
-        let mut chunk = MBChunk::new(ChunkMetrics::new_unregistered(), batch, None).unwrap();
-
-        let batch = partition_write.table_batches().pop().unwrap();
-        let err = chunk
-            .write_table_batch(batch, Some(mask.as_ref()))
-            .unwrap_err();
-        assert!(matches!(err, Error::IncorrectMaskLength { .. }));
     }
 }

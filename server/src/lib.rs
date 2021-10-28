@@ -217,10 +217,10 @@ pub enum Error {
     HardLimitReached {},
 
     #[snafu(display(
-        "Storing sequenced entry failed with the following error(s), and possibly more: {}",
+        "Storing database write failed with the following error(s), and possibly more: {}",
         errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
     ))]
-    StoreSequencedEntryFailures { errors: Vec<DatabaseError> },
+    StoreWriteErrors { errors: Vec<DatabaseError> },
 
     #[snafu(display(
         "Cannot write to database {}, it's configured to only read from the write buffer",
@@ -999,11 +999,9 @@ where
                     source: Box::new(source),
                 },
                 WriteError::HardLimitReached { .. } => Error::HardLimitReached {},
-                WriteError::StoreSequencedEntryFailures { errors } => {
-                    Error::StoreSequencedEntryFailures {
-                        errors: errors.into_iter().map(|e| Box::new(e) as _).collect(),
-                    }
-                }
+                WriteError::StoreWriteErrors { errors } => Error::StoreWriteErrors {
+                    errors: errors.into_iter().map(|e| Box::new(e) as _).collect(),
+                },
             })
     }
 

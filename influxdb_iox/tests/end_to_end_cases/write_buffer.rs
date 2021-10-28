@@ -369,7 +369,7 @@ pub async fn test_cross_write_buffer_tracing() {
         .wait_for(|m| m.to_string().contains("IOx write buffer"))
         .await;
     udp_capture
-        .wait_for(|m| m.to_string().contains("stored entry"))
+        .wait_for(|m| m.to_string().contains("stored write"))
         .await;
 
     // // debugging assistance

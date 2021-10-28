@@ -4,7 +4,6 @@
 use std::{
     any::Any,
     collections::{HashMap, HashSet},
-    num::NonZeroUsize,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -24,12 +23,12 @@ use data_types::{
     chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
     database_rules::DatabaseRules,
     partition_metadata::{PartitionSummary, TableSummary},
-    sequence::Sequence,
     server_id::ServerId,
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
-use entry::{Entry, SequencedEntry, TableBatch};
+use entry::{Entry, SequencedEntry};
 use iox_object_store::IoxObjectStore;
+use mutable_batch::PartitionWrite;
 use mutable_buffer::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info, warn};
 use parquet_catalog::{
@@ -44,6 +43,7 @@ use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
     QueryDatabase,
 };
+use schema::selection::Selection;
 use schema::Schema;
 use time::{Time, TimeProvider};
 use trace::ctx::SpanContext;
@@ -51,6 +51,7 @@ use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
 
 pub(crate) use crate::db::chunk::DbChunk;
 pub(crate) use crate::db::lifecycle::ArcDb;
+use crate::db::write::{DbWrite, WriteFilter, WriteFilterNone};
 use crate::{
     db::{
         access::QueryCatalogAccess,
@@ -74,6 +75,7 @@ pub mod pred;
 mod replay;
 mod streams;
 mod system_tables;
+pub mod write;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Snafu)]
@@ -101,18 +103,8 @@ pub enum Error {
     #[snafu(display("Hard buffer size limit reached"))]
     HardLimitReached {},
 
-    #[snafu(display("Can not write entry {}:{} : {}", partition_key, chunk_id.get(), source))]
-    WriteEntry {
-        partition_key: String,
-        chunk_id: ChunkId,
-        source: mutable_buffer::Error,
-    },
-
-    #[snafu(display("Cannot write entry to new open chunk {}: {}", partition_key, source))]
-    WriteEntryInitial {
-        partition_key: String,
-        source: mutable_buffer::Error,
-    },
+    #[snafu(display("Cannot convert entry to db write: {}", source))]
+    EntryConversion { source: mutable_batch_entry::Error },
 
     #[snafu(display(
         "Cannot delete data from non-existing table, {}: {}",
@@ -125,10 +117,10 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Storing sequenced entry failed with the following error(s), and possibly more: {}",
+        "Storing database write failed with the following error(s), and possibly more: {}",
         errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
     ))]
-    StoreSequencedEntryFailures { errors: Vec<Error> },
+    StoreWriteErrors { errors: Vec<Error> },
 
     #[snafu(display("background task cancelled: {}", source))]
     TaskCancelled { source: futures::future::Aborted },
@@ -922,6 +914,8 @@ impl Db {
     }
 
     /// Stores an entry based on the configuration.
+    ///
+    /// TODO: Remove this method (#2243)
     pub async fn store_entry(&self, entry: Entry, span_ctx: Option<SpanContext>) -> Result<()> {
         let immutable = {
             let rules = self.rules.read();
@@ -929,7 +923,7 @@ impl Db {
         };
         debug!(%immutable, has_write_buffer_producer=self.write_buffer_producer.is_some(), "storing entry");
 
-        match (self.write_buffer_producer.as_ref(), immutable) {
+        let sequenced_entry = match (self.write_buffer_producer.as_ref(), immutable) {
             (Some(write_buffer), true) => {
                 // If only the write buffer is configured, this is passing the data through to
                 // the write buffer, and it's not an error. We ignore the returned metadata; it
@@ -940,63 +934,54 @@ impl Db {
                     .store_entry(&entry, 0, span_ctx.as_ref())
                     .await
                     .context(WriteBufferWritingError)?;
-                Ok(())
+
+                return Ok(());
             }
             (Some(write_buffer), false) => {
                 // If using both write buffer and mutable buffer, we want to wait for the write
                 // buffer to return success before adding the entry to the mutable buffer.
 
                 // TODO: be smarter than always using sequencer 0
-                let (sequence, producer_wallclock_timestamp) = write_buffer
+                let (sequence, producer_ts) = write_buffer
                     .store_entry(&entry, 0, span_ctx.as_ref())
                     .await
                     .context(WriteBufferWritingError)?;
-                let sequenced_entry = Arc::new(SequencedEntry::new_from_sequence(
-                    sequence,
-                    producer_wallclock_timestamp,
-                    entry,
-                ));
 
-                self.store_sequenced_entry(sequenced_entry, filter_table_batch_keep_all)
+                SequencedEntry::new_from_sequence_and_span_context(
+                    sequence,
+                    producer_ts,
+                    entry,
+                    span_ctx,
+                )
             }
             (_, true) => {
                 // If not configured to send entries to the write buffer and the database is
                 // immutable, trying to store an entry is an error and we don't need to build a
                 // `SequencedEntry`.
-                DatabaseNotWriteable {}.fail()
+                return DatabaseNotWriteable {}.fail();
             }
             (None, false) => {
                 // If no write buffer is configured, nothing is
                 // sequencing entries so skip doing so here
-                let sequenced_entry = Arc::new(SequencedEntry::new_unsequenced(entry));
-
-                self.store_sequenced_entry(sequenced_entry, filter_table_batch_keep_all)
+                SequencedEntry::new_unsequenced(entry)
             }
-        }
+        };
+
+        // Group writes based on table
+
+        self.store_write(&DbWrite::from_entry(&sequenced_entry).context(EntryConversion)?)
     }
 
-    /// Given a `SequencedEntry`, if the mutable buffer is configured, the `SequencedEntry` is then
-    /// written into the mutable buffer.
-    ///
-    /// # Filtering
-    /// `filter_table_batch` can be used to filter out table batches. It gets:
-    ///
-    /// 1. the current sequence
-    /// 2. the partition key
-    /// 3. the table batch (which also contains the table name)
-    ///
-    /// It shall return `(true, _)` if the batch should be stored and `(false, _)` otherwise. In the first case the
-    /// second element in the tuple is a row-wise mask. If it is provided only rows marked with `true` are stored.
-    pub fn store_sequenced_entry<F>(
-        &self,
-        sequenced_entry: Arc<SequencedEntry>,
-        filter_table_batch: F,
-    ) -> Result<()>
-    where
-        F: Fn(Option<&Sequence>, &str, &TableBatch<'_>) -> (bool, Option<Vec<bool>>),
-    {
+    /// Writes the provided [`DbWrite`] to this database
+    pub fn store_write(&self, db_write: &DbWrite) -> Result<()> {
+        self.store_filtered_write(db_write, WriteFilterNone::default())
+    }
+
+    /// Writes the provided [`DbWrite`] to this database with the provided [`WriteFilter`]
+    pub fn store_filtered_write(&self, db_write: &DbWrite, filter: impl WriteFilter) -> Result<()> {
         // Get all needed database rule values, then release the lock
         let rules = self.rules.read();
+        let partition_template = rules.partition_template.clone();
         let immutable = rules.lifecycle_rules.immutable;
         let buffer_size_hard = rules.lifecycle_rules.buffer_size_hard;
         let late_arrival_window = rules.lifecycle_rules.late_arrive_window();
@@ -1016,165 +1001,114 @@ impl Db {
             }
         }
 
-        // Note: as `time_of_write` is taken before any synchronisation writes may arrive to a chunk
-        // out of order w.r.t this timestamp. As DateTime<Utc> isn't monotonic anyway
-        // this isn't an issue
+        // Protect against DoS by limiting the number of errors we might collect
+        const MAX_ERRORS: usize = 10;
+        let mut errors = vec![];
 
-        if let Some(partitioned_writes) = sequenced_entry.partition_writes() {
-            let sequence = sequenced_entry.as_ref().sequence();
+        for (table_name, batch) in db_write.tables() {
+            let write_schema = batch.schema(Selection::All).unwrap();
+            let table_metrics = {
+                let table = self.catalog.get_or_create_table(table_name);
 
-            // Protect against DoS by limiting the number of errors we might collect
-            const MAX_ERRORS_PER_SEQUENCED_ENTRY: usize = 10;
-
-            let mut errors = Vec::with_capacity(MAX_ERRORS_PER_SEQUENCED_ENTRY);
-
-            for write in partitioned_writes {
-                let partition_key = write.key();
-                for table_batch in write.table_batches() {
-                    let row_count = match NonZeroUsize::new(table_batch.row_count()) {
-                        Some(row_count) => row_count,
-                        None => continue,
+                let schema_handle =
+                    match TableSchemaUpsertHandle::new(table.schema(), &write_schema)
+                        .context(TableBatchSchemaMergeError)
+                    {
+                        Ok(schema_handle) => schema_handle,
+                        Err(e) => {
+                            if errors.len() < MAX_ERRORS {
+                                errors.push(e);
+                            }
+                            continue;
+                        }
                     };
 
-                    let (store_batch, mask) =
-                        filter_table_batch(sequence, partition_key, &table_batch);
-                    if !store_batch {
-                        continue;
+                // Immediately commit schema handle - a DbWrite is necessarily well-formed and
+                // therefore if it is compatible with the table's current schema, we should take
+                // the schema upsert. This helps avoid a situation where intermittent failures
+                // on one node cause it to deduce a different table schema than on another
+                schema_handle.commit();
+
+                Arc::clone(table.metrics())
+            };
+
+            let partitioned = PartitionWrite::partition(table_name, batch, &partition_template);
+            for (partition_key, write) in partitioned {
+                let write = match filter.filter_write(table_name, &partition_key, write) {
+                    Some(write) => write,
+                    None => continue,
+                };
+
+                let partition = self
+                    .catalog
+                    .get_or_create_partition(table_name, &partition_key);
+
+                let mut partition = partition.write();
+                let table_name = Arc::clone(&partition.addr().table_name);
+
+                let handle_chunk_write = |chunk: &mut CatalogChunk| {
+                    chunk.record_write();
+                    if chunk.storage().0 >= mub_row_threshold.get() {
+                        chunk.freeze().expect("freeze mub chunk");
                     }
+                };
 
-                    let (partition, table_schema) = self
-                        .catalog
-                        .get_or_create_partition(table_batch.name(), partition_key);
+                match partition.open_chunk() {
+                    Some(chunk) => {
+                        let mut chunk = chunk.write();
 
-                    let batch_schema =
-                        match table_batch.schema().context(TableBatchSchemaExtractError) {
-                            Ok(batch_schema) => batch_schema,
-                            Err(e) => {
-                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
-                                    errors.push(e);
-                                }
-                                continue;
-                            }
-                        };
+                        let mb_chunk = chunk.mutable_buffer().expect("cannot mutate open chunk");
 
-                    let schema_handle =
-                        match TableSchemaUpsertHandle::new(&table_schema, &batch_schema)
-                            .context(TableBatchSchemaMergeError)
-                        {
-                            Ok(schema_handle) => schema_handle,
-                            Err(e) => {
-                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
-                                    errors.push(e);
-                                }
-                                continue;
-                            }
-                        };
+                        // This can only fail due to schema mismatch which should be impossible
+                        // at this point - forcibly bail out if an error occurs as it implies
+                        // the MUB somehow has a schema incompatible with the table
+                        mb_chunk.write(&write).expect("failed write");
 
-                    let timestamp_summary = table_batch
-                        .timestamp_summary()
-                        .context(TableBatchTimeError)?;
+                        handle_chunk_write(&mut *chunk)
+                    }
+                    None => {
+                        let metrics = MutableBufferChunkMetrics::new(self.metric_registry.as_ref());
+                        let mb_chunk = MBChunk::new(table_name, metrics, &write);
 
-                    // At this point this should not be possible
-                    ensure!(
-                        timestamp_summary.stats.total_count == row_count.get() as u64,
-                        TableBatchMissingTimes {}
-                    );
+                        let chunk = partition.create_open_chunk(mb_chunk);
+                        let mut chunk = chunk
+                            .try_write()
+                            .expect("partition lock should prevent contention");
 
-                    let mut partition = partition.write();
+                        handle_chunk_write(&mut *chunk)
+                    }
+                };
 
-                    let handle_chunk_write = |chunk: &mut CatalogChunk| {
-                        chunk.record_write(&timestamp_summary);
-                        if chunk.storage().0 >= mub_row_threshold.get() {
-                            chunk.freeze().expect("freeze mub chunk");
-                        }
-                    };
+                partition.update_last_write_at();
 
-                    match partition.open_chunk() {
-                        Some(chunk) => {
-                            let mut chunk = chunk.write();
-                            let chunk_id = chunk.id();
+                let sequence = db_write.meta().sequence();
+                let row_count = write.rows();
+                let min_time = Time::from_timestamp_nanos(write.min_timestamp());
+                let max_time = Time::from_timestamp_nanos(write.max_timestamp());
 
-                            let mb_chunk =
-                                chunk.mutable_buffer().expect("cannot mutate open chunk");
-
-                            if let Err(e) = mb_chunk
-                                .write_table_batch(table_batch, mask.as_ref().map(|x| x.as_ref()))
-                                .context(WriteEntry {
-                                    partition_key,
-                                    chunk_id,
-                                })
-                            {
-                                if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
-                                    errors.push(e);
-                                }
-                                continue;
-                            };
-                            handle_chunk_write(&mut *chunk)
-                        }
-                        None => {
-                            let chunk_result = MBChunk::new(
-                                MutableBufferChunkMetrics::new(self.metric_registry.as_ref()),
-                                table_batch,
-                                mask.as_ref().map(|x| x.as_ref()),
-                            )
-                            .context(WriteEntryInitial { partition_key });
-
-                            match chunk_result {
-                                Ok(mb_chunk) => {
-                                    let chunk = partition.create_open_chunk(mb_chunk);
-                                    let mut chunk = chunk
-                                        .try_write()
-                                        .expect("partition lock should prevent contention");
-                                    handle_chunk_write(&mut *chunk)
-                                }
-                                Err(e) => {
-                                    if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
-                                        errors.push(e);
-                                    }
-                                    continue;
-                                }
-                            }
-                        }
-                    };
-
-                    partition.update_last_write_at();
-
-                    schema_handle.commit();
-
-                    // TODO: PersistenceWindows use TimestampSummary
-                    let min_time = Time::from_timestamp_nanos(timestamp_summary.stats.min.unwrap());
-                    let max_time = Time::from_timestamp_nanos(timestamp_summary.stats.max.unwrap());
-
-                    match partition.persistence_windows_mut() {
-                        Some(windows) => {
-                            windows.add_range(sequence, row_count, min_time, max_time);
-                        }
-                        None => {
-                            let mut windows = PersistenceWindows::new(
-                                partition.addr().clone(),
-                                late_arrival_window,
-                                Arc::clone(&self.time_provider),
-                            );
-                            windows.add_range(sequence, row_count, min_time, max_time);
-                            partition.set_persistence_windows(windows);
-                        }
+                match partition.persistence_windows_mut() {
+                    Some(windows) => {
+                        windows.add_range(sequence, row_count, min_time, max_time);
+                    }
+                    None => {
+                        let mut windows = PersistenceWindows::new(
+                            partition.addr().clone(),
+                            late_arrival_window,
+                            Arc::clone(&self.time_provider),
+                        );
+                        windows.add_range(sequence, row_count, min_time, max_time);
+                        partition.set_persistence_windows(windows);
                     }
                 }
             }
 
-            ensure!(errors.is_empty(), StoreSequencedEntryFailures { errors });
+            table_metrics.record_write(|| batch.timestamp_summary().unwrap_or_default());
         }
+
+        ensure!(errors.is_empty(), StoreWriteErrors { errors });
 
         Ok(())
     }
-}
-
-pub fn filter_table_batch_keep_all(
-    _sequence: Option<&Sequence>,
-    _partition_key: &str,
-    _batch: &TableBatch<'_>,
-) -> (bool, Option<Vec<bool>>) {
-    (true, None)
 }
 
 #[async_trait]
@@ -1314,7 +1248,7 @@ pub mod test_helpers {
     }
 
     /// Convenience macro to test if an [`db::Error`](crate::db::Error) is a
-    /// [StoreSequencedEntryFailures](crate::db::Error::StoreSequencedEntryFailures) and then check for errors contained
+    /// [StoreWriteErrors](crate::db::Error::StoreWriteErrors) and then check for errors contained
     /// in it.
     #[macro_export]
     macro_rules! assert_store_sequenced_entry_failures {
@@ -1323,10 +1257,10 @@ pub mod test_helpers {
                 // bind $e to variable so we don't evaluate it twice
                 let e = $e;
 
-                if let $crate::db::Error::StoreSequencedEntryFailures{errors} = e {
+                if let $crate::db::Error::StoreWriteErrors{errors} = e {
                     assert!(matches!(&errors[..], [$($sub),*]));
                 } else {
-                    panic!("Expected StoreSequencedEntryFailures but got {}", e);
+                    panic!("Expected StoreWriteErrors but got {}", e);
                 }
             }
         };
@@ -1612,38 +1546,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn try_all_partition_writes_when_some_fail() {
+    async fn try_all_tables_when_some_fail() {
         let db = make_db().await.db;
 
-        let nanoseconds_per_hour = 60 * 60 * 1_000_000_000u64;
+        // 2 different tables
+        let lp = r#"
+            foo,t1=alpha iv=1i 1
+            bar,t1=alpha iv=1i 1
+        "#;
 
-        // 3 lines that will go into 3 hour partitions and start new chunks.
-        let lp = format!(
-            "foo,t1=alpha iv=1i {}
-             foo,t1=bravo iv=1i {}
-             foo,t1=charlie iv=1i {}",
-            0,
-            nanoseconds_per_hour,
-            nanoseconds_per_hour * 2,
-        );
-
-        let entry = lp_to_entry(&lp);
+        let entry = lp_to_entry(lp);
 
         // This should succeed and start chunks in the MUB
         db.store_entry(entry, None).await.unwrap();
 
-        // 3 more lines that should go in the 3 partitions/chunks.
         // Line 1 has the same schema and should end up in the MUB.
         // Line 2 has a different schema than line 1 and should error
         // Line 3 has the same schema as line 1 and should end up in the MUB.
-        let lp = format!(
-            "foo,t1=delta iv=1i {}
-             foo t1=10i {}
-             foo,t1=important iv=1i {}",
-            1,
-            nanoseconds_per_hour + 1,
-            nanoseconds_per_hour * 2 + 1,
-        );
+        let lp = "foo,t1=bravo iv=1i 2
+             bar t1=10i 2
+             foo,t1=important iv=1i 3"
+            .to_string();
 
         let entry = lp_to_entry(&lp);
 
@@ -1651,10 +1574,10 @@ mod tests {
         let result = db.store_entry(entry, None).await;
         assert_contains!(
             result.unwrap_err().to_string(),
-            "Storing sequenced entry failed with the following error(s), and possibly more:"
+            "Storing database write failed with the following error(s), and possibly more:"
         );
 
-        // But 5 points should be returned, most importantly the last one after the line with
+        // But 3 points should be returned, most importantly the last one after the line with
         // the mismatched schema
         let batches = run_query(db, "select t1 from foo").await;
 
@@ -1664,8 +1587,6 @@ mod tests {
             "+-----------+",
             "| alpha     |",
             "| bravo     |",
-            "| charlie   |",
-            "| delta     |",
             "| important |",
             "+-----------+",
         ];
