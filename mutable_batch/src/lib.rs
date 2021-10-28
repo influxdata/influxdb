@@ -16,18 +16,21 @@
 //! permitting fast conversion to [`RecordBatch`]
 //!
 
-use crate::column::Column;
+use crate::column::{Column, ColumnData};
 use arrow::record_batch::RecordBatch;
+use data_types::database_rules::PartitionTemplate;
+use data_types::write_summary::TimestampSummary;
 use entry::TableBatch;
 use hashbrown::HashMap;
 use schema::selection::Selection;
-use schema::{builder::SchemaBuilder, Schema};
+use schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use std::num::NonZeroUsize;
 use std::ops::Range;
 
 pub mod column;
-pub mod filter;
-pub mod partition;
+mod filter;
+mod partition;
 pub mod writer;
 
 #[allow(missing_docs)]
@@ -57,6 +60,9 @@ pub enum Error {
 
     #[snafu(display("Mask had {} rows, expected {}", expected, actual))]
     IncorrectMaskLength { expected: usize, actual: usize },
+
+    #[snafu(context(false))]
+    WriterError { source: writer::Error },
 }
 
 /// A specialized `Error` for [`MutableBatch`] errors
@@ -159,8 +165,24 @@ impl MutableBatch {
         self.row_count
     }
 
+    /// Returns a summary of the write timestamps in this chunk if a
+    /// time column exists
+    pub fn timestamp_summary(&self) -> Option<TimestampSummary> {
+        let time = self.column_names.get(TIME_COLUMN_NAME)?;
+        let mut summary = TimestampSummary::default();
+        match &self.columns[*time].data {
+            ColumnData::I64(col_data, _) => {
+                for t in col_data {
+                    summary.record_nanos(*t)
+                }
+            }
+            _ => unreachable!(),
+        }
+        Some(summary)
+    }
+
     /// Extend this [`MutableBatch`] with the contents of `other`
-    pub fn extend_from(&mut self, other: &Self) -> writer::Result<()> {
+    pub fn extend_from(&mut self, other: &Self) -> Result<()> {
         let mut writer = writer::Writer::new(self, other.row_count);
         writer.write_batch(other)?;
         writer.commit();
@@ -168,7 +190,7 @@ impl MutableBatch {
     }
 
     /// Extend this [`MutableBatch`] with `range` rows from `other`
-    pub fn extend_from_range(&mut self, other: &Self, range: Range<usize>) -> writer::Result<()> {
+    pub fn extend_from_range(&mut self, other: &Self, range: Range<usize>) -> Result<()> {
         let mut writer = writer::Writer::new(self, range.end - range.start);
         writer.write_batch_range(other, range)?;
         writer.commit();
@@ -176,11 +198,7 @@ impl MutableBatch {
     }
 
     /// Extend this [`MutableBatch`] with `ranges` rows from `other`
-    pub fn extend_from_ranges(
-        &mut self,
-        other: &Self,
-        ranges: &[Range<usize>],
-    ) -> writer::Result<()> {
+    pub fn extend_from_ranges(&mut self, other: &Self, ranges: &[Range<usize>]) -> Result<()> {
         let to_insert = ranges.iter().map(|x| x.end - x.start).sum();
 
         let mut writer = writer::Writer::new(self, to_insert);
@@ -190,7 +208,7 @@ impl MutableBatch {
     }
 
     /// Returns a reference to the specified column
-    pub(crate) fn column(&self, column: &str) -> Result<&Column> {
+    pub fn column(&self, column: &str) -> Result<&Column> {
         let idx = self
             .column_names
             .get(column)
@@ -243,7 +261,8 @@ impl MutableBatch {
                     })?;
             }
 
-            Ok(())
+            // https://github.com/shepmaster/snafu/issues/315
+            Ok::<_, Error>(())
         })?;
 
         for fb_column in columns {
@@ -281,6 +300,156 @@ impl MutableBatch {
 
         Ok(())
     }
+}
+
+/// A payload that can be written to a mutable batch
+pub trait WritePayload {
+    /// Write this payload to `batch`
+    fn write_to_batch(&self, batch: &mut MutableBatch) -> Result<()>;
+}
+
+impl WritePayload for MutableBatch {
+    fn write_to_batch(&self, batch: &mut MutableBatch) -> Result<()> {
+        batch.extend_from(self)
+    }
+}
+
+/// A [`MutableBatch`] with a non-zero set of row ranges to write
+#[derive(Debug)]
+pub struct PartitionWrite<'a> {
+    batch: &'a MutableBatch,
+    ranges: Vec<Range<usize>>,
+    min_timestamp: i64,
+    max_timestamp: i64,
+    row_count: NonZeroUsize,
+}
+
+impl<'a> PartitionWrite<'a> {
+    /// Create a new [`PartitionWrite`] with the entire range of the provided batch
+    ///
+    /// # Panic
+    ///
+    /// Panics if the batch has no rows
+    pub fn new(batch: &'a MutableBatch) -> Self {
+        let row_count = NonZeroUsize::new(batch.row_count).unwrap();
+        let time = get_time_column(batch);
+        let (min_timestamp, max_timestamp) = min_max_time(time);
+
+        Self {
+            batch,
+            ranges: vec![0..batch.row_count],
+            min_timestamp,
+            max_timestamp,
+            row_count,
+        }
+    }
+
+    /// Returns the minimum timestamp in the write
+    pub fn min_timestamp(&self) -> i64 {
+        self.min_timestamp
+    }
+
+    /// Returns the maximum timestamp in the write
+    pub fn max_timestamp(&self) -> i64 {
+        self.max_timestamp
+    }
+
+    /// Returns the number of rows in the write
+    pub fn rows(&self) -> NonZeroUsize {
+        self.row_count
+    }
+
+    /// Returns a [`PartitionWrite`] containing just the rows of `Self` that pass
+    /// the provided time predicate, or None if no rows
+    pub fn filter(&self, predicate: impl Fn(i64) -> bool) -> Option<PartitionWrite<'a>> {
+        let mut min_timestamp = i64::MAX;
+        let mut max_timestamp = i64::MIN;
+        let mut row_count = 0_usize;
+
+        // Construct a predicate that lets us inspect the timestamps as they are filtered
+        let inspect = |t| match predicate(t) {
+            true => {
+                min_timestamp = min_timestamp.min(t);
+                max_timestamp = max_timestamp.max(t);
+                row_count += 1;
+                true
+            }
+            false => false,
+        };
+
+        let ranges: Vec<_> = filter::filter_time(self.batch, &self.ranges, inspect);
+        let row_count = NonZeroUsize::new(row_count)?;
+
+        Some(PartitionWrite {
+            batch: self.batch,
+            ranges,
+            min_timestamp,
+            max_timestamp,
+            row_count,
+        })
+    }
+
+    /// Create a collection of [`PartitionWrite`] indexed by partition key
+    /// from a [`MutableBatch`] and [`PartitionTemplate`]
+    pub fn partition(
+        table_name: &str,
+        batch: &'a MutableBatch,
+        partition_template: &PartitionTemplate,
+    ) -> HashMap<String, Self> {
+        use hashbrown::hash_map::Entry;
+        let time = get_time_column(batch);
+
+        let mut partition_ranges = HashMap::new();
+        for (partition, range) in partition::partition_batch(batch, table_name, partition_template)
+        {
+            let row_count = NonZeroUsize::new(range.end - range.start).unwrap();
+            let (min_timestamp, max_timestamp) = min_max_time(&time[range.clone()]);
+
+            match partition_ranges.entry(partition) {
+                Entry::Vacant(v) => {
+                    v.insert(PartitionWrite {
+                        batch,
+                        ranges: vec![range],
+                        min_timestamp,
+                        max_timestamp,
+                        row_count,
+                    });
+                }
+                Entry::Occupied(mut o) => {
+                    let pw = o.get_mut();
+                    pw.min_timestamp = pw.min_timestamp.min(min_timestamp);
+                    pw.max_timestamp = pw.max_timestamp.max(max_timestamp);
+                    pw.row_count = NonZeroUsize::new(pw.row_count.get() + row_count.get()).unwrap();
+                    pw.ranges.push(range);
+                }
+            }
+        }
+        partition_ranges
+    }
+}
+
+impl<'a> WritePayload for PartitionWrite<'a> {
+    fn write_to_batch(&self, batch: &mut MutableBatch) -> Result<()> {
+        batch.extend_from_ranges(self.batch, &self.ranges)
+    }
+}
+
+fn get_time_column(batch: &MutableBatch) -> &[i64] {
+    let time_column = batch.column(TIME_COLUMN_NAME).expect("time column");
+    match &time_column.data {
+        ColumnData::I64(col_data, _) => col_data,
+        x => unreachable!("expected i64 got {} for time column", x),
+    }
+}
+
+fn min_max_time(col: &[i64]) -> (i64, i64) {
+    let mut min_timestamp = i64::MAX;
+    let mut max_timestamp = i64::MIN;
+    for t in col {
+        min_timestamp = min_timestamp.min(*t);
+        max_timestamp = max_timestamp.max(*t);
+    }
+    (min_timestamp, max_timestamp)
 }
 
 #[cfg(test)]

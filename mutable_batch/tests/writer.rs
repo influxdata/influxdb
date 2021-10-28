@@ -1,5 +1,6 @@
 use arrow_util::assert_batches_eq;
 use data_types::partition_metadata::{StatValues, Statistics};
+use data_types::write_summary::TimestampSummary;
 use mutable_batch::writer::Writer;
 use mutable_batch::MutableBatch;
 use schema::selection::Selection;
@@ -333,4 +334,14 @@ fn test_basic() {
 
     assert_batches_eq!(expected_data, &[batch.to_arrow(Selection::All).unwrap()]);
     assert_eq!(stats, expected_stats);
+
+    let mut expected_timestamps = TimestampSummary::default();
+    for t in [
+        7, 5, 7, 3, 5, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+    ] {
+        expected_timestamps.record_nanos(t)
+    }
+
+    let timestamps = batch.timestamp_summary().unwrap();
+    assert_eq!(timestamps, expected_timestamps);
 }

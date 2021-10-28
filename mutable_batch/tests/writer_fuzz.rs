@@ -19,9 +19,10 @@ use hashbrown::HashSet;
 use rand::prelude::*;
 
 use arrow_util::bitset::BitSet;
+use data_types::database_rules::{PartitionTemplate, TemplatePart};
 use data_types::partition_metadata::{IsNan, StatValues, Statistics};
 use mutable_batch::writer::Writer;
-use mutable_batch::MutableBatch;
+use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
 use schema::selection::Selection;
 
 fn make_rng() -> StdRng {
@@ -408,4 +409,47 @@ fn test_writer_fuzz() {
     let expected_statistics = expected.stats();
 
     assert_eq!(actual_statistics, expected_statistics);
+}
+
+#[test]
+fn test_partition_write() {
+    let mut rng = make_rng();
+    let mut batch = MutableBatch::new();
+    let expected = extend_batch(&mut rng, &mut batch);
+
+    let w = PartitionWrite::new(&batch);
+    assert_eq!(w.rows().get(), expected.tag_expected.len());
+
+    let verify_write = |write: &PartitionWrite<'_>| {
+        // Verify that the time and row statistics computed by the PartitionWrite
+        // match what actually gets written to a MutableBatch
+        let mut temp = MutableBatch::new();
+        write.write_to_batch(&mut temp).unwrap();
+
+        let stats = match temp.column("time").unwrap().stats() {
+            Statistics::I64(stats) => stats,
+            _ => unreachable!(),
+        };
+
+        assert_eq!(write.min_timestamp(), stats.min.unwrap());
+        assert_eq!(write.max_timestamp(), stats.max.unwrap());
+        assert_eq!(write.rows().get() as u64, stats.total_count);
+    };
+
+    let partitioned = PartitionWrite::partition(
+        "table",
+        &batch,
+        &PartitionTemplate {
+            parts: vec![TemplatePart::Column("b1".to_string())],
+        },
+    );
+
+    for (_, write) in &partitioned {
+        verify_write(write);
+
+        match write.filter(|x| x & 1 == 0) {
+            Some(filtered) => verify_write(&filtered),
+            None => continue,
+        }
+    }
 }

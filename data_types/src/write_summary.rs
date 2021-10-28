@@ -66,4 +66,9 @@ impl TimestampSummary {
         self.counts[timestamp.minute() as usize] += 1;
         self.stats.update(&timestamp.timestamp_nanos())
     }
+
+    /// Records a timestamp value from nanos
+    pub fn record_nanos(&mut self, timestamp_nanos: i64) {
+        self.record(Time::from_timestamp_nanos(timestamp_nanos))
+    }
 }
