@@ -1010,18 +1010,10 @@ jobs:
     parameters:
       nightly:
         type: boolean
-    machine:
-      image: ubuntu-2004:202010-01
+    docker:
+      - image: quay.io/influxdb/changelogger:12126fe5b2660d6862e8133069b02d44dedf9f6d
     steps:
       - checkout
-      - install_core_deps
-      - run:
-          name: Install git-cliff
-          command: |
-            set -x
-            git clone --depth=1 --branch v0.2.5 https://github.com/orhun/git-cliff
-            cd git-cliff
-            cargo install git-cliff
       - when:
           condition: << parameters.nightly >>
           steps:
