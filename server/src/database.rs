@@ -278,7 +278,7 @@ impl Database {
         Ok(uuid)
     }
 
-    /// Create a restored database without any any state. Returns its location in object storage
+    /// Create a restored database without any state. Returns its location in object storage
     /// for saving in the server config file.
     pub async fn restore(
         application: Arc<ApplicationState>,
@@ -286,7 +286,7 @@ impl Database {
         uuid: Uuid,
         server_id: ServerId,
     ) -> Result<String, InitError> {
-        info!(%db_name, "restoring database");
+        info!(%db_name, %uuid, "restoring database");
 
         let iox_object_store_result = IoxObjectStore::restore_database(
             Arc::clone(application.object_store()),
@@ -418,7 +418,7 @@ impl Database {
             let db_name = new_provided_rules.db_name();
 
             // ensure the database is in initialized state (since we
-            // hold the freeze handle, nothing can change this
+            // hold the freeze handle, nothing could have changed this)
             let initialized = state.get_initialized().context(RulesNotUpdateable {
                 db_name,
                 state: state_code,
