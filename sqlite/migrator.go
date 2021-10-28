@@ -55,35 +55,24 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 		return err
 	}
 
-	var lastMigration string
+	var lastMigration int
 	for idx := range executedMigrations {
 		if idx > len(knownMigrations)-1 || executedMigrations[idx] != dropExtension(knownMigrations[idx].Name()) {
 			return errInvalidMigration(executedMigrations[idx])
 		}
 
-		lastMigration = executedMigrations[idx]
-	}
-
-	var current int
-	// lastMigration will be an empty string if there are no migration records with a fresh database. In this case,
-	// "current" will be 0.
-	if lastMigration != "" {
-		if current, err = scriptVersion(lastMigration); err != nil {
+		lastMigration, err = scriptVersion(executedMigrations[idx])
+		if err != nil {
 			return err
 		}
 	}
 
-	// get the migration number of the latest migration for logging purposes
-	final, err := scriptVersion(knownMigrations[len(knownMigrations)-1].Name())
-	if err != nil {
-		return err
-	}
-
-	if final == current {
+	migrationsToDo := len(knownMigrations[lastMigration:])
+	if migrationsToDo == 0 {
 		return nil
 	}
 
-	if m.backupPath != "" && current != 0 {
+	if m.backupPath != "" && lastMigration != 0 {
 		m.log.Info("Backing up pre-migration metadata", zap.String("backup_path", m.backupPath))
 		if err := func() error {
 			out, err := os.Create(m.backupPath)
@@ -101,30 +90,23 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 		}
 	}
 
-	m.log.Info("Bringing up metadata migrations", zap.Int("migration_count", final-current))
+	m.log.Info("Bringing up metadata migrations", zap.Int("migration_count", migrationsToDo))
 
-	for _, f := range knownMigrations {
+	for _, f := range knownMigrations[lastMigration:] {
 		n := f.Name()
-		v, err := scriptVersion(n)
+
+		m.log.Debug("Executing metadata migration", zap.String("migration_name", n))
+		mBytes, err := source.ReadFile(n)
 		if err != nil {
 			return err
 		}
 
-		if v > current {
-			m.log.Debug("Executing metadata migration", zap.String("migration_name", n))
-			mBytes, err := source.ReadFile(n)
-			if err != nil {
-				return err
-			}
+		recordStmt := fmt.Sprintf(`INSERT INTO migrations (name) VALUES (%q);`, dropExtension(n))
 
-			mRecord := fmt.Sprintf(`INSERT INTO migrations (name) VALUES (%q);`, dropExtension(n))
-
-			if err := m.store.execTrans(ctx, string(mBytes)+mRecord); err != nil {
-				return err
-			}
-
-			current = v
+		if err := m.store.execTrans(ctx, string(mBytes)+recordStmt); err != nil {
+			return err
 		}
+
 	}
 
 	return nil
@@ -143,5 +125,10 @@ func scriptVersion(filename string) (int, error) {
 
 // dropExtension returns the filename excluding anything after the first "."
 func dropExtension(filename string) string {
-	return filename[:strings.Index(filename, ".")]
+	idx := strings.Index(filename, ".")
+	if idx == -1 {
+		return filename
+	}
+
+	return filename[:idx]
 }

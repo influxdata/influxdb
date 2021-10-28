@@ -192,6 +192,10 @@ func TestDropExtension(t *testing.T) {
 		want  string
 	}{
 		{
+			input: "0001_some_migration",
+			want:  "0001_some_migration",
+		},
+		{
 			input: "0001_some_migration.sql",
 			want:  "0001_some_migration",
 		},
