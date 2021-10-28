@@ -38,6 +38,8 @@ workflows:
           - << pipeline.parameters.aws_teardown >>
           - << pipeline.parameters.build_and_sign >>
     jobs:
+      - changelog:
+          nightly: true
       - godeps
       - jsdeps
       - gotest:
