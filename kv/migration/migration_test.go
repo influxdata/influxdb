@@ -67,9 +67,6 @@ func Test_Bolt_MigratorWithBackup(t *testing.T) {
 	_, err = os.Stat(backupPath)
 	require.True(t, os.IsNotExist(err))
 
-	// Sleep for a bit so the mod-time on subsequent files is reliably different.
-	time.Sleep(1 * time.Second)
-
 	// Run a few more migrations.
 	migrator.AddMigrations(all.Migrations[1:5]...)
 	require.NoError(t, migrator.Up(ctx))
