@@ -93,7 +93,7 @@ pub(crate) use add_gated_service;
 /// The resulting builder can be used w/ [`add_service`] and [`add_gated_service`]. After adding all services it should
 /// be used w/ [`serve_builder`].
 macro_rules! setup_builder {
-    ($input:ident, $run_mode:ident) => {{
+    ($input:ident, $server_type:ident) => {{
         use $crate::influxdb_ioxd::{
             rpc::{add_service, testing, RpcBuilder},
             server_type::ServerType,
@@ -114,8 +114,8 @@ macro_rules! setup_builder {
         let builder = tonic::transport::Server::builder();
         let builder = builder.layer(trace_http::tower::TraceLayer::new(
             trace_header_parser,
-            $run_mode.metric_registry(),
-            $run_mode.trace_collector(),
+            $server_type.metric_registry(),
+            $server_type.trace_collector(),
             true,
         ));
 
@@ -165,7 +165,7 @@ pub(crate) use serve_builder;
 /// shutdown.
 pub async fn serve<T>(
     socket: TcpListener,
-    run_mode: Arc<T>,
+    server_type: Arc<T>,
     trace_header_parser: TraceHeaderParser,
     shutdown: CancellationToken,
 ) -> Result<(), RpcError>
@@ -178,5 +178,5 @@ where
         shutdown,
     };
 
-    run_mode.server_grpc(builder_input).await
+    server_type.server_grpc(builder_input).await
 }
