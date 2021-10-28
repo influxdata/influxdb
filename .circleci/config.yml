@@ -39,7 +39,7 @@ workflows:
           - << pipeline.parameters.build_and_sign >>
     jobs:
       - changelog:
-          nightly: true
+          nightly: false
       - godeps
       - jsdeps
       - gotest:
