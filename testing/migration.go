@@ -217,7 +217,7 @@ func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *
 
 	t.Run("Down() calls down for each migration", func(t *testing.T) {
 		// apply all migrations
-		if err := migrator.Down(ctx); err != nil {
+		if err := migrator.Down(ctx, 0); err != nil {
 			t.Fatal(err)
 		}
 
@@ -311,9 +311,50 @@ func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *
 		migrationFour.assertUpCalled(t, 2)
 	})
 
+	t.Run("Down() calls down on a subset of migrations", func(t *testing.T) {
+		if err := migrator.Down(ctx, 2); err != nil {
+			t.Fatal(err)
+		}
+
+		// list migration again
+		migrations, err := migrator.List(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if expected := []migration.Migration{
+			{
+				ID:         platform.ID(1),
+				Name:       "migration one",
+				State:      migration.UpMigrationState,
+				StartedAt:  ts(9),
+				FinishedAt: ts(10),
+			},
+			{
+				ID:         platform.ID(2),
+				Name:       "migration two",
+				State:      migration.UpMigrationState,
+				StartedAt:  ts(11),
+				FinishedAt: ts(12),
+			},
+			{
+				ID:    platform.ID(3),
+				Name:  "migration three",
+				State: migration.DownMigrationState,
+			},
+			{
+				ID:    platform.ID(4),
+				Name:  "migration four",
+				State: migration.DownMigrationState,
+			},
+		}; !reflect.DeepEqual(expected, migrations) {
+			t.Errorf("expected %#v, found %#v", expected, migrations)
+		}
+	})
+
 	t.Run("List() missing migration spec errors as expected", func(t *testing.T) {
-		// remove last specification from migration list
-		migrator.Specs = migrator.Specs[:len(migrator.Specs)-1]
+		// remove all but first specification from migration list
+		migrator.Specs = migrator.Specs[:1]
 		// list migration again
 		_, err := migrator.List(ctx)
 		if !errors.Is(err, migration.ErrMigrationSpecNotFound) {

@@ -10,9 +10,9 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 )
 
-var Migration0016_AddAnnotationsNotebooksToOperToken = UpOnlyMigration(
-	"add annotations and notebooks resource types to operator token",
-	migrateTokensMigration(
+var Migration0016_AddAnnotationsNotebooksToOperToken = &Migration{
+	name: "add annotations and notebooks resource types to operator token",
+	up: migrateTokensMigration(
 		func(t influxdb.Authorization) bool {
 			return permListsMatch(preNotebooksAnnotationsOpPerms(), t.Permissions)
 		},
@@ -20,7 +20,24 @@ var Migration0016_AddAnnotationsNotebooksToOperToken = UpOnlyMigration(
 			t.Permissions = append(t.Permissions, notebooksAndAnnotationsPerms(0)...)
 		},
 	),
-)
+	down: migrateTokensMigration(
+		func(t influxdb.Authorization) bool {
+			return permListsMatch(append(preNotebooksAnnotationsOpPerms(), notebooksAndAnnotationsPerms(0)...), t.Permissions)
+		},
+		func(t *influxdb.Authorization) {
+			newPerms := t.Permissions[:0]
+			for _, p := range t.Permissions {
+				switch p.Resource.Type {
+				case influxdb.AnnotationsResourceType:
+				case influxdb.NotebooksResourceType:
+				default:
+					newPerms = append(newPerms, p)
+				}
+			}
+			t.Permissions = newPerms
+		},
+	),
+}
 
 func migrateTokensMigration(
 	checkToken func(influxdb.Authorization) bool,

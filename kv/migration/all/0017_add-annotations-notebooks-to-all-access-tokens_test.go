@@ -61,45 +61,56 @@ func TestMigration_AnnotationsNotebooksAllAccessToken(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Run the migration
-	require.NoError(t, Migration0017_AddAnnotationsNotebooksToAllAccessTokens.Up(context.Background(), ts.Store))
-
-	// the first item should not be changed
 	encoded1, err := id1.Encode()
 	require.NoError(t, err)
-	err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
-		bkt, err := tx.Bucket(authBucket)
-		require.NoError(t, err)
-
-		b, err := bkt.Get(encoded1)
-		require.NoError(t, err)
-
-		var token influxdb.Authorization
-		require.NoError(t, json.Unmarshal(b, &token))
-		require.Equal(t, auths[0], token)
-
-		return nil
-	})
-	require.NoError(t, err)
-
-	// the second item is a 2.0.x all-access token and should have been updated
-	// with a new permissions list
 	encoded2, err := id2.Encode()
 	require.NoError(t, err)
-	err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
-		bkt, err := tx.Bucket(authBucket)
+
+	checkPerms := func(expectedAllPerms []influxdb.Permission) {
+		// the first item should never change
+		err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
+			bkt, err := tx.Bucket(authBucket)
+			require.NoError(t, err)
+
+			b, err := bkt.Get(encoded1)
+			require.NoError(t, err)
+
+			var token influxdb.Authorization
+			require.NoError(t, json.Unmarshal(b, &token))
+			require.Equal(t, auths[0], token)
+
+			return nil
+		})
 		require.NoError(t, err)
 
-		b, err := bkt.Get(encoded2)
+		// the second item is a 2.0.x all-access token and should have been updated to match our expectations
+		err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
+			bkt, err := tx.Bucket(authBucket)
+			require.NoError(t, err)
+
+			b, err := bkt.Get(encoded2)
+			require.NoError(t, err)
+
+			var token influxdb.Authorization
+			require.NoError(t, json.Unmarshal(b, &token))
+
+			require.ElementsMatch(t, expectedAllPerms, token.Permissions)
+			return nil
+		})
 		require.NoError(t, err)
+	}
 
-		var token influxdb.Authorization
-		require.NoError(t, json.Unmarshal(b, &token))
+	// Test applying the migration for the 1st time.
+	require.NoError(t, Migration0017_AddAnnotationsNotebooksToAllAccessTokens.Up(context.Background(), ts.Store))
+	checkPerms(append(preNotebooksAnnotationsAllAccessPerms(OrgID, UserID), notebooksAndAnnotationsPerms(OrgID)...))
 
-		require.ElementsMatch(t, append(preNotebooksAnnotationsAllAccessPerms(OrgID, UserID), notebooksAndAnnotationsPerms(OrgID)...), token.Permissions)
-		return nil
-	})
-	require.NoError(t, err)
+	// Downgrade the migration.
+	require.NoError(t, Migration0017_AddAnnotationsNotebooksToAllAccessTokens.Down(context.Background(), ts.Store))
+	checkPerms(preNotebooksAnnotationsAllAccessPerms(OrgID, UserID))
+
+	// Test re-applying the migration after a downgrade.
+	require.NoError(t, Migration0017_AddAnnotationsNotebooksToAllAccessTokens.Up(context.Background(), ts.Store))
+	checkPerms(append(preNotebooksAnnotationsAllAccessPerms(OrgID, UserID), notebooksAndAnnotationsPerms(OrgID)...))
 }
 
 // This set of permissions shouldn't change - it doesn't match an all-access token.
