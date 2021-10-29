@@ -324,16 +324,16 @@ func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *
 
 		if expected := []migration.Migration{
 			{
-				ID:    platform.ID(1),
-				Name:  "migration one",
-				State: migration.UpMigrationState,
+				ID:         platform.ID(1),
+				Name:       "migration one",
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(9),
 				FinishedAt: ts(10),
 			},
 			{
-				ID:    platform.ID(2),
-				Name:  "migration two",
-				State: migration.UpMigrationState,
+				ID:         platform.ID(2),
+				Name:       "migration two",
+				State:      migration.UpMigrationState,
 				StartedAt:  ts(11),
 				FinishedAt: ts(12),
 			},
