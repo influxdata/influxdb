@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
 	sqliteMigrations "github.com/influxdata/influxdb/v2/sqlite/migrations"
@@ -331,13 +330,6 @@ func (s *SqlStore) allMigrationNames() ([]string, error) {
 
 	if len(tbls) == 0 {
 		return nil, nil
-	}
-
-	if len(tbls) != 1 {
-		return nil, &errors.Error{
-			Code: errors.EInternal,
-			Msg:  fmt.Sprintf("invalid sqlite database state, found %d tables named '%s' where there should be only 1", len(tbls), migrationsTableName),
-		}
 	}
 
 	migrStmt := fmt.Sprintf(`SELECT name FROM %s ORDER BY name`, migrationsTableName)
