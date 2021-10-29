@@ -223,7 +223,7 @@ async fn delete_database() {
         .stdout(predicate::str::contains(db));
 
     // Delete the database, returns the UUID
-    let db_uuid = String::from_utf8(
+    let stdout = String::from_utf8(
         Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("database")
@@ -233,13 +233,13 @@ async fn delete_database() {
             .arg(addr)
             .assert()
             .success()
-            .stderr(predicate::str::contains(format!("Deleted database {}", db)))
+            .stdout(predicate::str::contains(format!("Deleted database {}", db)))
             .get_output()
             .stdout
             .clone(),
     )
     .unwrap();
-    let db_uuid = db_uuid.trim();
+    let db_uuid = stdout.lines().last().unwrap().trim();
 
     // Listing the databases does not include the deleted database
     Command::cargo_bin("influxdb_iox")
@@ -299,7 +299,7 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
-        .stderr(predicate::str::contains(format!("Deleted database {}", db)));
+        .stdout(predicate::str::contains(format!("Deleted database {}", db)));
 
     // The 2nd database should no longer be in the active list
     Command::cargo_bin("influxdb_iox")
