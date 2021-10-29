@@ -1008,10 +1008,10 @@ where
     /// Update database rules and save on success.
     pub async fn update_db_rules(
         &self,
-        db_name: &DatabaseName<'_>,
         rules: ProvidedDatabaseRules,
     ) -> Result<Arc<ProvidedDatabaseRules>> {
-        let database = self.database(db_name)?;
+        let db_name = rules.db_name().clone();
+        let database = self.database(&db_name)?;
 
         // attempt to save provided rules in the current state
         Ok(database
@@ -2417,10 +2417,7 @@ mod tests {
         };
         let provided_rules = make_provided_rules(rules);
 
-        server
-            .update_db_rules(&db_name, provided_rules)
-            .await
-            .unwrap();
+        server.update_db_rules(provided_rules).await.unwrap();
     }
 
     #[tokio::test]
