@@ -63,10 +63,6 @@ pub enum CreateDatabaseError {
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
-
-    /// UUID returned as bytes from server could not be converted to a `Uuid`
-    #[error("Invalid UUID: {}: {:?}", .0, .0)]
-    InvalidUuid(uuid::Error),
 }
 
 /// Errors returned by Client::update_database
@@ -147,10 +143,6 @@ pub enum DeleteDatabaseError {
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
-
-    /// UUID returned as bytes from server could not be converted to a `Uuid`
-    #[error("Invalid UUID: {}: {:?}", .0, .0)]
-    InvalidUuid(uuid::Error),
 }
 
 /// Errors returned by Client::delete_database
@@ -552,8 +544,15 @@ impl Client {
                 _ => CreateDatabaseError::ServerError(status),
             })?;
 
-        let uuid = Uuid::from_slice(&response.into_inner().uuid)
-            .map_err(CreateDatabaseError::InvalidUuid)?;
+        let server_uuid = response.into_inner().uuid;
+        let uuid = Uuid::from_slice(&server_uuid)
+            .map_err(|e| {
+                format!(
+                    "Could not create UUID from server value {:?}: {}",
+                    server_uuid, e
+                )
+            })
+            .unwrap();
 
         Ok(uuid)
     }
@@ -681,8 +680,15 @@ impl Client {
                 _ => DeleteDatabaseError::ServerError(status),
             })?;
 
-        let uuid = Uuid::from_slice(&response.into_inner().uuid)
-            .map_err(DeleteDatabaseError::InvalidUuid)?;
+        let server_uuid = response.into_inner().uuid;
+        let uuid = Uuid::from_slice(&server_uuid)
+            .map_err(|e| {
+                format!(
+                    "Could not create UUID from server value {:?}: {}",
+                    server_uuid, e
+                )
+            })
+            .unwrap();
 
         Ok(uuid)
     }
