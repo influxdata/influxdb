@@ -83,7 +83,9 @@ use data_types::{
 use database::{Database, DatabaseConfig};
 use entry::{lines_to_sharded_entries, pb_to_entry, Entry};
 use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
-use generated_types::{influxdata::iox::management, influxdata::pbdata::v1 as pb};
+use generated_types::{
+    google::FieldViolation, influxdata::iox::management, influxdata::pbdata::v1 as pb,
+};
 use hashbrown::HashMap;
 use influxdb_line_protocol::ParsedLine;
 use internal_types::freezable::Freezable;
@@ -152,6 +154,24 @@ pub enum Error {
 
     #[snafu(display("database not found: {}", db_name))]
     DatabaseNotFound { db_name: String },
+
+    #[snafu(display(
+        "database rules for UUID {} not found at expected location `{}`",
+        uuid,
+        location
+    ))]
+    DatabaseRulesNotFound { uuid: Uuid, location: String },
+
+    #[snafu(display("error loading rules from object storage: {} ({:?})", source, source))]
+    CannotLoadRules { source: object_store::Error },
+
+    #[snafu(display("error deserializing database rules from protobuf: {}", source))]
+    CannotDeserializeRules {
+        source: generated_types::DecodeError,
+    },
+
+    #[snafu(display("error converting grpc to database rules: {}", source))]
+    ConvertingRules { source: FieldViolation },
 
     #[snafu(display("{}", source))]
     CannotMarkDatabaseDeleted { source: crate::database::Error },
@@ -764,11 +784,7 @@ where
 
     /// Restore a database that has been marked as deleted. Return an error if no database with
     /// this UUID can be found, or if there's already an active database with this name.
-    pub async fn restore_database(
-        &self,
-        db_name: &DatabaseName<'static>,
-        uuid: Uuid,
-    ) -> Result<()> {
+    pub async fn restore_database(&self, uuid: Uuid) -> Result<()> {
         // Wait for exclusive access to mutate server state
         let handle_fut = self.shared.state.read().freeze();
         let handle = handle_fut.await;
@@ -777,11 +793,29 @@ where
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
 
-            if initialized.databases.contains_key(db_name) {
-                return DatabaseAlreadyExists { db_name }.fail();
-            }
             initialized.server_id
         };
+
+        let rules_bytes = IoxObjectStore::load_database_rules(
+            Arc::clone(self.shared.application.object_store()),
+            server_id,
+            uuid,
+        )
+        .await
+        .map_err(|e| match e {
+            object_store::Error::NotFound { location, .. } => {
+                Error::DatabaseRulesNotFound { uuid, location }
+            }
+            other => Error::CannotLoadRules { source: other },
+        })?;
+
+        let rules: ProvidedDatabaseRules =
+            generated_types::database_rules::decode_persisted_database_rules(rules_bytes)
+                .context(CannotDeserializeRules)?
+                .try_into()
+                .context(ConvertingRules)?;
+
+        let db_name = rules.db_name();
 
         let location = Database::restore(
             Arc::clone(&self.shared.application),
@@ -799,18 +833,24 @@ where
             let mut state = state.unfreeze(handle);
 
             let database = match &mut *state {
-                ServerState::Initialized(initialized) => initialized
-                    .new_database(
-                        &self.shared,
-                        DatabaseConfig {
-                            name: db_name.clone(),
-                            location,
-                            server_id,
-                            wipe_catalog_on_error: false,
-                            skip_replay: false,
-                        },
-                    )
-                    .expect("database unique"),
+                ServerState::Initialized(initialized) => {
+                    if initialized.databases.contains_key(db_name) {
+                        return DatabaseAlreadyExists { db_name }.fail();
+                    }
+
+                    initialized
+                        .new_database(
+                            &self.shared,
+                            DatabaseConfig {
+                                name: db_name.clone(),
+                                location,
+                                server_id,
+                                wipe_catalog_on_error: false,
+                                skip_replay: false,
+                            },
+                        )
+                        .expect("database unique")
+                }
                 _ => unreachable!(),
             };
             Arc::clone(database)

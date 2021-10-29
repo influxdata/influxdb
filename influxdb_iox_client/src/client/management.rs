@@ -697,14 +697,10 @@ impl Client {
     /// Restore database
     pub async fn restore_database(
         &mut self,
-        db_name: impl Into<String> + Send,
         uuid: impl Into<String> + Send,
     ) -> Result<(), RestoreDatabaseError> {
         self.inner
-            .restore_database(RestoreDatabaseRequest {
-                db_name: db_name.into(),
-                uuid: uuid.into(),
-            })
+            .restore_database(RestoreDatabaseRequest { uuid: uuid.into() })
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::NotFound => RestoreDatabaseError::DatabaseNotFound,

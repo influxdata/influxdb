@@ -200,11 +200,10 @@ where
         request: Request<RestoreDatabaseRequest>,
     ) -> Result<Response<RestoreDatabaseResponse>, Status> {
         let request = request.into_inner();
-        let db_name = DatabaseName::new(request.db_name).field("db_name")?;
         let uuid = Uuid::from_str(&request.uuid).field("uuid")?;
 
         self.server
-            .restore_database(&db_name, uuid)
+            .restore_database(uuid)
             .await
             .map_err(default_server_error_handler)?;
 

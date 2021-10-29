@@ -325,7 +325,7 @@ async fn delete_database() {
         .success()
         .stdout(predicate::str::contains(format!(
             "Restored database {}",
-            db
+            db_uuid
         )));
 
     // The 1st database is back in the active list

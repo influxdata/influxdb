@@ -214,8 +214,9 @@ message RestoreDatabaseRequest {
   reserved 1;
   reserved "generation_id";
 
-  // the name of the database
-  string db_name = 2;
+  // Was the name of the database
+  reserved 2;
+  reserved "db_name";
 
   // The UUID of the deleted database.
   string uuid = 3;

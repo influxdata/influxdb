@@ -350,10 +350,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Restore(command) => {
             let mut client = management::Client::new(connection);
-            client
-                .restore_database(&command.name, &command.uuid)
-                .await?;
-            println!("Restored database {} ({})", command.name, command.uuid);
+            client.restore_database(&command.uuid).await?;
+            println!("Restored database {}", command.uuid);
         }
     }
 

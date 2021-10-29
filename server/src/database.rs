@@ -297,8 +297,8 @@ impl Database {
 
         let iox_object_store = match iox_object_store_result {
             Ok(iox_os) => iox_os,
-            Err(iox_object_store::IoxObjectStoreError::ActiveDatabaseAlreadyExists { .. }) => {
-                return ActiveDatabaseAlreadyExists {
+            Err(iox_object_store::IoxObjectStoreError::DatabaseAlreadyActive { .. }) => {
+                return DatabaseAlreadyActive {
                     name: db_name.to_string(),
                     uuid,
                 }
@@ -979,7 +979,7 @@ pub enum InitError {
         name,
         uuid
     ))]
-    ActiveDatabaseAlreadyExists { name: String, uuid: Uuid },
+    DatabaseAlreadyActive { name: String, uuid: Uuid },
 
     #[snafu(display("cannot create preserved catalog: {}", source))]
     CannotCreatePreservedCatalog { source: crate::db::load::Error },
