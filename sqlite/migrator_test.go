@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"testing"
 
@@ -29,7 +30,16 @@ func TestUp(t *testing.T) {
 
 	store, clean := NewTestStore(t)
 	defer clean(t)
-	ctx := context.Background()
+
+	listAll, err := test_migrations.All.ReadDir(".")
+	require.NoError(t, err)
+	upsOnlyAll := filteredMigrations(listAll, true)
+
+	listFirst, err := test_migrations.First.ReadDir(".")
+	require.NoError(t, err)
+	upsOnlyFirst := filteredMigrations(listFirst, true)
+
+	migrator := NewMigrator(store, zaptest.NewLogger(t))
 
 	// empty db contains no migrations
 	names, err := store.allMigrationNames()
@@ -37,18 +47,10 @@ func TestUp(t *testing.T) {
 	require.Equal(t, []string(nil), names)
 
 	// run the first migrations
-	migrator := NewMigrator(store, zaptest.NewLogger(t))
-	require.NoError(t, migrator.Up(ctx, test_migrations.First))
-	names, err = store.allMigrationNames()
-	require.NoError(t, err)
-	migrationNamesMatch(t, names, test_migrations.First)
+	migrateUpAndCheck(t, migrator, store, test_migrations.First, upsOnlyFirst)
 
 	// run the rest of the migrations
-	err = migrator.Up(ctx, test_migrations.All)
-	require.NoError(t, err)
-	names, err = store.allMigrationNames()
-	require.NoError(t, err)
-	migrationNamesMatch(t, names, test_migrations.All)
+	migrateUpAndCheck(t, migrator, store, test_migrations.All, upsOnlyAll)
 
 	// test_table_1 had the "id" column renamed to "org_id"
 	var table1Info []*tableInfo
@@ -96,28 +98,29 @@ func TestUpWithBackups(t *testing.T) {
 
 	store, clean := NewTestStore(t)
 	defer clean(t)
-	ctx := context.Background()
 
 	logger := zaptest.NewLogger(t)
 	migrator := NewMigrator(store, logger)
 	backupPath := fmt.Sprintf("%s.bak", store.path)
 	migrator.SetBackupPath(backupPath)
 
-	// Run the first migrations.
-	require.NoError(t, migrator.Up(ctx, test_migrations.First))
-	names, err := store.allMigrationNames()
+	listAll, err := test_migrations.All.ReadDir(".")
 	require.NoError(t, err)
-	migrationNamesMatch(t, names, test_migrations.First)
+	upsOnlyAll := filteredMigrations(listAll, true)
+
+	listFirst, err := test_migrations.First.ReadDir(".")
+	require.NoError(t, err)
+	upsOnlyFirst := filteredMigrations(listFirst, true)
+
+	// Run the first migrations.
+	migrateUpAndCheck(t, migrator, store, test_migrations.First, upsOnlyFirst)
 
 	// Backup file shouldn't exist, because there was nothing to back up.
 	_, err = os.Stat(backupPath)
 	require.True(t, os.IsNotExist(err))
 
 	// Run the remaining migrations.
-	require.NoError(t, migrator.Up(ctx, test_migrations.All))
-	names, err = store.allMigrationNames()
-	require.NoError(t, err)
-	migrationNamesMatch(t, names, test_migrations.All)
+	migrateUpAndCheck(t, migrator, store, test_migrations.All, upsOnlyAll)
 
 	// Backup file should now exist.
 	_, err = os.Stat(backupPath)
@@ -131,16 +134,57 @@ func TestUpWithBackups(t *testing.T) {
 	// Backup store contains the first migrations records.
 	backupNames, err := backupStore.allMigrationNames()
 	require.NoError(t, err)
-	migrationNamesMatch(t, backupNames, test_migrations.First)
+	migrationNamesMatch(t, backupNames, upsOnlyFirst)
 
-	// Run the remaining migrations on the backup.
+	// Run the remaining migrations on the backup and verify that it now contains the rest of the migration records.
 	backupMigrator := NewMigrator(backupStore, logger)
-	require.NoError(t, backupMigrator.Up(ctx, test_migrations.All))
+	migrateUpAndCheck(t, backupMigrator, store, test_migrations.All, upsOnlyAll)
+}
 
-	// Backup store now contains the rest of the migration records.
-	backupNames, err = backupStore.allMigrationNames()
+func TestDown(t *testing.T) {
+	t.Parallel()
+
+	store, clean := NewTestStore(t)
+	defer clean(t)
+
+	listAll, err := test_migrations.All.ReadDir(".")
 	require.NoError(t, err)
-	migrationNamesMatch(t, backupNames, test_migrations.All)
+	upsOnlyAll := filteredMigrations(listAll, true)
+
+	listFirst, err := test_migrations.First.ReadDir(".")
+	require.NoError(t, err)
+	upsOnlyFirst := filteredMigrations(listFirst, true)
+
+	migrator := NewMigrator(store, zaptest.NewLogger(t))
+
+	t.Run("ups and downs without errors", func(t *testing.T) {
+		// no up migrations, then some down migrations
+		migrateDownAndCheck(t, migrator, store, test_migrations.First, []fs.DirEntry{}, 0)
+
+		// all up migrations, then all down migrations
+		migrateUpAndCheck(t, migrator, store, test_migrations.All, upsOnlyAll)
+		migrateDownAndCheck(t, migrator, store, test_migrations.All, []fs.DirEntry{}, 0)
+
+		// first of the up migrations, then first of the down migrations
+		migrateUpAndCheck(t, migrator, store, test_migrations.First, upsOnlyFirst)
+		migrateDownAndCheck(t, migrator, store, test_migrations.First, []fs.DirEntry{}, 0)
+
+		// first of the up migrations, then all of the down migrations
+		migrateUpAndCheck(t, migrator, store, test_migrations.First, upsOnlyFirst)
+		migrateDownAndCheck(t, migrator, store, test_migrations.All, []fs.DirEntry{}, 0)
+
+		// all up migrations, then some of the down migrations
+		migrateUpAndCheck(t, migrator, store, test_migrations.All, upsOnlyAll)
+		migrateDownAndCheck(t, migrator, store, test_migrations.All, upsOnlyFirst, 2)
+	})
+
+	t.Run("downs with errors - mismatched migration names", func(t *testing.T) {
+		migrateUpAndCheck(t, migrator, store, test_migrations.First, upsOnlyFirst)
+		require.NoError(t, store.execTrans(context.Background(), `INSERT INTO migrations (name) VALUES ("0010_some_bad_migration")`))
+		err := migrator.Down(context.Background(), 0, test_migrations.All)
+		require.Equal(t, err, errMigrationNameMismatch("0003_rename_test_table_id_1", "0010_some_bad_migration"))
+	})
+
 }
 
 func TestScriptVersion(t *testing.T) {
@@ -216,13 +260,30 @@ func TestDropExtension(t *testing.T) {
 	}
 }
 
-func migrationNamesMatch(t *testing.T, names []string, files embed.FS) {
+func migrateUpAndCheck(t *testing.T, m *Migrator, s *SqlStore, source embed.FS, expected []fs.DirEntry) {
 	t.Helper()
-	storedMigrations, err := files.ReadDir(".")
-	require.NoError(t, err)
-	require.Equal(t, len(storedMigrations), len(names))
 
-	for idx := range storedMigrations {
-		require.Equal(t, dropExtension(storedMigrations[idx].Name()), names[idx])
+	require.NoError(t, m.Up(context.Background(), source))
+	names, err := s.allMigrationNames()
+	require.NoError(t, err)
+	migrationNamesMatch(t, names, expected)
+}
+
+func migrateDownAndCheck(t *testing.T, m *Migrator, s *SqlStore, source embed.FS, expected []fs.DirEntry, untilMigration int) {
+	t.Helper()
+
+	require.NoError(t, m.Down(context.Background(), untilMigration, source))
+	names, err := s.allMigrationNames()
+	require.NoError(t, err)
+	migrationNamesMatch(t, names, expected)
+}
+
+func migrationNamesMatch(t *testing.T, names []string, files []fs.DirEntry) {
+	t.Helper()
+
+	require.Equal(t, len(names), len(files))
+
+	for idx := range files {
+		require.Equal(t, dropExtension(files[idx].Name()), names[idx])
 	}
 }
