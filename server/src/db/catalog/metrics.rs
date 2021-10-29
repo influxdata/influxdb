@@ -143,6 +143,13 @@ impl TableMetrics {
             table_metrics: Arc::clone(self),
         }
     }
+
+    /// Record a write to this table
+    pub fn record_write<F: FnOnce() -> TimestampSummary>(&self, timestamps: F) {
+        if let Some(timestamp_histogram) = self.timestamp_histogram.as_ref() {
+            timestamp_histogram.add(&timestamps())
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -157,7 +164,6 @@ impl PartitionMetrics {
 
     pub(super) fn new_chunk_metrics(&self) -> ChunkMetrics {
         ChunkMetrics {
-            timestamp_histogram: self.table_metrics.timestamp_histogram.clone(),
             chunk_storage: self.table_metrics.chunk_storage.recorder(),
             row_count: self.table_metrics.row_count.recorder(),
             memory_metrics: self.table_metrics.catalog_metrics.memory_metrics.recorder(),

@@ -9,9 +9,10 @@ use hashbrown::{HashMap, HashSet};
 use data_types::chunk_metadata::ChunkSummary;
 use data_types::chunk_metadata::DetailedChunkSummary;
 use data_types::partition_metadata::{PartitionAddr, PartitionSummary, TableSummary};
-use schema::Schema;
 use snafu::{OptionExt, Snafu};
-use tracker::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
+use tracker::{
+    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
+};
 
 use self::chunk::CatalogChunk;
 use self::metrics::CatalogMetrics;
@@ -138,6 +139,30 @@ impl Catalog {
             .map_err(|_| TableNotFound { table: table_name }.build())
     }
 
+    /// Gets or creates a specific table by name
+    pub fn get_or_create_table(
+        &self,
+        table_name: impl AsRef<str>,
+    ) -> MappedRwLockWriteGuard<'_, Table> {
+        RwLockWriteGuard::map(self.tables.write(), |tables| {
+            tables
+                .raw_entry_mut()
+                .from_key(table_name.as_ref())
+                .or_insert_with(|| {
+                    let table_name = Arc::from(table_name.as_ref());
+                    let table = Table::new(
+                        Arc::clone(&self.db_name),
+                        Arc::clone(&table_name),
+                        self.metrics.new_table_metrics(table_name.as_ref()),
+                        Arc::clone(&self.time_provider),
+                    );
+
+                    (table_name, table)
+                })
+                .1
+        })
+    }
+
     /// Get a specific partition by name, returning an error if it can't be found
     pub fn partition(
         &self,
@@ -189,31 +214,14 @@ impl Catalog {
         set
     }
 
-    /// Gets or creates a new partition in the catalog and returns
-    /// a reference to it alongside the current table schema.
+    /// Gets or creates a new partition in the catalog
     pub fn get_or_create_partition(
         &self,
         table_name: impl AsRef<str>,
         partition_key: impl AsRef<str>,
-    ) -> (Arc<RwLock<Partition>>, Arc<RwLock<Arc<Schema>>>) {
-        let mut tables = self.tables.write();
-        let (_, table) = tables
-            .raw_entry_mut()
-            .from_key(table_name.as_ref())
-            .or_insert_with(|| {
-                let table_name = Arc::from(table_name.as_ref());
-                let table = Table::new(
-                    Arc::clone(&self.db_name),
-                    Arc::clone(&table_name),
-                    self.metrics.new_table_metrics(table_name.as_ref()),
-                    Arc::clone(&self.time_provider),
-                );
-
-                (table_name, table)
-            });
-
-        let partition = table.get_or_create_partition(partition_key);
-        (Arc::clone(partition), table.schema())
+    ) -> Arc<RwLock<Partition>> {
+        let mut table = self.get_or_create_table(table_name);
+        Arc::clone(table.get_or_create_partition(partition_key))
     }
 
     /// Returns a list of summaries for each partition.
@@ -327,24 +335,14 @@ impl Catalog {
 #[cfg(test)]
 mod tests {
     use data_types::chunk_metadata::ChunkAddr;
-    use entry::test_helpers::lp_to_entry;
+    use mutable_buffer::test_helpers::write_lp_to_new_chunk;
 
     use super::*;
 
     fn create_open_chunk(partition: &Arc<RwLock<Partition>>) -> ChunkAddr {
         let mut partition = partition.write();
         let table = partition.table_name();
-        let entry = lp_to_entry(&format!("{} bar=1 10", table));
-        let write = entry.partition_writes().unwrap().remove(0);
-        let batch = write.table_batches().remove(0);
-
-        let mb_chunk = mutable_buffer::MBChunk::new(
-            mutable_buffer::ChunkMetrics::new_unregistered(),
-            batch,
-            None,
-        )
-        .unwrap();
-
+        let mb_chunk = write_lp_to_new_chunk(&format!("{} bar=1 10", table));
         let chunk = partition.create_open_chunk(mb_chunk);
         let chunk = chunk.read();
         chunk.addr().clone()
@@ -389,8 +387,8 @@ mod tests {
     #[test]
     fn chunk_create() {
         let catalog = Catalog::test();
-        let (p1, _schema) = catalog.get_or_create_partition("t1", "p1");
-        let (p2, _schema) = catalog.get_or_create_partition("t2", "p2");
+        let p1 = catalog.get_or_create_partition("t1", "p1");
+        let p2 = catalog.get_or_create_partition("t2", "p2");
 
         let addr1 = create_open_chunk(&p1);
         let addr2 = create_open_chunk(&p1);
@@ -421,13 +419,13 @@ mod tests {
     fn chunk_list() {
         let catalog = Catalog::test();
 
-        let (p1, _schema) = catalog.get_or_create_partition("table1", "p1");
-        let (p2, _schema) = catalog.get_or_create_partition("table2", "p1");
+        let p1 = catalog.get_or_create_partition("table1", "p1");
+        let p2 = catalog.get_or_create_partition("table2", "p1");
         let addr1 = create_open_chunk(&p1);
         let addr2 = create_open_chunk(&p1);
         let addr3 = create_open_chunk(&p2);
 
-        let (p3, _schema) = catalog.get_or_create_partition("table1", "p2");
+        let p3 = catalog.get_or_create_partition("table1", "p2");
         let addr4 = create_open_chunk(&p3);
 
         assert_eq!(
@@ -461,13 +459,13 @@ mod tests {
     fn chunk_drop() {
         let catalog = Catalog::test();
 
-        let (p1, _schema) = catalog.get_or_create_partition("p1", "table1");
-        let (p2, _schema) = catalog.get_or_create_partition("p1", "table2");
+        let p1 = catalog.get_or_create_partition("p1", "table1");
+        let p2 = catalog.get_or_create_partition("p1", "table2");
         let addr1 = create_open_chunk(&p1);
         let addr2 = create_open_chunk(&p1);
         let addr3 = create_open_chunk(&p2);
 
-        let (p3, _schema) = catalog.get_or_create_partition("p2", "table1");
+        let p3 = catalog.get_or_create_partition("p2", "table1");
         let _addr4 = create_open_chunk(&p3);
 
         assert_eq!(chunk_addrs(&catalog).len(), 4);
@@ -497,7 +495,7 @@ mod tests {
     #[test]
     fn chunk_drop_non_existent_chunk() {
         let catalog = Catalog::test();
-        let (p3, _schema) = catalog.get_or_create_partition("table1", "p3");
+        let p3 = catalog.get_or_create_partition("table1", "p3");
         create_open_chunk(&p3);
 
         let mut p3 = p3.write();
@@ -510,7 +508,7 @@ mod tests {
     fn chunk_recreate_dropped() {
         let catalog = Catalog::test();
 
-        let (p1, _schema) = catalog.get_or_create_partition("table1", "p1");
+        let p1 = catalog.get_or_create_partition("table1", "p1");
         let addr1 = create_open_chunk(&p1);
         let addr2 = create_open_chunk(&p1);
         assert_eq!(
@@ -534,9 +532,9 @@ mod tests {
         use TableNameFilter::*;
         let catalog = Catalog::test();
 
-        let (p1, _schema) = catalog.get_or_create_partition("table1", "p1");
-        let (p2, _schema) = catalog.get_or_create_partition("table2", "p1");
-        let (p3, _schema) = catalog.get_or_create_partition("table2", "p2");
+        let p1 = catalog.get_or_create_partition("table1", "p1");
+        let p2 = catalog.get_or_create_partition("table2", "p1");
+        let p3 = catalog.get_or_create_partition("table2", "p2");
         create_open_chunk(&p1);
         create_open_chunk(&p2);
         create_open_chunk(&p3);

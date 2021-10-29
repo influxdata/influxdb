@@ -123,10 +123,10 @@ pub enum WriteError {
     HardLimitReached {},
 
     #[snafu(display(
-        "Storing sequenced entry failed with the following error(s), and possibly more: {}",
+        "Storing database write failed with the following error(s), and possibly more: {}",
         errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
     ))]
-    StoreSequencedEntryFailures { errors: Vec<super::db::Error> },
+    StoreWriteErrors { errors: Vec<super::db::Error> },
 }
 
 type BackgroundWorkerFuture = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
@@ -630,9 +630,7 @@ impl Database {
                 // TODO: Pull write buffer producer out of Db
                 Error::WriteBufferWritingError { source } => WriteError::WriteBuffer { source },
                 Error::HardLimitReached {} => WriteError::HardLimitReached {},
-                Error::StoreSequencedEntryFailures { errors } => {
-                    WriteError::StoreSequencedEntryFailures { errors }
-                }
+                Error::StoreWriteErrors { errors } => WriteError::StoreWriteErrors { errors },
                 e => e.into(),
             }
         })?;

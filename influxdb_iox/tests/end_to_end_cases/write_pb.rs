@@ -36,7 +36,7 @@ pub async fn test_write_pb() {
                 },
                 pb::Column {
                     column_name: "mycol1".to_string(),
-                    semantic_type: pb::column::SemanticType::Iox as i32,
+                    semantic_type: pb::column::SemanticType::Field as i32,
                     values: Some(pb::column::Values {
                         i64_values: vec![5],
                         f64_values: vec![],

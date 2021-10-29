@@ -12,4 +12,5 @@ pub mod config;
 pub mod core;
 pub mod file;
 pub mod kafka;
+pub mod meta;
 pub mod mock;

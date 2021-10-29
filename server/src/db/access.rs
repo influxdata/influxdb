@@ -285,7 +285,8 @@ impl SchemaProvider for DbSchemaProvider {
     fn table(&self, table_name: &str) -> Option<Arc<dyn TableProvider>> {
         let schema = {
             let table = self.catalog.table(table_name).ok()?;
-            Arc::clone(&table.schema().read())
+            let schema = Arc::clone(&table.schema().read());
+            schema
         };
 
         let mut builder = ProviderBuilder::new(table_name, schema);

@@ -1,7 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use entry::test_helpers::{hour_partitioner, lp_to_entries};
 use flate2::read::GzDecoder;
-use mutable_buffer::{ChunkMetrics, MBChunk};
+use mutable_buffer::MBChunk;
 use std::io::Read;
 
 #[inline]
@@ -10,34 +9,18 @@ fn snapshot_chunk(chunk: &MBChunk) {
 }
 
 fn chunk(count: usize) -> MBChunk {
-    let mut chunk: Option<MBChunk> = None;
-
     let raw = include_bytes!("../../test_fixtures/lineproto/tag_values.lp.gz");
     let mut gz = GzDecoder::new(&raw[..]);
     let mut lp = String::new();
     gz.read_to_string(&mut lp).unwrap();
 
-    for _ in 0..count {
-        for entry in lp_to_entries(&lp, &hour_partitioner()) {
-            for write in entry.partition_writes().iter().flatten() {
-                for batch in write.table_batches() {
-                    match chunk {
-                        Some(ref mut c) => {
-                            c.write_table_batch(batch, None).unwrap();
-                        }
-                        None => {
-                            chunk = Some(
-                                MBChunk::new(ChunkMetrics::new_unregistered(), batch, None)
-                                    .unwrap(),
-                            );
-                        }
-                    }
-                }
-            }
-        }
+    let mut chunk = mutable_buffer::test_helpers::write_lp_to_new_chunk(&lp);
+
+    for _ in 1..count {
+        mutable_buffer::test_helpers::write_lp_to_chunk(&lp, &mut chunk);
     }
 
-    chunk.expect("Must write at least one table batch to create a chunk")
+    chunk
 }
 
 pub fn snapshot_mb(c: &mut Criterion) {

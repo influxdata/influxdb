@@ -5,9 +5,9 @@ use std::{
 };
 
 use data_types::sequence::Sequence;
-use entry::TableBatch;
 use futures::TryStreamExt;
-use observability_deps::tracing::info;
+use mutable_batch::PartitionWrite;
+use observability_deps::tracing::{info, warn};
 use persistence_windows::{
     checkpoint::{PartitionCheckpoint, ReplayPlan},
     min_max_sequence::OptionalMinMaxSequence,
@@ -17,6 +17,7 @@ use snafu::{ResultExt, Snafu};
 use time::Time;
 use write_buffer::core::WriteBufferReading;
 
+use crate::db::write::{DbWrite, WriteFilter};
 use crate::Db;
 
 #[allow(clippy::enum_variant_names)]
@@ -228,16 +229,28 @@ pub async fn perform_replay(
                     });
                 }
 
-                let entry = Arc::new(entry);
+                let db_write = match DbWrite::from_entry(&entry) {
+                    Ok(db_write) => db_write,
+                    Err(e) => {
+                        warn!(
+                            %e,
+                            %db_name,
+                            sequencer_id,
+                            "Error converting batch to db write during replay",
+                        );
+                        continue;
+                    }
+                };
+
+                let filter = ReplayFilter {
+                    sequence,
+                    replay_plan,
+                };
+
                 let mut logged_hard_limit = false;
                 let n_tries = 600; // 600*100ms = 60s
                 for n_try in 1..=n_tries {
-                    match db.store_sequenced_entry(
-                        Arc::clone(&entry),
-                        |sequence, partition_key, table_batch| {
-                            filter_entry(sequence, partition_key, table_batch, replay_plan)
-                        },
-                    ) {
+                    match db.store_filtered_write(&db_write, filter) {
                         Ok(_) => {
                             break;
                         }
@@ -256,10 +269,15 @@ pub async fn perform_replay(
                             continue;
                         }
                         Err(e) => {
-                            return Err(Error::StoreError {
+                            warn!(
+                                %e,
+                                %db_name,
                                 sequencer_id,
-                                source: Box::new(e),
-                            });
+                                n_try,
+                                n_tries,
+                                "Error writing batch during replay",
+                            );
+                            break;
                         }
                     }
                 }
@@ -301,56 +319,56 @@ pub async fn perform_replay(
     Ok(())
 }
 
-fn filter_entry(
-    sequence: Option<&Sequence>,
-    partition_key: &str,
-    table_batch: &TableBatch<'_>,
-    replay_plan: &ReplayPlan,
-) -> (bool, Option<Vec<bool>>) {
-    let sequence = sequence.expect("write buffer results must be sequenced");
-    let table_name = table_batch.name();
+#[derive(Debug, Copy, Clone)]
+struct ReplayFilter<'a> {
+    sequence: Sequence,
+    replay_plan: &'a ReplayPlan,
+}
 
-    // Check if we have a partition checkpoint that contains data for this specific sequencer
-    let max_persisted_ts_and_sequence_range = replay_plan
-        .last_partition_checkpoint(table_name, partition_key)
-        .map(|partition_checkpoint| {
-            partition_checkpoint
-                .sequencer_numbers(sequence.id)
-                .map(|min_max| (partition_checkpoint.flush_timestamp(), min_max))
-        })
-        .flatten();
+impl<'a> WriteFilter for ReplayFilter<'a> {
+    fn filter_write<'b>(
+        &self,
+        table_name: &str,
+        partition_key: &str,
+        write: PartitionWrite<'b>,
+    ) -> Option<PartitionWrite<'b>> {
+        // Check if we have a partition checkpoint that contains data for this specific sequencer
+        let max_persisted_ts_and_sequence_range = self
+            .replay_plan
+            .last_partition_checkpoint(table_name, partition_key)
+            .map(|partition_checkpoint| {
+                partition_checkpoint
+                    .sequencer_numbers(self.sequence.id)
+                    .map(|min_max| (partition_checkpoint.flush_timestamp(), min_max))
+            })
+            .flatten();
 
-    match max_persisted_ts_and_sequence_range {
-        Some((max_persisted_ts, min_max)) => {
-            // Figure out what the sequence number tells us about the entire batch
-            match SequenceNumberSection::compare(sequence.number, min_max) {
-                SequenceNumberSection::Persisted => {
-                    // skip the entire batch
-                    (false, None)
-                }
-                SequenceNumberSection::PartiallyPersisted => {
-                    let maybe_mask = table_batch.timestamps().ok().map(|timestamps| {
+        match max_persisted_ts_and_sequence_range {
+            Some((max_persisted_ts, min_max)) => {
+                // Figure out what the sequence number tells us about the entire batch
+                match SequenceNumberSection::compare(self.sequence.number, min_max) {
+                    SequenceNumberSection::Persisted => {
+                        // skip the entire batch
+                        None
+                    }
+                    SequenceNumberSection::PartiallyPersisted => {
                         let max_persisted_ts = max_persisted_ts.timestamp_nanos();
-                        timestamps
-                            .into_iter()
-                            .map(|ts_row| ts_row > max_persisted_ts)
-                            .collect::<Vec<bool>>()
-                    });
-                    (true, maybe_mask)
-                }
-                SequenceNumberSection::Unpersisted => {
-                    // replay entire batch
-                    (true, None)
+                        write.filter(|ts_row| ts_row > max_persisted_ts)
+                    }
+                    SequenceNumberSection::Unpersisted => {
+                        // replay entire batch
+                        Some(write)
+                    }
                 }
             }
-        }
-        None => {
-            // One of the following two cases:
-            // - We have never written a checkpoint for this partition, which means nothing is persisted yet.
-            // - Unknown sequencer (at least from the partitions point of view).
-            //
-            // => Replay full batch.
-            (true, None)
+            None => {
+                // One of the following two cases:
+                // - We have never written a checkpoint for this partition, which means nothing is persisted yet.
+                // - Unknown sequencer (at least from the partitions point of view).
+                //
+                // => Replay full batch.
+                Some(write)
+            }
         }
     }
 }

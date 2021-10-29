@@ -224,20 +224,25 @@ impl CatalogState for Loader {
         .context(ChunkCreationFailed { path: &info.path })?;
         let parquet_chunk = Arc::new(parquet_chunk);
 
-        // Get partition from the catalog
-        // Note that the partition might not exist yet if the chunk is loaded from an existing preserved catalog.
-        let (partition, table_schema) = self
-            .catalog
-            .get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
+        let (partition, table_schema) = {
+            let mut table = self.catalog.get_or_create_table(&iox_md.table_name);
+
+            // Get partition from the catalog
+            // Note that the partition might not exist yet if the chunk is loaded from an existing preserved catalog.
+            let partition = table.get_or_create_partition(&iox_md.partition_key);
+            (Arc::clone(partition), Arc::clone(table.schema()))
+        };
+
+        let schema_handle = TableSchemaUpsertHandle::new(&table_schema, &parquet_chunk.schema())
+            .map_err(|e| Box::new(e) as _)
+            .context(SchemaError { path: &info.path })?;
+
         let mut partition = partition.write();
         if partition.chunk(iox_md.chunk_id).is_some() {
             return Err(CatalogStateAddError::ParquetFileAlreadyExists { path: info.path });
         }
-        let schema_handle = TableSchemaUpsertHandle::new(&table_schema, &parquet_chunk.schema())
-            .map_err(|e| Box::new(e) as _)
-            .context(SchemaError { path: info.path })?;
 
-        // Delete predicates are loaded explicitely via `CatalogState::delete_predicates` AFTER the chunk is added, so
+        // Delete predicates are loaded explicitly via `CatalogState::delete_predicates` AFTER the chunk is added, so
         // we leave this list empty (for now).
         let delete_predicates: Vec<Arc<DeletePredicate>> = vec![];
 
@@ -249,6 +254,7 @@ impl CatalogState for Loader {
             delete_predicates,
             iox_md.chunk_order,
         );
+
         schema_handle.commit();
 
         Ok(())
