@@ -73,7 +73,7 @@ If `clang` is not already present, it can typically be installed with the system
 
 [`croaring`]: https://github.com/saulius/croaring-rs
 
-#### lld (on Linux)
+#### lld
 
 If you are building InfluxDB IOx on Linux then you will need to ensure you have installed the `lld` LLVM linker.
 Check if you have already installed it by running `lld -version`.
