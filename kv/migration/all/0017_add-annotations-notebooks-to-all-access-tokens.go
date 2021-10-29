@@ -5,9 +5,9 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
-var Migration0017_AddAnnotationsNotebooksToAllAccessTokens = UpOnlyMigration(
-	"add annotations and notebooks resource types to all-access tokens",
-	migrateTokensMigration(
+var Migration0017_AddAnnotationsNotebooksToAllAccessTokens = &Migration{
+	name: "add annotations and notebooks resource types to all-access tokens",
+	up: migrateTokensMigration(
 		func(t influxdb.Authorization) bool {
 			return permListsMatch(preNotebooksAnnotationsAllAccessPerms(t.OrgID, t.UserID), t.Permissions)
 		},
@@ -15,7 +15,24 @@ var Migration0017_AddAnnotationsNotebooksToAllAccessTokens = UpOnlyMigration(
 			t.Permissions = append(t.Permissions, notebooksAndAnnotationsPerms(t.OrgID)...)
 		},
 	),
-)
+	down: migrateTokensMigration(
+		func(t influxdb.Authorization) bool {
+			return permListsMatch(append(preNotebooksAnnotationsAllAccessPerms(t.OrgID, t.UserID), notebooksAndAnnotationsPerms(t.OrgID)...), t.Permissions)
+		},
+		func(t *influxdb.Authorization) {
+			newPerms := t.Permissions[:0]
+			for _, p := range t.Permissions {
+				switch p.Resource.Type {
+				case influxdb.AnnotationsResourceType:
+				case influxdb.NotebooksResourceType:
+				default:
+					newPerms = append(newPerms, p)
+				}
+			}
+			t.Permissions = newPerms
+		},
+	),
+}
 
 // preNotebooksAnnotationsAllAccessPerms is the list of permissions from a 2.0.x all-access token,
 // prior to the addition of the notebooks and annotations resource types.
