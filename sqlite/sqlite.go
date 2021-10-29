@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -20,8 +19,9 @@ import (
 )
 
 const (
-	DefaultFilename = "influxd.sqlite"
-	InmemPath       = ":memory:"
+	DefaultFilename     = "influxd.sqlite"
+	InmemPath           = ":memory:"
+	migrationsTableName = "migrations"
 )
 
 // SqlStore is a wrapper around the db and provides basic functionality for maintaining the db
@@ -77,18 +77,19 @@ func (s *SqlStore) Close() error {
 	return nil
 }
 
-// LockSqlStore locks the database using the mutex. This is intended to lock the database for writes.
+// RLockSqlStore locks the database using the mutex. This is intended to lock the database for writes.
 // It is the responsibilty of implementing service code to manage locks for write operations.
 func (s *SqlStore) RLockSqlStore() {
 	s.Mu.RLock()
 }
 
-// UnlockSqlStore unlocks the database.
+// RUnlockSqlStore unlocks the database.
 func (s *SqlStore) RUnlockSqlStore() {
 	s.Mu.RUnlock()
 }
 
-// Flush deletes all records for all tables in the database.
+// Flush deletes all records for all tables in the database except for the migration table. This method should only be
+// used during end-to-end testing.
 func (s *SqlStore) Flush(ctx context.Context) {
 	tables, err := s.tableNames()
 	if err != nil {
@@ -96,6 +97,10 @@ func (s *SqlStore) Flush(ctx context.Context) {
 	}
 
 	for _, t := range tables {
+		if t == migrationsTableName {
+			continue
+		}
+
 		stmt := fmt.Sprintf("DELETE FROM %s", t)
 		err := s.execTrans(ctx, stmt)
 		if err != nil {
@@ -316,19 +321,28 @@ func (s *SqlStore) execTrans(ctx context.Context, stmt string) error {
 	return nil
 }
 
-func (s *SqlStore) userVersion() (int, error) {
-	stmt := `PRAGMA user_version`
-	res, err := s.queryToStrings(stmt)
+func (s *SqlStore) allMigrationNames() ([]string, error) {
+	checkStmt := fmt.Sprintf(`SELECT name FROM sqlite_master WHERE type='table' AND name='%s'`, migrationsTableName)
+	tbls, err := s.queryToStrings(checkStmt)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	val, err := strconv.Atoi(res[0])
-	if err != nil {
-		return 0, err
+	if len(tbls) == 0 {
+		return nil, nil
 	}
 
-	return val, nil
+	migrStmt := fmt.Sprintf(`SELECT name FROM %s ORDER BY name`, migrationsTableName)
+	migr, err := s.queryToStrings(migrStmt)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(migr) == 0 {
+		return nil, nil
+	}
+
+	return migr, nil
 }
 
 func (s *SqlStore) tableNames() ([]string, error) {

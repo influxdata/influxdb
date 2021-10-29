@@ -41,9 +41,9 @@ the same time.
 
 A simple migration system is implemented in `migrator.go`. When starting the
 influx daemon, the migrator runs migrations defined in `.sql` files using
-sqlite-compatible sql scripts. These migration scripts include a statement to
-set the `user_version` pragma in the database, and only scripts with a higher
-`user_version` than the currently stored pragma are executed.
+sqlite-compatible sql scripts. Records of these migrations are maintained in a
+table called "migrations". If records of migrations exist in the "migrations"
+table that are not embedded in the binary, an error will be raised on startup.
 
 When creating new migrations, follow the file naming convention established by
 existing migration scripts, which should look like `00XX_script_name.sql`, where
