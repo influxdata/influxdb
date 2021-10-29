@@ -88,8 +88,7 @@ impl ParquetFilePath {
         // The number of `next`s here needs to match the total number of directories in
         // iox_object_store data_paths
         absolute_dirs.next(); // server id
-        absolute_dirs.next(); // database name
-        absolute_dirs.next(); // generation
+        absolute_dirs.next(); // database uuid
         absolute_dirs.next(); // "data"
 
         let remaining = DirsAndFileName {
@@ -138,8 +137,8 @@ pub enum ParquetFilePathParseError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Generation, IoxObjectStore, RootPath};
-    use data_types::{server_id::ServerId, DatabaseName};
+    use crate::{IoxObjectStore, RootPath};
+    use data_types::server_id::ServerId;
     use object_store::{ObjectStore, ObjectStoreApi};
     use std::num::NonZeroU32;
 
@@ -237,7 +236,7 @@ mod tests {
 
         // Success case
         let mut path = object_store.new_path();
-        path.push_all_dirs(&["server", "database", "generation", "data", "}*", "aoeu"]);
+        path.push_all_dirs(&["server", "uuid", "data", "}*", "aoeu"]);
         path.set_file_name("00000000-0000-0000-0000-00000000000a.parquet");
         let result = ParquetFilePath::from_absolute(path);
         assert_eq!(
@@ -255,7 +254,7 @@ mod tests {
         let mut path = object_store.new_path();
         // incorrect directories are fine, we're assuming that list(data_path) scoped to the
         // right directories so we don't check again on the way out
-        path.push_all_dirs(&["server", "database", "generation", "data", "}*", "aoeu"]);
+        path.push_all_dirs(&["server", "uuid", "data", "}*", "aoeu"]);
         // but this file name doesn't contain a chunk id
         path.set_file_name("rules.pb");
         let result = ParquetFilePath::from_absolute(path);
@@ -266,7 +265,7 @@ mod tests {
         );
 
         let mut path = object_store.new_path();
-        path.push_all_dirs(&["server", "database", "generation", "data", "}*", "aoeu"]);
+        path.push_all_dirs(&["server", "uuid", "data", "}*", "aoeu"]);
         // missing file name
         let result = ParquetFilePath::from_absolute(path);
         assert!(matches!(result, Err(MissingChunkId)), "got: {:?}", result);
@@ -292,17 +291,11 @@ mod tests {
     #[test]
     fn data_path_join_with_parquet_file_path() {
         let server_id = make_server_id();
-        let database_name = DatabaseName::new("clouds").unwrap();
-        let generation = Generation::active(3);
+        let db_uuid = Uuid::new_v4();
         let object_store = make_object_store();
-        let root_path = RootPath::new(&object_store, server_id, &database_name);
-        let iox_object_store = IoxObjectStore::existing(
-            Arc::clone(&object_store),
-            server_id,
-            &database_name,
-            generation,
-            root_path,
-        );
+        let root_path = RootPath::new(&object_store, server_id, db_uuid);
+        let iox_object_store =
+            IoxObjectStore::existing(Arc::clone(&object_store), server_id, root_path);
 
         let pfp = ParquetFilePath {
             table_name: "}*".into(),
@@ -315,8 +308,7 @@ mod tests {
         let mut expected_path = object_store.new_path();
         expected_path.push_all_dirs(&[
             &server_id.to_string(),
-            database_name.as_str(),
-            &generation.id.to_string(),
+            &db_uuid.to_string(),
             "data",
             "}*",
             "aoeu",

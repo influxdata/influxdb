@@ -1,16 +1,16 @@
-use std::convert::TryFrom;
-use std::fmt::Debug;
-use std::sync::Arc;
-
-use data_types::chunk_metadata::ChunkId;
-use data_types::{server_id::ServerId, DatabaseName};
-use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
-use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
+use data_types::{chunk_metadata::ChunkId, server_id::ServerId, DatabaseName};
+use generated_types::{
+    google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound},
+    influxdata::iox::management::v1::{Error as ProtobufError, *},
+};
 use predicate::delete_predicate::DeletePredicate;
 use query::QueryDatabase;
-use server::rules::ProvidedDatabaseRules;
-use server::{connection::ConnectionManager, ApplicationState, Error, Server};
+use server::{
+    connection::ConnectionManager, rules::ProvidedDatabaseRules, ApplicationState, Error, Server,
+};
+use std::{convert::TryFrom, fmt::Debug, str::FromStr, sync::Arc};
 use tonic::{Request, Response, Status};
+use uuid::Uuid;
 
 struct ManagementService<M: ConnectionManager> {
     application: Arc<ApplicationState>,
@@ -128,18 +128,28 @@ where
                 description: e.to_string(),
             })?;
 
-        match self.server.create_database(provided_rules).await {
-            Ok(_) => Ok(Response::new(CreateDatabaseResponse {})),
-            Err(Error::DatabaseAlreadyExists { db_name }) => {
-                return Err(AlreadyExists {
+        let database = self
+            .server
+            .create_database(provided_rules)
+            .await
+            .map_err(|e| match e {
+                Error::DatabaseAlreadyExists { db_name } => AlreadyExists {
                     resource_type: "database".to_string(),
                     resource_name: db_name,
                     ..Default::default()
                 }
-                .into())
-            }
-            Err(e) => Err(default_server_error_handler(e)),
-        }
+                .into(),
+                _ => default_server_error_handler(e),
+            })?;
+
+        let uuid = database
+            .provided_rules()
+            .expect("Database should be initialized or an error should have been returned")
+            .uuid();
+
+        Ok(Response::new(CreateDatabaseResponse {
+            uuid: uuid.as_bytes().to_vec(),
+        }))
     }
 
     async fn update_database(
@@ -174,12 +184,15 @@ where
     ) -> Result<Response<DeleteDatabaseResponse>, Status> {
         let db_name = DatabaseName::new(request.into_inner().db_name).field("db_name")?;
 
-        self.server
+        let uuid = self
+            .server
             .delete_database(&db_name)
             .await
             .map_err(default_server_error_handler)?;
 
-        Ok(Response::new(DeleteDatabaseResponse {}))
+        Ok(Response::new(DeleteDatabaseResponse {
+            uuid: uuid.as_bytes().to_vec(),
+        }))
     }
 
     async fn restore_database(
@@ -188,10 +201,10 @@ where
     ) -> Result<Response<RestoreDatabaseResponse>, Status> {
         let request = request.into_inner();
         let db_name = DatabaseName::new(request.db_name).field("db_name")?;
-        let generation_id = request.generation_id;
+        let uuid = Uuid::from_str(&request.uuid).field("uuid")?;
 
         self.server
-            .restore_database(&db_name, generation_id)
+            .restore_database(&db_name, uuid)
             .await
             .map_err(default_server_error_handler)?;
 

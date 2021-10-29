@@ -25,7 +25,7 @@ async fn create_database(db_name: &str, addr: &str) {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Ok"));
+        .stdout(predicate::str::contains("Created"));
 }
 
 async fn test_write(db_name: &str, addr: &str) {

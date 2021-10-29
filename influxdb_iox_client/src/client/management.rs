@@ -1,13 +1,12 @@
-use bytes::Bytes;
-use thiserror::Error;
-
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
-
-use crate::connection::Connection;
-
-use crate::google::{longrunning::IoxOperation, FieldViolation};
-use std::convert::TryInto;
-use std::num::NonZeroU32;
+use crate::{
+    connection::Connection,
+    google::{longrunning::IoxOperation, FieldViolation},
+};
+use bytes::Bytes;
+use std::{convert::TryInto, num::NonZeroU32};
+use thiserror::Error;
+use uuid::Uuid;
 
 /// Re-export generated_types
 pub mod generated_types {
@@ -532,8 +531,9 @@ impl Client {
     pub async fn create_database(
         &mut self,
         rules: DatabaseRules,
-    ) -> Result<(), CreateDatabaseError> {
-        self.inner
+    ) -> Result<Uuid, CreateDatabaseError> {
+        let response = self
+            .inner
             .create_database(CreateDatabaseRequest { rules: Some(rules) })
             .await
             .map_err(|status| match status.code() {
@@ -544,7 +544,17 @@ impl Client {
                 _ => CreateDatabaseError::ServerError(status),
             })?;
 
-        Ok(())
+        let server_uuid = response.into_inner().uuid;
+        let uuid = Uuid::from_slice(&server_uuid)
+            .map_err(|e| {
+                format!(
+                    "Could not create UUID from server value {:?}: {}",
+                    server_uuid, e
+                )
+            })
+            .unwrap();
+
+        Ok(uuid)
     }
 
     /// Updates the configuration for a database.
@@ -656,8 +666,9 @@ impl Client {
     pub async fn delete_database(
         &mut self,
         db_name: impl Into<String> + Send,
-    ) -> Result<(), DeleteDatabaseError> {
-        self.inner
+    ) -> Result<Uuid, DeleteDatabaseError> {
+        let response = self
+            .inner
             .delete_database(DeleteDatabaseRequest {
                 db_name: db_name.into(),
             })
@@ -669,19 +680,29 @@ impl Client {
                 _ => DeleteDatabaseError::ServerError(status),
             })?;
 
-        Ok(())
+        let server_uuid = response.into_inner().uuid;
+        let uuid = Uuid::from_slice(&server_uuid)
+            .map_err(|e| {
+                format!(
+                    "Could not create UUID from server value {:?}: {}",
+                    server_uuid, e
+                )
+            })
+            .unwrap();
+
+        Ok(uuid)
     }
 
     /// Restore database
     pub async fn restore_database(
         &mut self,
         db_name: impl Into<String> + Send,
-        generation_id: usize,
+        uuid: impl Into<String> + Send,
     ) -> Result<(), RestoreDatabaseError> {
         self.inner
             .restore_database(RestoreDatabaseRequest {
                 db_name: db_name.into(),
-                generation_id: generation_id as u64,
+                uuid: uuid.into(),
             })
             .await
             .map_err(|status| match status.code() {

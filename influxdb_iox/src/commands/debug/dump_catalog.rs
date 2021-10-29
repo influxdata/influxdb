@@ -1,11 +1,9 @@
-use data_types::DatabaseName;
+use crate::structopt_blocks::{object_store::ObjectStoreConfig, server_id::ServerIdConfig};
 use iox_object_store::IoxObjectStore;
 use object_store::ObjectStore;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{convert::TryFrom, sync::Arc};
 use structopt::StructOpt;
-
-use crate::structopt_blocks::{object_store::ObjectStoreConfig, server_id::ServerIdConfig};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -17,18 +15,21 @@ pub enum Error {
     #[snafu(display("No server ID provided"))]
     NoServerId,
 
-    #[snafu(display("Invalid database name: {}", source))]
-    InvalidDbName {
-        source: data_types::DatabaseNameError,
+    #[snafu(display("Can't read server config from object storage: {}", source))]
+    CantReadServerConfig { source: object_store::Error },
+
+    #[snafu(display("Error deserializing server config from protobuf: {}", source))]
+    CantDeserializeServerConfig {
+        source: generated_types::DecodeError,
     },
+
+    #[snafu(display("Can't find a database with this name on this server"))]
+    CantFindDatabase,
 
     #[snafu(display("Cannot open IOx object store: {}", source))]
     IoxObjectStoreFailure {
         source: iox_object_store::IoxObjectStoreError,
     },
-
-    #[snafu(display("Cannot find existing IOx object store"))]
-    NoIoxObjectStore,
 
     #[snafu(display("Cannot dump catalog: {}", source))]
     DumpCatalogFailure {
@@ -59,10 +60,11 @@ pub struct Config {
 
 #[derive(Debug, StructOpt)]
 pub struct DumpOptions {
-    /// Show debug output of `DecodedIoxParquetMetaData` if decoding succeeds, show the decoding error otherwise.
+    /// Show debug output of `DecodedIoxParquetMetaData` if decoding succeeds, show the decoding
+    /// error otherwise.
     ///
-    /// Since this contains the entire Apache Parquet metadata object this is quite verbose and is usually not
-    /// recommended.
+    /// Since this contains the entire Apache Parquet metadata object this is quite verbose and is
+    /// usually not recommended.
     #[structopt(long = "--show-parquet-metadata")]
     show_parquet_metadata: bool,
 
@@ -81,11 +83,12 @@ pub struct DumpOptions {
     #[structopt(long = "--show-statistics")]
     show_statistics: bool,
 
-    /// Show unparsed `IoxParquetMetaData` -- which are Apache Thrift bytes -- as part of the transaction actions.
+    /// Show unparsed `IoxParquetMetaData` -- which are Apache Thrift bytes -- as part of the
+    /// transaction actions.
     ///
-    /// Since this binary data is usually quite hard to read, it is recommended to set this to `false` which will
-    /// replace the actual bytes with `b"metadata omitted"`. Use the other toggles to instead show the content of the
-    /// Apache Thrift message.
+    /// Since this binary data is usually quite hard to read, it is recommended to set this to
+    /// `false` which will replace the actual bytes with `b"metadata omitted"`. Use the other
+    /// toggles to instead show the content of the Apache Thrift message.
     #[structopt(long = "--show-unparsed-metadata")]
     show_unparsed_metadata: bool,
 }
@@ -104,14 +107,25 @@ impl From<DumpOptions> for parquet_catalog::dump::DumpOptions {
 
 pub async fn command(config: Config) -> Result<()> {
     let object_store =
-        ObjectStore::try_from(&config.object_store_config).context(ObjectStoreParsing)?;
-    let database_name = DatabaseName::try_from(config.db_name).context(InvalidDbName)?;
+        Arc::new(ObjectStore::try_from(&config.object_store_config).context(ObjectStoreParsing)?);
     let server_id = config.server_id_config.server_id.context(NoServerId)?;
+    let server_config_bytes = IoxObjectStore::get_server_config_file(&object_store, server_id)
+        .await
+        .context(CantReadServerConfig)?;
+
+    let server_config =
+        generated_types::server_config::decode_persisted_server_config(server_config_bytes)
+            .context(CantDeserializeServerConfig)?;
+
+    let database_location = server_config
+        .databases
+        .get(&config.db_name)
+        .context(CantFindDatabase)?;
+
     let iox_object_store =
-        IoxObjectStore::find_existing(Arc::new(object_store), server_id, &database_name)
+        IoxObjectStore::load_at_root_path(Arc::clone(&object_store), server_id, database_location)
             .await
-            .context(IoxObjectStoreFailure)?
-            .context(NoIoxObjectStore)?;
+            .context(IoxObjectStoreFailure)?;
 
     let mut writer = std::io::stdout();
     let options = config.dump_options.into();
