@@ -45,7 +45,7 @@ func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 	var logLevel zapcore.Level
 
 	cmd := &cobra.Command{
-		Use: fmt.Sprintf("downgrade [flags] %s", validTargetsHelp),
+		Use:   fmt.Sprintf("downgrade [flags] %s", validTargetsHelp),
 		Short: "Downgrade metadata schema used by influxd to match the expectations of an older release",
 		Long: `Run this command prior to downgrading the influxd binary.
 
