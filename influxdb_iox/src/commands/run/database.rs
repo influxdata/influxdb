@@ -6,7 +6,7 @@ use crate::{
     influxdb_ioxd::{
         self,
         server_type::{
-            common_state::CommonServerState,
+            common_state::{CommonServerState, CommonServerStateError},
             database::{
                 setup::{make_application, make_server},
                 DatabaseServerType,
@@ -21,10 +21,13 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
-    ServerError(#[from] influxdb_ioxd::Error),
+    Run(#[from] influxdb_ioxd::Error),
 
     #[error("Cannot setup server: {0}")]
-    SetupError(#[from] crate::influxdb_ioxd::server_type::database::setup::Error),
+    Setup(#[from] crate::influxdb_ioxd::server_type::database::setup::Error),
+
+    #[error("Invalid config: {0}")]
+    InvalidConfig(#[from] CommonServerStateError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -89,7 +92,7 @@ pub struct Config {
 }
 
 pub async fn command(config: Config) -> Result<()> {
-    let common_state = CommonServerState::from_config(config.run_config.clone()).expect("TODO");
+    let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
     let application = make_application(&config, common_state.trace_collector()).await?;
     let app_server = make_server(Arc::clone(&application), &config);
