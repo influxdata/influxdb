@@ -183,6 +183,12 @@ impl ServerFixture {
         &self.server.addrs().http_base
     }
 
+    /// Return a delete client suitable for communicating with this
+    /// server
+    pub fn delete_client(&self) -> influxdb_iox_client::delete::Client {
+        influxdb_iox_client::delete::Client::new(self.grpc_channel())
+    }
+
     /// Return an a http client suitable suitable for communicating with this
     /// server
     pub fn influxdb2_client(&self) -> influxdb2_client::Client {

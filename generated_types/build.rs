@@ -20,12 +20,14 @@ fn main() -> Result<()> {
 ///
 /// - `com.github.influxdata.idpe.storage.read.rs`
 /// - `influxdata.iox.catalog.v1.rs`
+/// - `influxdata.iox.delete.v1.rs`
 /// - `influxdata.iox.management.v1.rs`
 /// - `influxdata.iox.router.v1.rs`
 /// - `influxdata.iox.write.v1.rs`
 /// - `influxdata.platform.storage.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
     let catalog_path = root.join("influxdata/iox/catalog/v1");
+    let delete_path = root.join("influxdata/iox/delete/v1");
     let idpe_path = root.join("com/github/influxdata/idpe/storage/read");
     let management_path = root.join("influxdata/iox/management/v1");
     let router_path = root.join("influxdata/iox/router/v1");
@@ -36,6 +38,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         catalog_path.join("catalog.proto"),
         catalog_path.join("parquet_metadata.proto"),
         catalog_path.join("predicate.proto"),
+        delete_path.join("service.proto"),
         idpe_path.join("source.proto"),
         management_path.join("chunk.proto"),
         management_path.join("database_rules.proto"),

@@ -1,0 +1,30 @@
+syntax = "proto3";
+package influxdata.iox.delete.v1;
+option go_package = "github.com/influxdata/iox/delete/v1";
+
+service DeleteService {
+  // Delete data for a table on a specified predicate
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+}
+
+// Request to delete data from a table on a specified predicate
+message DeleteRequest {
+  // name of the database
+  string db_name = 1;
+
+  // table name
+  string table_name = 2;
+
+  // start time range
+  string start_time = 3;
+
+  // stop time range
+  string stop_time = 4;
+
+  // predicate
+  // conjunctive expressions of binary 'column_name = literal' or 'column_ame != literal'
+  string predicate = 5;
+}
+
+message DeleteResponse {
+}
