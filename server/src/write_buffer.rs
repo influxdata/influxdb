@@ -94,8 +94,11 @@ impl Drop for WriteBufferConsumer {
     }
 }
 
-/// This is used to take entries from a `Stream` and put them in the mutable buffer, such as
-/// streaming entries from a write buffer.
+/// This is used to take entries from a `Stream` and put them in the
+/// mutable buffer, such as streaming entries from a write buffer.
+///
+/// Note all errors reading / parsing / writing entries from the write
+/// buffer are ignored.
 async fn stream_in_sequenced_entries<'a>(
     db: Arc<Db>,
     sequencer_id: u32,
@@ -120,6 +123,7 @@ async fn stream_in_sequenced_entries<'a>(
                 Ok(w) => {
                     watermark = w;
                 }
+                // skip over invalid data in the write buffer so recovery can succeed
                 Err(e) => {
                     debug!(
                         %e,
@@ -137,6 +141,7 @@ async fn stream_in_sequenced_entries<'a>(
         // get entry from sequencer
         let sequenced_entry = match sequenced_entry_result {
             Ok(sequenced_entry) => sequenced_entry,
+            // skip over invalid data in the write buffer so recovery can succeed
             Err(e) => {
                 debug!(
                     %e,
@@ -152,6 +157,7 @@ async fn stream_in_sequenced_entries<'a>(
 
         let db_write = match DbWrite::from_entry(&sequenced_entry) {
             Ok(db_write) => db_write,
+            // skip over invalid data in the write buffer so recovery can succeed
             Err(e) => {
                 debug!(
                     %e,
@@ -195,6 +201,7 @@ async fn stream_in_sequenced_entries<'a>(
                     continue;
                 }
                 Err(e) => {
+                    // skip over invalid data in the write buffer so recovery can succeed
                     debug!(
                         %e,
                         %db_name,
