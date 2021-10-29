@@ -253,6 +253,10 @@ func (m *Migrator) Down(ctx context.Context, untilMigration int) (err error) {
 	if migrationsToDo == 0 {
 		return nil
 	}
+	if migrationsToDo < 0 {
+		m.logger.Warn("KV metadata is already on a schema older than target, nothing to do")
+		return nil
+	}
 
 	if m.backupPath != "" {
 		m.logger.Info("Backing up pre-migration metadata", zap.String("backup_path", m.backupPath))
