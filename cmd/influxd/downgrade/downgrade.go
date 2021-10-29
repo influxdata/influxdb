@@ -14,14 +14,20 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/sqlite"
+	sqliteMigrations "github.com/influxdata/influxdb/v2/sqlite/migrations"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-var downgradeMigrationTargets = map[string]int{
-	"2.0": 15,
+type migrationTarget struct {
+	kvMigration, sqlMigration int
+}
+
+var downgradeMigrationTargets = map[string]migrationTarget{
+	"2.0": {kvMigration: 15, sqlMigration: 0},
 }
 
 func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
@@ -41,7 +47,7 @@ func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 		validTargetsHelp = fmt.Sprintf("<%s>", strings.Join(validDowngradeTargets, "|"))
 	}
 
-	var boltPath string
+	var boltPath, sqlitePath string
 	var logLevel zapcore.Level
 
 	cmd := &cobra.Command{
@@ -69,7 +75,7 @@ The target version of the downgrade must be specified, i.e. "influxd downgrade 2
 				return err
 			}
 
-			return downgrade(ctx, boltPath, args[0], logger)
+			return downgrade(ctx, boltPath, sqlitePath, args[0], logger)
 		},
 	}
 
@@ -79,7 +85,14 @@ The target version of the downgrade must be specified, i.e. "influxd downgrade 2
 			Flag:    "bolt-path",
 			Default: filepath.Join(v2dir, bolt.DefaultFilename),
 			Desc:    "path for boltdb database",
-			Short:   'm',
+			Short:   'b',
+		},
+		{
+			DestP:   &sqlitePath,
+			Flag:    "sqlite-path",
+			Default: filepath.Join(v2dir, sqlite.DefaultFilename),
+			Desc:    "path for sqlite database",
+			Short:   's',
 		},
 		{
 			DestP:   &logLevel,
@@ -95,7 +108,21 @@ The target version of the downgrade must be specified, i.e. "influxd downgrade 2
 	return cmd, nil
 }
 
-func downgrade(ctx context.Context, boltPath string, targetVersion string, log *zap.Logger) error {
+func downgrade(ctx context.Context, boltPath, sqlitePath, targetVersion string, log *zap.Logger) error {
+	if err := downgradeBolt(ctx, boltPath, targetVersion, log); err != nil {
+		return err
+	}
+
+	if err := downgradeSQLite(ctx, sqlitePath, targetVersion, log); err != nil {
+		return err
+	}
+
+	log.Info("Metadata successfully downgraded, you can now safely replace this `influxd` with the target older version",
+		zap.String("version", targetVersion))
+	return nil
+}
+
+func downgradeBolt(ctx context.Context, boltPath, targetVersion string, log *zap.Logger) error {
 	boltClient := bolt.NewClient(log.With(zap.String("service", "bolt")))
 	boltClient.Path = boltPath
 
@@ -116,11 +143,27 @@ func downgrade(ctx context.Context, boltPath string, targetVersion string, log *
 	kvMigrator.AddMigrations(all.Migrations[:]...)
 
 	log.Info("Downgrading KV metadata to target version", zap.String("version", targetVersion))
-	if err := kvMigrator.Down(ctx, downgradeMigrationTargets[targetVersion]); err != nil {
-		return fmt.Errorf("failed to tear down migrations: %w", err)
+	if err := kvMigrator.Down(ctx, downgradeMigrationTargets[targetVersion].kvMigration); err != nil {
+		return fmt.Errorf("failed to tear down KV migrations: %w", err)
 	}
 
-	log.Info("Metadata successfully downgraded, you can now safely replace this `influxd` with the target older version",
-		zap.String("version", targetVersion))
+	return nil
+}
+
+func downgradeSQLite(ctx context.Context, sqlitePath, targetVersion string, log *zap.Logger) error {
+	sqlStore, err := sqlite.NewSqlStore(sqlitePath, log.With(zap.String("service", "sqlstore-sqlite")))
+	if err != nil {
+		return fmt.Errorf("failed to initialize SQL migrator: %w", err)
+	}
+
+	sqlMigrator := sqlite.NewMigrator(sqlStore, log.With(zap.String("service", "sql-migrator")))
+	info := influxdb.GetBuildInfo()
+	sqlMigrator.SetBackupPath(fmt.Sprintf("%s.%s-pre-%s-downgrade.backup", sqlitePath, info.Version, targetVersion))
+
+	log.Info("Downgrading SQL metadata to target version", zap.String("version", targetVersion))
+	if err := sqlMigrator.Down(ctx, downgradeMigrationTargets[targetVersion].sqlMigration, sqliteMigrations.All); err != nil {
+		return fmt.Errorf("failed to tear down SQL migrations: %w", err)
+	}
+
 	return nil
 }
