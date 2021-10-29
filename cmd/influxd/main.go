@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/downgrade"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/recovery"
@@ -50,6 +51,11 @@ func main() {
 	rootCmd.AddCommand(inspectCmd)
 	rootCmd.AddCommand(versionCmd())
 	rootCmd.AddCommand(recovery.NewCommand())
+	downgradeCmd, err := downgrade.NewCommand(ctx, v)
+	if err != nil {
+		handleErr(err.Error())
+	}
+	rootCmd.AddCommand(downgradeCmd)
 
 	rootCmd.SilenceUsage = true
 	if err := rootCmd.Execute(); err != nil {

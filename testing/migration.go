@@ -217,7 +217,7 @@ func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *
 
 	t.Run("Down() calls down for each migration", func(t *testing.T) {
 		// apply all migrations
-		if err := migrator.Down(ctx); err != nil {
+		if err := migrator.Down(ctx, 0); err != nil {
 			t.Fatal(err)
 		}
 
