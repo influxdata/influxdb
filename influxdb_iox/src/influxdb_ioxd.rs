@@ -82,8 +82,12 @@ fn build_malloc_conf() -> String {
     compile_error!("must use exactly one memory allocator")
 }
 
-/// This is the entry point for the IOx server. `config` represents
-/// command line arguments, if any.
+/// This is the entry point for the IOx server.
+///
+/// The precise server type depends on `T`. This entry point ensures that the given `server_type` is started using best
+/// practice, e.g. that we print the GIT-hash and malloc-configs, that a panic handler is installed, etc.
+///
+/// Due to the invasive nature of the setup routine, this should not be used during unit tests.
 pub async fn main<T>(common_state: CommonServerState, server_type: Arc<T>) -> Result<()>
 where
     T: ServerType,
