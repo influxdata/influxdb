@@ -9,10 +9,9 @@ use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
     logical_plan::{
-        binary_expr, lit, when, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan,
+        binary_expr, lit, when, Column, DFSchema, DFSchemaRef, Expr, ExprRewriter, LogicalPlan,
         LogicalPlanBuilder, Operator,
     },
-    optimizer::utils::expr_to_columns,
     prelude::col,
     scalar::ScalarValue,
 };
@@ -188,6 +187,16 @@ pub enum Error {
 
     #[snafu(display("Table was removed while planning query: {}", table_name))]
     TableRemoved { table_name: String },
+
+    #[snafu(display(
+        "Internal gRPC planner rewriting predicate for {}: {}",
+        table_name,
+        source
+    ))]
+    RewritingFilterPredicate {
+        table_name: String,
+        source: datafusion::error::DataFusionError,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -1373,16 +1382,14 @@ impl InfluxRpcPlanner {
         // Use a filter node to add general predicates + timestamp
         // range, if any
         if let Some(filter_expr) = predicate.filter_expr() {
-            // check to see if this table has all the columns needed
-            // to evaluate the predicate (if not, it means no rows can
-            // match and thus we should skip this plan)
-            if !schema_has_all_expr_columns(&schema, &filter_expr) {
-                trace!(table_name=table_name,
-                       ?schema,
-                       filter_expr=?filter_expr,
-                       "Skipping table as schema doesn't have all filter_expr columns");
-                return Ok(None);
-            }
+            // Rewrite expression so it only refers to columns in this chunk
+            trace!(table_name, ?filter_expr, "Adding filter expr");
+            let mut rewriter = MissingColumnsToNull::new(&schema);
+            let filter_expr = filter_expr
+                .rewrite(&mut rewriter)
+                .context(RewritingFilterPredicate { table_name })?;
+
+            trace!(?filter_expr, "Rewritten filter_expr");
 
             plan_builder = plan_builder.filter(filter_expr).context(BuildingPlan)?;
         }
@@ -1952,16 +1959,94 @@ impl<'a> ExprRewriter for FieldColumnRewriter<'a> {
     }
 }
 
-/// Returns true if all columns referred to in `expr` are present in
-/// the schema, false otherwise
-pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
-    let mut predicate_columns = std::collections::HashSet::new();
-    expr_to_columns(expr, &mut predicate_columns).unwrap();
+/// Rewrites the provided expr such that references to any column that
+/// are not present in `schema` become null.
+///
+/// So for example, if the predicate is
+///
+/// `(STATE = 'CA') OR (READING >0)`
+///
+/// but the schema only has `STATE` (and not `READING`), then the
+/// predicate is rewritten to
+///
+/// `(STATE = 'CA') OR (NULL >0)`
+///
+/// This matches the Influx data model where any value that is not
+/// explicitly specified is implicitly NULL. Since different chunks
+/// and measurements can have different subsets of the columns, only
+/// parts of the predicate make sense.
+/// See comments on 'is_null_column'
+struct MissingColumnsToNull<'a> {
+    schema: &'a Schema,
+    df_schema: DFSchema,
+}
 
-    predicate_columns.into_iter().all(|col| {
-        let col_name = col.name.as_str();
-        col_name == MEASUREMENT_COLUMN_NAME || schema.find_index_of(col_name).is_some()
-    })
+impl<'a> MissingColumnsToNull<'a> {
+    pub fn new(schema: &'a Schema) -> Self {
+        let df_schema: DFSchema = schema
+            .as_arrow()
+            .as_ref()
+            .clone()
+            .try_into()
+            .expect("Create DF Schema");
+
+        Self { schema, df_schema }
+    }
+
+    /// Returns true if `expr` is a `Expr::Column` reference to a
+    /// column that doesn't exist in this schema
+    fn is_null_column(&self, expr: &Expr) -> bool {
+        if let Expr::Column(column) = &expr {
+            if column.name != MEASUREMENT_COLUMN_NAME && column.name != FIELD_COLUMN_NAME {
+                return self.schema.find_index_of(&column.name).is_none();
+            }
+        }
+        false
+    }
+
+    /// Rewrites an arg like col if col refers to a non existent
+    /// column into a null literal with "type" of `other_arg`, if possible
+    fn rewrite_op_arg(&self, arg: Expr, other_arg: &Expr) -> DatafusionResult<Expr> {
+        if self.is_null_column(&arg) {
+            let other_datatype = match other_arg.get_type(&self.df_schema) {
+                Ok(other_datatype) => other_datatype,
+                Err(_) => {
+                    // the other arg is also unknown and will be
+                    // rewritten, default to Int32 (sins due to
+                    // https://github.com/apache/arrow-datafusion/issues/1179)
+                    DataType::Int32
+                }
+            };
+
+            let scalar: ScalarValue = (&other_datatype).try_into()?;
+            Ok(Expr::Literal(scalar))
+        } else {
+            Ok(arg)
+        }
+    }
+}
+
+impl<'a> ExprRewriter for MissingColumnsToNull<'a> {
+    fn mutate(&mut self, expr: Expr) -> DatafusionResult<Expr> {
+        // Ideally this would simply find all Expr::Columns and
+        // replace them with a constant NULL value. However, doing do
+        // is blocked on DF bug
+        // https://github.com/apache/arrow-datafusion/issues/1179
+        //
+        // Until then, we need to know what type of expr the column is
+        // being compared with, so workaround by finding the datatype of the other arg
+        if let Expr::BinaryExpr { left, op, right } = expr {
+            let left = self.rewrite_op_arg(*left, &right)?;
+            let right = self.rewrite_op_arg(*right, &left)?;
+            Ok(Expr::BinaryExpr {
+                left: Box::new(left),
+                op,
+                right: Box::new(right),
+            })
+        } else {
+            Ok(expr)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1972,36 +2057,90 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_schema_has_all_exprs_() {
-        let schema = SchemaBuilder::new().tag("t1").timestamp().build().unwrap();
+    fn test_missing_colums_to_null() {
+        let schema = SchemaBuilder::new()
+            .tag("tag")
+            .field("str", DataType::Utf8)
+            .field("int", DataType::Int64)
+            .field("uint", DataType::UInt64)
+            .field("float", DataType::Float64)
+            .field("bool", DataType::Boolean)
+            .build()
+            .unwrap();
 
-        assert!(schema_has_all_expr_columns(
-            &schema,
-            &col("t1").eq(lit("foo"))
-        ));
-        assert!(!schema_has_all_expr_columns(
-            &schema,
-            &col("t2").eq(lit("foo"))
-        ));
-        assert!(schema_has_all_expr_columns(
-            &schema,
-            &col("t1").eq(col("time"))
-        ));
-        assert!(!schema_has_all_expr_columns(
-            &schema,
-            &col("t1").eq(col("time2"))
-        ));
-        assert!(!schema_has_all_expr_columns(
-            &schema,
-            &col("t1").eq(col("time")).and(col("t3").lt(col("time")))
-        ));
+        // The fact that these need to be typed is due to
+        // https://github.com/apache/arrow-datafusion/issues/1179
+        let utf8_null = Expr::Literal(ScalarValue::Utf8(None));
+        let int32_null = Expr::Literal(ScalarValue::Int32(None));
 
-        assert!(schema_has_all_expr_columns(
-            &schema,
-            &col("t1")
-                .eq(col("time"))
-                .and(col("_measurement").eq(lit("the_table")))
-        ));
+        // no rewrite
+        let expr = lit(1);
+        let expected = expr.clone();
+        assert_rewrite(&schema, &expr, &expected);
+
+        // tag != str (no rewrite)
+        let expr = col("tag").not_eq(col("str"));
+        let expected = expr.clone();
+        assert_rewrite(&schema, &expr, &expected);
+
+        // tag == str (no rewrite)
+        let expr = col("tag").eq(col("str"));
+        let expected = expr.clone();
+        assert_rewrite(&schema, &expr, &expected);
+
+        // int < 5 (no rewrite, int part of schema)
+        let expr = col("int").lt(lit(5));
+        let expected = expr.clone();
+        assert_rewrite(&schema, &expr, &expected);
+
+        // unknown < 5 --> NULL < 5 (unknown not in schema)
+        let expr = col("unknown").lt(lit(5));
+        let expected = int32_null.clone().lt(lit(5));
+        assert_rewrite(&schema, &expr, &expected);
+
+        // 5 < unknown --> 5 < NULL (unknown not in schema)
+        let expr = lit(5).lt(col("unknown"));
+        let expected = lit(5).lt(int32_null.clone());
+        assert_rewrite(&schema, &expr, &expected);
+
+        // _measurement < 5 --> _measurement < 5 (special column)
+        let expr = col("_measurement").lt(lit(5));
+        let expected = expr.clone();
+        assert_rewrite(&schema, &expr, &expected);
+
+        // _field < 5 --> _field < 5 (special column)
+        let expr = col("_field").lt(lit(5));
+        let expected = expr.clone();
+        assert_rewrite(&schema, &expr, &expected);
+
+        // _field < 5 OR col("unknown") < 5 --> _field < 5 OR (NULL < 5)
+        let expr = col("_field").lt(lit(5)).or(col("unknown").lt(lit(5)));
+        let expected = col("_field").lt(lit(5)).or(int32_null.clone().lt(lit(5)));
+        assert_rewrite(&schema, &expr, &expected);
+
+        // unknown < unknown2 -->  NULL < NULL (both unknown columns)
+        let expr = col("unknown").lt(col("unknown2"));
+        let expected = int32_null.clone().lt(int32_null);
+        assert_rewrite(&schema, &expr, &expected);
+
+        // int < 5 OR unknown != "foo"
+        let expr = col("int").lt(lit(5)).or(col("unknown").not_eq(lit("foo")));
+        let expected = col("int").lt(lit(5)).or(utf8_null.not_eq(lit("foo")));
+        assert_rewrite(&schema, &expr, &expected);
+    }
+
+    fn assert_rewrite(schema: &Schema, expr: &Expr, expected: &Expr) {
+        let mut rewriter = MissingColumnsToNull::new(schema);
+        let rewritten_expr = expr
+            .clone()
+            .rewrite(&mut rewriter)
+            .expect("Rewrite successful");
+
+        assert_eq!(
+            &rewritten_expr, expected,
+            "Mismatch rewriting\nInput: {}\nRewritten: {}\nExpected: {}",
+            expr, rewritten_expr, expected
+        );
     }
 
     #[test]

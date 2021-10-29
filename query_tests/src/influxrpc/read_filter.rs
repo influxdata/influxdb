@@ -498,24 +498,18 @@ async fn test_read_filter_data_pred_unsupported_in_scan() {
 
     // These predicates can't be pushed down into chunks, but they can
     // be evaluated by the general purpose DataFusion plan
-    // https://github.com/influxdata/influxdb_iox/issues/883
+
     // (STATE = 'CA') OR (READING > 0)
     let predicate = PredicateBuilder::default()
         .add_expr(col("state").eq(lit("CA")).or(col("reading").gt(lit(0))))
         .build();
 
-    // Note these results are incorrect (they do not include data from h2o where
-    // state = CA)
+    // Note these results include data from both o2 and h2o
     let expected_results = vec![
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200, 350], values: [90.0, 90.0]",
         "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
         "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
     ];
-    // // correct one
-    // let expected_results = vec![
-    // "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200, 350], values: [90.0, 90.0]",
-    // "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
-    // "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
-    // ];
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
 }
@@ -526,24 +520,19 @@ async fn test_read_filter_data_pred_unsupported_in_scan_with_delete() {
 
     // These predicates can't be pushed down into chunks, but they can
     // be evaluated by the general purpose DataFusion plan
-    // https://github.com/influxdata/influxdb_iox/issues/883
+
     // (STATE = 'CA') OR (READING > 0)
     let predicate = PredicateBuilder::default()
         .add_expr(col("state").eq(lit("CA")).or(col("reading").gt(lit(0))))
         .build();
 
-    // Note these results are incorrect (they do not include data from h2o where
-    // state = CA)
+    // Note these results include data from both o2 and h2o
     let expected_results = vec![
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [350], values: [90.0]",
         "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
         "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
     ];
-    // // correct one
-    // let expected_results = vec![
-    // "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [350], values: [90.0]",
-    // "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
-    // "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
-    // ];
+
     run_read_filter_test_case(
         TwoMeasurementsMultiSeriesWithDelete {},
         predicate.clone(),
