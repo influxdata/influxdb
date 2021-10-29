@@ -6,7 +6,8 @@ use std::{
 
 use data_types::sequence::Sequence;
 use futures::TryStreamExt;
-use mutable_batch::PartitionWrite;
+use mutable_batch::payload::PartitionWrite;
+use mutable_batch_entry::sequenced_entry_to_write;
 use observability_deps::tracing::{info, warn};
 use persistence_windows::{
     checkpoint::{PartitionCheckpoint, ReplayPlan},
@@ -17,7 +18,7 @@ use snafu::{ResultExt, Snafu};
 use time::Time;
 use write_buffer::core::WriteBufferReading;
 
-use crate::db::write::{DbWrite, WriteFilter};
+use crate::db::write::WriteFilter;
 use crate::Db;
 
 #[allow(clippy::enum_variant_names)]
@@ -229,7 +230,7 @@ pub async fn perform_replay(
                     });
                 }
 
-                let db_write = match DbWrite::from_entry(&entry) {
+                let db_write = match sequenced_entry_to_write(&entry) {
                     Ok(db_write) => db_write,
                     Err(e) => {
                         warn!(

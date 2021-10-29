@@ -28,7 +28,8 @@ use data_types::{
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, SequencedEntry};
 use iox_object_store::IoxObjectStore;
-use mutable_batch::PartitionWrite;
+use mutable_batch::payload::{DbWrite, PartitionWrite};
+use mutable_batch_entry::sequenced_entry_to_write;
 use mutable_buffer::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info, warn};
 use parquet_catalog::{
@@ -51,7 +52,7 @@ use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
 
 pub(crate) use crate::db::chunk::DbChunk;
 pub(crate) use crate::db::lifecycle::ArcDb;
-use crate::db::write::{DbWrite, WriteFilter, WriteFilterNone};
+use crate::db::write::{WriteFilter, WriteFilterNone};
 use crate::{
     db::{
         access::QueryCatalogAccess,
@@ -969,7 +970,7 @@ impl Db {
 
         // Group writes based on table
 
-        self.store_write(&DbWrite::from_entry(&sequenced_entry).context(EntryConversion)?)
+        self.store_write(&sequenced_entry_to_write(&sequenced_entry).context(EntryConversion)?)
     }
 
     /// Writes the provided [`DbWrite`] to this database

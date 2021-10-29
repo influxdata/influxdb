@@ -11,10 +11,13 @@
     clippy::clone_on_ref_ptr
 )]
 
-use entry::{Column as EntryColumn, Entry, TableBatch};
+use entry::{Column as EntryColumn, Entry, SequencedEntry, TableBatch};
 use hashbrown::{HashMap, HashSet};
-use mutable_batch::writer::Writer;
-use mutable_batch::MutableBatch;
+use mutable_batch::{
+    payload::{DbWrite, WriteMeta},
+    writer::Writer,
+    MutableBatch,
+};
 use schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
 use snafu::{ensure, ResultExt, Snafu};
 
@@ -53,6 +56,19 @@ pub enum Error {
 
 /// Result type for entry conversion
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Converts a [`SequencedEntry`] to a [`DbWrite`]
+pub fn sequenced_entry_to_write(entry: &SequencedEntry) -> Result<DbWrite> {
+    let meta = WriteMeta::new(
+        entry.sequence().cloned(),
+        entry.producer_wallclock_timestamp(),
+        entry.span_context().cloned(),
+    );
+
+    let tables = entry_to_batches(entry.entry())?;
+
+    Ok(DbWrite::new(tables, meta))
+}
 
 /// Converts an [`Entry`] to a collection of [`MutableBatch`] keyed by table name
 ///

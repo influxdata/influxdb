@@ -2209,6 +2209,8 @@ dependencies = [
  "rand",
  "schema",
  "snafu",
+ "time 0.1.0",
+ "trace",
 ]
 
 [[package]]

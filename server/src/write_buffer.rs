@@ -9,11 +9,11 @@ use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 
 use entry::SequencedEntry;
+use mutable_batch_entry::sequenced_entry_to_write;
 use observability_deps::tracing::{debug, error, info, warn};
 use trace::span::SpanRecorder;
 use write_buffer::core::{FetchHighWatermark, WriteBufferError, WriteBufferReading};
 
-use crate::db::write::DbWrite;
 use crate::Db;
 
 use self::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
@@ -155,7 +155,7 @@ async fn stream_in_sequenced_entries<'a>(
         let sequenced_entry = Arc::new(sequenced_entry);
         metrics.entry(Arc::clone(&sequenced_entry));
 
-        let db_write = match DbWrite::from_entry(&sequenced_entry) {
+        let db_write = match sequenced_entry_to_write(&sequenced_entry) {
             Ok(db_write) => db_write,
             // skip over invalid data in the write buffer so recovery can succeed
             Err(e) => {
