@@ -2396,6 +2396,105 @@ mod tests {
 
         server.update_db_rules(provided_rules).await.unwrap();
     }
+    #[tokio::test]
+    async fn cant_restore_nonexistent_database() {
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        let nonexistent_uuid = Uuid::new_v4();
+
+        let err = server.restore_database(nonexistent_uuid).await.unwrap_err();
+        assert!(
+            matches!(err, Error::DatabaseRulesNotFound { .. }),
+            "got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn cant_restore_database_with_same_name_as_existing_database() {
+        test_helpers::maybe_start_logging();
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let foo_db_name = DatabaseName::new("foo").unwrap();
+
+        // start server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        // create database
+        let foo = create_simple_database(&server, &foo_db_name)
+            .await
+            .expect("failed to create database");
+        let first_foo_uuid = foo.provided_rules().unwrap().uuid();
+
+        // delete database
+        server
+            .delete_database(&foo_db_name)
+            .await
+            .expect("failed to delete database");
+
+        // create another database named foo
+        create_simple_database(&server, &foo_db_name)
+            .await
+            .expect("failed to create database");
+
+        // trying to restore the first foo fails
+        let err = server.restore_database(first_foo_uuid).await.unwrap_err();
+        assert!(
+            matches!(err, Error::DatabaseAlreadyExists { .. }),
+            "got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn cant_restore_database_twice() {
+        test_helpers::maybe_start_logging();
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let foo_db_name = DatabaseName::new("foo").unwrap();
+
+        // start server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        // create database
+        let foo = create_simple_database(&server, &foo_db_name)
+            .await
+            .expect("failed to create database");
+        let foo_uuid = foo.provided_rules().unwrap().uuid();
+
+        // delete database
+        server
+            .delete_database(&foo_db_name)
+            .await
+            .expect("failed to delete database");
+
+        // restore database
+        server.restore_database(foo_uuid).await.unwrap();
+
+        // restoring again fails
+        let err = server.restore_database(foo_uuid).await.unwrap_err();
+        assert!(
+            matches!(
+                err,
+                Error::CannotRestoreDatabase {
+                    source: database::InitError::DatabaseAlreadyActive { .. }
+                }
+            ),
+            "got: {:?}",
+            err
+        );
+    }
 
     #[tokio::test]
     async fn wipe_preserved_catalog() {
