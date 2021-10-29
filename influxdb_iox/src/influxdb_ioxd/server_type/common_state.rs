@@ -13,7 +13,7 @@ pub enum CommonServerStateError {
     Tracing { source: trace_exporters::Error },
 }
 
-/// Common state used by all server types.
+/// Common state used by all server types (e.g. `Database` and `Router`)
 #[derive(Debug)]
 pub struct CommonServerState {
     run_config: RunConfig,
