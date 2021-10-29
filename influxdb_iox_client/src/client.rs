@@ -4,6 +4,9 @@ pub mod health;
 /// Client for management API
 pub mod management;
 
+/// Client for remote API
+pub mod remote;
+
 /// Client for write API
 pub mod write;
 

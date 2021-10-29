@@ -44,13 +44,19 @@ service ManagementService {
   rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
 
   // List remote IOx servers we know about.
-  rpc ListRemotes(ListRemotesRequest) returns (ListRemotesResponse);
+  rpc ListRemotes(ListRemotesRequest) returns (ListRemotesResponse) {
+    option deprecated = true;
+  };
 
   // Update information about a remote IOx server (upsert).
-  rpc UpdateRemote(UpdateRemoteRequest) returns (UpdateRemoteResponse);
+  rpc UpdateRemote(UpdateRemoteRequest) returns (UpdateRemoteResponse) {
+    option deprecated = true;
+  };
 
   // Delete a reference to remote IOx server.
-  rpc DeleteRemote(DeleteRemoteRequest) returns (DeleteRemoteResponse);
+  rpc DeleteRemote(DeleteRemoteRequest) returns (DeleteRemoteResponse) {
+    option deprecated = true;
+  };
 
   // Creates a dummy job that for each value of the nanos field
   // spawns a task that sleeps for that number of nanoseconds before returning
