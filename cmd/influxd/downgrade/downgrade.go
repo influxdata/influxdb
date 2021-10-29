@@ -47,7 +47,8 @@ func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 		validTargetsHelp = fmt.Sprintf("<%s>", strings.Join(validDowngradeTargets, "|"))
 	}
 
-	var boltPath, sqlitePath string
+	var sqlitePath string
+	var boltPath string
 	var logLevel zapcore.Level
 
 	cmd := &cobra.Command{
@@ -88,11 +89,10 @@ The target version of the downgrade must be specified, i.e. "influxd downgrade 2
 			Short:   'b',
 		},
 		{
-			DestP:   &sqlitePath,
-			Flag:    "sqlite-path",
-			Default: filepath.Join(v2dir, sqlite.DefaultFilename),
-			Desc:    "path for sqlite database",
-			Short:   's',
+			DestP: &sqlitePath,
+			Flag:  "sqlite-path",
+			Desc:  fmt.Sprintf("path to sqlite database. if not set, the database is assumed to be in the bolt-path directory as %q", sqlite.DefaultFilename),
+			Short: 's',
 		},
 		{
 			DestP:   &logLevel,
@@ -105,10 +105,24 @@ The target version of the downgrade must be specified, i.e. "influxd downgrade 2
 		return nil, err
 	}
 
+	if sqlitePath == "" {
+		sqlitePath = filepath.Join(filepath.Dir(boltPath), sqlite.DefaultFilename)
+	}
+
 	return cmd, nil
 }
 
 func downgrade(ctx context.Context, boltPath, sqlitePath, targetVersion string, log *zap.Logger) error {
+	// Files must exist at the specified paths for the downgrade to work properly. The bolt and sqlite "open" methods will
+	// create files if they do not exist, so their existence must be verified here.
+	if _, err := os.Stat(boltPath); err != nil {
+		return fmt.Errorf("invalid bolt path %q: %w", boltPath, err)
+	}
+
+	if _, err := os.Stat(sqlitePath); err != nil {
+		return fmt.Errorf("invalid sqlite path %q: %w", sqlitePath, err)
+	}
+
 	if err := downgradeBolt(ctx, boltPath, targetVersion, log); err != nil {
 		return err
 	}
