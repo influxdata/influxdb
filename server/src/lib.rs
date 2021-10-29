@@ -1729,9 +1729,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_databases_with_duplicate_names_puts_both_in_error_state() {}
-
-    #[tokio::test]
     async fn db_names_sorted() {
         let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
