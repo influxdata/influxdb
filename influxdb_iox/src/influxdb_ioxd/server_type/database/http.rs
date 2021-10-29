@@ -566,8 +566,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 mod tests {
     use crate::influxdb_ioxd::{
         http::test_utils::{check_response, get_content_type, TestServer},
-        server_type::ServerType,
-        serving_readiness::ServingReadiness,
+        server_type::{common_state::CommonServerState, ServerType},
     };
 
     use super::*;
@@ -1301,13 +1300,10 @@ mod tests {
         application: Arc<ApplicationState>,
         server: Arc<Server<ConnectionManagerImpl>>,
     ) -> TestServer<DatabaseServerType<ConnectionManagerImpl>> {
-        let server_type = Arc::new(DatabaseServerType::new(
-            application,
-            server,
-            TEST_MAX_REQUEST_SIZE,
-            ServingReadiness::new(Default::default()),
-        ));
-        TestServer::new(server_type)
+        let mut server_type =
+            DatabaseServerType::new(application, server, &CommonServerState::for_testing());
+        server_type.max_request_size = TEST_MAX_REQUEST_SIZE;
+        TestServer::new(Arc::new(server_type))
     }
 
     /// Run the specified SQL query and return formatted results as a string

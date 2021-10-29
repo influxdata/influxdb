@@ -94,6 +94,19 @@ fn write_line(
     Ok(())
 }
 
+/// Test helper utilities
+pub mod test_helpers {
+    use mutable_batch::MutableBatch;
+
+    /// Converts the line protocol for a single table into a WritePayload
+    pub fn lp_to_mutable_batch(lp: &str) -> (String, MutableBatch) {
+        let batches = super::lines_to_batches(lp, 0).unwrap();
+        assert_eq!(batches.len(), 1);
+
+        batches.into_iter().next().unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

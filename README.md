@@ -47,6 +47,7 @@ To compile and run InfluxDB IOx from source, you'll need the following:
 
 - [Rust](#rust)
 - [Clang](#clang)
+- [lld (on Linux)](#lld)
 
 #### Rust
 
@@ -71,6 +72,19 @@ InstalledDir: /Library/Developer/CommandLineTools/usr/bin
 If `clang` is not already present, it can typically be installed with the system package manager.
 
 [`croaring`]: https://github.com/saulius/croaring-rs
+
+#### lld
+
+If you are building InfluxDB IOx on Linux then you will need to ensure you have installed the `lld` LLVM linker.
+Check if you have already installed it by running `lld -version`.
+
+```shell
+lld -version
+lld is a generic driver.
+Invoke ld.lld (Unix), ld64.lld (macOS), lld-link (Windows), wasm-ld (WebAssembly) instead
+```
+
+If `lld` is not already present, it can typically be installed with the system package manager.
 
 ### Clone the repository
 

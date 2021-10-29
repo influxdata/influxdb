@@ -217,10 +217,10 @@ pub enum Error {
     HardLimitReached {},
 
     #[snafu(display(
-        "Storing sequenced entry failed with the following error(s), and possibly more: {}",
+        "Storing database write failed with the following error(s), and possibly more: {}",
         errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
     ))]
-    StoreSequencedEntryFailures { errors: Vec<DatabaseError> },
+    StoreWriteErrors { errors: Vec<DatabaseError> },
 
     #[snafu(display(
         "Cannot write to database {}, it's configured to only read from the write buffer",
@@ -1028,21 +1028,19 @@ where
                     source: Box::new(source),
                 },
                 WriteError::HardLimitReached { .. } => Error::HardLimitReached {},
-                WriteError::StoreSequencedEntryFailures { errors } => {
-                    Error::StoreSequencedEntryFailures {
-                        errors: errors.into_iter().map(|e| Box::new(e) as _).collect(),
-                    }
-                }
+                WriteError::StoreWriteErrors { errors } => Error::StoreWriteErrors {
+                    errors: errors.into_iter().map(|e| Box::new(e) as _).collect(),
+                },
             })
     }
 
     /// Update database rules and save on success.
     pub async fn update_db_rules(
         &self,
-        db_name: &DatabaseName<'_>,
         rules: ProvidedDatabaseRules,
     ) -> Result<Arc<ProvidedDatabaseRules>> {
-        let database = self.database(db_name)?;
+        let db_name = rules.db_name().clone();
+        let database = self.database(&db_name)?;
 
         // attempt to save provided rules in the current state
         Ok(database
@@ -2355,10 +2353,7 @@ mod tests {
         };
         let provided_rules = make_provided_rules(rules);
 
-        server
-            .update_db_rules(&db_name, provided_rules)
-            .await
-            .unwrap();
+        server.update_db_rules(provided_rules).await.unwrap();
     }
 
     #[tokio::test]

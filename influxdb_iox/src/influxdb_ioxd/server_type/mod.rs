@@ -8,6 +8,7 @@ use trace::TraceCollector;
 
 use super::rpc::RpcBuilderInput;
 
+pub mod common_state;
 pub mod database;
 
 /// Constants used in API error codes.
@@ -120,4 +121,8 @@ pub trait ServerType: std::fmt::Debug + Send + Sync + 'static {
     ) -> Result<Response<Body>, Self::RouteError>;
 
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError>;
+
+    async fn background_worker(self: Arc<Self>);
+
+    fn shutdown_background_worker(&self);
 }

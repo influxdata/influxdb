@@ -114,8 +114,16 @@ impl Table {
         self.partitions.values().filter_map(|x| x.read().summary())
     }
 
-    pub fn schema(&self) -> Arc<RwLock<Arc<Schema>>> {
-        Arc::clone(&self.schema)
+    pub fn name(&self) -> &Arc<str> {
+        &self.table_name
+    }
+
+    pub fn metrics(&self) -> &Arc<TableMetrics> {
+        &self.metrics
+    }
+
+    pub fn schema(&self) -> &Arc<RwLock<Arc<Schema>>> {
+        &self.schema
     }
 }
 
@@ -128,7 +136,7 @@ enum TableSchemaUpsertHandleInner<'a> {
         table_schema_read: RwLockReadGuard<'a, Arc<Schema>>,
     },
 
-    /// Schema might change (if write to mutable buffer is successfull).
+    /// Schema might change (if write to mutable buffer is successful).
     MightChange {
         table_schema_write: RwLockWriteGuard<'a, Arc<Schema>>,
         merged_schema: Schema,

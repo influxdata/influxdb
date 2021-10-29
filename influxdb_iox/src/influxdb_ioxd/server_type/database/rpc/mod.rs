@@ -25,22 +25,15 @@ where
 
     add_gated_service!(
         builder,
-        server_type.serving_readiness,
         storage::make_server(Arc::clone(&server_type.server),)
     );
     add_gated_service!(
         builder,
-        server_type.serving_readiness,
         flight::make_server(Arc::clone(&server_type.server))
     );
+    add_gated_service!(builder, write::make_server(Arc::clone(&server_type.server)));
     add_gated_service!(
         builder,
-        server_type.serving_readiness,
-        write::make_server(Arc::clone(&server_type.server))
-    );
-    add_gated_service!(
-        builder,
-        server_type.serving_readiness,
         write_pb::make_server(Arc::clone(&server_type.server))
     );
     // Also important this is not behind a readiness check (as it is
