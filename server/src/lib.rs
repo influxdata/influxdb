@@ -94,7 +94,6 @@ use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use rand::seq::SliceRandom;
 use resolver::Resolver;
-use rules::ProvidedDatabaseRules;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::{sync::Notify, task::JoinError};
@@ -116,6 +115,8 @@ mod job;
 mod resolver;
 
 pub mod rules;
+use rules::{PersistedDatabaseRules, ProvidedDatabaseRules};
+
 /// Utility modules used by benchmarks and tests
 pub mod utils;
 
@@ -692,8 +693,8 @@ where
     ///
     /// Waits until the database has initialized or failed to do so
     pub async fn create_database(&self, rules: ProvidedDatabaseRules) -> Result<Arc<Database>> {
-        let uuid = rules.uuid();
-        let db_name = rules.db_name();
+        let uuid = Uuid::new_v4();
+        let db_name = rules.db_name().clone();
 
         // Wait for exclusive access to mutate server state
         let handle_fut = self.shared.state.read().freeze();
@@ -704,20 +705,15 @@ where
             let initialized = state.initialized()?;
 
             ensure!(
-                !initialized.databases.contains_key(db_name),
+                !initialized.databases.contains_key(&db_name),
                 DatabaseAlreadyExists { db_name }
             );
 
             initialized.server_id
         };
 
-        let res = Database::create(
-            Arc::clone(&self.shared.application),
-            uuid,
-            &rules,
-            server_id,
-        )
-        .await;
+        let res =
+            Database::create(Arc::clone(&self.shared.application), uuid, rules, server_id).await;
 
         let location = res.context(CannotCreateDatabase)?;
 
@@ -732,7 +728,7 @@ where
                     .new_database(
                         &self.shared,
                         DatabaseConfig {
-                            name: db_name.clone(),
+                            name: db_name,
                             location,
                             server_id,
                             wipe_catalog_on_error: false,
@@ -809,7 +805,7 @@ where
             other => Error::CannotLoadRules { source: other },
         })?;
 
-        let rules: ProvidedDatabaseRules =
+        let rules: PersistedDatabaseRules =
             generated_types::database_rules::decode_persisted_database_rules(rules_bytes)
                 .context(CannotDeserializeRules)?
                 .try_into()
@@ -1365,11 +1361,8 @@ where
         let db = match self.db(&db_name) {
             Ok(db) => db,
             Err(Error::DatabaseNotFound { .. }) => {
-                self.create_database(ProvidedDatabaseRules::new_empty(
-                    db_name.clone(),
-                    Uuid::new_v4(),
-                ))
-                .await?;
+                self.create_database(ProvidedDatabaseRules::new_empty(db_name.clone()))
+                    .await?;
                 self.db(&db_name).expect("db not inserted")
             }
             Err(e) => return Err(e),
@@ -1574,7 +1567,7 @@ mod tests {
             .expect("failed to create database");
 
         let iox_object_store = bananas.iox_object_store().unwrap();
-        let read_rules = ProvidedDatabaseRules::load(&iox_object_store)
+        let read_rules = PersistedDatabaseRules::load(&iox_object_store)
             .await
             .unwrap();
         let bananas_uuid = read_rules.uuid();

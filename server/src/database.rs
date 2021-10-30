@@ -5,7 +5,7 @@ use crate::{
         load::{create_preserved_catalog, load_or_create_preserved_catalog},
         DatabaseToCommit,
     },
-    rules::ProvidedDatabaseRules,
+    rules::{PersistedDatabaseRules, ProvidedDatabaseRules},
     ApplicationState, Db,
 };
 use data_types::{server_id::ServerId, write_buffer::WriteBufferDirection, DatabaseName};
@@ -188,10 +188,10 @@ impl Database {
     pub async fn create(
         application: Arc<ApplicationState>,
         uuid: Uuid,
-        provided_rules: &ProvidedDatabaseRules,
+        provided_rules: ProvidedDatabaseRules,
         server_id: ServerId,
     ) -> Result<String, InitError> {
-        let db_name = provided_rules.db_name();
+        let db_name = provided_rules.db_name().clone();
         let iox_object_store = Arc::new(
             match IoxObjectStore::create(Arc::clone(application.object_store()), server_id, uuid)
                 .await
@@ -218,13 +218,14 @@ impl Database {
             .await
             .context(SavingOwner)?;
 
-        provided_rules
-            .persist(uuid, &iox_object_store)
+        let rules_to_persist = PersistedDatabaseRules::new(uuid, provided_rules);
+        rules_to_persist
+            .persist(&iox_object_store)
             .await
             .context(SavingRules)?;
 
         create_preserved_catalog(
-            db_name,
+            &db_name,
             iox_object_store,
             Arc::clone(application.metric_registry()),
             Arc::clone(application.time_provider()),
@@ -438,8 +439,9 @@ impl Database {
         //
         // Even though we don't hold a lock here, the freeze handle
         // ensures the state can not be modified.
-        new_provided_rules
-            .persist(uuid, &iox_object_store)
+        let rules_to_persist = PersistedDatabaseRules::new(uuid, new_provided_rules);
+        rules_to_persist
+            .persist(&iox_object_store)
             .await
             .context(CannotPersistUpdatedRules)?;
 
@@ -453,8 +455,8 @@ impl Database {
             db, provided_rules, ..
         }) = &mut *state
         {
-            db.update_rules(Arc::clone(new_provided_rules.rules()));
-            *provided_rules = Arc::new(new_provided_rules);
+            db.update_rules(Arc::clone(rules_to_persist.rules()));
+            *provided_rules = rules_to_persist.provided_rules();
             Ok(Arc::clone(provided_rules))
         } else {
             // The freeze handle should have prevented any changes to
@@ -1196,7 +1198,7 @@ impl DatabaseStateOwnerInfoLoaded {
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateRulesLoaded, InitError> {
-        let rules = ProvidedDatabaseRules::load(&self.iox_object_store)
+        let rules = PersistedDatabaseRules::load(&self.iox_object_store)
             .await
             .context(LoadingRules)?;
 
@@ -1209,7 +1211,7 @@ impl DatabaseStateOwnerInfoLoaded {
         }
 
         Ok(DatabaseStateRulesLoaded {
-            provided_rules: Arc::new(rules),
+            provided_rules: rules.provided_rules(),
             owner_info: self.owner_info.clone(),
             iox_object_store: Arc::clone(&self.iox_object_store),
         })
@@ -1441,9 +1443,9 @@ mod tests {
 
         let db_name = DatabaseName::new("test").unwrap();
         let uuid = Uuid::new_v4();
-        let provided_rules = ProvidedDatabaseRules::new_empty(db_name.clone(), uuid);
+        let provided_rules = ProvidedDatabaseRules::new_empty(db_name.clone());
 
-        let location = Database::create(Arc::clone(&application), uuid, &provided_rules, server_id)
+        let location = Database::create(Arc::clone(&application), uuid, provided_rules, server_id)
             .await
             .unwrap();
 
@@ -1617,7 +1619,7 @@ mod tests {
         let location = Database::create(
             Arc::clone(&application),
             uuid,
-            &make_provided_rules(rules),
+            make_provided_rules(rules),
             server_id,
         )
         .await
