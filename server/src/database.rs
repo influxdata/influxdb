@@ -978,11 +978,7 @@ pub enum InitError {
         source: iox_object_store::IoxObjectStoreError,
     },
 
-    #[snafu(display(
-        "cannot restore database with name `{}`, UUID `{}`; it is already active",
-        name,
-        uuid
-    ))]
+    #[snafu(display("The database with UUID `{}` named `{}` is already active", uuid, name))]
     DatabaseAlreadyActive { name: String, uuid: Uuid },
 
     #[snafu(display("cannot create preserved catalog: {}", source))]

@@ -406,7 +406,13 @@ async fn test_create_get_update_delete_restore_database() {
         .restore_database(&deleted_uuid)
         .await
         .expect_err("restore database should have failed but didn't");
-    assert_contains!(err.to_string(), "it is already active");
+    assert_contains!(
+        err.to_string(),
+        format!(
+            "The database with UUID `{}` named `{}` is already active",
+            deleted_uuid, db_name
+        )
+    );
 }
 
 /// gets configuration both with and without defaults, and verifies

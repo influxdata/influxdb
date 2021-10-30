@@ -182,7 +182,7 @@ async fn test_create_database_immutable() {
 }
 
 #[tokio::test]
-async fn delete_database() {
+async fn delete_restore_database() {
     let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
@@ -338,6 +338,22 @@ async fn delete_database() {
         .assert()
         .success()
         .stdout(predicate::str::contains(db));
+
+    // Restoring again is an error
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("restore")
+        .arg(db)
+        .arg(db_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "The database with UUID `{}` named `{}` is already active",
+            db_uuid, db
+        )));
 }
 
 #[tokio::test]
