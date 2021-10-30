@@ -292,7 +292,8 @@ async fn test_list_databases() {
 }
 
 #[tokio::test]
-async fn test_create_get_update_delete_database() {
+async fn test_create_get_update_delete_restore_database() {
+    test_helpers::maybe_start_logging();
     let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
@@ -389,8 +390,23 @@ async fn test_create_get_update_delete_database() {
         .get_database(&db_name, false)
         .await
         .expect_err("get database should have failed but didn't");
-
     assert_contains!(err.to_string(), "Database not found");
+
+    client
+        .restore_database(&deleted_uuid)
+        .await
+        .expect("restore database failed");
+
+    client
+        .get_database(&db_name, false)
+        .await
+        .expect("get database failed");
+
+    let err = client
+        .restore_database(&deleted_uuid)
+        .await
+        .expect_err("restore database should have failed but didn't");
+    assert_contains!(err.to_string(), "it is already active");
 }
 
 /// gets configuration both with and without defaults, and verifies
