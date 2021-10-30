@@ -866,9 +866,9 @@ where
             .databases()?
             .iter()
             .filter_map(|db| {
-                db.provided_rules().map(|rules| ActiveDatabase {
+                db.uuid().map(|uuid| ActiveDatabase {
                     name: db.config().name.clone(),
-                    uuid: rules.uuid(),
+                    uuid,
                 })
             })
             .collect())
@@ -1557,7 +1557,6 @@ mod tests {
             worker_cleanup_avg_sleep: Duration::from_secs(2),
             write_buffer_connection: None,
         };
-
         let provided_rules = make_provided_rules(rules);
 
         // Create a database
@@ -1601,7 +1600,7 @@ mod tests {
             .create_database(provided_rules2)
             .await
             .expect("failed to create 2nd db");
-        let awesome_uuid = awesome.provided_rules().unwrap().uuid();
+        let awesome_uuid = awesome.uuid().unwrap();
 
         // assert server config file exists and has 2 entries
         let config = server_config(application.object_store(), server_id).await;
@@ -1699,7 +1698,7 @@ mod tests {
         let bananas = create_simple_database(&server, "bananas")
             .await
             .expect("failed to create database");
-        let bananas_uuid = bananas.provided_rules().unwrap().uuid();
+        let bananas_uuid = bananas.uuid().unwrap();
 
         std::mem::drop(server);
 
@@ -1710,7 +1709,7 @@ mod tests {
         let apples = create_simple_database(&server, "apples")
             .await
             .expect("failed to create database");
-        let apples_uuid = apples.provided_rules().unwrap().uuid();
+        let apples_uuid = apples.uuid().unwrap();
 
         assert_eq!(server.db_names_sorted(), vec!["apples", "bananas"]);
 
@@ -2290,7 +2289,7 @@ mod tests {
         let foo = create_simple_database(&server, &foo_db_name)
             .await
             .expect("failed to create database");
-        let foo_uuid = foo.provided_rules().unwrap().uuid();
+        let foo_uuid = foo.uuid().unwrap();
 
         // delete database
         server
@@ -2324,7 +2323,7 @@ mod tests {
         let new_foo = create_simple_database(&server, &foo_db_name)
             .await
             .expect("failed to create database");
-        let new_foo_uuid = new_foo.provided_rules().unwrap().uuid();
+        let new_foo_uuid = new_foo.uuid().unwrap();
         assert_ne!(foo_uuid, new_foo_uuid);
 
         // DB names contains foo
@@ -2385,10 +2384,12 @@ mod tests {
                 ..Default::default()
             }),
         };
+
         let provided_rules = make_provided_rules(rules);
 
         server.update_db_rules(provided_rules).await.unwrap();
     }
+
     #[tokio::test]
     async fn cant_restore_nonexistent_database() {
         let application = make_application();
@@ -2425,7 +2426,7 @@ mod tests {
         let foo = create_simple_database(&server, &foo_db_name)
             .await
             .expect("failed to create database");
-        let first_foo_uuid = foo.provided_rules().unwrap().uuid();
+        let first_foo_uuid = foo.uuid().unwrap();
 
         // delete database
         server
@@ -2464,7 +2465,7 @@ mod tests {
         let foo = create_simple_database(&server, &foo_db_name)
             .await
             .expect("failed to create database");
-        let foo_uuid = foo.provided_rules().unwrap().uuid();
+        let foo_uuid = foo.uuid().unwrap();
 
         // delete database
         server

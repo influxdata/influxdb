@@ -143,9 +143,8 @@ where
             })?;
 
         let uuid = database
-            .provided_rules()
-            .expect("Database should be initialized or an error should have been returned")
-            .uuid();
+            .uuid()
+            .expect("Database should be initialized or an error should have been returned");
 
         Ok(Response::new(CreateDatabaseResponse {
             uuid: uuid.as_bytes().to_vec(),
