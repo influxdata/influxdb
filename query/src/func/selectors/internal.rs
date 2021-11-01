@@ -147,6 +147,25 @@ macro_rules! make_first_selector {
                     // the input type arguments should be ensured by datafusion
                     .expect("Second argument was time");
 
+                // Only look for times where the array also has a non
+                // null value (the time array should have no nulls itself)
+                //
+                // For example, for the following input, the correct
+                // current min time is 200 (not 100)
+                //
+                // value | time
+                // --------------
+                // NULL  | 100
+                // A     | 200
+                // B     | 300
+                //
+                // Note this could likely be faster if we used `ArrayData` APIs
+                let time_arr: TimestampNanosecondArray = time_arr
+                    .iter()
+                    .zip(value_arr.iter())
+                    .map(|(ts, value)| if value.is_some() { ts } else { None })
+                    .collect();
+
                 let cur_min_time = $MINFUNC(&time_arr);
 
                 let need_update = match (&self.time, &cur_min_time) {
@@ -234,6 +253,25 @@ macro_rules! make_last_selector {
                     .downcast_ref::<TimestampNanosecondArray>()
                     // the input type arguments should be ensured by datafusion
                     .expect("Second argument was time");
+
+                // Only look for times where the array also has a non
+                // null value (the time array should have no nulls itself)
+                //
+                // For example, for the following input, the correct
+                // current max time is 200 (not 300)
+                //
+                // value | time
+                // --------------
+                // A     | 100
+                // B     | 200
+                // NULL  | 300
+                //
+                // Note this could likely be faster if we used `ArrayData` APIs
+                let time_arr: TimestampNanosecondArray = time_arr
+                    .iter()
+                    .zip(value_arr.iter())
+                    .map(|(ts, value)| if value.is_some() { ts } else { None })
+                    .collect();
 
                 let cur_max_time = $MAXFUNC(&time_arr);
 

@@ -3,7 +3,7 @@ use crate::{
     influxrpc::util::run_series_set_plan,
     scenarios::{
         make_two_chunk_scenarios, util::all_scenarios_for_one_chunk, DbScenario, DbSetup, NoData,
-        TwoMeasurementsManyFieldsOneChunk,
+        TwoMeasurementsManyFields, TwoMeasurementsManyFieldsOneChunk,
     },
 };
 
@@ -541,6 +541,39 @@ async fn test_grouped_series_set_plan_first() {
 }
 
 #[tokio::test]
+async fn test_grouped_series_set_plan_first_with_nulls() {
+    let predicate = PredicateBuilder::default()
+        // return three rows, but one series
+        // "h2o,state=MA,city=Boston temp=70.4 50",
+        // "h2o,state=MA,city=Boston other_temp=70.4 250",
+        // "h2o,state=MA,city=Boston temp=70.4,moisture=43.0 100000"
+        .table("h2o")
+        .add_expr(col("state").eq(lit("MA")))
+        .add_expr(col("city").eq(lit("Boston")))
+        .build();
+
+    let agg = Aggregate::First;
+    let group_columns = vec!["state"];
+
+    // expect timestamps to be present for all three series
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA",
+        "Series tags={_field=moisture, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [100000], values: [43.0]",
+        "Series tags={_field=other_temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [70.4]",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [50], values: [70.4]",
+    ];
+
+    run_read_group_test_case(
+        TwoMeasurementsManyFields {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn test_grouped_series_set_plan_last() {
     let predicate = PredicateBuilder::default()
         // fiter out last row (ts 4000)
@@ -560,6 +593,39 @@ async fn test_grouped_series_set_plan_last() {
 
     run_read_group_test_case(
         MeasurementForSelectors {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_grouped_series_set_plan_last_with_nulls() {
+    let predicate = PredicateBuilder::default()
+        // return two three:
+        // "h2o,state=MA,city=Boston temp=70.4 50",
+        // "h2o,state=MA,city=Boston other_temp=70.4 250",
+        // "h2o,state=MA,city=Boston temp=70.4,moisture=43.0 100000"
+        .table("h2o")
+        .add_expr(col("state").eq(lit("MA")))
+        .add_expr(col("city").eq(lit("Boston")))
+        .build();
+
+    let agg = Aggregate::Last;
+    let group_columns = vec!["state"];
+
+    // expect timestamps to be present for all three series
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA",
+        "Series tags={_field=moisture, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [100000], values: [43.0]",
+        "Series tags={_field=other_temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [70.4]",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [100000], values: [70.4]",
+    ];
+
+    run_read_group_test_case(
+        TwoMeasurementsManyFields {},
         predicate,
         agg,
         group_columns,
