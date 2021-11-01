@@ -1,6 +1,7 @@
 mod debug_cli;
 mod delete_api;
 mod deletes;
+mod deployment_api;
 mod flight_api;
 mod freeze;
 mod http;
