@@ -1058,6 +1058,7 @@ impl RowGroup {
     pub fn column_names(
         &self,
         predicate: &Predicate,
+        negated_predicates: &[Predicate],
         columns: Selection<'_>,
         dst: &mut BTreeSet<String>,
     ) {
@@ -1083,13 +1084,62 @@ impl RowGroup {
             })
             .collect::<Vec<_>>();
 
-        match self.row_ids_from_predicate(predicate) {
-            RowIDsOption::None(_) => {} // nothing matches predicate
+        // apply predicate to determine candidate rows.
+        let row_ids = self.row_ids_from_predicate(predicate);
+
+        // identify rows that have been marked as deleted.
+        let deleted_row_ids = self.row_ids_from_delete_predicates(negated_predicates);
+
+        // determine final candidate rows
+        let final_row_ids = match (row_ids, deleted_row_ids) {
+            // no matching rows
+            (RowIDsOption::None(_), _) => RowIDsOption::new_none(),
+            // everything marked deleted
+            (_, RowIDsOption::All(_)) => RowIDsOption::new_none(),
+            // nothing to delete
+            (row_ids, RowIDsOption::None(_)) => row_ids,
+            // in these cases some rows have been deleted
+            (RowIDsOption::Some(mut row_ids), RowIDsOption::Some(delete_row_ids)) => {
+                row_ids.relative_complement(&delete_row_ids);
+                if row_ids.is_empty() {
+                    RowIDsOption::new_none()
+                } else {
+                    RowIDsOption::Some(row_ids)
+                }
+            }
+            (RowIDsOption::All(mut row_ids), RowIDsOption::Some(delete_row_ids)) => {
+                // Recall that the `All` variant for `RowIDsOption` is an
+                // optimisation to represent all row IDs in the column without
+                // having to materialise the bitset. In this case however, we
+                // will have to materialise the bitset in order to calculate the
+                // relative complement.
+                row_ids.add_range(0, self.rows());
+                row_ids.relative_complement(&delete_row_ids);
+
+                // N.B we can't remove all rows since there are more selected
+                // rows than deleted rows - we always end up deleting no rows
+                // or some rows.
+                if row_ids.len() == self.rows() as usize {
+                    RowIDsOption::All(row_ids) // all selected rows remain and they're all rows in column
+                } else {
+                    RowIDsOption::Some(row_ids)
+                }
+            }
+        };
+
+        // With the final valid row IDs it is possible to try to identify a row
+        // for each column where there is a non-null value.
+        match final_row_ids {
+            RowIDsOption::None(_) => {} // no valid rows
             RowIDsOption::Some(row_ids) => {
+                // TODO(edd): perf refactor these operations to use
+                // iterators of row IDs.
                 let row_ids = row_ids.to_vec();
 
                 for (name, column) in candidate_columns {
                     if column.has_non_null_value(&row_ids) {
+                        // at least one non-null value for this column in the
+                        // set of valid rows.
                         dst.insert(name.to_owned());
                     }
                 }
@@ -1097,6 +1147,8 @@ impl RowGroup {
             RowIDsOption::All(_) => {
                 for (name, column) in candidate_columns {
                     if column.has_any_non_null_value() {
+                        // at least one non-null value for this column in the
+                        // set of valid rows.
                         dst.insert(name.to_owned());
                     }
                 }
@@ -3597,8 +3649,7 @@ west,host-c,pro,10,6
         assert_ne!(col2, col3);
     }
 
-    #[test]
-    fn column_names() {
+    fn column_names_setup() -> RowGroup {
         let mut columns = vec![];
         let rc = ColumnType::Tag(Column::from(&[Some("west"), Some("west"), None, None][..]));
         columns.push(("region".to_string(), rc));
@@ -3613,11 +3664,16 @@ west,host-c,pro,10,6
 
         let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600][..]));
         columns.push(("time".to_string(), tc));
-        let row_group = RowGroup::new(4, columns);
+        RowGroup::new(4, columns)
+    }
+
+    #[test]
+    fn column_names() {
+        let row_group = column_names_setup();
 
         // No predicate - just find a value in each column that matches.
         let mut dst = BTreeSet::new();
-        row_group.column_names(&Predicate::default(), Selection::All, &mut dst);
+        row_group.column_names(&Predicate::default(), &[], Selection::All, &mut dst);
         assert_eq!(
             dst,
             vec!["region", "temp", "time", "track"]
@@ -3630,6 +3686,7 @@ west,host-c,pro,10,6
         let mut dst = BTreeSet::new();
         row_group.column_names(
             &Predicate::new(vec![BinaryExpr::from(("region", "=", "east"))]),
+            &[],
             Selection::All,
             &mut dst,
         );
@@ -3640,6 +3697,7 @@ west,host-c,pro,10,6
         let mut dst = BTreeSet::new();
         row_group.column_names(
             &Predicate::new(vec![BinaryExpr::from(("track", "=", "place"))]),
+            &[],
             Selection::All,
             &mut dst,
         );
@@ -3668,7 +3726,7 @@ west,host-c,pro,10,6
         columns.push(("time".to_string(), tc));
         let row_group = RowGroup::new(1, columns);
 
-        row_group.column_names(&Predicate::default(), Selection::All, &mut dst);
+        row_group.column_names(&Predicate::default(), &[], Selection::All, &mut dst);
         assert_eq!(
             dst,
             vec!["env", "temp", "time", "track"]
@@ -3679,7 +3737,12 @@ west,host-c,pro,10,6
 
         // just tag keys
         dst.clear();
-        row_group.column_names(&Predicate::default(), Selection::Some(&["env"]), &mut dst);
+        row_group.column_names(
+            &Predicate::default(),
+            &[],
+            Selection::Some(&["env"]),
+            &mut dst,
+        );
         assert_eq!(
             dst.iter().cloned().collect::<Vec<_>>(),
             vec!["env".to_owned()],
@@ -3687,11 +3750,142 @@ west,host-c,pro,10,6
 
         // just field keys
         dst.clear();
-        row_group.column_names(&Predicate::default(), Selection::Some(&["temp"]), &mut dst);
+        row_group.column_names(
+            &Predicate::default(),
+            &[],
+            Selection::Some(&["temp"]),
+            &mut dst,
+        );
         assert_eq!(
             dst.iter().cloned().collect::<Vec<_>>(),
             vec!["temp".to_owned()],
         );
+    }
+
+    #[test]
+    fn column_names_with_deletes() {
+        let row_group = column_names_setup();
+
+        // region | track    | temp | time
+        // -------|----------|------|-----
+        //  west  | Thinking | hot  |  100
+        //  west  | of       | cold |  200
+        //  NULL  | a        | cold |  500
+        //  NULL  | place    | warm |  600
+        let cases = vec![
+            // 0. A delete predicate, but no rows match. All columns should be
+            // returned.
+            (
+                Predicate::default(),
+                vec![Predicate::new(vec![BinaryExpr::from((
+                    "region", "=", "nomatch",
+                ))])],
+                Selection::All,
+                vec!["region", "temp", "time", "track"],
+            ),
+            // 1. A delete predicate matching one row but all columns should
+            // still be returned.
+            (
+                Predicate::default(),
+                vec![Predicate::new(vec![BinaryExpr::from((
+                    "track", "=", "place",
+                ))])],
+                Selection::All,
+                vec!["region", "temp", "time", "track"],
+            ),
+            // 2. A delete predicate with multiple expressions matching rows but
+            // all columns should be returned.
+            (
+                Predicate::default(),
+                vec![Predicate::new(vec![
+                    BinaryExpr::from(("temp", "=", "cold")),
+                    BinaryExpr::from(("time", ">", 300_i64)),
+                ])],
+                Selection::All,
+                vec!["region", "temp", "time", "track"],
+            ),
+            // 3. A delete predicate matching all "region" rows that have
+            // non-null values. "region" is excluded from results because it
+            // only matching rows with NULL values.
+            (
+                Predicate::default(),
+                vec![Predicate::new(vec![BinaryExpr::from((
+                    "region", "=", "west",
+                ))])],
+                Selection::All,
+                vec!["temp", "time", "track"],
+            ),
+            // 4. Two delete predicates covering all rows. No columns names
+            // returned.
+            (
+                Predicate::default(),
+                vec![
+                    Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
+                    Predicate::new(vec![BinaryExpr::from(("time", ">", 400_i64))]),
+                ],
+                Selection::All,
+                vec![],
+            ),
+            // 5. Combination of filtering predicate and delete predicate
+            (
+                Predicate::new(vec![BinaryExpr::from(("temp", "=", "cold"))]),
+                vec![Predicate::new(vec![BinaryExpr::from((
+                    "region", "=", "west", // deletes only non-null value for region column
+                ))])],
+                Selection::All,
+                vec!["temp", "time", "track"],
+            ),
+            // 6. Same filtering predicate and delete predicate. No rows
+            (
+                Predicate::new(vec![BinaryExpr::from(("temp", "=", "cold"))]),
+                vec![Predicate::new(vec![BinaryExpr::from((
+                    "temp", "=", "cold",
+                ))])],
+                Selection::All,
+                vec![],
+            ),
+            // 7. Combination of filtering predicate and delete predicates that
+            // covers all filtered rows.
+            (
+                Predicate::new(vec![BinaryExpr::from(("temp", "=", "cold"))]),
+                vec![
+                    Predicate::new(vec![BinaryExpr::from(("time", "=", 200_i64))]),
+                    Predicate::new(vec![BinaryExpr::from(("time", "=", 500_i64))]),
+                ],
+                Selection::All,
+                vec![],
+            ),
+            // 8. deletes all non-null rows for region column through negation.
+            (
+                Predicate::new(vec![BinaryExpr::from(("track", "=", "place"))]),
+                vec![Predicate::new(vec![BinaryExpr::from((
+                    "region", "!=", "east",
+                ))])],
+                Selection::All,
+                vec!["temp", "time", "track"],
+            ),
+            // 9. deletes covers all non-null rows for region column but NULL
+            // values mean some column names returned
+            (
+                Predicate::default(),
+                vec![Predicate::new(vec![BinaryExpr::from((
+                    "region", ">", "apple",
+                ))])],
+                Selection::All,
+                vec!["temp", "time", "track"],
+            ),
+        ];
+
+        for (i, (filter_pred, negated_preds, projection, exp)) in cases.into_iter().enumerate() {
+            let mut dst = BTreeSet::new();
+            row_group.column_names(&filter_pred, &negated_preds, projection, &mut dst);
+            assert_eq!(
+                dst,
+                exp.into_iter().map(|s| s.to_owned()).collect(),
+                "case {:?} failed",
+                i
+            );
+        }
     }
 
     fn to_map(arr: Vec<(&str, &[&str])>) -> BTreeMap<String, BTreeSet<String>> {
