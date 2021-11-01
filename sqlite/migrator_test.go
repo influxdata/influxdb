@@ -76,7 +76,7 @@ func TestUpErrors(t *testing.T) {
 		migrator := NewMigrator(store, zaptest.NewLogger(t))
 		require.NoError(t, migrator.Up(ctx, test_migrations.MigrationTable))
 		require.NoError(t, store.execTrans(ctx, `INSERT INTO migrations (name) VALUES ("0010_some_bad_migration")`))
-		require.Equal(t, migration.ErrInvalidMigration("0010_some_bad_migration"), migrator.Up(ctx, test_migrations.All))
+		require.Equal(t, migration.ErrInvalidMigration("0010_some_bad_migration"), migrator.Up(ctx, test_migrations.AllUp))
 	})
 
 	t.Run("known + unknown migrations exist", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestUpErrors(t *testing.T) {
 		migrator := NewMigrator(store, zaptest.NewLogger(t))
 		require.NoError(t, migrator.Up(ctx, test_migrations.FirstUp))
 		require.NoError(t, store.execTrans(ctx, `INSERT INTO migrations (name) VALUES ("0010_some_bad_migration")`))
-		require.Equal(t, migration.ErrInvalidMigration("0010_some_bad_migration"), migrator.Up(ctx, test_migrations.All))
+		require.Equal(t, migration.ErrInvalidMigration("0010_some_bad_migration"), migrator.Up(ctx, test_migrations.AllUp))
 	})
 }
 
