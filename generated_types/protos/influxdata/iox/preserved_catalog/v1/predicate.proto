@@ -1,5 +1,5 @@
 syntax = "proto3";
-package influxdata.iox.catalog.v1;
+package influxdata.iox.preserved_catalog.v1;
 
 // Represents a parsed predicate for evaluation by the InfluxDB IOx query engine.
 message Predicate {

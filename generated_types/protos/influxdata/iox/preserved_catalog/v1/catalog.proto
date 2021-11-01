@@ -1,8 +1,8 @@
 syntax = "proto3";
-package influxdata.iox.catalog.v1;
+package influxdata.iox.preserved_catalog.v1;
 
 import "google/protobuf/timestamp.proto";
-import "influxdata/iox/catalog/v1/predicate.proto";
+import "influxdata/iox/preserved_catalog/v1/predicate.proto";
 
 // Path for object store interaction.
 message Path {

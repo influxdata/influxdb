@@ -19,29 +19,26 @@ fn main() -> Result<()> {
 /// Creates:
 ///
 /// - `com.github.influxdata.idpe.storage.read.rs`
-/// - `influxdata.iox.catalog.v1.rs`
 /// - `influxdata.iox.delete.v1.rs`
 /// - `influxdata.iox.deployment.v1.rs`
 /// - `influxdata.iox.management.v1.rs`
+/// - `influxdata.iox.preserved_catalog.v1.rs`
 /// - `influxdata.iox.remote.v1.rs`
 /// - `influxdata.iox.router.v1.rs`
 /// - `influxdata.iox.write.v1.rs`
 /// - `influxdata.platform.storage.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
-    let catalog_path = root.join("influxdata/iox/catalog/v1");
     let delete_path = root.join("influxdata/iox/delete/v1");
     let deployment_path = root.join("influxdata/iox/deployment/v1");
     let idpe_path = root.join("com/github/influxdata/idpe/storage/read");
     let management_path = root.join("influxdata/iox/management/v1");
+    let preserved_catalog_path = root.join("influxdata/iox/preserved_catalog/v1");
     let remote_path = root.join("influxdata/iox/remote/v1");
     let router_path = root.join("influxdata/iox/router/v1");
     let storage_path = root.join("influxdata/platform/storage");
     let write_path = root.join("influxdata/iox/write/v1");
 
     let proto_files = vec![
-        catalog_path.join("catalog.proto"),
-        catalog_path.join("parquet_metadata.proto"),
-        catalog_path.join("predicate.proto"),
         delete_path.join("service.proto"),
         deployment_path.join("service.proto"),
         idpe_path.join("source.proto"),
@@ -54,6 +51,9 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("service.proto"),
         management_path.join("shard.proto"),
         management_path.join("write_buffer.proto"),
+        preserved_catalog_path.join("catalog.proto"),
+        preserved_catalog_path.join("parquet_metadata.proto"),
+        preserved_catalog_path.join("predicate.proto"),
         root.join("google/longrunning/operations.proto"),
         root.join("google/rpc/error_details.proto"),
         root.join("google/rpc/status.proto"),
@@ -83,11 +83,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         .disable_comments(&[".google"])
         .extern_path(".google.protobuf", "::pbjson_types")
         .bytes(&[
-            ".influxdata.iox.catalog.v1.AddParquet.metadata",
-            ".influxdata.iox.catalog.v1.ChunkAddr.chunk_id",
-            ".influxdata.iox.catalog.v1.IoxMetadata.chunk_id",
-            ".influxdata.iox.catalog.v1.Transaction.previous_uuid",
-            ".influxdata.iox.catalog.v1.Transaction.uuid",
             ".influxdata.iox.management.v1.Chunk.id",
             ".influxdata.iox.management.v1.ClosePartitionChunkRequest.chunk_id",
             ".influxdata.iox.management.v1.CompactChunks.chunks",
@@ -95,11 +90,16 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
             ".influxdata.iox.management.v1.PersistChunks.chunks",
             ".influxdata.iox.management.v1.WriteChunk.chunk_id",
             ".influxdata.iox.management.v1.UnloadPartitionChunkRequest.chunk_id",
+            ".influxdata.iox.preserved_catalog.v1.AddParquet.metadata",
+            ".influxdata.iox.preserved_catalog.v1.ChunkAddr.chunk_id",
+            ".influxdata.iox.preserved_catalog.v1.IoxMetadata.chunk_id",
+            ".influxdata.iox.preserved_catalog.v1.Transaction.previous_uuid",
+            ".influxdata.iox.preserved_catalog.v1.Transaction.uuid",
             ".influxdata.iox.write.v1.WriteEntryRequest.entry",
         ])
         .btree_map(&[
-            ".influxdata.iox.catalog.v1.DatabaseCheckpoint.sequencer_numbers",
-            ".influxdata.iox.catalog.v1.PartitionCheckpoint.sequencer_numbers",
+            ".influxdata.iox.preserved_catalog.v1.DatabaseCheckpoint.sequencer_numbers",
+            ".influxdata.iox.preserved_catalog.v1.PartitionCheckpoint.sequencer_numbers",
         ]);
 
     let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");

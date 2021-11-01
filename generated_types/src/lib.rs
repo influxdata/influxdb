@@ -28,16 +28,6 @@ pub mod influxdata {
     }
 
     pub mod iox {
-        pub mod catalog {
-            pub mod v1 {
-                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.catalog.v1.rs"));
-                include!(concat!(
-                    env!("OUT_DIR"),
-                    "/influxdata.iox.catalog.v1.serde.rs"
-                ));
-            }
-        }
-
         pub mod delete {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.delete.v1.rs"));
@@ -68,6 +58,19 @@ pub mod influxdata {
                 include!(concat!(
                     env!("OUT_DIR"),
                     "/influxdata.iox.management.v1.serde.rs"
+                ));
+            }
+        }
+
+        pub mod preserved_catalog {
+            pub mod v1 {
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.preserved_catalog.v1.rs"
+                ));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.preserved_catalog.v1.serde.rs"
                 ));
             }
         }

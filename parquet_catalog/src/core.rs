@@ -2,7 +2,7 @@
 
 use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt};
-use generated_types::influxdata::iox::catalog::v1 as proto;
+use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::{info, warn};
