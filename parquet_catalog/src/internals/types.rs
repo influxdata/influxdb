@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use generated_types::influxdata::iox::catalog::v1 as proto;
+use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use uuid::Uuid;
 
 /// Type of catalog file.

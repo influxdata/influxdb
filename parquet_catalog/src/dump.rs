@@ -3,7 +3,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use bytes::Bytes;
 use futures::TryStreamExt;
-use generated_types::influxdata::iox::catalog::v1 as proto;
+use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, TransactionFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
 use parquet_file::metadata::{DecodedIoxParquetMetaData, IoxParquetMetaData};

@@ -90,7 +90,7 @@ use data_types::{
     chunk_metadata::{ChunkId, ChunkOrder},
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
 };
-use generated_types::influxdata::iox::catalog::v1 as proto;
+use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
