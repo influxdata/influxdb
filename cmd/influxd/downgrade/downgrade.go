@@ -14,14 +14,24 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/sqlite"
+	sqliteMigrations "github.com/influxdata/influxdb/v2/sqlite/migrations"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-var downgradeMigrationTargets = map[string]int{
-	"2.0": 15,
+const (
+	backupPathFormat = "%s.%s-pre-%s-downgrade.backup"
+)
+
+type migrationTarget struct {
+	kvMigration, sqlMigration int
+}
+
+var downgradeMigrationTargets = map[string]migrationTarget{
+	"2.0": {kvMigration: 15, sqlMigration: 0},
 }
 
 func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
@@ -41,6 +51,7 @@ func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 		validTargetsHelp = fmt.Sprintf("<%s>", strings.Join(validDowngradeTargets, "|"))
 	}
 
+	var sqlitePath string
 	var boltPath string
 	var logLevel zapcore.Level
 
@@ -69,7 +80,7 @@ The target version of the downgrade must be specified, i.e. "influxd downgrade 2
 				return err
 			}
 
-			return downgrade(ctx, boltPath, args[0], logger)
+			return downgrade(ctx, boltPath, sqlitePath, args[0], logger)
 		},
 	}
 
@@ -79,7 +90,13 @@ The target version of the downgrade must be specified, i.e. "influxd downgrade 2
 			Flag:    "bolt-path",
 			Default: filepath.Join(v2dir, bolt.DefaultFilename),
 			Desc:    "path for boltdb database",
-			Short:   'm',
+			Short:   'b',
+		},
+		{
+			DestP: &sqlitePath,
+			Flag:  "sqlite-path",
+			Desc:  fmt.Sprintf("path to sqlite database. if not set, the database is assumed to be in the bolt-path directory as %q", sqlite.DefaultFilename),
+			Short: 's',
 		},
 		{
 			DestP:   &logLevel,
@@ -92,10 +109,28 @@ The target version of the downgrade must be specified, i.e. "influxd downgrade 2
 		return nil, err
 	}
 
+	if sqlitePath == "" {
+		sqlitePath = filepath.Join(filepath.Dir(boltPath), sqlite.DefaultFilename)
+	}
+
 	return cmd, nil
 }
 
-func downgrade(ctx context.Context, boltPath string, targetVersion string, log *zap.Logger) error {
+func downgrade(ctx context.Context, boltPath, sqlitePath, targetVersion string, log *zap.Logger) error {
+	info := influxdb.GetBuildInfo()
+
+	// Files must exist at the specified paths for the downgrade to work properly. The bolt and sqlite "open" methods will
+	// create files if they do not exist, so their existence must be verified here.
+	if _, err := os.Stat(boltPath); err != nil {
+		return fmt.Errorf("invalid bolt path %q: %w", boltPath, err)
+	}
+
+	if _, err := os.Stat(sqlitePath); err != nil {
+		return fmt.Errorf("invalid sqlite path %q: %w", sqlitePath, err)
+	}
+
+	// Initialize both migrators prior to attempting any migrations so that we can error out prior to mutating either DB
+	// if there are errors initializing either migrator.
 	boltClient := bolt.NewClient(log.With(zap.String("service", "bolt")))
 	boltClient.Path = boltPath
 
@@ -111,13 +146,27 @@ func downgrade(ctx context.Context, boltPath string, targetVersion string, log *
 	if err != nil {
 		return fmt.Errorf("failed to initialize KV migrator: %w", err)
 	}
-	info := influxdb.GetBuildInfo()
-	kvMigrator.SetBackupPath(fmt.Sprintf("%s.%s-pre-%s-downgrade.backup", boltPath, info.Version, targetVersion))
+
+	kvMigrator.SetBackupPath(fmt.Sprintf(backupPathFormat, boltPath, info.Version, targetVersion))
 	kvMigrator.AddMigrations(all.Migrations[:]...)
 
+	sqlStore, err := sqlite.NewSqlStore(sqlitePath, log.With(zap.String("service", "sqlstore-sqlite")))
+	if err != nil {
+		return fmt.Errorf("failed to initialize SQL migrator: %w", err)
+	}
+	defer sqlStore.Close()
+
+	sqlMigrator := sqlite.NewMigrator(sqlStore, log.With(zap.String("service", "sql-migrator")))
+	sqlMigrator.SetBackupPath(fmt.Sprintf(backupPathFormat, sqlitePath, info.Version, targetVersion))
+
 	log.Info("Downgrading KV metadata to target version", zap.String("version", targetVersion))
-	if err := kvMigrator.Down(ctx, downgradeMigrationTargets[targetVersion]); err != nil {
-		return fmt.Errorf("failed to tear down migrations: %w", err)
+	if err := kvMigrator.Down(ctx, downgradeMigrationTargets[targetVersion].kvMigration); err != nil {
+		return fmt.Errorf("failed to tear down KV migrations: %w", err)
+	}
+
+	log.Info("Downgrading SQL metadata to target version", zap.String("version", targetVersion))
+	if err := sqlMigrator.Down(ctx, downgradeMigrationTargets[targetVersion].sqlMigration, sqliteMigrations.AllDown); err != nil {
+		return fmt.Errorf("failed to tear down SQL migrations: %w", err)
 	}
 
 	log.Info("Metadata successfully downgraded, you can now safely replace this `influxd` with the target older version",
