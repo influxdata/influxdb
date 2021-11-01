@@ -156,23 +156,8 @@ pub enum Error {
     #[snafu(display("database not found: {}", db_name))]
     DatabaseNotFound { db_name: String },
 
-    #[snafu(display(
-        "database rules for UUID {} not found at expected location `{}`",
-        uuid,
-        location
-    ))]
-    DatabaseRulesNotFound { uuid: Uuid, location: String },
-
-    #[snafu(display("error loading rules from object storage: {} ({:?})", source, source))]
-    CannotLoadRules { source: object_store::Error },
-
-    #[snafu(display("error deserializing database rules from protobuf: {}", source))]
-    CannotDeserializeRules {
-        source: generated_types::DecodeError,
-    },
-
-    #[snafu(display("error converting grpc to database rules: {}", source))]
-    ConvertingRules { source: FieldViolation },
+    #[snafu(display("cannot get database name from rules: {}", source))]
+    CouldNotGetDatabaseNameFromRules { source: DatabaseNameFromRulesError },
 
     #[snafu(display("{}", source))]
     CannotMarkDatabaseDeleted { source: crate::database::Error },
@@ -792,30 +777,17 @@ where
             initialized.server_id
         };
 
-        let rules_bytes = IoxObjectStore::load_database_rules(
+        let db_name = database_name_from_rules_file(
             Arc::clone(self.shared.application.object_store()),
             server_id,
             uuid,
         )
         .await
-        .map_err(|e| match e {
-            object_store::Error::NotFound { location, .. } => {
-                Error::DatabaseRulesNotFound { uuid, location }
-            }
-            other => Error::CannotLoadRules { source: other },
-        })?;
-
-        let rules: PersistedDatabaseRules =
-            generated_types::database_rules::decode_persisted_database_rules(rules_bytes)
-                .context(CannotDeserializeRules)?
-                .try_into()
-                .context(ConvertingRules)?;
-
-        let db_name = rules.db_name();
+        .context(CouldNotGetDatabaseNameFromRules)?;
 
         let location = Database::restore(
             Arc::clone(&self.shared.application),
-            db_name,
+            &db_name,
             uuid,
             server_id,
         )
@@ -830,7 +802,7 @@ where
 
             let database = match &mut *state {
                 ServerState::Initialized(initialized) => {
-                    if initialized.databases.contains_key(db_name) {
+                    if initialized.databases.contains_key(&db_name) {
                         return DatabaseAlreadyExists { db_name }.fail();
                     }
 
@@ -1396,6 +1368,50 @@ where
             })
             .unwrap_or_default()
     }
+}
+
+#[derive(Snafu, Debug)]
+pub enum DatabaseNameFromRulesError {
+    #[snafu(display(
+        "database rules for UUID {} not found at expected location `{}`",
+        uuid,
+        location
+    ))]
+    DatabaseRulesNotFound { uuid: Uuid, location: String },
+
+    #[snafu(display("error loading rules from object storage: {} ({:?})", source, source))]
+    CannotLoadRules { source: object_store::Error },
+
+    #[snafu(display("error deserializing database rules from protobuf: {}", source))]
+    CannotDeserializeRules {
+        source: generated_types::DecodeError,
+    },
+
+    #[snafu(display("error converting grpc to database rules: {}", source))]
+    ConvertingRules { source: FieldViolation },
+}
+
+async fn database_name_from_rules_file(
+    object_store: Arc<object_store::ObjectStore>,
+    server_id: ServerId,
+    uuid: Uuid,
+) -> Result<DatabaseName<'static>, DatabaseNameFromRulesError> {
+    let rules_bytes = IoxObjectStore::load_database_rules(object_store, server_id, uuid)
+        .await
+        .map_err(|e| match e {
+            object_store::Error::NotFound { location, .. } => {
+                DatabaseNameFromRulesError::DatabaseRulesNotFound { uuid, location }
+            }
+            other => DatabaseNameFromRulesError::CannotLoadRules { source: other },
+        })?;
+
+    let rules: PersistedDatabaseRules =
+        generated_types::database_rules::decode_persisted_database_rules(rules_bytes)
+            .context(CannotDeserializeRules)?
+            .try_into()
+            .context(ConvertingRules)?;
+
+    Ok(rules.db_name().to_owned())
 }
 
 pub mod test_utils {
@@ -2403,7 +2419,12 @@ mod tests {
 
         let err = server.restore_database(nonexistent_uuid).await.unwrap_err();
         assert!(
-            matches!(err, Error::DatabaseRulesNotFound { .. }),
+            matches!(
+                err,
+                Error::CouldNotGetDatabaseNameFromRules {
+                    source: DatabaseNameFromRulesError::DatabaseRulesNotFound { .. },
+                }
+            ),
             "got: {:?}",
             err
         );
