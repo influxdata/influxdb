@@ -8,8 +8,7 @@ use futures::{FutureExt, StreamExt, TryFutureExt};
 use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 
-use entry::SequencedEntry;
-use mutable_batch_entry::sequenced_entry_to_write;
+use mutable_batch::DbWrite;
 use observability_deps::tracing::{debug, error, info, warn};
 use trace::span::SpanRecorder;
 use write_buffer::core::{FetchHighWatermark, WriteBufferError, WriteBufferReading};
@@ -102,7 +101,7 @@ impl Drop for WriteBufferConsumer {
 async fn stream_in_sequenced_entries<'a>(
     db: Arc<Db>,
     sequencer_id: u32,
-    mut stream: BoxStream<'a, Result<SequencedEntry, WriteBufferError>>,
+    mut stream: BoxStream<'a, Result<DbWrite, WriteBufferError>>,
     f_mark: FetchHighWatermark<'a>,
     mut metrics: SequencerMetrics,
 ) {
@@ -110,7 +109,7 @@ async fn stream_in_sequenced_entries<'a>(
     let mut watermark_last_updated: Option<Instant> = None;
     let mut watermark = 0_u64;
 
-    while let Some(sequenced_entry_result) = stream.next().await {
+    while let Some(db_write_result) = stream.next().await {
         // maybe update sequencer watermark
         // We are not updating this watermark every round because asking the sequencer for that watermark can be
         // quite expensive.
@@ -136,11 +135,11 @@ async fn stream_in_sequenced_entries<'a>(
             watermark_last_updated = Some(now);
         }
 
-        let mut metrics = metrics.recorder(watermark);
+        let ingest_recorder = metrics.recorder(watermark);
 
         // get entry from sequencer
-        let sequenced_entry = match sequenced_entry_result {
-            Ok(sequenced_entry) => sequenced_entry,
+        let db_write = match db_write_result {
+            Ok(db_write) => db_write,
             // skip over invalid data in the write buffer so recovery can succeed
             Err(e) => {
                 debug!(
@@ -152,35 +151,22 @@ async fn stream_in_sequenced_entries<'a>(
                 continue;
             }
         };
-        let sequenced_entry = Arc::new(sequenced_entry);
-        metrics.entry(Arc::clone(&sequenced_entry));
 
-        let db_write = match sequenced_entry_to_write(&sequenced_entry) {
-            Ok(db_write) => db_write,
-            // skip over invalid data in the write buffer so recovery can succeed
-            Err(e) => {
-                debug!(
-                    %e,
-                    %db_name,
-                    sequencer_id,
-                    "Error converting SequencedEntry to DbWrite",
-                );
-                continue;
-            }
-        };
+        let ingest_recorder = ingest_recorder.write(&db_write);
 
         // store entry
         let mut logged_hard_limit = false;
         loop {
             let mut span_recorder = SpanRecorder::new(
-                sequenced_entry
+                db_write
+                    .meta()
                     .span_context()
                     .map(|parent| parent.child("IOx write buffer")),
             );
 
             match db.store_write(&db_write) {
                 Ok(_) => {
-                    metrics.success();
+                    ingest_recorder.success();
                     span_recorder.ok("stored write");
 
                     break;
@@ -226,7 +212,7 @@ mod tests {
 
     use arrow_util::assert_batches_eq;
     use data_types::sequence::Sequence;
-    use entry::test_helpers::lp_to_entry;
+    use entry::{test_helpers::lp_to_entry, SequencedEntry};
     use persistence_windows::min_max_sequence::MinMaxSequence;
     use query::exec::ExecutionContextProvider;
     use query::frontend::sql::SqlQueryPlanner;

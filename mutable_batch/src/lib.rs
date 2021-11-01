@@ -195,3 +195,29 @@ impl MutableBatch {
         Ok(&self.columns[*idx])
     }
 }
+
+/// Test utilities
+pub mod test_util {
+    use crate::payload::DbWrite;
+    use arrow_util::display::pretty_format_batches;
+    use schema::selection::Selection;
+
+    /// Asserts two writes are equal
+    pub fn assert_writes_eq(a: &DbWrite, b: &DbWrite) {
+        assert_eq!(a.meta().sequence(), b.meta().sequence());
+        assert_eq!(a.meta().producer_ts(), b.meta().producer_ts());
+
+        assert_eq!(a.table_count(), b.table_count());
+
+        for (table_name, a_batch) in a.tables() {
+            let b_batch = b.table(table_name).expect("table not found");
+
+            assert_eq!(
+                pretty_format_batches(&[a_batch.to_arrow(Selection::All).unwrap()]).unwrap(),
+                pretty_format_batches(&[b_batch.to_arrow(Selection::All).unwrap()]).unwrap(),
+                "batches for table \"{}\" differ",
+                table_name
+            );
+        }
+    }
+}

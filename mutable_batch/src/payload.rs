@@ -3,6 +3,7 @@
 use crate::column::ColumnData;
 use crate::{MutableBatch, Result};
 use data_types::database_rules::PartitionTemplate;
+use data_types::partition_metadata::{StatValues, Statistics};
 use data_types::sequence::Sequence;
 use hashbrown::HashMap;
 use schema::TIME_COLUMN_NAME;
@@ -173,8 +174,11 @@ pub struct WriteMeta {
     /// When this write was ingested into the write buffer
     producer_ts: Option<Time>,
 
-    // Optional span context associated w/ this write
+    /// Optional span context associated w/ this write
     span_ctx: Option<SpanContext>,
+
+    /// Bytes read from the wire
+    bytes_read: Option<usize>,
 }
 
 impl WriteMeta {
@@ -183,17 +187,34 @@ impl WriteMeta {
         sequence: Option<Sequence>,
         producer_ts: Option<Time>,
         span_ctx: Option<SpanContext>,
+        bytes_read: Option<usize>,
     ) -> Self {
         Self {
             sequence,
             producer_ts,
             span_ctx,
+            bytes_read,
         }
     }
 
     /// Gets the sequence number associated with the write if any
     pub fn sequence(&self) -> Option<&Sequence> {
         self.sequence.as_ref()
+    }
+
+    /// Gets the producer timestamp associated with the write if any
+    pub fn producer_ts(&self) -> Option<Time> {
+        self.producer_ts
+    }
+
+    /// Gets the span context if any
+    pub fn span_context(&self) -> Option<&SpanContext> {
+        self.span_ctx.as_ref()
+    }
+
+    /// Returns the number of bytes read from the wire if relevant
+    pub fn bytes_read(&self) -> Option<usize> {
+        self.bytes_read
     }
 }
 
@@ -204,12 +225,41 @@ pub struct DbWrite {
     tables: HashMap<String, MutableBatch>,
     /// Write metadata
     meta: WriteMeta,
+    min_timestamp: i64,
+    max_timestamp: i64,
 }
 
 impl DbWrite {
     /// Create a new [`DbWrite`]
+    ///
+    /// # Panic
+    ///
+    /// Panics if
+    ///
+    /// - `tables` is empty
+    /// - a MutableBatch is empty
+    /// - a MutableBatch lacks an i64 "time" column
     pub fn new(tables: HashMap<String, MutableBatch>, meta: WriteMeta) -> Self {
-        Self { tables, meta }
+        assert_ne!(tables.len(), 0);
+
+        let mut stats = StatValues::new_empty();
+        for (table_name, table) in &tables {
+            match table.column(TIME_COLUMN_NAME).expect("time").stats() {
+                Statistics::I64(col_stats) => stats.update_from(&col_stats),
+                s => unreachable!(
+                    "table \"{}\" has unexpected type for time column: {}",
+                    table_name,
+                    s.type_name()
+                ),
+            };
+        }
+
+        Self {
+            tables,
+            meta,
+            min_timestamp: stats.min.unwrap(),
+            max_timestamp: stats.max.unwrap(),
+        }
     }
 
     /// Metadata associated with this write
@@ -221,5 +271,25 @@ impl DbWrite {
     /// in no particular order
     pub fn tables(&self) -> impl Iterator<Item = (&str, &MutableBatch)> + '_ {
         self.tables.iter().map(|(k, v)| (k.as_str(), v))
+    }
+
+    /// Gets the write for a given table
+    pub fn table(&self, name: &str) -> Option<&MutableBatch> {
+        self.tables.get(name)
+    }
+
+    /// Returns the number of tables within this write
+    pub fn table_count(&self) -> usize {
+        self.tables.len()
+    }
+
+    /// Returns the minimum timestamp in the write
+    pub fn min_timestamp(&self) -> i64 {
+        self.min_timestamp
+    }
+
+    /// Returns the maximum timestamp in the write
+    pub fn max_timestamp(&self) -> i64 {
+        self.max_timestamp
     }
 }

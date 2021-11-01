@@ -63,6 +63,7 @@ pub fn sequenced_entry_to_write(entry: &SequencedEntry) -> Result<DbWrite> {
         entry.sequence().cloned(),
         entry.producer_wallclock_timestamp(),
         entry.span_context().cloned(),
+        Some(entry.entry().data().len()),
     );
 
     let tables = entry_to_batches(entry.entry())?;

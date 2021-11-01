@@ -5033,6 +5033,8 @@ dependencies = [
  "futures",
  "http",
  "httparse",
+ "mutable_batch",
+ "mutable_batch_entry",
  "observability_deps",
  "parking_lot",
  "pin-project",

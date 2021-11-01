@@ -12,12 +12,13 @@ use parking_lot::Mutex;
 use data_types::database_rules::WriteBufferCreationConfig;
 use data_types::sequence::Sequence;
 use entry::{Entry, SequencedEntry};
+use mutable_batch_entry::sequenced_entry_to_write;
 use time::{Time, TimeProvider};
 use trace::ctx::SpanContext;
 
 use crate::core::{
-    EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
-    WriteBufferWriting,
+    FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
+    WriteBufferWriting, WriteStream,
 };
 
 #[derive(Debug, Default)]
@@ -354,7 +355,7 @@ impl std::fmt::Debug for MockBufferForReading {
 
 #[async_trait]
 impl WriteBufferReading for MockBufferForReading {
-    fn streams(&mut self) -> BTreeMap<u32, EntryStream<'_>> {
+    fn streams(&mut self) -> BTreeMap<u32, WriteStream<'_>> {
         let sequencer_ids: Vec<_> = {
             let playback_states = self.playback_states.lock();
             playback_states.keys().copied().collect()
@@ -386,7 +387,10 @@ impl WriteBufferReading for MockBufferForReading {
                             let sequence = entry.sequence().unwrap();
                             if sequence.number >= playback_state.offset {
                                 // within offset => return entry to caller
-                                return Poll::Ready(Some(Ok(entry.clone())));
+                                return Poll::Ready(Some(
+                                    sequenced_entry_to_write(entry)
+                                        .map_err(|e| Box::new(e) as WriteBufferError),
+                                ));
                             } else {
                                 // offset is larger then the current entry => ignore entry and try next
                                 continue;
@@ -424,7 +428,7 @@ impl WriteBufferReading for MockBufferForReading {
 
             streams.insert(
                 sequencer_id,
-                EntryStream {
+                WriteStream {
                     stream,
                     fetch_high_watermark,
                 },
@@ -461,7 +465,7 @@ pub struct MockBufferForReadingThatAlwaysErrors;
 
 #[async_trait]
 impl WriteBufferReading for MockBufferForReadingThatAlwaysErrors {
-    fn streams(&mut self) -> BTreeMap<u32, EntryStream<'_>> {
+    fn streams(&mut self) -> BTreeMap<u32, WriteStream<'_>> {
         let stream = stream::poll_fn(|_ctx| {
             Poll::Ready(Some(Err(String::from(
                 "Something bad happened while reading from stream",
@@ -478,7 +482,7 @@ impl WriteBufferReading for MockBufferForReadingThatAlwaysErrors {
         let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
         IntoIterator::into_iter([(
             0,
-            EntryStream {
+            WriteStream {
                 stream,
                 fetch_high_watermark,
             },
