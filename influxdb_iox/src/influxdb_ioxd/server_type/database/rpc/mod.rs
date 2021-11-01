@@ -7,6 +7,7 @@ use crate::influxdb_ioxd::{
     server_type::{database::DatabaseServerType, RpcError},
 };
 
+mod delete;
 mod flight;
 mod management;
 mod operations;
@@ -31,6 +32,10 @@ where
     add_gated_service!(
         builder,
         flight::make_server(Arc::clone(&server_type.server))
+    );
+    add_gated_service!(
+        builder,
+        delete::make_server(Arc::clone(&server_type.server))
     );
     add_gated_service!(builder, write::make_server(Arc::clone(&server_type.server)));
     add_gated_service!(

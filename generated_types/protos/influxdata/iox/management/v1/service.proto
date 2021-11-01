@@ -110,7 +110,9 @@ service ManagementService {
   rpc DropPartition(DropPartitionRequest) returns (DropPartitionResponse);
 
   // Delete data for a table on a specified predicate
-  rpc Delete(DeleteRequest) returns (DeleteResponse);
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {
+    option deprecated = true;
+  };
 }
 
 message GetServerIdRequest {}

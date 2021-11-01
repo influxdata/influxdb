@@ -1,6 +1,9 @@
 /// Client for health checking API
 pub mod health;
 
+/// Client for delete API
+pub mod delete;
+
 /// Client for management API
 pub mod management;
 
