@@ -578,7 +578,7 @@ func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
 	store, clean := sqlite.NewTestStore(t)
 	logger := zaptest.NewLogger(t)
 	sqliteMigrator := sqlite.NewMigrator(store, logger)
-	require.NoError(t, sqliteMigrator.Up(ctx, migrations.All))
+	require.NoError(t, sqliteMigrator.Up(ctx, migrations.AllUp))
 
 	// Make sure foreign-key checking is enabled.
 	_, err := store.DB.Exec("PRAGMA foreign_keys = ON;")
