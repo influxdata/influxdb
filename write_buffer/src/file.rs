@@ -121,7 +121,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{database_rules::WriteBufferCreationConfig, sequence::Sequence};
+use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
 use entry::{Entry, SequencedEntry};
 use futures::{channel::mpsc::Receiver, FutureExt, SinkExt, Stream, StreamExt};
 use http::{header::HeaderName, HeaderMap, HeaderValue};

@@ -3,7 +3,7 @@ package influxdata.iox.router.v1;
 option go_package = "github.com/influxdata/iox/router/v1";
 
 import "influxdata/iox/management/v1/shard.proto";
-import "influxdata/iox/management/v1/write_buffer.proto";
+import "influxdata/iox/write_buffer/v1/write_buffer.proto";
 
 // Router for writes and queries.
 //
@@ -101,7 +101,7 @@ message WriteSources {
   bool allow_unsequenced_inputs = 2;
 
   // Write buffer connections.
-  repeated influxdata.iox.management.v1.WriteBufferConnection write_buffers = 3;
+  repeated influxdata.iox.write_buffer.v1.WriteBufferConnection write_buffers = 3;
 }
 
 // Sink of write requests aka new data.
@@ -114,7 +114,7 @@ message WriteSink {
     uint32 grpc_remote = 1;
 
     // Write buffer connection.
-    influxdata.iox.management.v1.WriteBufferConnection write_buffer = 2;
+    influxdata.iox.write_buffer.v1.WriteBufferConnection write_buffer = 2;
   }
 
   // If set, errors during writing to this sink are ignored and do NOT lead to an overall failure.

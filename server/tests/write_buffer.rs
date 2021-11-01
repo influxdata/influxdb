@@ -2,10 +2,8 @@ use std::num::{NonZeroU32, NonZeroUsize};
 use std::time::{Duration, Instant};
 
 use arrow_util::assert_batches_eq;
-use data_types::database_rules::{
-    DatabaseRules, LifecycleRules, PartitionTemplate, TemplatePart, WriteBufferConnection,
-    WriteBufferDirection,
-};
+use data_types::database_rules::{DatabaseRules, LifecycleRules, PartitionTemplate, TemplatePart};
+use data_types::write_buffer::{WriteBufferConnection, WriteBufferDirection};
 use data_types::{sequence::Sequence, server_id::ServerId, DatabaseName};
 use entry::{test_helpers::lp_to_entry, SequencedEntry};
 use query::QueryDatabase;

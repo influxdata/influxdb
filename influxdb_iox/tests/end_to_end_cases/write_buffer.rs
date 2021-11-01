@@ -8,7 +8,7 @@ use crate::{
 use arrow_util::assert_batches_sorted_eq;
 use entry::test_helpers::lp_to_entry;
 use futures::StreamExt;
-use generated_types::influxdata::iox::management::v1::{
+use generated_types::influxdata::iox::write_buffer::v1::{
     write_buffer_connection::Direction as WriteBufferDirection, WriteBufferConnection,
 };
 use influxdb_iox_client::{

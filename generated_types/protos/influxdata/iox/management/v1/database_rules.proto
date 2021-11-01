@@ -5,7 +5,7 @@ option go_package = "github.com/influxdata/iox/management/v1";
 import "google/protobuf/duration.proto";
 import "influxdata/iox/management/v1/partition_template.proto";
 import "influxdata/iox/management/v1/shard.proto";
-import "influxdata/iox/management/v1/write_buffer.proto";
+import "influxdata/iox/write_buffer/v1/write_buffer.proto";
 
 message LifecycleRules {
   // Once the total amount of buffered data in memory reaches this size start
@@ -128,7 +128,7 @@ message DatabaseRules {
   // If not specified, does not configure a write buffer
   //
   // TODO(marco): remove this
-  WriteBufferConnection write_buffer_connection = 13;
+  influxdata.iox.write_buffer.v1.WriteBufferConnection write_buffer_connection = 13;
 }
 
 // The UUID and database rules stored in object storage for a database. Operator-facing APIs should
