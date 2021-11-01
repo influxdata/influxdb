@@ -327,7 +327,7 @@ func newTestService(t *testing.T) (*service, *remotesMock.MockRemoteConnectionVa
 	store, clean := sqlite.NewTestStore(t)
 	logger := zaptest.NewLogger(t)
 	sqliteMigrator := sqlite.NewMigrator(store, logger)
-	require.NoError(t, sqliteMigrator.Up(ctx, migrations.All))
+	require.NoError(t, sqliteMigrator.Up(ctx, migrations.AllUp))
 
 	mockValidator := remotesMock.NewMockRemoteConnectionValidator(gomock.NewController(t))
 	svc := service{

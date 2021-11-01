@@ -1041,7 +1041,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		m.log.Error("Failed to apply KV migrations", zap.Error(err))
 		return "", err
 	}
-	if err := sqlMigrator.Up(ctx, sqliteMigrations.All); err != nil {
+	if err := sqlMigrator.Up(ctx, sqliteMigrations.AllUp); err != nil {
 		m.log.Error("Failed to apply SQL migrations", zap.Error(err))
 		return "", err
 	}

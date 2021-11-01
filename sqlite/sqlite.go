@@ -293,7 +293,7 @@ func (s *SqlStore) migrateRestored(ctx context.Context, tempFileName string) err
 		s.log.With(zap.String("service", "sqlite restore migrations")),
 	)
 
-	return restoreMigrator.Up(ctx, sqliteMigrations.All)
+	return restoreMigrator.Up(ctx, sqliteMigrations.AllUp)
 }
 
 func (s *SqlStore) execTrans(ctx context.Context, stmt string) error {

@@ -1028,7 +1028,7 @@ func newTestService(t *testing.T) (*Service, func(t *testing.T)) {
 	ctx := context.Background()
 
 	sqliteMigrator := sqlite.NewMigrator(store, zap.NewNop())
-	err := sqliteMigrator.Up(ctx, migrations.All)
+	err := sqliteMigrator.Up(ctx, migrations.AllUp)
 	require.NoError(t, err)
 
 	svc := NewService(store)
