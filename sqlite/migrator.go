@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -57,8 +58,6 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 
 	var lastMigration int
 	for idx := range executedMigrations {
-		if idx > len(knownMigrations)-1 || executedMigrations[idx] != dropExtension(knownMigrations[idx].Name()) {
-			return errInvalidMigration(executedMigrations[idx])
 		if idx > len(knownMigrations)-1 || executedMigrations[idx] != dropExtension(knownMigrations[idx].Name()) {
 			return migration.ErrInvalidMigration(executedMigrations[idx])
 		}
