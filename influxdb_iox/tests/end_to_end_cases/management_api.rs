@@ -1,5 +1,3 @@
-use std::{fs::set_permissions, os::unix::fs::PermissionsExt};
-
 use arrow_util::assert_batches_sorted_eq;
 use data_types::chunk_metadata::ChunkId;
 use generated_types::{
@@ -12,7 +10,7 @@ use influxdb_iox_client::{
     management::{Client, CreateDatabaseError},
     write::WriteError,
 };
-
+use std::{fs::set_permissions, os::unix::fs::PermissionsExt};
 use test_helpers::assert_contains;
 
 use super::scenario::{
@@ -28,6 +26,7 @@ use chrono::{DateTime, Utc};
 use std::convert::TryInto;
 use std::time::Instant;
 use tonic::Code;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn test_serving_readiness() {
@@ -1155,7 +1154,7 @@ async fn test_get_server_status_db_error() {
     let server_fixture = ServerFixture::create_single_use().await;
     let mut client = server_fixture.management_client();
 
-    // All databases are owned by server 42
+    // Valid content of the owner.pb file
     let owner_info = OwnerInfo {
         id: 42,
         location: "arbitrary".to_string(),
@@ -1165,11 +1164,11 @@ async fn test_get_server_status_db_error() {
         .expect("owner info serialization should be valid");
     let owner_info_bytes = owner_info_bytes.freeze();
 
-    // create valid owner info but malformed DB rules
+    // create valid owner info but malformed DB rules that will put DB in an error state
+    let my_db_uuid = Uuid::new_v4();
     let mut path = server_fixture.dir().to_path_buf();
     path.push("42");
-    path.push("my_db");
-    path.push("0");
+    path.push(my_db_uuid.to_string());
     std::fs::create_dir_all(path.clone()).unwrap();
     let mut owner_info_path = path.clone();
     owner_info_path.push("owner.pb");
@@ -1177,57 +1176,15 @@ async fn test_get_server_status_db_error() {
     path.push("rules.pb");
     std::fs::write(path, "foo").unwrap();
 
-    // create soft-deleted database
-    let mut path = server_fixture.dir().to_path_buf();
-    path.push("42");
-    path.push("soft_deleted");
-    path.push("0");
-    std::fs::create_dir_all(path.clone()).unwrap();
-    let mut owner_info_path = path.clone();
-    owner_info_path.push("owner.pb");
-    std::fs::write(owner_info_path, &owner_info_bytes).unwrap();
-    path.push("DELETED");
-    std::fs::write(path, "foo").unwrap();
-
-    // create DB dir containing multiple active databases
-    let mut path = server_fixture.dir().to_path_buf();
-    path.push("42");
-    path.push("multiple_active");
-    let mut other_gen_path = path.clone();
-    path.push("0");
-    std::fs::create_dir_all(path.clone()).unwrap();
-    let mut owner_info_path = path.clone();
-    owner_info_path.push("owner.pb");
-    std::fs::write(owner_info_path, &owner_info_bytes).unwrap();
-    path.push("rules.pb");
-    std::fs::write(path, "foo").unwrap();
-    other_gen_path.push("1");
-    std::fs::create_dir_all(other_gen_path.clone()).unwrap();
-    let mut owner_info_path = other_gen_path.clone();
-    owner_info_path.push("owner.pb");
-    std::fs::write(owner_info_path, &owner_info_bytes).unwrap();
-    other_gen_path.push("rules.pb");
-    std::fs::write(other_gen_path, "foo").unwrap();
-
-    // create the server config listing the ownership of these three databases
+    // create the server config listing the ownership of this database
     let mut path = server_fixture.dir().to_path_buf();
     path.push("42");
     path.push("config.pb");
 
     let data = ServerConfig {
-        databases: vec![
-            (String::from("my_db"), String::from("42/my_db")),
-            (
-                String::from("soft_deleted"),
-                String::from("42/soft_deleted"),
-            ),
-            (
-                String::from("multiple_active"),
-                String::from("42/multiple_active"),
-            ),
-        ]
-        .into_iter()
-        .collect(),
+        databases: vec![(String::from("my_db"), format!("42/{}", my_db_uuid))]
+            .into_iter()
+            .collect(),
     };
 
     let mut encoded = bytes::BytesMut::new();
@@ -1244,23 +1201,10 @@ async fn test_get_server_status_db_error() {
     let status = client.get_server_status().await.unwrap();
     assert!(status.initialized);
     assert_eq!(status.error, None);
-    assert_eq!(status.database_statuses.len(), 3);
+    assert_eq!(status.database_statuses.len(), 1);
     dbg!(&status.database_statuses);
 
-    // databases should be alphabetical by name: multiple_active, my_db, soft_deleted
     let db_status = &status.database_statuses[0];
-    dbg!(&db_status);
-    assert_eq!(db_status.db_name, "multiple_active");
-    assert!(dbg!(&db_status.error.as_ref().unwrap().message).contains(
-        "error finding active generation directory in object storage: Multiple active \
-                   databases found in object storage"
-    ));
-    assert_eq!(
-        DatabaseState::from_i32(db_status.state).unwrap(),
-        DatabaseState::DatabaseObjectStoreLookupError,
-    );
-
-    let db_status = &status.database_statuses[1];
     dbg!(&db_status);
     assert_eq!(db_status.db_name, "my_db");
     assert!(dbg!(&db_status.error.as_ref().unwrap().message)
@@ -1268,16 +1212,6 @@ async fn test_get_server_status_db_error() {
     assert_eq!(
         DatabaseState::from_i32(db_status.state).unwrap(),
         DatabaseState::RulesLoadError
-    );
-
-    let db_status = &status.database_statuses[2];
-    dbg!(&db_status);
-    assert_eq!(db_status.db_name, "soft_deleted");
-    assert!(dbg!(&db_status.error.as_ref().unwrap().message)
-        .contains("no active generation directory found, not loading"));
-    assert_eq!(
-        DatabaseState::from_i32(db_status.state).unwrap(),
-        DatabaseState::NoActiveDatabase,
     );
 }
 

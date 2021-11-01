@@ -16,21 +16,23 @@
 //! permitting fast conversion to [`RecordBatch`]
 //!
 
-use crate::column::{Column, ColumnData};
-use arrow::record_batch::RecordBatch;
-use data_types::database_rules::PartitionTemplate;
-use data_types::write_summary::TimestampSummary;
-use hashbrown::HashMap;
-use schema::selection::Selection;
-use schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
-use snafu::{OptionExt, ResultExt, Snafu};
-use std::num::NonZeroUsize;
 use std::ops::Range;
 
+use arrow::record_batch::RecordBatch;
+use hashbrown::HashMap;
+use snafu::{OptionExt, ResultExt, Snafu};
+
+use data_types::write_summary::TimestampSummary;
+use schema::selection::Selection;
+use schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
+
+use crate::column::{Column, ColumnData};
+
 pub mod column;
-mod filter;
-mod partition;
+pub mod payload;
 pub mod writer;
+
+pub use payload::*;
 
 #[allow(missing_docs)]
 #[derive(Debug, Snafu)]
@@ -194,152 +196,28 @@ impl MutableBatch {
     }
 }
 
-/// A payload that can be written to a mutable batch
-pub trait WritePayload {
-    /// Write this payload to `batch`
-    fn write_to_batch(&self, batch: &mut MutableBatch) -> Result<()>;
-}
+/// Test utilities
+pub mod test_util {
+    use crate::payload::DbWrite;
+    use arrow_util::display::pretty_format_batches;
+    use schema::selection::Selection;
 
-impl WritePayload for MutableBatch {
-    fn write_to_batch(&self, batch: &mut MutableBatch) -> Result<()> {
-        batch.extend_from(self)
-    }
-}
+    /// Asserts two writes are equal
+    pub fn assert_writes_eq(a: &DbWrite, b: &DbWrite) {
+        assert_eq!(a.meta().sequence(), b.meta().sequence());
+        assert_eq!(a.meta().producer_ts(), b.meta().producer_ts());
 
-/// A [`MutableBatch`] with a non-zero set of row ranges to write
-#[derive(Debug)]
-pub struct PartitionWrite<'a> {
-    batch: &'a MutableBatch,
-    ranges: Vec<Range<usize>>,
-    min_timestamp: i64,
-    max_timestamp: i64,
-    row_count: NonZeroUsize,
-}
+        assert_eq!(a.table_count(), b.table_count());
 
-impl<'a> PartitionWrite<'a> {
-    /// Create a new [`PartitionWrite`] with the entire range of the provided batch
-    ///
-    /// # Panic
-    ///
-    /// Panics if the batch has no rows
-    pub fn new(batch: &'a MutableBatch) -> Self {
-        let row_count = NonZeroUsize::new(batch.row_count).unwrap();
-        let time = get_time_column(batch);
-        let (min_timestamp, max_timestamp) = min_max_time(time);
+        for (table_name, a_batch) in a.tables() {
+            let b_batch = b.table(table_name).expect("table not found");
 
-        Self {
-            batch,
-            ranges: vec![0..batch.row_count],
-            min_timestamp,
-            max_timestamp,
-            row_count,
+            assert_eq!(
+                pretty_format_batches(&[a_batch.to_arrow(Selection::All).unwrap()]).unwrap(),
+                pretty_format_batches(&[b_batch.to_arrow(Selection::All).unwrap()]).unwrap(),
+                "batches for table \"{}\" differ",
+                table_name
+            );
         }
     }
-
-    /// Returns the minimum timestamp in the write
-    pub fn min_timestamp(&self) -> i64 {
-        self.min_timestamp
-    }
-
-    /// Returns the maximum timestamp in the write
-    pub fn max_timestamp(&self) -> i64 {
-        self.max_timestamp
-    }
-
-    /// Returns the number of rows in the write
-    pub fn rows(&self) -> NonZeroUsize {
-        self.row_count
-    }
-
-    /// Returns a [`PartitionWrite`] containing just the rows of `Self` that pass
-    /// the provided time predicate, or None if no rows
-    pub fn filter(&self, predicate: impl Fn(i64) -> bool) -> Option<PartitionWrite<'a>> {
-        let mut min_timestamp = i64::MAX;
-        let mut max_timestamp = i64::MIN;
-        let mut row_count = 0_usize;
-
-        // Construct a predicate that lets us inspect the timestamps as they are filtered
-        let inspect = |t| match predicate(t) {
-            true => {
-                min_timestamp = min_timestamp.min(t);
-                max_timestamp = max_timestamp.max(t);
-                row_count += 1;
-                true
-            }
-            false => false,
-        };
-
-        let ranges: Vec<_> = filter::filter_time(self.batch, &self.ranges, inspect);
-        let row_count = NonZeroUsize::new(row_count)?;
-
-        Some(PartitionWrite {
-            batch: self.batch,
-            ranges,
-            min_timestamp,
-            max_timestamp,
-            row_count,
-        })
-    }
-
-    /// Create a collection of [`PartitionWrite`] indexed by partition key
-    /// from a [`MutableBatch`] and [`PartitionTemplate`]
-    pub fn partition(
-        table_name: &str,
-        batch: &'a MutableBatch,
-        partition_template: &PartitionTemplate,
-    ) -> HashMap<String, Self> {
-        use hashbrown::hash_map::Entry;
-        let time = get_time_column(batch);
-
-        let mut partition_ranges = HashMap::new();
-        for (partition, range) in partition::partition_batch(batch, table_name, partition_template)
-        {
-            let row_count = NonZeroUsize::new(range.end - range.start).unwrap();
-            let (min_timestamp, max_timestamp) = min_max_time(&time[range.clone()]);
-
-            match partition_ranges.entry(partition) {
-                Entry::Vacant(v) => {
-                    v.insert(PartitionWrite {
-                        batch,
-                        ranges: vec![range],
-                        min_timestamp,
-                        max_timestamp,
-                        row_count,
-                    });
-                }
-                Entry::Occupied(mut o) => {
-                    let pw = o.get_mut();
-                    pw.min_timestamp = pw.min_timestamp.min(min_timestamp);
-                    pw.max_timestamp = pw.max_timestamp.max(max_timestamp);
-                    pw.row_count = NonZeroUsize::new(pw.row_count.get() + row_count.get()).unwrap();
-                    pw.ranges.push(range);
-                }
-            }
-        }
-        partition_ranges
-    }
-}
-
-impl<'a> WritePayload for PartitionWrite<'a> {
-    fn write_to_batch(&self, batch: &mut MutableBatch) -> Result<()> {
-        batch.extend_from_ranges(self.batch, &self.ranges)
-    }
-}
-
-fn get_time_column(batch: &MutableBatch) -> &[i64] {
-    let time_column = batch.column(TIME_COLUMN_NAME).expect("time column");
-    match &time_column.data {
-        ColumnData::I64(col_data, _) => col_data,
-        x => unreachable!("expected i64 got {} for time column", x),
-    }
-}
-
-fn min_max_time(col: &[i64]) -> (i64, i64) {
-    let mut min_timestamp = i64::MAX;
-    let mut max_timestamp = i64::MIN;
-    for t in col {
-        min_timestamp = min_timestamp.min(*t);
-        max_timestamp = max_timestamp.max(*t);
-    }
-    (min_timestamp, max_timestamp)
 }

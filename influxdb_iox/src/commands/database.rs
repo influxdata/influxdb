@@ -1,6 +1,6 @@
 //! This module implements the `database` CLI command
 
-use chrono::{DateTime, Utc};
+use crate::TABLE_STYLE_SINGLE_LINE_BORDERS;
 use comfy_table::{Cell, Table};
 use influxdb_iox_client::{
     connection::Connection,
@@ -12,12 +12,10 @@ use influxdb_iox_client::{
     },
     write::{self, WriteError},
 };
-use std::{
-    convert::TryInto, fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr,
-    time::Duration,
-};
+use std::{fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr, time::Duration};
 use structopt::StructOpt;
 use thiserror::Error;
+use uuid::Uuid;
 
 mod chunk;
 mod partition;
@@ -139,8 +137,7 @@ struct Create {
 /// Get list of databases
 #[derive(Debug, StructOpt)]
 struct List {
-    /// Whether to list detailed information about the databases, such as generation IDs along
-    /// with their names.
+    /// Whether to list detailed information about the databases along with their names.
     #[structopt(long)]
     detailed: bool,
 }
@@ -189,14 +186,14 @@ struct Delete {
     name: String,
 }
 
-/// Restore a deleted database generation
+/// Restore a deleted database
 #[derive(Debug, StructOpt)]
 struct Restore {
-    /// The generation ID of the database to restore
-    generation_id: usize,
-
-    /// The name of the database to delete
+    /// The name to give the database upon restoring it
     name: String,
+
+    /// The UUID of the database to restore
+    uuid: String,
 }
 
 /// All possible subcommands for database
@@ -220,7 +217,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             let mut client = management::Client::new(connection);
             #[allow(deprecated)]
             let rules = DatabaseRules {
-                name: command.name,
+                name: command.name.clone(),
                 lifecycle_rules: Some(LifecycleRules {
                     buffer_size_soft: command.buffer_size_soft as _,
                     buffer_size_hard: command.buffer_size_hard as _,
@@ -254,42 +251,35 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 ..Default::default()
             };
 
-            client.create_database(rules).await?;
+            let uuid = client.create_database(rules).await?;
 
-            println!("Ok");
+            println!("Created database {} ({})", command.name, uuid);
         }
         Command::List(list) => {
             let mut client = management::Client::new(connection);
             if list.detailed {
                 let databases = client.list_detailed_databases().await?;
 
-                let mut table = Table::new();
-                table.load_preset("||--+-++|    ++++++");
-                table.set_header(vec![
-                    Cell::new("Deleted at"),
-                    Cell::new("Generation ID"),
-                    Cell::new("Name"),
-                ]);
+                if !databases.is_empty() {
+                    let mut table = Table::new();
+                    table.load_preset(TABLE_STYLE_SINGLE_LINE_BORDERS);
+                    table.set_header(vec![Cell::new("Name"), Cell::new("UUID")]);
 
-                for database in databases {
-                    let deleted_at = database
-                        .deleted_at
-                        .and_then(|t| {
-                            let dt: Result<DateTime<Utc>, _> = t.try_into();
-                            dt.ok().map(|d| d.to_string())
-                        })
-                        .unwrap_or_else(String::new);
-                    table.add_row(vec![
-                        Cell::new(&deleted_at),
-                        Cell::new(&database.generation_id.to_string()),
-                        Cell::new(&database.db_name),
-                    ]);
+                    for database in databases {
+                        let uuid = Uuid::from_slice(&database.uuid)
+                            .map(|u| u.to_string())
+                            .unwrap_or_else(|_| String::from("<UUID parsing failed>"));
+
+                        table.add_row(vec![Cell::new(&database.db_name), Cell::new(&uuid)]);
+                    }
+
+                    print!("{}", table);
                 }
-
-                print!("{}", table);
             } else {
                 let names = client.list_database_names().await?;
-                println!("{}", names.join("\n"))
+                if !names.is_empty() {
+                    println!("{}", names.join("\n"))
+                }
             }
         }
         Command::Get(get) => {
@@ -354,15 +344,16 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Delete(command) => {
             let mut client = management::Client::new(connection);
-            client.delete_database(&command.name).await?;
+            let uuid = client.delete_database(&command.name).await?;
             println!("Deleted database {}", command.name);
+            println!("{}", uuid);
         }
         Command::Restore(command) => {
             let mut client = management::Client::new(connection);
             client
-                .restore_database(&command.name, command.generation_id)
+                .restore_database(&command.name, &command.uuid)
                 .await?;
-            println!("Restored database {}", command.name);
+            println!("Restored database {} ({})", command.name, command.uuid);
         }
     }
 

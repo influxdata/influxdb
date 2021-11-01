@@ -30,9 +30,9 @@ pin-project = "1.0"
 regex = "1"
 schema = { path = "../schema" }
 snafu = "0.6.9"
-tokio = { version = "1.11", features = ["macros"] }
-tokio-stream = "0.1.2"
-tokio-util = { version = "0.6.3" }
+tokio = { version = "1.13", features = ["macros"] }
+tokio-stream = "0.1.8"
+tokio-util = { version = "0.6.9" }
 trace = { path = "../trace" }
 predicate = { path = "../predicate" }
 

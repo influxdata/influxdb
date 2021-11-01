@@ -28,7 +28,8 @@ use data_types::{
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, SequencedEntry};
 use iox_object_store::IoxObjectStore;
-use mutable_batch::PartitionWrite;
+use mutable_batch::payload::{DbWrite, PartitionWrite};
+use mutable_batch_entry::sequenced_entry_to_write;
 use mutable_buffer::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info, warn};
 use parquet_catalog::{
@@ -51,7 +52,7 @@ use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
 
 pub(crate) use crate::db::chunk::DbChunk;
 pub(crate) use crate::db::lifecycle::ArcDb;
-use crate::db::write::{DbWrite, WriteFilter, WriteFilterNone};
+use crate::db::write::{WriteFilter, WriteFilterNone};
 use crate::{
     db::{
         access::QueryCatalogAccess,
@@ -969,7 +970,7 @@ impl Db {
 
         // Group writes based on table
 
-        self.store_write(&DbWrite::from_entry(&sequenced_entry).context(EntryConversion)?)
+        self.store_write(&sequenced_entry_to_write(&sequenced_entry).context(EntryConversion)?)
     }
 
     /// Writes the provided [`DbWrite`] to this database
@@ -3198,7 +3199,7 @@ mod tests {
         }
 
         // ==================== do: re-load DB ====================
-        // Re-create database with same store, serverID, and DB name
+        // Re-create database with same store, serverID, UUID, and DB name
         drop(db);
         let test_db = test_db_builder.build().await;
         let db = Arc::new(test_db.db);
@@ -3373,7 +3374,7 @@ mod tests {
         drop(db);
 
         // ==================== do: re-load DB ====================
-        // Re-create database with same store, serverID, and DB name
+        // Re-create database with same store, server ID, UUID, and DB name
         let test_db = test_db_builder.build().await;
         let db = Arc::new(test_db.db);
 

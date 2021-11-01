@@ -1,6 +1,5 @@
-use chrono::{DateTime, Utc};
 use metric::{Attributes, DurationHistogram, Metric, ResultMetric, U64Counter, U64Gauge};
-use std::sync::Arc;
+use mutable_batch::DbWrite;
 use std::time::Instant;
 
 /// Metrics for data ingest via write buffer.
@@ -123,11 +122,10 @@ impl SequencerMetrics {
     /// Get a recorder that automatically records an error on drop
     pub fn recorder(&mut self, watermark: u64) -> IngestRecorder<'_> {
         IngestRecorder {
-            sequenced_entry: None,
-            metrics: self,
+            write: None,
+            metrics: Some(self),
             watermark,
             start_time: Instant::now(),
-            recorded: false,
         }
     }
 }
@@ -138,17 +136,26 @@ impl SequencerMetrics {
 /// Records a client_error if dropped before a call to `IngestRecorder::entry`, as this
 /// indicates the write buffer contents were invalid, otherwise records a server_error
 pub struct IngestRecorder<'a> {
-    sequenced_entry: Option<Arc<entry::SequencedEntry>>,
-    metrics: &'a mut SequencerMetrics,
     watermark: u64,
     start_time: Instant,
-    recorded: bool,
+
+    /// The `IngestRecorder` is initially created without a write in case of decode error
+    write: Option<&'a DbWrite>,
+
+    /// The SequencerMetrics are taken out of this on record to both avoid duplicate
+    /// recording and also work around lifetime shenanigans
+    metrics: Option<&'a mut SequencerMetrics>,
 }
 
 impl<'a> IngestRecorder<'a> {
-    pub fn entry(&mut self, entry: Arc<entry::SequencedEntry>) {
-        assert!(self.sequenced_entry.is_none());
-        self.sequenced_entry = Some(entry)
+    pub fn write(mut self, write: &'a DbWrite) -> IngestRecorder<'a> {
+        assert!(self.write.is_none());
+        Self {
+            write: Some(write),
+            metrics: self.metrics.take(),
+            watermark: self.watermark,
+            start_time: self.start_time,
+        }
     }
 
     pub fn success(mut self) {
@@ -156,23 +163,24 @@ impl<'a> IngestRecorder<'a> {
     }
 
     fn record(&mut self, success: bool) {
-        assert!(!self.recorded);
-        self.recorded = true;
-
         let duration = self.start_time.elapsed();
-        let metrics = &mut self.metrics;
+        let metrics = self.metrics.take().expect("record called twice");
 
-        if let Some(sequenced_entry) = self.sequenced_entry.as_ref() {
-            let entry = sequenced_entry.entry();
-            let producer_wallclock_timestamp = sequenced_entry
-                .producer_wallclock_timestamp()
+        if let Some(db_write) = self.write.as_ref() {
+            let meta = db_write.meta();
+            let producer_ts = meta
+                .producer_ts()
                 .expect("entry from write buffer must have a producer wallclock time");
 
-            let sequence = sequenced_entry
+            let sequence = meta
                 .sequence()
                 .expect("entry from write buffer must be sequenced");
 
-            metrics.bytes_read.inc(entry.data().len() as u64);
+            let bytes_read = meta
+                .bytes_read()
+                .expect("entry from write buffer should have size");
+
+            metrics.bytes_read.inc(bytes_read as u64);
             metrics.last_sequence_number.set(sequence.number);
             metrics.sequence_number_lag.set(
                 self.watermark
@@ -180,27 +188,15 @@ impl<'a> IngestRecorder<'a> {
                     .saturating_sub(1),
             );
 
-            let mut min_max_ts: Option<(DateTime<Utc>, DateTime<Utc>)> = None;
-            for (_, table_batch) in entry.table_batches() {
-                if let Ok((batch_min, batch_max)) = table_batch.min_max_time() {
-                    min_max_ts = match &min_max_ts {
-                        None => Some((batch_min, batch_max)),
-                        Some((min, max)) => Some((batch_min.min(*min), batch_max.max(*max))),
-                    }
-                }
-            }
-
-            if let Some((min_ts, max_ts)) = min_max_ts {
-                metrics.last_min_ts.set(min_ts.timestamp_nanos() as u64);
-                metrics.last_max_ts.set(max_ts.timestamp_nanos() as u64);
-            }
+            metrics.last_min_ts.set(db_write.min_timestamp() as u64);
+            metrics.last_max_ts.set(db_write.max_timestamp() as u64);
 
             metrics
                 .last_ingest_ts
-                .set(producer_wallclock_timestamp.timestamp_nanos() as u64);
+                .set(producer_ts.timestamp_nanos() as u64);
         }
 
-        match (success, self.sequenced_entry.is_some()) {
+        match (success, self.write.is_some()) {
             (true, true) => {
                 // Successfully ingested entry
                 metrics.ingest_duration.ok.record(duration);
@@ -223,7 +219,7 @@ impl<'a> IngestRecorder<'a> {
 
 impl<'a> Drop for IngestRecorder<'a> {
     fn drop(&mut self) {
-        if !self.recorded {
+        if self.metrics.is_some() {
             self.record(false)
         }
     }

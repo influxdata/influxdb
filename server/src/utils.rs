@@ -18,6 +18,7 @@ use std::{
     time::Duration,
 };
 use time::{Time, TimeProvider};
+use uuid::Uuid;
 use write_buffer::core::WriteBufferWriting;
 
 // A wrapper around a Db and a metric registry allowing for isolated testing
@@ -40,6 +41,7 @@ pub struct TestDbBuilder {
     server_id: ServerId,
     object_store: Arc<ObjectStore>,
     db_name: DatabaseName<'static>,
+    uuid: Uuid,
     worker_cleanup_avg_sleep: Duration,
     write_buffer_producer: Option<Arc<dyn WriteBufferWriting>>,
     lifecycle_rules: LifecycleRules,
@@ -53,6 +55,7 @@ impl Default for TestDbBuilder {
             server_id: ServerId::try_from(1).unwrap(),
             object_store: Arc::new(ObjectStore::new_in_memory()),
             db_name: DatabaseName::new("placeholder").unwrap(),
+            uuid: Uuid::new_v4(),
             // make background loop spin a bit faster for tests
             worker_cleanup_avg_sleep: Duration::from_secs(1),
             write_buffer_producer: None,
@@ -79,16 +82,15 @@ impl TestDbBuilder {
         let server_id = self.server_id;
         let object_store = Arc::clone(&self.object_store);
         let db_name = self.db_name.clone();
+        let uuid = self.uuid;
 
         let time_provider = Arc::clone(&self.time_provider);
 
         let iox_object_store =
-            IoxObjectStore::find_existing(Arc::clone(&object_store), server_id, &db_name)
-                .await
-                .unwrap();
+            IoxObjectStore::load(Arc::clone(&object_store), server_id, uuid).await;
         let iox_object_store = match iox_object_store {
-            Some(ios) => ios,
-            None => IoxObjectStore::new(Arc::clone(&object_store), server_id, &db_name)
+            Ok(ios) => ios,
+            Err(_) => IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
                 .await
                 .unwrap(),
         };

@@ -125,6 +125,7 @@ use data_types::{database_rules::WriteBufferCreationConfig, sequence::Sequence};
 use entry::{Entry, SequencedEntry};
 use futures::{channel::mpsc::Receiver, FutureExt, SinkExt, Stream, StreamExt};
 use http::{header::HeaderName, HeaderMap, HeaderValue};
+use mutable_batch::DbWrite;
 use pin_project::{pin_project, pinned_drop};
 use time::{Time, TimeProvider};
 use tokio::task::JoinHandle;
@@ -133,8 +134,8 @@ use trace_http::ctx::{format_jaeger_trace_context, TraceHeaderParser};
 use uuid::Uuid;
 
 use crate::core::{
-    EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
-    WriteBufferWriting,
+    FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
+    WriteBufferWriting, WriteStream,
 };
 
 /// Header used to declare the content type of the message.
@@ -301,7 +302,7 @@ impl FileBufferConsumer {
 
 #[async_trait]
 impl WriteBufferReading for FileBufferConsumer {
-    fn streams(&mut self) -> BTreeMap<u32, EntryStream<'_>> {
+    fn streams(&mut self) -> BTreeMap<u32, WriteStream<'_>> {
         let mut streams = BTreeMap::default();
 
         for (sequencer_id, (sequencer_path, next_sequence_number)) in &self.dirs {
@@ -325,7 +326,7 @@ impl WriteBufferReading for FileBufferConsumer {
 
             streams.insert(
                 *sequencer_id,
-                EntryStream {
+                WriteStream {
                     stream,
                     fetch_high_watermark,
                 },
@@ -362,7 +363,7 @@ impl WriteBufferReading for FileBufferConsumer {
 struct ConsumerStream {
     join_handle: JoinHandle<()>,
     #[pin]
-    rx: Receiver<Result<SequencedEntry, WriteBufferError>>,
+    rx: Receiver<Result<DbWrite, WriteBufferError>>,
 }
 
 impl ConsumerStream {
@@ -397,7 +398,8 @@ impl ConsumerStream {
                                 ) {
                                     Ok(_) => {
                                         // can send to output
-                                        Ok(sequence)
+                                        mutable_batch_entry::sequenced_entry_to_write(&sequence)
+                                            .map_err(|e| Box::new(e) as WriteBufferError)
                                     }
                                     Err(_) => {
                                         // interleaving change, retry
@@ -405,7 +407,7 @@ impl ConsumerStream {
                                     }
                                 }
                             }
-                            e => e,
+                            Err(e) => Err(e),
                         }
                     }
                     Err(error) => {
@@ -534,7 +536,7 @@ impl PinnedDrop for ConsumerStream {
 }
 
 impl Stream for ConsumerStream {
-    type Item = Result<SequencedEntry, WriteBufferError>;
+    type Item = Result<DbWrite, WriteBufferError>;
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -683,10 +685,11 @@ mod tests {
     use std::num::NonZeroU32;
 
     use entry::test_helpers::lp_to_entry;
+    use mutable_batch::test_util::assert_writes_eq;
     use tempfile::TempDir;
     use trace::RingBufferTraceCollector;
 
-    use crate::core::test_utils::{perform_generic_tests, TestAdapter, TestContext};
+    use crate::core::test_utils::{perform_generic_tests, write, TestAdapter, TestContext};
 
     use super::test_utils::remove_entry;
     use super::*;
@@ -782,52 +785,32 @@ mod tests {
         let entry_2 = lp_to_entry("upc,region=east user=2 200");
         let entry_3 = lp_to_entry("upc,region=east user=3 300");
         let entry_4 = lp_to_entry("upc,region=east user=4 400");
-        let (sequence_1, _) = writer
-            .store_entry(&entry_1, sequencer_id, None)
-            .await
-            .unwrap();
-        let (sequence_2, _) = writer
-            .store_entry(&entry_2, sequencer_id, None)
-            .await
-            .unwrap();
-        let (sequence_3, _) = writer
-            .store_entry(&entry_3, sequencer_id, None)
-            .await
-            .unwrap();
-        let (sequence_4, _) = writer
-            .store_entry(&entry_4, sequencer_id, None)
-            .await
-            .unwrap();
+
+        let w1 = write(&writer, entry_1, sequencer_id, None).await;
+        let w2 = write(&writer, entry_2, sequencer_id, None).await;
+        let w3 = write(&writer, entry_3, sequencer_id, None).await;
+        let w4 = write(&writer, entry_4, sequencer_id, None).await;
 
         remove_entry(
             &ctx.path,
             &ctx.database_name,
             sequencer_id,
-            sequence_2.number,
+            w2.meta().sequence().unwrap().number,
         )
         .await;
         remove_entry(
             &ctx.path,
             &ctx.database_name,
             sequencer_id,
-            sequence_3.number,
+            w3.meta().sequence().unwrap().number,
         )
         .await;
 
         let mut reader = ctx.reading(true).await.unwrap();
         let mut stream = reader.streams().remove(&sequencer_id).unwrap();
-        let sequenced_entry_1 = stream.stream.next().await.unwrap().unwrap();
-        let sequenced_entry_4 = stream.stream.next().await.unwrap().unwrap();
-        assert_eq!(
-            sequence_1.number,
-            sequenced_entry_1.sequence().unwrap().number
-        );
-        assert_eq!(
-            sequence_4.number,
-            sequenced_entry_4.sequence().unwrap().number
-        );
-        assert_eq!(&entry_1, sequenced_entry_1.entry());
-        assert_eq!(&entry_4, sequenced_entry_4.entry());
+
+        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
+        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w4);
     }
 
     #[tokio::test]
@@ -839,30 +822,21 @@ mod tests {
         let sequencer_id = writer.sequencer_ids().into_iter().next().unwrap();
         let entry_1 = lp_to_entry("upc,region=east user=1 100");
         let entry_2 = lp_to_entry("upc,region=east user=2 200");
-        let (sequence_1, _) = writer
-            .store_entry(&entry_1, sequencer_id, None)
-            .await
-            .unwrap();
-        let (sequence_2, _) = writer
-            .store_entry(&entry_2, sequencer_id, None)
-            .await
-            .unwrap();
+
+        let w1 = write(&writer, entry_1, sequencer_id, None).await;
+        let w2 = write(&writer, entry_2, sequencer_id, None).await;
 
         remove_entry(
             &ctx.path,
             &ctx.database_name,
             sequencer_id,
-            sequence_1.number,
+            w1.meta().sequence().unwrap().number,
         )
         .await;
 
         let mut reader = ctx.reading(true).await.unwrap();
         let mut stream = reader.streams().remove(&sequencer_id).unwrap();
-        let sequenced_entry_2 = stream.stream.next().await.unwrap().unwrap();
-        assert_eq!(
-            sequence_2.number,
-            sequenced_entry_2.sequence().unwrap().number
-        );
-        assert_eq!(&entry_2, sequenced_entry_2.entry());
+
+        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w2);
     }
 }

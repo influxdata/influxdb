@@ -57,7 +57,7 @@ async fn create_database(db_name: &str, addr: &str) {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Ok"));
+        .stdout(predicate::str::contains("Created"));
 
     let lp_data = vec![
         "cpu,region=west user=23.2 100",

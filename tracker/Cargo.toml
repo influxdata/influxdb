@@ -15,9 +15,9 @@ observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.2"
 pin-project = "1.0"
 time = { path = "../time" }
-tokio = { version = "1.11", features = ["macros", "time"] }
-tokio-util = { version = "0.6.3" }
+tokio = { version = "1.13", features = ["macros", "time"] }
+tokio-util = { version = "0.6.9" }
 
 [dev-dependencies]
 # Need the multi-threaded executor for testing
-tokio = { version = "1.11", features = ["macros", "time", "rt-multi-thread"] }
+tokio = { version = "1.13", features = ["macros", "time", "rt-multi-thread"] }

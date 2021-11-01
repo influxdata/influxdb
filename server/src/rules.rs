@@ -68,11 +68,14 @@ pub struct ProvidedDatabaseRules {
     /// Encoded database rules, as provided by the user and as stored
     /// in the object store (may not have all fields set).
     original: management::v1::DatabaseRules,
+
+    /// UUID of the database, as assigned during database creation and serialized to object storage.
+    uuid: Uuid,
 }
 
 impl ProvidedDatabaseRules {
     // Create a new database with a default database
-    pub fn new_empty(db_name: DatabaseName<'static>) -> Self {
+    pub fn new_empty(db_name: DatabaseName<'static>, uuid: Uuid) -> Self {
         let original = management::v1::DatabaseRules {
             name: db_name.to_string(),
             ..Default::default()
@@ -81,13 +84,21 @@ impl ProvidedDatabaseRules {
         // Should always be able to create a DBRules with default values
         let full = Arc::new(original.clone().try_into().expect("creating empty rules"));
 
-        Self { full, original }
+        Self {
+            full,
+            original,
+            uuid,
+        }
     }
 
     pub fn new_rules(original: management::v1::DatabaseRules) -> Result<Self, FieldViolation> {
         let full = Arc::new(original.clone().try_into()?);
 
-        Ok(Self { full, original })
+        Ok(Self {
+            full,
+            original,
+            uuid: Uuid::new_v4(),
+        })
     }
 
     /// returns the name of the database in the rules
@@ -98,6 +109,11 @@ impl ProvidedDatabaseRules {
     /// Return the full database rules
     pub fn rules(&self) -> &Arc<DatabaseRules> {
         &self.full
+    }
+
+    /// Return the UUID
+    pub fn uuid(&self) -> Uuid {
+        self.uuid
     }
 
     /// Return the original rules provided to this
@@ -113,23 +129,10 @@ impl ProvidedDatabaseRules {
             .await
             .context(RulesFetch)?;
 
-        // TEMPORARY FOR TRANSITION PURPOSES - if decoding rules file as `PersistedDatabaseRules`
-        // (which includes the database UUID) fails, try to decode as `DatabaseRules`. Then next
-        // time the database rules are updated, the rules file will be writted as
-        // `PersistedDatabaseRules`.
-        let new_self =
-            match generated_types::database_rules::decode_persisted_database_rules(bytes.clone())
-                .context(Deserialization)?
-                .try_into()
-            {
-                Ok(pdr) => pdr,
-                Err(_) => match generated_types::database_rules::decode_database_rules(bytes) {
-                    Ok(dr) => Self::new_rules(dr).context(ConvertingRules)?,
-                    Err(e) => {
-                        return Err(Error::Deserialization { source: e });
-                    }
-                },
-            };
+        let new_self = generated_types::database_rules::decode_persisted_database_rules(bytes)
+            .context(Deserialization)?
+            .try_into()
+            .context(ConvertingRules)?;
 
         Ok(new_self)
     }
@@ -168,6 +171,15 @@ impl TryFrom<management::v1::PersistedDatabaseRules> for ProvidedDatabaseRules {
 
         let full = Arc::new(original.clone().try_into()?);
 
-        Ok(Self { full, original })
+        let uuid = Uuid::from_slice(&proto.uuid).map_err(|e| FieldViolation {
+            field: "uuid".to_string(),
+            description: e.to_string(),
+        })?;
+
+        Ok(Self {
+            full,
+            original,
+            uuid,
+        })
     }
 }

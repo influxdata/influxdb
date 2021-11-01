@@ -1,12 +1,12 @@
 //! Paths for specific types of files within a database's object storage.
 
-use super::Generation;
-use data_types::{server_id::ServerId, DatabaseName};
+use data_types::server_id::ServerId;
 use object_store::{
     path::{ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
 use std::fmt;
+use uuid::Uuid;
 
 pub mod parquet_file;
 use parquet_file::ParquetFilePath;
@@ -45,13 +45,9 @@ pub struct RootPath {
 
 impl RootPath {
     /// How the root of a database is defined in object storage.
-    pub(crate) fn new(
-        object_store: &ObjectStore,
-        server_id: ServerId,
-        database_name: &DatabaseName<'_>,
-    ) -> Self {
+    pub(crate) fn new(object_store: &ObjectStore, server_id: ServerId, uuid: Uuid) -> Self {
         let mut inner = all_databases_path(object_store, server_id);
-        inner.push_dir(database_name.as_str());
+        inner.push_dir(uuid.to_string());
         Self { inner }
     }
 
@@ -67,38 +63,14 @@ impl RootPath {
         result
     }
 
-    pub(crate) fn generation_path(&self, generation: Generation) -> GenerationPath {
-        GenerationPath::new(self, generation)
-    }
-}
-
-impl fmt::Display for RootPath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.inner.to_raw())
-    }
-}
-
-/// A database- and generation-specific object store path that all `IoxPath`s should be within.
-/// This should not be leaked outside this crate.
-#[derive(Debug, Clone)]
-pub(crate) struct GenerationPath {
-    pub(crate) inner: Path,
-    generation: Generation,
-}
-
-impl GenerationPath {
-    /// How the generation path of a database is defined in object storage.
-    pub(crate) fn new(root_path: &RootPath, generation: Generation) -> Self {
-        Self {
-            inner: root_path.join(&generation.id.to_string()),
-            generation,
-        }
-    }
-
-    fn join(&self, dir: &str) -> Path {
+    pub(crate) fn owner_path(&self) -> Path {
         let mut result = self.inner.clone();
-        result.push_dir(dir);
+        result.set_file_name(DATABASE_OWNER_FILE_NAME);
         result
+    }
+
+    pub(crate) fn rules_path(&self) -> RulesPath {
+        RulesPath::new(self)
     }
 
     pub(crate) fn data_path(&self) -> DataPath {
@@ -109,10 +81,37 @@ impl GenerationPath {
         TransactionsPath::new(self)
     }
 
-    pub(crate) fn owner_path(&self) -> Path {
-        let mut result = self.inner.clone();
-        result.set_file_name(DATABASE_OWNER_FILE_NAME);
-        result
+    pub(crate) fn tombstone_path(&self) -> TombstonePath {
+        TombstonePath::new(self)
+    }
+}
+
+impl fmt::Display for RootPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.inner.to_raw())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct RulesPath {
+    pub(crate) inner: Path,
+}
+
+impl RulesPath {
+    const DB_RULES_FILE_NAME: &'static str = "rules.pb";
+
+    /// How the rules path of a database is defined in object storage in terms of the
+    /// root path.
+    pub(crate) fn new(root_path: &RootPath) -> Self {
+        Self::new_from_object_store_path(&root_path.inner)
+    }
+
+    /// Creating a potential rules file location given an object storage path received from
+    /// an object storage list operation.
+    pub(crate) fn new_from_object_store_path(path: &Path) -> Self {
+        let mut inner = path.clone();
+        inner.set_file_name(Self::DB_RULES_FILE_NAME);
+        Self { inner }
     }
 }
 
@@ -125,9 +124,9 @@ impl TombstonePath {
     const TOMBSTONE_FILE_NAME: &'static str = "DELETED";
 
     /// How the tombstone path of a database is defined in object storage in terms of the
-    /// generation path.
-    pub(crate) fn new(generation_path: &GenerationPath) -> Self {
-        Self::new_from_object_store_path(&generation_path.inner)
+    /// root path.
+    pub(crate) fn new(root_path: &RootPath) -> Self {
+        Self::new_from_object_store_path(&root_path.inner)
     }
 
     /// Creating a potential tombstone file location given an object storage path received from
@@ -147,9 +146,11 @@ pub(crate) struct TransactionsPath {
 }
 
 impl TransactionsPath {
-    pub(crate) fn new(generation_path: &GenerationPath) -> Self {
+    /// How the transactions path of a database is defined in object storage in terms of the
+    /// root path.
+    pub(crate) fn new(root_path: &RootPath) -> Self {
         Self {
-            inner: generation_path.join("transactions"),
+            inner: root_path.join("transactions"),
         }
     }
 
@@ -177,9 +178,10 @@ pub(crate) struct DataPath {
 }
 
 impl DataPath {
-    pub(crate) fn new(generation_path: &GenerationPath) -> Self {
+    /// How the data path of a database is defined in object storage in terms of the root path.
+    pub(crate) fn new(root_path: &RootPath) -> Self {
         Self {
-            inner: generation_path.join("data"),
+            inner: root_path.join("data"),
         }
     }
 
@@ -221,80 +223,48 @@ mod tests {
     fn root_path_contains_server_id_and_db_name() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let database_name = DatabaseName::new("clouds").unwrap();
-        let root_path = RootPath::new(&object_store, server_id, &database_name);
+        let uuid = Uuid::new_v4();
+        let root_path = RootPath::new(&object_store, server_id, uuid);
 
-        assert_eq!(root_path.inner.to_string(), "mem:1/clouds/")
+        assert_eq!(root_path.inner.to_string(), format!("mem:1/{}/", uuid));
     }
 
     #[test]
     fn root_path_join_concatenates() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let database_name = DatabaseName::new("clouds").unwrap();
-        let root_path = RootPath::new(&object_store, server_id, &database_name);
+        let uuid = Uuid::new_v4();
+        let root_path = RootPath::new(&object_store, server_id, uuid);
 
         let path = root_path.join("foo");
-        assert_eq!(path.to_string(), "mem:1/clouds/foo/");
+        assert_eq!(path.to_string(), format!("mem:1/{}/foo/", uuid));
     }
 
     #[test]
-    fn generation_path_is_relative_to_root_path() {
+    fn transactions_path_is_relative_to_root_path() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let database_name = DatabaseName::new("clouds").unwrap();
-        let generation = Generation::active(3);
-        let root_path = RootPath::new(&object_store, server_id, &database_name);
-        let iox_object_store = IoxObjectStore::existing(
-            Arc::clone(&object_store),
-            server_id,
-            &database_name,
-            generation,
-            root_path,
-        );
-        assert_eq!(
-            iox_object_store.generation_path.inner.to_string(),
-            "mem:1/clouds/3/"
-        );
-    }
-
-    #[test]
-    fn transactions_path_is_relative_to_generation_path() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let database_name = DatabaseName::new("clouds").unwrap();
-        let generation = Generation::active(3);
-        let root_path = RootPath::new(&object_store, server_id, &database_name);
-        let iox_object_store = IoxObjectStore::existing(
-            Arc::clone(&object_store),
-            server_id,
-            &database_name,
-            generation,
-            root_path,
-        );
+        let uuid = Uuid::new_v4();
+        let root_path = RootPath::new(&object_store, server_id, uuid);
+        let iox_object_store =
+            IoxObjectStore::existing(Arc::clone(&object_store), server_id, root_path);
         assert_eq!(
             iox_object_store.transactions_path.inner.to_string(),
-            "mem:1/clouds/3/transactions/"
+            format!("mem:1/{}/transactions/", uuid)
         );
     }
 
     #[test]
-    fn data_path_is_relative_to_generation_path() {
+    fn data_path_is_relative_to_root_path() {
         let object_store = make_object_store();
         let server_id = make_server_id();
-        let database_name = DatabaseName::new("clouds").unwrap();
-        let generation = Generation::active(3);
-        let root_path = RootPath::new(&object_store, server_id, &database_name);
-        let iox_object_store = IoxObjectStore::existing(
-            Arc::clone(&object_store),
-            server_id,
-            &database_name,
-            generation,
-            root_path,
-        );
+        let uuid = Uuid::new_v4();
+        let root_path = RootPath::new(&object_store, server_id, uuid);
+        let iox_object_store =
+            IoxObjectStore::existing(Arc::clone(&object_store), server_id, root_path);
         assert_eq!(
             iox_object_store.data_path.inner.to_string(),
-            "mem:1/clouds/3/data/"
+            format!("mem:1/{}/data/", uuid)
         );
     }
 }

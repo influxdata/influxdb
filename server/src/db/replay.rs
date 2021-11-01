@@ -6,7 +6,7 @@ use std::{
 
 use data_types::sequence::Sequence;
 use futures::TryStreamExt;
-use mutable_batch::PartitionWrite;
+use mutable_batch::payload::PartitionWrite;
 use observability_deps::tracing::{info, warn};
 use persistence_windows::{
     checkpoint::{PartitionCheckpoint, ReplayPlan},
@@ -17,7 +17,7 @@ use snafu::{ResultExt, Snafu};
 use time::Time;
 use write_buffer::core::WriteBufferReading;
 
-use crate::db::write::{DbWrite, WriteFilter};
+use crate::db::write::WriteFilter;
 use crate::Db;
 
 #[allow(clippy::enum_variant_names)]
@@ -214,13 +214,13 @@ pub async fn perform_replay(
                 "replay sequencer",
             );
 
-            while let Some(entry) = stream
+            while let Some(db_write) = stream
                 .stream
                 .try_next()
                 .await
                 .context(EntryError { sequencer_id })?
             {
-                let sequence = *entry.sequence().expect("entry must be sequenced");
+                let sequence = *db_write.meta().sequence().expect("entry must be sequenced");
                 if sequence.number > min_max.max() {
                     return Err(Error::EntryLostError {
                         sequencer_id,
@@ -228,19 +228,6 @@ pub async fn perform_replay(
                         expected_sequence_number: min_max.max(),
                     });
                 }
-
-                let db_write = match DbWrite::from_entry(&entry) {
-                    Ok(db_write) => db_write,
-                    Err(e) => {
-                        warn!(
-                            %e,
-                            %db_name,
-                            sequencer_id,
-                            "Error converting batch to db write during replay",
-                        );
-                        continue;
-                    }
-                };
 
                 let filter = ReplayFilter {
                     sequence,

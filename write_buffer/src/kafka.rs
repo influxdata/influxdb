@@ -13,6 +13,7 @@ use data_types::{
 use entry::{Entry, SequencedEntry};
 use futures::{FutureExt, StreamExt};
 use http::{HeaderMap, HeaderValue};
+use mutable_batch_entry::sequenced_entry_to_write;
 use observability_deps::tracing::{debug, info};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
@@ -30,8 +31,8 @@ use trace::{ctx::SpanContext, TraceCollector};
 use trace_http::ctx::{format_jaeger_trace_context, TraceHeaderParser};
 
 use crate::core::{
-    EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
-    WriteBufferWriting,
+    FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
+    WriteBufferWriting, WriteStream,
 };
 
 /// Message header that determines message content type.
@@ -263,7 +264,7 @@ impl std::fmt::Debug for KafkaBufferConsumer {
 
 #[async_trait]
 impl WriteBufferReading for KafkaBufferConsumer {
-    fn streams(&mut self) -> BTreeMap<u32, EntryStream<'_>> {
+    fn streams(&mut self) -> BTreeMap<u32, WriteStream<'_>> {
         let mut streams = BTreeMap::new();
 
         for (sequencer_id, consumer) in &self.consumers {
@@ -312,7 +313,8 @@ impl WriteBufferReading for KafkaBufferConsumer {
                         number: message.offset().try_into()?,
                     };
 
-                    Ok(SequencedEntry::new_from_sequence_and_span_context(sequence, timestamp, entry, headers.span_context))
+                    let entry = SequencedEntry::new_from_sequence_and_span_context(sequence, timestamp, entry, headers.span_context);
+                    sequenced_entry_to_write(&entry).map_err(|e| Box::new(e) as WriteBufferError)
                 })
                 .boxed();
 
@@ -343,7 +345,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
 
             streams.insert(
                 sequencer_id,
-                EntryStream {
+                WriteStream {
                     stream,
                     fetch_high_watermark,
                 },

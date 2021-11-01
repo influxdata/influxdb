@@ -1,8 +1,8 @@
+use crate::TABLE_STYLE_SINGLE_LINE_BORDERS;
+use comfy_table::{Cell, Table};
 use influxdb_iox_client::{connection::Connection, management};
 use structopt::StructOpt;
 use thiserror::Error;
-
-use comfy_table::{Cell, Table};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
@@ -51,7 +51,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 println!("no remotes configured");
             } else {
                 let mut table = Table::new();
-                table.load_preset("||--+-++|    ++++++");
+                table.load_preset(TABLE_STYLE_SINGLE_LINE_BORDERS);
                 table.set_header(vec![Cell::new("ID"), Cell::new("Connection string")]);
 
                 for i in remotes {

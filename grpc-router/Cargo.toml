@@ -13,9 +13,9 @@ paste = "1.0.5"
 prost = "0.8"
 prost-types = "0.8"
 thiserror = "1.0.30"
-tokio = { version = "1.11", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
-tokio-stream = { version = "0.1.2", features = ["net"] }
-tokio-util = { version = "0.6.3" }
+tokio = { version = "1.13", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
+tokio-stream = { version = "0.1.8", features = ["net"] }
+tokio-util = { version = "0.6.9" }
 tonic = "0.5"
 tonic-reflection = "0.2.0"
 

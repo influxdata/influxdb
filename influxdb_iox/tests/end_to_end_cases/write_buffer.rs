@@ -68,10 +68,8 @@ async fn writes_go_to_write_buffer() {
             .await
             .unwrap();
     let (_, mut stream) = consumer.streams().into_iter().next().unwrap();
-    let sequenced_entry = stream.stream.next().await.unwrap().unwrap();
-    let entry = sequenced_entry.entry();
-    let partition_writes = entry.partition_writes().unwrap();
-    assert_eq!(partition_writes.len(), 2);
+    let db_write = stream.stream.next().await.unwrap().unwrap();
+    assert_eq!(db_write.table_count(), 2);
 }
 
 #[tokio::test]
@@ -120,10 +118,8 @@ async fn writes_go_to_write_buffer_whitelist() {
             .await
             .unwrap();
     let (_, mut stream) = consumer.streams().into_iter().next().unwrap();
-    let sequenced_entry = stream.stream.next().await.unwrap().unwrap();
-    let entry = sequenced_entry.entry();
-    let partition_writes = entry.partition_writes().unwrap();
-    assert_eq!(partition_writes.len(), 1);
+    let db_write = stream.stream.next().await.unwrap().unwrap();
+    assert_eq!(db_write.table_count(), 1);
 }
 
 #[tokio::test]

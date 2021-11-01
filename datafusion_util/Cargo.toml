@@ -8,5 +8,5 @@ description = "Datafusion utilities"
 [dependencies]
 datafusion = { path = "../datafusion" }
 futures = "0.3"
-tokio = { version = "1.11", features = ["macros"] }
-tokio-stream = "0.1.2"
+tokio = { version = "1.13", features = ["macros"] }
+tokio-stream = "0.1.8"

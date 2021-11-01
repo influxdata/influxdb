@@ -26,4 +26,4 @@ schema = { path = "../schema" }
 snafu = "0.6.3"
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers" }
-tokio = { version = "1.11", features = ["macros", "time"] }
+tokio = { version = "1.13", features = ["macros", "time"] }

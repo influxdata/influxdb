@@ -11,6 +11,7 @@ mod delete;
 mod flight;
 mod management;
 mod operations;
+mod remote;
 mod storage;
 mod write;
 mod write_pb;
@@ -54,6 +55,12 @@ where
     add_service!(
         builder,
         operations::make_server(Arc::clone(server_type.application.job_registry()))
+    );
+
+    // remotes can be managed even if the server is not serving
+    add_service!(
+        builder,
+        remote::make_server(Arc::clone(&server_type.server))
     );
 
     serve_builder!(builder);

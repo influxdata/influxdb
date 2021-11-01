@@ -18,8 +18,7 @@ async fn test_querying_deleted_database() {
         ..Default::default()
     };
 
-    // Add some data to the first generation of the database and
-    // ensure the data is returned.
+    // Add some data to the database and ensure the data is returned.
 
     management_client
         .create_database(rules.clone())

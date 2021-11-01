@@ -25,7 +25,8 @@ serde = "1.0.128"
 serde_json = { version = "1.0.67", optional = true }
 thiserror = "1.0.30"
 tonic = { version = "0.5.0" }
+uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies] # In alphabetical order
 serde_json = "1.0"
-tokio = { version = "1.11", features = ["macros"] }
+tokio = { version = "1.13", features = ["macros"] }
