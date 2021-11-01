@@ -986,7 +986,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 
 		// If a sqlite-path is not specified, store sqlite db in the same directory as bolt with the default filename.
 		if opts.SqLitePath == "" {
-			opts.SqLitePath = filepath.Join(filepath.Dir(opts.BoltPath), sqlite.DefaultFilename)
+			opts.SqLitePath = filepath.Dir(opts.BoltPath) + "/" + sqlite.DefaultFilename
 		}
 		sqlStore, err = sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")))
 		if err != nil {
