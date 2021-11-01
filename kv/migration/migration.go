@@ -3,22 +3,16 @@ package migration
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/migration"
 	"github.com/influxdata/influxdb/v2/kv"
 	"go.uber.org/zap"
 )
 
-var (
-	migrationBucket = []byte("migrationsv1")
-
-	// ErrMigrationSpecNotFound is returned when a migration specification is missing
-	// for an already applied migration.
-	ErrMigrationSpecNotFound = errors.New("migration specification not found")
-)
+var migrationBucket = []byte("migrationsv1")
 
 type Store = kv.SchemaStore
 
@@ -274,25 +268,25 @@ func (m *Migrator) walk(ctx context.Context, store kv.Store, fn func(id influxdb
 				return false, fmt.Errorf("decoding migration id: %w", err)
 			}
 
-			var migration Migration
-			if err := json.Unmarshal(v, &migration); err != nil {
+			var mig Migration
+			if err := json.Unmarshal(v, &mig); err != nil {
 				return false, err
 			}
 
 			idx := int(id) - 1
 			if idx >= len(m.Specs) {
-				return false, fmt.Errorf("migration %q: %w", migration.Name, ErrMigrationSpecNotFound)
+				return false, migration.ErrInvalidMigration(mig.Name)
 			}
 
-			if spec := m.Specs[idx]; spec.MigrationName() != migration.Name {
-				return false, fmt.Errorf("expected migration %q, found %q", spec.MigrationName(), migration.Name)
+			if spec := m.Specs[idx]; spec.MigrationName() != mig.Name {
+				return false, fmt.Errorf("expected migration %q, found %q", spec.MigrationName(), mig.Name)
 			}
 
-			if migration.FinishedAt != nil {
-				migration.State = UpMigrationState
+			if mig.FinishedAt != nil {
+				mig.State = UpMigrationState
 			}
 
-			fn(id, migration)
+			fn(id, mig)
 
 			return true, nil
 		})
