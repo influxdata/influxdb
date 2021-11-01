@@ -3,6 +3,8 @@ package sqlite
 import (
 	"context"
 	"embed"
+	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,6 +15,8 @@ import (
 type Migrator struct {
 	store *SqlStore
 	log   *zap.Logger
+
+	backupPath string
 }
 
 func NewMigrator(store *SqlStore, log *zap.Logger) *Migrator {
@@ -20,6 +24,11 @@ func NewMigrator(store *SqlStore, log *zap.Logger) *Migrator {
 		store: store,
 		log:   log,
 	}
+}
+
+// SetBackupPath records the filepath where pre-migration state should be written prior to running migrations.
+func (m *Migrator) SetBackupPath(path string) {
+	m.backupPath = path
 }
 
 func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
@@ -44,10 +53,29 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 		return err
 	}
 
-	// log this message only if there are migrations to run
-	if final > current {
-		m.log.Info("Bringing up metadata migrations", zap.Int("migration_count", final-current))
+	if final == current {
+		return nil
 	}
+
+	if m.backupPath != "" && current != 0 {
+		m.log.Info("Backing up pre-migration metadata", zap.String("backup_path", m.backupPath))
+		if err := func() error {
+			out, err := os.Create(m.backupPath)
+			if err != nil {
+				return err
+			}
+			defer out.Close()
+
+			if err := m.store.BackupSqlStore(ctx, out); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return fmt.Errorf("failed to back up pre-migration metadata: %w", err)
+		}
+	}
+
+	m.log.Info("Bringing up metadata migrations", zap.Int("migration_count", final-current))
 
 	for _, f := range list {
 		n := f.Name()
