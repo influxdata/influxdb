@@ -10,16 +10,8 @@ import (
 	"strings"
 
 	"github.com/influxdata/influxdb/v2/kit/migration"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"go.uber.org/zap"
 )
-
-func errMigrationNameMismatch(downName, name string) *errors.Error {
-	return &errors.Error{
-		Code: errors.EInternal,
-		Msg:  fmt.Sprintf(`cannot execute down migration %q against up migration record %q`, downName, name),
-	}
-}
 
 type Migrator struct {
 	store *SqlStore
@@ -164,11 +156,6 @@ func (m *Migrator) Down(ctx context.Context, untilMigration int, source embed.FS
 	for i := len(executedMigrations) - 1; i >= untilMigration; i-- {
 		downName := knownMigrations[i].Name()
 		downNameNoExtension := dropExtension(downName)
-		upName := executedMigrations[i]
-
-		if downNameNoExtension != upName {
-			return errMigrationNameMismatch(downNameNoExtension, upName)
-		}
 
 		m.log.Debug("Executing metadata migration", zap.String("migration_name", downName))
 		mBytes, err := source.ReadFile(downName)
