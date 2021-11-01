@@ -35,6 +35,23 @@ func TestFlush(t *testing.T) {
 	require.Equal(t, 0, len(vals))
 }
 
+func TestFlushMigrationsTable(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store, clean := NewTestStore(t)
+	defer clean(t)
+
+	require.NoError(t, store.execTrans(ctx, fmt.Sprintf(`CREATE TABLE %s (id TEXT NOT NULL PRIMARY KEY)`, migrationsTableName)))
+	require.NoError(t, store.execTrans(ctx, fmt.Sprintf(`INSERT INTO %s (id) VALUES ("one"), ("two"), ("three")`, migrationsTableName)))
+	store.Flush(context.Background())
+
+	got, err := store.queryToStrings(fmt.Sprintf(`SELECT * FROM %s`, migrationsTableName))
+	require.NoError(t, err)
+	want := []string{"one", "two", "three"}
+	require.Equal(t, want, got)
+}
+
 func TestBackupSqlStore(t *testing.T) {
 	t.Parallel()
 
@@ -184,21 +201,6 @@ func TestRestoreSqlStore(t *testing.T) {
 	}
 }
 
-func TestUserVersion(t *testing.T) {
-	t.Parallel()
-
-	store, clean := NewTestStore(t)
-	defer clean(t)
-	ctx := context.Background()
-
-	err := store.execTrans(ctx, `PRAGMA user_version=12`)
-	require.NoError(t, err)
-
-	got, err := store.userVersion()
-	require.NoError(t, err)
-	require.Equal(t, 12, got)
-}
-
 func TestTableNames(t *testing.T) {
 	t.Parallel()
 
@@ -214,4 +216,42 @@ func TestTableNames(t *testing.T) {
 	got, err := store.tableNames()
 	require.NoError(t, err)
 	require.Equal(t, []string{"test_table_1", "test_table_3", "test_table_2"}, got)
+}
+
+func TestAllMigrationNames(t *testing.T) {
+	t.Parallel()
+
+	store, clean := NewTestStore(t)
+	defer clean(t)
+	ctx := context.Background()
+
+	// Empty db, returns nil slice and no error
+	got, err := store.allMigrationNames()
+	require.NoError(t, err)
+	require.Equal(t, []string(nil), got)
+
+	// DB contains migrations table but no migrations
+	err = store.execTrans(ctx, `CREATE TABLE migrations (
+			id TEXT NOT NULL PRIMARY KEY,
+			name TEXT NOT NULL)`)
+	require.NoError(t, err)
+	got, err = store.allMigrationNames()
+	require.NoError(t, err)
+	require.Equal(t, []string(nil), got)
+
+	// DB contains one migration
+	err = store.execTrans(ctx, `INSERT INTO migrations (id, name) VALUES ("1", "0000_create_migrations_table.sql")`)
+	require.NoError(t, err)
+	got, err = store.allMigrationNames()
+	require.NoError(t, err)
+	require.Equal(t, []string{"0000_create_migrations_table.sql"}, got)
+
+	// DB contains multiple migrations - they are returned sorted by name
+	err = store.execTrans(ctx, `INSERT INTO migrations (id, name) VALUES ("3", "0001_first_migration.sql")`)
+	require.NoError(t, err)
+	err = store.execTrans(ctx, `INSERT INTO migrations (id, name) VALUES ("2", "0002_second_migration.sql")`)
+	require.NoError(t, err)
+	got, err = store.allMigrationNames()
+	require.NoError(t, err)
+	require.Equal(t, []string{"0000_create_migrations_table.sql", "0001_first_migration.sql", "0002_second_migration.sql"}, got)
 }

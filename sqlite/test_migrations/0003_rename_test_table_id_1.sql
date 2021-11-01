@@ -1,7 +1,3 @@
--- The user_version should match the "000X" from the file name
--- Ex: 0001_create_notebooks_table should have a user_verison of 1
-PRAGMA user_version=2;
-
 ALTER TABLE test_table_1 RENAME TO _test_table_1_old;
 
 CREATE TABLE test_table_1 (
