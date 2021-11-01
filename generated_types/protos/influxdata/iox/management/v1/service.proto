@@ -9,11 +9,26 @@ import "influxdata/iox/management/v1/chunk.proto";
 import "influxdata/iox/management/v1/partition.proto";
 
 service ManagementService {
-  rpc GetServerId(GetServerIdRequest) returns (GetServerIdResponse);
+  // Get server ID.
+  //
+  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
+  rpc GetServerId(GetServerIdRequest) returns (GetServerIdResponse) {
+    option deprecated = true;
+  };
 
-  rpc UpdateServerId(UpdateServerIdRequest) returns (UpdateServerIdResponse);
+  // Update server ID.
+  //
+  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
+  rpc UpdateServerId(UpdateServerIdRequest) returns (UpdateServerIdResponse) {
+    option deprecated = true;
+  };
 
-  rpc SetServingReadiness(SetServingReadinessRequest) returns (SetServingReadinessResponse);
+  // Set serving readiness.
+  //
+  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
+  rpc SetServingReadiness(SetServingReadinessRequest) returns (SetServingReadinessResponse) {
+    option deprecated = true;
+  };
 
   // List all databases on this server.
   //

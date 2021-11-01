@@ -1,0 +1,45 @@
+syntax = "proto3";
+package influxdata.iox.deployment.v1;
+option go_package = "github.com/influxdata/iox/deployment/v1";
+
+service DeploymentService {
+  // Get server ID.
+  rpc GetServerId(GetServerIdRequest) returns (GetServerIdResponse);
+
+  // Update server ID.
+  rpc UpdateServerId(UpdateServerIdRequest) returns (UpdateServerIdResponse);
+
+  // Set serving readiness.
+  rpc SetServingReadiness(SetServingReadinessRequest) returns (SetServingReadinessResponse);
+
+  // Get serving readiness.
+  rpc GetServingReadiness(GetServingReadinessRequest) returns (GetServingReadinessResponse);
+}
+
+message GetServerIdRequest {}
+
+message GetServerIdResponse {
+  // Must be non-zero
+  uint32 id = 1;
+}
+
+message UpdateServerIdRequest {
+  // Must be non-zero
+  uint32 id = 1;
+}
+
+message UpdateServerIdResponse {}
+
+message SetServingReadinessRequest {
+  // If false, the IOx server will respond with UNAVAILABLE to all data plane requests.
+  bool ready = 1;
+}
+
+message SetServingReadinessResponse {}
+
+message GetServingReadinessRequest {}
+
+message GetServingReadinessResponse {
+  // If false, the IOx server will respond with UNAVAILABLE to all data plane requests.
+  bool ready = 1;
+}

@@ -4,6 +4,9 @@ pub mod health;
 /// Client for delete API
 pub mod delete;
 
+/// Client for deployment API
+pub mod deployment;
+
 /// Client for management API
 pub mod management;
 

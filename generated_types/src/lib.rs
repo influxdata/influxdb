@@ -48,6 +48,16 @@ pub mod influxdata {
             }
         }
 
+        pub mod deployment {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.deployment.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.deployment.v1.serde.rs"
+                ));
+            }
+        }
+
         pub mod management {
             pub mod v1 {
                 /// Operation metadata type

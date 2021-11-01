@@ -189,6 +189,12 @@ impl ServerFixture {
         influxdb_iox_client::delete::Client::new(self.grpc_channel())
     }
 
+    /// Return a deployment client suitable for communicating with this
+    /// server
+    pub fn deployment_client(&self) -> influxdb_iox_client::deployment::Client {
+        influxdb_iox_client::deployment::Client::new(self.grpc_channel())
+    }
+
     /// Return an a http client suitable suitable for communicating with this
     /// server
     pub fn influxdb2_client(&self) -> influxdb2_client::Client {
