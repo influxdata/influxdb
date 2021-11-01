@@ -29,7 +29,7 @@ schema = { path = "../schema" }
 tempfile = "3.1.0"
 thrift = "0.13"
 time = { path = "../time" }
-tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "sync"] }
+tokio = { version = "1.13", features = ["macros", "rt", "rt-multi-thread", "sync"] }
 tokio-stream = "0.1"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 zstd = "0.9"
