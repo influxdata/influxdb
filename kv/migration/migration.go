@@ -3,23 +3,24 @@ package migration
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"go.uber.org/zap"
 )
 
-var (
-	migrationBucket = []byte("migrationsv1")
+var migrationBucket = []byte("migrationsv1")
 
-	// ErrMigrationSpecNotFound is returned when a migration specification is missing
-	// for an already applied migration.
-	ErrMigrationSpecNotFound = errors.New("migration specification not found")
-)
+func errInvalidMigration(n string) *errors.Error {
+	return &errors.Error{
+		Code: errors.EInternal,
+		Msg:  fmt.Sprintf(`DB contains record of unknown migration %q - if you are downgrading from a more recent version of influxdb, please run the "influxd downgrade" command from that version to revert your metadata to be compatible with this version prior to starting influxd.`, n),
+	}
+}
 
 type Store = kv.SchemaStore
 
@@ -330,7 +331,7 @@ func (m *Migrator) walk(ctx context.Context, store kv.Store, fn func(id platform
 
 			idx := int(id) - 1
 			if idx >= len(m.Specs) {
-				return false, fmt.Errorf("migration %q: %w", migration.Name, ErrMigrationSpecNotFound)
+				return false, errInvalidMigration(migration.Name)
 			}
 
 			if spec := m.Specs[idx]; spec.MigrationName() != migration.Name {
