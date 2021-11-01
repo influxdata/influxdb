@@ -2,7 +2,6 @@ syntax = "proto3";
 package influxdata.iox.router.v1;
 option go_package = "github.com/influxdata/iox/router/v1";
 
-import "influxdata/iox/management/v1/partition_template.proto";
 import "influxdata/iox/management/v1/shard.proto";
 import "influxdata/iox/management/v1/write_buffer.proto";
 
@@ -90,15 +89,6 @@ message Router {
 
   // Sinks for query requests.
   QuerySinks query_sinks = 5;
-
-  // Template that generates a partition key for each row inserted into the database.
-  //
-  // This is a temporary config until the partition is moved entirely into the database.
-  //
-  // If not specified, a server-side default is used
-  //
-  // TODO(marco): remove this
-  influxdata.iox.management.v1.PartitionTemplate partition_template = 6;
 }
 
 // Sources of write request aka new data.
