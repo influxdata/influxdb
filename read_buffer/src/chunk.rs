@@ -286,11 +286,12 @@ impl Chunk {
     pub fn column_names(
         &self,
         predicate: Predicate,
+        negated_predicates: Vec<Predicate>,
         only_columns: Selection<'_>,
         dst: BTreeSet<String>,
     ) -> Result<BTreeSet<String>> {
         self.table
-            .column_names(&predicate, only_columns, dst)
+            .column_names(&predicate, &negated_predicates, only_columns, dst)
             .context(TableError)
     }
 
@@ -1314,7 +1315,12 @@ mod test {
             .build();
 
         let result = chunk
-            .column_names(Predicate::default(), Selection::All, BTreeSet::new())
+            .column_names(
+                Predicate::default(),
+                vec![],
+                Selection::All,
+                BTreeSet::new(),
+            )
             .unwrap();
 
         assert_eq!(
@@ -1326,6 +1332,7 @@ mod test {
         let result = chunk
             .column_names(
                 Predicate::new(vec![BinaryExpr::from(("time", "=", 222222_i64))]),
+                vec![],
                 Selection::All,
                 BTreeSet::new(),
             )
@@ -1339,11 +1346,84 @@ mod test {
         assert!(matches!(
             chunk.column_names(
                 Predicate::new(vec![BinaryExpr::from(("time", "=", "not a number"))]),
+                vec![],
                 Selection::Some(&["region", "env"]),
                 BTreeSet::new()
             ),
             Err(Error::TableError { .. })
         ));
+    }
+
+    #[test]
+    fn column_names_with_deletes() {
+        let schema = SchemaBuilder::new()
+            .non_null_tag("region")
+            .non_null_field("counter", Float64)
+            .timestamp()
+            .field("sketchy_sensor", Float64)
+            .build()
+            .unwrap()
+            .into();
+
+        let data: Vec<ArrayRef> = vec![
+            Arc::new(
+                vec!["west", "west", "east"]
+                    .into_iter()
+                    .collect::<DictionaryArray<Int32Type>>(),
+            ),
+            Arc::new(Float64Array::from(vec![1.2, 3.3, 45.3])),
+            Arc::new(TimestampNanosecondArray::from_vec(
+                vec![11111111, 222222, 3333],
+                None,
+            )),
+            Arc::new(Float64Array::from(vec![Some(11.0), None, Some(12.0)])),
+        ];
+
+        // Create the chunk with the above table
+        let rb = RecordBatch::try_new(schema, data).unwrap();
+        let chunk = ChunkBuilder::default()
+            .name("Utopia")
+            .record_batch(rb)
+            .build();
+
+        let result = chunk
+            .column_names(
+                Predicate::default(),
+                vec![Predicate::default()], // all rows deleted
+                Selection::All,
+                BTreeSet::new(),
+            )
+            .unwrap();
+        assert_eq!(result, to_set(&[]));
+
+        let result = chunk
+            .column_names(
+                Predicate::default(),
+                vec![Predicate::new(vec![BinaryExpr::from((
+                    "region", "!=", "west",
+                ))])], // all rows deleted
+                Selection::All,
+                BTreeSet::new(),
+            )
+            .unwrap();
+        assert_eq!(
+            result,
+            to_set(&["counter", "region", "sketchy_sensor", "time"])
+        );
+
+        let result = chunk
+            .column_names(
+                Predicate::default(),
+                vec![Predicate::new(vec![BinaryExpr::from((
+                    "sketchy_sensor",
+                    ">",
+                    10.0,
+                ))])], // deletes all rows with non-null sketchy sensor values
+                Selection::All,
+                BTreeSet::new(),
+            )
+            .unwrap();
+        assert_eq!(result, to_set(&["counter", "region", "time"]));
     }
 
     fn to_map(arr: Vec<(&str, &[&str])>) -> BTreeMap<String, BTreeSet<String>> {

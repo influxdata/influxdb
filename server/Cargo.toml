@@ -54,7 +54,7 @@ snap = "1.0.0"
 time = { path = "../time" }
 trace = { path = "../trace" }
 tokio = { version = "1.11", features = ["macros", "time"] }
-tokio-util = { version = "0.6.3" }
+tokio-util = { version = "0.6.9" }
 tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["serde", "v4"] }
 write_buffer = { path = "../write_buffer" }

@@ -52,6 +52,16 @@ pub mod influxdata {
             }
         }
 
+        pub mod remote {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.remote.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.remote.v1.serde.rs"
+                ));
+            }
+        }
+
         pub mod write {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.write.v1.rs"));
