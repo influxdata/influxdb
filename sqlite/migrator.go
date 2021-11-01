@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"io/fs"
 	"os"
 	"strconv"
 	"strings"
@@ -46,7 +45,10 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 		return err
 	}
 
-	upMigrations := filteredMigrations(knownMigrations, true)
+	// sort the list according to the version number to ensure the migrations are applied in the correct order
+	sort.Slice(knownMigrations, func(i, j int) bool {
+		return knownMigrations[i].Name() < knownMigrations[j].Name()
+	})
 
 	executedMigrations, err := m.store.allMigrationNames()
 	if err != nil {
@@ -55,7 +57,7 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 
 	var lastMigration int
 	for idx := range executedMigrations {
-		if idx > len(upMigrations)-1 || executedMigrations[idx] != dropExtension(upMigrations[idx].Name()) {
+		if idx > len(knownMigrations)-1 || executedMigrations[idx] != dropExtension(knownMigrations[idx].Name()) {
 			return errInvalidMigration(executedMigrations[idx])
 		if idx > len(knownMigrations)-1 || executedMigrations[idx] != dropExtension(knownMigrations[idx].Name()) {
 			return migration.ErrInvalidMigration(executedMigrations[idx])
@@ -67,7 +69,7 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 		}
 	}
 
-	migrationsToDo := len(upMigrations[lastMigration:])
+	migrationsToDo := len(knownMigrations[lastMigration:])
 	if migrationsToDo == 0 {
 		return nil
 	}
@@ -92,7 +94,7 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 
 	m.log.Info("Bringing up metadata migrations", zap.Int("migration_count", migrationsToDo))
 
-	for _, f := range upMigrations[lastMigration:] {
+	for _, f := range knownMigrations[lastMigration:] {
 		n := f.Name()
 
 		m.log.Debug("Executing metadata migration", zap.String("migration_name", n))
@@ -120,7 +122,10 @@ func (m *Migrator) Down(ctx context.Context, untilMigration int, source embed.FS
 		return err
 	}
 
-	downMigrations := filteredMigrations(knownMigrations, false)
+	// sort the list according to the version number to ensure the migrations are applied in the correct order
+	sort.Slice(knownMigrations, func(i, j int) bool {
+		return knownMigrations[i].Name() < knownMigrations[j].Name()
+	})
 
 	executedMigrations, err := m.store.allMigrationNames()
 	if err != nil {
@@ -158,7 +163,7 @@ func (m *Migrator) Down(ctx context.Context, untilMigration int, source embed.FS
 	m.log.Info("Tearing down metadata migrations", zap.Int("migration_count", migrationsToDo))
 
 	for i := len(executedMigrations) - 1; i >= untilMigration; i-- {
-		downName := downMigrations[i].Name()
+		downName := knownMigrations[i].Name()
 		downNameNoExtension := dropExtension(downName)
 		upName := executedMigrations[i]
 
@@ -201,28 +206,4 @@ func dropExtension(filename string) string {
 	}
 
 	return filename[:idx]
-}
-
-// filteredMigrations filters the list of migration files to include only "up" migrations or only "down" migrations. The
-// returned list is sorted in ascending order.
-func filteredMigrations(list []fs.DirEntry, filterForUps bool) []fs.DirEntry {
-	out := make([]fs.DirEntry, 0, len(list))
-
-	for _, m := range list {
-		if strings.HasSuffix(m.Name(), downMigrationFileSuffix) {
-			if !filterForUps {
-				out = append(out, m)
-			}
-		} else {
-			if filterForUps {
-				out = append(out, m)
-			}
-		}
-	}
-
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].Name() < out[j].Name()
-	})
-
-	return out
 }
