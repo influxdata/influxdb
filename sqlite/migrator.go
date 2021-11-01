@@ -9,16 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/kit/migration"
 	"go.uber.org/zap"
 )
-
-func errInvalidMigration(n string) *errors.Error {
-	return &errors.Error{
-		Code: errors.EInternal,
-		Msg:  fmt.Sprintf(`DB contains record of unknown migration %q - if you are downgrading from a more recent version of influxdb, please run the "influxd downgrade" command from that version to revert your metadata to be compatible with this version prior to starting influxd.`, n),
-	}
-}
 
 type Migrator struct {
 	store *SqlStore
@@ -58,7 +51,7 @@ func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
 	var lastMigration int
 	for idx := range executedMigrations {
 		if idx > len(knownMigrations)-1 || executedMigrations[idx] != dropExtension(knownMigrations[idx].Name()) {
-			return errInvalidMigration(executedMigrations[idx])
+			return migration.ErrInvalidMigration(executedMigrations[idx])
 		}
 
 		lastMigration, err = scriptVersion(executedMigrations[idx])
