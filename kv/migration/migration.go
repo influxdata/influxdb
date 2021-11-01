@@ -220,7 +220,7 @@ func (m *Migrator) Up(ctx context.Context) error {
 // 0003 add index "foo on baz" | (down)
 //
 // Down would call down() on 0002 and then on 0001.
-func (m *Migrator) Down(ctx context.Context) (err error) {
+func (m *Migrator) Down(ctx context.Context, untilMigration int) (err error) {
 	wrapErr := func(err error) error {
 		if err == nil {
 			return nil
@@ -249,12 +249,35 @@ func (m *Migrator) Down(ctx context.Context) (err error) {
 		return wrapErr(err)
 	}
 
-	migrationsToDo := len(migrations)
-	if migrationsToDo > 0 {
-		m.logger.Info("Tearing down metadata migrations", zap.Int("migration_count", migrationsToDo))
+	migrationsToDo := len(migrations) - untilMigration
+	if migrationsToDo == 0 {
+		return nil
+	}
+	if migrationsToDo < 0 {
+		m.logger.Warn("KV metadata is already on a schema older than target, nothing to do")
+		return nil
 	}
 
-	for i := migrationsToDo - 1; i >= 0; i-- {
+	if m.backupPath != "" {
+		m.logger.Info("Backing up pre-migration metadata", zap.String("backup_path", m.backupPath))
+		if err := func() error {
+			out, err := os.Create(m.backupPath)
+			if err != nil {
+				return err
+			}
+			defer out.Close()
+
+			if err := m.store.Backup(ctx, out); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return fmt.Errorf("failed to back up pre-migration metadata: %w", err)
+		}
+	}
+
+	m.logger.Info("Tearing down metadata migrations", zap.Int("migration_count", migrationsToDo))
+	for i := len(migrations) - 1; i >= untilMigration; i-- {
 		migration := migrations[i]
 
 		m.logMigrationEvent(DownMigrationState, migration.Migration, "started")
