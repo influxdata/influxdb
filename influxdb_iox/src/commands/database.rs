@@ -189,9 +189,6 @@ struct Delete {
 /// Restore a deleted database
 #[derive(Debug, StructOpt)]
 struct Restore {
-    /// The name to give the database upon restoring it
-    name: String,
-
     /// The UUID of the database to restore
     uuid: String,
 }
