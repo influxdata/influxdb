@@ -44,16 +44,22 @@ service ManagementService {
   rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
 
   // List remote IOx servers we know about.
+  //
+  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
   rpc ListRemotes(ListRemotesRequest) returns (ListRemotesResponse) {
     option deprecated = true;
   };
 
   // Update information about a remote IOx server (upsert).
+  //
+  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
   rpc UpdateRemote(UpdateRemoteRequest) returns (UpdateRemoteResponse) {
     option deprecated = true;
   };
 
   // Delete a reference to remote IOx server.
+  //
+  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
   rpc DeleteRemote(DeleteRemoteRequest) returns (DeleteRemoteResponse) {
     option deprecated = true;
   };
