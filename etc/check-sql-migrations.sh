@@ -12,7 +12,7 @@ then
   echo '------------------------------------------------------------------------------------'
   echo "Problem detected with SQL migration files: Up and Down migration names do not match!"
   echo '------------------------------------------------------------------------------------'
-  printf "%-36s%36s\n" "Up Migrations without Downs" "Down Migrations without Ups"
+  echo "Diff: Up Migrations without Down Migrations vs. Down Migrations without Up Migrations:"
   echo "$differences"
   exit 1
 fi
