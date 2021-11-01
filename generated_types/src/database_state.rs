@@ -15,6 +15,8 @@ impl DatabaseState {
             DatabaseState::DatabaseObjectStoreFound => "DatabaseObjectStoreFound",
             DatabaseState::DatabaseObjectStoreLookupError => "DatabaseObjectStoreLookupError",
             DatabaseState::NoActiveDatabase => "NoActiveDatabase",
+            DatabaseState::OwnerInfoLoaded => "OwnerInfoLoaded",
+            DatabaseState::OwnerInfoLoadError => "OwnerInfoLoadError",
             DatabaseState::Unspecified => "Unspecified",
         }
     }

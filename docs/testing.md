@@ -87,14 +87,14 @@ set.
 
 ### Configuration differences when running the tests
 
-When running `influxdb_iox run`, you can pick one object store to use. When running the tests,
+When running `influxdb_iox run database`, you can pick one object store to use. When running the tests,
 you can run them against all the possible object stores. There's still only one
 `INFLUXDB_IOX_BUCKET` variable, though, so that will set the bucket name for all configured object
 stores. Use the same bucket name when setting up the different services.
 
 Other than possibly configuring multiple object stores, configuring the tests to use the object
 store services is the same as configuring the server to use an object store service. See the output
-of `influxdb_iox run --help` for instructions.
+of `influxdb_iox run database --help` for instructions.
 
 ## InfluxDB 2 Client
 
@@ -136,7 +136,7 @@ You can then run the tests with `KAFKA_CONNECT=localhost:9093`. To run just the 
 tests, the full command would then be:
 
 ```
-TEST_INTEGRATION=1 KAFKA_CONNECT=localhost:9093 cargo test -p influxdb_iox --test end_to_end write_buffer
+TEST_INTEGRATION=1 KAFKA_CONNECT=localhost:9093 cargo test -p write_buffer kafka --nocapture
 ```
 
 ### Running `cargo test` in a Docker container

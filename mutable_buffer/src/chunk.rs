@@ -1,49 +1,18 @@
-use crate::{
-    chunk::snapshot::ChunkSnapshot,
-    column::{self, Column},
-};
+use std::sync::Arc;
+
 use arrow::record_batch::RecordBatch;
-use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummary};
-use entry::TableBatch;
-use hashbrown::HashMap;
 use parking_lot::Mutex;
+
+use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummary};
+pub use mutable_batch::{Error, Result};
+use mutable_batch::{MutableBatch, WritePayload};
 use schema::selection::Selection;
-use schema::{builder::SchemaBuilder, InfluxColumnType, Schema};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use std::{collections::BTreeSet, sync::Arc};
+use schema::{InfluxColumnType, Schema};
+use snapshot::ChunkSnapshot;
 
 pub mod snapshot;
 
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Column error on column {}: {}", column, source))]
-    ColumnError {
-        column: String,
-        source: column::Error,
-    },
-
-    #[snafu(display("Column {} had {} rows, expected {}", column, expected, actual))]
-    IncorrectRowCount {
-        column: String,
-        expected: usize,
-        actual: usize,
-    },
-
-    #[snafu(display("arrow conversion error: {}", source))]
-    ArrowError { source: arrow::error::ArrowError },
-
-    #[snafu(display("Internal error converting schema: {}", source))]
-    InternalSchema { source: schema::builder::Error },
-
-    #[snafu(display("Column not found: {}", column))]
-    ColumnNotFound { column: String },
-
-    #[snafu(display("Mask had {} rows, expected {}", expected, actual))]
-    IncorrectMaskLength { expected: usize, actual: usize },
-}
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
+/// Metrics for a [`MBChunk`]
 #[derive(Debug)]
 #[allow(missing_copy_implementations)]
 pub struct ChunkMetrics {
@@ -59,6 +28,7 @@ impl ChunkMetrics {
         Self {}
     }
 
+    /// Creates a new instance of [`ChunkMetrics`] with the provided metrics registry
     pub fn new(_metrics: &metric::Registry) -> Self {
         Self {}
     }
@@ -75,7 +45,7 @@ pub struct MBChunk {
     metrics: ChunkMetrics,
 
     /// Map of column id from the chunk dictionary to the column
-    columns: HashMap<String, Column>,
+    mutable_batch: MutableBatch,
 
     /// Cached chunk snapshot
     ///
@@ -85,48 +55,26 @@ pub struct MBChunk {
 }
 
 impl MBChunk {
-    /// Create a new batch and write the contents of the [`TableBatch`] into it. Chunks
-    /// shouldn't exist without some data.
+    /// Create a new chunk with the contents of [`WritePayload`].
     ///
-    /// If `mask` is provided, only entries that are marked w/ `true` are written.
-    pub fn new(
-        metrics: ChunkMetrics,
-        batch: TableBatch<'_>,
-        mask: Option<&[bool]>,
-    ) -> Result<Self> {
-        let table_name = Arc::from(batch.name());
+    /// Chunks shouldn't exist without some data.
+    pub fn new(table_name: Arc<str>, metrics: ChunkMetrics, write: &impl WritePayload) -> Self {
+        let mut mutable_batch = MutableBatch::new();
+        write
+            .write_to_batch(&mut mutable_batch)
+            .expect("failed to write to empty batch");
 
-        let mut chunk = Self {
+        Self {
             table_name,
-            columns: Default::default(),
+            mutable_batch,
             metrics,
             snapshot: Mutex::new(None),
-        };
-
-        let columns = batch.columns();
-        chunk.write_columns(columns, mask)?;
-
-        Ok(chunk)
+        }
     }
 
-    /// Write the contents of a [`TableBatch`] into this Chunk.
-    ///
-    /// If `mask` is provided, only entries that are marked w/ `true` are written.
-    ///
-    /// Panics if the batch specifies a different name for the table in this Chunk
-    pub fn write_table_batch(
-        &mut self,
-        batch: TableBatch<'_>,
-        mask: Option<&[bool]>,
-    ) -> Result<()> {
-        let table_name = batch.name();
-        assert_eq!(
-            table_name,
-            self.table_name.as_ref(),
-            "can only insert table batch for a single table to chunk"
-        );
-
-        self.write_columns(batch.columns(), mask)?;
+    /// Write the contents of a [`WritePayload`] into this Chunk.
+    pub fn write(&mut self, write: &impl WritePayload) -> Result<()> {
+        write.write_to_batch(&mut self.mutable_batch)?;
 
         // Invalidate chunk snapshot
         *self
@@ -165,58 +113,22 @@ impl MBChunk {
     ///
     /// If Selection::All the returned columns are sorted by name
     pub fn schema(&self, selection: Selection<'_>) -> Result<Schema> {
-        let mut schema_builder = SchemaBuilder::new();
-        let schema = match selection {
-            Selection::All => {
-                for (column_name, column) in self.columns.iter() {
-                    schema_builder.influx_column(column_name, column.influx_type());
-                }
-
-                schema_builder
-                    .build()
-                    .context(InternalSchema)?
-                    .sort_fields_by_name()
-            }
-            Selection::Some(cols) => {
-                for col in cols {
-                    let column = self.column(col)?;
-                    schema_builder.influx_column(col, column.influx_type());
-                }
-                schema_builder.build().context(InternalSchema)?
-            }
-        };
-
-        Ok(schema)
+        self.mutable_batch.schema(selection)
     }
 
     /// Convert the table specified in this chunk into some number of
     /// record batches, appended to dst
     pub fn to_arrow(&self, selection: Selection<'_>) -> Result<RecordBatch> {
-        let schema = self.schema(selection)?;
-        let columns = schema
-            .iter()
-            .map(|(_, field)| {
-                let column = self
-                    .columns
-                    .get(field.name())
-                    .expect("schema contains non-existent column");
-
-                column.to_arrow().context(ColumnError {
-                    column: field.name(),
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        RecordBatch::try_new(schema.into(), columns).context(ArrowError {})
+        self.mutable_batch.to_arrow(selection)
     }
 
     /// Returns a table summary for this chunk
     pub fn table_summary(&self) -> TableSummary {
         let mut columns: Vec<_> = self
-            .columns
-            .iter()
+            .mutable_batch
+            .columns()
             .map(|(column_name, c)| ColumnSummary {
-                name: column_name.to_string(),
+                name: column_name.clone(),
                 stats: c.stats(),
                 influxdb_type: Some(match c.influx_type() {
                     InfluxColumnType::IOx(_) => InfluxDbType::IOx,
@@ -245,8 +157,8 @@ impl MBChunk {
         let size_self = std::mem::size_of::<Self>();
 
         let size_columns = self
-            .columns
-            .iter()
+            .mutable_batch
+            .columns()
             .map(|(k, v)| k.capacity() + v.size())
             .sum::<usize>();
 
@@ -263,181 +175,66 @@ impl MBChunk {
     /// Returns an iterator over (column_name, estimated_size) for all
     /// columns in this chunk.
     pub fn column_sizes(&self) -> impl Iterator<Item = (&str, usize)> + '_ {
-        self.columns
-            .iter()
+        self.mutable_batch
+            .columns()
             .map(|(column_name, c)| (column_name.as_str(), c.size()))
     }
 
     /// Return the number of rows in this chunk
     pub fn rows(&self) -> usize {
-        self.columns
-            .values()
-            .next()
-            .map(|col| col.len())
-            .unwrap_or(0)
-    }
-
-    /// Returns a reference to the specified column
-    pub(crate) fn column(&self, column: &str) -> Result<&Column> {
-        self.columns.get(column).context(ColumnNotFound { column })
-    }
-
-    /// Validates the schema of the passed in columns, then adds their values to
-    /// the associated columns in the table and updates summary statistics.
-    ///
-    /// If `mask` is provided, only entries that are marked w/ `true` are written.
-    fn write_columns(
-        &mut self,
-        columns: Vec<entry::Column<'_>>,
-        mask: Option<&[bool]>,
-    ) -> Result<()> {
-        let row_count_before_insert = self.rows();
-        let additional_rows = columns.first().map(|x| x.row_count).unwrap_or_default();
-        let masked_values = if let Some(mask) = mask {
-            ensure!(
-                additional_rows == mask.len(),
-                IncorrectMaskLength {
-                    expected: additional_rows,
-                    actual: mask.len(),
-                }
-            );
-            mask.iter().filter(|x| !*x).count()
-        } else {
-            0
-        };
-        let final_row_count = row_count_before_insert + additional_rows - masked_values;
-
-        // get the column ids and validate schema for those that already exist
-        columns.iter().try_for_each(|column| {
-            ensure!(
-                column.row_count == additional_rows,
-                IncorrectRowCount {
-                    column: column.name(),
-                    expected: additional_rows,
-                    actual: column.row_count,
-                }
-            );
-
-            if let Some(c) = self.columns.get(column.name()) {
-                c.validate_schema(column).context(ColumnError {
-                    column: column.name(),
-                })?;
-            }
-
-            Ok(())
-        })?;
-
-        for fb_column in columns {
-            let influx_type = fb_column.influx_type();
-
-            let column = self
-                .columns
-                .raw_entry_mut()
-                .from_key(fb_column.name())
-                .or_insert_with(|| {
-                    (
-                        fb_column.name().to_string(),
-                        Column::new(row_count_before_insert, influx_type),
-                    )
-                })
-                .1;
-
-            column.append(&fb_column, mask).context(ColumnError {
-                column: fb_column.name(),
-            })?;
-
-            assert_eq!(column.len(), final_row_count);
-        }
-
-        // Pad any columns that did not have values in this batch with NULLs
-        for c in self.columns.values_mut() {
-            c.push_nulls_to_len(final_row_count);
-        }
-
-        Ok(())
+        self.mutable_batch.rows()
     }
 }
 
+/// Test helper utilities
 pub mod test_helpers {
-    use entry::test_helpers::lp_to_entry;
+    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 
     use super::*;
 
     /// A helper that will write line protocol string to the passed in Chunk.
     /// All data will be under a single partition with a clock value and
     /// server id of 1.
-    pub fn write_lp_to_chunk(lp: &str, chunk: &mut MBChunk) -> Result<()> {
-        let entry = lp_to_entry(lp);
-
-        for w in entry.partition_writes().unwrap() {
-            let table_batches = w.table_batches();
-            // ensure they are all to the same table
-            let table_names: BTreeSet<String> =
-                table_batches.iter().map(|b| b.name().to_string()).collect();
-
-            assert!(
-                table_names.len() <= 1,
-                "Can only write 0 or one tables to chunk. Found {:?}",
-                table_names
-            );
-
-            for batch in table_batches {
-                chunk.write_table_batch(batch, None)?;
-            }
-        }
-
-        Ok(())
+    pub fn write_lp_to_chunk(lp: &str, chunk: &mut MBChunk) {
+        let (table_name, payload) = lp_to_mutable_batch(lp);
+        assert_eq!(chunk.table_name.as_ref(), table_name.as_str());
+        chunk.write(&payload).unwrap();
     }
 
-    pub fn write_lp_to_new_chunk(lp: &str) -> Result<MBChunk> {
-        let entry = lp_to_entry(lp);
-        let mut chunk: Option<MBChunk> = None;
-
-        for w in entry.partition_writes().unwrap() {
-            let table_batches = w.table_batches();
-            // ensure they are all to the same table
-            let table_names: BTreeSet<String> =
-                table_batches.iter().map(|b| b.name().to_string()).collect();
-
-            assert!(
-                table_names.len() <= 1,
-                "Can only write 0 or one tables to chunk. Found {:?}",
-                table_names
-            );
-
-            for batch in table_batches {
-                match chunk {
-                    Some(ref mut c) => c.write_table_batch(batch, None)?,
-                    None => {
-                        chunk = Some(MBChunk::new(ChunkMetrics::new_unregistered(), batch, None)?);
-                    }
-                }
-            }
-        }
-
-        Ok(chunk.expect("Must write at least one table batch to create a chunk"))
+    /// Create a new [`MBChunk`] with the given write
+    pub fn write_lp_to_new_chunk(lp: &str) -> MBChunk {
+        let (table_name, payload) = lp_to_mutable_batch(lp);
+        MBChunk::new(
+            Arc::from(table_name),
+            ChunkMetrics::new_unregistered(),
+            &payload,
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        test_helpers::{write_lp_to_chunk, write_lp_to_new_chunk},
-        *,
-    };
+    use std::{convert::TryFrom, num::NonZeroU64, vec};
+
     use arrow::datatypes::DataType as ArrowDataType;
+
     use arrow_util::assert_batches_eq;
     use data_types::partition_metadata::{
         ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
     };
-    use entry::test_helpers::lp_to_entry;
-    use schema::{InfluxColumnType, InfluxFieldType};
-    use std::{convert::TryFrom, num::NonZeroU64, vec};
+    use mutable_batch::PartitionWrite;
+    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
+    use schema::builder::SchemaBuilder;
+
+    use super::{
+        test_helpers::{write_lp_to_chunk, write_lp_to_new_chunk},
+        *,
+    };
 
     #[test]
     fn writes_table_batches() {
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
-        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let chunk = write_lp_to_new_chunk(&lp);
 
         let expected = vec![
             "+------+--------------------------------+-----+",
@@ -454,13 +251,13 @@ mod tests {
     #[test]
     fn writes_table_3_batches() {
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
-        let mut chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let mut chunk = write_lp_to_new_chunk(&lp);
 
         let lp = vec!["cpu,host=c val=11 1"].join("\n");
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        write_lp_to_chunk(&lp, &mut chunk);
 
         let lp = vec!["cpu,host=a val=14 2"].join("\n");
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        write_lp_to_chunk(&lp, &mut chunk);
 
         let expected = vec![
             "+------+--------------------------------+-----+",
@@ -484,7 +281,7 @@ mod tests {
             cpu,host=c,env=stage val=11 1
             cpu,host=a,env=prod val=14 2
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
 
         let summary = chunk.table_summary();
         assert_eq!(summary.name, "cpu");
@@ -558,10 +355,10 @@ mod tests {
         // final write has only new field
         let lp4 = "cpu new_field=200 4";
 
-        let mut chunk = write_lp_to_new_chunk(lp1).unwrap();
-        write_lp_to_chunk(lp2, &mut chunk).unwrap();
-        write_lp_to_chunk(lp3, &mut chunk).unwrap();
-        write_lp_to_chunk(lp4, &mut chunk).unwrap();
+        let mut chunk = write_lp_to_new_chunk(lp1);
+        write_lp_to_chunk(lp2, &mut chunk);
+        write_lp_to_chunk(lp3, &mut chunk);
+        write_lp_to_chunk(lp4, &mut chunk);
 
         let summary = chunk.table_summary();
 
@@ -644,7 +441,7 @@ mod tests {
             cpu,host2=a v=1 40
             cpu,host=c  v=1 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "host".into(),
             influxdb_type: Some(InfluxDbType::Tag),
@@ -669,7 +466,7 @@ mod tests {
             cpu,host=a val=false 40
             cpu,host=c other_val=2 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -693,7 +490,7 @@ mod tests {
             cpu,host=a val=1u 40
             cpu,host=c other_val=2 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -717,7 +514,7 @@ mod tests {
             cpu,host=a val=1.0 40
             cpu,host=c other_val=2.0 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -741,7 +538,7 @@ mod tests {
             cpu,host=a val=1i 40
             cpu,host=c other_val=2.0 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -765,7 +562,7 @@ mod tests {
             cpu,host=a val="v3" 40
             cpu,host=c other_val=2.0 50
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -789,7 +586,7 @@ mod tests {
             cpu,host=a val=4 2
             cpu,host=c val=25 12
         "#;
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
         let expected = ColumnSummary {
             name: "time".into(),
             influxdb_type: Some(InfluxDbType::Timestamp),
@@ -812,13 +609,13 @@ mod tests {
             cpu,host=b  v=1 20
             cpu,host=a  v=1 30
         "#;
-        let mut chunk = write_lp_to_new_chunk(lp1).unwrap();
+        let mut chunk = write_lp_to_new_chunk(lp1);
 
         let lp2 = r#"
             cpu,host2=z v=1 40
             cpu,host=c  v=1 5
         "#;
-        write_lp_to_chunk(lp2, &mut chunk).unwrap();
+        write_lp_to_chunk(lp2, &mut chunk);
 
         let expected = ColumnSummary {
             name: "host".into(),
@@ -853,14 +650,14 @@ mod tests {
     #[cfg(not(feature = "nocache"))]
     fn test_snapshot() {
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
-        let mut chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let mut chunk = write_lp_to_new_chunk(&lp);
 
         let (s1, c1) = chunk.snapshot();
         assert!(c1);
         let (s2, c2) = chunk.snapshot();
         assert!(!c2);
 
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        write_lp_to_chunk(&lp, &mut chunk);
         let (s3, c3) = chunk.snapshot();
         assert!(c3);
         let (s4, c4) = chunk.snapshot();
@@ -882,13 +679,13 @@ mod tests {
             "h2o,state=MA,city=Boston temp=72.4 250",
         ]
         .join("\n");
-        let mut chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let mut chunk = write_lp_to_new_chunk(&lp);
         let s1 = chunk.size();
 
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        write_lp_to_chunk(&lp, &mut chunk);
         let s2 = chunk.size();
 
-        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+        write_lp_to_chunk(&lp, &mut chunk);
         let s3 = chunk.size();
 
         // Should increase or stay identical (if array capacities are sufficient) each time
@@ -902,7 +699,7 @@ mod tests {
     #[test]
     fn test_to_arrow_schema_all() {
         let lp = "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,uint_field=42u,bool_field=t,string_field=\"foo\" 100";
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
 
         let selection = Selection::All;
         let actual_schema = chunk.schema(selection).unwrap();
@@ -928,7 +725,7 @@ mod tests {
     #[test]
     fn test_to_arrow_schema_subset() {
         let lp = "h2o,state=MA,city=Boston float_field=70.4 100";
-        let chunk = write_lp_to_new_chunk(lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp);
 
         let selection = Selection::Some(&["float_field"]);
         let actual_schema = chunk.schema(selection).unwrap();
@@ -945,216 +742,18 @@ mod tests {
     }
 
     #[test]
-    fn write_columns_validates_schema() {
-        let lp = "foo,t1=asdf iv=1i,uv=1u,fv=1.0,bv=true,sv=\"hi\" 1";
-        let mut table = write_lp_to_new_chunk(lp).unwrap();
-
-        let lp = "foo t1=\"string\" 1";
-        let entry = lp_to_entry(lp);
-        let response = table
-            .write_columns(
-                entry
-                    .partition_writes()
-                    .unwrap()
-                    .first()
-                    .unwrap()
-                    .table_batches()
-                    .first()
-                    .unwrap()
-                    .columns(),
-                None,
-            )
-            .err()
-            .unwrap();
-        assert!(
-            matches!(
-                &response,
-                Error::ColumnError {
-                    column,
-                    source: column::Error::TypeMismatch {
-                        existing: InfluxColumnType::Tag,
-                        inserted: InfluxColumnType::Field(InfluxFieldType::String)
-                    }
-                } if column == "t1"
-            ),
-            "didn't match returned error: {:?}",
-            response
-        );
-
-        let lp = "foo iv=1u 1";
-        let entry = lp_to_entry(lp);
-        let response = table
-            .write_columns(
-                entry
-                    .partition_writes()
-                    .unwrap()
-                    .first()
-                    .unwrap()
-                    .table_batches()
-                    .first()
-                    .unwrap()
-                    .columns(),
-                None,
-            )
-            .err()
-            .unwrap();
-        assert!(
-            matches!(
-                &response,
-                Error::ColumnError {
-                    column,
-                    source: column::Error::TypeMismatch {
-                        inserted: InfluxColumnType::Field(InfluxFieldType::UInteger),
-                        existing: InfluxColumnType::Field(InfluxFieldType::Integer)
-                    }
-                } if column == "iv"
-            ),
-            "didn't match returned error: {:?}",
-            response
-        );
-
-        let lp = "foo fv=1i 1";
-        let entry = lp_to_entry(lp);
-        let response = table
-            .write_columns(
-                entry
-                    .partition_writes()
-                    .unwrap()
-                    .first()
-                    .unwrap()
-                    .table_batches()
-                    .first()
-                    .unwrap()
-                    .columns(),
-                None,
-            )
-            .err()
-            .unwrap();
-        assert!(
-            matches!(
-                &response,
-                Error::ColumnError {
-                    column,
-                    source: column::Error::TypeMismatch {
-                        existing: InfluxColumnType::Field(InfluxFieldType::Float),
-                        inserted: InfluxColumnType::Field(InfluxFieldType::Integer)
-                    }
-                } if column == "fv"
-            ),
-            "didn't match returned error: {:?}",
-            response
-        );
-
-        let lp = "foo bv=1 1";
-        let entry = lp_to_entry(lp);
-        let response = table
-            .write_columns(
-                entry
-                    .partition_writes()
-                    .unwrap()
-                    .first()
-                    .unwrap()
-                    .table_batches()
-                    .first()
-                    .unwrap()
-                    .columns(),
-                None,
-            )
-            .err()
-            .unwrap();
-        assert!(
-            matches!(
-                &response,
-                Error::ColumnError {
-                    column,
-                    source: column::Error::TypeMismatch {
-                        existing: InfluxColumnType::Field(InfluxFieldType::Boolean),
-                        inserted: InfluxColumnType::Field(InfluxFieldType::Float)
-                    }
-                } if column == "bv"
-            ),
-            "didn't match returned error: {:?}",
-            response
-        );
-
-        let lp = "foo sv=true 1";
-        let entry = lp_to_entry(lp);
-        let response = table
-            .write_columns(
-                entry
-                    .partition_writes()
-                    .unwrap()
-                    .first()
-                    .unwrap()
-                    .table_batches()
-                    .first()
-                    .unwrap()
-                    .columns(),
-                None,
-            )
-            .err()
-            .unwrap();
-        assert!(
-            matches!(
-                &response,
-                Error::ColumnError {
-                    column,
-                    source: column::Error::TypeMismatch {
-                        existing: InfluxColumnType::Field(InfluxFieldType::String),
-                        inserted: InfluxColumnType::Field(InfluxFieldType::Boolean),
-                    }
-                } if column == "sv"
-            ),
-            "didn't match returned error: {:?}",
-            response
-        );
-
-        let lp = "foo,sv=\"bar\" f=3i 1";
-        let entry = lp_to_entry(lp);
-        let response = table
-            .write_columns(
-                entry
-                    .partition_writes()
-                    .unwrap()
-                    .first()
-                    .unwrap()
-                    .table_batches()
-                    .first()
-                    .unwrap()
-                    .columns(),
-                None,
-            )
-            .err()
-            .unwrap();
-        assert!(
-            matches!(
-                &response,
-                Error::ColumnError {
-                    column,
-                    source: column::Error::TypeMismatch {
-                        existing: InfluxColumnType::Field(InfluxFieldType::String),
-                        inserted: InfluxColumnType::Tag,
-                    }
-                } if column == "sv"
-            ),
-            "didn't match returned error: {:?}",
-            response
-        );
-    }
-
-    #[test]
     fn test_mask() {
-        let mut entries = vec![];
-        let mut masks = vec![];
-
         let lp = [
             "table,tag=a float_field=1.1,int_field=11i,uint_field=111u,bool_field=t,string_field=\"axx\" 100",
             "table,tag=b float_field=2.2,int_field=22i,uint_field=222u,bool_field=f,string_field=\"bxx\" 200",
             "table,tag=c float_field=3.3,int_field=33i,uint_field=333u,bool_field=f,string_field=\"cxx\" 300",
             "table,tag=d float_field=4.4,int_field=44i,uint_field=444u,bool_field=t,string_field=\"dxx\" 400",
         ].join("\n");
-        masks.push(vec![false, true, true, false]);
-        entries.push(lp_to_entry(&lp));
+
+        let b1 = lp_to_mutable_batch(&lp).1;
+        let wb1 = PartitionWrite::new(&b1)
+            .filter(|t| t == 200 || t == 300)
+            .unwrap();
 
         let lp = [
             "table,tag=e float_field=5.5,int_field=55i,uint_field=555u,bool_field=f,string_field=\"exx\" 500",
@@ -1163,30 +762,14 @@ mod tests {
             "table foo=2 800",
             "table foo=3 900",
         ].join("\n");
-        masks.push(vec![true, false, true, false, false]);
-        entries.push(lp_to_entry(&lp));
 
-        let mut chunk: Option<MBChunk> = None;
-        for (entry, mask) in entries.into_iter().zip(masks.into_iter()) {
-            for w in entry.partition_writes().unwrap() {
-                for batch in w.table_batches() {
-                    match chunk {
-                        Some(ref mut c) => c.write_table_batch(batch, Some(mask.as_ref())).unwrap(),
-                        None => {
-                            chunk = Some(
-                                MBChunk::new(
-                                    ChunkMetrics::new_unregistered(),
-                                    batch,
-                                    Some(mask.as_ref()),
-                                )
-                                .unwrap(),
-                            );
-                        }
-                    }
-                }
-            }
-        }
-        let chunk = chunk.unwrap();
+        let b2 = lp_to_mutable_batch(&lp).1;
+        let wb2 = PartitionWrite::new(&b2)
+            .filter(|t| t == 500 || t == 700)
+            .unwrap();
+
+        let mut chunk = MBChunk::new(Arc::from("table"), ChunkMetrics::new_unregistered(), &wb1);
+        chunk.write(&wb2).unwrap();
 
         let expected = ColumnSummary {
             name: "float_field".into(),
@@ -1278,30 +861,5 @@ mod tests {
             }),
         };
         assert_summary_eq!(expected, chunk, "tag");
-    }
-
-    #[test]
-    fn test_mask_wrong_length() {
-        let lp = [
-            "table,tag=a float_field=1.1,int_field=11i,uint_field=111u,bool_field=t,string_field=\"axx\" 100",
-            "table,tag=b float_field=2.2,int_field=22i,uint_field=222u,bool_field=f,string_field=\"bxx\" 200",
-        ].join("\n");
-        let entry = lp_to_entry(&lp);
-        let partition_write = entry.partition_writes().unwrap().pop().unwrap();
-        let mask = vec![false, true, true, false];
-
-        let batch = partition_write.table_batches().pop().unwrap();
-        let err =
-            MBChunk::new(ChunkMetrics::new_unregistered(), batch, Some(mask.as_ref())).unwrap_err();
-        assert!(matches!(err, Error::IncorrectMaskLength { .. }));
-
-        let batch = partition_write.table_batches().pop().unwrap();
-        let mut chunk = MBChunk::new(ChunkMetrics::new_unregistered(), batch, None).unwrap();
-
-        let batch = partition_write.table_batches().pop().unwrap();
-        let err = chunk
-            .write_table_batch(batch, Some(mask.as_ref()))
-            .unwrap_err();
-        assert!(matches!(err, Error::IncorrectMaskLength { .. }));
     }
 }

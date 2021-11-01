@@ -2,7 +2,7 @@
 //! DataFusion
 
 use async_trait::async_trait;
-use std::{fmt, sync::Arc};
+use std::{convert::TryInto, fmt, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 
@@ -24,9 +24,13 @@ use trace::{ctx::SpanContext, span::SpanRecorder};
 
 use crate::exec::{
     fieldlist::{FieldList, IntoFieldList},
+    non_null_checker::NonNullCheckerExec,
     query_tracing::TracedStream,
     schema_pivot::{SchemaPivotExec, SchemaPivotNode},
-    seriesset::{SeriesSetConverter, SeriesSetItem},
+    seriesset::{
+        converter::{GroupGenerator, SeriesSetConverter},
+        series::Series,
+    },
     split::StreamSplitExec,
     stringset::{IntoStringSet, StringSetRef},
 };
@@ -40,7 +44,10 @@ use crate::plan::{
 // Reuse DataFusion error and Result types for this module
 pub use datafusion::error::{DataFusionError as Error, Result};
 
-use super::{split::StreamSplitNode, task::DedicatedExecutor};
+use super::{
+    non_null_checker::NonNullCheckerNode, seriesset::series::Either, split::StreamSplitNode,
+    task::DedicatedExecutor,
+};
 
 // The default catalog name - this impacts what SQL queries use if not specified
 pub const DEFAULT_CATALOG: &str = "public";
@@ -90,6 +97,13 @@ impl ExtensionPlanner for IOxExtensionPlanner {
             Some(Arc::new(SchemaPivotExec::new(
                 Arc::clone(&physical_inputs[0]),
                 schema_pivot.schema().as_ref().clone().into(),
+            )) as Arc<dyn ExecutionPlan>)
+        } else if let Some(non_null_checker) = any.downcast_ref::<NonNullCheckerNode>() {
+            assert_eq!(physical_inputs.len(), 1, "Inconsistent number of inputs");
+            Some(Arc::new(NonNullCheckerExec::new(
+                Arc::clone(&physical_inputs[0]),
+                non_null_checker.schema().as_ref().clone().into(),
+                non_null_checker.value(),
             )) as Arc<dyn ExecutionPlan>)
         } else if let Some(stream_split) = any.downcast_ref::<StreamSplitNode>() {
             assert_eq!(
@@ -338,21 +352,23 @@ impl IOxExecutionContext {
     }
 
     /// Executes the SeriesSetPlans on the query executor, in
-    /// parallel, combining the results into the returned collection
-    /// of items.
+    /// parallel, producing series or groups
     ///
-    /// The SeriesSets are guaranteed to come back ordered by table_name.
-    pub async fn to_series_set(
+    /// TODO make this streaming rather than buffering the results
+    pub async fn to_series_and_groups(
         &self,
         series_set_plans: SeriesSetPlans,
-    ) -> Result<Vec<SeriesSetItem>> {
-        let SeriesSetPlans { mut plans } = series_set_plans;
+    ) -> Result<Vec<Either>> {
+        let SeriesSetPlans {
+            mut plans,
+            group_columns,
+        } = series_set_plans;
 
         if plans.is_empty() {
             return Ok(vec![]);
         }
 
-        // sort plans by table name
+        // sort plans by table (measurement) name
         plans.sort_by(|a, b| a.table_name.cmp(&b.table_name));
 
         // Run the plans in parallel
@@ -366,7 +382,6 @@ impl IOxExecutionContext {
                         plan,
                         tag_columns,
                         field_columns,
-                        num_prefix_tag_group_columns,
                     } = plan;
 
                     let tag_columns = Arc::new(tag_columns);
@@ -376,13 +391,7 @@ impl IOxExecutionContext {
                     let it = ctx.execute_stream(physical_plan).await?;
 
                     SeriesSetConverter::default()
-                        .convert(
-                            table_name,
-                            tag_columns,
-                            field_columns,
-                            num_prefix_tag_group_columns,
-                            it,
-                        )
+                        .convert(table_name, tag_columns, field_columns, it)
                         .await
                         .map_err(|e| {
                             Error::Execution(format!(
@@ -396,14 +405,41 @@ impl IOxExecutionContext {
 
         // join_all ensures that the results are consumed in the same order they
         // were spawned maintaining the guarantee to return results ordered
-        // by the plan sort order.
-        let handles = futures::future::try_join_all(handles).await?;
-        let mut results = vec![];
-        for handle in handles {
-            results.extend(handle.into_iter());
+        // by table name and plan sort order.
+        let all_series_sets = futures::future::try_join_all(handles).await?;
+
+        // convert to series sets
+        let mut data: Vec<Series> = vec![];
+        for series_sets in all_series_sets {
+            for series_set in series_sets {
+                // If all timestamps of returned columns are nulls,
+                // there must be no data. We need to check this because
+                // aggregate (e.g. count, min, max) returns one row that are
+                // all null (even the values of aggregate) for min, max and 0 for count.
+                // For influx read_group's series and group, we do not want to return 0
+                // for count either.
+                if series_set.is_timestamp_all_null() {
+                    continue;
+                }
+
+                let series: Vec<Series> = series_set
+                    .try_into()
+                    .map_err(|e| Error::Execution(format!("Error converting to series: {}", e)))?;
+                data.extend(series);
+            }
         }
 
-        Ok(results)
+        // If we have group columns, sort the results, and create the
+        // appropriate groups
+        if let Some(group_columns) = group_columns {
+            let grouper = GroupGenerator::new(group_columns);
+            grouper
+                .group(data)
+                .map_err(|e| Error::Execution(format!("Error forming groups: {}", e)))
+        } else {
+            let data = data.into_iter().map(|series| series.into()).collect();
+            Ok(data)
+        }
     }
 
     /// Executes `plan` and return the resulting FieldList on the query executor
@@ -509,5 +545,10 @@ impl IOxExecutionContext {
             exec: self.exec.clone(),
             recorder: self.recorder.child(name),
         }
+    }
+
+    /// Number of currently active tasks.
+    pub fn tasks(&self) -> usize {
+        self.exec.tasks()
     }
 }

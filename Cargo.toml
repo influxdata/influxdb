@@ -1,10 +1,57 @@
-[package]
-name = "influxdb_iox"
-version = "0.1.0"
-authors = ["Paul Dix <paul@pauldix.net>"]
-edition = "2018"
-default-run = "influxdb_iox"
-readme = "README.md"
+[workspace]
+# In alphabetical order
+members = [
+    "arrow_util",
+    "client_util",
+    "data_types",
+    "datafusion",
+    "datafusion_util",
+    "entry",
+    "generated_types",
+    "grpc-router",
+    "grpc-router-test-gen",
+    "influxdb2_client",
+    "influxdb_iox",
+    "influxdb_iox_client",
+    "influxdb_line_protocol",
+    "influxdb_storage_client",
+    "influxdb_tsm",
+    "internal_types",
+    "iox_data_generator",
+    "iox_object_store",
+    "lifecycle",
+    "logfmt",
+    "metric",
+    "metric_exporters",
+    "mutable_batch",
+    "mutable_batch_entry",
+    "mutable_batch_lp",
+    "mutable_batch_pb",
+    "mutable_buffer",
+    "object_store",
+    "observability_deps",
+    "packers",
+    "panic_logging",
+    "parquet_catalog",
+    "parquet_file",
+    "persistence_windows",
+    "predicate",
+    "query",
+    "query_tests",
+    "read_buffer",
+    "schema",
+    "server",
+    "server_benchmarks",
+    "test_helpers",
+    "time",
+    "trace",
+    "trace_exporters",
+    "trace_http",
+    "tracker",
+    "trogging",
+    "write_buffer",
+]
+default-members = ["influxdb_iox"]
 
 exclude = [
     "*.md",
@@ -22,58 +69,8 @@ exclude = [
     "massif.out.*",
     "perf/",
     "scripts/",
+    "test_fixtures/",
     "tools/",
-]
-
-
-[[bin]]
-name = "print_cpu"
-path = "src/print_cpu.rs"
-
-[workspace] # In alphabetical order
-members = [
-    "arrow_util",
-    "data_types",
-    "client_util",
-    "datafusion",
-    "datafusion_util",
-    "entry",
-    "generated_types",
-    "influxdb2_client",
-    "influxdb_iox_client",
-    "influxdb_line_protocol",
-    "influxdb_storage_client",
-    "influxdb_tsm",
-    "internal_types",
-    "iox_data_generator",
-    "iox_object_store",
-    "lifecycle",
-    "logfmt",
-    "metric",
-    "metric_exporters",
-    "mutable_buffer",
-    "object_store",
-    "observability_deps",
-    "packers",
-    "panic_logging",
-    "persistence_windows",
-    "predicate",
-    "query",
-    "query_tests",
-    "read_buffer",
-    "server",
-    "server_benchmarks",
-    "test_helpers",
-    "time",
-    "trace",
-    "trace_exporters",
-    "trace_http",
-    "tracker",
-    "trogging",
-    "schema",
-    "grpc-router",
-    "grpc-router/grpc-router-test-gen",
-    "write_buffer",
 ]
 
 [profile.release]
@@ -81,120 +78,3 @@ debug = true
 
 [profile.bench]
 debug = true
-
-[dependencies]
-# Workspace dependencies, in alphabetical order
-datafusion = { path = "datafusion" }
-data_types = { path = "data_types" }
-entry = { path = "entry" }
-generated_types = { path = "generated_types" }
-
-influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
-influxdb_line_protocol = { path = "influxdb_line_protocol" }
-internal_types = { path = "internal_types" }
-iox_object_store = { path = "iox_object_store" }
-logfmt = { path = "logfmt" }
-metric = { path = "metric" }
-metric_exporters = { path = "metric_exporters" }
-mutable_buffer = { path = "mutable_buffer" }
-num_cpus = "1.13.0"
-object_store = { path = "object_store" }
-observability_deps = { path = "observability_deps" }
-panic_logging = { path = "panic_logging" }
-parquet_file = { path = "parquet_file" }
-predicate = { path = "predicate" }
-query = { path = "query" }
-read_buffer = { path = "read_buffer" }
-server = { path = "server" }
-trace = { path = "trace" }
-trace_exporters = { path = "trace_exporters" }
-trace_http = { path = "trace_http" }
-tracker = { path = "tracker" }
-trogging = { path = "trogging", default-features = false, features = ["structopt"] }
-time = { path = "time" }
-
-# Crates.io dependencies, in alphabetical order
-arrow = { version = "5.5", features = ["prettyprint"] }
-arrow-flight = "5.5"
-backtrace = "0.3"
-byteorder = "1.3.4"
-bytes = "1.0"
-chrono = "0.4"
-clap = "2.33.1"
-csv = "1.1"
-dirs = "4.0.0"
-dotenv = "0.15.0"
-flate2 = "1.0"
-futures = "0.3"
-hashbrown = "0.11"
-http = "0.2.0"
-humantime = "2.1.0"
-hyper = "0.14"
-libc = { version = "0.2" }
-log = "0.4"
-once_cell = { version = "1.4.0", features = ["parking_lot"] }
-parking_lot = "0.11.2"
-itertools = "0.10.1"
-parquet = "5.5"
-# used by arrow/datafusion anyway
-prettytable-rs = "0.8"
-pprof = { version = "^0.5", default-features = false, features = ["flamegraph", "protobuf"], optional = true }
-prost = "0.8"
-rustyline = { version = "9.0", default-features = false }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.67"
-serde_urlencoded = "0.7.0"
-snafu = "0.6.9"
-structopt = "0.3.23"
-thiserror = "1.0.30"
-tikv-jemalloc-ctl = { version = "0.4.0" }
-tokio = { version = "1.11", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
-tokio-stream = { version = "0.1.2", features = ["net"] }
-tokio-util = { version = "0.6.3" }
-tonic = "0.5.0"
-tonic-health = "0.4.0"
-tonic-reflection = "0.2.0"
-tower = "0.4"
-uuid = { version = "0.8", features = ["v4"] }
-
-# jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
-tikv-jemalloc-sys = { version = "0.4.0", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
-heappy = { git = "https://github.com/mkmik/heappy", rev = "20aa466524ac9ce34a4bae29f27ec11869b50e21", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
-
-
-[dev-dependencies]
-# Workspace dependencies, in alphabetical order
-arrow_util = { path = "arrow_util" }
-entry = { path = "entry" }
-influxdb2_client = { path = "influxdb2_client" }
-influxdb_storage_client = { path = "influxdb_storage_client" }
-influxdb_iox_client = { path = "influxdb_iox_client", features = ["flight"] }
-test_helpers = { path = "test_helpers" }
-synchronized-writer = "1"
-parking_lot = "0.11.2"
-write_buffer = { path = "write_buffer" }
-
-# Crates.io dependencies, in alphabetical order
-assert_cmd = "2.0.2"
-flate2 = "1.0"
-hex = "0.4.2"
-predicates = "2.0.3"
-rand = "0.8.3"
-rdkafka = "0.26.0"
-reqwest = "0.11"
-tempfile = "3.1.0"
-
-[features]
-default = ["jemalloc_replacing_malloc"]
-
-azure = ["object_store/azure"] # Optional Azure Object store support
-gcp = ["object_store/gcp"] # Optional GCP object store support
-aws = ["object_store/aws"] # Optional AWS / S3 object store support
-# pprof is an optional feature for pprof support
-
-# heappy is an optional feature; Not on by default as it
-# runtime overhead on all allocations (calls to malloc).
-# Cargo cannot currently implement mutually exclusive features so let's force every build
-# to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
-jemalloc_replacing_malloc = ["tikv-jemalloc-sys"]
-

@@ -363,7 +363,7 @@ impl std::io::Write for CapturedWriter {
     }
 }
 
-impl MakeWriter for CapturedWriter {
+impl MakeWriter<'_> for CapturedWriter {
     type Writer = Self;
 
     fn make_writer(&self) -> Self::Writer {

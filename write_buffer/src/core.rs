@@ -164,6 +164,7 @@ pub mod test_utils {
         test_sequencer_auto_creation(&adapter).await;
         test_sequencer_ids(&adapter).await;
         test_span_context(&adapter).await;
+        test_unknown_sequencer_write(&adapter).await;
     }
 
     /// Test IO with a single writer and single reader stream.
@@ -694,6 +695,26 @@ pub mod test_utils {
         let sequenced_entry_3 = stream.stream.next().await.unwrap().unwrap();
         let actual_context_2 = sequenced_entry_3.span_context().unwrap();
         assert_span_context_eq(actual_context_2, &span_context_2);
+    }
+
+    /// Test that writing to an unknown sequencer produces an error
+    async fn test_unknown_sequencer_write<T>(adapter: &T)
+    where
+        T: TestAdapter,
+    {
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
+
+        let entry = lp_to_entry("upc user=1 100");
+
+        let writer = context.writing(true).await.unwrap();
+
+        // flip bits to get an unknown sequencer
+        let sequencer_id = !set_pop_first(&mut writer.sequencer_ids()).unwrap();
+
+        writer
+            .store_entry(&entry, sequencer_id, None)
+            .await
+            .unwrap_err();
     }
 
     /// Assert that the content of the reader is as expected.

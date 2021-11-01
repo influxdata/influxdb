@@ -6,7 +6,7 @@ not intended to be general user facing documentation
 
 ## IOx Tech Talks
 
-We hold monthly Tech Talks that explain the project's technical underpinnings. You can register for the [InfluxDB IOx Tech Talks here](https://www.influxdata.com/community-showcase/influxdb-tech-talks/), or you can find links to previous sessions below:
+We hold monthly Tech Talks that explain the project's technical underpinnings. You can register for the [InfluxDB IOx Tech Talks here](https://www.influxdata.com/community-showcase/influxdb-tech-talks/), or you can find links to previous sessions below or in the [YouTube playlist](https://www.youtube.com/playlist?list=PLYt2jfZorkDp-PKBS05kf2Yx2NrRyPAAz):
 
 * December 2020: Rusty Introduction to Apache Arrow [recording](https://www.youtube.com/watch?v=dQFjKa9vKhM)
 * Jan 2021: Data Lifecycle in InfluxDB IOx & How it Uses Object Storage for Persistence [recording](https://www.youtube.com/watch?v=KwdPifHC1Gc)
@@ -16,7 +16,8 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * May 2021: Catalogs - Turning a Set of Parquet Files into a Data Set [recording](https://www.youtube.com/watch?v=Zaei3l3qk0c), [slides](https://www.slideshare.net/influxdata/catalogs-turning-a-set-of-parquet-files-into-a-data-set)
 * June 2021: Performance Profiling in Rust  [recording](https://www.youtube.com/watch?v=_ZNcg-nAVTM), [slides](https://www.slideshare.net/influxdata/performance-profiling-in-rust)
 * July 2021: Impacts of Sharding, Partitioning, Encoding & Sorting on Distributed Query Performance [recording](https://www.youtube.com/watch?v=VHYMpItvBZQ), [slides](https://www.slideshare.net/influxdata/impacts-of-sharding-partitioning-encoding-and-sorting-on-distributed-query-performance)
-
+* September 2021: Observability of InfluxDB IOx Tracing, Metrics and System Tables [recording](https://www.youtube.com/watch?v=tB-umdJCJQc)
+* October 2021: Query Processing in InfluxDB IOx [recording](https://www.youtube.com/watch?v=9DYkWuM8xco)
 
 
 ## Table of Contents:

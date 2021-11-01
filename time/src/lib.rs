@@ -112,6 +112,13 @@ impl Time {
         self.0.to_rfc3339()
     }
 
+    /// Parses data from RFC 3339 format.
+    pub fn from_rfc3339(s: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        Ok(Self(DateTime::<Utc>::from(
+            DateTime::parse_from_rfc3339(s).map_err(Box::new)?,
+        )))
+    }
+
     /// Returns the number of non-leap-nanoseconds since January 1, 1970 UTC
     pub fn timestamp_nanos(&self) -> i64 {
         self.0.timestamp_nanos()
@@ -292,6 +299,8 @@ mod test {
                 time - duration,
                 Time::from_date_time(date_time - chrono::Duration::from_std(duration).unwrap())
             );
+
+            assert_eq!(time, Time::from_rfc3339(&time.to_rfc3339()).unwrap());
         };
 
         verify(Utc.timestamp_nanos(3406960448958394583));

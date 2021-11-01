@@ -22,11 +22,7 @@ use observability_deps::tracing::{info, trace};
 use persistence_windows::persistence_windows::FlushHandle;
 use query::QueryChunkMeta;
 use schema::{merge::SchemaMerger, Schema, TIME_COLUMN_NAME};
-use std::{
-    convert::TryInto,
-    fmt::Display,
-    sync::{Arc, Weak},
-};
+use std::{fmt::Display, sync::Arc};
 use time::{Time, TimeProvider};
 use tracker::{RwLock, TaskTracker};
 
@@ -43,11 +39,17 @@ mod persist;
 mod unload;
 mod write;
 
-/// A newtype wrapper around `Weak<Db>` to workaround trait orphan rules
+/// A newtype wrapper around `Arc<Db>` to workaround trait orphan rules
 ///
 /// TODO: Pull LifecyclePolicy out of Db to allow strong reference (#2242)
 #[derive(Debug, Clone)]
-pub struct WeakDb(pub(super) Weak<Db>);
+pub struct ArcDb(Arc<Db>);
+
+impl ArcDb {
+    pub fn new(db: Arc<Db>) -> Self {
+        Self(db)
+    }
+}
 
 ///
 /// A `LockableCatalogChunk` combines a `CatalogChunk` with its owning `Db`
@@ -239,52 +241,33 @@ impl LockablePartition for LockableCatalogPartition {
     }
 }
 
-impl LifecycleDb for WeakDb {
+impl LifecycleDb for ArcDb {
     type Chunk = LockableCatalogChunk;
     type Partition = LockableCatalogPartition;
 
     fn buffer_size(&self) -> usize {
-        self.0
-            .upgrade()
-            .map(|db| db.catalog.metrics().memory().total())
-            .unwrap_or_default()
+        self.0.catalog.metrics().memory().total()
     }
 
     fn rules(&self) -> LifecycleRules {
-        self.0
-            .upgrade()
-            .map(|db| db.rules.read().lifecycle_rules.clone())
-            .unwrap_or_default()
+        self.0.rules.read().lifecycle_rules.clone()
     }
 
     fn partitions(&self) -> Vec<Self::Partition> {
         self.0
-            .upgrade()
-            .map(|db| {
-                db.catalog
-                    .partitions()
-                    .into_iter()
-                    .map(|partition| LockableCatalogPartition::new(Arc::clone(&db), partition))
-                    .collect()
-            })
-            .unwrap_or_default()
+            .catalog
+            .partitions()
+            .into_iter()
+            .map(|partition| LockableCatalogPartition::new(Arc::clone(&self.0), partition))
+            .collect()
     }
 
     fn name(&self) -> DatabaseName<'static> {
-        self.0
-            .upgrade()
-            .map(|db| db.rules.read().name.clone())
-            .unwrap_or_else(|| "gone".to_string().try_into().unwrap())
+        self.0.rules.read().name.clone()
     }
 
-    fn time_provider(&self) -> Arc<dyn TimeProvider> {
-        Arc::clone(
-            &self
-                .0
-                .upgrade()
-                .expect("database dropped without shutting down lifecycle")
-                .time_provider,
-        )
+    fn time_provider(&self) -> &Arc<dyn TimeProvider> {
+        &self.0.time_provider
     }
 }
 

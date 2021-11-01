@@ -5,8 +5,6 @@ updates:
     schedule:
       interval: "weekly"
     ignore:
-      # https://github.com/tkaitchuck/aHash/issues/95
-      - dependency-name: "indexmap"
       # Thrift version needs to match the version of the thrift-compiler used to generate code,
       # and therefore this dependency requires a more manual upgrade
       #

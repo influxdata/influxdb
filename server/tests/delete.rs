@@ -13,7 +13,6 @@ use data_types::{
     timestamp::TimestampRange,
     DatabaseName,
 };
-use iox_object_store::IoxObjectStore;
 use predicate::{delete_expr::DeleteExpr, delete_predicate::DeletePredicate};
 use query::{QueryChunk, QueryChunkMeta, QueryDatabase};
 use server::{
@@ -199,11 +198,7 @@ async fn delete_predicate_preservation() {
     database.restart().await.unwrap();
 
     // ==================== do: remove checkpoint files ====================
-    let iox_object_store =
-        IoxObjectStore::find_existing(Arc::clone(application.object_store()), server_id, &db_name)
-            .await
-            .unwrap()
-            .unwrap();
+    let iox_object_store = database.iox_object_store().unwrap();
 
     let files = iox_object_store
         .catalog_transaction_files()

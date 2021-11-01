@@ -2,7 +2,7 @@
 //! the object store.
 use crate::{
     path::{cloud::CloudPath, DELIMITER},
-    ListResult, ObjectMeta, ObjectStoreApi,
+    ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
 };
 use async_trait::async_trait;
 use azure_core::prelude::*;
@@ -64,6 +64,10 @@ impl ObjectStoreApi for MicrosoftAzure {
 
     fn new_path(&self) -> Self::Path {
         CloudPath::default()
+    }
+
+    fn path_from_raw(&self, raw: &str) -> Self::Path {
+        CloudPath::raw(raw)
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {

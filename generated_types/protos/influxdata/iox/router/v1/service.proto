@@ -1,0 +1,76 @@
+syntax = "proto3";
+package influxdata.iox.router.v1;
+option go_package = "github.com/influxdata/iox/router/v1";
+
+import "influxdata/iox/router/v1/router.proto";
+
+service RouterService {
+  // List remote IOx servers we know about.
+  rpc ListRemotes(ListRemotesRequest) returns (ListRemotesResponse);
+
+  // Update information about a remote IOx server (upsert).
+  rpc UpdateRemote(UpdateRemoteRequest) returns (UpdateRemoteResponse);
+
+  // Delete a reference to remote IOx server.
+  rpc DeleteRemote(DeleteRemoteRequest) returns (DeleteRemoteResponse);
+
+  // List configured routers.
+  rpc ListRouter(ListRouterRequest) returns (ListRouterResponse);
+
+  // Update router config (upsert).
+  rpc UpdateRouter(UpdateRouterRequest) returns (UpdateRouterResponse);
+
+  // Delete router.
+  rpc DeleteRouter(DeleteRouterRequest) returns (DeleteRouterResponse);
+}
+
+message ListRemotesRequest {}
+
+message ListRemotesResponse {
+  repeated Remote remotes = 1;
+}
+
+// This resource represents a remote IOx server.
+message Remote {
+  // The server ID associated with a remote IOx server.
+  uint32 id = 1;
+
+  // The address of the remote IOx server gRPC endpoint.
+  string connection_string = 2;
+}
+
+// Updates information about a remote IOx server.
+//
+// If a remote for a given `id` already exists, it is updated in place.
+message UpdateRemoteRequest {
+  // If omitted, the remote associated with `id` will be removed.
+  Remote remote = 1;
+
+  // TODO(#917): add an optional flag to test the connection or not before adding it.
+}
+
+message UpdateRemoteResponse {}
+
+message ListRouterRequest {}
+
+message ListRouterResponse {
+  repeated Router routers = 1;
+}
+
+message DeleteRemoteRequest{
+  uint32 id = 1;
+}
+
+message DeleteRemoteResponse {}
+
+message UpdateRouterRequest {
+  Router router = 1;
+}
+
+message UpdateRouterResponse {}
+
+message DeleteRouterRequest {
+  string router_name = 1;
+}
+
+message DeleteRouterResponse {}

@@ -37,10 +37,7 @@ service ManagementService {
 
   rpc RestoreDatabase(RestoreDatabaseRequest) returns (RestoreDatabaseResponse);
 
-  // List deleted databases and their metadata.
-  rpc ListDeletedDatabases(ListDeletedDatabasesRequest) returns (ListDeletedDatabasesResponse);
-
-  // List all databases and their metadata.
+  // List databases with their metadata.
   rpc ListDetailedDatabases(ListDetailedDatabasesRequest) returns (ListDetailedDatabasesResponse);
 
   // List chunks available on this database
@@ -160,7 +157,9 @@ message CreateDatabaseRequest {
   DatabaseRules rules = 1;
 }
 
-message CreateDatabaseResponse {}
+message CreateDatabaseResponse {
+  bytes uuid = 1;
+}
 
 // Update a database.
 message UpdateDatabaseRequest {
@@ -177,23 +176,23 @@ message DeleteDatabaseRequest {
   string db_name = 1;
 }
 
-message DeleteDatabaseResponse {}
+message DeleteDatabaseResponse {
+  bytes uuid = 1;
+}
 
 message RestoreDatabaseRequest {
-  // The generation ID of the deleted database.
-  uint64 generation_id = 1;
+  // Was the generation ID of the deleted database.
+  reserved 1;
+  reserved "generation_id";
 
   // the name of the database
   string db_name = 2;
+
+  // The UUID of the deleted database.
+  string uuid = 3;
 }
 
 message RestoreDatabaseResponse {}
-
-message ListDeletedDatabasesRequest {}
-
-message ListDeletedDatabasesResponse {
-  repeated DetailedDatabase deleted_databases = 1;
-}
 
 message ListDetailedDatabasesRequest {}
 
@@ -203,14 +202,19 @@ message ListDetailedDatabasesResponse {
 
 // This resource represents detailed information about a database.
 message DetailedDatabase {
-  // The generation ID of the database.
-  uint64 generation_id = 1;
+  // Was the generation ID of the database.
+  reserved 1;
+  reserved "generation_id";
 
-  // The UTC datetime at which this database was deleted, if applicable.
-  google.protobuf.Timestamp deleted_at = 2;
+  // Was the datetime at which this database was deleted, if applicable.
+  reserved 2;
+  reserved "deleted_at";
 
   // The name of the database.
   string db_name = 3;
+
+  // The UUID of the database.
+  bytes uuid = 4;
 }
 
 message ListChunksRequest {
@@ -403,6 +407,9 @@ message DatabaseStatus {
     // No active database
     DATABASE_STATE_NO_ACTIVE_DATABASE = 10;
 
+    // Database owner info has been loaded
+    DATABASE_STATE_OWNER_INFO_LOADED = 11;
+
     // Rules are loaded
     DATABASE_STATE_RULES_LOADED = 2;
 
@@ -415,13 +422,16 @@ message DatabaseStatus {
     // Error loading rules
     DATABASE_STATE_RULES_LOAD_ERROR = 5;
 
+    // Error loading owner info
+    DATABASE_STATE_OWNER_INFO_LOAD_ERROR = 12;
+
     // Error during catalog load
     DATABASE_STATE_CATALOG_LOAD_ERROR = 6;
 
     // Error during replay
     DATABASE_STATE_REPLAY_ERROR = 7;
 
-    // Error encountered identifying active generation
+    // Error encountered finding the database's directory in object storage
     DATABASE_STATE_DATABASE_OBJECT_STORE_LOOKUP_ERROR = 9;
   }
 

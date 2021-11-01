@@ -1,12 +1,18 @@
 //! Tests for the Influx gRPC queries
-use crate::scenarios::{util::all_scenarios_for_one_chunk, *};
+use crate::{
+    influxrpc::util::run_series_set_plan,
+    scenarios::{util::all_scenarios_for_one_chunk, *},
+};
 
+use data_types::timestamp::TimestampRange;
 use server::{db::test_helpers::write_lp, utils::make_db};
 
-use arrow_util::display::pretty_format_batches;
 use async_trait::async_trait;
 use datafusion::prelude::*;
-use predicate::predicate::{Predicate, PredicateBuilder};
+use predicate::{
+    delete_predicate::DeletePredicate,
+    predicate::{Predicate, PredicateBuilder},
+};
 use query::{
     frontend::influxrpc::InfluxRpcPlanner,
     group_by::{Aggregate, WindowDuration},
@@ -35,7 +41,7 @@ async fn run_read_window_aggregate_test_case<D>(
         let planner = InfluxRpcPlanner::new();
         let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
-        let plans = planner
+        let plan = planner
             .read_window_aggregate(
                 db.as_ref(),
                 predicate.clone(),
@@ -45,23 +51,7 @@ async fn run_read_window_aggregate_test_case<D>(
             )
             .expect("built plan successfully");
 
-        let plans = plans.into_inner();
-
-        let mut string_results = vec![];
-        for plan in plans.into_iter() {
-            let batches = ctx
-                .run_logical_plan(plan.plan)
-                .await
-                .expect("ok running plan");
-
-            string_results.extend(
-                pretty_format_batches(&batches)
-                    .expect("formatting results")
-                    .trim()
-                    .split('\n')
-                    .map(|s| s.to_string()),
-            );
-        }
+        let string_results = run_series_set_plan(&ctx, plan).await;
 
         assert_eq!(
             expected_results, string_results,
@@ -113,6 +103,8 @@ impl DbSetup for MeasurementForWindowAggregate {
     }
 }
 
+// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
+
 #[tokio::test]
 async fn test_read_window_aggregate_nanoseconds() {
     let predicate = PredicateBuilder::default()
@@ -127,16 +119,8 @@ async fn test_read_window_aggregate_nanoseconds() {
 
     // note the name of the field is "temp" even though it is the average
     let expected_results = vec![
-        "+--------+-------+--------------------------------+------+",
-        "| city   | state | time                           | temp |",
-        "+--------+-------+--------------------------------+------+",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000200Z | 70   |",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000400Z | 71.5 |",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000600Z | 73   |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000200Z | 90   |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000400Z | 91.5 |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000600Z | 93   |",
-        "+--------+-------+--------------------------------+------+",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [200, 400, 600], values: [70.0, 71.5, 73.0]",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200, 400, 600], values: [90.0, 91.5, 93.0]",
     ];
 
     run_read_window_aggregate_test_case(
@@ -167,16 +151,36 @@ async fn test_read_window_aggregate_nanoseconds_measurement_pred() {
     let offset = WindowDuration::from_nanoseconds(0);
 
     let expected_results = vec![
-        "+--------+-------+--------------------------------+------+",
-        "| city   | state | time                           | temp |",
-        "+--------+-------+--------------------------------+------+",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000200Z | 70   |",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000400Z | 71.5 |",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000600Z | 73   |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000200Z | 90   |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000400Z | 91.5 |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000600Z | 93   |",
-        "+--------+-------+--------------------------------+------+",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [200, 400, 600], values: [70.0, 71.5, 73.0]",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200, 400, 600], values: [90.0, 91.5, 93.0]",
+    ];
+
+    run_read_window_aggregate_test_case(
+        MeasurementForWindowAggregate {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_read_window_aggregate_nanoseconds_measurement_count() {
+    // Expect that the type of `Count` is Integer
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(100, 450)
+        .build();
+
+    let agg = Aggregate::Count;
+    let every = WindowDuration::from_nanoseconds(200);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    let expected_results = vec![
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  IntegerPoints timestamps: [200, 400, 600], values: [1, 2, 1]",
+        "Series tags={_field=temp, _measurement=h2o, city=Cambridge, state=MA}\n  IntegerPoints timestamps: [200, 400, 600], values: [1, 2, 1]",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  IntegerPoints timestamps: [200, 400, 600], values: [1, 2, 1]",
     ];
 
     run_read_window_aggregate_test_case(
@@ -244,6 +248,8 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
     }
 }
 
+// NGA todo: add delete DbSetup
+
 #[tokio::test]
 async fn test_read_window_aggregate_months() {
     let predicate = PredicateBuilder::default().build();
@@ -254,12 +260,7 @@ async fn test_read_window_aggregate_months() {
 
     // note the name of the field is "temp" even though it is the average
     let expected_results = vec![
-        "+--------+-------+----------------------+------+",
-        "| city   | state | time                 | temp |",
-        "+--------+-------+----------------------+------+",
-        "| Boston | MA    | 2020-04-01T00:00:00Z | 70.5 |",
-        "| Boston | MA    | 2020-05-01T00:00:00Z | 72.5 |",
-        "+--------+-------+----------------------+------+",
+    "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [1585699200000000000, 1588291200000000000], values: [70.5, 72.5]",
     ];
 
     run_read_window_aggregate_test_case(
@@ -297,6 +298,71 @@ impl DbSetup for MeasurementForDefect2697 {
     }
 }
 
+struct MeasurementForDefect2697WithDelete {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2697WithDelete {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "mm,section=1a bar=5.0 1609459201000000011",
+            "mm,section=1a bar=0.28 1609459201000000031",
+            "mm,section=2b bar=4.0 1609459201000000009",
+            "mm,section=2b bar=6.0 1609459201000000015",
+            "mm,section=2b bar=1.2 1609459201000000022",
+            "mm,section=1a foo=1.0 1609459201000000001",
+            "mm,section=1a foo=3.0 1609459201000000005",
+            "mm,section=1a foo=11.24 1609459201000000024",
+            "mm,section=2b foo=2.0 1609459201000000002",
+        ];
+
+        // pred: delete from mm where 1609459201000000022 <= time <= 1609459201000000022
+        // 1 row of m0 with timestamp 1609459201000000022 (section=2b bar=1.2)
+        let delete_table_name = "mm";
+        let pred = DeletePredicate {
+            range: TimestampRange {
+                start: 1609459201000000022,
+                end: 1609459201000000022,
+            },
+            exprs: vec![],
+        };
+
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp, delete_table_name, partition_key).await
+    }
+}
+
+struct MeasurementForDefect2697WithDeleteAll {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2697WithDeleteAll {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "mm,section=1a bar=5.0 1609459201000000011",
+            "mm,section=1a bar=0.28 1609459201000000031",
+            "mm,section=2b bar=4.0 1609459201000000009",
+            "mm,section=2b bar=6.0 1609459201000000015",
+            "mm,section=2b bar=1.2 1609459201000000022",
+            "mm,section=1a foo=1.0 1609459201000000001",
+            "mm,section=1a foo=3.0 1609459201000000005",
+            "mm,section=1a foo=11.24 1609459201000000024",
+            "mm,section=2b foo=2.0 1609459201000000002",
+        ];
+
+        // pred: delete from mm where 1 <= time <= 1609459201000000031
+        let delete_table_name = "mm";
+        let pred = DeletePredicate {
+            range: TimestampRange {
+                start: 1,
+                end: 1609459201000000031,
+            },
+            exprs: vec![],
+        };
+
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp, delete_table_name, partition_key).await
+    }
+}
+
 // See https://github.com/influxdata/influxdb_iox/issues/2697
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697() {
@@ -312,23 +378,56 @@ async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697() {
     // Because the windowed aggregate is using a selector aggregate (one of MIN,
     // MAX, FIRST, LAST) we need to run a plan that brings along the timestamps
     // for the chosen aggregate in the window.
-    //
-    // The window is defined by the `time` column
     let expected_results = vec![
-        "+---------+--------------------------------+-----+--------------------------------+-------+--------------------------------+",
-        "| section | time                           | bar | time_bar                       | foo   | time_foo                       |",
-        "+---------+--------------------------------+-----+--------------------------------+-------+--------------------------------+",
-        "| 1a      | 2021-01-01T00:00:01.000000010Z |     |                                | 1     | 2021-01-01T00:00:01.000000001Z |",
-        "| 1a      | 2021-01-01T00:00:01.000000020Z | 5   | 2021-01-01T00:00:01.000000011Z |       |                                |",
-        "| 1a      | 2021-01-01T00:00:01.000000030Z |     |                                | 11.24 | 2021-01-01T00:00:01.000000024Z |",
-        "| 2b      | 2021-01-01T00:00:01.000000010Z | 4   | 2021-01-01T00:00:01.000000009Z | 2     | 2021-01-01T00:00:01.000000002Z |",
-        "| 2b      | 2021-01-01T00:00:01.000000020Z | 6   | 2021-01-01T00:00:01.000000015Z |       |                                |",
-        "| 2b      | 2021-01-01T00:00:01.000000030Z | 1.2 | 2021-01-01T00:00:01.000000022Z |       |                                |",
-        "+---------+--------------------------------+-----+--------------------------------+-------+--------------------------------+",
+        "Series tags={_field=bar, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000011], values: [5.0]",
+        "Series tags={_field=foo, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000001, 1609459201000000024], values: [1.0, 11.24]",
+        "Series tags={_field=bar, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000009, 1609459201000000015, 1609459201000000022], values: [4.0, 6.0, 1.2]",
+        "Series tags={_field=foo, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000002], values: [2.0]",
     ];
 
     run_read_window_aggregate_test_case(
         MeasurementForDefect2697 {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697_with_delete() {
+    let predicate = PredicateBuilder::default()
+        // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
+        .timestamp_range(1609459201000000001, 1609459201000000031)
+        .build();
+
+    let agg = Aggregate::Min;
+    let every = WindowDuration::from_nanoseconds(10);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    // one row deleted
+    let expected_results = vec![
+        "Series tags={_field=bar, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000011], values: [5.0]",
+        "Series tags={_field=foo, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000001, 1609459201000000024], values: [1.0, 11.24]",
+        "Series tags={_field=bar, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000009, 1609459201000000015], values: [4.0, 6.0]",
+        "Series tags={_field=foo, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000002], values: [2.0]",
+    ];
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697WithDelete {},
+        predicate.clone(),
+        agg,
+        every.clone(),
+        offset.clone(),
+        expected_results,
+    )
+    .await;
+
+    // all rows deleted
+    let expected_results = vec![];
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697WithDeleteAll {},
         predicate,
         agg,
         every,
@@ -353,20 +452,141 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
     // The windowed aggregate is using a non-selector aggregate (SUM, COUNT, MEAD).
     // For each distinct series the window defines the `time` column
     let expected_results = vec![
-        "+---------+--------------------------------+-----+-------+",
-        "| section | time                           | bar | foo   |",
-        "+---------+--------------------------------+-----+-------+",
-        "| 1a      | 2021-01-01T00:00:01.000000010Z |     | 4     |",
-        "| 1a      | 2021-01-01T00:00:01.000000020Z | 5   |       |",
-        "| 1a      | 2021-01-01T00:00:01.000000030Z |     | 11.24 |",
-        "| 2b      | 2021-01-01T00:00:01.000000010Z | 4   | 2     |",
-        "| 2b      | 2021-01-01T00:00:01.000000020Z | 6   |       |",
-        "| 2b      | 2021-01-01T00:00:01.000000030Z | 1.2 |       |",
-        "+---------+--------------------------------+-----+-------+",
+        "Series tags={_field=bar, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000020], values: [5.0]",
+        "Series tags={_field=foo, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000010, 1609459201000000030], values: [4.0, 11.24]",
+        "Series tags={_field=bar, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000010, 1609459201000000020, 1609459201000000030], values: [4.0, 6.0, 1.2]",
+        "Series tags={_field=foo, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000010], values: [2.0]",
     ];
 
     run_read_window_aggregate_test_case(
         MeasurementForDefect2697 {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
+// See issue: https://github.com/influxdata/influxdb_iox/issues/2845
+//
+// Adds coverage to window_aggregate plan for filtering on _field.
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_aggregate_filter_on_field() {
+    let predicate = PredicateBuilder::default()
+        // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
+        .timestamp_range(1609459201000000001, 1609459201000000031)
+        .add_expr(col("_field").eq(lit("foo")))
+        .build();
+
+    let agg = Aggregate::Sum;
+    let every = WindowDuration::from_nanoseconds(10);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    // The windowed aggregate is using a non-selector aggregate (SUM, COUNT, MEAD).
+    // For each distinct series the window defines the `time` column
+    let expected_results = vec![
+        "Series tags={_field=foo, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000010, 1609459201000000030], values: [4.0, 11.24]",
+        "Series tags={_field=foo, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000010], values: [2.0]",
+    ];
+
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697 {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697_with_delete() {
+    let predicate = PredicateBuilder::default()
+        // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
+        .timestamp_range(1609459201000000001, 1609459201000000031)
+        .build();
+
+    let agg = Aggregate::Sum;
+    let every = WindowDuration::from_nanoseconds(10);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    // one row deleted
+
+    // The windowed aggregate is using a non-selector aggregate (SUM, COUNT, MEAD).
+    // For each distinct series the window defines the `time` column
+    let expected_results = vec![
+        "Series tags={_field=bar, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000020], values: [5.0]",
+        "Series tags={_field=foo, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000010, 1609459201000000030], values: [4.0, 11.24]",
+        "Series tags={_field=bar, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000010, 1609459201000000020], values: [4.0, 6.0]",
+        "Series tags={_field=foo, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000010], values: [2.0]",
+    ];
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697WithDelete {},
+        predicate.clone(),
+        agg,
+        every.clone(),
+        offset.clone(),
+        expected_results,
+    )
+    .await;
+
+    // all rows deleted
+    let expected_results = vec![];
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697WithDeleteAll {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
+// Test data to validate fix for:
+// https://github.com/influxdata/influxdb_iox/issues/2890
+struct MeasurementForDefect2890 {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2890 {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "mm foo=2.0 1609459201000000001",
+            "mm foo=2.0 1609459201000000002",
+            "mm foo=3.0 1609459201000000005",
+            "mm foo=11.24 1609459201000000024",
+            "mm bar=4.0 1609459201000000009",
+            "mm bar=5.0 1609459201000000011",
+            "mm bar=6.0 1609459201000000015",
+            "mm bar=1.2 1609459201000000022",
+            "mm bar=2.8 1609459201000000031",
+        ];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp, "mm", partition_key).await
+    }
+}
+
+#[tokio::test]
+async fn test_read_window_aggregate_overflow() {
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(1609459201000000001, 1609459201000000024)
+        .build();
+
+    let agg = Aggregate::Max;
+    // Note the giant window (every=9223372036854775807)
+    let every = WindowDuration::from_nanoseconds(i64::MAX);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    let expected_results = vec![
+        "Series tags={_field=bar, _measurement=mm}\n  FloatPoints timestamps: [1609459201000000015], values: [6.0]",
+        "Series tags={_field=foo, _measurement=mm}\n  FloatPoints timestamps: [1609459201000000005], values: [3.0]",
+    ];
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2890 {},
         predicate,
         agg,
         every,

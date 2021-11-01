@@ -2,7 +2,7 @@
 name = "datafusion_util"
 version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
-edition = "2018"
+edition = "2021"
 description = "Datafusion utilities"
 
 [dependencies]

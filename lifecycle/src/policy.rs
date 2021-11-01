@@ -21,10 +21,7 @@ pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
 ///
 /// `LifecyclePolicy::check_for_work` can then be used to drive progress
 /// of the `LifecycleChunk` contained within this `LifecycleDb`
-pub struct LifecyclePolicy<M>
-where
-    M: LifecycleDb,
-{
+pub struct LifecyclePolicy<M> {
     /// The `LifecycleDb` this policy is automating
     db: M,
 
@@ -87,7 +84,7 @@ where
     ) {
         let buffer_size = self.db.buffer_size();
         if buffer_size < soft_limit {
-            debug!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
+            trace!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
             return;
         }
 
@@ -272,7 +269,7 @@ where
                 _ => unreachable!("this chunk should be have filtered out already"),
             }
             let has_added_to_compact = to_compact.len() > to_compact_len_before;
-            debug!(db_name = %self.db.name(),
+            trace!(db_name = %self.db.name(),
                    %partition,
                    ?has_added_to_compact,
                    chunk_storage = ?storage,
@@ -358,7 +355,7 @@ where
             .unwrap_or_default();
 
         let persistable_row_count = partition.persistable_row_count();
-        debug!(%db_name, %partition,
+        trace!(%db_name, %partition,
                partition_persist_row_count=persistable_row_count,
                rules_persist_row_count=%rules.persist_row_threshold.get(),
                partition_persistable_age_seconds=persistable_age_seconds,
@@ -370,7 +367,7 @@ where
         } else if persistable_age_seconds >= rules.persist_age_threshold_seconds.get() as u64 {
             info!(%db_name, %partition, persistable_age_seconds, "persisting partition as exceeds age threshold");
         } else {
-            debug!(%db_name, %partition, persistable_row_count, "partition not eligible for persist");
+            trace!(%db_name, %partition, persistable_row_count, "partition not eligible for persist");
             return false;
         }
 
@@ -552,10 +549,7 @@ where
     }
 }
 
-impl<M> Debug for LifecyclePolicy<M>
-where
-    M: LifecycleDb,
-{
+impl<M> Debug for LifecyclePolicy<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "LifecyclePolicy{{..}}")
     }
@@ -1132,8 +1126,8 @@ mod tests {
             DatabaseName::new("test_db").unwrap()
         }
 
-        fn time_provider(&self) -> Arc<dyn TimeProvider> {
-            Arc::clone(&self.time_provider)
+        fn time_provider(&self) -> &Arc<dyn TimeProvider> {
+            &self.time_provider
         }
     }
 

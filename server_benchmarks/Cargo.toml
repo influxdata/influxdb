@@ -2,7 +2,7 @@
 name = "server_benchmarks"
 version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
-edition = "2018"
+edition = "2021"
 description = "Server related bechmarks, grouped into their own crate to minimize build dev build times"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -22,7 +22,6 @@ influxdb_tsm = { path = "../influxdb_tsm" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 mutable_buffer = { path = "../mutable_buffer" }
 object_store = { path = "../object_store" }
-packers = { path = "../packers" }
 predicate = { path = "../predicate" }
 query = { path = "../query" }
 query_tests = { path = "../query_tests" }
@@ -37,10 +36,6 @@ harness = false
 
 [[bench]]
 name = "snapshot"
-harness = false
-
-[[bench]]
-name = "write"
 harness = false
 
 [[bench]]

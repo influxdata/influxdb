@@ -33,7 +33,7 @@ We're also hosting monthly tech talks and community office hours on the project 
 1. [Install dependencies](#install-dependencies)
 1. [Clone the repository](#clone-the-repository)
 1. [Configure the server](#configure-the-server)
-1. [Compile and start the server](#compile-and-start-the-server)  
+1. [Compile and start the server](#compile-and-start-the-server)
    (You can also [build a Docker image](#build-a-docker-image-optional) to run InfluxDB IOx.)
 1. [Write and read data](#write-and-read-data)
 1. [Use the CLI](#use-the-cli)
@@ -47,6 +47,7 @@ To compile and run InfluxDB IOx from source, you'll need the following:
 
 - [Rust](#rust)
 - [Clang](#clang)
+- [lld (on Linux)](#lld)
 
 #### Rust
 
@@ -71,6 +72,19 @@ InstalledDir: /Library/Developer/CommandLineTools/usr/bin
 If `clang` is not already present, it can typically be installed with the system package manager.
 
 [`croaring`]: https://github.com/saulius/croaring-rs
+
+#### lld
+
+If you are building InfluxDB IOx on Linux then you will need to ensure you have installed the `lld` LLVM linker.
+Check if you have already installed it by running `lld -version`.
+
+```shell
+lld -version
+lld is a generic driver.
+Invoke ld.lld (Unix), ld64.lld (macOS), lld-link (Windows), wasm-ld (WebAssembly) instead
+```
+
+If `lld` is not already present, it can typically be installed with the system package manager.
 
 ### Clone the repository
 
@@ -120,7 +134,7 @@ This which will create a binary at `target/debug/influxdb_iox`.
 To start the InfluxDB IOx server, run:
 
 ```shell
-./target/debug/influxdb_iox run
+./target/debug/influxdb_iox run database
 ```
 
 By default the server will start an HTTP server on port `8080` and a gRPC server on port `8082`.
@@ -128,20 +142,20 @@ By default the server will start an HTTP server on port `8080` and a gRPC server
 You can also compile and run with one command:
 
 ```shell
-cargo run -- run
+cargo run -- run database
 ```
 
 To compile for performance testing, build in release mode:
 
 ```shell
 cargo build --release
-./target/release/influxdb_iox run
+./target/release/influxdb_iox run database
 ```
 
 You can also run in release mode with one step:
 
 ```shell
-cargo run --release -- run
+cargo run --release -- run database
 ```
 
 To run all available tests in debug mode, you may want to set min stack size to avoid the current known stack overflow issue:

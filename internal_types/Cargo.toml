@@ -2,7 +2,7 @@
 name = "internal_types"
 version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
-edition = "2018"
+edition = "2021"
 description = "InfluxDB IOx internal types, shared between IOx instances"
 readme = "README.md"
 

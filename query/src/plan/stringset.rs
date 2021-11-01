@@ -95,23 +95,9 @@ impl StringSetPlanBuilder {
         Self::default()
     }
 
-    /// Returns a reference to any strings already known to be in this
-    /// set
-    pub fn known_strings(&self) -> &StringSet {
-        &self.strings
-    }
-
-    /// Append the name of a table to the known strings
-    pub fn append_table(mut self, table_name: &str) -> Self {
-        if !self.strings.contains(table_name) {
-            self.strings.insert(table_name.to_string());
-        }
-        self
-    }
-
     /// Append the strings from the passed plan into ourselves if possible, or
     /// passes on the plan
-    pub fn append(mut self, other: StringSetPlan) -> Self {
+    pub fn append_other(mut self, other: StringSetPlan) -> Self {
         match other {
             StringSetPlan::Known(ssref) => match Arc::try_unwrap(ssref) {
                 Ok(mut ss) => {
@@ -129,6 +115,23 @@ impl StringSetPlanBuilder {
         }
 
         self
+    }
+
+    /// Return true if we know already that `s` is contained in the
+    /// StringSet. Note that if `contains()` returns false, `s` may be
+    /// in the stringset after execution.
+    pub fn contains(&self, s: impl AsRef<str>) -> bool {
+        self.strings.contains(s.as_ref())
+    }
+
+    /// Append a single string to the known set of strings in this builder
+    pub fn append_string(&mut self, s: impl Into<String>) {
+        self.strings.insert(s.into());
+    }
+
+    /// returns an iterator over the currently known strings in this builder
+    pub fn known_strings_iter(&self) -> impl Iterator<Item = &String> {
+        self.strings.iter()
     }
 
     /// Create a StringSetPlan that produces the deduplicated (union)
@@ -177,8 +180,8 @@ mod tests {
     #[test]
     fn test_builder_strings_only() {
         let plan = StringSetPlanBuilder::new()
-            .append(to_string_set(&["foo", "bar"]).into())
-            .append(to_string_set(&["bar", "baz"]).into())
+            .append_other(to_string_set(&["foo", "bar"]).into())
+            .append_other(to_string_set(&["bar", "baz"]).into())
             .build()
             .unwrap();
 
@@ -209,9 +212,9 @@ mod tests {
 
         // when a df plan is appended the whole plan should be different
         let plan = StringSetPlanBuilder::new()
-            .append(to_string_set(&["foo", "bar"]).into())
-            .append(vec![df_plan].into())
-            .append(to_string_set(&["baz"]).into())
+            .append_other(to_string_set(&["foo", "bar"]).into())
+            .append_other(vec![df_plan].into())
+            .append_other(to_string_set(&["baz"]).into())
             .build()
             .unwrap();
 

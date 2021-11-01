@@ -33,10 +33,6 @@ pub struct SeriesSetPlan {
 
     /// The names of the columns which are "fields"
     pub field_columns: FieldColumns,
-
-    /// If present, how many of the series_set_plan::tag_columns
-    /// should be used to compute the group
-    pub num_prefix_tag_group_columns: Option<usize>,
 }
 
 impl SeriesSetPlan {
@@ -57,22 +53,12 @@ impl SeriesSetPlan {
         tag_columns: Vec<Arc<str>>,
         field_columns: FieldColumns,
     ) -> Self {
-        let num_prefix_tag_group_columns = None;
-
         Self {
             table_name,
             plan,
             tag_columns,
             field_columns,
-            num_prefix_tag_group_columns,
         }
-    }
-
-    /// Create a SeriesSetPlan that will produce Group items, according to
-    /// num_prefix_tag_group_columns.
-    pub fn grouped(mut self, num_prefix_tag_group_columns: usize) -> Self {
-        self.num_prefix_tag_group_columns = Some(num_prefix_tag_group_columns);
-        self
     }
 }
 
@@ -80,7 +66,21 @@ impl SeriesSetPlan {
 /// timeseries (from across many potential tables).
 #[derive(Debug, Default)]
 pub struct SeriesSetPlans {
+    /// Plans the generate Series, ordered by table_name.
+    ///
+    /// Each plan produces output that is sorted by tag keys (tag
+    /// column values) and then time.
     pub plans: Vec<SeriesSetPlan>,
+
+    /// grouping keys, if any, that specify how the output series should be
+    /// sorted (aka grouped). If empty, means no grouping is needed
+    ///
+    /// There are several special values that are possible in `group_keys`:
+    ///
+    /// 1. _field (means group by field column name)
+    /// 2. _measurement (means group by the table name)
+    /// 3. _time (means group by the time column)
+    pub group_columns: Option<Vec<Arc<str>>>,
 }
 
 impl SeriesSetPlans {
@@ -89,8 +89,20 @@ impl SeriesSetPlans {
     }
 }
 
-impl From<Vec<SeriesSetPlan>> for SeriesSetPlans {
-    fn from(plans: Vec<SeriesSetPlan>) -> Self {
-        Self { plans }
+impl SeriesSetPlans {
+    /// Create a new, ungrouped SeriesSetPlans
+    pub fn new(plans: Vec<SeriesSetPlan>) -> Self {
+        Self {
+            plans,
+            group_columns: None,
+        }
+    }
+
+    /// Group the created SeriesSetPlans
+    pub fn grouped_by(self, group_columns: Vec<Arc<str>>) -> Self {
+        Self {
+            group_columns: Some(group_columns),
+            ..self
+        }
     }
 }

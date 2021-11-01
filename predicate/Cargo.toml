@@ -1,10 +1,10 @@
 [package]
 name = "predicate"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-arrow = { version = "5.5", features = ["prettyprint"] }
+arrow = { version = "6.0", features = ["prettyprint"] }
 chrono = "0.4"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
@@ -16,7 +16,7 @@ ordered-float = "2"
 regex = "1"
 serde_json = "1.0.67"
 snafu = "0.6.9"
-sqlparser = "0.11.0"
+sqlparser = "0.12.0"
 
 [dev-dependencies]
 test_helpers = { path = "../test_helpers" }

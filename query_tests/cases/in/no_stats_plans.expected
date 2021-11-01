@@ -10,4 +10,5 @@
 |               |   RepartitionExec: partitioning=RoundRobinBatch(4)          |
 |               |     ProjectionExec: expr=[3 as COUNT(Uint8(1))]             |
 |               |       EmptyExec: produce_one_row=true                       |
+|               |                                                             |
 +---------------+-------------------------------------------------------------+

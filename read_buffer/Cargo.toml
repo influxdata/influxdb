@@ -2,7 +2,7 @@
 name = "read_buffer"
 version = "0.1.0"
 authors = ["Edd Robinson <me@edd.io>"]
-edition = "2018"
+edition = "2021"
 
 # Note this crate is designed to be standalone, and should not depend
 # on the IOx Query Engine. The rationale is:
@@ -11,7 +11,7 @@ edition = "2018"
 # 2. Keep change/compile/link time down during development when working on just this crate
 
 [dependencies] # In alphabetical order
-arrow = { version = "5.5", features = ["prettyprint"] }
+arrow = { version = "6.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 croaring = "0.5"
 data_types = { path = "../data_types" }

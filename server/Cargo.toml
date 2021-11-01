@@ -2,10 +2,10 @@
 name = "server"
 version = "0.1.0"
 authors = ["pauldix <paul@pauldix.net>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies] # In alphabetical order
-arrow = { version = "5.5", features = ["prettyprint"] }
+arrow = { version = "6.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 bytes = "1.0"
@@ -30,12 +30,15 @@ iox_object_store = { path = "../iox_object_store" }
 itertools = "0.10.1"
 lifecycle = { path = "../lifecycle" }
 metric = { path = "../metric" }
+mutable_batch = { path = "../mutable_batch" }
+mutable_batch_entry = { path = "../mutable_batch_entry" }
 mutable_buffer = { path = "../mutable_buffer" }
 num_cpus = "1.13.0"
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 once_cell = { version = "1.4.0", features = ["race"] }
 parking_lot = "0.11.2"
+parquet_catalog = { path = "../parquet_catalog" }
 parquet_file = { path = "../parquet_file" }
 persistence_windows = { path = "../persistence_windows" }
 predicate = { path = "../predicate" }

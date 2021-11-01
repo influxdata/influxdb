@@ -297,7 +297,8 @@ mod tests {
         .add_buffer(keys.data().buffers()[0].clone())
         .null_bit_buffer(keys.data().null_buffer().unwrap().clone())
         .add_child_data(values.data().clone())
-        .build();
+        .build()
+        .unwrap();
 
         DictionaryArray::from(data)
     }

@@ -73,6 +73,9 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     /// Return a new location path appropriate for this object storage
     fn new_path(&self) -> Self::Path;
 
+    /// Return a new location path constructed from a string appropriate for this object storage
+    fn path_from_raw(&self, raw: &str) -> Self::Path;
+
     /// Save the provided bytes to the specified location.
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error>;
 
@@ -233,6 +236,20 @@ impl ObjectStoreApi for ObjectStore {
         }
     }
 
+    fn path_from_raw(&self, raw: &str) -> Self::Path {
+        use ObjectStoreIntegration::*;
+        match &self.integration {
+            AmazonS3(s3) => path::Path::AmazonS3(s3.path_from_raw(raw)),
+            GoogleCloudStorage(gcs) => path::Path::GoogleCloudStorage(gcs.path_from_raw(raw)),
+            InMemory(in_mem) => path::Path::InMemory(in_mem.path_from_raw(raw)),
+            InMemoryThrottled(in_mem_throttled) => {
+                path::Path::InMemory(in_mem_throttled.path_from_raw(raw))
+            }
+            File(file) => path::Path::File(file.path_from_raw(raw)),
+            MicrosoftAzure(azure) => path::Path::MicrosoftAzure(azure.path_from_raw(raw)),
+        }
+    }
+
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
         use ObjectStoreIntegration::*;
         match (&self.integration, location) {
@@ -275,12 +292,9 @@ impl ObjectStoreApi for ObjectStore {
             (InMemoryThrottled(in_mem_throttled), path::Path::InMemory(location)) => {
                 in_mem_throttled.get(location).await?.err_into().boxed()
             }
-            (File(file), path::Path::File(location)) => file
-                .get(location)
-                .await
-                .context(FileObjectStoreError)?
-                .err_into()
-                .boxed(),
+            (File(file), path::Path::File(location)) => {
+                file.get(location).await?.err_into().boxed()
+            }
             (MicrosoftAzure(azure), path::Path::MicrosoftAzure(location)) => {
                 azure.get(location).await?.err_into().boxed()
             }
@@ -592,25 +606,49 @@ pub enum Error {
 
     #[snafu(display("{}", source))]
     DummyObjectStoreError { source: dummy::Error },
+
+    #[snafu(display("Object at location {} not found: {}", location, source))]
+    NotFound {
+        location: String,
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
 }
 
 impl From<disk::Error> for Error {
     fn from(source: disk::Error) -> Self {
-        Self::FileObjectStoreError { source }
+        match source {
+            disk::Error::NotFound { location, source } => Self::NotFound {
+                location,
+                source: source.into(),
+            },
+            _ => Self::FileObjectStoreError { source },
+        }
     }
 }
 
 #[cfg(feature = "gcp")]
 impl From<gcp::Error> for Error {
     fn from(source: gcp::Error) -> Self {
-        Self::GcsObjectStoreError { source }
+        match source {
+            gcp::Error::NotFound { location, source } => Self::NotFound {
+                location,
+                source: source.into(),
+            },
+            _ => Self::GcsObjectStoreError { source },
+        }
     }
 }
 
 #[cfg(feature = "aws")]
 impl From<aws::Error> for Error {
     fn from(source: aws::Error) -> Self {
-        Self::AwsObjectStoreError { source }
+        match source {
+            aws::Error::NotFound { location, source } => Self::NotFound {
+                location,
+                source: source.into(),
+            },
+            _ => Self::AwsObjectStoreError { source },
+        }
     }
 }
 
@@ -623,7 +661,13 @@ impl From<azure::Error> for Error {
 
 impl From<memory::Error> for Error {
     fn from(source: memory::Error) -> Self {
-        Self::InMemoryObjectStoreError { source }
+        match source {
+            memory::Error::NoDataInMemory { ref location } => Self::NotFound {
+                location: location.into(),
+                source: source.into(),
+            },
+            // currently "not found" is the only error that can happen with the in-memory store
+        }
     }
 }
 

@@ -183,8 +183,8 @@ async fn sql_select_from_system_chunks() {
         "+---------------+------------+-------------------+--------------+-----------+",
         "| partition_key | table_name | storage           | memory_bytes | row_count |",
         "+---------------+------------+-------------------+--------------+-----------+",
-        "| 1970-01-01T00 | h2o        | OpenMutableBuffer | 1639         | 3         |",
-        "| 1970-01-01T00 | o2         | OpenMutableBuffer | 1635         | 2         |",
+        "| 1970-01-01T00 | h2o        | OpenMutableBuffer | 1671         | 3         |",
+        "| 1970-01-01T00 | o2         | OpenMutableBuffer | 1667         | 2         |",
         "+---------------+------------+-------------------+--------------+-----------+",
     ];
     run_sql_test_case(

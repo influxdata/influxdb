@@ -1,5 +1,5 @@
 use crate::{
-    db::{load::load_or_create_preserved_catalog, DatabaseToCommit, Db},
+    db::{catalog::TableNameFilter, load::load_or_create_preserved_catalog, DatabaseToCommit, Db},
     JobRegistry,
 };
 use data_types::{
@@ -13,8 +13,12 @@ use object_store::ObjectStore;
 use persistence_windows::checkpoint::ReplayPlan;
 use query::exec::ExecutorConfig;
 use query::{exec::Executor, QueryDatabase};
-use std::{borrow::Cow, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration};
+use std::{
+    borrow::Cow, collections::BTreeSet, convert::TryFrom, num::NonZeroU32, sync::Arc,
+    time::Duration,
+};
 use time::{Time, TimeProvider};
+use uuid::Uuid;
 use write_buffer::core::WriteBufferWriting;
 
 // A wrapper around a Db and a metric registry allowing for isolated testing
@@ -32,16 +36,41 @@ impl TestDb {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TestDbBuilder {
-    server_id: Option<ServerId>,
-    object_store: Option<Arc<ObjectStore>>,
-    db_name: Option<DatabaseName<'static>>,
-    worker_cleanup_avg_sleep: Option<Duration>,
+    server_id: ServerId,
+    object_store: Arc<ObjectStore>,
+    db_name: DatabaseName<'static>,
+    uuid: Uuid,
+    worker_cleanup_avg_sleep: Duration,
     write_buffer_producer: Option<Arc<dyn WriteBufferWriting>>,
-    lifecycle_rules: Option<LifecycleRules>,
-    partition_template: Option<PartitionTemplate>,
-    time_provider: Option<Arc<dyn TimeProvider>>,
+    lifecycle_rules: LifecycleRules,
+    partition_template: PartitionTemplate,
+    time_provider: Arc<dyn TimeProvider>,
+}
+
+impl Default for TestDbBuilder {
+    fn default() -> Self {
+        Self {
+            server_id: ServerId::try_from(1).unwrap(),
+            object_store: Arc::new(ObjectStore::new_in_memory()),
+            db_name: DatabaseName::new("placeholder").unwrap(),
+            uuid: Uuid::new_v4(),
+            // make background loop spin a bit faster for tests
+            worker_cleanup_avg_sleep: Duration::from_secs(1),
+            write_buffer_producer: None,
+            // default to quick lifecycle rules for faster tests
+            lifecycle_rules: LifecycleRules {
+                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+                ..Default::default()
+            },
+            // default to hourly
+            partition_template: PartitionTemplate {
+                parts: vec![TemplatePart::TimeFormat("%Y-%m-%dT%H".to_string())],
+            },
+            time_provider: Arc::new(time::SystemProvider::new()),
+        }
+    }
 }
 
 impl TestDbBuilder {
@@ -49,37 +78,22 @@ impl TestDbBuilder {
         Self::default()
     }
 
-    pub async fn build(self) -> TestDb {
-        let server_id = self
-            .server_id
-            .unwrap_or_else(|| ServerId::try_from(1).unwrap());
+    pub async fn build(&self) -> TestDb {
+        let server_id = self.server_id;
+        let object_store = Arc::clone(&self.object_store);
+        let db_name = self.db_name.clone();
+        let uuid = self.uuid;
 
-        let db_name = self
-            .db_name
-            .unwrap_or_else(|| DatabaseName::new("placeholder").unwrap());
-
-        let time_provider = self
-            .time_provider
-            .clone()
-            .take()
-            .unwrap_or_else(|| Arc::new(time::SystemProvider::new()));
-
-        let object_store = self
-            .object_store
-            .unwrap_or_else(|| Arc::new(ObjectStore::new_in_memory()));
+        let time_provider = Arc::clone(&self.time_provider);
 
         let iox_object_store =
-            IoxObjectStore::find_existing(Arc::clone(&object_store), server_id, &db_name)
-                .await
-                .unwrap();
-
+            IoxObjectStore::load(Arc::clone(&object_store), server_id, uuid).await;
         let iox_object_store = match iox_object_store {
-            Some(ios) => ios,
-            None => IoxObjectStore::new(Arc::clone(&object_store), server_id, &db_name)
+            Ok(ios) => ios,
+            Err(_) => IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
                 .await
                 .unwrap(),
         };
-
         let iox_object_store = Arc::new(iox_object_store);
 
         // deterministic thread and concurrency count
@@ -102,27 +116,9 @@ impl TestDbBuilder {
         .unwrap();
 
         let mut rules = DatabaseRules::new(db_name);
-
-        // make background loop spin a bit faster for tests
-        rules.worker_cleanup_avg_sleep = self
-            .worker_cleanup_avg_sleep
-            .unwrap_or_else(|| Duration::from_secs(1));
-
-        // default to quick lifecycle rules for faster tests
-        rules.lifecycle_rules = self.lifecycle_rules.unwrap_or_else(|| LifecycleRules {
-            late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
-            ..Default::default()
-        });
-
-        // set partion template
-        if let Some(partition_template) = self.partition_template {
-            rules.partition_template = partition_template;
-        } else {
-            // default to hourly
-            rules.partition_template = PartitionTemplate {
-                parts: vec![TemplatePart::TimeFormat("%Y-%m-%dT%H".to_string())],
-            };
-        }
+        rules.worker_cleanup_avg_sleep = self.worker_cleanup_avg_sleep;
+        rules.lifecycle_rules = self.lifecycle_rules.clone();
+        rules.partition_template = self.partition_template.clone();
 
         let jobs = Arc::new(JobRegistry::new(
             Default::default(),
@@ -135,7 +131,7 @@ impl TestDbBuilder {
             iox_object_store,
             preserved_catalog,
             catalog,
-            write_buffer_producer: self.write_buffer_producer,
+            write_buffer_producer: self.write_buffer_producer.clone(),
             exec,
             metric_registry: Arc::clone(&metric_registry),
             time_provider,
@@ -143,28 +139,28 @@ impl TestDbBuilder {
 
         TestDb {
             metric_registry,
-            db: Db::new(database_to_commit, jobs),
+            db: Arc::new(Db::new(database_to_commit, jobs)),
             replay_plan: replay_plan.expect("did not skip replay"),
         }
     }
 
     pub fn server_id(mut self, server_id: ServerId) -> Self {
-        self.server_id = Some(server_id);
+        self.server_id = server_id;
         self
     }
 
     pub fn object_store(mut self, object_store: Arc<ObjectStore>) -> Self {
-        self.object_store = Some(object_store);
+        self.object_store = object_store;
         self
     }
 
     pub fn db_name<T: Into<Cow<'static, str>>>(mut self, db_name: T) -> Self {
-        self.db_name = Some(DatabaseName::new(db_name).unwrap());
+        self.db_name = DatabaseName::new(db_name).unwrap();
         self
     }
 
     pub fn worker_cleanup_avg_sleep(mut self, d: Duration) -> Self {
-        self.worker_cleanup_avg_sleep = Some(d);
+        self.worker_cleanup_avg_sleep = d;
         self
     }
 
@@ -177,17 +173,17 @@ impl TestDbBuilder {
     }
 
     pub fn lifecycle_rules(mut self, lifecycle_rules: LifecycleRules) -> Self {
-        self.lifecycle_rules = Some(lifecycle_rules);
+        self.lifecycle_rules = lifecycle_rules;
         self
     }
 
     pub fn partition_template(mut self, template: PartitionTemplate) -> Self {
-        self.partition_template = Some(template);
+        self.partition_template = template;
         self
     }
 
     pub fn time_provider(mut self, time_provider: Arc<dyn TimeProvider>) -> Self {
-        self.time_provider = Some(time_provider);
+        self.time_provider = time_provider;
         self
     }
 }
@@ -224,6 +220,26 @@ pub fn count_mutable_buffer_chunks(db: &Db) -> usize {
         .count()
 }
 
+/// return number of MUB chunks of a given table of a partition
+pub fn count_mub_table_chunks(db: &Db, table_name: &str, partition_key: &str) -> usize {
+    let mut table_names = BTreeSet::new();
+    table_names.insert(table_name.to_string());
+    count_mub_tables_chunks(
+        db,
+        TableNameFilter::NamedTables(&table_names),
+        partition_key,
+    )
+}
+pub fn count_mub_tables_chunks(db: &Db, tables: TableNameFilter<'_>, partition_key: &str) -> usize {
+    db.partition_tables_chunk_summaries(tables, partition_key)
+        .into_iter()
+        .filter_map(|chunk| match chunk.storage {
+            ChunkStorage::OpenMutableBuffer | ChunkStorage::ClosedMutableBuffer => Some(1),
+            _ => None,
+        })
+        .count()
+}
+
 /// Returns the number of read buffer chunks in the specified database
 pub fn count_read_buffer_chunks(db: &Db) -> usize {
     chunk_summary_iter(db)
@@ -234,12 +250,52 @@ pub fn count_read_buffer_chunks(db: &Db) -> usize {
         .count()
 }
 
+/// return number of RUB chunks of a given table of a partition
+pub fn count_rub_table_chunks(db: &Db, table_name: &str, partition_key: &str) -> usize {
+    let mut table_names = BTreeSet::new();
+    table_names.insert(table_name.to_string());
+    count_rub_tables_chunks(
+        db,
+        TableNameFilter::NamedTables(&table_names),
+        partition_key,
+    )
+}
+pub fn count_rub_tables_chunks(db: &Db, tables: TableNameFilter<'_>, partition_key: &str) -> usize {
+    db.partition_tables_chunk_summaries(tables, partition_key)
+        .into_iter()
+        .filter_map(|chunk| match chunk.storage {
+            ChunkStorage::ReadBuffer | ChunkStorage::ReadBufferAndObjectStore => Some(1),
+            _ => None,
+        })
+        .count()
+}
+
 /// Returns the number of object store chunks in the specified database
 pub fn count_object_store_chunks(db: &Db) -> usize {
     chunk_summary_iter(db)
         .filter(|s| {
             s.storage == ChunkStorage::ReadBufferAndObjectStore
                 || s.storage == ChunkStorage::ObjectStoreOnly
+        })
+        .count()
+}
+
+/// return number of OS chunks of a given table of a partition
+pub fn count_os_table_chunks(db: &Db, table_name: &str, partition_key: &str) -> usize {
+    let mut table_names = BTreeSet::new();
+    table_names.insert(table_name.to_string());
+    count_os_tables_chunks(
+        db,
+        TableNameFilter::NamedTables(&table_names),
+        partition_key,
+    )
+}
+pub fn count_os_tables_chunks(db: &Db, tables: TableNameFilter<'_>, partition_key: &str) -> usize {
+    db.partition_tables_chunk_summaries(tables, partition_key)
+        .into_iter()
+        .filter_map(|chunk| match chunk.storage {
+            ChunkStorage::ObjectStoreOnly | ChunkStorage::ReadBufferAndObjectStore => Some(1),
+            _ => None,
         })
         .count()
 }

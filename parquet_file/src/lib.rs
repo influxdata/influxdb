@@ -8,7 +8,6 @@
     clippy::clone_on_ref_ptr
 )]
 
-pub mod catalog;
 pub mod chunk;
 pub mod metadata;
 pub mod storage;

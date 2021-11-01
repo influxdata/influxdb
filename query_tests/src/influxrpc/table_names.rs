@@ -1,4 +1,5 @@
 //! Tests for the Influx gRPC queries
+use datafusion::logical_plan::{col, lit};
 use predicate::predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE};
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
@@ -27,6 +28,7 @@ where
         let plan = planner
             .table_names(db.as_ref(), predicate.clone())
             .expect("built plan successfully");
+
         let names = ctx
             .to_string_set(plan)
             .await
@@ -54,8 +56,86 @@ async fn list_table_names_no_data_pred() {
 }
 
 #[tokio::test]
+async fn list_table_names_no_data_passes() {
+    // no rows pass this predicate
+    run_table_names_test_case(
+        TwoMeasurementsManyFields {},
+        tsp(10000000, 20000000),
+        vec![],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn list_table_names_no_non_null_data_passes() {
+    // only a single row with a null field passes this predicate (expect no table names)
+    let predicate = PredicateBuilder::default()
+        .table("o2")
+        // only get last row of o2 (timestamp = 300)
+        .timestamp_range(200, 400)
+        // model predicate like _field='reading' which last row does not have
+        .field_columns(vec!["reading"])
+        .build();
+
+    run_table_names_test_case(TwoMeasurementsManyFields {}, predicate, vec![]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_no_non_null_general_data_passes() {
+    // only a single row with a null field passes this predicate
+    // (expect no table names) -- has a general purpose predicate to
+    // force a generic plan
+    let predicate = PredicateBuilder::default()
+        .table("o2")
+        // only get last row of o2 (timestamp = 300)
+        .timestamp_range(200, 400)
+        // model predicate like _field='reading' which last row does not have
+        .field_columns(vec!["reading"])
+        // (state = CA) OR (temp > 50)
+        .add_expr(col("state").eq(lit("CA")).or(col("temp").gt(lit(50))))
+        .build();
+
+    run_table_names_test_case(TwoMeasurementsManyFields {}, predicate, vec![]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_no_data_pred_with_delete() {
+    run_table_names_test_case(
+        TwoMeasurementsWithDelete {},
+        EMPTY_PREDICATE,
+        vec!["cpu", "disk"],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn list_table_names_no_data_pred_with_delete_all() {
+    run_table_names_test_case(
+        TwoMeasurementsWithDeleteAll {},
+        EMPTY_PREDICATE,
+        vec!["disk"],
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn list_table_names_data_pred_0_201() {
     run_table_names_test_case(TwoMeasurements {}, tsp(0, 201), vec!["cpu", "disk"]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_0_201_with_delete() {
+    run_table_names_test_case(
+        TwoMeasurementsWithDelete {},
+        tsp(0, 201),
+        vec!["cpu", "disk"],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_0_201_with_delete_all() {
+    run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(0, 201), vec!["disk"]).await;
 }
 
 #[tokio::test]
@@ -64,13 +144,58 @@ async fn list_table_names_data_pred_0_200() {
 }
 
 #[tokio::test]
+async fn list_table_names_data_pred_0_200_with_delete() {
+    run_table_names_test_case(TwoMeasurementsWithDelete {}, tsp(0, 200), vec!["cpu"]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_0_200_with_delete_all() {
+    run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(0, 200), vec![]).await;
+}
+
+#[tokio::test]
 async fn list_table_names_data_pred_50_101() {
     run_table_names_test_case(TwoMeasurements {}, tsp(50, 101), vec!["cpu"]).await;
 }
 
 #[tokio::test]
+async fn list_table_names_data_pred_50_101_with_delete() {
+    run_table_names_test_case(TwoMeasurementsWithDelete {}, tsp(50, 101), vec!["cpu"]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_50_101_with_delete_all() {
+    run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(50, 101), vec![]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_101_160() {
+    run_table_names_test_case(TwoMeasurements {}, tsp(101, 160), vec!["cpu"]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_101_160_with_delete() {
+    run_table_names_test_case(TwoMeasurementsWithDelete {}, tsp(101, 160), vec![]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_101_160_with_delete_all() {
+    run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(101, 160), vec![]).await;
+}
+
+#[tokio::test]
 async fn list_table_names_data_pred_250_300() {
     run_table_names_test_case(TwoMeasurements {}, tsp(250, 300), vec![]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_250_300_with_delete() {
+    run_table_names_test_case(TwoMeasurementsWithDelete {}, tsp(250, 300), vec![]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_250_300_with_delete_all() {
+    run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(250, 300), vec![]).await;
 }
 
 // Note when table names supports general purpose predicates, add a

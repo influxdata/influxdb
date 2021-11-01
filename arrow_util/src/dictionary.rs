@@ -112,6 +112,19 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> StringDictionary<K> {
     pub fn into_inner(self) -> PackedStringArray<K> {
         self.storage
     }
+
+    /// Truncates this dictionary removing all keys larger than `id`
+    pub fn truncate(&mut self, id: K) {
+        let id = id.as_();
+        self.dedup.retain(|k, _| k.as_() <= id);
+        self.storage.truncate(id + 1)
+    }
+
+    /// Clears this dictionary removing all elements
+    pub fn clear(&mut self) {
+        self.storage.clear();
+        self.dedup.clear()
+    }
 }
 
 fn hash_str(hasher: &ahash::RandomState, value: &str) -> u64 {
@@ -142,7 +155,10 @@ impl StringDictionary<i32> {
             array_builder = array_builder.null_bit_buffer(nulls);
         }
 
-        DictionaryArray::<Int32Type>::from(array_builder.build())
+        // TODO consider skipping the validation checks by using
+        // `build_unchecked()`
+        let array_data = array_builder.build().expect("Valid array data");
+        DictionaryArray::<Int32Type>::from(array_data)
     }
 }
 
@@ -254,5 +270,31 @@ mod test {
 
         let err = TryInto::<StringDictionary<_>>::try_into(data).expect_err("expected failure");
         assert!(matches!(err, Error::DuplicateKeyFound { key } if &key == "cupcakes"))
+    }
+
+    #[test]
+    fn test_truncate() {
+        let mut dictionary = StringDictionary::<i32>::new();
+        dictionary.lookup_value_or_insert("cupcake");
+        dictionary.lookup_value_or_insert("cupcake");
+        dictionary.lookup_value_or_insert("bingo");
+        let bingo = dictionary.lookup_value_or_insert("bingo");
+        let bongo = dictionary.lookup_value_or_insert("bongo");
+        dictionary.lookup_value_or_insert("bingo");
+        dictionary.lookup_value_or_insert("cupcake");
+
+        dictionary.truncate(bingo);
+
+        assert_eq!(dictionary.values().len(), 2);
+        assert_eq!(dictionary.dedup.len(), 2);
+
+        assert_eq!(dictionary.lookup_value("cupcake"), Some(0));
+        assert_eq!(dictionary.lookup_value("bingo"), Some(1));
+
+        assert!(dictionary.lookup_value("bongo").is_none());
+        assert!(dictionary.lookup_id(bongo).is_none());
+
+        dictionary.lookup_value_or_insert("bongo");
+        assert_eq!(dictionary.lookup_value("bongo"), Some(2));
     }
 }

@@ -2,7 +2,7 @@
 name = "query"
 version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
-edition = "2018"
+edition = "2021"
 description = "IOx Query Interface and Executor"
 
 # This crate is designed to be independent of the rest of the IOx
@@ -14,7 +14,7 @@ description = "IOx Query Interface and Executor"
 # 2. Allow for query logic testing without bringing in all the storage systems.
 
 [dependencies] # In alphabetical order
-arrow = { version = "5.5", features = ["prettyprint"] }
+arrow = { version = "6.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 chrono = "0.4"

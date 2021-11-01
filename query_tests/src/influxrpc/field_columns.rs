@@ -1,12 +1,8 @@
 use arrow::datatypes::DataType;
-use arrow_util::assert_batches_eq;
 use datafusion::logical_plan::{col, lit};
 use predicate::predicate::{Predicate, PredicateBuilder};
 use query::{
-    exec::{
-        fieldlist::{Field, FieldList},
-        ExecutorType,
-    },
+    exec::fieldlist::{Field, FieldList},
     frontend::influxrpc::InfluxRpcPlanner,
 };
 
@@ -67,6 +63,8 @@ async fn test_field_columns_no_predicate() {
     let expected_fields = FieldList::default();
     run_field_columns_test_case(TwoMeasurementsManyFields {}, predicate, expected_fields).await;
 }
+
+// NGA todo: add delete tests when the TwoMeasurementsManyFieldsWithDelete available
 
 #[tokio::test]
 async fn test_field_columns_with_pred() {
@@ -151,40 +149,67 @@ async fn test_field_columns_with_ts_pred() {
 #[tokio::test]
 async fn test_field_name_plan() {
     test_helpers::maybe_start_logging();
-    // Tests that the ordering that comes out is reasonable
-    let scenarios = OneMeasurementManyFields {}.make().await;
 
-    for scenario in scenarios {
-        let predicate = PredicateBuilder::default().timestamp_range(0, 200).build();
+    let predicate = PredicateBuilder::default().timestamp_range(0, 2000).build();
 
-        let DbScenario {
-            scenario_name, db, ..
-        } = scenario;
-        println!("Running scenario '{}'", scenario_name);
-        println!("Predicate: '{:#?}'", predicate);
-        let planner = InfluxRpcPlanner::new();
-        let ctx = db.executor().new_context(ExecutorType::Query);
+    let expected_fields = FieldList {
+        fields: vec![
+            Field {
+                name: "field1".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 1000,
+            },
+            Field {
+                name: "field2".into(),
+                data_type: DataType::Utf8,
+                last_timestamp: 1000, // Need to verify with alamb if 1000 is the right one. It looks to me it should be 100
+            },
+            Field {
+                name: "field3".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 100,
+            },
+            Field {
+                name: "field4".into(),
+                data_type: DataType::Boolean,
+                last_timestamp: 1000,
+            },
+        ],
+    };
 
-        let plan = planner
-            .field_columns(db.as_ref(), predicate.clone())
-            .expect("built plan successfully");
+    run_field_columns_test_case(OneMeasurementManyFields {}, predicate, expected_fields).await;
+}
 
-        let mut plans = plan.plans;
-        let plan = plans.pop().unwrap();
-        assert!(plans.is_empty()); // only one plan
+#[tokio::test]
+async fn test_field_name_plan_with_delete() {
+    test_helpers::maybe_start_logging();
 
-        // run the created plan directly, ensuring the output is as
-        // expected (specifically that the column ordering is correct)
-        let results = ctx.run_logical_plan(plan).await.expect("ok running plan");
+    let predicate = PredicateBuilder::default().timestamp_range(0, 2000).build();
 
-        let expected = vec![
-            "+--------+--------+--------+--------+--------------------------------+",
-            "| field1 | field2 | field3 | field4 | time                           |",
-            "+--------+--------+--------+--------+--------------------------------+",
-            "| 70.5   | ss     | 2      |        | 1970-01-01T00:00:00.000000100Z |",
-            "+--------+--------+--------+--------+--------------------------------+",
-        ];
+    let expected_fields = FieldList {
+        fields: vec![
+            Field {
+                name: "field1".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 100,
+            },
+            Field {
+                name: "field2".into(),
+                data_type: DataType::Utf8,
+                last_timestamp: 100,
+            },
+            Field {
+                name: "field3".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 100,
+            },
+        ],
+    };
 
-        assert_batches_eq!(expected, &results);
-    }
+    run_field_columns_test_case(
+        OneMeasurementManyFieldsWithDelete {},
+        predicate,
+        expected_fields,
+    )
+    .await;
 }

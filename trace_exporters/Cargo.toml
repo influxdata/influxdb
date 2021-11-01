@@ -2,7 +2,7 @@
 name = "trace_exporters"
 version = "0.1.0"
 authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Additional tracing exporters for IOx"
 
 [dependencies]
@@ -12,7 +12,7 @@ chrono = { version = "0.4" }
 futures = "0.3"
 observability_deps = { path = "../observability_deps" }
 snafu = "0.6"
-structopt = { version = "0.3.23" }
+structopt = { version = "0.3.25" }
 thrift = { version = "0.13.0" }
 tokio = { version = "1.11", features = ["macros", "time", "sync", "rt"] }
 trace = { path = "../trace" }

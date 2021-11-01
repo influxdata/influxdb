@@ -2,14 +2,13 @@
 name = "query_tests"
 version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
-edition = "2018"
+edition = "2021"
 description = "Tests of the query engine against different database configurations"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 async-trait = "0.1"
-chrono = "0.4"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
@@ -18,7 +17,7 @@ query = { path = "../query" }
 server = { path = "../server" }
 
 [dev-dependencies]
-arrow = { version = "5.5", features = ["prettyprint"] }
+arrow = { version = "6.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
 metric = { path = "../metric" }

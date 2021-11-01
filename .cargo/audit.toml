@@ -1,9 +1,14 @@
 [advisories]
 ignore = [
-    # title: term is looking for a new maintainer
-    # why needed: used by `prettytable-rs` which is directly used by IOx but also by arrow
-    # upstream issue: https://github.com/phsym/prettytable-rs/issues/119
-    "RUSTSEC-2018-0015",
+    # title: Potential segfault in the time crate
+    # why needed: used by `chrono`
+    # upstream issue: https://github.com/chronotope/chrono/issues/553
+    "RUSTSEC-2020-0071",
+
+    # title: Potential segfault in `localtime_r` invocations
+    # why needed: bug in `chrono`
+    # upstream issue: https://github.com/chronotope/chrono/issues/499
+    "RUSTSEC-2020-0159",
 
     # title: memmap is unmaintained
     # why needed: used by `symbolic` which is used by `pprof`

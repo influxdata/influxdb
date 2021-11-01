@@ -1,0 +1,31 @@
+syntax = "proto3";
+package influxdata.iox.management.v1;
+option go_package = "github.com/influxdata/iox/management/v1";
+
+import "google/protobuf/empty.proto";
+
+// `PartitionTemplate` is used to compute the partition key of each row that
+// gets written. It can consist of the table name, a column name and its value,
+// a formatted time, or a string column and regex captures of its value. For
+// columns that do not appear in the input row, a blank value is output.
+//
+// The key is constructed in order of the template parts; thus ordering changes
+// what partition key is generated.
+message PartitionTemplate {
+  message Part {
+    message ColumnFormat {
+      string column = 1;
+      string format = 2;
+    }
+
+    oneof part {
+      google.protobuf.Empty table = 1;
+      string column = 2;
+      string time = 3;
+      ColumnFormat regex = 4;
+      ColumnFormat strf_time = 5;
+    }
+  }
+
+  repeated Part parts = 1;
+}

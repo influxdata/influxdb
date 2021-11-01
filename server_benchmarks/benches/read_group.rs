@@ -41,7 +41,7 @@ use server::db::Db;
 // In total there are 10K rows. The timespan of the points in the line
 // protocol is around 1m of wall-clock time.
 async fn setup_scenarios() -> Vec<DbScenario> {
-    let raw = include_bytes!("../../tests/fixtures/lineproto/read_filter.lp.gz");
+    let raw = include_bytes!("../../test_fixtures/lineproto/read_filter.lp.gz");
     let mut gz = GzDecoder::new(&raw[..]);
     let mut lp = String::new();
     gz.read_to_string(&mut lp).unwrap();
@@ -125,7 +125,7 @@ async fn build_and_execute_plan(
 
     let results = executor
         .new_context(ExecutorType::Query)
-        .to_series_set(plan)
+        .to_series_and_groups(plan)
         .await
         .expect("Running series set plan");
 

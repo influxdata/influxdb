@@ -8,10 +8,9 @@ use data_types::{
         ChunkSummary, DetailedChunkSummary,
     },
     partition_metadata::TableSummary,
-    write_summary::TimestampSummary,
 };
 use internal_types::access::AccessRecorder;
-use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
+use mutable_buffer::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use predicate::delete_predicate::DeletePredicate;
@@ -19,7 +18,7 @@ use read_buffer::RBChunk;
 use schema::Schema;
 use tracker::{TaskRegistration, TaskTracker};
 
-use crate::db::catalog::metrics::{StorageRecorder, TimestampHistogram};
+use crate::db::catalog::metrics::StorageRecorder;
 use parking_lot::Mutex;
 use time::{Time, TimeProvider};
 
@@ -249,9 +248,6 @@ pub struct ChunkMetrics {
 
     /// Catalog memory metrics
     pub(super) memory_metrics: StorageRecorder,
-
-    /// Track ingested timestamps
-    pub(super) timestamp_histogram: Option<TimestampHistogram>,
 }
 
 impl ChunkMetrics {
@@ -264,7 +260,6 @@ impl ChunkMetrics {
             chunk_storage: StorageRecorder::new_unregistered(),
             row_count: StorageRecorder::new_unregistered(),
             memory_metrics: StorageRecorder::new_unregistered(),
-            timestamp_histogram: Default::default(),
         }
     }
 }
@@ -275,7 +270,7 @@ impl CatalogChunk {
     /// Panics if the provided chunk is empty, otherwise creates a new open chunk.
     pub(super) fn new_open(
         addr: ChunkAddr,
-        chunk: mutable_buffer::chunk::MBChunk,
+        chunk: mutable_buffer::MBChunk,
         metrics: ChunkMetrics,
         order: ChunkOrder,
         time_provider: Arc<dyn TimeProvider>,
@@ -521,14 +516,7 @@ impl CatalogChunk {
     /// Record a write of row data to this chunk
     ///
     /// `time_of_write` is the wall clock time of the write
-    /// `timestamps` is a summary of the row timestamps contained in the write
-    pub fn record_write(&mut self, timestamps: &TimestampSummary) {
-        {
-            let metrics = self.metrics.lock();
-            if let Some(timestamp_histogram) = metrics.timestamp_histogram.as_ref() {
-                timestamp_histogram.add(timestamps)
-            }
-        }
+    pub fn record_write(&mut self) {
         self.access_recorder.record_access();
 
         let now = self.time_provider.now();
@@ -899,8 +887,7 @@ mod tests {
     use super::*;
     use data_types::timestamp::TimestampRange;
 
-    use entry::test_helpers::lp_to_entry;
-    use mutable_buffer::chunk::ChunkMetrics as MBChunkMetrics;
+    use mutable_buffer::test_helpers::write_lp_to_new_chunk;
     use parquet_file::{
         chunk::ParquetChunk,
         test_utils::{
@@ -1114,11 +1101,7 @@ mod tests {
     }
 
     fn make_mb_chunk(table_name: &str) -> MBChunk {
-        let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
-        let write = entry.partition_writes().unwrap().remove(0);
-        let batch = write.table_batches().remove(0);
-
-        MBChunk::new(MBChunkMetrics::new_unregistered(), batch, None).unwrap()
+        write_lp_to_new_chunk(&format!("{} bar=1 10", table_name))
     }
 
     async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {

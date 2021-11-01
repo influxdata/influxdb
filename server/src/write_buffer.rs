@@ -9,7 +9,9 @@ use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 
 use entry::SequencedEntry;
+use mutable_batch_entry::sequenced_entry_to_write;
 use observability_deps::tracing::{debug, error, info, warn};
+use trace::span::SpanRecorder;
 use write_buffer::core::{FetchHighWatermark, WriteBufferError, WriteBufferReading};
 
 use crate::Db;
@@ -92,8 +94,11 @@ impl Drop for WriteBufferConsumer {
     }
 }
 
-/// This is used to take entries from a `Stream` and put them in the mutable buffer, such as
-/// streaming entries from a write buffer.
+/// This is used to take entries from a `Stream` and put them in the
+/// mutable buffer, such as streaming entries from a write buffer.
+///
+/// Note all errors reading / parsing / writing entries from the write
+/// buffer are ignored.
 async fn stream_in_sequenced_entries<'a>(
     db: Arc<Db>,
     sequencer_id: u32,
@@ -118,6 +123,7 @@ async fn stream_in_sequenced_entries<'a>(
                 Ok(w) => {
                     watermark = w;
                 }
+                // skip over invalid data in the write buffer so recovery can succeed
                 Err(e) => {
                     debug!(
                         %e,
@@ -135,6 +141,7 @@ async fn stream_in_sequenced_entries<'a>(
         // get entry from sequencer
         let sequenced_entry = match sequenced_entry_result {
             Ok(sequenced_entry) => sequenced_entry,
+            // skip over invalid data in the write buffer so recovery can succeed
             Err(e) => {
                 debug!(
                     %e,
@@ -148,15 +155,34 @@ async fn stream_in_sequenced_entries<'a>(
         let sequenced_entry = Arc::new(sequenced_entry);
         metrics.entry(Arc::clone(&sequenced_entry));
 
+        let db_write = match sequenced_entry_to_write(&sequenced_entry) {
+            Ok(db_write) => db_write,
+            // skip over invalid data in the write buffer so recovery can succeed
+            Err(e) => {
+                debug!(
+                    %e,
+                    %db_name,
+                    sequencer_id,
+                    "Error converting SequencedEntry to DbWrite",
+                );
+                continue;
+            }
+        };
+
         // store entry
         let mut logged_hard_limit = false;
         loop {
-            match db.store_sequenced_entry(
-                Arc::clone(&sequenced_entry),
-                crate::db::filter_table_batch_keep_all,
-            ) {
+            let mut span_recorder = SpanRecorder::new(
+                sequenced_entry
+                    .span_context()
+                    .map(|parent| parent.child("IOx write buffer")),
+            );
+
+            match db.store_write(&db_write) {
                 Ok(_) => {
                     metrics.success();
+                    span_recorder.ok("stored write");
+
                     break;
                 }
                 Err(crate::db::Error::HardLimitReached {}) => {
@@ -169,16 +195,20 @@ async fn stream_in_sequenced_entries<'a>(
                         );
                         logged_hard_limit = true;
                     }
+                    span_recorder.error("hard limit reached");
+
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     continue;
                 }
                 Err(e) => {
+                    // skip over invalid data in the write buffer so recovery can succeed
                     debug!(
                         %e,
                         %db_name,
                         sequencer_id,
                         "Error storing SequencedEntry from write buffer in database"
                     );
+                    span_recorder.error("cannot store write");
 
                     // no retry
                     break;
