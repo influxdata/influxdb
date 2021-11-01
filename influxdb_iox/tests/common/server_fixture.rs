@@ -201,6 +201,12 @@ impl ServerFixture {
         influxdb_iox_client::operations::Client::new(self.grpc_channel())
     }
 
+    /// Return a remote client suitable for communicating with this
+    /// server
+    pub fn remote_client(&self) -> influxdb_iox_client::remote::Client {
+        influxdb_iox_client::remote::Client::new(self.grpc_channel())
+    }
+
     /// Return a write client suitable for communicating with this
     /// server
     pub fn write_client(&self) -> influxdb_iox_client::write::Client {

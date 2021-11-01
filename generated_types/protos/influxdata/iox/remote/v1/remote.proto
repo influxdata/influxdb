@@ -1,0 +1,12 @@
+syntax = "proto3";
+package influxdata.iox.remote.v1;
+option go_package = "github.com/influxdata/iox/remote/v1";
+
+// This resource represents a remote IOx server.
+message Remote {
+  // The server ID associated with a remote IOx server.
+  uint32 id = 1;
+
+  // The address of the remote IOx server gRPC endpoint.
+  string connection_string = 2;
+}
