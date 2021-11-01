@@ -71,6 +71,9 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         Error::CannotRestoreDatabase {
             source: e @ server::database::InitError::DatabaseAlreadyActive { .. },
         } => tonic::Status::already_exists(e.to_string()),
+        Error::DatabaseRulesNotFound { uuid, .. } => {
+            tonic::Status::not_found(format!("Could not find a database with UUID `{}`", uuid))
+        }
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()

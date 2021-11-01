@@ -16,6 +16,7 @@ use predicates::prelude::*;
 use std::time::Duration;
 use tempfile::TempDir;
 use test_helpers::make_temp_file;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn test_server_id() {
@@ -351,6 +352,22 @@ async fn delete_restore_database() {
         .stderr(predicate::str::contains(format!(
             "The database with UUID `{}` named `{}` is already active",
             db_uuid, db
+        )));
+
+    // Restoring a database with a valid but unknown UUID is an error
+    let unknown_uuid = Uuid::new_v4();
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("restore")
+        .arg(unknown_uuid.to_string())
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "Could not find a database with UUID `{}`",
+            unknown_uuid
         )));
 }
 

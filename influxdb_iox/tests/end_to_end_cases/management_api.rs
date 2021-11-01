@@ -413,6 +413,16 @@ async fn test_create_get_update_delete_restore_database() {
             deleted_uuid, db_name
         )
     );
+
+    let unknown_uuid = Uuid::new_v4().to_string();
+    let err = client
+        .restore_database(&unknown_uuid)
+        .await
+        .expect_err("restore database should have failed but didn't");
+    assert_contains!(
+        err.to_string(),
+        format!("Could not find a database with UUID `{}`", unknown_uuid)
+    );
 }
 
 /// gets configuration both with and without defaults, and verifies
