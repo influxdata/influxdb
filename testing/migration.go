@@ -2,7 +2,6 @@ package testing
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -357,9 +357,9 @@ func Migrator(t *testing.T, store kv.SchemaStore, newMigrator func(*testing.T, *
 		migrator.Specs = migrator.Specs[:1]
 		// list migration again
 		_, err := migrator.List(ctx)
-		if !errors.Is(err, migration.ErrMigrationSpecNotFound) {
-			t.Errorf("expected migration spec error, found %v", err)
-		}
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "influxd downgrade",
+			"Error returned on unknown migration should recommend `influxd downgrade`")
 	})
 }
 
