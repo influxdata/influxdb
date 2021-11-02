@@ -18,7 +18,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/bytesutil"
@@ -29,6 +28,7 @@ import (
 	internal "github.com/influxdata/influxdb/v2/tsdb/internal"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 const (

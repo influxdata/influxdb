@@ -41,7 +41,7 @@ func TestNewAggregateArrayCursor_{{$ColType}}(t *testing.T) {
 		}
 
 		agg := &datatypes.Aggregate{
-			Type: datatypes.AggregateType{{$Agg}},
+			Type: datatypes.Aggregate_AggregateType{{$Agg}},
 		}
 
 		got, _ := newAggregateArrayCursor(context.Background(), agg, &Mock{{$ColType}}ArrayCursor{})
@@ -71,7 +71,7 @@ func TestNewWindowAggregateArrayCursorMonths_{{$ColType}}(t *testing.T) {
 		}
 
 		agg := &datatypes.Aggregate{
-			Type: datatypes.AggregateType{{$Agg}},
+			Type: datatypes.Aggregate_AggregateType{{$Agg}},
 		}
 
 		got, _ := newWindowAggregateArrayCursor(context.Background(), agg, window, &Mock{{$ColType}}ArrayCursor{})
@@ -101,7 +101,7 @@ func TestNewWindowAggregateArrayCursor_{{$ColType}}(t *testing.T) {
 		}
 
 		agg := &datatypes.Aggregate{
-			Type: datatypes.AggregateType{{$Agg}},
+			Type: datatypes.Aggregate_AggregateType{{$Agg}},
 		}
 
 		got, _ := newWindowAggregateArrayCursor(context.Background(), agg, window, &Mock{{$ColType}}ArrayCursor{})

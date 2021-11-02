@@ -1,18 +1,11 @@
 syntax = "proto3";
 package com.github.influxdata.influxdb.services.storage;
-option go_package = "storage";
-
-import "gogoproto/gogo.proto";
-
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.sizer_all) = true;
-option (gogoproto.unmarshaler_all) = true;
-option (gogoproto.goproto_getters_all) = false;
+option go_package = ".;storage";
 
 message ReadSource {
   // OrgID specifies the organization identifier for this request.
-  uint64 org_id = 1 [(gogoproto.customname) = "OrgID"];
+  uint64 OrgID = 1;
 
   // BucketID specifies the bucket in the organization.
-  uint64 bucket_id = 2 [(gogoproto.customname) = "BucketID"];
+  uint64 BucketID = 2;
 }

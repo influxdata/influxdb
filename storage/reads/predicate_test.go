@@ -22,23 +22,23 @@ func TestPredicateToExprString(t *testing.T) {
 			n: "logical AND",
 			r: &datatypes.Predicate{
 				Root: &datatypes.Node{
-					NodeType: datatypes.NodeTypeLogicalExpression,
-					Value:    &datatypes.Node_Logical_{Logical: datatypes.LogicalAnd},
+					NodeType: datatypes.Node_TypeLogicalExpression,
+					Value:    &datatypes.Node_Logical_{Logical: datatypes.Node_LogicalAnd},
 					Children: []*datatypes.Node{
 						{
-							NodeType: datatypes.NodeTypeComparisonExpression,
-							Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+							NodeType: datatypes.Node_TypeComparisonExpression,
+							Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 							Children: []*datatypes.Node{
-								{NodeType: datatypes.NodeTypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "host"}},
-								{NodeType: datatypes.NodeTypeLiteral, Value: &datatypes.Node_StringValue{StringValue: "host1"}},
+								{NodeType: datatypes.Node_TypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "host"}},
+								{NodeType: datatypes.Node_TypeLiteral, Value: &datatypes.Node_StringValue{StringValue: "host1"}},
 							},
 						},
 						{
-							NodeType: datatypes.NodeTypeComparisonExpression,
-							Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonRegex},
+							NodeType: datatypes.Node_TypeComparisonExpression,
+							Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonRegex},
 							Children: []*datatypes.Node{
-								{NodeType: datatypes.NodeTypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "region"}},
-								{NodeType: datatypes.NodeTypeLiteral, Value: &datatypes.Node_RegexValue{RegexValue: "^us-west"}},
+								{NodeType: datatypes.Node_TypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "region"}},
+								{NodeType: datatypes.Node_TypeLiteral, Value: &datatypes.Node_RegexValue{RegexValue: "^us-west"}},
 							},
 						},
 					},
