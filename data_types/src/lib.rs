@@ -22,5 +22,6 @@ pub mod partition_metadata;
 pub mod sequence;
 pub mod server_id;
 pub mod timestamp;
+pub mod write_buffer;
 pub mod write_summary;
 pub use database_name::*;

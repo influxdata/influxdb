@@ -6,8 +6,8 @@ use std::{
 };
 
 use data_types::{
-    database_rules::{WriteBufferConnection, WriteBufferDirection},
     server_id::ServerId,
+    write_buffer::{WriteBufferConnection, WriteBufferDirection},
 };
 use time::TimeProvider;
 use trace::TraceCollector;
@@ -205,7 +205,7 @@ impl WriteBufferConfigFactory {
 mod tests {
     use std::{convert::TryFrom, num::NonZeroU32};
 
-    use data_types::{database_rules::WriteBufferCreationConfig, DatabaseName};
+    use data_types::{write_buffer::WriteBufferCreationConfig, DatabaseName};
     use tempfile::TempDir;
 
     use crate::{

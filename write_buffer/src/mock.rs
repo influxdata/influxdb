@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use futures::{stream, FutureExt, StreamExt};
 use parking_lot::Mutex;
 
-use data_types::database_rules::WriteBufferCreationConfig;
 use data_types::sequence::Sequence;
+use data_types::write_buffer::WriteBufferCreationConfig;
 use entry::{Entry, SequencedEntry};
 use mutable_batch_entry::sequenced_entry_to_write;
 use time::{Time, TimeProvider};

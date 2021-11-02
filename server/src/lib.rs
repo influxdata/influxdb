@@ -1416,8 +1416,9 @@ mod tests {
         chunk_metadata::{ChunkAddr, ChunkStorage},
         database_rules::{
             DatabaseRules, HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart,
-            WriteBufferConnection, WriteBufferDirection, NO_SHARD_CONFIG,
+            NO_SHARD_CONFIG,
         },
+        write_buffer::{WriteBufferConnection, WriteBufferDirection},
     };
     use entry::test_helpers::lp_to_entry;
     use influxdb_line_protocol::parse_lines;

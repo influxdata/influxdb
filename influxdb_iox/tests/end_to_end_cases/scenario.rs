@@ -26,7 +26,10 @@ use data_types::{names::org_and_bucket_to_database, DatabaseName};
 use database_rules::RoutingRules;
 use generated_types::google::protobuf::Empty;
 use generated_types::{
-    influxdata::iox::management::v1::{self as management, *},
+    influxdata::iox::{
+        management::v1::{self as management, *},
+        write_buffer::v1::WriteBufferCreationConfig,
+    },
     ReadSource, TimestampRange,
 };
 use influxdb_iox_client::{connection::Connection, flight::PerformQuery};

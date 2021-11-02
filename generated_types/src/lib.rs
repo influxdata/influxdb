@@ -94,6 +94,19 @@ pub mod influxdata {
                 ));
             }
         }
+
+        pub mod write_buffer {
+            pub mod v1 {
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.write_buffer.v1.rs"
+                ));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.write_buffer.v1.serde.rs"
+                ));
+            }
+        }
     }
 
     pub mod pbdata {
@@ -187,6 +200,8 @@ pub mod detailed_database;
 pub mod job;
 #[cfg(feature = "data_types_conversions")]
 pub mod server_config;
+#[cfg(feature = "data_types_conversions")]
+pub mod write_buffer;
 
 pub use prost::{DecodeError, EncodeError};
 

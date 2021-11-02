@@ -11,6 +11,7 @@ use uuid::Uuid;
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::influxdata::iox::management::v1::*;
+    pub use generated_types::influxdata::iox::write_buffer::v1::*;
 }
 
 /// Errors returned by Client::update_server_id

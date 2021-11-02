@@ -1,6 +1,6 @@
 syntax = "proto3";
-package influxdata.iox.management.v1;
-option go_package = "github.com/influxdata/iox/management/v1";
+package influxdata.iox.write_buffer.v1;
+option go_package = "github.com/influxdata/iox/write_buffer/v1";
 
 // Configures the use of a write buffer.
 message WriteBufferConnection {

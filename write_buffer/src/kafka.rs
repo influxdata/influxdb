@@ -8,7 +8,7 @@ use std::{
 
 use async_trait::async_trait;
 use data_types::{
-    database_rules::WriteBufferCreationConfig, sequence::Sequence, server_id::ServerId,
+    sequence::Sequence, server_id::ServerId, write_buffer::WriteBufferCreationConfig,
 };
 use entry::{Entry, SequencedEntry};
 use futures::{FutureExt, StreamExt};

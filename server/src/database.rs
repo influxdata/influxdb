@@ -8,7 +8,7 @@ use crate::{
     rules::ProvidedDatabaseRules,
     ApplicationState, Db,
 };
-use data_types::{database_rules::WriteBufferDirection, server_id::ServerId, DatabaseName};
+use data_types::{server_id::ServerId, write_buffer::WriteBufferDirection, DatabaseName};
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
@@ -1363,10 +1363,11 @@ mod tests {
     use crate::test_utils::make_application;
 
     use super::*;
-    use data_types::database_rules::{
-        PartitionTemplate, TemplatePart, WriteBufferConnection, WriteBufferDirection,
-    };
     use data_types::sequence::Sequence;
+    use data_types::{
+        database_rules::{PartitionTemplate, TemplatePart},
+        write_buffer::{WriteBufferConnection, WriteBufferDirection},
+    };
     use entry::{test_helpers::lp_to_entries, SequencedEntry};
     use std::{
         convert::{TryFrom, TryInto},

@@ -11,8 +11,9 @@
 )]
 
 use clap::{App, Arg};
-use generated_types::influxdata::iox::management::v1::{
-    self as management, database_rules::*, lifecycle_rules::*, *,
+use generated_types::influxdata::iox::{
+    management::v1::{self as management, database_rules::*, lifecycle_rules::*, *},
+    write_buffer::v1::*,
 };
 
 #[tokio::main]

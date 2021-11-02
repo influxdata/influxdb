@@ -26,6 +26,7 @@ fn main() -> Result<()> {
 /// - `influxdata.iox.remote.v1.rs`
 /// - `influxdata.iox.router.v1.rs`
 /// - `influxdata.iox.write.v1.rs`
+/// - `influxdata.iox.write_buffer.v1.rs`
 /// - `influxdata.platform.storage.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
     let delete_path = root.join("influxdata/iox/delete/v1");
@@ -36,6 +37,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let remote_path = root.join("influxdata/iox/remote/v1");
     let router_path = root.join("influxdata/iox/router/v1");
     let storage_path = root.join("influxdata/platform/storage");
+    let write_buffer_path = root.join("influxdata/iox/write_buffer/v1");
     let write_path = root.join("influxdata/iox/write/v1");
 
     let proto_files = vec![
@@ -50,7 +52,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("server_config.proto"),
         management_path.join("service.proto"),
         management_path.join("shard.proto"),
-        management_path.join("write_buffer.proto"),
         preserved_catalog_path.join("catalog.proto"),
         preserved_catalog_path.join("parquet_metadata.proto"),
         preserved_catalog_path.join("predicate.proto"),
@@ -63,12 +64,14 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         remote_path.join("service.proto"),
         router_path.join("router.proto"),
         router_path.join("service.proto"),
+        router_path.join("shard.proto"),
         storage_path.join("predicate.proto"),
         storage_path.join("service.proto"),
         storage_path.join("storage_common.proto"),
         storage_path.join("storage_common_idpe.proto"),
         storage_path.join("test.proto"),
         write_path.join("service.proto"),
+        write_buffer_path.join("write_buffer.proto"),
     ];
 
     // Tell cargo to recompile if any of these proto files are changed
