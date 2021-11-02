@@ -11,7 +11,8 @@ use datafusion::{
     datasource::{object_store::local::LocalFileSystem, PartitionedFile},
     logical_plan::Expr,
     physical_plan::{
-        file_format::ParquetExec, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+        file_format::{ParquetExec, PhysicalPlanConfig},
+        ExecutionPlan, Partitioning, SendableRecordBatchStream,
     },
 };
 use datafusion_util::AdapterStream;
@@ -292,18 +293,20 @@ impl Storage {
         let statistics = datafusion::physical_plan::Statistics::default();
 
         let part_file = PartitionedFile::new(temp_path.to_string(), file_size);
-        let files = vec![vec![part_file]];
+        let file_groups = vec![vec![part_file]];
 
-        let parquet_exec = ParquetExec::new(
+        let base_config = PhysicalPlanConfig {
             object_store,
-            files,
+            file_schema: schema,
+            file_groups,
             statistics,
-            schema,
-            Some(projection),
-            predicate,
+            projection: Some(projection),
             batch_size,
             limit,
-        );
+            table_partition_cols: vec![],
+        };
+
+        let parquet_exec = ParquetExec::new(base_config, predicate);
 
         // We are assuming there is only a single stream in the
         // call to execute(0) below

@@ -810,7 +810,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "5.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=57d7777fc0ce94e783a7f447631624c354b0b906#57d7777fc0ce94e783a7f447631624c354b0b906"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=91b5469c2061329c4d20f6dcfbaa44a6a255d86b#91b5469c2061329c4d20f6dcfbaa44a6a255d86b"
 dependencies = [
  "ahash",
  "arrow",
@@ -818,6 +818,7 @@ dependencies = [
  "chrono",
  "futures",
  "hashbrown",
+ "lazy_static",
  "log",
  "num_cpus",
  "ordered-float 2.8.0",
