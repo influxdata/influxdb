@@ -19,7 +19,7 @@ var (
 func (op LogicalOperator) Value() (datatypes.Node_Logical, error) {
 	switch op {
 	case LogicalAnd:
-		return datatypes.LogicalAnd, nil
+		return datatypes.Node_LogicalAnd, nil
 	default:
 		return 0, &errors.Error{
 			Code: errors.EInvalid,
@@ -51,7 +51,7 @@ func (n LogicalNode) ToDataType() (*datatypes.Node, error) {
 		}
 	}
 	return &datatypes.Node{
-		NodeType: datatypes.NodeTypeLogicalExpression,
+		NodeType: datatypes.Node_TypeLogicalExpression,
 		Value: &datatypes.Node_Logical_{
 			Logical: logicalOp,
 		},

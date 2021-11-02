@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxql"
+	"google.golang.org/protobuf/proto"
 )
 
 // DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.

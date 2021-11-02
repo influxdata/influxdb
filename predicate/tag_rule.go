@@ -24,14 +24,14 @@ func NodeTypeLiteral(tr TagRuleNode) *datatypes.Node {
 		fallthrough
 	case influxdb.NotRegexEqual:
 		return &datatypes.Node{
-			NodeType: datatypes.NodeTypeLiteral,
+			NodeType: datatypes.Node_TypeLiteral,
 			Value: &datatypes.Node_RegexValue{
 				RegexValue: tr.Value,
 			},
 		}
 	default:
 		return &datatypes.Node{
-			NodeType: datatypes.NodeTypeLiteral,
+			NodeType: datatypes.Node_TypeLiteral,
 			Value: &datatypes.Node_StringValue{
 				StringValue: tr.Value,
 			},
@@ -43,9 +43,9 @@ func NodeTypeLiteral(tr TagRuleNode) *datatypes.Node {
 func NodeComparison(op influxdb.Operator) (datatypes.Node_Comparison, error) {
 	switch op {
 	case influxdb.Equal:
-		return datatypes.ComparisonEqual, nil
+		return datatypes.Node_ComparisonEqual, nil
 	case influxdb.NotEqual:
-		return datatypes.ComparisonNotEqual, nil
+		return datatypes.Node_ComparisonNotEqual, nil
 	case influxdb.RegexEqual:
 		fallthrough
 	case influxdb.NotRegexEqual:
@@ -72,11 +72,11 @@ func (n TagRuleNode) ToDataType() (*datatypes.Node, error) {
 		n.Key = special
 	}
 	return &datatypes.Node{
-		NodeType: datatypes.NodeTypeComparisonExpression,
+		NodeType: datatypes.Node_TypeComparisonExpression,
 		Value:    &datatypes.Node_Comparison_{Comparison: compare},
 		Children: []*datatypes.Node{
 			{
-				NodeType: datatypes.NodeTypeTagRef,
+				NodeType: datatypes.Node_TypeTagRef,
 				Value:    &datatypes.Node_TagRefValue{TagRefValue: n.Key},
 			},
 			NodeTypeLiteral(n),

@@ -11,15 +11,15 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
 	influxdb "github.com/influxdata/influxdb/v2/v1"
 	internal "github.com/influxdata/influxdb/v2/v1/services/meta/internal"
 	"github.com/influxdata/influxql"
+	"google.golang.org/protobuf/proto"
 )
 
-//go:generate protoc --gogo_out=. internal/meta.proto
+//go:generate protoc --go_out=internal/ internal/meta.proto
 
 const (
 	// DefaultRetentionPolicyReplicaN is the default value of RetentionPolicyInfo.ReplicaN.
