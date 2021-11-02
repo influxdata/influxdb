@@ -5,6 +5,7 @@ edition = "2021"
 description = "Conversion logic for binary write protocol <-> MutableBatch"
 
 [dependencies]
+arrow_util = { path = "../arrow_util" }
 generated_types = { path = "../generated_types" }
 hashbrown = "0.11"
 mutable_batch = { path = "../mutable_batch" }
@@ -12,5 +13,5 @@ schema = { path = "../schema" }
 snafu = "0.6"
 
 [dev-dependencies]
-arrow_util = { path = "../arrow_util" }
-
+mutable_batch_lp = { path = "../mutable_batch_lp" }
+schema = { path = "../schema" }

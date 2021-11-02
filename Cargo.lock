@@ -2251,6 +2251,7 @@ dependencies = [
  "generated_types",
  "hashbrown",
  "mutable_batch",
+ "mutable_batch_lp",
  "schema",
  "snafu",
 ]
