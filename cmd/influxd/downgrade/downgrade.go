@@ -90,13 +90,11 @@ The target version of the downgrade must be specified, i.e. "influxd downgrade 2
 			Flag:    "bolt-path",
 			Default: filepath.Join(v2dir, bolt.DefaultFilename),
 			Desc:    "path for boltdb database",
-			Short:   'b',
 		},
 		{
 			DestP: &sqlitePath,
 			Flag:  "sqlite-path",
 			Desc:  fmt.Sprintf("path to sqlite database. if not set, the database is assumed to be in the bolt-path directory as %q", sqlite.DefaultFilename),
-			Short: 's',
 		},
 		{
 			DestP:   &logLevel,
