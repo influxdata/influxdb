@@ -22,7 +22,7 @@ func TestNewWindowAggregateResultSet_Tags(t *testing.T) {
 	request := datatypes.ReadWindowAggregateRequest{
 		Aggregate: []*datatypes.Aggregate{
 			{
-				Type: datatypes.AggregateTypeMean,
+				Type: datatypes.Aggregate_AggregateTypeMean,
 			},
 		},
 	}
@@ -148,7 +148,7 @@ func TestNewWindowAggregateResultSet_Stats(t *testing.T) {
 	request := datatypes.ReadWindowAggregateRequest{
 		Aggregate: []*datatypes.Aggregate{
 			{
-				Type: datatypes.AggregateTypeMean,
+				Type: datatypes.Aggregate_AggregateTypeMean,
 			},
 		},
 	}
@@ -183,7 +183,7 @@ func TestNewWindowAggregateResultSet_Mean(t *testing.T) {
 
 	request := datatypes.ReadWindowAggregateRequest{
 		Aggregate: []*datatypes.Aggregate{
-			&datatypes.Aggregate{Type: datatypes.AggregateTypeMean},
+			&datatypes.Aggregate{Type: datatypes.Aggregate_AggregateTypeMean},
 		},
 		WindowEvery: 10,
 	}
@@ -219,7 +219,7 @@ func TestNewWindowAggregateResultSet_Months(t *testing.T) {
 	)
 	request := datatypes.ReadWindowAggregateRequest{
 		Aggregate: []*datatypes.Aggregate{
-			&datatypes.Aggregate{Type: datatypes.AggregateTypeMean},
+			&datatypes.Aggregate{Type: datatypes.Aggregate_AggregateTypeMean},
 		},
 		Window: &datatypes.Window{
 			Every: &datatypes.Duration{
@@ -268,7 +268,7 @@ func TestNewWindowAggregateResultSet_UnsupportedTyped(t *testing.T) {
 
 	request := datatypes.ReadWindowAggregateRequest{
 		Aggregate: []*datatypes.Aggregate{
-			{Type: datatypes.AggregateTypeMean},
+			{Type: datatypes.Aggregate_AggregateTypeMean},
 		},
 		WindowEvery: 10,
 	}
@@ -310,13 +310,13 @@ func TestNewWindowAggregateResultSet_TimeRange(t *testing.T) {
 
 	ctx := context.Background()
 	req := datatypes.ReadWindowAggregateRequest{
-		Range: datatypes.TimestampRange{
+		Range: &datatypes.TimestampRange{
 			Start: 0,
 			End:   30,
 		},
 		Aggregate: []*datatypes.Aggregate{
 			{
-				Type: datatypes.AggregateTypeCount,
+				Type: datatypes.Aggregate_AggregateTypeCount,
 			},
 		},
 		Window: &datatypes.Window{

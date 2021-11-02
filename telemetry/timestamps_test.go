@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	pr "github.com/influxdata/influxdb/v2/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
 func goodMetricWithTime() *dto.MetricFamily {

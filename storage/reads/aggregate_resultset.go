@@ -36,7 +36,7 @@ func IsLastDescendingAggregateOptimization(req *datatypes.ReadWindowAggregateReq
 	// the selector `last` is implemented as a descending array cursor followed
 	// by a limit array cursor that selects only the first point, i.e the point
 	// with the largest timestamp, from the descending array cursor.
-	if req.Aggregate[0].Type == datatypes.AggregateTypeLast {
+	if req.Aggregate[0].Type == datatypes.Aggregate_AggregateTypeLast {
 		if req.Window == nil {
 			if req.WindowEvery == 0 || req.WindowEvery == math.MaxInt64 {
 				return true
@@ -66,7 +66,7 @@ func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowA
 		ctx:          ctx,
 		req:          req,
 		seriesCursor: cursor,
-		arrayCursors: newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, ascending),
+		arrayCursors: newMultiShardArrayCursors(ctx, req.Range.GetStart(), req.Range.GetEnd(), ascending),
 	}
 	return results, nil
 }

@@ -1,22 +1,18 @@
 package storage
 
 import (
-	"github.com/gogo/protobuf/types"
-	"github.com/influxdata/influxdb/v2/kit/platform"
+	"errors"
+
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func GetReadSource(any types.Any) (*ReadSource, error) {
+func GetReadSource(any *anypb.Any) (*ReadSource, error) {
+	if any == nil {
+		return nil, errors.New("reque")
+	}
 	var source ReadSource
-	if err := types.UnmarshalAny(&any, &source); err != nil {
+	if err := any.UnmarshalTo(&source); err != nil {
 		return nil, err
 	}
 	return &source, nil
-}
-
-func (r *ReadSource) GetOrgID() platform.ID {
-	return platform.ID(r.OrgID)
-}
-
-func (r *ReadSource) GetBucketID() platform.ID {
-	return platform.ID(r.BucketID)
 }

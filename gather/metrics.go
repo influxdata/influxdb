@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	gogoproto "github.com/gogo/protobuf/proto" // Used for Prometheus
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/models"
 )
@@ -107,7 +107,7 @@ func (x MetricType) String() string {
 
 // UnmarshalJSON implements the unmarshaler interface.
 func (x *MetricType) UnmarshalJSON(data []byte) error {
-	value, err := proto.UnmarshalJSONEnum(metricTypeValue, data, "MetricType")
+	value, err := gogoproto.UnmarshalJSONEnum(metricTypeValue, data, "MetricType")
 	if err != nil {
 		return err
 	}
