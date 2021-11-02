@@ -115,6 +115,9 @@ checktidy:
 checkgenerate:
 	./etc/checkgenerate.sh
 
+checksqlmigrations:
+	./etc/check-sql-migrations.sh
+
 # generate-web-assets outputs all the files needed to link the UI to the back-end.
 # Currently, none of these files are tracked by git.
 generate-web-assets: static/static_gen.go

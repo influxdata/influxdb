@@ -630,6 +630,10 @@ jobs:
           command: ./scripts/ci/lint/flags.bash
           when: always
       - run:
+          name: Check SQL migrations
+          command: make checksqlmigrations
+          when: always
+      - run:
           name: Check formatting
           command: make checkfmt
           when: always
