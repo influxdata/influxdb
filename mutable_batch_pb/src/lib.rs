@@ -12,11 +12,11 @@
 )]
 
 use hashbrown::HashSet;
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use generated_types::influxdata::pbdata::v1::{
     column::{SemanticType, Values as PbValues},
-    Column as PbColumn, TableBatch,
+    Column as PbColumn, PackedStrings, TableBatch,
 };
 use mutable_batch::{writer::Writer, MutableBatch};
 use schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
@@ -42,6 +42,24 @@ pub enum Error {
 
     #[snafu(display("column with no values: {}", column))]
     EmptyColumn { column: String },
+
+    #[snafu(display("column missing dictionary: {}", column))]
+    MissingDictionary { column: String },
+
+    #[snafu(display(
+        "column \"{}\" contains invalid offset {} at index {}",
+        column,
+        offset,
+        index
+    ))]
+    InvalidOffset {
+        column: String,
+        offset: usize,
+        index: usize,
+    },
+
+    #[snafu(display("column \"{}\" contains more than one type of values", column))]
+    MultipleValues { column: String },
 
     #[snafu(display("cannot infer type for column: {}", column))]
     InvalidType { column: String },
@@ -97,16 +115,59 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
                 valid_mask,
                 values.u64_values.iter().cloned(),
             ),
-            InfluxColumnType::Tag => writer.write_tag(
-                &column.column_name,
-                valid_mask,
-                values.string_values.iter().map(|x| x.as_str()),
-            ),
-            InfluxColumnType::Field(InfluxFieldType::String) => writer.write_string(
-                &column.column_name,
-                valid_mask,
-                values.string_values.iter().map(|x| x.as_str()),
-            ),
+            InfluxColumnType::Tag => {
+                if let Some(interned) = values.interned_string_values.as_ref() {
+                    let dictionary = interned.dictionary.as_ref().context(MissingDictionary {
+                        column: &column.column_name,
+                    })?;
+                    validate_packed_string(&column.column_name, dictionary)?;
+                    writer.write_tag_dict(
+                        &column.column_name,
+                        valid_mask,
+                        interned.values.iter().map(|x| *x as usize),
+                        packed_strings_iter(dictionary),
+                    )
+                } else if let Some(packed) = values.packed_string_values.as_ref() {
+                    validate_packed_string(&column.column_name, packed)?;
+                    writer.write_tag(&column.column_name, valid_mask, packed_strings_iter(packed))
+                } else {
+                    writer.write_tag(
+                        &column.column_name,
+                        valid_mask,
+                        values.string_values.iter().map(|x| x.as_str()),
+                    )
+                }
+            }
+            InfluxColumnType::Field(InfluxFieldType::String) => {
+                if let Some(interned) = values.interned_string_values.as_ref() {
+                    let dictionary = interned.dictionary.as_ref().context(MissingDictionary {
+                        column: &column.column_name,
+                    })?;
+
+                    validate_packed_string(&column.column_name, dictionary)?;
+                    writer.write_string(
+                        &column.column_name,
+                        valid_mask,
+                        interned
+                            .values
+                            .iter()
+                            .map(|x| packed_string_idx(dictionary, *x as usize)),
+                    )
+                } else if let Some(packed) = values.packed_string_values.as_ref() {
+                    validate_packed_string(&column.column_name, packed)?;
+                    writer.write_string(
+                        &column.column_name,
+                        valid_mask,
+                        packed_strings_iter(packed),
+                    )
+                } else {
+                    writer.write_string(
+                        &column.column_name,
+                        valid_mask,
+                        values.string_values.iter().map(|x| x.as_str()),
+                    )
+                }
+            }
             InfluxColumnType::Field(InfluxFieldType::Boolean) => writer.write_bool(
                 &column.column_name,
                 valid_mask,
@@ -125,6 +186,56 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
 
     writer.commit();
     Ok(())
+}
+
+/// Validates that the packed strings array is valid
+fn validate_packed_string(column: &str, strings: &PackedStrings) -> Result<()> {
+    let mut last_offset = match strings.offsets.first() {
+        Some(first) => *first as usize,
+        None => return Ok(()),
+    };
+
+    for (index, offset) in strings.offsets.iter().enumerate().skip(1) {
+        let offset = *offset as usize;
+        if offset < last_offset || !strings.values.is_char_boundary(offset) {
+            return InvalidOffset {
+                column,
+                offset,
+                index,
+            }
+            .fail();
+        }
+        last_offset = offset;
+    }
+    Ok(())
+}
+
+/// Indexes a [`PackedStrings`]
+///
+/// # Panic
+///
+/// - if the index is beyond the bounds
+/// - if the index is not at a UTF-8 character boundary
+fn packed_string_idx(strings: &PackedStrings, idx: usize) -> &str {
+    let start_offset = strings.offsets[idx] as usize;
+    let end_offset = strings.offsets[idx + 1] as usize;
+    &strings.values[start_offset..end_offset]
+}
+
+/// Returns an iterator over the strings in a [`PackedStrings`]
+///
+/// # Panic
+///
+/// If the offsets array is not an increasing sequence of numbers less than
+/// the length of the strings array
+fn packed_strings_iter(strings: &PackedStrings) -> impl Iterator<Item = &str> + '_ {
+    let mut last_offset = strings.offsets.first().cloned().unwrap_or_default() as usize;
+    strings.offsets.iter().skip(1).map(move |next_offset| {
+        let next_offset = *next_offset as usize;
+        let string = &strings.values[last_offset..next_offset];
+        last_offset = next_offset;
+        string
+    })
 }
 
 /// Converts a potentially truncated null mask to a valid mask
@@ -154,14 +265,11 @@ fn compute_valid_mask(null_mask: &[u8], to_insert: usize) -> Option<Vec<u8>> {
 }
 
 fn pb_column_type(col: &PbColumn) -> Result<InfluxColumnType> {
-    let value_type =
-        col.values
-            .as_ref()
-            .and_then(pb_value_type)
-            .ok_or_else(|| Error::EmptyColumn {
-                column: col.column_name.clone(),
-            })?;
+    let values = col.values.as_ref().context(EmptyColumn {
+        column: &col.column_name,
+    })?;
 
+    let value_type = pb_value_type(&col.column_name, values)?;
     let semantic_type = SemanticType::from_i32(col.semantic_type);
 
     match (semantic_type, value_type) {
@@ -179,108 +287,231 @@ fn pb_column_type(col: &PbColumn) -> Result<InfluxColumnType> {
     }
 }
 
-fn pb_value_type(values: &PbValues) -> Option<InfluxFieldType> {
+fn pb_value_type(column: &str, values: &PbValues) -> Result<InfluxFieldType> {
+    let mut ret = None;
+    let mut set_type = |field: InfluxFieldType| -> Result<()> {
+        match ret {
+            Some(_) => MultipleValues { column }.fail(),
+            None => {
+                ret = Some(field);
+                Ok(())
+            }
+        }
+    };
+
     if !values.string_values.is_empty() {
-        return Some(InfluxFieldType::String);
+        set_type(InfluxFieldType::String)?;
     }
+
+    if values.packed_string_values.is_some() {
+        set_type(InfluxFieldType::String)?;
+    }
+
+    if values.interned_string_values.is_some() {
+        set_type(InfluxFieldType::String)?;
+    }
+
     if !values.i64_values.is_empty() {
-        return Some(InfluxFieldType::Integer);
+        set_type(InfluxFieldType::Integer)?;
     }
+
     if !values.u64_values.is_empty() {
-        return Some(InfluxFieldType::UInteger);
+        set_type(InfluxFieldType::UInteger)?;
     }
+
     if !values.f64_values.is_empty() {
-        return Some(InfluxFieldType::Float);
+        set_type(InfluxFieldType::Float)?;
     }
+
     if !values.bool_values.is_empty() {
-        return Some(InfluxFieldType::Boolean);
+        set_type(InfluxFieldType::Boolean)?;
     }
-    None
+
+    ret.context(EmptyColumn { column })
 }
 
 #[cfg(test)]
 mod tests {
     use arrow_util::assert_batches_eq;
+    use generated_types::influxdata::pbdata::v1::InternedStrings;
     use schema::selection::Selection;
 
     use super::*;
+
+    fn column(name: &str, semantic_type: SemanticType) -> PbColumn {
+        PbColumn {
+            column_name: name.to_string(),
+            semantic_type: semantic_type as _,
+            values: None,
+            null_mask: vec![],
+        }
+    }
+
+    fn empty_values() -> PbValues {
+        PbValues {
+            i64_values: vec![],
+            f64_values: vec![],
+            u64_values: vec![],
+            string_values: vec![],
+            bool_values: vec![],
+            bytes_values: vec![],
+            packed_string_values: None,
+            interned_string_values: None,
+        }
+    }
+
+    fn with_strings(mut column: PbColumn, values: Vec<&str>, nulls: Vec<u8>) -> PbColumn {
+        let mut v = empty_values();
+        v.string_values = values.iter().map(ToString::to_string).collect();
+        column.null_mask = nulls;
+        column.values = Some(v);
+        column
+    }
+
+    fn with_packed_strings(
+        mut column: PbColumn,
+        values: PackedStrings,
+        nulls: Vec<u8>,
+    ) -> PbColumn {
+        let mut v = empty_values();
+        v.packed_string_values = Some(values);
+        column.null_mask = nulls;
+        column.values = Some(v);
+        column
+    }
+
+    fn with_interned_strings(
+        mut column: PbColumn,
+        values: InternedStrings,
+        nulls: Vec<u8>,
+    ) -> PbColumn {
+        let mut v = empty_values();
+        v.interned_string_values = Some(values);
+        column.null_mask = nulls;
+        column.values = Some(v);
+        column
+    }
+
+    fn with_i64(mut column: PbColumn, values: Vec<i64>, nulls: Vec<u8>) -> PbColumn {
+        let mut v = empty_values();
+        v.i64_values = values;
+        column.null_mask = nulls;
+        column.values = Some(v);
+        column
+    }
+
+    fn with_u64(mut column: PbColumn, values: Vec<u64>, nulls: Vec<u8>) -> PbColumn {
+        let mut v = empty_values();
+        v.u64_values = values;
+        column.null_mask = nulls;
+        column.values = Some(v);
+        column
+    }
+
+    fn with_f64(mut column: PbColumn, values: Vec<f64>, nulls: Vec<u8>) -> PbColumn {
+        let mut v = empty_values();
+        v.f64_values = values;
+        column.null_mask = nulls;
+        column.values = Some(v);
+        column
+    }
+
+    #[test]
+    fn test_packed_strings_iter() {
+        let s = PackedStrings {
+            values: "".to_string(),
+            offsets: vec![],
+        };
+        assert_eq!(packed_strings_iter(&s).count(), 0);
+
+        let s = PackedStrings {
+            values: "".to_string(),
+            offsets: vec![0],
+        };
+        assert_eq!(packed_strings_iter(&s).count(), 0);
+
+        let s = PackedStrings {
+            values: "fooboo".to_string(),
+            offsets: vec![0, 3, 6],
+        };
+        let r: Vec<_> = packed_strings_iter(&s).collect();
+
+        assert_eq!(r, vec!["foo", "boo"]);
+    }
+
+    #[test]
+    fn test_column_type() {
+        let mut column = column("test", SemanticType::Time);
+
+        let e = pb_column_type(&column).unwrap_err().to_string();
+        assert_eq!(e, "column with no values: test");
+
+        let mut values = empty_values();
+        values.i64_values = vec![2];
+        values.f64_values = vec![32.];
+        column.values = Some(values);
+
+        let e = pb_column_type(&column).unwrap_err().to_string();
+        assert_eq!(e, "column \"test\" contains more than one type of values");
+
+        let mut values = empty_values();
+        values.string_values = vec!["hello".to_string()];
+        values.packed_string_values = Some(PackedStrings {
+            values: "".to_string(),
+            offsets: vec![],
+        });
+        column.values = Some(values);
+
+        let e = pb_column_type(&column).unwrap_err().to_string();
+        assert_eq!(e, "column \"test\" contains more than one type of values");
+
+        let mut values = empty_values();
+        values.string_values = vec!["hello".to_string()];
+        values.interned_string_values = Some(InternedStrings {
+            dictionary: None,
+            values: vec![],
+        });
+        column.values = Some(values);
+
+        let e = pb_column_type(&column).unwrap_err().to_string();
+        assert_eq!(e, "column \"test\" contains more than one type of values");
+    }
 
     #[test]
     fn test_basic() {
         let mut table_batch = TableBatch {
             table_name: "table".to_string(),
             columns: vec![
-                PbColumn {
-                    column_name: "tag1".to_string(),
-                    semantic_type: SemanticType::Tag as _,
-                    values: Some(PbValues {
-                        i64_values: vec![],
-                        f64_values: vec![],
-                        u64_values: vec![],
-                        string_values: vec![
-                            "v1".to_string(),
-                            "v1".to_string(),
-                            "v2".to_string(),
-                            "v2".to_string(),
-                            "v1".to_string(),
-                        ],
-                        bool_values: vec![],
-                        bytes_values: vec![],
-                    }),
-                    null_mask: vec![],
-                },
-                PbColumn {
-                    column_name: "tag2".to_string(),
-                    semantic_type: SemanticType::Tag as _,
-                    values: Some(PbValues {
-                        i64_values: vec![],
-                        f64_values: vec![],
-                        u64_values: vec![],
-                        string_values: vec!["v2".to_string(), "v3".to_string()],
-                        bool_values: vec![],
-                        bytes_values: vec![],
-                    }),
-                    null_mask: vec![0b00010101],
-                },
-                PbColumn {
-                    column_name: "f64".to_string(),
-                    semantic_type: SemanticType::Field as _,
-                    values: Some(PbValues {
-                        i64_values: vec![],
-                        f64_values: vec![3., 5.],
-                        u64_values: vec![],
-                        string_values: vec![],
-                        bool_values: vec![],
-                        bytes_values: vec![],
-                    }),
-                    null_mask: vec![0b00001101],
-                },
-                PbColumn {
-                    column_name: "i64".to_string(),
-                    semantic_type: SemanticType::Field as _,
-                    values: Some(PbValues {
-                        i64_values: vec![56, 2],
-                        f64_values: vec![],
-                        u64_values: vec![],
-                        string_values: vec![],
-                        bool_values: vec![],
-                        bytes_values: vec![],
-                    }),
-                    null_mask: vec![0b00001110],
-                },
-                PbColumn {
-                    column_name: "time".to_string(),
-                    semantic_type: SemanticType::Time as _,
-                    values: Some(PbValues {
-                        i64_values: vec![1, 2, 3, 4, 5],
-                        f64_values: vec![],
-                        u64_values: vec![],
-                        string_values: vec![],
-                        bool_values: vec![],
-                        bytes_values: vec![],
-                    }),
-                    null_mask: vec![0b00000000],
-                },
+                with_strings(
+                    column("tag1", SemanticType::Tag),
+                    vec!["v1", "v1", "v2", "v2", "v1"],
+                    vec![],
+                ),
+                with_strings(
+                    column("tag2", SemanticType::Tag),
+                    vec!["v2", "v3"],
+                    vec![0b00010101],
+                ),
+                with_f64(
+                    column("f64", SemanticType::Field),
+                    vec![3., 5.],
+                    vec![0b00001101],
+                ),
+                with_i64(
+                    column("i64", SemanticType::Field),
+                    vec![56, 2],
+                    vec![0b00001110],
+                ),
+                with_i64(
+                    column("time", SemanticType::Time),
+                    vec![1, 2, 3, 4, 5],
+                    vec![0b00000000],
+                ),
+                with_u64(
+                    column("u64", SemanticType::Field),
+                    vec![4, 3, 2, 1],
+                    vec![0b00000100],
+                ),
             ],
             row_count: 5,
         };
@@ -290,15 +521,15 @@ mod tests {
         write_table_batch(&mut batch, &table_batch).unwrap();
 
         let expected = &[
-            "+-----+-----+------+------+--------------------------------+",
-            "| f64 | i64 | tag1 | tag2 | time                           |",
-            "+-----+-----+------+------+--------------------------------+",
-            "|     | 56  | v1   |      | 1970-01-01T00:00:00.000000001Z |",
-            "| 3   |     | v1   | v2   | 1970-01-01T00:00:00.000000002Z |",
-            "|     |     | v2   |      | 1970-01-01T00:00:00.000000003Z |",
-            "|     |     | v2   | v3   | 1970-01-01T00:00:00.000000004Z |",
-            "| 5   | 2   | v1   |      | 1970-01-01T00:00:00.000000005Z |",
-            "+-----+-----+------+------+--------------------------------+",
+            "+-----+-----+------+------+--------------------------------+-----+",
+            "| f64 | i64 | tag1 | tag2 | time                           | u64 |",
+            "+-----+-----+------+------+--------------------------------+-----+",
+            "|     | 56  | v1   |      | 1970-01-01T00:00:00.000000001Z | 4   |",
+            "| 3   |     | v1   | v2   | 1970-01-01T00:00:00.000000002Z | 3   |",
+            "|     |     | v2   |      | 1970-01-01T00:00:00.000000003Z |     |",
+            "|     |     | v2   | v3   | 1970-01-01T00:00:00.000000004Z | 2   |",
+            "| 5   | 2   | v1   |      | 1970-01-01T00:00:00.000000005Z | 1   |",
+            "+-----+-----+------+------+--------------------------------+-----+",
         ];
 
         assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
@@ -352,6 +583,8 @@ mod tests {
             string_values: vec![],
             bool_values: vec![],
             bytes_values: vec![],
+            packed_string_values: None,
+            interned_string_values: None,
         });
 
         let err = write_table_batch(&mut batch, &table_batch)
@@ -360,5 +593,197 @@ mod tests {
         assert_eq!(err, "column with no values: tag1");
 
         assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+    }
+
+    #[test]
+    fn test_strings() {
+        let table_batch = TableBatch {
+            table_name: "table".to_string(),
+            columns: vec![
+                with_packed_strings(
+                    column("tag1", SemanticType::Tag),
+                    PackedStrings {
+                        values: "helloinfluxdata".to_string(),
+                        offsets: vec![0, 5, 11, 11, 15],
+                    },
+                    vec![0b000010010],
+                ),
+                with_packed_strings(
+                    column("tag2", SemanticType::Tag),
+                    PackedStrings {
+                        values: "helloworld".to_string(),
+                        offsets: vec![0, 5, 10],
+                    },
+                    vec![0b000111010],
+                ),
+                with_packed_strings(
+                    column("s1", SemanticType::Field),
+                    PackedStrings {
+                        values: "cupcakesareawesome".to_string(),
+                        offsets: vec![0, 8, 11, 18],
+                    },
+                    vec![0b000110010],
+                ),
+                with_interned_strings(
+                    column("tag3", SemanticType::Tag),
+                    InternedStrings {
+                        dictionary: Some(PackedStrings {
+                            values: "tag1tag2".to_string(),
+                            offsets: vec![0, 4, 8, 8],
+                        }),
+                        values: vec![0, 1, 1, 0, 2, 1],
+                    },
+                    vec![0b000000000],
+                ),
+                with_interned_strings(
+                    column("s2", SemanticType::Field),
+                    InternedStrings {
+                        dictionary: Some(PackedStrings {
+                            values: "v1v2v3".to_string(),
+                            offsets: vec![0, 2, 4, 6],
+                        }),
+                        values: vec![0, 1, 2],
+                    },
+                    vec![0b000011010],
+                ),
+                with_i64(
+                    column("time", SemanticType::Time),
+                    vec![1, 2, 3, 4, 5, 6],
+                    vec![],
+                ),
+            ],
+            row_count: 6,
+        };
+
+        let mut batch = MutableBatch::new();
+        write_table_batch(&mut batch, &table_batch).unwrap();
+
+        let expected = &[
+            "+----------+----+--------+-------+------+--------------------------------+",
+            "| s1       | s2 | tag1   | tag2  | tag3 | time                           |",
+            "+----------+----+--------+-------+------+--------------------------------+",
+            "| cupcakes | v1 | hello  | hello | tag1 | 1970-01-01T00:00:00.000000001Z |",
+            "|          |    |        |       | tag2 | 1970-01-01T00:00:00.000000002Z |",
+            "| are      | v2 | influx | world | tag2 | 1970-01-01T00:00:00.000000003Z |",
+            "| awesome  |    |        |       | tag1 | 1970-01-01T00:00:00.000000004Z |",
+            "|          |    |        |       |      | 1970-01-01T00:00:00.000000005Z |",
+            "|          | v3 | data   |       | tag2 | 1970-01-01T00:00:00.000000006Z |",
+            "+----------+----+--------+-------+------+--------------------------------+",
+        ];
+
+        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+
+        // Try to write 6 rows expecting an error
+        let mut try_write = |other: PbColumn, expected_err: &str| {
+            let table_batch = TableBatch {
+                table_name: "table".to_string(),
+                columns: vec![
+                    with_i64(
+                        column("time", SemanticType::Time),
+                        vec![1, 2, 3, 4, 5, 6],
+                        vec![],
+                    ),
+                    other,
+                ],
+                row_count: 6,
+            };
+
+            let err = write_table_batch(&mut batch, &table_batch)
+                .unwrap_err()
+                .to_string();
+
+            assert_eq!(err, expected_err);
+            assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+        };
+
+        try_write(
+            with_packed_strings(
+                column("s1", SemanticType::Tag),
+                PackedStrings {
+                    values: "helloworld".to_string(),
+                    offsets: vec![0, 5, 11],
+                },
+                vec![0b000111010],
+            ),
+            "column \"s1\" contains invalid offset 11 at index 2",
+        );
+
+        try_write(
+            with_packed_strings(
+                column("s1", SemanticType::Field),
+                PackedStrings {
+                    values: "helloworld".to_string(),
+                    offsets: vec![0, 5, 4],
+                },
+                vec![0b000111010],
+            ),
+            "column \"s1\" contains invalid offset 4 at index 2",
+        );
+
+        try_write(
+            with_packed_strings(
+                column("tag2", SemanticType::Field),
+                PackedStrings {
+                    values: "helloworld".to_string(),
+                    offsets: vec![0, 5, 10],
+                },
+                vec![0b000111010],
+            ),
+            "error writing column tag2: Unable to insert iox::column_type::field::string type into a column of iox::column_type::tag",
+        );
+
+        try_write(
+            with_packed_strings(
+                column("tag2", SemanticType::Tag),
+                PackedStrings {
+                    values: "helloworld".to_string(),
+                    offsets: vec![0, 5],
+                },
+                vec![0b000111010],
+            ),
+            "error writing column tag2: Incorrect number of values provided",
+        );
+
+        try_write(
+            with_packed_strings(
+                column("tag2", SemanticType::Tag),
+                PackedStrings {
+                    values: "hello😀world".to_string(),
+                    offsets: vec![0, 6, 10],
+                },
+                vec![0b000111010],
+            ),
+            "column \"tag2\" contains invalid offset 6 at index 1",
+        );
+
+        try_write(
+            with_interned_strings(
+                column("tag3", SemanticType::Tag),
+                InternedStrings {
+                    dictionary: Some(PackedStrings {
+                        values: "tag1tag2".to_string(),
+                        offsets: vec![0, 4, 8, 8],
+                    }),
+                    values: vec![0, 1, 3, 0, 2, 1],
+                },
+                vec![0b000000000],
+            ),
+            "error writing column tag3: Key not found in dictionary: 3",
+        );
+
+        try_write(
+            with_interned_strings(
+                column("tag3", SemanticType::Tag),
+                InternedStrings {
+                    dictionary: Some(PackedStrings {
+                        values: "tag1tag2".to_string(),
+                        offsets: vec![0, 4, 3, 8],
+                    }),
+                    values: vec![0, 1, 1, 0, 2, 1],
+                },
+                vec![0b000000000],
+            ),
+            "column \"tag3\" contains invalid offset 3 at index 2",
+        );
     }
 }
