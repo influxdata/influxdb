@@ -20,10 +20,10 @@ declare -r STATIC_DIR="$ROOT_DIR/static"
 
 # This must be updated depending on the actual sha256 checksum of the tar file
 # attached to the release.
-EXPECTED_UI_CHECKSUM=25ec479b257545bbea5c2191301e6de36ee3f0fa02078de02b05735ebc3cd93b
+EXPECTED_UI_CHECKSUM=7d78d284d25f28dfd940d407a17f7f3aee1706b5dabc237eadc3bef0031ce548
 
 # Download the tar file containing the built UI assets.
-curl -L https://github.com/influxdata/ui/releases/download/OSS-2.1.1/build.tar.gz --output build.tar.gz
+curl -L https://github.com/influxdata/ui/releases/download/OSS-2.1.2/build.tar.gz --output build.tar.gz
 
 # Verify the checksums match; exit if they don't.
 echo "${EXPECTED_UI_CHECKSUM} build.tar.gz" | sha256sum --check -- \
