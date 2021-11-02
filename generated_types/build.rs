@@ -64,6 +64,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         remote_path.join("service.proto"),
         router_path.join("router.proto"),
         router_path.join("service.proto"),
+        router_path.join("shard.proto"),
         storage_path.join("predicate.proto"),
         storage_path.join("service.proto"),
         storage_path.join("storage_common.proto"),

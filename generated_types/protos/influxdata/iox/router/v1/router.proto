@@ -2,7 +2,7 @@ syntax = "proto3";
 package influxdata.iox.router.v1;
 option go_package = "github.com/influxdata/iox/router/v1";
 
-import "influxdata/iox/management/v1/shard.proto";
+import "influxdata/iox/router/v1/shard.proto";
 import "influxdata/iox/write_buffer/v1/write_buffer.proto";
 
 // Router for writes and queries.
@@ -78,11 +78,7 @@ message Router {
   WriteSources write_sources = 2;
 
   // Write sharder.
-  //
-  // NOTE: This only uses the `specific_targets` and `hash_ring` config of the sharder. The other fields are ignored.
-  //
-  // TODO(marco): remove the note above once the `ShardConfig` was cleaned up.
-  influxdata.iox.management.v1.ShardConfig write_sharder = 3;
+  ShardConfig write_sharder = 3;
 
   // Sinks for write requests.
   map<uint32, WriteSinkSet> write_sinks = 4;
