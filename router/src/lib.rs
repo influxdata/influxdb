@@ -8,9 +8,4 @@
     clippy::clone_on_ref_ptr
 )]
 
-pub(crate) mod codec;
-pub mod config;
-pub mod core;
-pub mod file;
-pub mod kafka;
-pub mod mock;
+pub mod server;

@@ -1,6 +1,6 @@
 use super::scenario::{create_readable_database, rand_name};
 use crate::{
-    common::server_fixture::ServerFixture,
+    common::server_fixture::{ServerFixture, ServerType},
     end_to_end_cases::scenario::{
         fixture_broken_catalog, fixture_replay_broken, list_chunks, wait_for_exact_chunk_states,
         DatabaseBuilder,
@@ -19,7 +19,7 @@ use test_helpers::make_temp_file;
 
 #[tokio::test]
 async fn test_server_id() {
-    let server_fixture = ServerFixture::create_single_use().await;
+    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -56,7 +56,7 @@ async fn test_server_id() {
 
 #[tokio::test]
 async fn test_create_database() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
     let db = &db_name;
@@ -116,7 +116,7 @@ async fn test_create_database() {
 
 #[tokio::test]
 async fn test_create_database_size() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
     let db = &db_name;
@@ -151,7 +151,7 @@ async fn test_create_database_size() {
 
 #[tokio::test]
 async fn test_create_database_immutable() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
     let db = &db_name;
@@ -183,7 +183,7 @@ async fn test_create_database_immutable() {
 
 #[tokio::test]
 async fn delete_database() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
     let db = &db_name;
@@ -342,7 +342,7 @@ async fn delete_database() {
 
 #[tokio::test]
 async fn test_get_chunks() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -379,7 +379,7 @@ async fn test_get_chunks() {
 
 #[tokio::test]
 async fn test_list_chunks_error() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -404,7 +404,7 @@ async fn test_list_chunks_error() {
 
 #[tokio::test]
 async fn test_remotes() {
-    let server_fixture = ServerFixture::create_single_use().await;
+    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
 
     Command::cargo_bin("influxdb_iox")
@@ -477,7 +477,7 @@ async fn test_remotes() {
 
 #[tokio::test]
 async fn test_list_partitions() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -504,7 +504,7 @@ async fn test_list_partitions() {
 
 #[tokio::test]
 async fn test_list_partitions_error() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
 
     Command::cargo_bin("influxdb_iox")
@@ -522,7 +522,7 @@ async fn test_list_partitions_error() {
 
 #[tokio::test]
 async fn test_get_partition() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -552,7 +552,7 @@ async fn test_get_partition() {
 
 #[tokio::test]
 async fn test_get_partition_error() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
 
     Command::cargo_bin("influxdb_iox")
@@ -571,7 +571,7 @@ async fn test_get_partition_error() {
 
 #[tokio::test]
 async fn test_list_partition_chunks() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -610,7 +610,7 @@ async fn test_list_partition_chunks() {
 
 #[tokio::test]
 async fn test_list_partition_chunks_error() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -637,7 +637,7 @@ async fn test_list_partition_chunks_error() {
 
 #[tokio::test]
 async fn test_new_partition_chunk() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -684,7 +684,7 @@ async fn test_new_partition_chunk() {
 
 #[tokio::test]
 async fn test_new_partition_chunk_error() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
 
     Command::cargo_bin("influxdb_iox")
@@ -706,7 +706,7 @@ async fn test_new_partition_chunk_error() {
 
 #[tokio::test]
 async fn test_close_partition_chunk() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -750,7 +750,7 @@ async fn test_close_partition_chunk() {
 
 #[tokio::test]
 async fn test_close_partition_chunk_error() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
 
     Command::cargo_bin("influxdb_iox")
@@ -804,7 +804,7 @@ async fn test_wipe_persisted_catalog() {
 
 #[tokio::test]
 async fn test_wipe_persisted_catalog_error_force() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -823,7 +823,7 @@ async fn test_wipe_persisted_catalog_error_force() {
 
 #[tokio::test]
 async fn test_wipe_persisted_catalog_error_db_exists() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -867,7 +867,7 @@ async fn test_skip_replay() {
 
 #[tokio::test]
 async fn test_skip_replay_error_db_exists() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -907,7 +907,7 @@ fn load_lp(addr: &str, db_name: &str, lp_data: Vec<&str>) {
 
 #[tokio::test]
 async fn test_unload_partition_chunk() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
     let db_name = rand_name();
 
@@ -948,7 +948,7 @@ async fn test_unload_partition_chunk() {
 
 #[tokio::test]
 async fn test_unload_partition_chunk_error() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
 
@@ -978,7 +978,7 @@ async fn test_unload_partition_chunk_error() {
 
 #[tokio::test]
 async fn test_drop_partition() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
     let db_name = rand_name();
 
@@ -1017,7 +1017,7 @@ async fn test_drop_partition() {
 
 #[tokio::test]
 async fn test_drop_partition_error() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
     let db_name = rand_name();
 
@@ -1056,7 +1056,7 @@ async fn test_drop_partition_error() {
 
 #[tokio::test]
 async fn test_persist_partition() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
     let db_name = rand_name();
 
@@ -1097,7 +1097,7 @@ async fn test_persist_partition() {
 
 #[tokio::test]
 async fn test_persist_partition_error() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
     let db_name = rand_name();
 

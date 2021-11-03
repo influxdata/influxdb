@@ -31,6 +31,33 @@ message TableBatch {
     uint32 row_count = 3;
 }
 
+// A list of strings encoded as a contiguous string payload and a list of
+// byte offsets. The offset at index i records the byte offset of the start
+// of the i'th string, with index (i+1) recording the exclusive end offset
+//
+// For example ["hello", "influx", "", "data"] would be encoded as
+// - values: "helloinfluxdata"
+// - offsets: [0, 5, 11, 11, 15]
+//
+message PackedStrings {
+    string values = 1;
+    repeated uint32 offsets = 2;
+}
+
+
+// A dictionary containing a list of string values combined with a values array of
+// indexes into this dictionary
+//
+// For example ["tag1", "tag1", "tag2", "tag2", "tag1"] might be encoded as
+// - dictionary: ["tag1, "tag2"]
+// - offsets: [0, 0, 1, 1, 0]
+//
+// There are no requirements that the dictionary is sorted, or its keys unique
+message InternedStrings {
+    PackedStrings dictionary = 1;
+    repeated uint32 values = 2;
+}
+
 message Column {
     string column_name = 1;
 
@@ -55,6 +82,8 @@ message Column {
         repeated string string_values = 4;
         repeated bool bool_values = 5;
         repeated bytes bytes_values = 6;
+        PackedStrings packed_string_values = 7;
+        InternedStrings interned_string_values = 8;
     }
     // The sequence of non-null values contained in this column.
     // Order matters; positions are adjusted by null positions in null_mask.

@@ -1,10 +1,10 @@
-use crate::common::server_fixture::ServerFixture;
+use crate::common::server_fixture::{ServerFixture, ServerType};
 use influxdb_iox_client::{management::generated_types::*, operations};
 use std::time::Duration;
 
 #[tokio::test]
 async fn test_operations() {
-    let server_fixture = ServerFixture::create_single_use().await;
+    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
     let mut management_client = server_fixture.management_client();
     let mut operations_client = server_fixture.operations_client();
 

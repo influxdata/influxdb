@@ -4,7 +4,7 @@ use arrow_util::assert_batches_eq;
 use data_types::chunk_metadata::{ChunkId, ChunkStorage};
 
 use crate::{
-    common::server_fixture::ServerFixture,
+    common::server_fixture::{ServerFixture, ServerType},
     end_to_end_cases::scenario::{list_chunks, wait_for_exact_chunk_states},
 };
 
@@ -14,7 +14,7 @@ use generated_types::influxdata::iox::management::v1::{operation_metadata::Job, 
 
 #[tokio::test]
 async fn test_chunk_is_persisted_automatically() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
 
     let db_name = rand_name();
@@ -78,7 +78,7 @@ async fn write_data(
 
 #[tokio::test]
 async fn test_full_lifecycle() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
 
     let num_payloads = 10;
@@ -142,7 +142,7 @@ async fn test_full_lifecycle() {
 
 #[tokio::test]
 async fn test_update_late_arrival() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
 
     let payload_size = 100;
@@ -195,7 +195,7 @@ async fn test_update_late_arrival() {
 #[tokio::test]
 async fn test_query_chunk_after_restart() {
     // fixtures
-    let fixture = ServerFixture::create_single_use().await;
+    let fixture = ServerFixture::create_single_use(ServerType::Database).await;
     let db_name = rand_name();
 
     // set server ID

@@ -9,6 +9,7 @@ use crate::influxdb_ioxd::{
 
 mod delete;
 mod deployment;
+mod error;
 mod flight;
 mod management;
 mod operations;

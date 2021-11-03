@@ -69,8 +69,10 @@ pub struct Column {
     pub(crate) data: ColumnData,
 }
 
+/// The data for a column
 #[derive(Debug)]
-pub(crate) enum ColumnData {
+#[allow(missing_docs)]
+pub enum ColumnData {
     F64(Vec<f64>, StatValues<f64>),
     I64(Vec<i64>, StatValues<i64>),
     U64(Vec<u64>, StatValues<u64>),
@@ -151,6 +153,16 @@ impl Column {
     /// Returns the [`InfluxColumnType`] of this column
     pub fn influx_type(&self) -> InfluxColumnType {
         self.influx_type
+    }
+
+    /// Returns the validity bitmask of this column
+    pub fn valid_mask(&self) -> &BitSet {
+        &self.valid
+    }
+
+    /// Returns a reference to this column's data
+    pub fn data(&self) -> &ColumnData {
+        &self.data
     }
 
     /// Ensures that the total length of this column is `len` rows,

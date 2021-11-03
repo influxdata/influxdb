@@ -810,7 +810,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "5.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=57d7777fc0ce94e783a7f447631624c354b0b906#57d7777fc0ce94e783a7f447631624c354b0b906"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=91b5469c2061329c4d20f6dcfbaa44a6a255d86b#91b5469c2061329c4d20f6dcfbaa44a6a255d86b"
 dependencies = [
  "ahash",
  "arrow",
@@ -818,6 +818,7 @@ dependencies = [
  "chrono",
  "futures",
  "hashbrown",
+ "lazy_static",
  "log",
  "num_cpus",
  "ordered-float 2.8.0",
@@ -1638,6 +1639,7 @@ dependencies = [
  "rand",
  "read_buffer",
  "reqwest",
+ "router",
  "rustyline",
  "serde",
  "serde_json",
@@ -2250,6 +2252,7 @@ dependencies = [
  "generated_types",
  "hashbrown",
  "mutable_batch",
+ "mutable_batch_lp",
  "schema",
  "snafu",
 ]
@@ -3560,6 +3563,17 @@ dependencies = [
  "untrusted",
  "web-sys",
  "winapi",
+]
+
+[[package]]
+name = "router"
+version = "0.1.0"
+dependencies = [
+ "data_types",
+ "metric",
+ "parking_lot",
+ "snafu",
+ "trace",
 ]
 
 [[package]]
@@ -5031,13 +5045,16 @@ dependencies = [
  "dotenv",
  "entry",
  "futures",
+ "generated_types",
  "http",
  "httparse",
  "mutable_batch",
  "mutable_batch_entry",
+ "mutable_batch_pb",
  "observability_deps",
  "parking_lot",
  "pin-project",
+ "prost",
  "rdkafka",
  "tempfile",
  "time 0.1.0",

@@ -1,11 +1,11 @@
 use super::scenario::{create_readable_database, rand_name};
-use crate::common::server_fixture::ServerFixture;
+use crate::common::server_fixture::{ServerFixture, ServerType};
 use arrow_util::assert_batches_sorted_eq;
 use generated_types::influxdata::pbdata::v1 as pb;
 
 #[tokio::test]
 pub async fn test_write_pb() {
-    let fixture = ServerFixture::create_single_use().await;
+    let fixture = ServerFixture::create_single_use(ServerType::Database).await;
     fixture
         .management_client()
         .update_server_id(42)
@@ -31,6 +31,8 @@ pub async fn test_write_pb() {
                         string_values: vec![],
                         bool_values: vec![],
                         bytes_values: vec![],
+                        packed_string_values: None,
+                        interned_string_values: None,
                     }),
                     null_mask: vec![],
                 },
@@ -44,6 +46,8 @@ pub async fn test_write_pb() {
                         string_values: vec![],
                         bool_values: vec![],
                         bytes_values: vec![],
+                        packed_string_values: None,
+                        interned_string_values: None,
                     }),
                     null_mask: vec![],
                 },

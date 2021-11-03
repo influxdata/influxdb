@@ -3020,7 +3020,6 @@ mod tests {
             .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
-                ("table", "cpu"),
                 ("access", "exclusive"),
             ])
             .unwrap();
@@ -3032,7 +3031,6 @@ mod tests {
             .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
-                ("table", "cpu"),
                 ("access", "shared"),
             ])
             .unwrap();
@@ -3071,7 +3069,6 @@ mod tests {
             .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
-                ("table", "cpu"),
                 ("access", "exclusive"),
             ])
             .unwrap();
@@ -3083,7 +3080,6 @@ mod tests {
             .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
-                ("table", "cpu"),
                 ("access", "shared"),
             ])
             .unwrap();
@@ -3095,7 +3091,6 @@ mod tests {
             .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
-                ("table", "cpu"),
                 ("access", "exclusive"),
             ])
             .unwrap();
@@ -3107,7 +3102,6 @@ mod tests {
             .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
-                ("table", "cpu"),
                 ("access", "shared"),
             ])
             .unwrap();
@@ -3119,7 +3113,6 @@ mod tests {
             .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
-                ("table", "cpu"),
                 ("access", "shared"),
             ])
             .unwrap();

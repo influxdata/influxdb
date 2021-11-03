@@ -12,7 +12,7 @@ struct DeleteService<M: ConnectionManager> {
     server: Arc<Server<M>>,
 }
 
-use crate::influxdb_ioxd::rpc::error::{default_db_error_handler, default_server_error_handler};
+use super::error::{default_db_error_handler, default_server_error_handler};
 
 #[tonic::async_trait]
 impl<M> delete_service_server::DeleteService for DeleteService<M>
