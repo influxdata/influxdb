@@ -110,7 +110,6 @@
 //! [`unlink(2)`]: https://man7.org/linux/man-pages/man2/unlink.2.html
 use std::{
     collections::{BTreeMap, BTreeSet},
-    convert::TryFrom,
     path::{Path, PathBuf},
     pin::Pin,
     str::FromStr,
@@ -120,17 +119,16 @@ use std::{
     },
 };
 
+use crate::codec::{ContentType, IoxHeaders};
 use async_trait::async_trait;
 use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
-use entry::{Entry, SequencedEntry};
+use entry::Entry;
 use futures::{channel::mpsc::Receiver, FutureExt, SinkExt, Stream, StreamExt};
-use http::{header::HeaderName, HeaderMap, HeaderValue};
 use mutable_batch::DbWrite;
 use pin_project::{pin_project, pinned_drop};
 use time::{Time, TimeProvider};
 use tokio::task::JoinHandle;
 use trace::{ctx::SpanContext, TraceCollector};
-use trace_http::ctx::{format_jaeger_trace_context, TraceHeaderParser};
 use uuid::Uuid;
 
 use crate::core::{
@@ -138,24 +136,8 @@ use crate::core::{
     WriteBufferWriting, WriteStream,
 };
 
-/// Header used to declare the content type of the message.
-pub const HEADER_CONTENT_TYPE: &str = "content-type";
-
 /// Header used to declare the creation time of the message.
 pub const HEADER_TIME: &str = "last-modified";
-
-/// Header used to declare the trace context (optional).
-pub const HEADER_TRACE_CONTEXT: &str = "uber-trace-id";
-
-/// Current flatbuffer-based content type.
-///
-/// This is a value for [`HEADER_CONTENT_TYPE`].
-///
-/// Inspired by:
-/// - <https://stackoverflow.com/a/56502135>
-/// - <https://stackoverflow.com/a/48051331>
-pub const CONTENT_TYPE_FLATBUFFER: &str =
-    r#"application/x-flatbuffers; schema="influxdata.iox.write.v1.Entry""#;
 
 /// File-based write buffer writer.
 #[derive(Debug)]
@@ -204,24 +186,13 @@ impl WriteBufferWriting for FileBufferProducer {
         let now = self.time_provider.now();
 
         // assemble message
-        let mut message: Vec<u8> = format!(
-            "{}: {}\n{}: {}\n",
-            HEADER_CONTENT_TYPE,
-            CONTENT_TYPE_FLATBUFFER,
-            HEADER_TIME,
-            now.to_rfc3339(),
-        )
-        .into_bytes();
-        if let Some(span_context) = span_context {
-            message.extend(
-                format!(
-                    "{}: {}\n",
-                    HEADER_TRACE_CONTEXT,
-                    format_jaeger_trace_context(span_context),
-                )
-                .into_bytes(),
-            )
+        let mut message: Vec<u8> = format!("{}: {}\n", HEADER_TIME, now.to_rfc3339(),).into_bytes();
+        let iox_headers = IoxHeaders::new(ContentType::Entry, span_context.cloned());
+
+        for (name, value) in iox_headers.headers() {
+            message.extend(format!("{}: {}\n", name, value).into_bytes())
         }
+
         message.extend(b"\n");
         message.extend(entry.data());
 
@@ -389,7 +360,7 @@ impl ConsumerStream {
                             number: sequence_number,
                         };
                         match Self::decode_file(data, sequence, trace_collector.clone()) {
-                            Ok(sequence) => {
+                            Ok(write) => {
                                 match next_sequence_number.compare_exchange(
                                     sequence_number,
                                     sequence_number + 1,
@@ -398,8 +369,7 @@ impl ConsumerStream {
                                 ) {
                                     Ok(_) => {
                                         // can send to output
-                                        mutable_batch_entry::sequenced_entry_to_write(&sequence)
-                                            .map_err(|e| Box::new(e) as WriteBufferError)
+                                        Ok(write)
                                     }
                                     Err(_) => {
                                         // interleaving change, retry
@@ -457,26 +427,14 @@ impl ConsumerStream {
         mut data: Vec<u8>,
         sequence: Sequence,
         trace_collector: Option<Arc<dyn TraceCollector>>,
-    ) -> Result<SequencedEntry, WriteBufferError> {
+    ) -> Result<DbWrite, WriteBufferError> {
         let mut headers = [httparse::EMPTY_HEADER; 16];
         match httparse::parse_headers(&data, &mut headers)? {
             httparse::Status::Complete((offset, headers)) => {
-                // parse content type
-                let mut content_type = None;
-                for header in headers {
-                    if header.name.eq_ignore_ascii_case(HEADER_CONTENT_TYPE) {
-                        if let Ok(s) = String::from_utf8(header.value.to_vec()) {
-                            content_type = Some(s);
-                        }
-                    }
-                }
-                if let Some(content_type) = content_type {
-                    if content_type != CONTENT_TYPE_FLATBUFFER {
-                        return Err(format!("Unknown content type: {}", content_type).into());
-                    }
-                } else {
-                    return Err("Content type missing".to_string().into());
-                }
+                let iox_headers = IoxHeaders::from_headers(
+                    headers.iter().map(|header| (header.name, header.value)),
+                    trace_collector.as_ref(),
+                )?;
 
                 // parse timestamp
                 let mut timestamp = None;
@@ -495,33 +453,10 @@ impl ConsumerStream {
                     return Err("Timestamp missing".to_string().into());
                 };
 
-                // parse span context
-                let mut span_context = None;
-                if let Some(trace_collector) = trace_collector {
-                    let mut header_map = HeaderMap::with_capacity(headers.len());
-                    for header in headers {
-                        if let (Ok(header_name), Ok(header_value)) = (
-                            HeaderName::from_str(header.name),
-                            HeaderValue::from_bytes(header.value),
-                        ) {
-                            header_map.insert(header_name, header_value);
-                        }
-                    }
-                    let parser = TraceHeaderParser::new()
-                        .with_jaeger_trace_context_header_name(HEADER_TRACE_CONTEXT);
-                    span_context = parser.parse(&trace_collector, &header_map).ok().flatten();
-                }
-
                 // parse entry
                 let entry_data = data.split_off(offset);
-                let entry = Entry::try_from(entry_data)?;
 
-                Ok(SequencedEntry::new_from_sequence_and_span_context(
-                    sequence,
-                    timestamp,
-                    entry,
-                    span_context,
-                ))
+                crate::codec::decode(&entry_data, iox_headers, sequence, timestamp)
             }
             httparse::Status::Partial => Err("Too many headers".to_string().into()),
         }
