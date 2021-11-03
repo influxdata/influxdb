@@ -101,6 +101,9 @@ workflows:
       - cross_build:
           requires:
             - godeps
+      - test-downgrade:
+          requires:
+            - build
       - e2e-monitor-ci:
           filters:
             branches:
@@ -910,6 +913,18 @@ jobs:
           path: ~/project/results
       - store_test_results:
           path: ~/project/results
+
+  test-downgrade:
+    executor: cross-builder
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /home/circleci/go/src/github.com/influxdata/influxdb
+      - run:
+          name: Run downgrade tests
+          command: |
+            ./scripts/ci/test-downgrade.sh $(pwd)/dist/influxd_linux_amd64/influxd
 
   share-testing-image:
     executor: linux-amd64
