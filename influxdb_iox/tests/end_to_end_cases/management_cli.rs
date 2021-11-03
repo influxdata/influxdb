@@ -290,6 +290,22 @@ async fn delete_restore_database() {
         .success()
         .stdout(predicate::str::contains(db));
 
+    // Restoring the 1st database is an error because the new, currently active database has the
+    // same name
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("restore")
+        .arg(db_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "A database with the name `{}` already exists",
+            db
+        )));
+
     // Delete the 2nd database
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -356,6 +372,7 @@ async fn delete_restore_database() {
 
     // Restoring a database with a valid but unknown UUID is an error
     let unknown_uuid = Uuid::new_v4();
+    dbg!(unknown_uuid);
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")

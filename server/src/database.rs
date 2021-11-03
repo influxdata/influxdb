@@ -93,9 +93,6 @@ pub enum Error {
         db_name
     ))]
     CannotDeleteInactiveDatabase { db_name: String },
-
-    #[snafu(display("cannot restore database named {} that is already active", db_name))]
-    CannotRestoreActiveDatabase { db_name: String },
 }
 
 #[derive(Debug, Snafu)]
@@ -240,7 +237,6 @@ impl Database {
     /// Mark this database as deleted.
     pub async fn delete(&self) -> Result<Uuid, Error> {
         let db_name = &self.shared.config.name;
-        info!(%db_name, "marking database deleted");
 
         let handle = self.shared.state.read().freeze();
         let handle = handle.await;
@@ -252,6 +248,8 @@ impl Database {
 
             state.uuid().expect("Active databases have UUIDs")
         };
+
+        info!(%db_name, %uuid, "marking database deleted");
 
         // If there is an object store for this database, write out a tombstone file.
         // If there isn't an object store, something is wrong and we shouldn't switch the
@@ -299,7 +297,7 @@ impl Database {
         let iox_object_store = match iox_object_store_result {
             Ok(iox_os) => iox_os,
             Err(iox_object_store::IoxObjectStoreError::DatabaseAlreadyActive { .. }) => {
-                return DatabaseAlreadyActive {
+                return AlreadyActive {
                     name: db_name.to_string(),
                     uuid,
                 }
@@ -979,7 +977,7 @@ pub enum InitError {
     },
 
     #[snafu(display("The database with UUID `{}` named `{}` is already active", uuid, name))]
-    DatabaseAlreadyActive { name: String, uuid: Uuid },
+    AlreadyActive { name: String, uuid: Uuid },
 
     #[snafu(display("cannot create preserved catalog: {}", source))]
     CannotCreatePreservedCatalog { source: crate::db::load::Error },

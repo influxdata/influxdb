@@ -423,6 +423,28 @@ async fn test_create_get_update_delete_restore_database() {
         err.to_string(),
         format!("Could not find a database with UUID `{}`", unknown_uuid)
     );
+
+    client
+        .delete_database(&db_name)
+        .await
+        .expect("delete database failed");
+
+    let newly_created_uuid = client
+        .create_database(rules.clone())
+        .await
+        .expect("create database failed");
+    let newly_created_uuid = newly_created_uuid.to_string();
+
+    assert_ne!(deleted_uuid, newly_created_uuid);
+
+    let err = client
+        .restore_database(&deleted_uuid)
+        .await
+        .expect_err("restore database should have failed but didn't");
+    assert_contains!(
+        err.to_string(),
+        format!("A database with the name `{}` already exists", db_name)
+    );
 }
 
 /// gets configuration both with and without defaults, and verifies

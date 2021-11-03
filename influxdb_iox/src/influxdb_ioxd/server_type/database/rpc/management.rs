@@ -132,15 +132,7 @@ where
             .server
             .create_database(provided_rules)
             .await
-            .map_err(|e| match e {
-                Error::DatabaseAlreadyExists { db_name } => AlreadyExists {
-                    resource_type: "database".to_string(),
-                    resource_name: db_name,
-                    ..Default::default()
-                }
-                .into(),
-                _ => default_server_error_handler(e),
-            })?;
+            .map_err(default_server_error_handler)?;
 
         let uuid = database
             .uuid()

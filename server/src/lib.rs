@@ -165,8 +165,11 @@ pub enum Error {
     #[snafu(display("{}", source))]
     CannotRestoreDatabase { source: crate::database::InitError },
 
-    #[snafu(display("database already exists: {}", db_name))]
+    #[snafu(display("A database with the name `{}` already exists", db_name))]
     DatabaseAlreadyExists { db_name: String },
+
+    #[snafu(display("The database with UUID `{}` named `{}` is already active", uuid, name))]
+    DatabaseAlreadyActive { name: String, uuid: Uuid },
 
     #[snafu(display("Server error: {}", source))]
     ServerError { source: std::io::Error },
@@ -681,6 +684,8 @@ where
         let uuid = Uuid::new_v4();
         let db_name = rules.db_name().clone();
 
+        info!(%db_name, %uuid, "creating new database");
+
         // Wait for exclusive access to mutate server state
         let handle_fut = self.shared.state.read().freeze();
         let handle = handle_fut.await;
@@ -770,6 +775,7 @@ where
         let handle_fut = self.shared.state.read().freeze();
         let handle = handle_fut.await;
 
+        // Don't proceed without a server ID
         let server_id = {
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
@@ -777,6 +783,7 @@ where
             initialized.server_id
         };
 
+        // Read the database's rules from object storage to get the database name
         let db_name = database_name_from_rules_file(
             Arc::clone(self.shared.application.object_store()),
             server_id,
@@ -785,6 +792,25 @@ where
         .await
         .context(CouldNotGetDatabaseNameFromRules)?;
 
+        info!(%db_name, %uuid, "start restoring database");
+
+        // Check that this name is unique among currently active databases
+        if let Ok(existing_db) = self.database(&db_name) {
+            if matches!(dbg!(existing_db.uuid()),
+                    Some(existing_uuid) if existing_uuid == dbg!(uuid))
+            {
+                return DatabaseAlreadyActive {
+                    name: db_name,
+                    uuid,
+                }
+                .fail();
+            } else {
+                return DatabaseAlreadyExists { db_name }.fail();
+            }
+        }
+
+        // Mark the database as restored in object storage and get its location for the server
+        // config file
         let location = Database::restore(
             Arc::clone(&self.shared.application),
             &db_name,
@@ -2500,12 +2526,7 @@ mod tests {
         // restoring again fails
         let err = server.restore_database(foo_uuid).await.unwrap_err();
         assert!(
-            matches!(
-                err,
-                Error::CannotRestoreDatabase {
-                    source: database::InitError::DatabaseAlreadyActive { .. }
-                }
-            ),
+            matches!(err, Error::DatabaseAlreadyActive { .. }),
             "got: {:?}",
             err
         );
