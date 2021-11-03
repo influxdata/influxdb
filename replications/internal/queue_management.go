@@ -1,10 +1,15 @@
 package internal
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+
+	sq "github.com/Masterminds/squirrel"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/sqlite"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
@@ -23,6 +28,12 @@ type durableQueueManager struct {
 func NewDurableQueueManager(log *zap.Logger, enginePath string) *durableQueueManager {
 	replicationQueues := make(map[platform.ID]*durablequeue.Queue)
 
+	queueDir := filepath.Join(
+		enginePath,
+		"replicationq",
+	)
+	os.MkdirAll(queueDir, 0777)
+
 	return &durableQueueManager{
 		replicationQueues: replicationQueues,
 		logger:            log,
@@ -30,7 +41,7 @@ func NewDurableQueueManager(log *zap.Logger, enginePath string) *durableQueueMan
 	}
 }
 
-// InitializeQueue creates a new durable queue which is associated with a replication stream.
+// InitializeQueue creates and opens a new durable queue which is associated with a replication stream.
 func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error {
 	qm.mutex.Lock()
 	defer qm.mutex.Unlock()
@@ -111,7 +122,7 @@ func (qm *durableQueueManager) DeleteQueue(replicationID platform.ID) error {
 	return nil
 }
 
-// UpdateMaxQueueSize updates the maximum size of the durable queue.
+// UpdateMaxQueueSize updates the maximum size of a durable queue.
 func (qm *durableQueueManager) UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error {
 	qm.mutex.RLock()
 	defer qm.mutex.RUnlock()
@@ -124,5 +135,117 @@ func (qm *durableQueueManager) UpdateMaxQueueSize(replicationID platform.ID, max
 		return err
 	}
 
+	return nil
+}
+
+// QueuePath returns the path to the replication queues on disk
+func (qm *durableQueueManager) QueuePath() string {
+	return filepath.Join(qm.enginePath, "replicationq")
+}
+
+// ReplicationQueues returns a map of all current replication stream IDs and their corresponding durable queue structs
+func (qm *durableQueueManager) ReplicationQueues() map[platform.ID]*durablequeue.Queue {
+	return qm.replicationQueues
+}
+
+// StartReplicationQueues updates the durableQueueManager.replicationQueues map, fully removing any partially deleted
+// queues (present on disk, but not tracked in sqlite) and opening all current queues
+func (qm *durableQueueManager) StartReplicationQueues(ctx context.Context, store *sqlite.SqlStore) error {
+	// Get contents of replicationq directory
+	entries, err := os.ReadDir(qm.QueuePath())
+	if err != nil {
+		return err
+	}
+
+	errOccurred := false
+
+	for _, entry := range entries {
+		// Skip over non-relevant entries (must be a dir named with a replication ID)
+		if !entry.IsDir() {
+			continue
+		}
+
+		id, err := platform.IDFromString(entry.Name())
+		if err != nil {
+			continue
+		}
+
+		// Check sqlite to see if current replication stream is tracked there
+		q := sq.Select(
+			"id", "max_queue_size_bytes").
+			From("replications").
+			Where(sq.Eq{"id": id})
+
+		query, args, err := q.ToSql()
+		if err != nil {
+			qm.logger.Error("failed to build query into a SQL string and bound args", zap.Error(err), zap.String("id", id.String()))
+			errOccurred = true
+		}
+
+		var r []influxdb.Replication
+		var maxQueueSize int64
+		isPartialDelete := false
+
+		if err := store.DB.SelectContext(ctx, &r, query, args...); err != nil {
+			// Replication stream is present on disk but untracked in sqlite, needs to be fully deleted
+			isPartialDelete = true
+			maxQueueSize = 67108860 // use default value to allow for delete
+		} else {
+			// Replication stream is present on disk and in sqlite
+			maxQueueSize = r[0].MaxQueueSizeBytes // use current value from sqlite
+		}
+
+		// Initialize queue struct for existing queue
+		newQueue, err := durablequeue.NewQueue(
+			filepath.Join(qm.QueuePath(), id.String()),
+			maxQueueSize,
+			durablequeue.DefaultSegmentSize,
+			&durablequeue.SharedCount{},
+			durablequeue.MaxWritesPending,
+			func(bytes []byte) error {
+				return nil
+			},
+		)
+
+		if err != nil {
+			qm.logger.Error("failed create durable queue struct during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
+			errOccurred = true
+		}
+
+		// Close and remove the queue if it was a partial delete
+		if isPartialDelete {
+			if err := newQueue.Close(); err != nil {
+				qm.logger.Error("failed to close durable queue during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
+				errOccurred = true
+			}
+
+			if err := newQueue.Remove(); err != nil {
+				qm.logger.Error("failed to remove durable queue during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
+				errOccurred = true
+			}
+		} else {
+			// Open and map the queue to its replication ID if it is valid
+			if err := newQueue.Open(); err != nil {
+				qm.logger.Error("failed to open replication stream durable queue", zap.Error(err), zap.String("id", id.String()), zap.String("path", newQueue.Dir()))
+				errOccurred = true
+			}
+			qm.replicationQueues[r[0].ID] = newQueue
+		}
+	}
+
+	if errOccurred {
+		return fmt.Errorf("startup tasks for replications durable queue management failed, see server logs for details")
+	} else {
+		return nil
+	}
+}
+
+// CloseAll loops through all current replication stream queues and closes them without deleting on-disk resources
+func (qm *durableQueueManager) CloseAll() error {
+	for _, queue := range qm.replicationQueues {
+		if err := queue.Close(); err != nil {
+			return err
+		}
+	}
 	return nil
 }

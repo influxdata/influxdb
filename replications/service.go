@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
 	"github.com/influxdata/influxdb/v2/replications/internal"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/sqlite"
@@ -63,6 +64,10 @@ type DurableQueueManager interface {
 	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error
 	DeleteQueue(replicationID platform.ID) error
 	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
+	QueuePath() string
+	ReplicationQueues() map[platform.ID]*durablequeue.Queue
+	StartReplicationQueues(ctx context.Context, store *sqlite.SqlStore) error
+	CloseAll() error
 }
 
 type service struct {
@@ -139,7 +144,7 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 
 	cleanupQueue := func() {
 		if cleanupErr := s.durableQueueManager.DeleteQueue(newID); cleanupErr != nil {
-			s.log.Warn("durable queue remaining on disk after initialization failure", zap.Error(cleanupErr), zap.String("ID", newID.String()))
+			s.log.Warn("durable queue remaining on disk after initialization failure", zap.Error(cleanupErr), zap.String("id", newID.String()))
 		}
 	}
 
@@ -249,7 +254,7 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 
 	if request.MaxQueueSizeBytes != nil {
 		if err := s.durableQueueManager.UpdateMaxQueueSize(id, *request.MaxQueueSizeBytes); err != nil {
-			s.log.Warn("actual max queue size does not match the max queue size recorded in database", zap.String("ID", id.String()))
+			s.log.Warn("actual max queue size does not match the max queue size recorded in database", zap.String("id", id.String()))
 			return nil, err
 		}
 	}
@@ -325,12 +330,12 @@ func (s service) DeleteBucketReplications(ctx context.Context, localBucketID pla
 	for _, replication := range deleted {
 		id, err := platform.IDFromString(replication)
 		if err != nil {
-			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err), zap.String("ID", replication))
+			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err), zap.String("id", replication))
 			errOccurred = true
 		}
 
 		if err := s.durableQueueManager.DeleteQueue(*id); err != nil {
-			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err), zap.String("ID", replication))
+			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err), zap.String("id", replication))
 			errOccurred = true
 		}
 	}
@@ -394,5 +399,24 @@ func (s service) populateRemoteHTTPConfig(ctx context.Context, id platform.ID, t
 		return err
 	}
 
+	return nil
+}
+
+func (s service) Open(ctx context.Context) error {
+	if err := s.durableQueueManager.StartReplicationQueues(ctx, s.store); err != nil {
+		return err
+	}
+
+	for id, queue := range s.durableQueueManager.ReplicationQueues() {
+		s.log.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
+	}
+
+	return nil
+}
+
+func (s service) Close() error {
+	if err := s.durableQueueManager.CloseAll(); err != nil {
+		return err
+	}
 	return nil
 }

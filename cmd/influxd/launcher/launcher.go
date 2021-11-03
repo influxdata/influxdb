@@ -662,6 +662,18 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	ts.BucketService = replications.NewBucketService(
 		m.log.With(zap.String("service", "replication_buckets")), ts.BucketService, replicationSvc)
 
+	if err = replicationSvc.Open(ctx); err != nil {
+		m.log.Error("Failed to open replications service", zap.Error(err))
+		return err
+	}
+
+	m.closers = append(m.closers, labeledCloser{
+		label: "replications",
+		closer: func(context.Context) error {
+			return replicationSvc.Close()
+		},
+	})
+
 	errorHandler := kithttp.NewErrorHandler(m.log.With(zap.String("handler", "error_logger")))
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           opts.AssetsPath,
