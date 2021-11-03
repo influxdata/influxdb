@@ -1,9 +1,9 @@
 use super::scenario::Scenario;
-use crate::common::server_fixture::ServerFixture;
+use crate::common::server_fixture::{ServerFixture, ServerType};
 
 #[tokio::test]
 pub async fn test() {
-    let server_fixture = ServerFixture::create_shared_database().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = server_fixture.management_client();
     let influxdb2 = server_fixture.influxdb2_client();
 

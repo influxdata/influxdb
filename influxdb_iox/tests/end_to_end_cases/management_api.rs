@@ -17,7 +17,7 @@ use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
 use crate::{
-    common::server_fixture::ServerFixture,
+    common::server_fixture::{ServerFixture, ServerType},
     end_to_end_cases::scenario::{
         fixture_broken_catalog, wait_for_exact_chunk_states, DatabaseBuilder,
     },
@@ -30,7 +30,7 @@ use uuid::Uuid;
 
 #[tokio::test]
 async fn test_serving_readiness() {
-    let server_fixture = ServerFixture::create_single_use_database().await;
+    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
     let mut mgmt_client = server_fixture.management_client();
     let mut write_client = server_fixture.write_client();
 
@@ -64,7 +64,7 @@ async fn test_serving_readiness() {
 
 #[tokio::test]
 async fn test_list_update_remotes() {
-    let server_fixture = ServerFixture::create_single_use_database().await;
+    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
     const TEST_REMOTE_ID_1: u32 = 42;
@@ -124,7 +124,7 @@ async fn test_list_update_remotes() {
 
 #[tokio::test]
 async fn test_set_get_writer_id() {
-    let server_fixture = ServerFixture::create_single_use_database().await;
+    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
     const TEST_ID: u32 = 42;
@@ -141,7 +141,7 @@ async fn test_set_get_writer_id() {
 
 #[tokio::test]
 async fn test_create_database_duplicate_name() {
-    let server_fixture = ServerFixture::create_shared_database().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
     let db_name = rand_name();
@@ -170,7 +170,7 @@ async fn test_create_database_duplicate_name() {
 
 #[tokio::test]
 async fn test_create_database_invalid_name() {
-    let server_fixture = ServerFixture::create_shared_database().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
     let err = client
@@ -186,7 +186,7 @@ async fn test_create_database_invalid_name() {
 
 #[tokio::test]
 async fn test_list_databases() {
-    let server_fixture = ServerFixture::create_shared_database().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
     let name1 = rand_name();
@@ -293,7 +293,7 @@ async fn test_list_databases() {
 
 #[tokio::test]
 async fn test_create_get_update_delete_database() {
-    let server_fixture = ServerFixture::create_shared_database().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
     let db_name = rand_name();
@@ -413,7 +413,7 @@ async fn test_create_get_update_database_omit_defaults() {
     // Test to ensure that the database remembers only the
     // configuration that it was sent, not including the default
     // values
-    let server_fixture = ServerFixture::create_shared_database().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
     let db_name = rand_name();
@@ -459,7 +459,7 @@ async fn test_chunk_get() {
         Chunk, ChunkLifecycleAction, ChunkStorage,
     };
 
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
     let mut write_client = fixture.write_client();
 
@@ -535,7 +535,7 @@ async fn test_chunk_get() {
 
 #[tokio::test]
 async fn test_chunk_get_errors() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
     let db_name = rand_name();
 
@@ -554,7 +554,7 @@ async fn test_chunk_get_errors() {
 
 #[tokio::test]
 async fn test_partition_list() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
 
     let db_name = rand_name();
@@ -586,7 +586,7 @@ async fn test_partition_list() {
 
 #[tokio::test]
 async fn test_partition_list_error() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
 
     let err = management_client
@@ -601,7 +601,7 @@ async fn test_partition_list_error() {
 async fn test_partition_get() {
     use generated_types::influxdata::iox::management::v1::Partition;
 
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
 
     let db_name = rand_name();
@@ -624,7 +624,7 @@ async fn test_partition_get() {
 
 #[tokio::test]
 async fn test_partition_get_error() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
     let mut write_client = fixture.write_client();
 
@@ -656,7 +656,7 @@ async fn test_partition_get_error() {
 
 #[tokio::test]
 async fn test_list_partition_chunks() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
     let mut write_client = fixture.write_client();
 
@@ -706,7 +706,7 @@ async fn test_list_partition_chunks() {
 
 #[tokio::test]
 async fn test_list_partition_chunk_errors() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
     let db_name = rand_name();
 
@@ -723,7 +723,7 @@ async fn test_list_partition_chunk_errors() {
 
 #[tokio::test]
 async fn test_new_partition_chunk() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
     let mut write_client = fixture.write_client();
 
@@ -801,7 +801,7 @@ async fn test_new_partition_chunk() {
 
 #[tokio::test]
 async fn test_new_partition_chunk_error() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
 
     let err = management_client
@@ -824,7 +824,7 @@ async fn test_close_partition_chunk() {
     use influxdb_iox_client::management::generated_types::operation_metadata::Job;
     use influxdb_iox_client::management::generated_types::ChunkStorage;
 
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
     let mut write_client = fixture.write_client();
     let mut operations_client = fixture.operations_client();
@@ -889,7 +889,7 @@ async fn test_close_partition_chunk() {
 
 #[tokio::test]
 async fn test_close_partition_chunk_error() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
 
     let err = management_client
@@ -909,7 +909,7 @@ async fn test_close_partition_chunk_error() {
 async fn test_chunk_lifecycle() {
     use influxdb_iox_client::management::generated_types::ChunkStorage;
 
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
     let mut write_client = fixture.write_client();
 
@@ -1050,7 +1050,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
 
 #[tokio::test]
 async fn test_get_server_status_ok() {
-    let server_fixture = ServerFixture::create_single_use_database().await;
+    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
     // not initalized
@@ -1117,7 +1117,7 @@ async fn test_get_server_status_ok() {
 
 #[tokio::test]
 async fn test_get_server_status_global_error() {
-    let server_fixture = ServerFixture::create_single_use_database().await;
+    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
     // we need to "break" the object store AFTER the server was started, otherwise the server
@@ -1151,7 +1151,7 @@ async fn test_get_server_status_global_error() {
 
 #[tokio::test]
 async fn test_get_server_status_db_error() {
-    let server_fixture = ServerFixture::create_single_use_database().await;
+    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
     // Valid content of the owner.pb file
@@ -1219,7 +1219,7 @@ async fn test_get_server_status_db_error() {
 async fn test_unload_read_buffer() {
     use data_types::chunk_metadata::ChunkStorage;
 
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
     let mut management_client = fixture.management_client();
 
@@ -1274,7 +1274,7 @@ async fn test_unload_read_buffer() {
 
 #[tokio::test]
 async fn test_chunk_access_time() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
     let mut management_client = fixture.management_client();
     let mut flight_client = fixture.flight_client();
@@ -1338,7 +1338,7 @@ async fn test_chunk_access_time() {
 async fn test_drop_partition() {
     use data_types::chunk_metadata::ChunkStorage;
 
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
     let mut management_client = fixture.management_client();
 
@@ -1390,7 +1390,7 @@ async fn test_drop_partition() {
 async fn test_drop_partition_error() {
     use data_types::chunk_metadata::ChunkStorage;
 
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
     let mut management_client = fixture.management_client();
 
@@ -1437,7 +1437,7 @@ async fn test_drop_partition_error() {
 #[tokio::test]
 async fn test_delete() {
     test_helpers::maybe_start_logging();
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
     let mut management_client = fixture.management_client();
     let mut flight_client = fixture.flight_client();
@@ -1583,7 +1583,7 @@ async fn test_delete() {
 async fn test_persist_partition() {
     use data_types::chunk_metadata::ChunkStorage;
 
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
     let mut management_client = fixture.management_client();
 
@@ -1639,7 +1639,7 @@ async fn test_persist_partition() {
 async fn test_persist_partition_error() {
     use data_types::chunk_metadata::ChunkStorage;
 
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
     let mut management_client = fixture.management_client();
 

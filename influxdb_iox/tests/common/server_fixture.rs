@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::SocketAddrV4;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
@@ -99,44 +100,26 @@ enum InitialConfig {
 impl ServerFixture {
     /// Create a new server fixture and wait for it to be ready. This
     /// is called "create" rather than new because it is async and
-    /// waits. The shared database is configured with a server id and
-    /// can be used immediately
-    ///
-    /// This is currently implemented as a singleton so all tests *must*
-    /// use a new database and not interfere with the existing database.
-    pub async fn create_shared_database() -> Self {
-        // Try and reuse the same shared server, if there is already
-        // one present
-        static SHARED_SERVER: OnceCell<parking_lot::Mutex<Weak<TestServer>>> = OnceCell::new();
-        Self::create_shared(&SHARED_SERVER, ServerType::Database).await
-    }
-
-    /// Create a new server fixture and wait for it to be ready. This
-    /// is called "create" rather than new because it is async and
     /// waits. The shared router is configured with a server id and
     /// can be used immediately
     ///
     /// This is currently implemented as a singleton so all tests *must*
     /// use a new router and not interfere with the existing routers.
-    pub async fn create_shared_router() -> Self {
+    pub async fn create_shared(server_type: ServerType) -> Self {
         // Try and reuse the same shared server, if there is already
         // one present
-        static SHARED_SERVER: OnceCell<parking_lot::Mutex<Weak<TestServer>>> = OnceCell::new();
-        Self::create_shared(&SHARED_SERVER, ServerType::Router).await
-    }
+        static SHARED_SERVERS: OnceCell<parking_lot::Mutex<HashMap<ServerType, Weak<TestServer>>>> =
+            OnceCell::new();
+        let shared_servers = SHARED_SERVERS.get_or_init(|| parking_lot::Mutex::new(HashMap::new()));
 
-    async fn create_shared(
-        shared_server: &'static OnceCell<parking_lot::Mutex<Weak<TestServer>>>,
-        server_type: ServerType,
-    ) -> Self {
-        // Try and reuse the same shared server, if there is already
-        // one present
-        let shared_server = shared_server.get_or_init(|| parking_lot::Mutex::new(Weak::new()));
-
-        let mut shared_server = shared_server.lock();
+        let mut shared_servers = shared_servers.lock();
 
         // is a shared server already present?
-        let server = match shared_server.upgrade() {
+        let server = match shared_servers
+            .get(&server_type)
+            .map(|x| x.upgrade())
+            .flatten()
+        {
             Some(server) => server,
             None => {
                 // if not, create one
@@ -152,34 +135,22 @@ impl ServerFixture {
                 // save a reference for other threads that may want to
                 // use this server, but don't prevent it from being
                 // destroyed when going out of scope
-                *shared_server = Arc::downgrade(&server);
+                shared_servers.insert(server_type, Arc::downgrade(&server));
                 server
             }
         };
-        std::mem::drop(shared_server);
+        std::mem::drop(shared_servers);
 
         Self::create_common(server).await
     }
 
     /// Create a new server fixture and wait for it to be ready. This
     /// is called "create" rather than new because it is async and
-    /// waits. The database is left unconfigured (no server id) and
+    /// waits. The server is left unconfigured (e.g. no server id) and
     /// is not shared with any other tests.
-    pub async fn create_single_use_database() -> Self {
+    pub async fn create_single_use(server_type: ServerType) -> Self {
         let test_config = TestConfig {
-            server_type: ServerType::Database,
-            ..Default::default()
-        };
-        Self::create_single_use_with_config(test_config).await
-    }
-
-    /// Create a new server fixture and wait for it to be ready. This
-    /// is called "create" rather than new because it is async and
-    /// waits. The router is left unconfigured (no server id) and
-    /// is not shared with any other tests.
-    pub async fn create_single_use_router() -> Self {
-        let test_config = TestConfig {
-            server_type: ServerType::Router,
+            server_type,
             ..Default::default()
         };
         Self::create_single_use_with_config(test_config).await
@@ -351,7 +322,7 @@ struct TestServer {
     test_config: TestConfig,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ServerType {
     Database,
     Router,

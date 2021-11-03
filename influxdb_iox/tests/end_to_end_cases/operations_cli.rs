@@ -1,4 +1,4 @@
-use crate::common::server_fixture::ServerFixture;
+use crate::common::server_fixture::{ServerFixture, ServerType};
 use assert_cmd::Command;
 use generated_types::google::longrunning::IoxOperation;
 use generated_types::influxdata::iox::management::v1::{operation_metadata::Job, Dummy};
@@ -6,7 +6,7 @@ use predicates::prelude::*;
 
 #[tokio::test]
 async fn test_start_stop() {
-    let server_fixture = ServerFixture::create_single_use_database().await;
+    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let duration = std::time::Duration::from_secs(10).as_nanos() as u64;
 

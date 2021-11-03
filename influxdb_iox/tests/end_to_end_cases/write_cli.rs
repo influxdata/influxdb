@@ -2,13 +2,13 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 use test_helpers::make_temp_file;
 
-use crate::common::server_fixture::ServerFixture;
+use crate::common::server_fixture::{ServerFixture, ServerType};
 
 use super::scenario::rand_name;
 
 #[tokio::test]
 async fn test() {
-    let server_fixture = ServerFixture::create_shared_database().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let db_name = rand_name();
     let addr = server_fixture.grpc_base();
     create_database(&db_name, addr).await;

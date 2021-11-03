@@ -1,5 +1,5 @@
 use super::scenario::rand_name;
-use crate::common::server_fixture::ServerFixture;
+use crate::common::server_fixture::{ServerFixture, ServerType};
 use arrow_util::assert_batches_sorted_eq;
 use generated_types::influxdata::iox::management::v1::DatabaseRules;
 
@@ -7,7 +7,7 @@ type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
 #[tokio::test]
 async fn test_querying_deleted_database() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
     let mut write_client = fixture.write_client();
     let mut flight_client = fixture.flight_client();

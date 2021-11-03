@@ -2,13 +2,16 @@ use itertools::Itertools;
 
 use data_types::chunk_metadata::ChunkStorage;
 
-use crate::{common::server_fixture::ServerFixture, end_to_end_cases::scenario::list_chunks};
+use crate::{
+    common::server_fixture::{ServerFixture, ServerType},
+    end_to_end_cases::scenario::list_chunks,
+};
 
 use super::scenario::{rand_name, DatabaseBuilder};
 
 #[tokio::test]
 async fn test_mub_freeze() {
-    let fixture = ServerFixture::create_shared_database().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
 
     let db_name = rand_name();
