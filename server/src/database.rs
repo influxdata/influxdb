@@ -184,9 +184,7 @@ impl Database {
     ) -> Result<String, InitError> {
         let db_name = provided_rules.db_name().clone();
         let iox_object_store = Arc::new(
-            match IoxObjectStore::create(Arc::clone(application.object_store()), server_id, uuid)
-                .await
-            {
+            match IoxObjectStore::create(Arc::clone(application.object_store()), uuid).await {
                 Ok(ios) => ios,
                 Err(source) => return Err(InitError::IoxObjectStoreError { source }),
             },
@@ -281,12 +279,8 @@ impl Database {
     ) -> Result<String, InitError> {
         info!(%db_name, %uuid, "restoring database");
 
-        let iox_object_store_result = IoxObjectStore::restore_database(
-            Arc::clone(application.object_store()),
-            server_id,
-            uuid,
-        )
-        .await;
+        let iox_object_store_result =
+            IoxObjectStore::restore_database(Arc::clone(application.object_store()), uuid).await;
 
         let iox_object_store = match iox_object_store_result {
             Ok(iox_os) => iox_os,
@@ -1138,7 +1132,6 @@ impl DatabaseStateKnown {
     ) -> Result<DatabaseStateDatabaseObjectStoreFound, InitError> {
         let iox_object_store = IoxObjectStore::load_at_root_path(
             Arc::clone(shared.application.object_store()),
-            shared.config.server_id,
             &shared.config.location,
         )
         .await

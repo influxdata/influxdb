@@ -137,15 +137,8 @@ pub enum ParquetFilePathParseError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{IoxObjectStore, RootPath};
-    use data_types::server_id::ServerId;
+    use crate::{paths::ALL_DATABASES_DIRECTORY, IoxObjectStore, RootPath};
     use object_store::{ObjectStore, ObjectStoreApi};
-    use std::num::NonZeroU32;
-
-    /// Creates new test server ID
-    fn make_server_id() -> ServerId {
-        ServerId::new(NonZeroU32::new(1).unwrap())
-    }
 
     /// Creates a new in-memory object store. These tests rely on the `Path`s being of type
     /// `DirsAndFileName` and thus using object_store::path::DELIMITER as the separator
@@ -290,12 +283,10 @@ mod tests {
 
     #[test]
     fn data_path_join_with_parquet_file_path() {
-        let server_id = make_server_id();
         let db_uuid = Uuid::new_v4();
         let object_store = make_object_store();
-        let root_path = RootPath::new(&object_store, server_id, db_uuid);
-        let iox_object_store =
-            IoxObjectStore::existing(Arc::clone(&object_store), server_id, root_path);
+        let root_path = RootPath::new(&object_store, db_uuid);
+        let iox_object_store = IoxObjectStore::existing(Arc::clone(&object_store), root_path);
 
         let pfp = ParquetFilePath {
             table_name: "}*".into(),
@@ -307,7 +298,7 @@ mod tests {
 
         let mut expected_path = object_store.new_path();
         expected_path.push_all_dirs(&[
-            &server_id.to_string(),
+            ALL_DATABASES_DIRECTORY,
             &db_uuid.to_string(),
             "data",
             "}*",

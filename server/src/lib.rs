@@ -761,13 +761,10 @@ where
         };
 
         // Read the database's rules from object storage to get the database name
-        let db_name = database_name_from_rules_file(
-            Arc::clone(self.shared.application.object_store()),
-            server_id,
-            uuid,
-        )
-        .await
-        .context(CouldNotGetDatabaseNameFromRules)?;
+        let db_name =
+            database_name_from_rules_file(Arc::clone(self.shared.application.object_store()), uuid)
+                .await
+                .context(CouldNotGetDatabaseNameFromRules)?;
 
         info!(%db_name, %uuid, "start restoring database");
 
@@ -1350,10 +1347,9 @@ pub enum DatabaseNameFromRulesError {
 
 async fn database_name_from_rules_file(
     object_store: Arc<object_store::ObjectStore>,
-    server_id: ServerId,
     uuid: Uuid,
 ) -> Result<DatabaseName<'static>, DatabaseNameFromRulesError> {
-    let rules_bytes = IoxObjectStore::load_database_rules(object_store, server_id, uuid)
+    let rules_bytes = IoxObjectStore::load_database_rules(object_store, uuid)
         .await
         .map_err(|e| match e {
             object_store::Error::NotFound { location, .. } => {
@@ -1428,7 +1424,7 @@ mod tests {
     };
     use iox_object_store::IoxObjectStore;
     use mutable_batch_lp::lines_to_batches;
-    use object_store::ObjectStore;
+    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use parquet_catalog::{
         core::{PreservedCatalog, PreservedCatalogConfig},
         test_helpers::{load_ok, new_empty},
@@ -1552,10 +1548,7 @@ mod tests {
 
         // assert server config file exists and has 1 entry
         let config = server_config(application.object_store(), server_id).await;
-        assert_config_contents(
-            &config,
-            &[(&name, format!("{}/{}/", server_id, bananas_uuid))],
-        );
+        assert_config_contents(&config, &[(&name, format!("dbs/{}/", bananas_uuid))]);
 
         let db2 = DatabaseName::new("db_awesome").unwrap();
         let rules2 = DatabaseRules::new(db2.clone());
@@ -1572,8 +1565,8 @@ mod tests {
         assert_config_contents(
             &config,
             &[
-                (&name, format!("{}/{}/", server_id, bananas_uuid)),
-                (&db2, format!("{}/{}/", server_id, awesome_uuid)),
+                (&name, format!("dbs/{}/", bananas_uuid)),
+                (&db2, format!("dbs/{}/", awesome_uuid)),
             ],
         );
 
@@ -1595,8 +1588,8 @@ mod tests {
         assert_config_contents(
             &config,
             &[
-                (&name, format!("{}/{}/", server_id, bananas_uuid)),
-                (&db2, format!("{}/{}/", server_id, awesome_uuid)),
+                (&name, format!("dbs/{}/", bananas_uuid)),
+                (&db2, format!("dbs/{}/", awesome_uuid)),
             ],
         );
     }
@@ -1699,14 +1692,8 @@ mod tests {
         assert_config_contents(
             &config,
             &[
-                (
-                    &apples.config().name,
-                    format!("{}/{}/", server_id, apples_uuid),
-                ),
-                (
-                    &bananas.config().name,
-                    format!("{}/{}/", server_id, bananas_uuid),
-                ),
+                (&apples.config().name, format!("dbs/{}/", apples_uuid)),
+                (&bananas.config().name, format!("dbs/{}/", bananas_uuid)),
             ],
         );
 
@@ -1722,6 +1709,129 @@ mod tests {
         let err = bananas_database.wait_for_init().await.unwrap_err();
         assert_contains!(err.to_string(), "No rules found to load");
         assert!(Arc::ptr_eq(&err, &bananas_database.init_error().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn old_database_object_store_path() {
+        let application = make_application();
+        let server = make_server(Arc::clone(&application));
+        let server_id = ServerId::try_from(1).unwrap();
+        let object_store = application.object_store();
+
+        // Databases used to be stored under the server ID. Construct a database in the old
+        // location and list that in the serialized server config.
+        let old_loc_db_uuid = Uuid::new_v4();
+        let old_loc_db_name = DatabaseName::new("old").unwrap();
+
+        // Construct path in the old database location containing server ID
+        let mut old_root = object_store.new_path();
+        old_root.push_dir(&server_id.to_string());
+        old_root.push_dir(&old_loc_db_uuid.to_string());
+
+        // Write out a database owner file in the old location
+        let mut old_owner_path = old_root.clone();
+        old_owner_path.set_file_name("owner.pb");
+        let owner_info = management::v1::OwnerInfo {
+            id: server_id.get_u32(),
+            location: IoxObjectStore::server_config_path(object_store, server_id).to_string(),
+        };
+        let mut encoded_owner_info = bytes::BytesMut::new();
+        generated_types::server_config::encode_database_owner_info(
+            &owner_info,
+            &mut encoded_owner_info,
+        )
+        .expect("owner info serialization should be valid");
+        let encoded_owner_info = encoded_owner_info.freeze();
+        object_store
+            .put(&old_owner_path, encoded_owner_info)
+            .await
+            .unwrap();
+
+        // Write out a database rules file in the old location
+        let mut old_db_rules_path = old_root.clone();
+        old_db_rules_path.set_file_name("rules.pb");
+        let rules = management::v1::DatabaseRules {
+            name: old_loc_db_name.to_string(),
+            ..Default::default()
+        };
+        let persisted_database_rules = management::v1::PersistedDatabaseRules {
+            uuid: old_loc_db_uuid.as_bytes().to_vec(),
+            rules: Some(rules),
+        };
+        let mut encoded_rules = bytes::BytesMut::new();
+        generated_types::database_rules::encode_persisted_database_rules(
+            &persisted_database_rules,
+            &mut encoded_rules,
+        )
+        .unwrap();
+        let encoded_rules = encoded_rules.freeze();
+        object_store
+            .put(&old_db_rules_path, encoded_rules)
+            .await
+            .unwrap();
+
+        // Write out the server config with the database name and pointing to the old location
+        let old_location = old_root.to_raw().to_string();
+        let server_config = management::v1::ServerConfig {
+            databases: [(old_loc_db_name.to_string(), old_location.clone())]
+                .into_iter()
+                .collect(),
+        };
+        let mut encoded_server_config = bytes::BytesMut::new();
+        generated_types::server_config::encode_persisted_server_config(
+            &server_config,
+            &mut encoded_server_config,
+        )
+        .unwrap();
+        let encoded_server_config = encoded_server_config.freeze();
+        IoxObjectStore::put_server_config_file(object_store, server_id, encoded_server_config)
+            .await
+            .unwrap();
+
+        // The server should initialize successfully
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        // The database should initialize successfully
+        let old_loc_db = server.database(&old_loc_db_name).unwrap();
+        old_loc_db.wait_for_init().await.unwrap();
+
+        // Database rules can be updated
+        let mut new_rules = DatabaseRules::new(old_loc_db_name.clone());
+        new_rules.worker_cleanup_avg_sleep = Duration::from_secs(22);
+        server
+            .update_db_rules(make_provided_rules(new_rules.clone()))
+            .await
+            .unwrap();
+        let updated = old_loc_db.provided_rules().unwrap();
+        assert_eq!(
+            updated.rules().worker_cleanup_avg_sleep,
+            new_rules.worker_cleanup_avg_sleep
+        );
+
+        // Location remains the same
+        assert_eq!(old_loc_db.location(), old_location);
+
+        // New databases are created in the current database location, `dbs`
+        let new_loc_db_name = DatabaseName::new("new").unwrap();
+        let new_loc_rules = DatabaseRules::new(new_loc_db_name.clone());
+        let new_loc_db = server
+            .create_database(make_provided_rules(new_loc_rules))
+            .await
+            .unwrap();
+        let new_loc_db_uuid = new_loc_db.uuid().unwrap();
+        assert_eq!(new_loc_db.location(), format!("dbs/{}/", new_loc_db_uuid));
+
+        // Restarting the server with a database in the "old" location and a database in the "new"
+        // location works
+        std::mem::drop(server);
+        let server = make_server(Arc::clone(&application));
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.wait_for_init().await.unwrap();
+        let old_loc_db = server.database(&old_loc_db_name).unwrap();
+        old_loc_db.wait_for_init().await.unwrap();
+        let new_loc_db = server.database(&new_loc_db_name).unwrap();
+        new_loc_db.wait_for_init().await.unwrap();
     }
 
     #[tokio::test]
@@ -2201,10 +2311,7 @@ mod tests {
 
         // server config contains foo
         let config = server_config(application.object_store(), server_id).await;
-        assert_config_contents(
-            &config,
-            &[(&foo_db_name, format!("{}/{}/", server_id, new_foo_uuid))],
-        );
+        assert_config_contents(&config, &[(&foo_db_name, format!("dbs/{}/", new_foo_uuid))]);
 
         // calling delete database works
         server.delete_database(&foo_db_name).await.unwrap();
@@ -2481,13 +2588,9 @@ mod tests {
             Error::DatabaseNotFound { .. }
         ));
         let non_existing_iox_object_store = Arc::new(
-            IoxObjectStore::create(
-                Arc::clone(application.object_store()),
-                server_id,
-                db_uuid_non_existing,
-            )
-            .await
-            .unwrap(),
+            IoxObjectStore::create(Arc::clone(application.object_store()), db_uuid_non_existing)
+                .await
+                .unwrap(),
         );
 
         let config = PreservedCatalogConfig::new(

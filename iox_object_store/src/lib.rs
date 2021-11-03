@@ -67,7 +67,6 @@ pub enum IoxObjectStoreError {
 #[derive(Debug)]
 pub struct IoxObjectStore {
     inner: Arc<ObjectStore>,
-    server_id: ServerId,
     root_path: RootPath,
     tombstone_path: TombstonePath,
     data_path: DataPath,
@@ -108,8 +107,8 @@ impl IoxObjectStore {
 
     /// Returns what the root path would be for a given database. Does not check existence or
     /// validity of the path in object storage.
-    pub fn root_path_for(inner: &ObjectStore, server_id: ServerId, uuid: Uuid) -> RootPath {
-        RootPath::new(inner, server_id, uuid)
+    pub fn root_path_for(inner: &ObjectStore, uuid: Uuid) -> RootPath {
+        RootPath::new(inner, uuid)
     }
 
     // Private function to check if a given database has been deleted or not. If the database is
@@ -137,12 +136,8 @@ impl IoxObjectStore {
     ///
     /// Caller *MUST* ensure there is at most 1 concurrent call of this function with the same
     /// parameters; this function does *NOT* do any locking.
-    pub async fn create(
-        inner: Arc<ObjectStore>,
-        server_id: ServerId,
-        uuid: Uuid,
-    ) -> Result<Self, IoxObjectStoreError> {
-        let root_path = Self::root_path_for(&inner, server_id, uuid);
+    pub async fn create(inner: Arc<ObjectStore>, uuid: Uuid) -> Result<Self, IoxObjectStoreError> {
+        let root_path = Self::root_path_for(&inner, uuid);
 
         let list_result = inner
             .list_with_delimiter(&root_path.inner)
@@ -154,35 +149,29 @@ impl IoxObjectStore {
             DatabaseAlreadyExists { uuid }
         );
 
-        Ok(Self::existing(inner, server_id, root_path))
+        Ok(Self::existing(inner, root_path))
     }
 
     /// Look in object storage for an existing, active database with this UUID.
-    pub async fn load(
-        inner: Arc<ObjectStore>,
-        server_id: ServerId,
-        uuid: Uuid,
-    ) -> Result<Self, IoxObjectStoreError> {
-        let root_path = Self::root_path_for(&inner, server_id, uuid);
+    pub async fn load(inner: Arc<ObjectStore>, uuid: Uuid) -> Result<Self, IoxObjectStoreError> {
+        let root_path = Self::root_path_for(&inner, uuid);
 
-        Self::find(inner, server_id, root_path).await
+        Self::find(inner, root_path).await
     }
 
     /// Look in object storage for an existing database with this name and the given root path
     /// that was retrieved from a server config
     pub async fn load_at_root_path(
         inner: Arc<ObjectStore>,
-        server_id: ServerId,
         root_path_str: &str,
     ) -> Result<Self, IoxObjectStoreError> {
         let root_path = RootPath::from_str(&inner, root_path_str);
 
-        Self::find(inner, server_id, root_path).await
+        Self::find(inner, root_path).await
     }
 
     async fn find(
         inner: Arc<ObjectStore>,
-        server_id: ServerId,
         root_path: RootPath,
     ) -> Result<Self, IoxObjectStoreError> {
         let list_result = inner
@@ -206,19 +195,18 @@ impl IoxObjectStore {
 
         ensure!(!tombstone_exists, DatabaseDeleted { root_path });
 
-        Ok(Self::existing(inner, server_id, root_path))
+        Ok(Self::existing(inner, root_path))
     }
 
     /// Access the database-specific object storage files for an existing database that has
     /// already been located and verified to be active. Does not check object storage.
-    fn existing(inner: Arc<ObjectStore>, server_id: ServerId, root_path: RootPath) -> Self {
+    fn existing(inner: Arc<ObjectStore>, root_path: RootPath) -> Self {
         let tombstone_path = root_path.tombstone_path();
         let data_path = root_path.data_path();
         let transactions_path = root_path.transactions_path();
 
         Self {
             inner,
-            server_id,
             root_path,
             tombstone_path,
             data_path,
@@ -279,10 +267,9 @@ impl IoxObjectStore {
     /// already active. Returns the reactivated IoxObjectStore.
     pub async fn restore_database(
         inner: Arc<ObjectStore>,
-        server_id: ServerId,
         uuid: Uuid,
     ) -> Result<Self, IoxObjectStoreError> {
-        let root_path = Self::root_path_for(&inner, server_id, uuid);
+        let root_path = Self::root_path_for(&inner, uuid);
 
         let deleted_at = Self::check_deleted(&inner, &root_path)
             .await
@@ -297,7 +284,7 @@ impl IoxObjectStore {
             .await
             .context(RestoreFailed { uuid })?;
 
-        Ok(Self::existing(inner, server_id, root_path))
+        Ok(Self::existing(inner, root_path))
     }
 
     // Catalog transaction file methods ===========================================================
@@ -430,12 +417,8 @@ impl IoxObjectStore {
     /// when restoring a database given a UUID to check existence of the specified database and
     /// get information such as the database name from the rules before proceeding with restoring
     /// and initializing the database.
-    pub async fn load_database_rules(
-        inner: Arc<ObjectStore>,
-        server_id: ServerId,
-        uuid: Uuid,
-    ) -> Result<Bytes> {
-        let root_path = Self::root_path_for(&inner, server_id, uuid);
+    pub async fn load_database_rules(inner: Arc<ObjectStore>, uuid: Uuid) -> Result<Bytes> {
+        let root_path = Self::root_path_for(&inner, uuid);
         let db_rules_path = root_path.rules_path().inner;
 
         let mut stream = inner.get(&db_rules_path).await?;
@@ -492,15 +475,10 @@ impl IoxObjectStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::paths::ALL_DATABASES_DIRECTORY;
     use data_types::chunk_metadata::{ChunkAddr, ChunkId};
     use object_store::{parsed_path, path::ObjectStorePath, ObjectStore, ObjectStoreApi};
-    use std::num::NonZeroU32;
     use uuid::Uuid;
-
-    /// Creates new test server ID
-    fn make_server_id() -> ServerId {
-        ServerId::new(NonZeroU32::new(1).unwrap())
-    }
 
     /// Creates a new in-memory object store
     fn make_object_store() -> Arc<ObjectStore> {
@@ -538,13 +516,10 @@ mod tests {
     #[tokio::test]
     async fn only_lists_relevant_parquet_files() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
-        let server_id_string = server_id.to_string();
-        let server_id_str = server_id_string.as_str();
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string();
         let uuid_str = uuid_string.as_str();
-        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
+        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap();
         let parquet_uuid = Uuid::new_v4();
@@ -561,20 +536,22 @@ mod tests {
 
         // Put a file for some other database in
         let other_db_uuid = Uuid::new_v4().to_string();
-        let path = object_store
-            .path_from_dirs_and_filename(parsed_path!([server_id_str, other_db_uuid.as_str()]));
+        let path = object_store.path_from_dirs_and_filename(parsed_path!([
+            ALL_DATABASES_DIRECTORY,
+            other_db_uuid.as_str()
+        ]));
         add_file(&object_store, &path).await;
 
         // Put a file in the database dir but not the data dir
         let path = object_store.path_from_dirs_and_filename(parsed_path!(
-            [server_id_str, uuid_str],
+            [ALL_DATABASES_DIRECTORY, uuid_str],
             good_filename_str
         ));
         add_file(&object_store, &path).await;
 
         // Put files in the data dir whose names are in the wrong format
         let mut path = object_store.path_from_dirs_and_filename(parsed_path!(
-            [server_id_str, uuid_str, "data"],
+            [ALL_DATABASES_DIRECTORY, uuid_str, "data"],
             "111.parquet"
         ));
         add_file(&object_store, &path).await;
@@ -630,13 +607,10 @@ mod tests {
     #[tokio::test]
     async fn only_lists_relevant_catalog_transaction_files() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
-        let server_id_string = server_id.to_string();
-        let server_id_str = server_id_string.as_str();
         let uuid = Uuid::new_v4();
         let uuid_string = uuid.to_string();
         let uuid_str = uuid_string.as_str();
-        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
+        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap();
         let txn_uuid = Uuid::new_v4();
@@ -647,26 +621,30 @@ mod tests {
         let path = object_store.path_from_dirs_and_filename(parsed_path!(["foo"]));
         add_file(&object_store, &path).await;
 
-        // Put a file for some other server in
+        // Put a file in a directory other than the databases directory
         let path = object_store.path_from_dirs_and_filename(parsed_path!(["12345"]));
         add_file(&object_store, &path).await;
 
         // Put a file for some other database in
         let other_db_uuid = Uuid::new_v4().to_string();
-        let path = object_store
-            .path_from_dirs_and_filename(parsed_path!([server_id_str, other_db_uuid.as_str()]));
+        let path = object_store.path_from_dirs_and_filename(parsed_path!([
+            ALL_DATABASES_DIRECTORY,
+            other_db_uuid.as_str()
+        ]));
         add_file(&object_store, &path).await;
 
         // Put a file in the database dir but not the transactions dir
         let path = object_store.path_from_dirs_and_filename(parsed_path!(
-            [server_id_str, uuid_str],
+            [ALL_DATABASES_DIRECTORY, uuid_str],
             good_txn_filename_str
         ));
         add_file(&object_store, &path).await;
 
         // Put files in the transactions dir whose names are in the wrong format
-        let mut path = object_store
-            .path_from_dirs_and_filename(parsed_path!([server_id_str, uuid_str], "111.parquet"));
+        let mut path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [ALL_DATABASES_DIRECTORY, uuid_str],
+            "111.parquet"
+        ));
         add_file(&object_store, &path).await;
         path.set_file_name(&format!("{}.xls", txn_uuid));
         add_file(&object_store, &path).await;
@@ -689,9 +667,9 @@ mod tests {
         assert!(ctf.contains(&t2));
     }
 
-    fn make_db_rules_path(object_store: &ObjectStore, server_id: ServerId, uuid: Uuid) -> Path {
+    fn make_db_rules_path(object_store: &ObjectStore, uuid: Uuid) -> Path {
         let mut p = object_store.new_path();
-        p.push_all_dirs(&[server_id.to_string().as_str(), uuid.to_string().as_str()]);
+        p.push_all_dirs(&[ALL_DATABASES_DIRECTORY, uuid.to_string().as_str()]);
         p.set_file_name("rules.pb");
         p
     }
@@ -699,10 +677,9 @@ mod tests {
     #[tokio::test]
     async fn db_rules_should_be_a_file() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
         let uuid = Uuid::new_v4();
-        let rules_path = make_db_rules_path(&object_store, server_id, uuid);
-        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
+        let rules_path = make_db_rules_path(&object_store, uuid);
+        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap();
 
@@ -751,9 +728,9 @@ mod tests {
         assert_eq!(file_count, 0);
     }
 
-    fn make_owner_path(object_store: &ObjectStore, server_id: ServerId, uuid: Uuid) -> Path {
+    fn make_owner_path(object_store: &ObjectStore, uuid: Uuid) -> Path {
         let mut p = object_store.new_path();
-        p.push_all_dirs(&[server_id.to_string().as_str(), uuid.to_string().as_str()]);
+        p.push_all_dirs(&[ALL_DATABASES_DIRECTORY, uuid.to_string().as_str()]);
         p.set_file_name("owner.pb");
         p
     }
@@ -761,10 +738,9 @@ mod tests {
     #[tokio::test]
     async fn owner_should_be_a_file() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
         let uuid = Uuid::new_v4();
-        let owner_path = make_owner_path(&object_store, server_id, uuid);
-        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
+        let owner_path = make_owner_path(&object_store, uuid);
+        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap();
 
@@ -803,15 +779,14 @@ mod tests {
     #[tokio::test]
     async fn write_tombstone_twice_is_fine() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
         let uuid = Uuid::new_v4();
-        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
+        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap();
 
         // tombstone file should not exist
         let mut tombstone = object_store.new_path();
-        tombstone.push_all_dirs([server_id.to_string().as_str(), uuid.to_string().as_str()]);
+        tombstone.push_all_dirs([ALL_DATABASES_DIRECTORY, uuid.to_string().as_str()]);
         tombstone.set_file_name("DELETED");
 
         object_store.get(&tombstone).await.err().unwrap();
@@ -831,10 +806,9 @@ mod tests {
     #[tokio::test]
     async fn create_new_with_same_uuid_errors() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
         let uuid = Uuid::new_v4();
 
-        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
+        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap();
 
@@ -843,7 +817,7 @@ mod tests {
             .await
             .unwrap();
 
-        let err = IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
+        let err = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap_err();
         assert!(
@@ -858,18 +832,17 @@ mod tests {
     #[tokio::test]
     async fn create_new_with_any_files_under_uuid_errors() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
         let uuid = Uuid::new_v4();
 
         let mut not_rules_path = object_store.new_path();
-        not_rules_path.push_all_dirs(&[server_id.to_string().as_str(), uuid.to_string().as_str()]);
+        not_rules_path.push_all_dirs(&[ALL_DATABASES_DIRECTORY, uuid.to_string().as_str()]);
         not_rules_path.set_file_name("not_rules.txt");
         object_store
             .put(&not_rules_path, Bytes::new())
             .await
             .unwrap();
 
-        let err = IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
+        let err = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap_err();
         assert!(
@@ -884,10 +857,9 @@ mod tests {
     #[tokio::test]
     async fn delete_then_create_new_with_same_uuid_errors() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
         let uuid = Uuid::new_v4();
 
-        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
+        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap();
 
@@ -897,7 +869,7 @@ mod tests {
             .unwrap();
         iox_object_store.write_tombstone().await.unwrap();
 
-        let err = IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
+        let err = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap_err();
         assert!(
@@ -909,12 +881,8 @@ mod tests {
         );
     }
 
-    async fn create_database(
-        object_store: Arc<ObjectStore>,
-        server_id: ServerId,
-        uuid: Uuid,
-    ) -> IoxObjectStore {
-        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), server_id, uuid)
+    async fn create_database(object_store: Arc<ObjectStore>, uuid: Uuid) -> IoxObjectStore {
+        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap();
 
@@ -932,20 +900,18 @@ mod tests {
 
     async fn restore_database(
         object_store: Arc<ObjectStore>,
-        server_id: ServerId,
         uuid: Uuid,
     ) -> Result<IoxObjectStore, IoxObjectStoreError> {
-        IoxObjectStore::restore_database(Arc::clone(&object_store), server_id, uuid).await
+        IoxObjectStore::restore_database(Arc::clone(&object_store), uuid).await
     }
 
     #[tokio::test]
     async fn restore_deleted_database() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
 
         // Create a database
         let db = Uuid::new_v4();
-        let db_iox_store = create_database(Arc::clone(&object_store), server_id, db).await;
+        let db_iox_store = create_database(Arc::clone(&object_store), db).await;
 
         // Delete the database
         delete_database(&db_iox_store).await;
@@ -958,7 +924,7 @@ mod tests {
         );
 
         // Restore the database
-        restore_database(Arc::clone(&object_store), server_id, db)
+        restore_database(Arc::clone(&object_store), db)
             .await
             .unwrap();
 
@@ -973,11 +939,10 @@ mod tests {
     #[tokio::test]
     async fn read_db_rules_of_deleted_database() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
 
         // Create a database
         let db = Uuid::new_v4();
-        let db_iox_store = IoxObjectStore::create(Arc::clone(&object_store), server_id, db)
+        let db_iox_store = IoxObjectStore::create(Arc::clone(&object_store), db)
             .await
             .unwrap();
 
@@ -991,7 +956,7 @@ mod tests {
         delete_database(&db_iox_store).await;
 
         // We can still read the rules file even though `load` would fail
-        let rules_content = IoxObjectStore::load_database_rules(object_store, server_id, db)
+        let rules_content = IoxObjectStore::load_database_rules(object_store, db)
             .await
             .unwrap();
         assert_eq!(rules_content, original_file_content);
@@ -1000,13 +965,12 @@ mod tests {
     #[tokio::test]
     async fn cant_read_rules_if_no_rules_exist() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
 
         // Create a uuid but don't create a corresponding database
         let db = Uuid::new_v4();
 
         // This fails, there are no rules to read
-        let err = IoxObjectStore::load_database_rules(object_store, server_id, db)
+        let err = IoxObjectStore::load_database_rules(object_store, db)
             .await
             .unwrap_err();
 
@@ -1020,11 +984,10 @@ mod tests {
     #[tokio::test]
     async fn test_load() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
 
         // Load can't find nonexistent database
         let nonexistent = Uuid::new_v4();
-        let returned = IoxObjectStore::load(Arc::clone(&object_store), server_id, nonexistent)
+        let returned = IoxObjectStore::load(Arc::clone(&object_store), nonexistent)
             .await
             .unwrap_err();
         assert!(
@@ -1035,19 +998,22 @@ mod tests {
 
         // Create a database
         let db = Uuid::new_v4();
-        let db_iox_store = create_database(Arc::clone(&object_store), server_id, db).await;
+        let db_iox_store = create_database(Arc::clone(&object_store), db).await;
 
         // Load should return that database
-        let returned = IoxObjectStore::load(Arc::clone(&object_store), server_id, db)
+        let returned = IoxObjectStore::load(Arc::clone(&object_store), db)
             .await
             .unwrap();
-        assert_eq!(returned.root_path(), format!("{}/{}/", server_id, db));
+        assert_eq!(
+            returned.root_path(),
+            format!("{}/{}/", ALL_DATABASES_DIRECTORY, db)
+        );
 
         // Delete a database
         delete_database(&db_iox_store).await;
 
         // Load can't find deleted database
-        let returned = IoxObjectStore::load(Arc::clone(&object_store), server_id, db)
+        let returned = IoxObjectStore::load(Arc::clone(&object_store), db)
             .await
             .unwrap_err();
         assert!(
@@ -1060,29 +1026,25 @@ mod tests {
     #[tokio::test]
     async fn round_trip_through_object_store_root_path() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
 
         // Create a new iox object store that doesn't exist yet
         let uuid = Uuid::new_v4();
-        let db_iox_store = create_database(Arc::clone(&object_store), server_id, uuid).await;
+        let db_iox_store = create_database(Arc::clone(&object_store), uuid).await;
 
         // Save its root path as the server config would
         let saved_root_path = db_iox_store.root_path();
 
         // Simulate server restarting and reading the server config to construct iox object stores,
         // the database files in object storage should be found in the same root
-        let restarted_iox_store = IoxObjectStore::load_at_root_path(
-            Arc::clone(&object_store),
-            server_id,
-            &saved_root_path,
-        )
-        .await
-        .unwrap();
+        let restarted_iox_store =
+            IoxObjectStore::load_at_root_path(Arc::clone(&object_store), &saved_root_path)
+                .await
+                .unwrap();
         assert_eq!(db_iox_store.root_path(), restarted_iox_store.root_path());
 
         // This should also equal root_path_for, which can be constructed even if a database
         // hasn't been fully initialized yet
-        let alternate = IoxObjectStore::root_path_for(&object_store, server_id, uuid).to_string();
+        let alternate = IoxObjectStore::root_path_for(&object_store, uuid).to_string();
         assert_eq!(alternate, saved_root_path);
     }
 }

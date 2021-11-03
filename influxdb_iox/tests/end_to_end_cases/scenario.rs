@@ -613,7 +613,7 @@ pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
         .unwrap();
 
     let mut path = fixture.dir().to_path_buf();
-    path.push(server_id.to_string());
+    path.push("dbs");
     path.push(uuid.to_string());
 
     path.push("transactions");

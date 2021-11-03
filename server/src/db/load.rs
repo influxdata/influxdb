@@ -314,27 +314,22 @@ impl CatalogState for Loader {
 mod tests {
     use super::*;
     use crate::db::checkpoint_data_from_catalog;
-    use data_types::{server_id::ServerId, DatabaseName};
+    use data_types::DatabaseName;
     use object_store::ObjectStore;
     use parquet_catalog::{
         interface::CheckpointData,
         test_helpers::{assert_catalog_state_implementation, new_empty},
     };
-    use std::convert::TryFrom;
     use uuid::Uuid;
 
     #[tokio::test]
     async fn load_or_create_preserved_catalog_recovers_from_error() {
         let object_store = Arc::new(ObjectStore::new_in_memory());
         let time_provider: Arc<dyn TimeProvider> = Arc::new(time::SystemProvider::new());
-        let server_id = ServerId::try_from(1).unwrap();
         let db_name = DatabaseName::new("preserved_catalog_test").unwrap();
         let db_uuid = Uuid::new_v4();
-        let iox_object_store = Arc::new(
-            IoxObjectStore::create(object_store, server_id, db_uuid)
-                .await
-                .unwrap(),
-        );
+        let iox_object_store =
+            Arc::new(IoxObjectStore::create(object_store, db_uuid).await.unwrap());
         let config = PreservedCatalogConfig::new(
             Arc::clone(&iox_object_store),
             db_name.to_string(),
