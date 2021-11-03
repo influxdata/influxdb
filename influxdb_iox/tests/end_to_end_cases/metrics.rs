@@ -38,7 +38,7 @@ pub async fn test_row_timestamp() {
 
 #[tokio::test]
 pub async fn test_jemalloc_metrics() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared_database().await;
 
     let client = reqwest::Client::new();
     let url = format!("{}/metrics", server_fixture.http_base());

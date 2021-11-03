@@ -4,8 +4,8 @@ use tonic::Code;
 use crate::common::server_fixture::ServerFixture;
 
 #[tokio::test]
-async fn test_serving_readiness() {
-    let server_fixture = ServerFixture::create_single_use().await;
+async fn test_serving_readiness_database() {
+    let server_fixture = ServerFixture::create_single_use_database().await;
     let mut deployment_client = server_fixture.deployment_client();
     let mut mgmt_client = server_fixture.management_client();
     let mut write_client = server_fixture.write_client();
@@ -46,9 +46,19 @@ async fn test_serving_readiness() {
     write_client.write(name, lp_data).await.unwrap();
 }
 
+// TODO(marco): add `test_serving_readiness_router` once we have some other API that we could use for testing
+
 #[tokio::test]
-async fn test_set_get_writer_id() {
-    let server_fixture = ServerFixture::create_single_use().await;
+async fn test_set_get_writer_id_database() {
+    assert_set_get_writer_id(ServerFixture::create_single_use_database().await).await;
+}
+
+#[tokio::test]
+async fn test_set_get_writer_id_router() {
+    assert_set_get_writer_id(ServerFixture::create_single_use_router().await).await;
+}
+
+async fn assert_set_get_writer_id(server_fixture: ServerFixture) {
     let mut client = server_fixture.deployment_client();
 
     const TEST_ID: u32 = 42;

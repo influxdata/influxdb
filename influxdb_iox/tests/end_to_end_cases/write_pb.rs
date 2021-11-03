@@ -5,7 +5,7 @@ use generated_types::influxdata::pbdata::v1 as pb;
 
 #[tokio::test]
 pub async fn test_write_pb() {
-    let fixture = ServerFixture::create_single_use().await;
+    let fixture = ServerFixture::create_single_use_database().await;
     fixture
         .management_client()
         .update_server_id(42)

@@ -3,7 +3,7 @@ use crate::common::server_fixture::ServerFixture;
 
 #[tokio::test]
 pub async fn test() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared_database().await;
     let mut management_client = server_fixture.management_client();
     let influxdb2 = server_fixture.influxdb2_client();
 

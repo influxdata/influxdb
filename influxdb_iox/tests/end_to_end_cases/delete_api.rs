@@ -7,7 +7,7 @@ use crate::common::server_fixture::ServerFixture;
 #[tokio::test]
 async fn test_delete() {
     test_helpers::maybe_start_logging();
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared_database().await;
     let mut write_client = fixture.write_client();
     let mut management_client = fixture.management_client();
     let mut delete_client = fixture.delete_client();

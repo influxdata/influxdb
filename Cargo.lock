@@ -1639,6 +1639,7 @@ dependencies = [
  "rand",
  "read_buffer",
  "reqwest",
+ "router",
  "rustyline",
  "serde",
  "serde_json",
@@ -3562,6 +3563,17 @@ dependencies = [
  "untrusted",
  "web-sys",
  "winapi",
+]
+
+[[package]]
+name = "router"
+version = "0.1.0"
+dependencies = [
+ "data_types",
+ "metric",
+ "parking_lot",
+ "snafu",
+ "trace",
 ]
 
 [[package]]

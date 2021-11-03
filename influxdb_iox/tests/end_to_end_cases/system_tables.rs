@@ -5,7 +5,7 @@ use super::scenario::{collect_query, create_readable_database, list_chunks, rand
 
 #[tokio::test]
 async fn test_operations() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared_database().await;
 
     let mut management_client = fixture.management_client();
     let mut write_client = fixture.write_client();

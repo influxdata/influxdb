@@ -8,7 +8,7 @@ use super::scenario::{rand_name, DatabaseBuilder};
 
 #[tokio::test]
 async fn test_mub_freeze() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared_database().await;
     let mut write_client = fixture.write_client();
 
     let db_name = rand_name();

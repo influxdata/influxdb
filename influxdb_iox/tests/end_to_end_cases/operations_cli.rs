@@ -6,7 +6,7 @@ use predicates::prelude::*;
 
 #[tokio::test]
 async fn test_start_stop() {
-    let server_fixture = ServerFixture::create_single_use().await;
+    let server_fixture = ServerFixture::create_single_use_database().await;
     let addr = server_fixture.grpc_base();
     let duration = std::time::Duration::from_secs(10).as_nanos() as u64;
 

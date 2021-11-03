@@ -2,7 +2,7 @@ use crate::common::server_fixture::ServerFixture;
 
 #[tokio::test]
 async fn test_list_update_remotes() {
-    let server_fixture = ServerFixture::create_single_use().await;
+    let server_fixture = ServerFixture::create_single_use_database().await;
     let mut client = server_fixture.remote_client();
 
     const TEST_REMOTE_ID_1: u32 = 42;

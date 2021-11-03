@@ -8,7 +8,7 @@ use super::scenario::rand_name;
 
 #[tokio::test]
 pub async fn test() {
-    let server_fixture = ServerFixture::create_single_use().await;
+    let server_fixture = ServerFixture::create_single_use_database().await;
     let db_name = rand_name();
     let addr = server_fixture.grpc_base();
 

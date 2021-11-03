@@ -4,7 +4,7 @@ use std::time::Duration;
 
 #[tokio::test]
 async fn test_operations() {
-    let server_fixture = ServerFixture::create_single_use().await;
+    let server_fixture = ServerFixture::create_single_use_database().await;
     let mut management_client = server_fixture.management_client();
     let mut operations_client = server_fixture.operations_client();
 

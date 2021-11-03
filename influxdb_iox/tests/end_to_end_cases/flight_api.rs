@@ -4,7 +4,7 @@ use arrow_util::assert_batches_sorted_eq;
 
 #[tokio::test]
 pub async fn test() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared_database().await;
 
     let influxdb2 = server_fixture.influxdb2_client();
     let mut management_client = server_fixture.management_client();
@@ -33,7 +33,7 @@ pub async fn test() {
 
 #[tokio::test]
 pub async fn test_no_rows() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared_database().await;
 
     let db_name = rand_name();
     create_readable_database(&db_name, server_fixture.grpc_channel()).await;

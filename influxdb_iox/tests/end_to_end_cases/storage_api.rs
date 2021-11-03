@@ -20,7 +20,7 @@ use std::str;
 
 #[tokio::test]
 pub async fn test() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared_database().await;
 
     let influxdb2 = server_fixture.influxdb2_client();
     let mut storage_client = StorageClient::new(server_fixture.grpc_channel());
@@ -296,7 +296,7 @@ async fn measurement_fields_endpoint(
 
 #[tokio::test]
 pub async fn regex_operator_test() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared_database().await;
     let mut management = fixture.management_client();
     let mut storage_client = StorageClient::new(fixture.grpc_channel());
     let influxdb2 = fixture.influxdb2_client();
@@ -337,7 +337,7 @@ pub async fn regex_operator_test() {
 
 /// Creates and loads the common data for read_group
 async fn read_group_setup() -> (ServerFixture, Scenario) {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared_database().await;
     let mut management = fixture.management_client();
     let influxdb2 = fixture.influxdb2_client();
 
@@ -631,7 +631,7 @@ async fn test_read_group_last_agg() {
 // Standalone test that all the pipes are hooked up for read window aggregate
 #[tokio::test]
 pub async fn read_window_aggregate_test() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared_database().await;
     let mut management = fixture.management_client();
     let mut storage_client = StorageClient::new(fixture.grpc_channel());
     let influxdb2 = fixture.influxdb2_client();

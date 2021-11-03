@@ -4,11 +4,15 @@ use structopt::StructOpt;
 use crate::structopt_blocks::run_config::RunConfig;
 
 pub mod database;
+pub mod router;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Error in database subcommand: {}", source))]
     DatabaseError { source: database::Error },
+
+    #[snafu(display("Error in router subcommand: {}", source))]
+    RouterError { source: router::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -29,6 +33,7 @@ impl Config {
         match &self.command {
             None => &self.database_config.run_config,
             Some(Command::Database(config)) => &config.run_config,
+            Some(Command::Router(config)) => &config.run_config,
         }
     }
 }
@@ -36,6 +41,7 @@ impl Config {
 #[derive(Debug, StructOpt)]
 enum Command {
     Database(database::Config),
+    Router(router::Config),
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -49,5 +55,6 @@ pub async fn command(config: Config) -> Result<()> {
                 .context(DatabaseError)
         }
         Some(Command::Database(config)) => database::command(config).await.context(DatabaseError),
+        Some(Command::Router(config)) => router::command(config).await.context(RouterError),
     }
 }

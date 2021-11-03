@@ -10,6 +10,7 @@ use super::rpc::RpcBuilderInput;
 
 pub mod common_state;
 pub mod database;
+pub mod router;
 
 /// Constants used in API error codes.
 ///

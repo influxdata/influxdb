@@ -29,7 +29,7 @@ async fn writes_go_to_write_buffer() {
     let write_buffer_dir = TempDir::new().unwrap();
 
     // set up a database with a write buffer pointing at write buffer
-    let server = ServerFixture::create_shared().await;
+    let server = ServerFixture::create_shared_database().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
         direction: WriteBufferDirection::Write.into(),
@@ -77,7 +77,7 @@ async fn writes_go_to_write_buffer_whitelist() {
     let write_buffer_dir = TempDir::new().unwrap();
 
     // set up a database with a write buffer pointing at write buffer
-    let server = ServerFixture::create_shared().await;
+    let server = ServerFixture::create_shared_database().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
         direction: WriteBufferDirection::Write.into(),
@@ -127,7 +127,7 @@ async fn reads_come_from_write_buffer() {
     let write_buffer_dir = TempDir::new().unwrap();
 
     // set up a database to read from write buffer
-    let server = ServerFixture::create_shared().await;
+    let server = ServerFixture::create_shared_database().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
         direction: WriteBufferDirection::Read.into(),
@@ -229,7 +229,7 @@ async fn cant_write_to_db_reading_from_write_buffer() {
     let write_buffer_dir = TempDir::new().unwrap();
 
     // set up a database to read from write buffer
-    let server = ServerFixture::create_shared().await;
+    let server = ServerFixture::create_shared_database().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
         direction: WriteBufferDirection::Read.into(),
@@ -269,7 +269,7 @@ async fn test_create_database_missing_write_buffer_sequencers() {
     let write_buffer_dir = TempDir::new().unwrap();
 
     // set up a database to read from write buffer
-    let server = ServerFixture::create_shared().await;
+    let server = ServerFixture::create_shared_database().await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
         direction: WriteBufferDirection::Read.into(),

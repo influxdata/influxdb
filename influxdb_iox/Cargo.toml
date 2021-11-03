@@ -29,6 +29,7 @@ parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
 query = { path = "../query" }
 read_buffer = { path = "../read_buffer" }
+router = { path = "../router" }
 server = { path = "../server" }
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }

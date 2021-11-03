@@ -2,7 +2,7 @@ use crate::common::server_fixture::ServerFixture;
 
 #[tokio::test]
 async fn test_http_error_messages() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared_database().await;
     let client = server_fixture.influxdb2_client();
 
     // send malformed request (bucket id is invalid)
