@@ -4,8 +4,6 @@ use crate::{field::FieldGeneratorImpl, specification, substitution, tag_pair::Ta
 
 use crate::tag_set::{GeneratedTagSets, TagSet};
 use influxdb2_client::models::WriteDataPoint;
-use rand::rngs::SmallRng;
-use rand::SeedableRng;
 use serde_json::json;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::fmt::Debug;
@@ -119,33 +117,24 @@ impl MeasurementGenerator {
         )
         .context(CouldNotCreateMeasurementName)?;
 
-        let mut rng = rand::thread_rng();
-
         let fields = spec
             .fields
             .iter()
             .map(|field_spec| {
-                // TODO: add field count here
-                //                let count = field_spec.count.unwrap_or(1);
-
-                let field_id = 1;
                 let data = json!({
                     "agent": {"id": agent_id},
                     "measurement": {"id": measurement_id, "name": &measurement_name},
-                    "field": {"id": field_id}
                 });
 
-                FieldGeneratorImpl::new(
-                    field_spec,
-                    data,
-                    SmallRng::from_rng(&mut rng).expect("SmallRng should always create"),
-                    execution_start_time,
-                )
+                FieldGeneratorImpl::from_spec(field_spec, data, execution_start_time)
             })
-            .collect::<crate::field::Result<_>>()
+            .collect::<crate::field::Result<Vec<_>>>()
             .context(CouldNotCreateFieldGeneratorSets {
                 name: &measurement_name,
-            })?;
+            })?
+            .into_iter()
+            .flatten()
+            .collect();
 
         // generate the tag pairs
         let template_data = json!({
@@ -180,14 +169,14 @@ impl MeasurementGenerator {
             .iter()
             .enumerate()
             .map(|(i, p)| (p.key(), TagOrdering::Pair(i)))
+            .chain(
+                generated_tag_sets[0]
+                    .tags
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| (p.key.to_string(), TagOrdering::Generated(i))),
+            )
             .collect();
-        let mut generated: Vec<_> = generated_tag_sets[0]
-            .tags
-            .iter()
-            .enumerate()
-            .map(|(i, p)| (p.key.to_string(), TagOrdering::Generated(i)))
-            .collect();
-        tag_ordering.append(&mut generated);
         tag_ordering.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         let tag_ordering: Vec<_> = tag_ordering.into_iter().map(|(_, o)| o).collect();
 

@@ -381,7 +381,7 @@ i64_range = [3,3]"#;
         )
         .await?;
 
-        let line_protocol = points_writer_builder.written_data(0);
+        let line_protocol = points_writer_builder.written_data(1);
 
         let expected_line_protocol = format!(
             r#"cpu val=3i {}
@@ -425,7 +425,7 @@ i64_range = [2, 2]"#;
         )
         .await?;
 
-        let line_protocol = points_writer_builder.written_data(0);
+        let line_protocol = points_writer_builder.written_data(1);
 
         let expected_line_protocol = format!(
             r#"cpu val=2i {}

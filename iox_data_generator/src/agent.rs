@@ -55,7 +55,6 @@ pub enum Error {
 pub struct Agent {
     /// identifier for the agent. This can be used in generated tags and fields
     pub id: usize,
-    #[allow(dead_code)]
     measurement_generators: Vec<MeasurementGenerator>,
     sampling_interval: Option<Duration>,
     /// nanoseconds since the epoch, used as the timestamp for the next
@@ -74,9 +73,8 @@ pub struct Agent {
 }
 
 impl Agent {
-    /// Create a angents that will generate data points according to these
+    /// Create agents that will generate data points according to these
     /// specs.
-    #[allow(clippy::too_many_arguments)]
     pub fn from_spec(
         agent_spec: &specification::AgentSpec,
         start_datetime: Option<i64>, // in nanoseconds since the epoch, defaults to now
@@ -87,7 +85,7 @@ impl Agent {
     ) -> Result<Vec<Self>> {
         let agent_count = agent_spec.count.unwrap_or(1);
 
-        let agents: Vec<_> = (0..agent_count)
+        let agents: Vec<_> = (1..agent_count + 1)
             .into_iter()
             .map(|agent_id| {
                 let data = json!({"agent": {"id": agent_id}});
@@ -152,7 +150,7 @@ impl Agent {
             let batch_start = Instant::now();
             points_this_batch = 0;
 
-            let mut streams: Vec<_> = Vec::with_capacity(batch_size);
+            let mut streams = Vec::with_capacity(batch_size);
             for _ in 0..batch_size {
                 let mut s = self.generate().await?;
                 if s.is_empty() {
@@ -188,14 +186,14 @@ impl Agent {
 
     /// Generate data points from the configuration in this agent.
     pub async fn generate(&mut self) -> Result<Vec<MeasurementLineIterator>> {
-        let mut measurement_streams = Vec::new();
-
         debug!(
             "[agent {}]  generate more? {} current: {}, end: {}",
             self.id, self.finished, self.current_datetime, self.end_datetime
         );
 
         if !self.finished {
+            let mut measurement_streams = Vec::with_capacity(self.measurement_generators.len());
+
             // Save the current_datetime to use in the set of points that we're generating
             // because we might increment current_datetime to see if we're done
             // or not.
@@ -227,9 +225,11 @@ impl Agent {
                         .context(CouldNotGeneratePoint)?,
                 );
             }
-        }
 
-        Ok(measurement_streams)
+            Ok(measurement_streams)
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     /// Sets the current date and time for the agent and resets its finished state to false. Enables

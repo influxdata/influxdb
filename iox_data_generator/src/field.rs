@@ -8,6 +8,7 @@ use crate::{
 use handlebars::Handlebars;
 use rand::rngs::SmallRng;
 use rand::Rng;
+use rand::SeedableRng;
 use serde_json::json;
 use serde_json::Value;
 use snafu::{ResultExt, Snafu};
@@ -26,7 +27,7 @@ pub enum Error {
     #[snafu(display("Could not compile string field template: {}", source))]
     CouldNotCompileStringTemplate { source: handlebars::TemplateError },
 
-    #[snafu(display("Could not compile string field template: {}", source))]
+    #[snafu(display("Could not render string field template: {}", source))]
     CouldNotRenderStringTemplate { source: handlebars::RenderError },
 }
 
@@ -46,49 +47,65 @@ pub enum FieldGeneratorImpl {
 }
 
 impl FieldGeneratorImpl {
-    /// Create a new generator based on a field spec
-    pub fn new(
+    /// Create fields that will generate according to the spec
+    pub fn from_spec(
         spec: &specification::FieldSpec,
         data: Value,
-        rng: SmallRng,
         execution_start_time: i64,
-    ) -> Result<Self> {
+    ) -> Result<Vec<Self>> {
         use specification::FieldValueSpec::*;
 
-        let field_name = substitution::render_once("field", &spec.name, &data)
-            .context(CouldNotCreateFieldName)?;
+        let field_count = spec.count.unwrap_or(1);
 
-        Ok(match &spec.field_value_spec {
-            Bool(true) => Self::Bool(BooleanFieldGenerator::new(&field_name, rng)),
-            Bool(false) => unimplemented!("Not sure what false means for bool fields yet"),
-            I64 {
-                range,
-                increment,
-                reset_after,
-            } => Self::I64(I64FieldGenerator::new(
-                &field_name,
-                range,
-                *increment,
-                *reset_after,
-                rng,
-            )),
-            F64 { range } => Self::F64(F64FieldGenerator::new(&field_name, range, rng)),
-            String {
-                pattern,
-                replacements,
-            } => Self::String(Box::new(StringFieldGenerator::new(
-                &field_name,
-                pattern,
-                data,
-                replacements.to_vec(),
-                rng,
-            )?)),
-            Uptime { kind } => Self::Uptime(UptimeFieldGenerator::new(
-                &field_name,
-                kind,
-                execution_start_time,
-            )),
-        })
+        let mut fields = Vec::with_capacity(field_count);
+
+        for field_id in 1..field_count + 1 {
+            let mut data = data.clone();
+            let d = data.as_object_mut().expect("data must be object");
+            d.insert("field".to_string(), json!({ "id": field_id }));
+
+            let field_name = substitution::render_once("field", &spec.name, &data)
+                .context(CouldNotCreateFieldName)?;
+
+            let rng =
+                SmallRng::from_rng(&mut rand::thread_rng()).expect("SmallRng should always create");
+
+            let field = match &spec.field_value_spec {
+                Bool(true) => Self::Bool(BooleanFieldGenerator::new(&field_name, rng)),
+                Bool(false) => unimplemented!("Not sure what false means for bool fields yet"),
+                I64 {
+                    range,
+                    increment,
+                    reset_after,
+                } => Self::I64(I64FieldGenerator::new(
+                    &field_name,
+                    range,
+                    *increment,
+                    *reset_after,
+                    rng,
+                )),
+                F64 { range } => Self::F64(F64FieldGenerator::new(&field_name, range, rng)),
+                String {
+                    pattern,
+                    replacements,
+                } => Self::String(Box::new(StringFieldGenerator::new(
+                    &field_name,
+                    pattern,
+                    data,
+                    replacements.to_vec(),
+                    rng,
+                )?)),
+                Uptime { kind } => Self::Uptime(UptimeFieldGenerator::new(
+                    &field_name,
+                    kind,
+                    execution_start_time,
+                )),
+            };
+
+            fields.push(field);
+        }
+
+        Ok(fields)
     }
 
     /// Writes the field in line protocol to the passed writer
@@ -320,7 +337,7 @@ impl UptimeFieldGenerator {
         elapsed.as_secs() as i64
     }
 
-    /// Generates the uptime as a string, which is what should be used if `self.kind == specification::UptimeKind::Telegraf
+    /// Generates the uptime as a string, which is what should be used if `self.kind == specification::UptimeKind::Telegraf`
     pub fn generate_value_as_string(&mut self) -> String {
         let elapsed_seconds = self.generate_value();
         let days = elapsed_seconds / (60 * 60 * 24);

@@ -77,10 +77,8 @@ pub enum Error {
     },
 
     /// Error that may happen when constructing an agent's writer
-    #[snafu(display("Could not create writer for agent `{}`, caused by:\n{}", name, source))]
+    #[snafu(display("Could not create writer for agent, caused by:\n{}", source))]
     CouldNotCreateAgentWriter {
-        /// The name of the relevant agent
-        name: String,
         /// Underlying `write` module error that caused this problem
         source: write::Error,
     },
@@ -140,7 +138,7 @@ pub async fn generate(
     for mut agent in agents {
         let agent_points_writer = points_writer_builder
             .build_for_agent(agent.id)
-            .context(CouldNotCreateAgentWriter { name: "whatevs" })?;
+            .context(CouldNotCreateAgentWriter)?;
 
         let lock_ref = Arc::clone(&lock);
 

@@ -176,7 +176,7 @@ pub struct TagPairSpec {
     /// The tag key. If `count` is specified, the id of the tag will be automatically
     /// appended to the end of the key to ensure it is unique.
     pub key: String,
-    /// The template the generate the tag value
+    /// The template to generate the tag value
     pub template: String,
     /// If specified, this number of tags will be generated with this template. Each will
     /// have a key of `key#` where # is the number. Useful for creating a degenerate case

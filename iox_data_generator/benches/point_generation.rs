@@ -63,7 +63,6 @@ pub fn single_agent(c: &mut Criterion) {
 pub fn agent_pre_generated(c: &mut Criterion) {
     let spec: DataSpec = toml::from_str(r#"
 name = "storage_cardinality_example"
-base_seed = "this is a demo"
 
 # Values are automatically generated before the agents are intialized. They generate tag key/value pairs
 # with the name of the value as the tag key and the evaluated template as the value. These pairs
@@ -124,7 +123,6 @@ for_each = [
 ]
 
 [[agents]]
-name = "metric-scraper"
 # create this many agents
 count = 3
 
