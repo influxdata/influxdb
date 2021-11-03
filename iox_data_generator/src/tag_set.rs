@@ -1,5 +1,6 @@
 //! Code for defining values and tag sets with tags that are dependent on other tags.
 
+use crate::now_ns;
 use crate::specification::{DataSpec, ValuesSpec};
 use crate::substitution::new_handlebars_registry;
 use crate::tag_pair::StaticTagPair;
@@ -306,6 +307,7 @@ impl GeneratedTagSets {
 
                 for i in 1..(spec.cardinality + 1) {
                     id_map.insert("id", i);
+                    id_map.insert("timestamp", now_ns() as usize);
                     let rendered_value =
                         template
                             .render(&spec.name, &id_map)

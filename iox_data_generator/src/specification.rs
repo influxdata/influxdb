@@ -150,7 +150,6 @@ pub struct MeasurementSpec {
     /// - `{{agent.id}}` - the agent ID
     /// - `{{measurement.id}}` - the measurement's ID, which must be used if
     ///   `count` > 1 so that unique measurement names are created
-    /// - `{{id}}` - the measurement ID
     pub name: String,
     /// The number of measurements with this configuration that should be
     /// created. Default value is 1. If specified, use `{{id}}`
@@ -200,9 +199,9 @@ pub struct FieldSpec {
     /// Key/name for this field. Can be a plain string or a string with
     /// placeholders for:
     ///
-    /// - `{{agent_id}}` - the agent ID
-    /// - `{{measurement_id}}` - the measurement ID
-    /// - `{{field_id}}` - the field ID, which must be used if `count` > 1 so
+    /// - `{{agent.id}}` - the agent ID
+    /// - `{{measurement.id}}` - the measurement ID
+    /// - `{{field.id}}` - the field ID, which must be used if `count` > 1 so
     ///   that unique field names are created
     pub name: String,
     /// Specification for the value for this field.
@@ -225,7 +224,7 @@ impl From<FieldSpecIntermediate> for FieldSpec {
             FieldValueSpec::F64 {
                 range: (start..end),
             }
-        } else if let Some(pattern) = value.pattern {
+        } else if let Some(pattern) = value.template {
             FieldValueSpec::String {
                 pattern,
                 replacements: value.replacements,
@@ -384,13 +383,11 @@ struct FieldSpecIntermediate {
     ///
     /// Valid placeholders include:
     ///
-    /// - `{{agent_name}}` - the agent spec's name, with any replacements done
-    /// - `{{time}}` - the current time in nanoseconds since the epoch. TODO:
-    ///   support specifying a strftime
+    /// - `{{agent.id}}` - the agent spec's name, with any replacements done
     /// - any other placeholders as specified in `replacements`. If a
     ///   placeholder has no value specified in `replacements`, it will end up
     ///   as-is in the field value.
-    pattern: Option<String>,
+    template: Option<String>,
     /// A list of replacement placeholders and the values to replace them with.
     /// If a placeholder specified here is not used in `pattern`, it will
     /// have no effect. The values may optionally have a probability weight
@@ -492,7 +489,7 @@ name = "cpu"
 
 [[agents.measurements.fields]]
 name = "host"
-pattern = "server"
+template = "server"
 "#;
         let spec = DataSpec::from_str(toml).unwrap();
 
