@@ -60,7 +60,6 @@ impl ServerType for RouterServerType {
 
     async fn background_worker(self: Arc<Self>) {
         self.shutdown.cancelled().await;
-        // no background worker
     }
 
     fn shutdown_background_worker(&self) {
