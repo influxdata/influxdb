@@ -7,8 +7,9 @@ use http::{HeaderMap, HeaderValue};
 
 use data_types::sequence::Sequence;
 use entry::{Entry, SequencedEntry};
-use mutable_batch::DbWrite;
+use mutable_batch::{DbWrite, WriteMeta};
 use mutable_batch_entry::sequenced_entry_to_write;
+use mutable_batch_pb::decode::decode_database_batch;
 use time::Time;
 use trace::ctx::SpanContext;
 use trace::TraceCollector;
@@ -26,6 +27,10 @@ use crate::core::WriteBufferError;
 pub const CONTENT_TYPE_FLATBUFFER: &str =
     r#"application/x-flatbuffers; schema="influxdata.iox.write.v1.Entry""#;
 
+/// Pbdata based content type
+pub const CONTENT_TYPE_PROTOBUF: &str =
+    r#"application/x-protobuf; schema="influxdata.iox.write_buffer.v1.WriteBufferPayload""#;
+
 /// Message header that determines message content type.
 pub const HEADER_CONTENT_TYPE: &str = "content-type";
 
@@ -35,6 +40,7 @@ pub const HEADER_TRACE_CONTEXT: &str = "uber-trace-id";
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ContentType {
     Entry,
+    Protobuf,
 }
 
 /// IOx-specific headers attached to every write buffer message.
@@ -119,6 +125,7 @@ impl IoxHeaders {
     pub fn headers(&self) -> impl Iterator<Item = (&str, Cow<'static, str>)> + '_ {
         let content_type = match self.content_type {
             ContentType::Entry => CONTENT_TYPE_FLATBUFFER.into(),
+            ContentType::Protobuf => CONTENT_TYPE_PROTOBUF.into(),
         };
 
         std::iter::once((HEADER_CONTENT_TYPE, content_type)).chain(
@@ -141,6 +148,9 @@ pub fn decode(
     sequence: Sequence,
     producer_ts: Time,
 ) -> Result<DbWrite, WriteBufferError> {
+    use generated_types::influxdata::iox::write_buffer::v1::write_buffer_payload::Payload;
+    use generated_types::influxdata::iox::write_buffer::v1::WriteBufferPayload;
+
     match headers.content_type {
         ContentType::Entry => {
             let entry = Entry::try_from(data.to_vec())?;
@@ -152,14 +162,36 @@ pub fn decode(
             );
             sequenced_entry_to_write(&entry).map_err(|e| Box::new(e) as WriteBufferError)
         }
+        ContentType::Protobuf => {
+            let payload: WriteBufferPayload = prost::Message::decode(data)
+                .map_err(|e| format!("failed to decode WriteBufferPayload: {}", e))?;
+
+            let payload = payload.payload.ok_or_else(|| "no payload".to_string())?;
+            let tables = match &payload {
+                Payload::Write(write) => decode_database_batch(write)
+                    .map_err(|e| format!("failed to decode database batch: {}", e))?,
+            };
+
+            Ok(DbWrite::new(
+                tables,
+                WriteMeta::new(
+                    Some(sequence),
+                    Some(producer_ts),
+                    headers.span_context,
+                    Some(data.len()),
+                ),
+            ))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::core::test_utils::assert_span_context_eq;
     use trace::RingBufferTraceCollector;
+
+    use crate::core::test_utils::assert_span_context_eq;
+
+    use super::*;
 
     #[test]
     fn headers_roundtrip() {

@@ -1,11 +1,11 @@
 //! Code to decode [`MutableBatch`] from pbdata protobuf
 
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use generated_types::influxdata::pbdata::v1::{
     column::{SemanticType, Values as PbValues},
-    Column as PbColumn, PackedStrings, TableBatch,
+    Column as PbColumn, DatabaseBatch, PackedStrings, TableBatch,
 };
 use mutable_batch::{writer::Writer, MutableBatch};
 use schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
@@ -56,6 +56,21 @@ pub enum Error {
 
 /// Result type for pbdata conversion
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Decodes a [`DatabaseBatch`] to a map of [`MutableBatch`] keyed by table name
+pub fn decode_database_batch(
+    database_batch: &DatabaseBatch,
+) -> Result<HashMap<String, MutableBatch>> {
+    let mut ret = HashMap::with_capacity(database_batch.table_batches.len());
+    for table_batch in &database_batch.table_batches {
+        let (_, batch) = ret
+            .raw_entry_mut()
+            .from_key(table_batch.table_name.as_str())
+            .or_insert_with(|| (table_batch.table_name.clone(), MutableBatch::new()));
+        write_table_batch(batch, table_batch)?;
+    }
+    Ok(ret)
+}
 
 /// Writes the provided [`TableBatch`] to a [`MutableBatch`] on error any changes made
 /// to `batch` are reverted

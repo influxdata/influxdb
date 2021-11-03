@@ -2,6 +2,8 @@ syntax = "proto3";
 package influxdata.iox.write_buffer.v1;
 option go_package = "github.com/influxdata/iox/write_buffer/v1";
 
+import "influxdata/pbdata/v1/influxdb_pb_data_protocol.proto";
+
 // Configures the use of a write buffer.
 message WriteBufferConnection {
   enum Direction {
@@ -55,4 +57,11 @@ message WriteBufferCreationConfig {
   //
   // Contains 0 or more key value pairs
   map<string, string> options = 2;
+}
+
+// A write payload for the write buffer
+message WriteBufferPayload {
+  oneof payload {
+    influxdata.pbdata.v1.DatabaseBatch write = 1;
+  }
 }
