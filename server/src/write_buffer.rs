@@ -142,7 +142,7 @@ async fn stream_in_sequenced_entries<'a>(
             Ok(db_write) => db_write,
             // skip over invalid data in the write buffer so recovery can succeed
             Err(e) => {
-                debug!(
+                warn!(
                     %e,
                     %db_name,
                     sequencer_id,
