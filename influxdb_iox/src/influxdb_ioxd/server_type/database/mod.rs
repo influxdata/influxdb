@@ -112,8 +112,7 @@ where
     }
 
     fn shutdown_background_worker(&self) {
-        self.server.shutdown();
-        self.application.join();
+        self.shutdown.cancel();
     }
 }
 

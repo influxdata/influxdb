@@ -18,7 +18,7 @@ struct ManagementService<M: ConnectionManager> {
     serving_readiness: ServingReadiness,
 }
 
-use crate::influxdb_ioxd::rpc::error::{
+use super::error::{
     default_database_error_handler, default_db_error_handler, default_server_error_handler,
 };
 use crate::influxdb_ioxd::serving_readiness::ServingReadiness;

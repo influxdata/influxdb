@@ -27,7 +27,8 @@ use observability_deps::tracing::{info, warn};
 use query::exec::{ExecutionContextProvider, IOxExecutionContext};
 use server::{connection::ConnectionManager, Server};
 
-use crate::influxdb_ioxd::{planner::Planner, rpc::error::default_server_error_handler};
+use super::error::default_server_error_handler;
+use crate::influxdb_ioxd::planner::Planner;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]

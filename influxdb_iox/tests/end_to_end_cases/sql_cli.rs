@@ -1,7 +1,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 
-use crate::common::server_fixture::ServerFixture;
+use crate::common::server_fixture::{ServerFixture, ServerType};
 
 use super::scenario::{create_readable_database, create_two_partition_database, rand_name};
 
@@ -23,7 +23,7 @@ async fn test_error_connecting() {
 
 #[tokio::test]
 async fn test_basic() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -41,7 +41,7 @@ async fn test_basic() {
 
 #[tokio::test]
 async fn test_help() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -60,7 +60,7 @@ async fn test_help() {
 
 #[tokio::test]
 async fn test_exit() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -76,7 +76,7 @@ async fn test_exit() {
 
 #[tokio::test]
 async fn test_sql_show_databases() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
 
     let db_name1 = rand_name();
@@ -102,7 +102,7 @@ async fn test_sql_show_databases() {
 
 #[tokio::test]
 async fn test_sql_use_database() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
 
     let db_name = rand_name();
@@ -130,7 +130,7 @@ async fn test_sql_use_database() {
 
 #[tokio::test]
 async fn test_sql_format() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
 
     let db_name = rand_name();
@@ -175,7 +175,7 @@ foo,4,514,2020-06-23T06:38:30.000000000,519
 
 #[tokio::test]
 async fn test_sql_observer() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
 
     let expected_output = "You are now in Observer mode";
@@ -195,7 +195,7 @@ async fn test_sql_observer() {
 #[tokio::test]
 async fn test_sql_observer_chunks() {
     // test chunks aggregated table
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
 
     let db_name1 = rand_name();
@@ -244,7 +244,7 @@ order by
 #[tokio::test]
 async fn test_sql_observer_columns() {
     // test columns aggregated table
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
 
     let db_name = rand_name();
@@ -290,7 +290,7 @@ order by
 #[tokio::test]
 async fn test_sql_observer_operations() {
     // test columns aggregated table
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
 
     let db_name = rand_name();

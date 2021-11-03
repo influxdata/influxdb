@@ -39,6 +39,7 @@ members = [
     "query",
     "query_tests",
     "read_buffer",
+    "router",
     "schema",
     "server",
     "server_benchmarks",

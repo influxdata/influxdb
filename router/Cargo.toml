@@ -1,0 +1,11 @@
+[package]
+name = "router"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+data_types = { path = "../data_types" }
+metric = { path = "../metric" }
+trace = { path = "../trace" }
+parking_lot = "0.11.2"
+snafu = "0.6"

@@ -1,11 +1,11 @@
-use crate::common::server_fixture::ServerFixture;
+use crate::common::server_fixture::{ServerFixture, ServerType};
 use arrow_util::assert_batches_eq;
 
 use super::scenario::{collect_query, create_readable_database, list_chunks, rand_name};
 
 #[tokio::test]
 async fn test_operations() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
 
     let mut management_client = fixture.management_client();
     let mut write_client = fixture.write_client();

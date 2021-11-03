@@ -143,12 +143,18 @@ pub mod grpc {
     }
 }
 
+/// gRPC Deployment Service
+pub const DEPLOYMENT_SERVICE: &str = "influxdata.iox.deployment.v1.DeploymentService";
+
 /// gRPC Storage Service
 pub const STORAGE_SERVICE: &str = "influxdata.platform.storage.Storage";
+
 /// gRPC Testing Service
 pub const IOX_TESTING_SERVICE: &str = "influxdata.platform.storage.IOxTesting";
+
 /// gRPC Arrow Flight Service
 pub const ARROW_SERVICE: &str = "arrow.flight.protocol.FlightService";
+
 /// The type prefix for any types
 pub const ANY_TYPE_PREFIX: &str = "type.googleapis.com";
 

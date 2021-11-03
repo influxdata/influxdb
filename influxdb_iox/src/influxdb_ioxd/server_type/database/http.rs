@@ -271,15 +271,11 @@ impl From<server::Error> for ApplicationError {
 
 pub async fn route_request<M>(
     server_type: &DatabaseServerType<M>,
-    mut req: Request<Body>,
+    req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    // we don't need the authorization header and we don't want to accidentally log it.
-    req.headers_mut().remove("authorization");
-    debug!(request = ?req,"Processing request");
-
     let method = req.method().clone();
     let uri = req.uri().clone();
 

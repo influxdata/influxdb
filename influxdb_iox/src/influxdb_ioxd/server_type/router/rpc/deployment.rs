@@ -3,23 +3,19 @@ use generated_types::{
     google::{FieldViolation, NotFound},
     influxdata::iox::deployment::v1::*,
 };
-use server::{connection::ConnectionManager, Error, Server};
-use std::{convert::TryFrom, fmt::Debug, sync::Arc};
+use router::server::RouterServer;
+use std::{convert::TryFrom, sync::Arc};
 use tonic::{Request, Response, Status};
 
-struct DeploymentService<M: ConnectionManager> {
-    server: Arc<Server<M>>,
+struct DeploymentService {
+    server: Arc<RouterServer>,
     serving_readiness: ServingReadiness,
 }
 
-use super::error::default_server_error_handler;
 use crate::influxdb_ioxd::serving_readiness::ServingReadiness;
 
 #[tonic::async_trait]
-impl<M> deployment_service_server::DeploymentService for DeploymentService<M>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+impl deployment_service_server::DeploymentService for DeploymentService {
     async fn get_server_id(
         &self,
         _: Request<GetServerIdRequest>,
@@ -34,19 +30,20 @@ where
         &self,
         request: Request<UpdateServerIdRequest>,
     ) -> Result<Response<UpdateServerIdResponse>, Status> {
+        use router::server::SetServerIdError;
+
         let id =
             ServerId::try_from(request.get_ref().id).map_err(|_| FieldViolation::required("id"))?;
 
-        match self.server.set_id(id) {
+        match self.server.set_server_id(id) {
             Ok(_) => Ok(Response::new(UpdateServerIdResponse {})),
-            Err(e @ Error::IdAlreadySet) => {
+            Err(e @ SetServerIdError::AlreadySet { .. }) => {
                 return Err(FieldViolation {
                     field: "id".to_string(),
                     description: e.to_string(),
                 }
                 .into())
             }
-            Err(e) => Err(default_server_error_handler(e)),
         }
     }
 
@@ -69,15 +66,12 @@ where
     }
 }
 
-pub fn make_server<M>(
-    server: Arc<Server<M>>,
+pub fn make_server(
+    server: Arc<RouterServer>,
     serving_readiness: ServingReadiness,
 ) -> deployment_service_server::DeploymentServiceServer<
     impl deployment_service_server::DeploymentService,
->
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+> {
     deployment_service_server::DeploymentServiceServer::new(DeploymentService {
         server,
         serving_readiness,

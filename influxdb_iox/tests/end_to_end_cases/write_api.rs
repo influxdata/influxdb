@@ -1,7 +1,10 @@
 use influxdb_iox_client::write::WriteError;
 use test_helpers::assert_contains;
 
-use crate::{common::server_fixture::ServerFixture, end_to_end_cases::scenario::DatabaseBuilder};
+use crate::{
+    common::server_fixture::{ServerFixture, ServerType},
+    end_to_end_cases::scenario::DatabaseBuilder,
+};
 
 use super::scenario::{create_readable_database, rand_name};
 use arrow_util::assert_batches_sorted_eq;
@@ -19,7 +22,7 @@ use std::collections::HashMap;
 
 #[tokio::test]
 async fn test_write() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
 
     // need a database that is easy to get into the hard buffer limit:
@@ -99,7 +102,7 @@ async fn test_write() {
 
 #[tokio::test]
 async fn test_write_entry() {
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
 
     let db_name = rand_name();
@@ -155,7 +158,7 @@ async fn test_write_routed() {
     const TEST_SHARD_ID_2: u32 = 43;
     const TEST_SHARD_ID_3: u32 = 44;
 
-    let router = ServerFixture::create_single_use().await;
+    let router = ServerFixture::create_single_use(ServerType::Database).await;
     let mut router_mgmt = router.management_client();
     router_mgmt
         .update_server_id(TEST_ROUTER_ID)
@@ -163,7 +166,7 @@ async fn test_write_routed() {
         .expect("set ID failed");
     router.wait_server_initialized().await;
 
-    let target_1 = ServerFixture::create_single_use().await;
+    let target_1 = ServerFixture::create_single_use(ServerType::Database).await;
     let mut target_1_mgmt = target_1.management_client();
     target_1_mgmt
         .update_server_id(TEST_TARGET_ID_1)
@@ -176,7 +179,7 @@ async fn test_write_routed() {
         .await
         .expect("set remote failed");
 
-    let target_2 = ServerFixture::create_single_use().await;
+    let target_2 = ServerFixture::create_single_use(ServerType::Database).await;
     let mut target_2_mgmt = target_2.management_client();
     target_2_mgmt
         .update_server_id(TEST_TARGET_ID_2)
@@ -189,7 +192,7 @@ async fn test_write_routed() {
         .await
         .expect("set remote failed");
 
-    let target_3 = ServerFixture::create_single_use().await;
+    let target_3 = ServerFixture::create_single_use(ServerType::Database).await;
     let mut target_3_mgmt = target_3.management_client();
     target_3_mgmt
         .update_server_id(TEST_TARGET_ID_3)
@@ -385,7 +388,7 @@ async fn test_write_routed_errors() {
     const TEST_REMOTE_ID: u32 = 2;
     const TEST_SHARD_ID: u32 = 42;
 
-    let router = ServerFixture::create_single_use().await;
+    let router = ServerFixture::create_single_use(ServerType::Database).await;
     let mut router_mgmt = router.management_client();
     router_mgmt
         .update_server_id(TEST_ROUTER_ID)
@@ -454,7 +457,7 @@ async fn test_write_dev_null() {
     const TEST_ROUTER_ID: u32 = 1;
     const TEST_SHARD_ID: u32 = 42;
 
-    let router = ServerFixture::create_single_use().await;
+    let router = ServerFixture::create_single_use(ServerType::Database).await;
     let mut router_mgmt = router.management_client();
     router_mgmt
         .update_server_id(TEST_ROUTER_ID)
@@ -529,7 +532,7 @@ async fn test_write_routed_no_shard() {
     const TEST_REMOTE_ID_2: u32 = 3;
     const TEST_REMOTE_ID_3: u32 = 4;
 
-    let router = ServerFixture::create_single_use().await;
+    let router = ServerFixture::create_single_use(ServerType::Database).await;
     let mut router_mgmt = router.management_client();
     router_mgmt
         .update_server_id(TEST_ROUTER_ID)
@@ -537,7 +540,7 @@ async fn test_write_routed_no_shard() {
         .expect("set ID failed");
     router.wait_server_initialized().await;
 
-    let target_1 = ServerFixture::create_single_use().await;
+    let target_1 = ServerFixture::create_single_use(ServerType::Database).await;
     let mut target_1_mgmt = target_1.management_client();
     target_1_mgmt
         .update_server_id(TEST_TARGET_ID_1)
@@ -550,7 +553,7 @@ async fn test_write_routed_no_shard() {
         .await
         .expect("set remote failed");
 
-    let target_2 = ServerFixture::create_single_use().await;
+    let target_2 = ServerFixture::create_single_use(ServerType::Database).await;
     let mut target_2_mgmt = target_2.management_client();
     target_2_mgmt
         .update_server_id(TEST_TARGET_ID_2)
@@ -563,7 +566,7 @@ async fn test_write_routed_no_shard() {
         .await
         .expect("set remote failed");
 
-    let target_3 = ServerFixture::create_single_use().await;
+    let target_3 = ServerFixture::create_single_use(ServerType::Database).await;
     let mut target_3_mgmt = target_3.management_client();
     target_3_mgmt
         .update_server_id(TEST_TARGET_ID_3)
@@ -706,7 +709,7 @@ async fn test_write_routed_no_shard() {
 #[tokio::test]
 async fn test_write_schema_mismatch() {
     // regression test for https://github.com/influxdata/influxdb_iox/issues/2538
-    let fixture = ServerFixture::create_shared().await;
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
 
     let db_name = rand_name();

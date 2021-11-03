@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::SocketAddrV4;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
@@ -99,26 +100,34 @@ enum InitialConfig {
 impl ServerFixture {
     /// Create a new server fixture and wait for it to be ready. This
     /// is called "create" rather than new because it is async and
-    /// waits. The shared database is configured with a writer id and
+    /// waits. The shared router is configured with a server id and
     /// can be used immediately
     ///
     /// This is currently implemented as a singleton so all tests *must*
-    /// use a new database and not interfere with the existing database.
-    pub async fn create_shared() -> Self {
+    /// use a new router and not interfere with the existing routers.
+    pub async fn create_shared(server_type: ServerType) -> Self {
         // Try and reuse the same shared server, if there is already
         // one present
-        static SHARED_SERVER: OnceCell<parking_lot::Mutex<Weak<TestServer>>> = OnceCell::new();
+        static SHARED_SERVERS: OnceCell<parking_lot::Mutex<HashMap<ServerType, Weak<TestServer>>>> =
+            OnceCell::new();
+        let shared_servers = SHARED_SERVERS.get_or_init(|| parking_lot::Mutex::new(HashMap::new()));
 
-        let shared_server = SHARED_SERVER.get_or_init(|| parking_lot::Mutex::new(Weak::new()));
-
-        let mut shared_server = shared_server.lock();
+        let mut shared_servers = shared_servers.lock();
 
         // is a shared server already present?
-        let server = match shared_server.upgrade() {
+        let server = match shared_servers
+            .get(&server_type)
+            .map(|x| x.upgrade())
+            .flatten()
+        {
             Some(server) => server,
             None => {
                 // if not, create one
-                let server = TestServer::new(Default::default());
+                let test_config = TestConfig {
+                    server_type,
+                    ..Default::default()
+                };
+                let server = TestServer::new(test_config);
                 let server = Arc::new(server);
 
                 // ensure the server is ready
@@ -126,21 +135,25 @@ impl ServerFixture {
                 // save a reference for other threads that may want to
                 // use this server, but don't prevent it from being
                 // destroyed when going out of scope
-                *shared_server = Arc::downgrade(&server);
+                shared_servers.insert(server_type, Arc::downgrade(&server));
                 server
             }
         };
-        std::mem::drop(shared_server);
+        std::mem::drop(shared_servers);
 
         Self::create_common(server).await
     }
 
     /// Create a new server fixture and wait for it to be ready. This
     /// is called "create" rather than new because it is async and
-    /// waits. The database is left unconfigured (no writer id) and
+    /// waits. The server is left unconfigured (e.g. no server id) and
     /// is not shared with any other tests.
-    pub async fn create_single_use() -> Self {
-        Self::create_single_use_with_config(Default::default()).await
+    pub async fn create_single_use(server_type: ServerType) -> Self {
+        let test_config = TestConfig {
+            server_type,
+            ..Default::default()
+        };
+        Self::create_single_use_with_config(test_config).await
     }
 
     /// Create a new server fixture with the provided additional environment variables
@@ -309,6 +322,18 @@ struct TestServer {
     test_config: TestConfig,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ServerType {
+    Database,
+    Router,
+}
+
+impl Default for ServerType {
+    fn default() -> Self {
+        Self::Database
+    }
+}
+
 // Options for creating test servers
 #[derive(Default, Debug, Clone)]
 pub struct TestConfig {
@@ -317,6 +342,9 @@ pub struct TestConfig {
 
     /// Headers to add to all client requests
     client_headers: Vec<(HeaderName, HeaderValue)>,
+
+    /// Server type
+    server_type: ServerType,
 }
 
 impl TestConfig {
@@ -351,8 +379,12 @@ impl TestServer {
 
         let dir = test_helpers::tmp_dir().unwrap();
 
-        let server_process =
-            Mutex::new(Self::create_server_process(&addrs, &dir, &test_config.env));
+        let server_process = Mutex::new(Self::create_server_process(
+            &addrs,
+            &dir,
+            &test_config.env,
+            test_config.server_type,
+        ));
 
         Self {
             ready,
@@ -368,8 +400,12 @@ impl TestServer {
         let mut server_process = self.server_process.lock().await;
         server_process.child.kill().unwrap();
         server_process.child.wait().unwrap();
-        *server_process =
-            Self::create_server_process(&self.addrs, &self.dir, &self.test_config.env);
+        *server_process = Self::create_server_process(
+            &self.addrs,
+            &self.dir,
+            &self.test_config.env,
+            self.test_config.server_type,
+        );
         *ready_guard = ServerState::Started;
     }
 
@@ -377,6 +413,7 @@ impl TestServer {
         addrs: &BindAddresses,
         dir: &TempDir,
         env: &[(String, String)],
+        server_type: ServerType,
     ) -> Process {
         // Create a new file each time and keep it around to aid debugging
         let (log_file, log_path) = NamedTempFile::new()
@@ -400,12 +437,17 @@ impl TestServer {
         // If set in test environment, use that value, else default to info
         let log_filter = std::env::var("LOG_FILTER").unwrap_or_else(|_| "info".to_string());
 
+        let type_name = match server_type {
+            ServerType::Database => "database",
+            ServerType::Router => "router",
+        };
+
         // This will inherit environment from the test runner
         // in particular `LOG_FILTER`
         let child = Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("run")
-            .arg("database")
+            .arg(type_name)
             .env("LOG_FILTER", log_filter)
             .env("INFLUXDB_IOX_OBJECT_STORE", "file")
             .env("INFLUXDB_IOX_DB_DIR", dir.path())
@@ -539,13 +581,13 @@ impl TestServer {
 
                     let mut health = influxdb_iox_client::health::Client::new(channel);
 
-                    match health.check_storage().await {
+                    match health.check_deployment().await {
                         Ok(_) => {
-                            println!("Storage service is running");
+                            println!("Deployment service is running");
                             return;
                         }
                         Err(e) => {
-                            println!("Error checking storage service status: {}", e);
+                            println!("Error checking deployment service status: {}", e);
                         }
                     }
                 }

@@ -1,4 +1,4 @@
-use crate::common::server_fixture::{ServerFixture, TestConfig};
+use crate::common::server_fixture::{ServerFixture, ServerType, TestConfig};
 use crate::end_to_end_cases::scenario::Scenario;
 use test_helpers::assert_contains;
 
@@ -38,7 +38,7 @@ pub async fn test_row_timestamp() {
 
 #[tokio::test]
 pub async fn test_jemalloc_metrics() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
 
     let client = reqwest::Client::new();
     let url = format!("{}/metrics", server_fixture.http_base());
