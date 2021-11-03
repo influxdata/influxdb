@@ -5,7 +5,7 @@ use observability_deps::tracing::error;
 
 /// map common [`server::Error`] errors  to the appropriate tonic Status
 pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
-    use server::Error;
+    use server::{DatabaseNameFromRulesError, Error};
 
     match error {
         Error::IdNotSet => PreconditionViolation {
@@ -68,6 +68,14 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             tonic::Status::invalid_argument(format!("Cannot initialize database: {}", source))
         }
         e @ Error::StoreWriteErrors { .. } => tonic::Status::invalid_argument(e.to_string()),
+        Error::CannotRestoreDatabase {
+            source: e @ server::database::InitError::AlreadyActive { .. },
+        } => tonic::Status::already_exists(e.to_string()),
+        e @ Error::DatabaseAlreadyActive { .. } => tonic::Status::already_exists(e.to_string()),
+        e @ Error::DatabaseAlreadyExists { .. } => tonic::Status::already_exists(e.to_string()),
+        Error::CouldNotGetDatabaseNameFromRules {
+            source: DatabaseNameFromRulesError::DatabaseRulesNotFound { uuid, .. },
+        } => tonic::Status::not_found(format!("Could not find a database with UUID `{}`", uuid)),
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()
@@ -129,9 +137,6 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
             InternalError {}.into()
         }
         Error::CannotDeleteInactiveDatabase { .. } => {
-            tonic::Status::failed_precondition(error.to_string())
-        }
-        Error::CannotRestoreActiveDatabase { .. } => {
             tonic::Status::failed_precondition(error.to_string())
         }
     }

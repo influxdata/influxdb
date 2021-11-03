@@ -5,7 +5,7 @@ use crate::{
         load::{create_preserved_catalog, load_or_create_preserved_catalog},
         DatabaseToCommit,
     },
-    rules::ProvidedDatabaseRules,
+    rules::{PersistedDatabaseRules, ProvidedDatabaseRules},
     ApplicationState, Db,
 };
 use data_types::{server_id::ServerId, write_buffer::WriteBufferDirection, DatabaseName};
@@ -93,9 +93,6 @@ pub enum Error {
         db_name
     ))]
     CannotDeleteInactiveDatabase { db_name: String },
-
-    #[snafu(display("cannot restore database named {} that is already active", db_name))]
-    CannotRestoreActiveDatabase { db_name: String },
 }
 
 #[derive(Debug, Snafu)]
@@ -188,10 +185,10 @@ impl Database {
     pub async fn create(
         application: Arc<ApplicationState>,
         uuid: Uuid,
-        provided_rules: &ProvidedDatabaseRules,
+        provided_rules: ProvidedDatabaseRules,
         server_id: ServerId,
     ) -> Result<String, InitError> {
-        let db_name = provided_rules.db_name();
+        let db_name = provided_rules.db_name().clone();
         let iox_object_store = Arc::new(
             match IoxObjectStore::create(Arc::clone(application.object_store()), server_id, uuid)
                 .await
@@ -218,13 +215,14 @@ impl Database {
             .await
             .context(SavingOwner)?;
 
-        provided_rules
-            .persist(uuid, &iox_object_store)
+        let rules_to_persist = PersistedDatabaseRules::new(uuid, provided_rules);
+        rules_to_persist
+            .persist(&iox_object_store)
             .await
             .context(SavingRules)?;
 
         create_preserved_catalog(
-            db_name,
+            &db_name,
             iox_object_store,
             Arc::clone(application.metric_registry()),
             Arc::clone(application.time_provider()),
@@ -239,16 +237,19 @@ impl Database {
     /// Mark this database as deleted.
     pub async fn delete(&self) -> Result<Uuid, Error> {
         let db_name = &self.shared.config.name;
-        info!(%db_name, "marking database deleted");
 
         let handle = self.shared.state.read().freeze();
         let handle = handle.await;
 
-        {
+        let uuid = {
             let state = self.shared.state.read();
             // Can't delete an already deleted database.
             ensure!(state.is_active(), CannotDeleteInactiveDatabase { db_name });
-        }
+
+            state.uuid().expect("Active databases have UUIDs")
+        };
+
+        info!(%db_name, %uuid, "marking database deleted");
 
         // If there is an object store for this database, write out a tombstone file.
         // If there isn't an object store, something is wrong and we shouldn't switch the
@@ -264,8 +265,6 @@ impl Database {
             .write_tombstone()
             .await
             .context(CannotMarkDatabaseDeleted { db_name })?;
-
-        let uuid = self.provided_rules().expect("should have rules").uuid();
 
         let mut state = self.shared.state.write();
         let mut state = state.unfreeze(handle);
@@ -297,8 +296,8 @@ impl Database {
 
         let iox_object_store = match iox_object_store_result {
             Ok(iox_os) => iox_os,
-            Err(iox_object_store::IoxObjectStoreError::ActiveDatabaseAlreadyExists { .. }) => {
-                return ActiveDatabaseAlreadyExists {
+            Err(iox_object_store::IoxObjectStoreError::DatabaseAlreadyActive { .. }) => {
+                return AlreadyActive {
                     name: db_name.to_string(),
                     uuid,
                 }
@@ -387,6 +386,11 @@ impl Database {
         self.shared.state.read().provided_rules()
     }
 
+    /// Returns the database UUID if it's loaded
+    pub fn uuid(&self) -> Option<Uuid> {
+        self.shared.state.read().uuid()
+    }
+
     /// Returns the info about the owning server if it has been loaded
     pub fn owner_info(&self) -> Option<management::v1::OwnerInfo> {
         self.shared.state.read().owner_info()
@@ -427,10 +431,7 @@ impl Database {
             // A handle to the object store and a copy of the UUID so we can update the rules
             // in object store prior to obtaining exclusive write access to the `DatabaseState`
             // (which we can't hold across the await to write to the object store)
-            (
-                initialized.db.iox_object_store(),
-                initialized.provided_rules.uuid(),
-            )
+            (initialized.db.iox_object_store(), initialized.uuid)
         }; // drop read lock
 
         // Attempt to persist to object store, if that fails, roll
@@ -438,8 +439,9 @@ impl Database {
         //
         // Even though we don't hold a lock here, the freeze handle
         // ensures the state can not be modified.
-        new_provided_rules
-            .persist(uuid, &iox_object_store)
+        let rules_to_persist = PersistedDatabaseRules::new(uuid, new_provided_rules);
+        rules_to_persist
+            .persist(&iox_object_store)
             .await
             .context(CannotPersistUpdatedRules)?;
 
@@ -453,8 +455,8 @@ impl Database {
             db, provided_rules, ..
         }) = &mut *state
         {
-            db.update_rules(Arc::clone(new_provided_rules.rules()));
-            *provided_rules = Arc::new(new_provided_rules);
+            db.update_rules(Arc::clone(rules_to_persist.rules()));
+            *provided_rules = rules_to_persist.provided_rules();
             Ok(Arc::clone(provided_rules))
         } else {
             // The freeze handle should have prevented any changes to
@@ -974,12 +976,8 @@ pub enum InitError {
         source: iox_object_store::IoxObjectStoreError,
     },
 
-    #[snafu(display(
-        "cannot restore database with name `{}`, UUID `{}`; it is already active",
-        name,
-        uuid
-    ))]
-    ActiveDatabaseAlreadyExists { name: String, uuid: Uuid },
+    #[snafu(display("The database with UUID `{}` named `{}` is already active", uuid, name))]
+    AlreadyActive { name: String, uuid: Uuid },
 
     #[snafu(display("cannot create preserved catalog: {}", source))]
     CannotCreatePreservedCatalog { source: crate::db::load::Error },
@@ -1068,6 +1066,25 @@ impl DatabaseState {
                 Some(Arc::clone(&state.provided_rules))
             }
             DatabaseState::Initialized(state) => Some(Arc::clone(&state.provided_rules)),
+        }
+    }
+
+    fn uuid(&self) -> Option<Uuid> {
+        match self {
+            DatabaseState::Known(_)
+            | DatabaseState::DatabaseObjectStoreFound(_)
+            | DatabaseState::DatabaseObjectStoreLookupError(_, _)
+            | DatabaseState::NoActiveDatabase(_, _)
+            | DatabaseState::OwnerInfoLoaded(_)
+            | DatabaseState::OwnerInfoLoadError(_, _)
+            | DatabaseState::RulesLoadError(_, _) => None,
+            DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
+                Some(state.uuid)
+            }
+            DatabaseState::CatalogLoaded(state) | DatabaseState::ReplayError(state, _) => {
+                Some(state.uuid)
+            }
+            DatabaseState::Initialized(state) => Some(state.uuid),
         }
     }
 
@@ -1196,7 +1213,7 @@ impl DatabaseStateOwnerInfoLoaded {
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateRulesLoaded, InitError> {
-        let rules = ProvidedDatabaseRules::load(&self.iox_object_store)
+        let rules = PersistedDatabaseRules::load(&self.iox_object_store)
             .await
             .context(LoadingRules)?;
 
@@ -1209,7 +1226,8 @@ impl DatabaseStateOwnerInfoLoaded {
         }
 
         Ok(DatabaseStateRulesLoaded {
-            provided_rules: Arc::new(rules),
+            provided_rules: rules.provided_rules(),
+            uuid: rules.uuid(),
             owner_info: self.owner_info.clone(),
             iox_object_store: Arc::clone(&self.iox_object_store),
         })
@@ -1219,6 +1237,7 @@ impl DatabaseStateOwnerInfoLoaded {
 #[derive(Debug, Clone)]
 struct DatabaseStateRulesLoaded {
     provided_rules: Arc<ProvidedDatabaseRules>,
+    uuid: Uuid,
     owner_info: management::v1::OwnerInfo,
     iox_object_store: Arc<IoxObjectStore>,
 }
@@ -1277,6 +1296,7 @@ impl DatabaseStateRulesLoaded {
             lifecycle_worker,
             replay_plan: Arc::new(replay_plan),
             provided_rules: Arc::clone(&self.provided_rules),
+            uuid: self.uuid,
             owner_info: self.owner_info.clone(),
         })
     }
@@ -1288,6 +1308,7 @@ struct DatabaseStateCatalogLoaded {
     lifecycle_worker: Arc<LifecycleWorker>,
     replay_plan: Arc<Option<ReplayPlan>>,
     provided_rules: Arc<ProvidedDatabaseRules>,
+    uuid: Uuid,
     owner_info: management::v1::OwnerInfo,
 }
 
@@ -1334,6 +1355,7 @@ impl DatabaseStateCatalogLoaded {
             write_buffer_consumer,
             lifecycle_worker: Arc::clone(&self.lifecycle_worker),
             provided_rules: Arc::clone(&self.provided_rules),
+            uuid: self.uuid,
             owner_info: self.owner_info.clone(),
         })
     }
@@ -1345,6 +1367,7 @@ pub struct DatabaseStateInitialized {
     write_buffer_consumer: Option<Arc<WriteBufferConsumer>>,
     lifecycle_worker: Arc<LifecycleWorker>,
     provided_rules: Arc<ProvidedDatabaseRules>,
+    uuid: Uuid,
     owner_info: management::v1::OwnerInfo,
 }
 
@@ -1369,11 +1392,7 @@ mod tests {
         write_buffer::{WriteBufferConnection, WriteBufferDirection},
     };
     use entry::{test_helpers::lp_to_entries, SequencedEntry};
-    use std::{
-        convert::{TryFrom, TryInto},
-        num::NonZeroU32,
-        time::Instant,
-    };
+    use std::{num::NonZeroU32, time::Instant};
     use time::Time;
     use uuid::Uuid;
     use write_buffer::mock::MockBufferSharedState;
@@ -1441,9 +1460,9 @@ mod tests {
 
         let db_name = DatabaseName::new("test").unwrap();
         let uuid = Uuid::new_v4();
-        let provided_rules = ProvidedDatabaseRules::new_empty(db_name.clone(), uuid);
+        let provided_rules = ProvidedDatabaseRules::new_empty(db_name.clone());
 
-        let location = Database::create(Arc::clone(&application), uuid, &provided_rules, server_id)
+        let location = Database::create(Arc::clone(&application), uuid, provided_rules, server_id)
             .await
             .unwrap();
 
@@ -1504,7 +1523,7 @@ mod tests {
     async fn database_delete_restore() {
         let (application, database) = initialized_database().await;
         let db_name = &database.shared.config.name;
-        let uuid = database.provided_rules().unwrap().uuid();
+        let uuid = database.uuid().unwrap();
         let server_id = database.shared.config.server_id;
         database.delete().await.unwrap();
 
@@ -1617,7 +1636,7 @@ mod tests {
         let location = Database::create(
             Arc::clone(&application),
             uuid,
-            &make_provided_rules(rules),
+            make_provided_rules(rules),
             server_id,
         )
         .await

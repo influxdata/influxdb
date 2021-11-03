@@ -132,20 +132,11 @@ where
             .server
             .create_database(provided_rules)
             .await
-            .map_err(|e| match e {
-                Error::DatabaseAlreadyExists { db_name } => AlreadyExists {
-                    resource_type: "database".to_string(),
-                    resource_name: db_name,
-                    ..Default::default()
-                }
-                .into(),
-                _ => default_server_error_handler(e),
-            })?;
+            .map_err(default_server_error_handler)?;
 
         let uuid = database
-            .provided_rules()
-            .expect("Database should be initialized or an error should have been returned")
-            .uuid();
+            .uuid()
+            .expect("Database should be initialized or an error should have been returned");
 
         Ok(Response::new(CreateDatabaseResponse {
             uuid: uuid.as_bytes().to_vec(),
@@ -200,11 +191,10 @@ where
         request: Request<RestoreDatabaseRequest>,
     ) -> Result<Response<RestoreDatabaseResponse>, Status> {
         let request = request.into_inner();
-        let db_name = DatabaseName::new(request.db_name).field("db_name")?;
         let uuid = Uuid::from_str(&request.uuid).field("uuid")?;
 
         self.server
-            .restore_database(&db_name, uuid)
+            .restore_database(uuid)
             .await
             .map_err(default_server_error_handler)?;
 

@@ -46,7 +46,7 @@ pub enum IoxObjectStoreError {
         "Cannot restore; there is already an active database with UUID `{}`",
         uuid
     ))]
-    ActiveDatabaseAlreadyExists { uuid: Uuid },
+    DatabaseAlreadyActive { uuid: Uuid },
 
     #[snafu(display("No rules found to load at {}", root_path))]
     NoRulesFound { root_path: RootPath },
@@ -288,7 +288,7 @@ impl IoxObjectStore {
             .await
             .context(UnderlyingObjectStoreError)?;
 
-        ensure!(deleted_at.is_some(), ActiveDatabaseAlreadyExists { uuid });
+        ensure!(deleted_at.is_some(), DatabaseAlreadyActive { uuid });
 
         let tombstone_path = root_path.tombstone_path();
 
@@ -417,6 +417,28 @@ impl IoxObjectStore {
     /// Get the data for the database rules
     pub async fn get_database_rules_file(&self) -> Result<Bytes> {
         let mut stream = self.inner.get(&self.db_rules_path()).await?;
+        let mut bytes = BytesMut::new();
+
+        while let Some(buf) = stream.next().await {
+            bytes.extend(buf?);
+        }
+
+        Ok(bytes.freeze())
+    }
+
+    /// Return the database rules file content without creating an IoxObjectStore instance. Useful
+    /// when restoring a database given a UUID to check existence of the specified database and
+    /// get information such as the database name from the rules before proceeding with restoring
+    /// and initializing the database.
+    pub async fn load_database_rules(
+        inner: Arc<ObjectStore>,
+        server_id: ServerId,
+        uuid: Uuid,
+    ) -> Result<Bytes> {
+        let root_path = Self::root_path_for(&inner, server_id, uuid);
+        let db_rules_path = root_path.rules_path().inner;
+
+        let mut stream = inner.get(&db_rules_path).await?;
         let mut bytes = BytesMut::new();
 
         while let Some(buf) = stream.next().await {
@@ -945,6 +967,53 @@ mod tests {
                 .await
                 .unwrap()
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn read_db_rules_of_deleted_database() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+
+        // Create a database
+        let db = Uuid::new_v4();
+        let db_iox_store = IoxObjectStore::create(Arc::clone(&object_store), server_id, db)
+            .await
+            .unwrap();
+
+        let original_file_content = Bytes::from("hello world");
+        db_iox_store
+            .put_database_rules_file(original_file_content.clone())
+            .await
+            .unwrap();
+
+        // Delete the database
+        delete_database(&db_iox_store).await;
+
+        // We can still read the rules file even though `load` would fail
+        let rules_content = IoxObjectStore::load_database_rules(object_store, server_id, db)
+            .await
+            .unwrap();
+        assert_eq!(rules_content, original_file_content);
+    }
+
+    #[tokio::test]
+    async fn cant_read_rules_if_no_rules_exist() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+
+        // Create a uuid but don't create a corresponding database
+        let db = Uuid::new_v4();
+
+        // This fails, there are no rules to read
+        let err = IoxObjectStore::load_database_rules(object_store, server_id, db)
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(err, object_store::Error::NotFound { .. }),
+            "got: {:?}",
+            err
         );
     }
 

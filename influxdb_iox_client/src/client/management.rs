@@ -150,8 +150,11 @@ pub enum DeleteDatabaseError {
 #[derive(Debug, Error)]
 pub enum RestoreDatabaseError {
     /// Database not found
-    #[error("Database not found")]
-    DatabaseNotFound,
+    #[error("Could not find a database with UUID `{}`", .uuid)]
+    DatabaseNotFound {
+        /// The UUID requested
+        uuid: String,
+    },
 
     /// Server indicated that it is not (yet) available
     #[error("Server unavailable: {}", .0.message())]
@@ -697,17 +700,14 @@ impl Client {
     /// Restore database
     pub async fn restore_database(
         &mut self,
-        db_name: impl Into<String> + Send,
         uuid: impl Into<String> + Send,
     ) -> Result<(), RestoreDatabaseError> {
+        let uuid = uuid.into();
         self.inner
-            .restore_database(RestoreDatabaseRequest {
-                db_name: db_name.into(),
-                uuid: uuid.into(),
-            })
+            .restore_database(RestoreDatabaseRequest { uuid: uuid.clone() })
             .await
             .map_err(|status| match status.code() {
-                tonic::Code::NotFound => RestoreDatabaseError::DatabaseNotFound,
+                tonic::Code::NotFound => RestoreDatabaseError::DatabaseNotFound { uuid },
                 tonic::Code::FailedPrecondition => RestoreDatabaseError::NoServerId,
                 tonic::Code::Unavailable => RestoreDatabaseError::Unavailable(status),
                 _ => RestoreDatabaseError::ServerError(status),

@@ -16,6 +16,7 @@ use predicates::prelude::*;
 use std::time::Duration;
 use tempfile::TempDir;
 use test_helpers::make_temp_file;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn test_server_id() {
@@ -182,7 +183,7 @@ async fn test_create_database_immutable() {
 }
 
 #[tokio::test]
-async fn delete_database() {
+async fn delete_restore_database() {
     let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
@@ -289,6 +290,22 @@ async fn delete_database() {
         .success()
         .stdout(predicate::str::contains(db));
 
+    // Restoring the 1st database is an error because the new, currently active database has the
+    // same name
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("restore")
+        .arg(db_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "A database with the name `{}` already exists",
+            db
+        )));
+
     // Delete the 2nd database
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -317,7 +334,6 @@ async fn delete_database() {
         .unwrap()
         .arg("database")
         .arg("restore")
-        .arg(db)
         .arg(db_uuid)
         .arg("--host")
         .arg(addr)
@@ -325,7 +341,7 @@ async fn delete_database() {
         .success()
         .stdout(predicate::str::contains(format!(
             "Restored database {}",
-            db
+            db_uuid
         )));
 
     // The 1st database is back in the active list
@@ -338,6 +354,38 @@ async fn delete_database() {
         .assert()
         .success()
         .stdout(predicate::str::contains(db));
+
+    // Restoring again is an error
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("restore")
+        .arg(db_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "The database with UUID `{}` named `{}` is already active",
+            db_uuid, db
+        )));
+
+    // Restoring a database with a valid but unknown UUID is an error
+    let unknown_uuid = Uuid::new_v4();
+    dbg!(unknown_uuid);
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("restore")
+        .arg(unknown_uuid.to_string())
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "Could not find a database with UUID `{}`",
+            unknown_uuid
+        )));
 }
 
 #[tokio::test]

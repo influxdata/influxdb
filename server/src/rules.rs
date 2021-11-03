@@ -68,14 +68,11 @@ pub struct ProvidedDatabaseRules {
     /// Encoded database rules, as provided by the user and as stored
     /// in the object store (may not have all fields set).
     original: management::v1::DatabaseRules,
-
-    /// UUID of the database, as assigned during database creation and serialized to object storage.
-    uuid: Uuid,
 }
 
 impl ProvidedDatabaseRules {
     // Create a new database with a default database
-    pub fn new_empty(db_name: DatabaseName<'static>, uuid: Uuid) -> Self {
+    pub fn new_empty(db_name: DatabaseName<'static>) -> Self {
         let original = management::v1::DatabaseRules {
             name: db_name.to_string(),
             ..Default::default()
@@ -84,21 +81,13 @@ impl ProvidedDatabaseRules {
         // Should always be able to create a DBRules with default values
         let full = Arc::new(original.clone().try_into().expect("creating empty rules"));
 
-        Self {
-            full,
-            original,
-            uuid,
-        }
+        Self { full, original }
     }
 
     pub fn new_rules(original: management::v1::DatabaseRules) -> Result<Self, FieldViolation> {
         let full = Arc::new(original.clone().try_into()?);
 
-        Ok(Self {
-            full,
-            original,
-            uuid: Uuid::new_v4(),
-        })
+        Ok(Self { full, original })
     }
 
     /// returns the name of the database in the rules
@@ -111,17 +100,49 @@ impl ProvidedDatabaseRules {
         &self.full
     }
 
-    /// Return the UUID
-    pub fn uuid(&self) -> Uuid {
-        self.uuid
-    }
-
     /// Return the original rules provided to this
     pub fn original(&self) -> &management::v1::DatabaseRules {
         &self.original
     }
+}
 
-    /// Load `ProvidedDatabaseRules` from object storage
+#[derive(Debug, Clone)]
+pub struct PersistedDatabaseRules {
+    uuid: Uuid,
+    provided: Arc<ProvidedDatabaseRules>,
+}
+
+impl PersistedDatabaseRules {
+    pub fn new(uuid: Uuid, provided: ProvidedDatabaseRules) -> Self {
+        Self {
+            uuid,
+            provided: Arc::new(provided),
+        }
+    }
+
+    pub fn provided_rules(&self) -> Arc<ProvidedDatabaseRules> {
+        Arc::clone(&self.provided)
+    }
+
+    pub fn uuid(&self) -> Uuid {
+        self.uuid
+    }
+
+    pub fn db_name(&self) -> &DatabaseName<'static> {
+        &self.provided.full.name
+    }
+
+    /// Return the full database rules
+    pub fn rules(&self) -> &Arc<DatabaseRules> {
+        &self.provided.full
+    }
+
+    /// Return the original rules provided to this
+    pub fn original(&self) -> &management::v1::DatabaseRules {
+        &self.provided.original
+    }
+
+    /// Load from object storage
     pub async fn load(iox_object_store: &IoxObjectStore) -> Result<Self> {
         // TODO: Retry this
         let bytes = iox_object_store
@@ -129,20 +150,36 @@ impl ProvidedDatabaseRules {
             .await
             .context(RulesFetch)?;
 
-        let new_self = generated_types::database_rules::decode_persisted_database_rules(bytes)
-            .context(Deserialization)?
-            .try_into()
+        let proto: management::v1::PersistedDatabaseRules =
+            generated_types::database_rules::decode_persisted_database_rules(bytes)
+                .context(Deserialization)?;
+
+        let original: management::v1::DatabaseRules = proto
+            .rules
+            .ok_or_else(|| FieldViolation::required("rules"))
             .context(ConvertingRules)?;
 
-        Ok(new_self)
+        let full = Arc::new(original.clone().try_into().context(ConvertingRules)?);
+
+        let uuid = Uuid::from_slice(&proto.uuid)
+            .map_err(|e| FieldViolation {
+                field: "uuid".to_string(),
+                description: e.to_string(),
+            })
+            .context(ConvertingRules)?;
+
+        Ok(Self {
+            uuid,
+            provided: Arc::new(ProvidedDatabaseRules { full, original }),
+        })
     }
 
-    /// Persist the the `ProvidedDatabaseRules` given the database object storage
-    pub async fn persist(&self, uuid: Uuid, iox_object_store: &IoxObjectStore) -> Result<()> {
+    /// Persist to object storage
+    pub async fn persist(&self, iox_object_store: &IoxObjectStore) -> Result<()> {
         let persisted_database_rules = management::v1::PersistedDatabaseRules {
-            uuid: uuid.as_bytes().to_vec(),
+            uuid: self.uuid.as_bytes().to_vec(),
             // Note we save the original version
-            rules: Some(self.original.clone()),
+            rules: Some(self.provided.original.clone()),
         };
 
         let mut data = bytes::BytesMut::new();
@@ -153,17 +190,17 @@ impl ProvidedDatabaseRules {
             .put_database_rules_file(data.freeze())
             .await
             .context(ObjectStore {
-                db_name: self.db_name(),
+                db_name: self.provided.db_name(),
             })?;
 
         Ok(())
     }
 }
 
-impl TryFrom<management::v1::PersistedDatabaseRules> for ProvidedDatabaseRules {
+impl TryFrom<management::v1::PersistedDatabaseRules> for PersistedDatabaseRules {
     type Error = FieldViolation;
 
-    /// Create a new ProvidedDatabaseRules from a grpc message
+    /// Create a new PersistedDatabaseRules from a grpc message
     fn try_from(proto: management::v1::PersistedDatabaseRules) -> Result<Self, Self::Error> {
         let original: management::v1::DatabaseRules = proto
             .rules
@@ -177,9 +214,8 @@ impl TryFrom<management::v1::PersistedDatabaseRules> for ProvidedDatabaseRules {
         })?;
 
         Ok(Self {
-            full,
-            original,
             uuid,
+            provided: Arc::new(ProvidedDatabaseRules { full, original }),
         })
     }
 }

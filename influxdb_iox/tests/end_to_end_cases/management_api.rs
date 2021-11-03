@@ -292,7 +292,8 @@ async fn test_list_databases() {
 }
 
 #[tokio::test]
-async fn test_create_get_update_delete_database() {
+async fn test_create_get_update_delete_restore_database() {
+    test_helpers::maybe_start_logging();
     let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
@@ -332,7 +333,7 @@ async fn test_create_get_update_delete_database() {
         write_buffer_connection: None,
     };
 
-    client
+    let created_uuid = client
         .create_database(rules.clone())
         .await
         .expect("create database failed");
@@ -365,17 +366,85 @@ async fn test_create_get_update_delete_database() {
             Some(RoutingRules::ShardConfig(cfg)) if cfg.ignore_errors,
     ));
 
-    client
+    let databases: Vec<_> = client
+        .list_detailed_databases()
+        .await
+        .expect("list detailed databases failed")
+        .into_iter()
+        // names may contain the names of other databases created by
+        // concurrent tests as well
+        .filter(|db| db.db_name == db_name)
+        .collect();
+    assert_eq!(databases.len(), 1);
+    assert_eq!(Uuid::from_slice(&databases[0].uuid).unwrap(), created_uuid);
+
+    let deleted_uuid = client
         .delete_database(&db_name)
         .await
         .expect("delete database failed");
+    assert_eq!(created_uuid, deleted_uuid);
+
+    let deleted_uuid = deleted_uuid.to_string();
 
     let err = client
         .get_database(&db_name, false)
         .await
         .expect_err("get database should have failed but didn't");
-
     assert_contains!(err.to_string(), "Database not found");
+
+    client
+        .restore_database(&deleted_uuid)
+        .await
+        .expect("restore database failed");
+
+    client
+        .get_database(&db_name, false)
+        .await
+        .expect("get database failed");
+
+    let err = client
+        .restore_database(&deleted_uuid)
+        .await
+        .expect_err("restore database should have failed but didn't");
+    assert_contains!(
+        err.to_string(),
+        format!(
+            "The database with UUID `{}` named `{}` is already active",
+            deleted_uuid, db_name
+        )
+    );
+
+    let unknown_uuid = Uuid::new_v4().to_string();
+    let err = client
+        .restore_database(&unknown_uuid)
+        .await
+        .expect_err("restore database should have failed but didn't");
+    assert_contains!(
+        err.to_string(),
+        format!("Could not find a database with UUID `{}`", unknown_uuid)
+    );
+
+    client
+        .delete_database(&db_name)
+        .await
+        .expect("delete database failed");
+
+    let newly_created_uuid = client
+        .create_database(rules.clone())
+        .await
+        .expect("create database failed");
+    let newly_created_uuid = newly_created_uuid.to_string();
+
+    assert_ne!(deleted_uuid, newly_created_uuid);
+
+    let err = client
+        .restore_database(&deleted_uuid)
+        .await
+        .expect_err("restore database should have failed but didn't");
+    assert_contains!(
+        err.to_string(),
+        format!("A database with the name `{}` already exists", db_name)
+    );
 }
 
 /// gets configuration both with and without defaults, and verifies
