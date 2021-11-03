@@ -13,11 +13,4 @@ snafu = "0.6"
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
-bytes = "1.0"
-criterion = "0.3"
-flate2 = "1.0"
-
-[[bench]]
-name = "write_lp"
-harness = false
 

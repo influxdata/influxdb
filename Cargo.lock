@@ -2234,9 +2234,6 @@ name = "mutable_batch_lp"
 version = "0.1.0"
 dependencies = [
  "arrow_util",
- "bytes",
- "criterion",
- "flate2",
  "hashbrown",
  "influxdb_line_protocol",
  "mutable_batch",
@@ -2255,6 +2252,22 @@ dependencies = [
  "mutable_batch_lp",
  "schema",
  "snafu",
+]
+
+[[package]]
+name = "mutable_batch_tests"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "criterion",
+ "entry",
+ "flate2",
+ "generated_types",
+ "mutable_batch",
+ "mutable_batch_entry",
+ "mutable_batch_lp",
+ "mutable_batch_pb",
+ "prost",
 ]
 
 [[package]]
