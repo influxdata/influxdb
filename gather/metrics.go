@@ -2,10 +2,11 @@ package gather
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"io"
 	"time"
 
-	gogoproto "github.com/gogo/protobuf/proto" // Used for Prometheus
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/models"
 )
@@ -107,10 +108,32 @@ func (x MetricType) String() string {
 
 // UnmarshalJSON implements the unmarshaler interface.
 func (x *MetricType) UnmarshalJSON(data []byte) error {
-	value, err := gogoproto.UnmarshalJSONEnum(metricTypeValue, data, "MetricType")
+	value, err := unmarshalJSONEnum(metricTypeValue, data, "MetricType")
 	if err != nil {
 		return err
 	}
 	*x = MetricType(value)
 	return nil
+}
+
+// Taken from the gogo/protobuf library
+func unmarshalJSONEnum(m map[string]int32, data []byte, enumName string) (int32, error) {
+	if data[0] == '"' {
+		// New style: enums are strings.
+		var repr string
+		if err := json.Unmarshal(data, &repr); err != nil {
+			return -1, err
+		}
+		val, ok := m[repr]
+		if !ok {
+			return 0, fmt.Errorf("unrecognized enum %s value %q", enumName, repr)
+		}
+		return val, nil
+	}
+	// Old style: enums are ints.
+	var val int32
+	if err := json.Unmarshal(data, &val); err != nil {
+		return 0, fmt.Errorf("cannot unmarshal %#q into enum %s", data, enumName)
+	}
+	return val, nil
 }

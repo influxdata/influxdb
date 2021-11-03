@@ -2,10 +2,11 @@ package prometheus
 
 import (
 	"sort"
+	"strings"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
 var _ prometheus.Gatherer = (*Filter)(nil)
@@ -113,6 +114,14 @@ type labelPairs struct {
 	Label []*dto.LabelPair `protobuf:"bytes,1,rep,name=label" json:"label,omitempty"`
 }
 
-func (l *labelPairs) Reset()         {}
-func (l *labelPairs) String() string { return proto.CompactTextString(l) }
-func (*labelPairs) ProtoMessage()    {}
+func (l *labelPairs) Reset() {}
+
+func (l *labelPairs) String() string {
+	var a []string
+	for _, lbl := range l.Label {
+		a = append(a, lbl.String())
+	}
+	return strings.Join(a, "\n")
+}
+
+func (*labelPairs) ProtoMessage() {}
