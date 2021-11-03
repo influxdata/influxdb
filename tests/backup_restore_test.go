@@ -193,8 +193,17 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	}
 
 	// 2.  online restore of a partial backup is correct.
+	// This test is run through a SlowProxy tuned so that it takes > 10 seconds
+	// to restore a single shard. This is required to test for a race condition
+	// that used to exist in the restore implementation.
 	hostAddress := net.JoinHostPort("localhost", port)
-	cmd.Run("-host", hostAddress, "-online", "-newdb", "mydbbak", "-db", "mydb", partialBackupDir)
+	proxy, err := NewSlowProxy(":", hostAddress, 200, 200)
+	if err != nil {
+		t.Fatalf("error creating SlowProxy: %s", err.Error())
+	}
+	defer proxy.Close()
+	go proxy.Serve()
+	cmd.Run("-host", proxy.Addr().String(), "-online", "-newdb", "mydbbak", "-db", "mydb", partialBackupDir)
 
 	// wait for the import to finish, and unlock the shard engine.
 	time.Sleep(time.Second)
