@@ -52,6 +52,12 @@ function test_downgrade_target () {
     local -r influxd_pid="$!"
 
     wait_for_influxd "$influxd_pid"
+
+    if [[ "$(curl -s -o /dev/null -H "Authorization: Token $TEST_TOKEN" "http://localhost:8086/api/v2/me" -w "%{http_code}")" != "200" ]]; then
+        >&2 echo Error: "Downgraded DB doesn't recognize auth token"
+        exit 1
+    fi
+
     kill -TERM "$influxd_pid"
     wait "$influxd_pid" || true
 }
@@ -81,7 +87,7 @@ function setup_influxd () {
     local -r influxd_pid="$!"
 
     wait_for_influxd "$influxd_pid"
-    curl -s -XPOST \
+    curl -s -o /dev/null -XPOST \
         -d '{"username":"default","password":"fakepassword","org":"'$TEST_ORG'","bucket":"unused","token":"'$TEST_TOKEN'"}' \
         http://localhost:8086/api/v2/setup
 
