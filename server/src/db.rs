@@ -26,11 +26,8 @@ use data_types::{
     server_id::ServerId,
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
-use entry::Entry;
 use iox_object_store::IoxObjectStore;
 use mutable_batch::payload::{DbWrite, PartitionWrite};
-use mutable_batch::WriteMeta;
-use mutable_batch_entry::entry_to_batches;
 use mutable_buffer::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info, warn};
 use parquet_catalog::{
@@ -104,9 +101,6 @@ pub enum Error {
 
     #[snafu(display("Hard buffer size limit reached"))]
     HardLimitReached {},
-
-    #[snafu(display("Cannot convert entry to db write: {}", source))]
-    EntryConversion { source: mutable_batch_entry::Error },
 
     #[snafu(display(
         "Cannot delete data from non-existing table, {}: {}",
@@ -915,18 +909,15 @@ impl Db {
         Ok(())
     }
 
-    /// Stores an entry based on the configuration.
+    /// Stores the write on this [`Db`] and/or routes it to the write buffer
     ///
     /// TODO: Remove this method (#2243)
-    pub async fn store_entry(&self, entry: Entry, span_ctx: Option<SpanContext>) -> Result<()> {
+    pub async fn route_write(&self, write: &DbWrite) -> Result<()> {
         let immutable = {
             let rules = self.rules.read();
             rules.lifecycle_rules.immutable
         };
         debug!(%immutable, has_write_buffer_producer=self.write_buffer_producer.is_some(), "storing entry");
-
-        let tables = entry_to_batches(&entry).context(EntryConversion)?;
-        let mut write = DbWrite::new(tables, WriteMeta::new(None, None, span_ctx, None));
 
         match (self.write_buffer_producer.as_ref(), immutable) {
             (Some(write_buffer), true) => {
@@ -936,7 +927,7 @@ impl Db {
 
                 // TODO: be smarter than always using sequencer 0
                 let _ = write_buffer
-                    .store_write(0, &write)
+                    .store_write(0, write)
                     .await
                     .context(WriteBufferWritingError)?;
 
@@ -947,12 +938,10 @@ impl Db {
                 // buffer to return success before adding the entry to the mutable buffer.
 
                 // TODO: be smarter than always using sequencer 0
-                let meta = write_buffer
-                    .store_write(0, &write)
+                write_buffer
+                    .store_write(0, write)
                     .await
                     .context(WriteBufferWritingError)?;
-
-                write.set_meta(meta);
             }
             (_, true) => {
                 // If not configured to send entries to the write buffer and the database is
@@ -966,7 +955,7 @@ impl Db {
             }
         };
 
-        self.store_write(&write)
+        self.store_write(write)
     }
 
     /// Writes the provided [`DbWrite`] to this database
@@ -1206,37 +1195,25 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
 }
 
 pub mod test_helpers {
-    use std::collections::{BTreeSet, HashSet};
+    use std::collections::BTreeSet;
 
     use arrow::record_batch::RecordBatch;
     use data_types::chunk_metadata::ChunkStorage;
-    use entry::test_helpers::lp_to_entries;
+    use mutable_batch_lp::lines_to_batches;
     use query::frontend::sql::SqlQueryPlanner;
 
     use super::*;
 
     /// Try to write lineprotocol data and return all tables that where written.
     pub async fn try_write_lp(db: &Db, lp: &str) -> Result<Vec<String>> {
-        let entries = {
-            let partitioner = &db.rules.read().partition_template;
-            lp_to_entries(lp, partitioner)
-        };
+        let tables = lines_to_batches(lp, 0).unwrap();
+        let mut table_names: Vec<_> = tables.keys().cloned().collect();
 
-        let mut tables = HashSet::new();
-        for entry in entries {
-            if let Some(writes) = entry.partition_writes() {
-                for write in writes {
-                    for batch in write.table_batches() {
-                        tables.insert(batch.name().to_string());
-                    }
-                }
-                db.store_entry(entry, None).await?;
-            }
-        }
+        let write = DbWrite::new(tables, Default::default());
+        db.route_write(&write).await?;
 
-        let mut tables: Vec<_> = tables.into_iter().collect();
-        tables.sort();
-        Ok(tables)
+        table_names.sort_unstable();
+        Ok(table_names)
     }
 
     /// Same was [`try_write_lp`](try_write_lp) but will panic on failure.
@@ -1377,17 +1354,16 @@ mod tests {
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
         write_summary::TimestampSummary,
     };
-    use entry::test_helpers::lp_to_entry;
     use futures::{stream, StreamExt, TryStreamExt};
     use iox_object_store::ParquetFilePath;
     use metric::{Attributes, CumulativeGauge, Metric, Observation};
+    use mutable_batch_lp::lines_to_batches;
     use object_store::ObjectStore;
     use parquet_catalog::test_helpers::load_ok;
     use parquet_file::{
         metadata::IoxParquetMetaData,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
-    use persistence_windows::min_max_sequence::MinMaxSequence;
     use query::{QueryChunk, QueryDatabase};
     use schema::selection::Selection;
     use schema::Schema;
@@ -1424,8 +1400,9 @@ mod tests {
         // Validate that writes are rejected if there is no mutable buffer
         let db = immutable_db().await;
 
-        let entry = lp_to_entry("cpu bar=1 10");
-        let res = db.store_entry(entry, None).await;
+        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        let res = db.route_write(&write).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot write to this database: no mutable buffer configured"
@@ -1452,8 +1429,9 @@ mod tests {
             .await
             .db;
 
-        let entry = lp_to_entry("cpu bar=1 10");
-        test_db.store_entry(entry, None).await.unwrap();
+        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        test_db.route_write(&write).await.unwrap();
 
         assert_eq!(write_buffer_state.get_messages(0).len(), 1);
     }
@@ -1474,8 +1452,9 @@ mod tests {
             .await
             .db;
 
-        let entry = lp_to_entry("cpu bar=1 10");
-        db.store_entry(entry, None).await.unwrap();
+        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        db.route_write(&write).await.unwrap();
 
         assert_eq!(write_buffer_state.get_messages(0).len(), 1);
 
@@ -1501,9 +1480,9 @@ mod tests {
             .await
             .db;
 
-        let entry = lp_to_entry("cpu bar=1 10");
-
-        let res = db.store_entry(entry, None).await;
+        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        let res = db.route_write(&write).await;
 
         assert!(
             matches!(res, Err(Error::WriteBufferWritingError { .. })),
@@ -1516,8 +1495,9 @@ mod tests {
     async fn cant_write_when_reading_from_write_buffer() {
         // Validate that writes are rejected if this database is reading from the write buffer
         let db = immutable_db().await;
-        let entry = lp_to_entry("cpu bar=1 10");
-        let res = db.store_entry(entry, None).await;
+        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        let res = db.route_write(&write).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot write to this database: no mutable buffer configured"
@@ -1552,10 +1532,11 @@ mod tests {
             bar,t1=alpha iv=1i 1
         "#;
 
-        let entry = lp_to_entry(lp);
+        let tables = lines_to_batches(lp, 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
 
         // This should succeed and start chunks in the MUB
-        db.store_entry(entry, None).await.unwrap();
+        db.route_write(&write).await.unwrap();
 
         // Line 1 has the same schema and should end up in the MUB.
         // Line 2 has a different schema than line 1 and should error
@@ -1565,12 +1546,13 @@ mod tests {
              foo,t1=important iv=1i 3"
             .to_string();
 
-        let entry = lp_to_entry(&lp);
+        let tables = lines_to_batches(&lp, 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
 
         // This should return an error because there was at least one error in the loop
-        let result = db.store_entry(entry, None).await;
+        let err = db.route_write(&write).await.unwrap_err();
         assert_contains!(
-            result.unwrap_err().to_string(),
+            err.to_string(),
             "Storing database write failed with the following error(s), and possibly more:"
         );
 
@@ -2366,9 +2348,9 @@ mod tests {
 
         time.inc(Duration::from_secs(1));
 
-        let entry = lp_to_entry("cpu bar=true 10");
-        let result = db.store_entry(entry, None).await;
-        assert!(result.is_err());
+        let tables = lines_to_batches("cpu bar=true 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        db.route_write(&write).await.unwrap_err();
         {
             let partition = db.catalog.partition("cpu", partition_key).unwrap();
             let partition = partition.read();
@@ -2382,19 +2364,8 @@ mod tests {
 
     #[tokio::test]
     async fn write_updates_persistence_windows() {
-        // Writes should update the persistence windows when there
-        // is a write buffer configured.
-        let write_buffer_state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
-        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp_nanos(0)));
-        let write_buffer = Arc::new(
-            MockBufferForWriting::new(write_buffer_state.clone(), None, time_provider).unwrap(),
-        );
-        let db = TestDb::builder()
-            .write_buffer_producer(write_buffer)
-            .build()
-            .await
-            .db;
+        // Writes should update the persistence windows
+        let db = make_db().await.db;
 
         let partition_key = "1970-01-01T00";
         write_lp(&db, "cpu bar=1 10").await; // seq 0
@@ -2406,8 +2377,8 @@ mod tests {
         let windows = partition.persistence_windows().unwrap();
         let seq = windows.minimum_unpersisted_sequence().unwrap();
 
-        let seq = seq.get(&0).unwrap();
-        assert_eq!(seq, &MinMaxSequence::new(0, 2));
+        // No write buffer configured
+        assert!(seq.is_empty());
     }
 
     #[tokio::test]
