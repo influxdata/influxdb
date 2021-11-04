@@ -1,13 +1,17 @@
 //! Agents responsible for generating points
 
 use crate::{
-    measurement::MeasurementGeneratorSet, now_ns, specification, tag::Tag, write::PointsWriter,
-    DataGenRng, RandomNumberGenerator,
+    measurement::{MeasurementGenerator, MeasurementLineIterator},
+    now_ns, specification,
+    tag_pair::TagPair,
+    write::PointsWriter,
 };
 
-use influxdb2_client::models::DataPoint;
+use crate::tag_set::GeneratedTagSets;
+use humantime::parse_duration;
+use serde_json::json;
 use snafu::{ResultExt, Snafu};
-use std::{fmt, time::Duration};
+use std::time::{Duration, Instant};
 use tracing::{debug, info};
 
 /// Agent-specific Results
@@ -15,46 +19,43 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Errors that may happen while creating points
 #[derive(Snafu, Debug)]
+#[allow(missing_docs)]
 pub enum Error {
-    /// Error that may happen when generating points from measurements
     #[snafu(display("{}", source))]
     CouldNotGeneratePoint {
         /// Underlying `measurement` module error that caused this problem
         source: crate::measurement::Error,
     },
 
-    /// Error that may happen when creating measurement generator sets
-    #[snafu(display("Could not create measurement generator sets, caused by:\n{}", source))]
-    CouldNotCreateMeasurementGeneratorSets {
+    #[snafu(display("Could not create measurement generators, caused by:\n{}", source))]
+    CouldNotCreateMeasurementGenerators {
         /// Underlying `measurement` module error that caused this problem
         source: crate::measurement::Error,
     },
 
-    /// Error that may happen when writing points
     #[snafu(display("Could not write points, caused by:\n{}", source))]
     CouldNotWritePoints {
         /// Underlying `write` module error that caused this problem
         source: crate::write::Error,
     },
 
-    /// Error that may happen if the provided sampling interval string can't be parsed into a duration
     #[snafu(display("Sampling interval must be valid string: {}", source))]
     InvalidSamplingInterval {
         /// Underlying `parse` error
         source: humantime::DurationError,
     },
+
+    #[snafu(display("Error creating agent tag pairs: {}", source))]
+    CouldNotCreateAgentTagPairs { source: crate::tag_pair::Error },
 }
 
 /// Each `AgentSpec` informs the instantiation of an `Agent`, which coordinates
 /// the generation of the measurements in their specification.
 #[derive(Debug)]
-pub struct Agent<T: DataGenRng> {
-    agent_id: usize,
-    name: String,
-    #[allow(dead_code)]
-    rng: RandomNumberGenerator<T>,
-    agent_tags: Vec<Tag>,
-    measurement_generator_sets: Vec<MeasurementGeneratorSet<T>>,
+pub struct Agent {
+    /// identifier for the agent. This can be used in generated tags and fields
+    pub id: usize,
+    measurement_generators: Vec<MeasurementGenerator>,
     sampling_interval: Option<Duration>,
     /// nanoseconds since the epoch, used as the timestamp for the next
     /// generated point
@@ -71,65 +72,66 @@ pub struct Agent<T: DataGenRng> {
     interval: Option<tokio::time::Interval>,
 }
 
-impl<T: DataGenRng> Agent<T> {
-    /// Create a new agent that will generate data points according to these
-    /// specs. Substitutions in `name` and `agent_tags` should be made
-    /// before using them to instantiate an agent.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
+impl Agent {
+    /// Create agents that will generate data points according to these
+    /// specs.
+    pub fn from_spec(
         agent_spec: &specification::AgentSpec,
-        agent_name: impl Into<String>,
-        agent_id: usize,
-        parent_seed: impl fmt::Display,
-        agent_tags: Vec<Tag>,
         start_datetime: Option<i64>, // in nanoseconds since the epoch, defaults to now
         end_datetime: Option<i64>,   // also in nanoseconds since the epoch, defaults to now
         execution_start_time: i64,
         continue_on: bool, // If true, run in "continue" mode after historical data is generated
-    ) -> Result<Self> {
-        let name = agent_name.into();
-        // Will agents actually need rngs? Might just need seeds...
-        let seed = format!("{}-{}", parent_seed, name);
-        let rng = RandomNumberGenerator::<T>::new(&seed);
+        generated_tag_sets: &GeneratedTagSets,
+    ) -> Result<Vec<Self>> {
+        let agent_count = agent_spec.count.unwrap_or(1);
 
-        let measurement_generator_sets = agent_spec
-            .measurements
-            .iter()
-            .map(|spec| {
-                MeasurementGeneratorSet::new(
-                    &name,
-                    agent_id,
-                    spec,
-                    &seed,
-                    &agent_tags,
-                    execution_start_time,
-                )
+        let agents: Vec<_> = (1..agent_count + 1)
+            .into_iter()
+            .map(|agent_id| {
+                let data = json!({"agent": {"id": agent_id}});
+
+                let agent_tag_pairs = TagPair::pairs_from_specs(&agent_spec.tag_pairs, data)
+                    .context(CouldNotCreateAgentTagPairs)?;
+
+                let measurement_generators = agent_spec
+                    .measurements
+                    .iter()
+                    .map(|spec| {
+                        MeasurementGenerator::from_spec(
+                            agent_id,
+                            spec,
+                            execution_start_time,
+                            generated_tag_sets,
+                            &agent_tag_pairs,
+                        )
+                        .context(CouldNotCreateMeasurementGenerators)
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let measurement_generators = measurement_generators.into_iter().flatten().collect();
+
+                let current_datetime = start_datetime.unwrap_or_else(now_ns);
+                let end_datetime = end_datetime.unwrap_or_else(now_ns);
+
+                // Convert to nanoseconds
+                let sampling_interval = match &agent_spec.sampling_interval {
+                    None => None,
+                    Some(s) => Some(parse_duration(s).context(InvalidSamplingInterval)?),
+                };
+
+                Ok(Self {
+                    id: agent_id,
+                    measurement_generators,
+                    sampling_interval,
+                    current_datetime,
+                    end_datetime,
+                    continue_on,
+                    finished: false,
+                    interval: None,
+                })
             })
-            .collect::<crate::measurement::Result<_>>()
-            .context(CouldNotCreateMeasurementGeneratorSets)?;
+            .collect::<Result<Vec<_>>>()?;
 
-        let current_datetime = start_datetime.unwrap_or_else(now_ns);
-        let end_datetime = end_datetime.unwrap_or_else(now_ns);
-
-        // Convert to nanoseconds
-        let sampling_interval = match &agent_spec.sampling_interval {
-            None => None,
-            Some(s) => Some(humantime::parse_duration(s).context(InvalidSamplingInterval)?),
-        };
-
-        Ok(Self {
-            agent_id,
-            name,
-            rng,
-            agent_tags,
-            measurement_generator_sets,
-            sampling_interval,
-            current_datetime,
-            end_datetime,
-            continue_on,
-            finished: false,
-            interval: None,
-        })
+        Ok(agents)
     }
 
     /// Generate and write points in batches until `generate` doesn't return any
@@ -140,35 +142,58 @@ impl<T: DataGenRng> Agent<T> {
         mut points_writer: PointsWriter,
         batch_size: usize,
     ) -> Result<usize> {
+        let mut points_this_batch = 1;
         let mut total_points = 0;
+        let start = Instant::now();
 
-        let mut points = self.generate().await?;
-        while !points.is_empty() {
+        while points_this_batch != 0 {
+            let batch_start = Instant::now();
+            points_this_batch = 0;
+
+            let mut streams = Vec::with_capacity(batch_size);
             for _ in 0..batch_size {
-                points.append(&mut self.generate().await?);
+                let mut s = self.generate().await?;
+                if s.is_empty() {
+                    break;
+                }
+                streams.append(&mut s);
             }
-            info!("[agent {}] sending {} points", self.name, points.len());
-            total_points += points.len();
+
+            for s in &streams {
+                points_this_batch += s.line_count();
+                total_points += s.line_count();
+            }
+
             points_writer
-                .write_points(points)
+                .write_points(streams.into_iter().flatten())
                 .await
                 .context(CouldNotWritePoints)?;
-            points = self.generate().await?;
+
+            info!("wrote {} in {:?}", points_this_batch, batch_start.elapsed());
+            let secs = start.elapsed().as_secs();
+            if secs != 0 {
+                info!(
+                    "written {} in {:?} for {}/sec",
+                    total_points,
+                    start.elapsed(),
+                    total_points / secs as usize
+                )
+            }
         }
+
         Ok(total_points)
     }
 
-    /// Generate data points from the configuration in this agent, one point per
-    /// measurement contained in this agent's configuration.
-    pub async fn generate(&mut self) -> Result<Vec<DataPoint>> {
-        let mut points = Vec::new();
-
+    /// Generate data points from the configuration in this agent.
+    pub async fn generate(&mut self) -> Result<Vec<MeasurementLineIterator>> {
         debug!(
             "[agent {}]  generate more? {} current: {}, end: {}",
-            self.name, self.finished, self.current_datetime, self.end_datetime
+            self.id, self.finished, self.current_datetime, self.end_datetime
         );
 
         if !self.finished {
+            let mut measurement_streams = Vec::with_capacity(self.measurement_generators.len());
+
             // Save the current_datetime to use in the set of points that we're generating
             // because we might increment current_datetime to see if we're done
             // or not.
@@ -194,30 +219,38 @@ impl<T: DataGenRng> Agent<T> {
                 self.finished = true;
             }
 
-            for mgs in &mut self.measurement_generator_sets {
-                for point in mgs
-                    .generate(point_timestamp)
-                    .context(CouldNotGeneratePoint)?
-                {
-                    points.push(point);
-                }
+            for mgs in &mut self.measurement_generators {
+                measurement_streams.push(
+                    mgs.generate(point_timestamp)
+                        .context(CouldNotGeneratePoint)?,
+                );
             }
-        }
 
-        Ok(points)
+            Ok(measurement_streams)
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Sets the current date and time for the agent and resets its finished state to false. Enables
+    /// calling generate again during testing and benchmarking.
+    pub fn reset_current_date_time(&mut self, current_datetime: i64) {
+        self.finished = false;
+        self.current_datetime = current_datetime;
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{now_ns, specification::*, ZeroRng};
+    use crate::measurement::LineToGenerate;
+    use crate::{now_ns, specification::*};
     use influxdb2_client::models::WriteDataPoint;
 
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
 
-    impl<T: DataGenRng> Agent<T> {
+    impl Agent {
         /// Instantiate an agent only with the parameters we're interested in
         /// testing, keeping everything else constant across different
         /// tests.
@@ -228,11 +261,10 @@ mod test {
             end_datetime: i64,
         ) -> Self {
             let measurement_spec = MeasurementSpec {
-                name: "measurement-{{agent_id}}-{{measurement_id}}".into(),
+                name: "measurement-{{agent.id}}-{{measurement.id}}".into(),
                 count: Some(2),
-                tags: vec![],
                 fields: vec![FieldSpec {
-                    name: "field-{{agent_id}}-{{measurement_id}}-{{field_id}}".into(),
+                    name: "field-{{agent.id}}-{{measurement.id}}-{{field.id}}".into(),
                     field_value_spec: FieldValueSpec::I64 {
                         range: 0..60,
                         increment: false,
@@ -240,18 +272,23 @@ mod test {
                     },
                     count: Some(2),
                 }],
+                tag_pairs: vec![],
+                tag_set: None,
             };
 
-            let measurement_generator_set =
-                MeasurementGeneratorSet::new("test", 42, &measurement_spec, "spec-test", &[], 0)
-                    .unwrap();
+            let generated_tag_sets = GeneratedTagSets::default();
+
+            let measurement_generators = MeasurementGenerator::from_spec(
+                1,
+                &measurement_spec,
+                current_datetime,
+                &generated_tag_sets,
+                &[],
+            )
+            .unwrap();
 
             Self {
-                agent_id: 0,
-                name: String::from("test"),
-                rng: RandomNumberGenerator::<T>::new("spec-test"),
-                agent_tags: vec![],
-                measurement_generator_sets: vec![measurement_generator_set],
+                id: 0,
                 finished: false,
                 interval: None,
 
@@ -259,11 +296,12 @@ mod test {
                 current_datetime,
                 end_datetime,
                 continue_on,
+                measurement_generators,
             }
         }
     }
 
-    fn timestamps(points: &[influxdb2_client::models::DataPoint]) -> Result<Vec<i64>> {
+    fn timestamps(points: &[LineToGenerate]) -> Result<Vec<i64>> {
         points
             .iter()
             .map(|point| {
@@ -300,12 +338,13 @@ mod test {
 
             #[tokio::test]
             async fn current_time_less_than_end_time() -> Result<()> {
-                let mut agent = Agent::<ZeroRng>::test_instance(None, false, 0, 10);
+                let mut agent = Agent::test_instance(None, false, 0, 10);
 
-                let points = agent.generate().await?;
-                assert_eq!(points.len(), 2);
+                let points = agent.generate().await?.into_iter().flatten();
+                assert_eq!(points.count(), 2);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert!(points.is_empty(), "expected no points, got {:?}", points);
 
                 Ok(())
@@ -313,12 +352,13 @@ mod test {
 
             #[tokio::test]
             async fn current_time_equal_end_time() -> Result<()> {
-                let mut agent = Agent::<ZeroRng>::test_instance(None, false, 10, 10);
+                let mut agent = Agent::test_instance(None, false, 10, 10);
 
-                let points = agent.generate().await?;
-                assert_eq!(points.len(), 2);
+                let points = agent.generate().await?.into_iter().flatten();
+                assert_eq!(points.count(), 2);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert!(points.is_empty(), "expected no points, got {:?}", points);
 
                 Ok(())
@@ -326,12 +366,13 @@ mod test {
 
             #[tokio::test]
             async fn current_time_greater_than_end_time() -> Result<()> {
-                let mut agent = Agent::<ZeroRng>::test_instance(None, false, 11, 10);
+                let mut agent = Agent::test_instance(None, false, 11, 10);
 
-                let points = agent.generate().await?;
-                assert_eq!(points.len(), 2);
+                let points = agent.generate().await?.into_iter().flatten();
+                assert_eq!(points.count(), 2);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert!(points.is_empty(), "expected no points, got {:?}", points);
 
                 Ok(())
@@ -343,12 +384,13 @@ mod test {
 
             #[tokio::test]
             async fn current_time_less_than_end_time() -> Result<()> {
-                let mut agent = Agent::<ZeroRng>::test_instance(None, true, 0, 10);
+                let mut agent = Agent::test_instance(None, true, 0, 10);
 
-                let points = agent.generate().await?;
-                assert_eq!(points.len(), 2);
+                let points = agent.generate().await?.into_iter().flatten();
+                assert_eq!(points.count(), 2);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert!(points.is_empty(), "expected no points, got {:?}", points);
 
                 Ok(())
@@ -356,12 +398,13 @@ mod test {
 
             #[tokio::test]
             async fn current_time_equal_end_time() -> Result<()> {
-                let mut agent = Agent::<ZeroRng>::test_instance(None, true, 10, 10);
+                let mut agent = Agent::test_instance(None, true, 10, 10);
 
-                let points = agent.generate().await?;
-                assert_eq!(points.len(), 2);
+                let points = agent.generate().await?.into_iter().flatten();
+                assert_eq!(points.count(), 2);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert!(points.is_empty(), "expected no points, got {:?}", points);
 
                 Ok(())
@@ -369,12 +412,13 @@ mod test {
 
             #[tokio::test]
             async fn current_time_greater_than_end_time() -> Result<()> {
-                let mut agent = Agent::<ZeroRng>::test_instance(None, true, 11, 10);
+                let mut agent = Agent::test_instance(None, true, 11, 10);
 
-                let points = agent.generate().await?;
-                assert_eq!(points.len(), 2);
+                let points = agent.generate().await?.into_iter().flatten();
+                assert_eq!(points.count(), 2);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert!(points.is_empty(), "expected no points, got {:?}", points);
 
                 Ok(())
@@ -412,15 +456,16 @@ mod test {
                 let end = TEST_SAMPLING_INTERVAL.as_nanos() as i64;
 
                 let mut agent =
-                    Agent::<ZeroRng>::test_instance(Some(TEST_SAMPLING_INTERVAL), false, current, end);
+                    Agent::test_instance(Some(TEST_SAMPLING_INTERVAL), false, current, end);
 
-                let points = agent.generate().await?;
-                assert_eq!(points.len(), 2);
+                let points = agent.generate().await?.into_iter().flatten();
+                assert_eq!(points.count(), 2);
 
-                let points = agent.generate().await?;
-                assert_eq!(points.len(), 2);
+                let points = agent.generate().await?.into_iter().flatten();
+                assert_eq!(points.count(), 2);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert!(points.is_empty(), "expected no points, got {:?}", points);
 
                 Ok(())
@@ -432,12 +477,13 @@ mod test {
                 let end = current;
 
                 let mut agent =
-                    Agent::<ZeroRng>::test_instance(Some(TEST_SAMPLING_INTERVAL), false, current, end);
+                    Agent::test_instance(Some(TEST_SAMPLING_INTERVAL), false, current, end);
 
-                let points = agent.generate().await?;
-                assert_eq!(points.len(), 2);
+                let points = agent.generate().await?.into_iter().flatten();
+                assert_eq!(points.count(), 2);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert!(points.is_empty(), "expected no points, got {:?}", points);
 
                 Ok(())
@@ -449,12 +495,13 @@ mod test {
                 let end = TEST_SAMPLING_INTERVAL.as_nanos() as i64;
 
                 let mut agent =
-                    Agent::<ZeroRng>::test_instance(Some(TEST_SAMPLING_INTERVAL), false, current, end);
+                    Agent::test_instance(Some(TEST_SAMPLING_INTERVAL), false, current, end);
 
-                let points = agent.generate().await?;
-                assert_eq!(points.len(), 2);
+                let points = agent.generate().await?.into_iter().flatten();
+                assert_eq!(points.count(), 2);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert!(points.is_empty(), "expected no points, got {:?}", points);
 
                 Ok(())
@@ -484,15 +531,17 @@ mod test {
                 let current = end - TEST_SAMPLING_INTERVAL.as_nanos() as i64;
 
                 let mut agent =
-                    Agent::<ZeroRng>::test_instance(Some(TEST_SAMPLING_INTERVAL), true, current, end);
+                    Agent::test_instance(Some(TEST_SAMPLING_INTERVAL), true, current, end);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert_eq!(points.len(), 2);
 
                 let times = timestamps(&points).unwrap();
                 assert_eq!(vec![current, current], times);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert_eq!(points.len(), 2);
 
                 let times = timestamps(&points).unwrap();
@@ -507,15 +556,17 @@ mod test {
                 let current = end;
 
                 let mut agent =
-                    Agent::<ZeroRng>::test_instance(Some(TEST_SAMPLING_INTERVAL), true, current, end);
+                    Agent::test_instance(Some(TEST_SAMPLING_INTERVAL), true, current, end);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert_eq!(points.len(), 2);
 
                 let times = timestamps(&points).unwrap();
                 assert_eq!(vec![end, end], times);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert_eq!(points.len(), 2);
 
                 let real_now = now_ns();
@@ -541,15 +592,17 @@ mod test {
                 let current = end + TEST_SAMPLING_INTERVAL.as_nanos() as i64;
 
                 let mut agent =
-                    Agent::<ZeroRng>::test_instance(Some(TEST_SAMPLING_INTERVAL), true, current, end);
+                    Agent::test_instance(Some(TEST_SAMPLING_INTERVAL), true, current, end);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert_eq!(points.len(), 2);
 
                 let times = timestamps(&points).unwrap();
                 assert_eq!(vec![current, current], times);
 
-                let points = agent.generate().await?;
+                let points = agent.generate().await?.into_iter().flatten();
+                let points: Vec<_> = points.collect();
                 assert_eq!(points.len(), 2);
 
                 let real_now = now_ns();

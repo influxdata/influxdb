@@ -18,6 +18,7 @@ use generated_types::{
 };
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
+use mutable_batch::DbWrite;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use parquet_catalog::core::PreservedCatalog;
@@ -26,12 +27,9 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
-use trace::ctx::SpanContext;
 use uuid::Uuid;
 
 const INIT_BACKOFF: Duration = Duration::from_secs(1);
-
-mod metrics;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -162,16 +160,12 @@ impl Database {
             "new database"
         );
 
-        let metrics =
-            metrics::Metrics::new(application.metric_registry().as_ref(), config.name.as_str());
-
         let shared = Arc::new(DatabaseShared {
             config,
             application,
             shutdown: Default::default(),
             state: RwLock::new(Freezable::new(DatabaseState::Known(DatabaseStateKnown {}))),
             state_notify: Default::default(),
-            metrics,
         });
 
         let handle = tokio::spawn(background_worker(Arc::clone(&shared)));
@@ -589,18 +583,12 @@ impl Database {
         Ok(())
     }
 
-    /// Writes an entry to this `Database` this will either:
+    /// Writes a [`DbWrite`] to this `Database` this will either:
     ///
     /// - write it to a write buffer
     /// - write it to a local `Db`
     ///
-    pub async fn write_entry(
-        &self,
-        entry: entry::Entry,
-        span_ctx: Option<SpanContext>,
-    ) -> Result<(), WriteError> {
-        let recorder = self.shared.metrics.entry_ingest(entry.data().len());
-
+    pub async fn route_write(&self, write: &DbWrite) -> Result<(), WriteError> {
         let db = {
             let state = self.shared.state.read();
             match &**state {
@@ -617,7 +605,7 @@ impl Database {
             }
         };
 
-        db.store_entry(entry, span_ctx).await.map_err(|e| {
+        db.route_write(write).await.map_err(|e| {
             use super::db::Error;
             match e {
                 // TODO: Pull write buffer producer out of Db
@@ -628,7 +616,6 @@ impl Database {
             }
         })?;
 
-        recorder.success();
         Ok(())
     }
 }
@@ -666,9 +653,6 @@ struct DatabaseShared {
 
     /// Notify that the database state has changed
     state_notify: Notify,
-
-    /// Metrics for this database
-    metrics: metrics::Metrics,
 }
 
 /// The background worker for `Database` - there should only ever be one

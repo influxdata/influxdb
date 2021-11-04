@@ -1,18 +1,16 @@
 # This config file aims to replicate the data produced by the capwrite tool:
 # https://github.com/influxdata/idpe/tree/e493a8e9b6b773e9374a8542ddcab7d8174d320d/performance/capacity/write
 name = "cap_write"
-base_seed = "correct horse battery staple"
 
 [[agents]]
-name = "cap_write_{{agent_id}}"
 count = 3
 sampling_interval = "10s"
+tag_pairs = [
+    {key = "host", template = "host-{{agent.id}}"}
+]
 
 [[agents.measurements]]
 name = "system"
-    [[agents.measurements.tags]]
-    name = "host"
-    value = "host-{{agent_id}}"
 
     [[agents.measurements.fields]]
     name = "n_cpus"
@@ -45,9 +43,6 @@ name = "system"
 
 [[agents.measurements]]
 name = "mem"
-    [[agents.measurements.tags]]
-    name = "host"
-    value = "host-{{agent_id}}"
 
     [[agents.measurements.fields]]
     name = "active"
@@ -183,9 +178,6 @@ name = "mem"
 
 [[agents.measurements]]
 name = "disk"
-    [[agents.measurements.tags]]
-    name = "host"
-    value = "host-{{agent_id}}"
 
     [[agents.measurements.fields]]
     name = "free"
@@ -217,9 +209,6 @@ name = "disk"
 
 [[agents.measurements]]
 name = "swap"
-    [[agents.measurements.tags]]
-    name = "host"
-    value = "host-{{agent_id}}"
 
     [[agents.measurements.fields]]
     name = "free"
@@ -249,13 +238,7 @@ name = "swap"
 
 [[agents.measurements]]
 name = "cpu"
-    [[agents.measurements.tags]]
-    name = "host"
-    value = "host-{{agent_id}}"
-
-    [[agents.measurements.tags]]
-    name = "cpu"
-    value = "cpu-total"
+tag_pairs = [{key = "cpu", template = "cpu-total"}]
 
     [[agents.measurements.fields]]
     name = "usage_user"
@@ -295,9 +278,6 @@ name = "cpu"
 
 [[agents.measurements]]
 name = "processes"
-    [[agents.measurements.tags]]
-    name = "host"
-    value = "host-{{agent_id}}"
 
     [[agents.measurements.fields]]
     name = "blocked"
@@ -349,9 +329,6 @@ name = "processes"
 
 [[agents.measurements]]
 name = "net"
-    [[agents.measurements.tags]]
-    name = "host"
-    value = "host-{{agent_id}}"
 
     [[agents.measurements.fields]]
     name = "bytes_recv"
@@ -387,9 +364,6 @@ name = "net"
 
 [[agents.measurements]]
 name = "diskio"
-    [[agents.measurements.tags]]
-    name = "host"
-    value = "host-{{agent_id}}"
 
     [[agents.measurements.fields]]
     name = "reads"
