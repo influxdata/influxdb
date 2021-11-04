@@ -12,7 +12,7 @@ use crate::{
     },
     structopt_blocks::run_config::RunConfig,
 };
-use router::server::RouterServer;
+use router::{resolver::RemoteTemplate, server::RouterServer};
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -62,7 +62,11 @@ pub struct Config {
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
-    let router_server = Arc::new(RouterServer::new(common_state.trace_collector()));
+    let remote_template = config.remote_template.map(RemoteTemplate::new);
+    let router_server = Arc::new(RouterServer::new(
+        remote_template,
+        common_state.trace_collector(),
+    ));
     let server_type = Arc::new(RouterServerType::new(router_server, &common_state));
 
     Ok(influxdb_ioxd::main(common_state, server_type).await?)
