@@ -15,7 +15,8 @@ And the built binary has command line help:
 ./target/release/iox_data_generator --help
 ```
 
-For examples of specifications see the [schemas folder](schemas)
+For examples of specifications see the [schemas folder](schemas). The [full_example](schemas/full_example.toml) is the 
+most comprehensive with comments and example output.
 
 ## Use with two IOx servers and Kafka
 

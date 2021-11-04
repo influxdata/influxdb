@@ -1,331 +1,368 @@
 //! Generating a set of points for one measurement configuration
 
-use crate::{
-    field::FieldGeneratorSet,
-    specification,
-    substitution::Substitute,
-    tag::{Tag, TagGeneratorSet},
-    DataGenRng, RandomNumberGenerator,
-};
+use crate::{field::FieldGeneratorImpl, specification, substitution, tag_pair::TagPair};
 
-use influxdb2_client::models::DataPoint;
-use itertools::Itertools;
-use snafu::{ResultExt, Snafu};
-use std::fmt;
+use crate::tag_set::{GeneratedTagSets, TagSet};
+use influxdb2_client::models::WriteDataPoint;
+use serde_json::json;
+use snafu::{OptionExt, ResultExt, Snafu};
+use std::fmt::Debug;
+use std::sync::{Arc, Mutex};
 
 /// Measurement-specific Results
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Errors that may happen while creating measurements
 #[derive(Snafu, Debug)]
+#[allow(missing_docs)]
 pub enum Error {
-    /// Error that may happen when building a data point with the Influx DB
-    /// client
     #[snafu(display(
         "Could not build data point for measurement `{}` with Influx Client, caused by:\n{}",
         name,
         source
     ))]
     InfluxDataPointError {
-        /// The name of the relevant measurement
         name: String,
-        /// Underlying Influx Client error that caused this problem
         source: influxdb2_client::models::data_point::DataPointError,
     },
 
-    /// Error that may happen when substituting placeholder values
     #[snafu(display("Could not create measurement name, caused by:\n{}", source))]
-    CouldNotCreateMeasurementName {
-        /// Underlying `substitution` module error that caused this problem
-        source: crate::substitution::Error,
-    },
+    CouldNotCreateMeasurementName { source: crate::substitution::Error },
 
-    /// Error that may happen when creating tag generator sets
-    #[snafu(display(
-        "Could not create tag generator sets for measurement `{}`, caused by:\n{}",
-        name,
-        source
-    ))]
-    CouldNotCreateTagGeneratorSets {
-        /// The name of the relevant measurement
-        name: String,
-        /// Underlying `tag` module error that caused this problem
-        source: crate::tag::Error,
-    },
-
-    /// Error that may happen when creating field generator sets
     #[snafu(display(
         "Could not create field generator sets for measurement `{}`, caused by:\n{}",
         name,
         source
     ))]
     CouldNotCreateFieldGeneratorSets {
-        /// The name of the relevant measurement
         name: String,
-        /// Underlying `field` module error that caused this problem
         source: crate::field::Error,
     },
 
-    /// Error that may happen when generating a particular set of tags
     #[snafu(display(
-        "Could not generate tags for measurement `{}`, caused by:\n{}",
-        name,
-        source
+        "Tag set {} referenced not found for measurement {}",
+        tag_set,
+        measurement
     ))]
-    CouldNotGenerateTags {
-        /// The name of the relevant measurement
-        name: String,
-        /// Underlying `tag` module error that caused this problem
-        source: crate::tag::Error,
+    GeneratedTagSetNotFound {
+        tag_set: String,
+        measurement: String,
     },
-}
 
-/// A set of `count` measurements that have the same configuration but different
-/// `measurement_id`s. The `generate` method on a `MeasurementGeneratorSet` will
-/// always return `count` points.
-#[derive(Debug)]
-pub struct MeasurementGeneratorSet<T: DataGenRng> {
-    measurement_generators: Vec<MeasurementGenerator<T>>,
-}
+    #[snafu(display("Could not compile template `{}`, caused by:\n{}", template, source))]
+    CantCompileTemplate {
+        source: handlebars::TemplateError,
+        template: String,
+    },
 
-impl<T: DataGenRng> MeasurementGeneratorSet<T> {
-    /// Create a new set of measurement generators for a particular agent and
-    /// measurement specification.
-    pub fn new(
-        agent_name: &str,
-        agent_id: usize,
-        spec: &specification::MeasurementSpec,
-        parent_seed: impl fmt::Display,
-        static_tags: &[Tag],
-        execution_start_time: i64,
-    ) -> Result<Self> {
-        let count = spec.count.unwrap_or(1);
+    #[snafu(display("Could not render template `{}`, caused by:\n{}", template, source))]
+    CantRenderTemplate {
+        source: handlebars::RenderError,
+        template: String,
+    },
 
-        let measurement_generators = (0..count)
-            .map(|measurement_id| {
-                MeasurementGenerator::new(
-                    agent_name,
-                    agent_id,
-                    measurement_id,
-                    spec,
-                    &parent_seed,
-                    static_tags,
-                    execution_start_time,
-                )
-            })
-            .collect::<Result<_>>()?;
-
-        Ok(Self {
-            measurement_generators,
-        })
-    }
-
-    /// Create one set of points
-    pub fn generate(&mut self, timestamp: i64) -> Result<Vec<DataPoint>> {
-        let generate_results = self
-            .measurement_generators
-            .iter_mut()
-            .map(|mg| mg.generate(timestamp));
-
-        itertools::process_results(generate_results, |points| points.flatten().collect())
-    }
+    #[snafu(display("Error creating measurement tag pairs: {}", source))]
+    CouldNotCreateMeasurementTagPairs { source: crate::tag_pair::Error },
 }
 
 /// Generate measurements
 #[derive(Debug)]
-pub struct MeasurementGenerator<T: DataGenRng> {
-    #[allow(dead_code)]
-    rng: RandomNumberGenerator<T>,
-    name: String,
-    static_tags: Vec<Tag>,
-    tag_generator_sets: Vec<TagGeneratorSet<T>>,
-    total_tag_cardinality: usize,
-    field_generator_sets: Vec<FieldGeneratorSet>,
-    count: usize,
+pub struct MeasurementGenerator {
+    measurement: Arc<Mutex<Measurement>>,
 }
 
-impl<T: DataGenRng> MeasurementGenerator<T> {
+impl MeasurementGenerator {
+    /// Create the count specified number of measurement generators from
+    /// the passed `MeasurementSpec`
+    pub fn from_spec(
+        agent_id: usize,
+        spec: &specification::MeasurementSpec,
+        execution_start_time: i64,
+        generated_tag_sets: &GeneratedTagSets,
+        agent_tag_pairs: &[Arc<TagPair>],
+    ) -> Result<Vec<Self>> {
+        let count = spec.count.unwrap_or(1) + 1;
+
+        (1..count)
+            .map(|measurement_id| {
+                Self::new(
+                    agent_id,
+                    measurement_id,
+                    spec,
+                    execution_start_time,
+                    generated_tag_sets,
+                    agent_tag_pairs,
+                )
+            })
+            .collect::<Result<Vec<_>>>()
+    }
+
     /// Create a new way to generate measurements from a specification
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        agent_name: impl Into<String>,
         agent_id: usize,
         measurement_id: usize,
         spec: &specification::MeasurementSpec,
-        parent_seed: impl fmt::Display,
-        static_tags: &[Tag],
         execution_start_time: i64,
+        generated_tag_sets: &GeneratedTagSets,
+        agent_tag_pairs: &[Arc<TagPair>],
     ) -> Result<Self> {
-        let agent_name = agent_name.into();
-        let spec_name = Substitute::once(
+        let measurement_name = substitution::render_once(
+            "measurement",
             &spec.name,
-            &[
-                ("agent_id", &agent_id.to_string()),
-                ("agent_name", &agent_name),
-                ("measurement_id", &measurement_id.to_string()),
-            ],
+            &json!({
+                "agent": {"id": agent_id},
+                "measurement": {"id": measurement_id},
+            }),
         )
         .context(CouldNotCreateMeasurementName)?;
 
-        let seed = format!("{}-{}", parent_seed, spec_name);
-        let rng = RandomNumberGenerator::<T>::new(seed);
-
-        let tag_generator_sets: Vec<TagGeneratorSet<T>> = spec
-            .tags
-            .iter()
-            .map(|tag_spec| TagGeneratorSet::new(agent_id, measurement_id, tag_spec, &rng.seed))
-            .collect::<crate::tag::Result<_>>()
-            .context(CouldNotCreateTagGeneratorSets { name: &spec_name })?;
-
-        let total_tag_cardinality = tag_generator_sets
-            .iter()
-            .map(|tgs| tgs.tag_cardinality())
-            .product();
-
-        let field_generator_sets = spec
+        let fields = spec
             .fields
             .iter()
             .map(|field_spec| {
-                FieldGeneratorSet::new::<T>(
-                    &agent_name,
-                    agent_id,
-                    measurement_id,
-                    field_spec,
-                    &rng.seed,
-                    execution_start_time,
-                )
+                let data = json!({
+                    "agent": {"id": agent_id},
+                    "measurement": {"id": measurement_id, "name": &measurement_name},
+                });
+
+                FieldGeneratorImpl::from_spec(field_spec, data, execution_start_time)
             })
-            .collect::<crate::field::Result<_>>()
-            .context(CouldNotCreateFieldGeneratorSets { name: &spec_name })?;
+            .collect::<crate::field::Result<Vec<_>>>()
+            .context(CouldNotCreateFieldGeneratorSets {
+                name: &measurement_name,
+            })?
+            .into_iter()
+            .flatten()
+            .collect();
+
+        // generate the tag pairs
+        let template_data = json!({
+            "agent": {"id": agent_id},
+            "measurement": {"id": measurement_id, "name": &measurement_name},
+        });
+
+        let mut tag_pairs = TagPair::pairs_from_specs(&spec.tag_pairs, template_data)
+            .context(CouldNotCreateMeasurementTagPairs)?;
+        for t in agent_tag_pairs {
+            tag_pairs.push(Arc::clone(t));
+        }
+
+        let generated_tag_sets = match &spec.tag_set {
+            Some(t) => Arc::clone(generated_tag_sets.sets_for(t).context(
+                GeneratedTagSetNotFound {
+                    tag_set: t,
+                    measurement: &measurement_name,
+                },
+            )?),
+            // if there's no generated tag set, just have an empty set as a single row so
+            // it can be used to generate the single line that will come out of each generation
+            // for this measurement.
+            None => Arc::new(vec![TagSet { tags: vec![] }]),
+        };
+
+        // I have this gnarly tag ordering construction so that I can keep the pre-generated
+        // tag sets in their existing vecs without moving them around so that I can have
+        // many thousands of agents and measurements that use the same tagset without blowing
+        // up the number of vectors and memory I consume.
+        let mut tag_ordering: Vec<_> = tag_pairs
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (p.key(), TagOrdering::Pair(i)))
+            .chain(
+                generated_tag_sets[0]
+                    .tags
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| (p.key.to_string(), TagOrdering::Generated(i))),
+            )
+            .collect();
+        tag_ordering.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        let tag_ordering: Vec<_> = tag_ordering.into_iter().map(|(_, o)| o).collect();
 
         Ok(Self {
-            rng,
-            name: spec_name,
-            static_tags: static_tags.to_vec(),
-            tag_generator_sets,
-            total_tag_cardinality,
-            field_generator_sets,
-            count: spec.count.unwrap_or(1),
+            measurement: Arc::new(Mutex::new(Measurement {
+                name: measurement_name,
+                id: measurement_id,
+                tag_pairs,
+                generated_tag_sets,
+                tag_ordering,
+                fields,
+            })),
+        })
+    }
+
+    /// Create a line iterator to generate lines for a single sampling
+    pub fn generate(&mut self, timestamp: i64) -> Result<MeasurementLineIterator> {
+        Ok(MeasurementLineIterator {
+            measurement: Arc::clone(&self.measurement),
+            index: 0,
+            timestamp,
         })
     }
 }
 
-impl<T: DataGenRng> MeasurementGenerator<T> {
-    fn generate(&mut self, timestamp: i64) -> Result<Vec<DataPoint>> {
-        // Split out the tags that we want all combinations of. Perhaps these should be
-        // a different type?
-        let mut tags_with_cardinality: Vec<_> = itertools::process_results(
-            self.tag_generator_sets
-                .iter_mut()
-                .filter(|tgs| tgs.tag_cardinality() > 1)
-                .map(TagGeneratorSet::generate),
-            |tags| {
-                tags.multi_cartesian_product()
-                    .map(|tag_set| tag_set.into_iter().flatten().collect())
-                    .collect()
-            },
-        )
-        .context(CouldNotGenerateTags { name: &self.name })?;
+/// Details for the measurement to be generated. Can generate many lines
+/// for each sampling.
+#[derive(Debug)]
+pub struct Measurement {
+    name: String,
+    id: usize,
+    tag_pairs: Vec<Arc<TagPair>>,
+    generated_tag_sets: Arc<Vec<TagSet>>,
+    tag_ordering: Vec<TagOrdering>,
+    fields: Vec<FieldGeneratorImpl>,
+}
 
-        // Ensure we generate something even when there are no tags.
-        if tags_with_cardinality.is_empty() {
-            tags_with_cardinality.push(Vec::new());
-        }
-
-        let total_tag_cardinality = self.total_tag_cardinality;
-        assert_eq!(tags_with_cardinality.len(), total_tag_cardinality);
-
-        // Split out the tags that we don't want to include when we're generating all
-        // possible combinations above. Perhaps these should be a different
-        // type? Leaving the type annotation here because it's terrible and
-        // confusing otherwise.
-        //
-        // This type is made up of:
-        //
-        // - `Vec<Tag>` comes from one call to `TagGenerator::generate`. Tag
-        //   configurations with a `count` value > 1 generate multiple tags with
-        //   different keys but the same value for each generation. The length of this
-        //   vector is the tag configuration's `count`.
-        // - `Vec<Vec<Tag>>` comes from one call to `TagGenerator::generate_to_zip` and
-        //   is a list of either cloned or resampled tags from this TagGenerator. The
-        //   length of this vector is `total_tag_cardinality`.
-        // - `Vec<Vec<Vec<Tag>>>` comes from collecting all these lists from each
-        //   `TagGeneratorSet` that has a cardinality of 1 (the default). Each
-        //   `TagGeneratorSet` corresponds to one tag configuration.
-        let tags_without_cardinality_columns = self
-            .tag_generator_sets
-            .iter_mut()
-            .filter(|tgs| tgs.tag_cardinality() == 1)
-            .map(|tgs| tgs.generate_to_zip(total_tag_cardinality).unwrap());
-
-        // This is doing a zip over an arbitrary number of iterators... itertools has
-        // something that produces tuples but I want it to produce Vectors
-        let mut tags_without_cardinality_column_iters: Vec<_> = tags_without_cardinality_columns
-            .map(|column| column.into_iter())
-            .collect();
-
-        // For each group of tags that will become one row,
-        for v in &mut tags_with_cardinality {
-            // Get the rest of the tags that belong with this row that were either cloned or
-            // resampled according to their configuration
-            let tag_row: Vec<Vec<Tag>> = tags_without_cardinality_column_iters
-                .iter_mut()
-                .map(|column_iter| {
-                    column_iter.next().expect(
-                        "Should have generated `total_tag_cardinality` items, \
-                         which should match the length of `tags_with_cardinality`",
-                    )
-                })
-                .collect();
-            // If count can't be combined with replacements, this `for` loop wouldn't be
-            // needed
-            for mut tags in tag_row {
-                v.append(&mut tags);
-            }
-        }
-
-        tags_with_cardinality
-            .iter()
-            .map(|tags| self.one(&tags[..], timestamp))
-            .collect()
+impl Measurement {
+    /// The number of lines that will be generated for each sampling of this measurement.
+    pub fn line_count(&self) -> usize {
+        self.generated_tag_sets.len()
     }
 
-    fn one(&mut self, tags: &[Tag], timestamp: i64) -> Result<DataPoint> {
-        let mut point = DataPoint::builder(&self.name);
-
-        point = self
-            .static_tags
-            .iter()
-            .fold(point, |point, tag| point.tag(&tag.key, &tag.value));
-
-        point = tags
-            .iter()
-            .fold(point, |point, tag| point.tag(&tag.key, &tag.value));
-
-        for fgs in &mut self.field_generator_sets {
-            for field in fgs.generate(timestamp) {
-                point = point.field(&field.key, field.value);
+    /// Write the specified line as line protocol to the passed in writer.
+    pub fn write_index_to<W: std::io::Write>(
+        &mut self,
+        index: usize,
+        timestamp: i64,
+        mut w: W,
+    ) -> std::io::Result<()> {
+        write!(w, "{}", self.name)?;
+        let row_tags = &self.generated_tag_sets[index].tags;
+        for t in &self.tag_ordering {
+            match t {
+                TagOrdering::Generated(index) => {
+                    let t = &row_tags[*index];
+                    write!(w, ",{}={}", t.key, t.value)?;
+                }
+                TagOrdering::Pair(index) => {
+                    let t = &self.tag_pairs[*index].as_ref();
+                    match t {
+                        TagPair::Static(t) => write!(w, ",{}={}", t.key, t.value)?,
+                        TagPair::Regenerating(t) => {
+                            let mut t = t.lock().expect("mutex poisoned");
+                            let p = t.tag_pair();
+                            write!(w, ",{}={}", p.key, p.value)?
+                        }
+                    }
+                }
             }
         }
 
-        point = point.timestamp(timestamp);
+        for (i, field) in self.fields.iter_mut().enumerate() {
+            let d = if i == 0 { b" " } else { b"," };
+            w.write_all(d)?;
 
-        point
-            .build()
-            .context(InfluxDataPointError { name: &self.name })
+            match field {
+                FieldGeneratorImpl::Bool(f) => {
+                    let v = f.generate_value();
+                    write!(w, "{}={}", f.name, if v { "t" } else { "f" })?;
+                }
+                FieldGeneratorImpl::I64(f) => {
+                    let v = f.generate_value();
+                    write!(w, "{}={}i", f.name, v)?;
+                }
+                FieldGeneratorImpl::F64(f) => {
+                    let v = f.generate_value();
+                    write!(w, "{}={}", f.name, v)?;
+                }
+                FieldGeneratorImpl::String(f) => {
+                    let v = f.generate_value(timestamp);
+                    write!(w, "{}=\"{}\"", f.name, v)?;
+                }
+                FieldGeneratorImpl::Uptime(f) => match f.kind {
+                    specification::UptimeKind::I64 => {
+                        let v = f.generate_value();
+                        write!(w, "{}={}i", f.name, v)?;
+                    }
+                    specification::UptimeKind::Telegraf => {
+                        let v = f.generate_value_as_string();
+                        write!(w, "{}=\"{}\"", f.name, v)?;
+                    }
+                },
+            }
+        }
+
+        writeln!(w, " {}", timestamp)
+    }
+}
+
+#[derive(Debug)]
+enum TagOrdering {
+    Pair(usize),
+    Generated(usize),
+}
+
+/// Iterator to generate the lines for a given measurement
+#[derive(Debug)]
+pub struct MeasurementLineIterator {
+    measurement: Arc<Mutex<Measurement>>,
+    index: usize,
+    timestamp: i64,
+}
+
+impl MeasurementLineIterator {
+    /// Number of lines that will be generated for this measurement
+    pub fn line_count(&self) -> usize {
+        let m = self.measurement.lock().expect("mutex poinsoned");
+        m.line_count()
+    }
+}
+
+impl Iterator for MeasurementLineIterator {
+    type Item = LineToGenerate;
+
+    /// Get the details for the next `LineToGenerate`
+    fn next(&mut self) -> Option<Self::Item> {
+        let m = self.measurement.lock().expect("mutex poinsoned");
+
+        if self.index >= m.line_count() {
+            None
+        } else {
+            let n = Some(LineToGenerate {
+                measurement: Arc::clone(&self.measurement),
+                index: self.index,
+                timestamp: self.timestamp,
+            });
+            self.index += 1;
+            n
+        }
+    }
+}
+
+/// A pointer to the line to be generated. Will be evaluated when asked to write.
+#[derive(Debug)]
+pub struct LineToGenerate {
+    /// The measurement state to be used to generate the line
+    pub measurement: Arc<Mutex<Measurement>>,
+    /// The index into the generated tag pairs of the line we're generating
+    pub index: usize,
+    /// The timestamp of the line that we're generating
+    pub timestamp: i64,
+}
+
+impl WriteDataPoint for LineToGenerate {
+    /// Generate the data and write the line to the passed in writer.
+    fn write_data_point_to<W>(&self, w: W) -> std::io::Result<()>
+    where
+        W: std::io::Write,
+    {
+        let mut m = self.measurement.lock().expect("mutex poisoned");
+        m.write_index_to(self.index, self.timestamp, w)
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{specification::*, DynamicRng, ZeroRng, TEST_SEED};
+    use crate::specification::*;
     use influxdb2_client::models::WriteDataPoint;
     use std::str;
 
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
 
-    impl<T: DataGenRng> MeasurementGenerator<T> {
+    impl MeasurementGenerator {
         fn generate_string(&mut self, timestamp: i64) -> Result<String> {
             self.generate_strings(timestamp)
                 .map(|mut strings| strings.swap_remove(0))
@@ -346,53 +383,12 @@ mod test {
 
     #[test]
     fn generate_measurement() -> Result {
-        let fake_now = 1234;
-
-        let measurement_spec = MeasurementSpec {
-            name: "cpu".into(),
-            count: None,
-            tags: vec![],
-            fields: vec![FieldSpec {
-                name: "response_time".into(),
-                field_value_spec: FieldValueSpec::I64 {
-                    range: 0..60,
-                    increment: false,
-                    reset_after: None,
-                },
-                count: None,
-            }],
-        };
-
-        let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
-            "agent_name",
-            0,
-            0,
-            &measurement_spec,
-            TEST_SEED,
-            &[],
-            fake_now,
-        )
-        .unwrap();
-
-        let line_protocol = measurement_generator.generate_string(fake_now)?;
-
-        assert_eq!(
-            line_protocol,
-            format!("cpu response_time=0i {}\n", fake_now)
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn generate_measurement_stable_rngs() -> Result {
         let fake_now = 5678;
 
         // This is the same as the previous test but with an additional field.
         let measurement_spec = MeasurementSpec {
             name: "cpu".into(),
             count: Some(2),
-            tags: vec![],
             fields: vec![
                 FieldSpec {
                     name: "load".into(),
@@ -409,18 +405,15 @@ mod test {
                     count: None,
                 },
             ],
+            tag_set: None,
+            tag_pairs: vec![],
         };
 
-        let mut measurement_generator = MeasurementGenerator::<DynamicRng>::new(
-            "agent_name",
-            0,
-            0,
-            &measurement_spec,
-            TEST_SEED,
-            &[],
-            fake_now,
-        )
-        .unwrap();
+        let generated_tag_sets = GeneratedTagSets::default();
+
+        let mut measurement_generator =
+            MeasurementGenerator::new(0, 0, &measurement_spec, fake_now, &generated_tag_sets, &[])
+                .unwrap();
 
         let line_protocol = vec![measurement_generator.generate_string(fake_now)?];
         let response_times = extract_field_values("response_time", &line_protocol);
@@ -435,89 +428,49 @@ mod test {
     }
 
     #[test]
-    fn generate_measurement_always_including_some_tags() -> Result {
+    fn generate_measurement_with_basic_tags() -> Result {
         let fake_now = 678;
 
         let measurement_spec = MeasurementSpec {
-            name: "cpu".into(),
+            name: "measurement".to_string(),
             count: None,
-            tags: vec![],
+            tag_set: None,
+            tag_pairs: vec![
+                TagPairSpec {
+                    key: "some_name".to_string(),
+                    template: "some_value".to_string(),
+                    count: None,
+                    regenerate_after_lines: None,
+                },
+                TagPairSpec {
+                    key: "tag_name".to_string(),
+                    template: "tag_value".to_string(),
+                    count: None,
+                    regenerate_after_lines: None,
+                },
+            ],
             fields: vec![FieldSpec {
-                name: "response_time".into(),
+                name: "field_name".to_string(),
                 field_value_spec: FieldValueSpec::I64 {
-                    range: 0..60,
+                    range: 1..1,
                     increment: false,
                     reset_after: None,
                 },
                 count: None,
             }],
         };
+        let generated_tag_sets = GeneratedTagSets::default();
 
-        let always_tags = vec![Tag::new("my_tag", "my_val")];
-
-        let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
-            "agent_name",
-            0,
-            0,
-            &measurement_spec,
-            TEST_SEED,
-            &always_tags,
-            fake_now,
-        )
-        .unwrap();
-
-        let line_protocol = measurement_generator.generate_string(fake_now)?;
-
-        assert_eq!(
-            line_protocol,
-            format!("cpu,my_tag=my_val response_time=0i {}\n", fake_now),
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn generate_measurement_with_basic_tags() -> Result {
-        let fake_now = 678;
-
-        let measurement_spec = MeasurementSpec {
-            name: "measurement".into(),
-            tags: vec![
-                TagSpec {
-                    name: "tag_name".into(),
-                    value: "tag_value".into(),
-                    ..Default::default()
-                },
-                TagSpec {
-                    name: "some_name".into(),
-                    value: "some_value".into(),
-                    ..Default::default()
-                },
-            ],
-            fields: vec![FieldSpec {
-                name: "field_name".into(),
-                ..FieldSpec::default()
-            }],
-            ..Default::default()
-        };
-
-        let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
-            "agent_name",
-            0,
-            0,
-            &measurement_spec,
-            TEST_SEED,
-            &[],
-            fake_now,
-        )
-        .unwrap();
+        let mut measurement_generator =
+            MeasurementGenerator::new(0, 0, &measurement_spec, fake_now, &generated_tag_sets, &[])
+                .unwrap();
 
         let line_protocol = measurement_generator.generate_string(fake_now)?;
 
         assert_eq!(
             line_protocol,
             format!(
-                "measurement,some_name=some_value,tag_name=tag_value field_name=f {}\n",
+                "measurement,some_name=some_value,tag_name=tag_value field_name=1i {}\n",
                 fake_now
             )
         );
@@ -526,422 +479,160 @@ mod test {
     }
 
     #[test]
-    fn generate_measurement_with_tags_with_count() -> Result {
+    fn generate_measurement_with_tags_with_count() {
         let fake_now = 678;
 
         let measurement_spec = MeasurementSpec {
-            name: "measurement".into(),
-            tags: vec![TagSpec {
-                name: "{{agent_id}}--{{measurement_id}}--tag_name--{{tag_id}}".into(),
-                value: "tag_value".into(),
+            name: "measurement".to_string(),
+            count: None,
+            tag_set: None,
+            tag_pairs: vec![TagPairSpec {
+                key: "some_name".to_string(),
+                template: "some_value {{id}}".to_string(),
                 count: Some(2),
-                ..Default::default()
+                regenerate_after_lines: None,
             }],
             fields: vec![FieldSpec {
-                name: "field_name".into(),
-                ..FieldSpec::default()
-            }],
-            ..Default::default()
-        };
-
-        let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
-            "agent_name",
-            42,
-            99,
-            &measurement_spec,
-            TEST_SEED,
-            &[],
-            fake_now,
-        )
-        .unwrap();
-
-        let line_protocol = measurement_generator.generate_string(fake_now)?;
-
-        assert_eq!(
-            line_protocol,
-            format!("measurement,42--99--tag_name--0=tag_value,42--99--tag_name--1=tag_value field_name=f {}\n", fake_now),
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn generate_measurement_with_tags_with_cardinality() -> Result {
-        let fake_now = 678;
-
-        let measurement_spec = MeasurementSpec {
-            name: "measurement".into(),
-            tags: vec![TagSpec {
-                name: "tag_name".into(),
-                value: "tag_value--{{cardinality}}".into(),
-                cardinality: Some(2),
-                ..Default::default()
-            }],
-            fields: vec![FieldSpec {
-                name: "field_name".into(),
-                ..FieldSpec::default()
-            }],
-            ..Default::default()
-        };
-
-        let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
-            "agent_name",
-            0,
-            0,
-            &measurement_spec,
-            TEST_SEED,
-            &[],
-            fake_now,
-        )
-        .unwrap();
-
-        let line_protocol = measurement_generator.generate_strings(fake_now)?;
-
-        assert_eq!(
-            line_protocol[0],
-            format!(
-                "measurement,tag_name=tag_value--0 field_name=f {}\n",
-                fake_now
-            )
-        );
-        assert_eq!(
-            line_protocol[1],
-            format!(
-                "measurement,tag_name=tag_value--1 field_name=f {}\n",
-                fake_now
-            )
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn generate_measurement_with_tags_with_multiple_cardinality() -> Result {
-        let fake_now = 678;
-
-        let measurement_spec = MeasurementSpec {
-            name: "measurement".into(),
-            tags: vec![
-                TagSpec {
-                    name: "alpha".into(),
-                    value: "alpha--{{cardinality}}".into(),
-                    cardinality: Some(2),
-                    ..Default::default()
-                },
-                TagSpec {
-                    name: "beta".into(),
-                    value: "beta--{{cardinality}}".into(),
-                    cardinality: Some(2),
-                    ..Default::default()
-                },
-            ],
-            fields: vec![FieldSpec {
-                name: "field_name".into(),
-                ..FieldSpec::default()
-            }],
-            ..Default::default()
-        };
-
-        let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
-            "agent_name",
-            0,
-            0,
-            &measurement_spec,
-            TEST_SEED,
-            &[],
-            fake_now,
-        )
-        .unwrap();
-
-        let line_protocol = measurement_generator.generate_strings(fake_now)?;
-
-        assert_eq!(
-            line_protocol[0],
-            format!(
-                "measurement,alpha=alpha--0,beta=beta--0 field_name=f {}\n",
-                fake_now
-            )
-        );
-        assert_eq!(
-            line_protocol[1],
-            format!(
-                "measurement,alpha=alpha--0,beta=beta--1 field_name=f {}\n",
-                fake_now
-            )
-        );
-        assert_eq!(
-            line_protocol[2],
-            format!(
-                "measurement,alpha=alpha--1,beta=beta--0 field_name=f {}\n",
-                fake_now
-            )
-        );
-        assert_eq!(
-            line_protocol[3],
-            format!(
-                "measurement,alpha=alpha--1,beta=beta--1 field_name=f {}\n",
-                fake_now
-            )
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn generate_measurement_with_tags_with_increment_every() -> Result {
-        let fake_now = 678;
-
-        let measurement_spec = MeasurementSpec {
-            name: "measurement".into(),
-            tags: vec![TagSpec {
-                name: "tag_name".into(),
-                value: "tag_value--{{counter}}".into(),
-                increment_every: Some(2),
-                ..Default::default()
-            }],
-            fields: vec![FieldSpec {
-                name: "field_name".into(),
-                ..FieldSpec::default()
-            }],
-            ..Default::default()
-        };
-
-        let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
-            "agent_name",
-            0,
-            0,
-            &measurement_spec,
-            TEST_SEED,
-            &[],
-            fake_now,
-        )
-        .unwrap();
-
-        let line_protocol_1 = measurement_generator.generate_string(fake_now)?;
-        let line_protocol_2 = measurement_generator.generate_string(fake_now)?;
-        let line_protocol_3 = measurement_generator.generate_string(fake_now)?;
-
-        assert_eq!(
-            line_protocol_1,
-            format!(
-                "measurement,tag_name=tag_value--0 field_name=f {}\n",
-                fake_now,
-            ),
-        );
-        assert_eq!(
-            line_protocol_2,
-            format!(
-                "measurement,tag_name=tag_value--0 field_name=f {}\n",
-                fake_now,
-            ),
-        );
-        assert_eq!(
-            line_protocol_3,
-            format!(
-                "measurement,tag_name=tag_value--1 field_name=f {}\n",
-                fake_now,
-            ),
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn generate_measurement_with_replacement() -> Result {
-        let fake_now = 91011;
-
-        let measurement_spec = MeasurementSpec {
-            name: "measurement-{{agent_id}}-{{measurement_id}}".into(),
-            count: Some(2),
-            tags: vec![],
-            fields: vec![FieldSpec {
-                name: "field-{{agent_id}}-{{measurement_id}}-{{field_id}}".into(),
+                name: "field_name".to_string(),
                 field_value_spec: FieldValueSpec::I64 {
-                    range: 0..60,
+                    range: 1..1,
                     increment: false,
                     reset_after: None,
                 },
-                count: Some(2),
+                count: None,
             }],
         };
+        let generated_tag_sets = GeneratedTagSets::default();
 
-        let mut measurement_generator_set = MeasurementGeneratorSet::<ZeroRng>::new(
-            "agent_name",
-            42,
-            &measurement_spec,
-            TEST_SEED,
-            &[],
-            fake_now,
-        )
-        .unwrap();
+        let mut measurement_generator =
+            MeasurementGenerator::new(0, 0, &measurement_spec, fake_now, &generated_tag_sets, &[])
+                .unwrap();
 
-        let points = measurement_generator_set.generate(fake_now).unwrap();
-        let mut v = Vec::new();
-        for point in points {
-            point.write_data_point_to(&mut v)?;
-        }
-        let line_protocol = str::from_utf8(&v)?;
+        let line_protocol = measurement_generator.generate_string(fake_now).unwrap();
 
         assert_eq!(
             line_protocol,
             format!(
-                "measurement-42-0 field-42-0-0=0i,field-42-0-1=0i {}
-measurement-42-1 field-42-1-0=0i,field-42-1-1=0i {}
-",
-                fake_now, fake_now
+                "measurement,some_name=some_value 1,some_name2=some_value 2 field_name=1i {}\n",
+                fake_now
             )
         );
-
-        Ok(())
     }
 
     #[test]
-    fn guid_and_guid_with_cardinality() -> Result<()> {
+    fn regenerating_after_lines() {
+        let data_spec: specification::DataSpec = toml::from_str(
+            r#"
+            name = "ex"
+
+            [[values]]
+            name = "foo"
+            template = "{{id}}"
+            cardinality = 3
+
+            [[tag_sets]]
+            name = "foo_set"
+            for_each = ["foo"]
+
+            [[agents]]
+
+            [[agents.measurements]]
+            name = "m1"
+            tag_set = "foo_set"
+            tag_pairs = [{key = "reg", template = "data-{{line_number}}", regenerate_after_lines = 2}]
+
+            [[agents.measurements.fields]]
+            name = "val"
+            i64_range = [3, 3]"#,
+        )
+            .unwrap();
+
         let fake_now = 678;
 
-        let spec: specification::MeasurementSpec = toml::from_str(
-            r#"
-            name = "traces"
+        let generated_tag_sets = GeneratedTagSets::from_spec(&data_spec).unwrap();
 
-            [[tags]]
-            name = "trace_id"
-            value = "value-{{guid}}"
-
-            [[tags]]
-            name = "span_id"
-            value = "value-{{guid}}"
-            cardinality = 2
-
-            [[fields]]
-            name = "timing"
-            i64_range = [5, 100]"#,
+        let mut measurement_generator = MeasurementGenerator::new(
+            42,
+            1,
+            &data_spec.agents[0].measurements[0],
+            fake_now,
+            &generated_tag_sets,
+            &[],
         )
         .unwrap();
 
-        let mut measurement_generator = MeasurementGenerator::<DynamicRng>::new(
-            "agent_name",
-            0,
-            0,
-            &spec,
-            TEST_SEED,
-            &[],
-            fake_now,
-        )?;
+        let points = measurement_generator.generate(fake_now).unwrap();
+        let mut v = Vec::new();
+        for point in points {
+            point.write_data_point_to(&mut v).unwrap();
+        }
+        let line_protocol = str::from_utf8(&v).unwrap();
 
-        let line_protocol = measurement_generator.generate_strings(fake_now)?;
-
-        let mut trace_ids = extract_tag_values("trace_id", &line_protocol);
-        trace_ids.sort_unstable();
-        trace_ids.dedup();
-        // Both lines should have the same trace ID
-        assert_eq!(trace_ids.len(), 1);
-
-        let mut span_ids = extract_tag_values("span_id", &line_protocol);
-        span_ids.sort_unstable();
-        span_ids.dedup();
-        // Each line should have a different span ID
-        assert_eq!(span_ids.len(), 2);
-
-        let next_line_protocol = measurement_generator.generate_strings(fake_now)?;
-
-        let mut next_trace_ids = extract_tag_values("trace_id", &next_line_protocol);
-        next_trace_ids.sort_unstable();
-        next_trace_ids.dedup();
-        // Both lines should have the same trace ID
-        assert_eq!(next_trace_ids.len(), 1);
-
-        // On each generation, there should be a new trace id
-        assert_ne!(trace_ids, next_trace_ids);
-
-        let mut next_span_ids = extract_tag_values("span_id", &next_line_protocol);
-        next_span_ids.sort_unstable();
-        next_span_ids.dedup();
-        // Each line should have a different span ID
-        assert_eq!(next_span_ids.len(), 2);
-
-        // On each generation, there should be new span IDs too
-        assert_ne!(span_ids, next_span_ids);
-
-        Ok(())
+        assert_eq!(
+            line_protocol,
+            format!(
+                "m1,foo=1,reg=data-1 val=3i {}\nm1,foo=2,reg=data-1 val=3i {}\nm1,foo=3,reg=data-3 val=3i {}\n",
+                fake_now, fake_now, fake_now
+            )
+        );
     }
 
     #[test]
-    fn tag_replacements_with_resampling_true() -> Result<()> {
-        resampling_test("resample_every_line = true", true)
-    }
-
-    #[test]
-    fn tag_replacements_with_resampling_false() -> Result<()> {
-        resampling_test("resample_every_line = false", false)
-    }
-
-    #[test]
-    fn tag_replacements_with_default_resampling_false() -> Result<()> {
-        resampling_test("", false)
-    }
-
-    fn resampling_test(resampling_toml: &str, expect_different: bool) -> Result<()> {
-        let fake_now = 678;
-
-        let spec: specification::MeasurementSpec = toml::from_str(&format!(
+    fn tag_set_and_tag_pairs() {
+        let data_spec: specification::DataSpec = toml::from_str(
             r#"
-            name = "resampling"
+            name = "ex"
 
-            [[tags]]
-            name = "tag-1"
-            value = "value-{{{{cardinality}}}}"
-            cardinality = 10
+            [[values]]
+            name = "foo"
+            template = "foo-{{id}}"
+            cardinality = 2
 
-            [[tags]]
-            name = "host"
-            value = "{{{{host}}}}"
-            replacements = [
-              {{replace = "host", with = ["serverA", "serverB", "serverC", "serverD"]}},
-            ]
-            {}
+            [[tag_sets]]
+            name = "foo_set"
+            for_each = ["foo"]
 
-            [[fields]]
-            name = "timing"
-            i64_range = [5, 100]"#,
-            resampling_toml
-        ))
+            [[agents]]
+
+            [[agents.measurements]]
+            name = "m1"
+            tag_set = "foo_set"
+            tag_pairs = [{key = "hello", template = "world{{measurement.id}}"}]
+
+            [[agents.measurements.fields]]
+            name = "val"
+            i64_range = [3, 3]"#,
+        )
         .unwrap();
 
-        let mut measurement_generator = MeasurementGenerator::<DynamicRng>::new(
-            "agent_name",
-            0,
-            0,
-            &spec,
-            TEST_SEED,
-            &[],
+        let fake_now = 678;
+
+        let generated_tag_sets = GeneratedTagSets::from_spec(&data_spec).unwrap();
+
+        let mut measurement_generator = MeasurementGenerator::new(
+            42,
+            1,
+            &data_spec.agents[0].measurements[0],
             fake_now,
-        )?;
+            &generated_tag_sets,
+            &[],
+        )
+        .unwrap();
 
-        let lines = measurement_generator.generate_strings(fake_now)?;
-        let mut host_values = extract_tag_values("host", &lines);
-        host_values.sort_unstable();
-        host_values.dedup();
-
-        if expect_different {
-            assert!(host_values.len() > 1);
-        } else {
-            assert_eq!(host_values.len(), 1);
+        let points = measurement_generator.generate(fake_now).unwrap();
+        let mut v = Vec::new();
+        for point in points {
+            point.write_data_point_to(&mut v).unwrap();
         }
+        let line_protocol = str::from_utf8(&v).unwrap();
 
-        Ok(())
-    }
-
-    // Hacktacular extracting of values from line protocol without pulling in another crate
-    fn extract_tag_values<'a>(tag_name: &str, lines: &'a [String]) -> Vec<&'a str> {
-        lines
-            .iter()
-            .map(|line| {
-                let before_space = line.splitn(2, ' ').next().unwrap();
-                let prefix = format!(",{}=", tag_name);
-                let after = before_space.rsplitn(2, &prefix).next().unwrap();
-                after.splitn(2, ',').next().unwrap()
-            })
-            .collect()
+        assert_eq!(
+            line_protocol,
+            format!(
+                "m1,foo=foo-1,hello=world1 val=3i {}\nm1,foo=foo-2,hello=world1 val=3i {}\n",
+                fake_now, fake_now
+            )
+        );
     }
 
     fn extract_field_values<'a>(field_name: &str, lines: &'a [String]) -> Vec<&'a str> {

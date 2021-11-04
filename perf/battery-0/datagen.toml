@@ -1,16 +1,14 @@
 name = "example"
 
 [[agents]]
-name = "cap_write_{{agent_id}}"
 count = 3
 sampling_interval = "10s"
 
 [[agents.measurements]]
 name = "cpu"
-
-[[agents.measurements.tags]]
-name = "host"
-value = "host-{{agent_id}}"
+tag_pairs = [
+    {key = "host", template = "host-{{agent.id}}"},
+]
 
 [[agents.measurements.fields]]
 name = "usage_user"
