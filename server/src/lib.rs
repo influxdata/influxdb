@@ -1955,7 +1955,6 @@ mod tests {
         let shard_config = ShardConfig {
             hash_ring: Some(HashRing {
                 shards: vec![TEST_SHARD_ID].into(),
-                ..Default::default()
             }),
             shards: vec![(TEST_SHARD_ID, Sink::Iox(remote_ids.clone()))]
                 .into_iter()

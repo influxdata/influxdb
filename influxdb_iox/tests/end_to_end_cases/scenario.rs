@@ -400,7 +400,6 @@ impl DatabaseBuilder {
                 Box::new(move |i: String| MatcherToShard {
                     matcher: Some(Matcher {
                         table_name_regex: format!("^{}$", i),
-                        ..Default::default()
                     }),
                     shard,
                 })

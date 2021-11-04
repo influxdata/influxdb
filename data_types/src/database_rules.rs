@@ -8,7 +8,6 @@ use regex::Regex;
 use snafu::{OptionExt, Snafu};
 use std::{
     collections::HashMap,
-    hash::{Hash, Hasher},
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     time::Duration,
 };
@@ -21,8 +20,8 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 
-    #[snafu(display("No sharding rule matches line: {}", line))]
-    NoShardingRuleMatches { line: String },
+    #[snafu(display("No sharding rule matches table: {}", table))]
+    NoShardingRuleMatches { table: String },
 
     #[snafu(display("No shards defined"))]
     NoShardsDefined,
@@ -335,9 +334,9 @@ pub struct RoutingConfig {
 pub type ShardId = u32;
 pub const NO_SHARD_CONFIG: Option<&ShardConfig> = None;
 
-/// Assigns a given line to a specific shard id.
+/// Determines the shard ID for a given table
 pub trait Sharder {
-    fn shard(&self, line: &ParsedLine<'_>) -> Result<ShardId>;
+    fn shard(&self, table: &str) -> Result<ShardId>;
 }
 
 /// ShardConfig defines rules for assigning a line/row to an individual
@@ -379,45 +378,18 @@ pub enum Sink {
     DevNull,
 }
 
-struct LineHasher<'a, 'b, 'c> {
-    line: &'a ParsedLine<'c>,
-    hash_ring: &'b HashRing,
-}
-
-impl<'a, 'b, 'c> Hash for LineHasher<'a, 'b, 'c> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        if self.hash_ring.table_name {
-            self.line.series.measurement.hash(state);
-        }
-        for column in &self.hash_ring.columns {
-            if let Some(tag_value) = self.line.tag_value(column) {
-                tag_value.hash(state);
-            } else if let Some(field_value) = self.line.field_value(column) {
-                field_value.to_string().hash(state);
-            }
-            state.write_u8(0); // column separator
-        }
-    }
-}
-
 impl Sharder for ShardConfig {
-    fn shard(&self, line: &ParsedLine<'_>) -> Result<ShardId, Error> {
+    fn shard(&self, table: &str) -> Result<ShardId, Error> {
         for i in &self.specific_targets {
-            if i.matcher.match_line(line) {
+            if i.matcher.match_table(table) {
                 return Ok(i.shard);
             }
         }
         if let Some(hash_ring) = &self.hash_ring {
-            return hash_ring
-                .shards
-                .find(LineHasher { line, hash_ring })
-                .context(NoShardsDefined);
+            return hash_ring.shards.find(table).context(NoShardsDefined);
         }
 
-        NoShardingRuleMatches {
-            line: line.to_string(),
-        }
-        .fail()
+        NoShardingRuleMatches { table }.fail()
     }
 }
 
@@ -435,14 +407,10 @@ pub type NodeGroup = Vec<ServerId>;
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct KafkaProducer {}
 
-/// HashRing is a rule for creating a hash key for a row and mapping that to
+/// HashRing is a rule for creating a hash key for a table and mapping that to
 /// an individual node on a ring.
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct HashRing {
-    /// If true the table name will be included in the hash key
-    pub table_name: bool,
-    /// include the values of these columns in the hash key
-    pub columns: Vec<String>,
     /// ring of shard ids
     pub shards: ConsistentHasher<ShardId>,
 }
@@ -453,35 +421,23 @@ pub struct HashRing {
 pub struct Matcher {
     /// if provided, match if the table name matches against the regex
     pub table_name_regex: Option<Regex>,
-    // paul: what should we use for predicate matching here against a single row/line?
-    pub predicate: Option<String>,
 }
 
 impl PartialEq for Matcher {
     fn eq(&self, other: &Self) -> bool {
         // this is kind of janky, but it's only used during tests and should get the job
         // done
-        format!("{:?}{:?}", self.table_name_regex, self.predicate)
-            == format!("{:?}{:?}", other.table_name_regex, other.predicate)
+        format!("{:?}", self.table_name_regex) == format!("{:?}", other.table_name_regex)
     }
 }
 impl Eq for Matcher {}
 
 impl Matcher {
-    fn match_line(&self, line: &ParsedLine<'_>) -> bool {
-        let table_name_matches = if let Some(table_name_regex) = &self.table_name_regex {
-            table_name_regex.is_match(line.series.measurement.as_str())
-        } else {
-            false
-        };
-
-        let predicate_matches = if self.predicate.is_some() {
-            unimplemented!("predicates not implemented yet")
-        } else {
-            false
-        };
-
-        table_name_matches || predicate_matches
+    fn match_table(&self, table: &str) -> bool {
+        match &self.table_name_regex {
+            Some(table_name_regex) => table_name_regex.is_match(table),
+            None => false,
+        }
     }
 }
 
@@ -666,92 +622,35 @@ mod tests {
             specific_targets: vec![MatcherToShard {
                 matcher: Matcher {
                     table_name_regex: Some(Regex::new("pu$").unwrap()),
-                    predicate: None,
                 },
                 shard: 1,
             }],
             hash_ring: Some(HashRing {
-                table_name: true,
-                columns: vec!["t1", "t2", "f1", "f2"]
-                    .into_iter()
-                    .map(|i| i.to_string())
-                    .collect(),
                 shards: ConsistentHasher::new(&shards),
             }),
             ..Default::default()
         };
 
         // hit the specific targets
-
-        let line = parse_line("cpu,t1=1,t2=2,t3=3 f1=1,f2=2,f3=3 10");
-        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
-        assert_eq!(sharded_line, 1);
-
-        let line = parse_line("cpu,t1=10,t2=20,t3=30 f1=10,f2=20,f3=30 10");
-        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
-        assert_eq!(sharded_line, 1);
+        let shard_id = shard_config.shard("cpu").expect("cannot shard a line");
+        assert_eq!(shard_id, 1);
 
         // hit the hash ring
 
-        let line = parse_line("mem,t1=1,t2=2,t3=3 f1=1,f2=2,f3=3 10");
-        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
-        assert_eq!(sharded_line, 710570);
-
-        // change a column that is not part of the hashring columns
-        let line = parse_line("mem,t1=1,t2=2,t3=30 f1=1,f2=2,f3=3 10");
-        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
-        assert_eq!(sharded_line, 710570);
-
-        // change a column that is part of the hashring
-        let line = parse_line("mem,t1=10,t2=2,t3=3 f1=1,f2=2,f3=3 10");
-        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
-        assert_eq!(sharded_line, 342220);
-
-        // ensure columns can be optional and yet cannot be mixed up
-        let line = parse_line("mem,t1=10,t3=3 f1=1,f2=2,f3=3 10");
-        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
-        assert_eq!(sharded_line, 494892);
-        let line = parse_line("mem,t2=10,t3=3 f1=1,f2=2,f3=3 10");
-        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
-        assert_eq!(sharded_line, 32813);
-
-        // same thing for "fields" columns:
-
-        // change a column that is not part of the hashring columns
-        let line = parse_line("mem,t1=1,t2=2,t3=3 f1=1,f2=2,f3=30 10");
-        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
-        assert_eq!(sharded_line, 710570);
-
-        // change a column that is part of the hashring
-        let line = parse_line("mem,t1=10,t2=2,t3=3 f1=1,f2=2,f3=3 10");
-        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
-        assert_eq!(sharded_line, 342220);
-
-        // ensure columns can be optional and yet cannot be mixed up
-        let line = parse_line("mem,t1=1,t3=3 f1=10,f2=2,f3=3 10");
-        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
-        assert_eq!(sharded_line, 49366);
-        let line = parse_line("mem,t2=1,t3=3 f1=10,f2=2,f3=3 10");
-        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
-        assert_eq!(sharded_line, 637504);
+        let shard_id = shard_config.shard("mem").expect("cannot shard a line");
+        assert_eq!(shard_id, 355092);
     }
 
     #[test]
     fn test_sharder_no_shards() {
         let shard_config = ShardConfig {
             hash_ring: Some(HashRing {
-                table_name: true,
-                columns: vec!["t1", "t2", "f1", "f2"]
-                    .into_iter()
-                    .map(|i| i.to_string())
-                    .collect(),
                 shards: ConsistentHasher::new(&[]),
             }),
             ..Default::default()
         };
 
-        let line = parse_line("cpu,t1=1,t2=2,t3=3 f1=1,f2=2,f3=3 10");
-        let err = shard_config.shard(&line).unwrap_err();
+        let err = shard_config.shard("cpu").unwrap_err();
 
         assert!(matches!(err, Error::NoShardsDefined));
     }

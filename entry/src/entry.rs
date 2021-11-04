@@ -94,7 +94,10 @@ pub fn lines_to_sharded_entries(
 
     for line in lines {
         let shard_id = match &sharder {
-            Some(s) => Some(s.shard(line).context(GeneratingShardId)?),
+            Some(s) => Some(
+                s.shard(line.series.measurement.as_str())
+                    .context(GeneratingShardId)?,
+            ),
             None => None,
         };
         let partition_key = partitioner
@@ -1892,7 +1895,7 @@ pub mod test_helpers {
     }
 
     impl Sharder for TestSharder {
-        fn shard(&self, _line: &ParsedLine<'_>) -> Result<ShardId, DataError> {
+        fn shard(&self, _table: &str) -> Result<ShardId, DataError> {
             let n = *self.n.borrow();
             self.n.replace(n + 1);
             Ok(n % self.count)
