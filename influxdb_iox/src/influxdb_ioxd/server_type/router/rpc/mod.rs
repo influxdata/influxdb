@@ -8,6 +8,7 @@ use crate::influxdb_ioxd::{
 use super::RouterServerType;
 
 mod deployment;
+mod remote;
 mod router;
 
 pub async fn server_grpc(
@@ -22,6 +23,10 @@ pub async fn server_grpc(
             Arc::clone(&server_type.server),
             server_type.serving_readiness.clone(),
         )
+    );
+    add_service!(
+        builder,
+        remote::make_server(Arc::clone(&server_type.server),)
     );
     add_service!(
         builder,
