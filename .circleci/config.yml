@@ -27,8 +27,9 @@ jobs:
       - checkout
       - restore_cache:
           keys:
+            # We save the cache from this one, so don't restore a cache with old junk and then save new stuff alongside.
+            # Start either with the exact right cache, or completely fresh.
             - influxdb-cache-v1-{{ checksum "go.mod" }}
-            - influxdb-cache-v1
       - run:
           name: Build source tarball
           command: |
