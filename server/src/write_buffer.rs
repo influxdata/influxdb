@@ -212,7 +212,6 @@ mod tests {
 
     use arrow_util::assert_batches_eq;
     use data_types::sequence::Sequence;
-    use entry::{test_helpers::lp_to_entry, SequencedEntry};
     use persistence_windows::min_max_sequence::MinMaxSequence;
     use query::exec::ExecutionContextProvider;
     use query::frontend::sql::SqlQueryPlanner;
@@ -223,35 +222,28 @@ mod tests {
 
     use super::*;
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
+    use mutable_batch::WriteMeta;
+    use mutable_batch_lp::lines_to_batches;
     use time::Time;
 
     #[tokio::test]
     async fn read_from_write_buffer_updates_persistence_windows() {
-        let entry = lp_to_entry("cpu bar=1 10");
         let partition_key = "1970-01-01T00";
 
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+
+        let sequences = [
             Sequence::new(0, 0),
-            Time::from_timestamp_nanos(0),
-            entry.clone(),
-        ));
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(1, 0),
-            Time::from_timestamp_nanos(0),
-            entry.clone(),
-        ));
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(1, 2),
-            Time::from_timestamp_nanos(0),
-            entry.clone(),
-        ));
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 1),
-            Time::from_timestamp_nanos(0),
-            entry,
-        ));
+        ];
+
+        for sequence in sequences {
+            write_buffer_state.push_lp(sequence, "cpu bar=1 10");
+        }
+
         let db = TestDb::builder().build().await.db;
 
         // do: start background task loop
@@ -304,15 +296,13 @@ mod tests {
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let ingest_ts1 = Time::from_timestamp_millis(42);
         let ingest_ts2 = Time::from_timestamp_millis(1337);
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 0),
-            ingest_ts1,
-            lp_to_entry("mem foo=1 10"),
+        write_buffer_state.push_write(DbWrite::new(
+            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            WriteMeta::new(Some(Sequence::new(0, 0)), Some(ingest_ts1), None, Some(50)),
         ));
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 7),
-            ingest_ts2,
-            lp_to_entry("cpu bar=2 20\ncpu bar=3 30"),
+        write_buffer_state.push_write(DbWrite::new(
+            lines_to_batches("cpu bar=2 20\ncpu bar=3 30", 0).unwrap(),
+            WriteMeta::new(Some(Sequence::new(0, 7)), Some(ingest_ts2), None, Some(150)),
         ));
         let test_db = TestDb::builder().build().await;
         let db = test_db.db;
@@ -376,7 +366,7 @@ mod tests {
             ]))
             .unwrap()
             .fetch();
-        assert_eq!(observation, 528);
+        assert_eq!(observation, 200);
 
         let observation = metrics
             .get_instrument::<Metric<U64Gauge>>("write_buffer_last_sequence_number")

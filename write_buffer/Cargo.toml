@@ -14,6 +14,7 @@ http = "0.2"
 httparse = "1.5"
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_entry = { path = "../mutable_batch_entry" }
+mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.2"

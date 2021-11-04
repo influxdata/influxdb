@@ -26,10 +26,11 @@ use data_types::{
     server_id::ServerId,
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
-use entry::{Entry, SequencedEntry};
+use entry::Entry;
 use iox_object_store::IoxObjectStore;
 use mutable_batch::payload::{DbWrite, PartitionWrite};
-use mutable_batch_entry::sequenced_entry_to_write;
+use mutable_batch::WriteMeta;
+use mutable_batch_entry::entry_to_batches;
 use mutable_buffer::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info, warn};
 use parquet_catalog::{
@@ -924,7 +925,10 @@ impl Db {
         };
         debug!(%immutable, has_write_buffer_producer=self.write_buffer_producer.is_some(), "storing entry");
 
-        let sequenced_entry = match (self.write_buffer_producer.as_ref(), immutable) {
+        let tables = entry_to_batches(&entry).context(EntryConversion)?;
+        let mut write = DbWrite::new(tables, WriteMeta::new(None, None, span_ctx, None));
+
+        match (self.write_buffer_producer.as_ref(), immutable) {
             (Some(write_buffer), true) => {
                 // If only the write buffer is configured, this is passing the data through to
                 // the write buffer, and it's not an error. We ignore the returned metadata; it
@@ -932,7 +936,7 @@ impl Db {
 
                 // TODO: be smarter than always using sequencer 0
                 let _ = write_buffer
-                    .store_entry(&entry, 0, span_ctx.as_ref())
+                    .store_write(0, &write)
                     .await
                     .context(WriteBufferWritingError)?;
 
@@ -943,17 +947,12 @@ impl Db {
                 // buffer to return success before adding the entry to the mutable buffer.
 
                 // TODO: be smarter than always using sequencer 0
-                let (sequence, producer_ts) = write_buffer
-                    .store_entry(&entry, 0, span_ctx.as_ref())
+                let meta = write_buffer
+                    .store_write(0, &write)
                     .await
                     .context(WriteBufferWritingError)?;
 
-                SequencedEntry::new_from_sequence_and_span_context(
-                    sequence,
-                    producer_ts,
-                    entry,
-                    span_ctx,
-                )
+                write.set_meta(meta);
             }
             (_, true) => {
                 // If not configured to send entries to the write buffer and the database is
@@ -964,13 +963,10 @@ impl Db {
             (None, false) => {
                 // If no write buffer is configured, nothing is
                 // sequencing entries so skip doing so here
-                SequencedEntry::new_unsequenced(entry)
             }
         };
 
-        // Group writes based on table
-
-        self.store_write(&sequenced_entry_to_write(&sequenced_entry).context(EntryConversion)?)
+        self.store_write(&write)
     }
 
     /// Writes the provided [`DbWrite`] to this database

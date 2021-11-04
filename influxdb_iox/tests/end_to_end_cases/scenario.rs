@@ -9,7 +9,6 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
-use entry::test_helpers::lp_to_entries;
 use futures::prelude::*;
 use influxdb_iox_client::management::generated_types::partition_template;
 use influxdb_iox_client::management::generated_types::write_buffer_connection;
@@ -658,11 +657,6 @@ pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> S
     fixture.wait_server_initialized().await;
 
     // Create database
-    let partition_template = data_types::database_rules::PartitionTemplate {
-        parts: vec![data_types::database_rules::TemplatePart::Column(
-            "partition_by".to_string(),
-        )],
-    };
     fixture
         .management_client()
         .create_database(DatabaseRules {
@@ -707,34 +701,16 @@ pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> S
     .await
     .unwrap();
     let sequencer_id = producer.sequencer_ids().into_iter().next().unwrap();
-    let (sequence_1, _) = producer
-        .store_entry(
-            &lp_to_entries("table_1,partition_by=a foo=1 10", &partition_template)
-                .pop()
-                .unwrap(),
-            sequencer_id,
-            None,
-        )
+    let meta1 = producer
+        .store_lp(sequencer_id, "table_1,partition_by=a foo=1 10", 0)
         .await
         .unwrap();
-    let (sequence_2, _) = producer
-        .store_entry(
-            &lp_to_entries("table_1,partition_by=b foo=2 20", &partition_template)
-                .pop()
-                .unwrap(),
-            sequencer_id,
-            None,
-        )
+    let meta2 = producer
+        .store_lp(sequencer_id, "table_1,partition_by=b foo=2 20", 0)
         .await
         .unwrap();
-    let (sequence_3, _) = producer
-        .store_entry(
-            &lp_to_entries("table_1,partition_by=b foo=3 30", &partition_template)
-                .pop()
-                .unwrap(),
-            sequencer_id,
-            None,
-        )
+    let meta3 = producer
+        .store_lp(sequencer_id, "table_1,partition_by=b foo=3 30", 0)
         .await
         .unwrap();
 
@@ -754,13 +730,7 @@ pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> S
 
     // add new entry to the end
     producer
-        .store_entry(
-            &lp_to_entries("table_1,partition_by=c foo=4 40", &partition_template)
-                .pop()
-                .unwrap(),
-            0,
-            None,
-        )
+        .store_lp(sequencer_id, "table_1,partition_by=c foo=4 40", 0)
         .await
         .unwrap();
 
@@ -769,21 +739,21 @@ pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> S
         write_buffer_path,
         db_name,
         sequencer_id,
-        sequence_1.number,
+        meta1.sequence().unwrap().number,
     )
     .await;
     write_buffer::file::test_utils::remove_entry(
         write_buffer_path,
         db_name,
         sequencer_id,
-        sequence_2.number,
+        meta2.sequence().unwrap().number,
     )
     .await;
     write_buffer::file::test_utils::remove_entry(
         write_buffer_path,
         db_name,
         sequencer_id,
-        sequence_3.number,
+        meta3.sequence().unwrap().number,
     )
     .await;
 

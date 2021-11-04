@@ -62,7 +62,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Stores the actual data for columns in a chunk along with summary
 /// statistics
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Column {
     pub(crate) influx_type: InfluxColumnType,
     pub(crate) valid: BitSet,
@@ -70,7 +70,7 @@ pub struct Column {
 }
 
 /// The data for a column
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(missing_docs)]
 pub enum ColumnData {
     F64(Vec<f64>, StatValues<f64>),

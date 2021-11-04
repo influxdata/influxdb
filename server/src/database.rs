@@ -1391,9 +1391,7 @@ mod tests {
         database_rules::{PartitionTemplate, TemplatePart},
         write_buffer::{WriteBufferConnection, WriteBufferDirection},
     };
-    use entry::{test_helpers::lp_to_entries, SequencedEntry};
     use std::{num::NonZeroU32, time::Instant};
-    use time::Time;
     use uuid::Uuid;
     use write_buffer::mock::MockBufferSharedState;
 
@@ -1589,22 +1587,8 @@ mod tests {
         let partition_template = PartitionTemplate {
             parts: vec![TemplatePart::Column("partition_by".to_string())],
         };
-        let entry_a = lp_to_entries("table_1,partition_by=a foo=1 10", &partition_template)
-            .pop()
-            .unwrap();
-        let entry_b = lp_to_entries("table_1,partition_by=b foo=2 20", &partition_template)
-            .pop()
-            .unwrap();
-        state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 10),
-            Time::from_timestamp_nanos(0),
-            entry_a,
-        ));
-        state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 11),
-            Time::from_timestamp_nanos(0),
-            entry_b,
-        ));
+        state.push_lp(Sequence::new(0, 10), "table_1,partition_by=a foo=1 10");
+        state.push_lp(Sequence::new(0, 11), "table_1,partition_by=b foo=2 20");
 
         // setup application
         let application = make_application();
@@ -1678,14 +1662,7 @@ mod tests {
 
         // break write buffer by removing entries
         state.clear_messages(0);
-        let entry_c = lp_to_entries("table_1,partition_by=c foo=3 30", &partition_template)
-            .pop()
-            .unwrap();
-        state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 12),
-            Time::from_timestamp_nanos(0),
-            entry_c,
-        ));
+        state.push_lp(Sequence::new(0, 12), "table_1,partition_by=c foo=3 30");
 
         // boot actual test database
         let database = Database::new(Arc::clone(&application), db_config.clone());
@@ -1699,14 +1676,7 @@ mod tests {
         database.wait_for_init().await.unwrap();
 
         // wait for ingest
-        let entry_d = lp_to_entries("table_1,partition_by=d foo=4 40", &partition_template)
-            .pop()
-            .unwrap();
-        state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 13),
-            Time::from_timestamp_nanos(0),
-            entry_d,
-        ));
+        state.push_lp(Sequence::new(0, 13), "table_1,partition_by=d foo=4 40");
         let db = database.initialized_db().unwrap();
         let t_0 = Instant::now();
         loop {

@@ -5,7 +5,6 @@ use arrow_util::assert_batches_eq;
 use data_types::database_rules::{DatabaseRules, LifecycleRules, PartitionTemplate, TemplatePart};
 use data_types::write_buffer::{WriteBufferConnection, WriteBufferDirection};
 use data_types::{sequence::Sequence, server_id::ServerId, DatabaseName};
-use entry::{test_helpers::lp_to_entry, SequencedEntry};
 use query::QueryDatabase;
 use server::{
     db::test_helpers::run_query,
@@ -13,7 +12,6 @@ use server::{
     test_utils::{make_application, make_initialized_server},
 };
 use test_helpers::{assert_contains, tracing::TracingCapture};
-use time::Time;
 use write_buffer::mock::MockBufferSharedState;
 
 #[tokio::test]
@@ -37,18 +35,13 @@ async fn write_buffer_reads_wait_for_compaction() {
             "table_1,tag_partition_by=a foo=\"hello\",bar=1 {}",
             sequence_number / 2
         );
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, sequence_number),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry(&lp),
-        ));
+        write_buffer_state.push_lp(Sequence::new(0, sequence_number), &lp);
     }
 
-    write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+    write_buffer_state.push_lp(
         Sequence::new(0, n_entries),
-        Time::from_timestamp_nanos(0),
-        lp_to_entry("table_2,partition_by=a foo=1 0"),
-    ));
+        "table_2,partition_by=a foo=1 0",
+    );
 
     let application = make_application();
     application

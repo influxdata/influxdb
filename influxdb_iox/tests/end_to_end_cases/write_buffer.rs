@@ -6,7 +6,6 @@ use crate::{
     end_to_end_cases::scenario::{rand_name, DatabaseBuilder},
 };
 use arrow_util::assert_batches_sorted_eq;
-use entry::test_helpers::lp_to_entry;
 use futures::StreamExt;
 use generated_types::influxdata::iox::write_buffer::v1::{
     write_buffer_connection::Direction as WriteBufferDirection, WriteBufferConnection,
@@ -165,7 +164,7 @@ async fn reads_come_from_write_buffer() {
         "upc,region=west user=21.0 150",
     ];
     producer
-        .store_entry(&lp_to_entry(&lp_lines.join("\n")), sequencer_id_1, None)
+        .store_lp(sequencer_id_1, &lp_lines.join("\n"), 0)
         .await
         .unwrap();
 
@@ -175,7 +174,7 @@ async fn reads_come_from_write_buffer() {
         "upc,region=east user=88.7 350",
     ];
     producer
-        .store_entry(&lp_to_entry(&lp_lines.join("\n")), sequencer_id_2, None)
+        .store_lp(sequencer_id_2, &lp_lines.join("\n"), 0)
         .await
         .unwrap();
 

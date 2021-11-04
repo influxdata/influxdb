@@ -122,13 +122,12 @@ use std::{
 use crate::codec::{ContentType, IoxHeaders};
 use async_trait::async_trait;
 use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
-use entry::Entry;
 use futures::{channel::mpsc::Receiver, FutureExt, SinkExt, Stream, StreamExt};
-use mutable_batch::DbWrite;
+use mutable_batch::{DbWrite, WriteMeta};
 use pin_project::{pin_project, pinned_drop};
 use time::{Time, TimeProvider};
 use tokio::task::JoinHandle;
-use trace::{ctx::SpanContext, TraceCollector};
+use trace::TraceCollector;
 use uuid::Uuid;
 
 use crate::core::{
@@ -142,6 +141,7 @@ pub const HEADER_TIME: &str = "last-modified";
 /// File-based write buffer writer.
 #[derive(Debug)]
 pub struct FileBufferProducer {
+    db_name: String,
     dirs: BTreeMap<u32, PathBuf>,
     time_provider: Arc<dyn TimeProvider>,
 }
@@ -157,6 +157,7 @@ impl FileBufferProducer {
         let root = root.join(database_name);
         let dirs = maybe_auto_create_directories(&root, creation_config).await?;
         Ok(Self {
+            db_name: database_name.to_string(),
             dirs,
             time_provider,
         })
@@ -169,12 +170,11 @@ impl WriteBufferWriting for FileBufferProducer {
         self.dirs.keys().cloned().collect()
     }
 
-    async fn store_entry(
+    async fn store_write(
         &self,
-        entry: &Entry,
         sequencer_id: u32,
-        span_context: Option<&SpanContext>,
-    ) -> Result<(Sequence, Time), WriteBufferError> {
+        write: &DbWrite,
+    ) -> Result<WriteMeta, WriteBufferError> {
         let sequencer_path = self
             .dirs
             .get(&sequencer_id)
@@ -183,18 +183,24 @@ impl WriteBufferWriting for FileBufferProducer {
             })?;
 
         // measure time
-        let now = self.time_provider.now();
+
+        let now = write
+            .meta()
+            .producer_ts()
+            .unwrap_or_else(|| self.time_provider.now());
 
         // assemble message
-        let mut message: Vec<u8> = format!("{}: {}\n", HEADER_TIME, now.to_rfc3339(),).into_bytes();
-        let iox_headers = IoxHeaders::new(ContentType::Entry, span_context.cloned());
+        let mut message: Vec<u8> = format!("{}: {}\n", HEADER_TIME, now.to_rfc3339()).into_bytes();
+        let iox_headers =
+            IoxHeaders::new(ContentType::Protobuf, write.meta().span_context().cloned());
 
         for (name, value) in iox_headers.headers() {
             message.extend(format!("{}: {}\n", name, value).into_bytes())
         }
 
         message.extend(b"\n");
-        message.extend(entry.data());
+
+        crate::codec::encode_write(&self.db_name, write, &mut message)?;
 
         // write data to scratchpad file in temp directory
         let temp_file = sequencer_path.join("temp").join(Uuid::new_v4().to_string());
@@ -234,7 +240,12 @@ impl WriteBufferWriting for FileBufferProducer {
         // unlink scratchpad file (and ignore error)
         tokio::fs::remove_file(&temp_file).await.ok();
 
-        Ok((Sequence::new(sequencer_id, sequence_number), now))
+        Ok(WriteMeta::new(
+            Some(Sequence::new(sequencer_id, sequence_number)),
+            Some(now),
+            write.meta().span_context().cloned(),
+            Some(message.len()),
+        ))
     }
 
     fn type_name(&self) -> &'static str {
@@ -619,7 +630,6 @@ pub mod test_utils {
 mod tests {
     use std::num::NonZeroU32;
 
-    use entry::test_helpers::lp_to_entry;
     use mutable_batch::test_util::assert_writes_eq;
     use tempfile::TempDir;
     use trace::RingBufferTraceCollector;
@@ -716,10 +726,10 @@ mod tests {
 
         let writer = ctx.writing(true).await.unwrap();
         let sequencer_id = writer.sequencer_ids().into_iter().next().unwrap();
-        let entry_1 = lp_to_entry("upc,region=east user=1 100");
-        let entry_2 = lp_to_entry("upc,region=east user=2 200");
-        let entry_3 = lp_to_entry("upc,region=east user=3 300");
-        let entry_4 = lp_to_entry("upc,region=east user=4 400");
+        let entry_1 = "upc,region=east user=1 100";
+        let entry_2 = "upc,region=east user=2 200";
+        let entry_3 = "upc,region=east user=3 300";
+        let entry_4 = "upc,region=east user=4 400";
 
         let w1 = write(&writer, entry_1, sequencer_id, None).await;
         let w2 = write(&writer, entry_2, sequencer_id, None).await;
@@ -755,8 +765,8 @@ mod tests {
 
         let writer = ctx.writing(true).await.unwrap();
         let sequencer_id = writer.sequencer_ids().into_iter().next().unwrap();
-        let entry_1 = lp_to_entry("upc,region=east user=1 100");
-        let entry_2 = lp_to_entry("upc,region=east user=2 200");
+        let entry_1 = "upc,region=east user=1 100";
+        let entry_2 = "upc,region=east user=2 200";
 
         let w1 = write(&writer, entry_1, sequencer_id, None).await;
         let w2 = write(&writer, entry_2, sequencer_id, None).await;

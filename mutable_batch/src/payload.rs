@@ -219,7 +219,7 @@ impl WriteMeta {
 }
 
 /// A collection of writes to potentially multiple tables within the same database
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DbWrite {
     /// Writes to individual tables keyed by table name
     tables: HashMap<String, MutableBatch>,
@@ -265,6 +265,11 @@ impl DbWrite {
     /// Metadata associated with this write
     pub fn meta(&self) -> &WriteMeta {
         &self.meta
+    }
+
+    /// Set the metadata
+    pub fn set_meta(&mut self, meta: WriteMeta) {
+        self.meta = meta
     }
 
     /// Returns an iterator over the per-table writes within this [`DbWrite`]

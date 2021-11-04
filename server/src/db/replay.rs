@@ -420,13 +420,9 @@ mod tests {
     };
     use arrow_util::assert_batches_eq;
     use data_types::{
-        database_rules::{PartitionTemplate, Partitioner, TemplatePart},
+        database_rules::{PartitionTemplate, TemplatePart},
         sequence::Sequence,
         server_id::ServerId,
-    };
-    use entry::{
-        test_helpers::{lp_to_entries, lp_to_entry},
-        SequencedEntry,
     };
     use object_store::ObjectStore;
     use persistence_windows::{
@@ -451,25 +447,6 @@ mod tests {
         sequencer_id: u32,
         sequence_number: u64,
         lp: &'static str,
-    }
-
-    impl TestSequencedEntry {
-        fn build(self, partitioner: &impl Partitioner) -> SequencedEntry {
-            let Self {
-                sequencer_id,
-                sequence_number,
-                lp,
-            } = self;
-
-            let mut entries = lp_to_entries(lp, partitioner);
-            assert_eq!(entries.len(), 1);
-
-            SequencedEntry::new_from_sequence(
-                Sequence::new(sequencer_id, sequence_number),
-                Time::from_timestamp_nanos(0),
-                entries.pop().unwrap(),
-            )
-        }
     }
 
     /// Different checks for replay tests
@@ -580,7 +557,7 @@ mod tests {
                 Arc::clone(&object_store),
                 server_id,
                 db_name,
-                partition_template.clone(),
+                partition_template,
                 self.catalog_transactions_until_checkpoint,
                 Arc::<time::MockProvider>::clone(&time),
             );
@@ -606,7 +583,8 @@ mod tests {
                 match action_or_check {
                     Step::Ingest(entries) => {
                         for se in entries {
-                            write_buffer_state.push_entry(se.build(&partition_template));
+                            write_buffer_state
+                                .push_lp(Sequence::new(se.sequencer_id, se.sequence_number), se.lp);
                         }
                     }
                     Step::Restart => {
@@ -2623,16 +2601,8 @@ mod tests {
         // create write buffer state with sequence number 0 and 2, 1 is missing
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 0),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry("cpu bar=1 0"),
-        ));
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 2),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry("cpu bar=1 10"),
-        ));
+        write_buffer_state.push_lp(Sequence::new(0, 0), "cpu bar=1 0");
+        write_buffer_state.push_lp(Sequence::new(0, 2), "cpu bar=1 10");
         let mut write_buffer = MockBufferForReading::new(write_buffer_state, None).unwrap();
 
         // create DB
@@ -2673,21 +2643,9 @@ mod tests {
         // 2 -> no content = 0
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(3).unwrap());
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 0),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry("cpu bar=0 0"),
-        ));
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 3),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry("cpu bar=3 3"),
-        ));
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(1, 1),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry("cpu bar=11 11"),
-        ));
+        write_buffer_state.push_lp(Sequence::new(0, 0), "cpu bar=0 0");
+        write_buffer_state.push_lp(Sequence::new(0, 3), "cpu bar=3 3");
+        write_buffer_state.push_lp(Sequence::new(1, 1), "cpu bar=11 11");
         let mut write_buffer = MockBufferForReading::new(write_buffer_state.clone(), None).unwrap();
 
         // create DB
@@ -2698,21 +2656,9 @@ mod tests {
         db.perform_replay(None, &mut write_buffer).await.unwrap();
 
         // add more data
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 4),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry("cpu bar=4 4"),
-        ));
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(1, 9),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry("cpu bar=19 19"),
-        ));
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(2, 0),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry("cpu bar=20 20"),
-        ));
+        write_buffer_state.push_lp(Sequence::new(0, 4), "cpu bar=4 4");
+        write_buffer_state.push_lp(Sequence::new(1, 9), "cpu bar=19 19");
+        write_buffer_state.push_lp(Sequence::new(2, 0), "cpu bar=20 20");
 
         // start background worker
         let shutdown: CancellationToken = Default::default();

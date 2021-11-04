@@ -4,9 +4,12 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use http::{HeaderMap, HeaderValue};
+use prost::Message;
 
 use data_types::sequence::Sequence;
 use entry::{Entry, SequencedEntry};
+use generated_types::influxdata::iox::write_buffer::v1::write_buffer_payload::Payload;
+use generated_types::influxdata::iox::write_buffer::v1::WriteBufferPayload;
 use mutable_batch::{DbWrite, WriteMeta};
 use mutable_batch_entry::sequenced_entry_to_write;
 use mutable_batch_pb::decode::decode_database_batch;
@@ -81,6 +84,7 @@ impl IoxHeaders {
             if name.eq_ignore_ascii_case(HEADER_CONTENT_TYPE) {
                 res.content_type = match std::str::from_utf8(value.as_ref()) {
                     Ok(CONTENT_TYPE_FLATBUFFER) => ContentType::Entry,
+                    Ok(CONTENT_TYPE_PROTOBUF) => ContentType::Protobuf,
                     Ok(c) => return Err(format!("Unknown message format: {}", c).into()),
                     Err(e) => {
                         return Err(format!("Error decoding content type header: {}", e).into())
@@ -142,15 +146,13 @@ impl IoxHeaders {
     }
 }
 
+/// Decode a message payload
 pub fn decode(
     data: &[u8],
     headers: IoxHeaders,
     sequence: Sequence,
     producer_ts: Time,
 ) -> Result<DbWrite, WriteBufferError> {
-    use generated_types::influxdata::iox::write_buffer::v1::write_buffer_payload::Payload;
-    use generated_types::influxdata::iox::write_buffer::v1::WriteBufferPayload;
-
     match headers.content_type {
         ContentType::Entry => {
             let entry = Entry::try_from(data.to_vec())?;
@@ -183,6 +185,19 @@ pub fn decode(
             ))
         }
     }
+}
+
+/// Encodes a [`DbWrite`] as a protobuf [`WriteBufferPayload`]
+pub fn encode_write(
+    db_name: &str,
+    write: &DbWrite,
+    buf: &mut Vec<u8>,
+) -> Result<(), WriteBufferError> {
+    let batch = mutable_batch_pb::encode::encode_write(db_name, write);
+    let payload = WriteBufferPayload {
+        payload: Some(Payload::Write(batch)),
+    };
+    Ok(payload.encode(buf).map_err(Box::new)?)
 }
 
 #[cfg(test)]
@@ -220,13 +235,13 @@ mod tests {
         let collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
 
         let headers = vec![
-            ("conTent-Type", CONTENT_TYPE_FLATBUFFER),
+            ("conTent-Type", CONTENT_TYPE_PROTOBUF),
             ("uber-trace-id", "1:2:3:1"),
             ("uber-trace-ID", "5:6:7:1"),
         ];
 
         let actual = IoxHeaders::from_headers(headers.into_iter(), Some(&collector)).unwrap();
-        assert_eq!(actual.content_type, ContentType::Entry);
+        assert_eq!(actual.content_type, ContentType::Protobuf);
 
         let span_context = actual.span_context.unwrap();
         assert_eq!(span_context.trace_id.get(), 5);
@@ -239,7 +254,7 @@ mod tests {
 
         let span_context = SpanContext::new(Arc::clone(&collector));
 
-        let iox_headers1 = IoxHeaders::new(ContentType::Entry, Some(span_context));
+        let iox_headers1 = IoxHeaders::new(ContentType::Protobuf, Some(span_context));
 
         let encoded: Vec<_> = iox_headers1
             .headers()

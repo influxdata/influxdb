@@ -9,7 +9,7 @@ use std::ops::Range;
 /// a contiguous string slice.
 ///
 /// The type parameter K alters the type used to store the offsets
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PackedStringArray<K> {
     /// The start and end offsets of strings stored in storage
     offsets: Vec<K>,

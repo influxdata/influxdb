@@ -21,7 +21,7 @@ pub enum Error {
 /// index lookups for a given string
 ///
 /// Heavily inspired by the string-interner crate
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StringDictionary<K> {
     hash: ahash::RandomState,
     /// Used to provide a lookup from string value to key type

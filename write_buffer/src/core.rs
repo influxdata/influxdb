@@ -4,20 +4,16 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::sequence::Sequence;
-use entry::Entry;
 use futures::{future::BoxFuture, stream::BoxStream};
-use mutable_batch::DbWrite;
-use time::Time;
-use trace::ctx::SpanContext;
+use mutable_batch::{DbWrite, WriteMeta};
 
 /// Generic boxed error type that is used in this crate.
 ///
 /// The dynamic boxing makes it easier to deal with error from different implementations.
 pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
 
-/// Writing to a Write Buffer takes an [`Entry`] and returns [`Sequence`] data that facilitates reading
-/// entries from the Write Buffer at a later time.
+/// Writing to a Write Buffer takes a [`DbWrite`] and returns the [`WriteMeta`] for the
+/// payload that was written
 #[async_trait]
 pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     /// List all known sequencers.
@@ -25,17 +21,28 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     /// This set  not empty.
     fn sequencer_ids(&self) -> BTreeSet<u32>;
 
-    /// Send an `Entry` to the write buffer using the specified sequencer ID.
+    /// Send a [`DbWrite`] to the write buffer using the specified sequencer ID.
     ///
-    /// You can attach an optional [`SpanContext`] which will be propagated to the reader side.
+    /// The [`mutable_batch::WriteMeta`] will be propagated where applicable
     ///
-    /// Returns information that can be used to restore entries at a later time.
-    async fn store_entry(
+    /// Returns the metadata that was written
+    async fn store_write(
         &self,
-        entry: &Entry,
         sequencer_id: u32,
-        span_context: Option<&SpanContext>,
-    ) -> Result<(Sequence, Time), WriteBufferError>;
+        write: &DbWrite,
+    ) -> Result<WriteMeta, WriteBufferError>;
+
+    /// Sends line protocol to the write buffer - primarily intended for testing
+    async fn store_lp(
+        &self,
+        sequencer_id: u32,
+        lp: &str,
+        default_time: i64,
+    ) -> Result<WriteMeta, WriteBufferError> {
+        let tables = mutable_batch_lp::lines_to_batches(lp, default_time).map_err(Box::new)?;
+        self.store_write(sequencer_id, &DbWrite::new(tables, Default::default()))
+            .await
+    }
 
     /// Return type (like `"mock"` or `"kafka"`) of this writer.
     fn type_name(&self) -> &'static str;
@@ -98,9 +105,8 @@ pub mod test_utils {
     };
 
     use async_trait::async_trait;
-    use entry::{test_helpers::lp_to_entry, Entry, SequencedEntry};
     use futures::{StreamExt, TryStreamExt};
-    use mutable_batch::{test_util::assert_writes_eq, DbWrite};
+    use mutable_batch::{test_util::assert_writes_eq, DbWrite, WriteMeta};
     use time::{Time, TimeProvider};
     use trace::{ctx::SpanContext, RingBufferTraceCollector, TraceCollector};
 
@@ -169,20 +175,22 @@ pub mod test_utils {
         test_unknown_sequencer_write(&adapter).await;
     }
 
-    /// Writes an entry and returns the [`DbWrite`] that was written
+    /// Writes line protocol and returns the [`DbWrite`] that was written
     pub async fn write(
         writer: &impl WriteBufferWriting,
-        entry: Entry,
+        lp: &str,
         sequencer_id: u32,
         span_context: Option<&SpanContext>,
     ) -> DbWrite {
-        let (s, t) = writer
-            .store_entry(&entry, sequencer_id, span_context)
-            .await
-            .unwrap();
+        let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
+        let mut write = DbWrite::new(
+            tables,
+            WriteMeta::new(None, None, span_context.cloned(), None),
+        );
 
-        let sequenced = SequencedEntry::new_from_sequence(s, t, entry);
-        mutable_batch_entry::sequenced_entry_to_write(&sequenced).unwrap()
+        let meta = writer.store_write(sequencer_id, &write).await.unwrap();
+        write.set_meta(meta);
+        write
     }
 
     /// Test IO with a single writer and single reader stream.
@@ -197,9 +205,9 @@ pub mod test_utils {
     {
         let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
-        let entry_1 = lp_to_entry("upc user=1 100");
-        let entry_2 = lp_to_entry("upc user=2 200");
-        let entry_3 = lp_to_entry("upc user=3 300");
+        let entry_1 = "upc user=1 100";
+        let entry_2 = "upc user=2 200";
+        let entry_3 = "upc user=3 300";
 
         let writer = context.writing(true).await.unwrap();
         let mut reader = context.reading(true).await.unwrap();
@@ -242,9 +250,9 @@ pub mod test_utils {
     {
         let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
-        let entry_1 = lp_to_entry("upc user=1 100");
-        let entry_2 = lp_to_entry("upc user=2 200");
-        let entry_3 = lp_to_entry("upc user=3 300");
+        let entry_1 = "upc user=1 100";
+        let entry_2 = "upc user=2 200";
+        let entry_3 = "upc user=3 300";
 
         let writer = context.writing(true).await.unwrap();
         let mut reader = context.reading(true).await.unwrap();
@@ -297,9 +305,9 @@ pub mod test_utils {
     {
         let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
-        let entry_1 = lp_to_entry("upc user=1 100");
-        let entry_2 = lp_to_entry("upc user=2 200");
-        let entry_3 = lp_to_entry("upc user=3 300");
+        let entry_1 = "upc user=1 100";
+        let entry_2 = "upc user=2 200";
+        let entry_3 = "upc user=3 300";
 
         let writer = context.writing(true).await.unwrap();
         let mut reader = context.reading(true).await.unwrap();
@@ -348,9 +356,9 @@ pub mod test_utils {
     {
         let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
-        let entry_east_1 = lp_to_entry("upc,region=east user=1 100");
-        let entry_east_2 = lp_to_entry("upc,region=east user=2 200");
-        let entry_west_1 = lp_to_entry("upc,region=west user=1 200");
+        let entry_east_1 = "upc,region=east user=1 100";
+        let entry_east_2 = "upc,region=east user=2 200";
+        let entry_west_1 = "upc,region=west user=1 200";
 
         let writer_1 = context.writing(true).await.unwrap();
         let writer_2 = context.writing(true).await.unwrap();
@@ -402,10 +410,10 @@ pub mod test_utils {
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
 
-        let entry_east_1 = lp_to_entry("upc,region=east user=1 100");
-        let entry_east_2 = lp_to_entry("upc,region=east user=2 200");
-        let entry_east_3 = lp_to_entry("upc,region=east user=3 300");
-        let entry_west_1 = lp_to_entry("upc,region=west user=1 200");
+        let entry_east_1 = "upc,region=east user=1 100";
+        let entry_east_2 = "upc,region=east user=2 200";
+        let entry_east_3 = "upc,region=east user=3 300";
+        let entry_west_1 = "upc,region=west user=1 200";
 
         let writer = context.writing(true).await.unwrap();
 
@@ -462,9 +470,9 @@ pub mod test_utils {
     {
         let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
-        let entry_east_1 = lp_to_entry("upc,region=east user=1 100");
-        let entry_east_2 = lp_to_entry("upc,region=east user=2 200");
-        let entry_west_1 = lp_to_entry("upc,region=west user=1 200");
+        let entry_east_1 = "upc,region=east user=1 100";
+        let entry_east_2 = "upc,region=east user=2 200";
+        let entry_west_1 = "upc,region=west user=1 200";
 
         let writer = context.writing(true).await.unwrap();
         let mut reader = context.reading(true).await.unwrap();
@@ -479,24 +487,18 @@ pub mod test_utils {
         assert_eq!((stream_2.fetch_high_watermark)().await.unwrap(), 0);
 
         // high water mark moves
-        writer
-            .store_entry(&entry_east_1, sequencer_id_1, None)
-            .await
-            .unwrap();
-        let mark_1 = writer
-            .store_entry(&entry_east_2, sequencer_id_1, None)
-            .await
-            .unwrap()
-            .0
-            .number;
-        let mark_2 = writer
-            .store_entry(&entry_west_1, sequencer_id_2, None)
-            .await
-            .unwrap()
-            .0
-            .number;
-        assert_eq!((stream_1.fetch_high_watermark)().await.unwrap(), mark_1 + 1);
-        assert_eq!((stream_2.fetch_high_watermark)().await.unwrap(), mark_2 + 1);
+        write(&writer, entry_east_1, sequencer_id_1, None).await;
+        let w1 = write(&writer, entry_east_2, sequencer_id_1, None).await;
+        let w2 = write(&writer, entry_west_1, sequencer_id_2, None).await;
+        assert_eq!(
+            (stream_1.fetch_high_watermark)().await.unwrap(),
+            w1.meta().sequence().unwrap().number + 1
+        );
+
+        assert_eq!(
+            (stream_2.fetch_high_watermark)().await.unwrap(),
+            w2.meta().sequence().unwrap().number + 1
+        );
     }
 
     /// Test that timestamps reported by the readers are sane.
@@ -514,7 +516,7 @@ pub mod test_utils {
             )
             .await;
 
-        let entry = lp_to_entry("upc user=1 100");
+        let entry = "upc user=1 100";
 
         let writer = context.writing(true).await.unwrap();
         let mut reader = context.reading(true).await.unwrap();
@@ -523,11 +525,8 @@ pub mod test_utils {
         assert_eq!(streams.len(), 1);
         let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
 
-        let reported_ts = writer
-            .store_entry(&entry, sequencer_id, None)
-            .await
-            .unwrap()
-            .1;
+        let write = write(&writer, entry, sequencer_id, None).await;
+        let reported_ts = write.meta().producer_ts().unwrap();
 
         // advance time
         time.inc(Duration::from_secs(10));
@@ -595,7 +594,7 @@ pub mod test_utils {
     {
         let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
-        let entry = lp_to_entry("upc user=1 100");
+        let entry = "upc user=1 100";
 
         let writer = context.writing(true).await.unwrap();
         let mut reader = context.reading(true).await.unwrap();
@@ -605,26 +604,17 @@ pub mod test_utils {
         let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
 
         // 1: no context
-        writer
-            .store_entry(&entry, sequencer_id, None)
-            .await
-            .unwrap();
+        write(&writer, entry, sequencer_id, None).await;
 
         // 2: some context
         let collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span_context_1 = SpanContext::new(Arc::clone(&collector));
-        writer
-            .store_entry(&entry, sequencer_id, Some(&span_context_1))
-            .await
-            .unwrap();
+        write(&writer, entry, sequencer_id, Some(&span_context_1)).await;
 
         // 2: another context
         let span_context_parent = SpanContext::new(collector);
         let span_context_2 = span_context_parent.child("foo").ctx;
-        writer
-            .store_entry(&entry, sequencer_id, Some(&span_context_2))
-            .await
-            .unwrap();
+        write(&writer, entry, sequencer_id, Some(&span_context_2)).await;
 
         // check write 1
         let write_1 = stream.stream.next().await.unwrap().unwrap();
@@ -648,17 +638,14 @@ pub mod test_utils {
     {
         let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
-        let entry = lp_to_entry("upc user=1 100");
+        let tables = mutable_batch_lp::lines_to_batches("upc user=1 100", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
 
         let writer = context.writing(true).await.unwrap();
 
         // flip bits to get an unknown sequencer
         let sequencer_id = !set_pop_first(&mut writer.sequencer_ids()).unwrap();
-
-        writer
-            .store_entry(&entry, sequencer_id, None)
-            .await
-            .unwrap_err();
+        writer.store_write(sequencer_id, &write).await.unwrap_err();
     }
 
     /// Assert that the content of the reader is as expected.

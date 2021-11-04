@@ -11,10 +11,8 @@ use parking_lot::Mutex;
 
 use data_types::sequence::Sequence;
 use data_types::write_buffer::WriteBufferCreationConfig;
-use entry::{Entry, SequencedEntry};
-use mutable_batch_entry::sequenced_entry_to_write;
-use time::{Time, TimeProvider};
-use trace::ctx::SpanContext;
+use mutable_batch::{DbWrite, WriteMeta};
+use time::TimeProvider;
 
 use crate::core::{
     FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
@@ -22,12 +20,12 @@ use crate::core::{
 };
 
 #[derive(Debug, Default)]
-struct EntryResVec {
+struct WriteResVec {
     /// The maximum sequence number in the entries
     max_seqno: Option<u64>,
 
-    /// The entries
-    entries: Vec<Result<SequencedEntry, WriteBufferError>>,
+    /// The writes
+    writes: Vec<Result<DbWrite, WriteBufferError>>,
 
     /// A list of Waker waiting for a new entry to be pushed
     ///
@@ -36,10 +34,10 @@ struct EntryResVec {
     wait_list: Vec<Waker>,
 }
 
-impl EntryResVec {
-    pub fn push(&mut self, val: Result<SequencedEntry, WriteBufferError>) {
+impl WriteResVec {
+    pub fn push(&mut self, val: Result<DbWrite, WriteBufferError>) {
         if let Ok(entry) = &val {
-            if let Some(seqno) = entry.sequence() {
+            if let Some(seqno) = entry.meta().sequence() {
                 self.max_seqno = Some(match self.max_seqno {
                     Some(current) => current.max(seqno.number),
                     None => seqno.number,
@@ -47,7 +45,7 @@ impl EntryResVec {
             }
         }
 
-        self.entries.push(val);
+        self.writes.push(val);
         for waker in self.wait_list.drain(..) {
             waker.wake()
         }
@@ -70,7 +68,7 @@ pub struct MockBufferSharedState {
     /// Lock-protected entries.
     ///
     /// The inner `Option` is `None` if the sequencers are not created yet.
-    entries: Arc<Mutex<Option<BTreeMap<u32, EntryResVec>>>>,
+    writes: Arc<Mutex<Option<BTreeMap<u32, WriteResVec>>>>,
 }
 
 impl MockBufferSharedState {
@@ -86,7 +84,7 @@ impl MockBufferSharedState {
     /// Create new shared state w/o any sequencers.
     pub fn uninitialized() -> Self {
         Self {
-            entries: Arc::new(Mutex::new(None)),
+            writes: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -95,7 +93,7 @@ impl MockBufferSharedState {
     /// # Panics
     /// - when state is already initialized
     pub fn init(&self, n_sequencers: NonZeroU32) {
-        let mut guard = self.entries.lock();
+        let mut guard = self.writes.lock();
 
         if guard.is_some() {
             panic!("already initialized");
@@ -104,7 +102,7 @@ impl MockBufferSharedState {
         *guard = Some(Self::init_inner(n_sequencers));
     }
 
-    fn init_inner(n_sequencers: NonZeroU32) -> BTreeMap<u32, EntryResVec> {
+    fn init_inner(n_sequencers: NonZeroU32) -> BTreeMap<u32, WriteResVec> {
         (0..n_sequencers.get())
             .map(|sequencer_id| (sequencer_id, Default::default()))
             .collect()
@@ -117,14 +115,18 @@ impl MockBufferSharedState {
     /// - when no sequencer was initialized
     /// - when specified sequencer does not exist
     /// - when sequence number in entry is not larger the current maximum
-    pub fn push_entry(&self, entry: SequencedEntry) {
-        let sequence = entry.sequence().expect("entry must be sequenced");
+    pub fn push_write(&self, write: DbWrite) {
+        assert!(
+            write.meta().producer_ts().is_some(),
+            "write must have timestamp"
+        );
+        let sequence = write.meta().sequence().expect("write must be sequenced");
 
-        let mut guard = self.entries.lock();
-        let entries = guard.as_mut().expect("no sequencers initialized");
-        let entry_vec = entries.get_mut(&sequence.id).expect("invalid sequencer ID");
+        let mut guard = self.writes.lock();
+        let writes = guard.as_mut().expect("no sequencers initialized");
+        let writes_vec = writes.get_mut(&sequence.id).expect("invalid sequencer ID");
 
-        if let Some(max_sequence_number) = entry_vec.max_seqno {
+        if let Some(max_sequence_number) = writes_vec.max_seqno {
             assert!(
                 max_sequence_number < sequence.number,
                 "sequence number {} is less/equal than current max sequencer number {}",
@@ -133,7 +135,19 @@ impl MockBufferSharedState {
             );
         }
 
-        entry_vec.push(Ok(entry));
+        writes_vec.push(Ok(write));
+    }
+
+    /// Push line protocol data with placeholder values used for write metadata
+    pub fn push_lp(&self, sequence: Sequence, lp: &str) {
+        let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
+        let meta = WriteMeta::new(
+            Some(sequence),
+            Some(time::Time::from_timestamp_nanos(0)),
+            None,
+            Some(0),
+        );
+        self.push_write(DbWrite::new(tables, meta))
     }
 
     /// Push error to specified sequencer.
@@ -142,7 +156,7 @@ impl MockBufferSharedState {
     /// - when no sequencer was initialized
     /// - when sequencer does not exist
     pub fn push_error(&self, error: WriteBufferError, sequencer_id: u32) {
-        let mut guard = self.entries.lock();
+        let mut guard = self.writes.lock();
         let entries = guard.as_mut().expect("no sequencers initialized");
         let entry_vec = entries
             .get_mut(&sequencer_id)
@@ -156,18 +170,16 @@ impl MockBufferSharedState {
     /// # Panics
     /// - when no sequencer was initialized
     /// - when sequencer does not exist
-    pub fn get_messages(&self, sequencer_id: u32) -> Vec<Result<SequencedEntry, WriteBufferError>> {
-        let mut guard = self.entries.lock();
-        let entries = guard.as_mut().expect("no sequencers initialized");
-        let entry_vec = entries
-            .get_mut(&sequencer_id)
-            .expect("invalid sequencer ID");
+    pub fn get_messages(&self, sequencer_id: u32) -> Vec<Result<DbWrite, WriteBufferError>> {
+        let mut guard = self.writes.lock();
+        let writes = guard.as_mut().expect("no sequencers initialized");
+        let writes_vec = writes.get_mut(&sequencer_id).expect("invalid sequencer ID");
 
-        entry_vec
-            .entries
+        writes_vec
+            .writes
             .iter()
-            .map(|entry_res| match entry_res {
-                Ok(entry) => Ok(entry.clone()),
+            .map(|write_res| match write_res {
+                Ok(write) => Ok(write.clone()),
                 Err(e) => Err(e.to_string().into()),
             })
             .collect()
@@ -179,18 +191,16 @@ impl MockBufferSharedState {
     /// - when no sequencer was initialized
     /// - when sequencer does not exist
     pub fn clear_messages(&self, sequencer_id: u32) {
-        let mut guard = self.entries.lock();
-        let entries = guard.as_mut().expect("no sequencers initialized");
-        let entry_vec = entries
-            .get_mut(&sequencer_id)
-            .expect("invalid sequencer ID");
+        let mut guard = self.writes.lock();
+        let writes = guard.as_mut().expect("no sequencers initialized");
+        let writes_vec = writes.get_mut(&sequencer_id).expect("invalid sequencer ID");
 
-        std::mem::take(entry_vec);
+        std::mem::take(writes_vec);
     }
 
     fn maybe_auto_init(&self, creation_config: Option<&WriteBufferCreationConfig>) {
         if let Some(cfg) = creation_config {
-            let mut guard = self.entries.lock();
+            let mut guard = self.writes.lock();
             if guard.is_none() {
                 *guard = Some(Self::init_inner(cfg.n_sequencers));
             }
@@ -213,7 +223,7 @@ impl MockBufferForWriting {
         state.maybe_auto_init(creation_config);
 
         {
-            let guard = state.entries.lock();
+            let guard = state.writes.lock();
             if guard.is_none() {
                 return Err("no sequencers initialized".to_string().into());
             }
@@ -229,40 +239,49 @@ impl MockBufferForWriting {
 #[async_trait]
 impl WriteBufferWriting for MockBufferForWriting {
     fn sequencer_ids(&self) -> BTreeSet<u32> {
-        let mut guard = self.state.entries.lock();
+        let mut guard = self.state.writes.lock();
         let entries = guard.as_mut().unwrap();
         entries.keys().copied().collect()
     }
 
-    async fn store_entry(
+    async fn store_write(
         &self,
-        entry: &Entry,
         sequencer_id: u32,
-        span_context: Option<&SpanContext>,
-    ) -> Result<(Sequence, Time), WriteBufferError> {
-        let mut guard = self.state.entries.lock();
-        let entries = guard.as_mut().unwrap();
-        let sequencer_entries = entries
+        write: &DbWrite,
+    ) -> Result<WriteMeta, WriteBufferError> {
+        let mut guard = self.state.writes.lock();
+        let writes = guard.as_mut().unwrap();
+        let writes_vec = writes
             .get_mut(&sequencer_id)
             .ok_or_else::<WriteBufferError, _>(|| {
                 format!("Unknown sequencer: {}", sequencer_id).into()
             })?;
 
-        let sequence_number = sequencer_entries.max_seqno.map(|n| n + 1).unwrap_or(0);
+        let sequence_number = writes_vec.max_seqno.map(|n| n + 1).unwrap_or(0);
 
         let sequence = Sequence {
             id: sequencer_id,
             number: sequence_number,
         };
-        let timestamp = self.time_provider.now();
-        sequencer_entries.push(Ok(SequencedEntry::new_from_sequence_and_span_context(
-            sequence,
-            timestamp,
-            entry.clone(),
-            span_context.cloned(),
-        )));
 
-        Ok((sequence, timestamp))
+        let timestamp = write
+            .meta()
+            .producer_ts()
+            .unwrap_or_else(|| self.time_provider.now());
+
+        let meta = WriteMeta::new(
+            Some(sequence),
+            Some(timestamp),
+            write.meta().span_context().cloned(),
+            None,
+        );
+
+        let mut write = write.clone();
+        write.set_meta(meta.clone());
+
+        writes_vec.push(Ok(write));
+
+        Ok(meta)
     }
 
     fn type_name(&self) -> &'static str {
@@ -280,12 +299,11 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
         IntoIterator::into_iter([0]).collect()
     }
 
-    async fn store_entry(
+    async fn store_write(
         &self,
-        _entry: &Entry,
         _sequencer_id: u32,
-        _span_context: Option<&SpanContext>,
-    ) -> Result<(Sequence, Time), WriteBufferError> {
+        _write: &DbWrite,
+    ) -> Result<WriteMeta, WriteBufferError> {
         Err(String::from(
             "Something bad happened on the way to writing an entry in the write buffer",
         )
@@ -319,7 +337,7 @@ impl MockBufferForReading {
         state.maybe_auto_init(creation_config);
 
         let n_sequencers = {
-            let guard = state.entries.lock();
+            let guard = state.writes.lock();
             let entries = match guard.as_ref() {
                 Some(entries) => entries,
                 None => {
@@ -367,30 +385,27 @@ impl WriteBufferReading for MockBufferForReading {
             let playback_states = Arc::clone(&self.playback_states);
 
             let stream = stream::poll_fn(move |cx| {
-                let mut guard = shared_state.entries.lock();
-                let entries = guard.as_mut().unwrap();
-                let entry_vec = entries.get_mut(&sequencer_id).unwrap();
+                let mut guard = shared_state.writes.lock();
+                let writes = guard.as_mut().unwrap();
+                let writes_vec = writes.get_mut(&sequencer_id).unwrap();
 
                 let mut playback_states = playback_states.lock();
                 let playback_state = playback_states.get_mut(&sequencer_id).unwrap();
 
-                let entries = &entry_vec.entries;
+                let entries = &writes_vec.writes;
                 while entries.len() > playback_state.vector_index {
-                    let entry_result = &entries[playback_state.vector_index];
+                    let write_result = &entries[playback_state.vector_index];
 
                     // consume entry
                     playback_state.vector_index += 1;
 
-                    match entry_result {
-                        Ok(entry) => {
+                    match write_result {
+                        Ok(write) => {
                             // found an entry => need to check if it is within the offset
-                            let sequence = entry.sequence().unwrap();
+                            let sequence = write.meta().sequence().unwrap();
                             if sequence.number >= playback_state.offset {
                                 // within offset => return entry to caller
-                                return Poll::Ready(Some(
-                                    sequenced_entry_to_write(entry)
-                                        .map_err(|e| Box::new(e) as WriteBufferError),
-                                ));
+                                return Poll::Ready(Some(Ok(write.clone())));
                             } else {
                                 // offset is larger then the current entry => ignore entry and try next
                                 continue;
@@ -404,7 +419,7 @@ impl WriteBufferReading for MockBufferForReading {
                 }
 
                 // we are at the end of the recorded entries => report pending
-                entry_vec.register_waker(cx.waker());
+                writes_vec.register_waker(cx.waker());
                 Poll::Pending
             })
             .boxed();
@@ -415,7 +430,7 @@ impl WriteBufferReading for MockBufferForReading {
                 let shared_state = shared_state.clone();
 
                 let fut = async move {
-                    let guard = shared_state.entries.lock();
+                    let guard = shared_state.writes.lock();
                     let entries = guard.as_ref().unwrap();
                     let entry_vec = entries.get(&sequencer_id).unwrap();
                     let watermark = entry_vec.max_seqno.map(|n| n + 1).unwrap_or(0);
@@ -508,7 +523,7 @@ mod tests {
     use std::convert::TryFrom;
     use std::time::Duration;
 
-    use entry::test_helpers::lp_to_entry;
+    use mutable_batch_lp::lines_to_batches;
     use time::TimeProvider;
 
     use crate::core::test_utils::{map_pop_first, perform_generic_tests, TestAdapter, TestContext};
@@ -577,82 +592,52 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "entry must be sequenced")]
-    fn test_state_push_entry_panic_unsequenced() {
+    #[should_panic(expected = "write must be sequenced")]
+    fn test_state_push_write_panic_unsequenced() {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        let entry = lp_to_entry("upc,region=east user=1 100");
-        state.push_entry(SequencedEntry::new_unsequenced(entry));
+        let tables = lines_to_batches("upc user=1 100", 0).unwrap();
+        state.push_write(DbWrite::new(
+            tables,
+            WriteMeta::new(None, Some(time::Time::from_timestamp_nanos(0)), None, None),
+        ));
     }
 
     #[test]
     #[should_panic(expected = "invalid sequencer ID")]
-    fn test_state_push_entry_panic_wrong_sequencer() {
+    fn test_state_push_write_panic_wrong_sequencer() {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence = Sequence::new(2, 0);
-        state.push_entry(SequencedEntry::new_from_sequence(
-            sequence,
-            Time::from_timestamp_nanos(0),
-            entry,
-        ));
+        state.push_lp(Sequence::new(2, 0), "upc,region=east user=1 100");
     }
 
     #[test]
     #[should_panic(expected = "no sequencers initialized")]
-    fn test_state_push_entry_panic_uninitialized() {
+    fn test_state_push_write_panic_uninitialized() {
         let state = MockBufferSharedState::uninitialized();
-        let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence = Sequence::new(0, 0);
-        state.push_entry(SequencedEntry::new_from_sequence(
-            sequence,
-            Time::from_timestamp_nanos(0),
-            entry,
-        ));
+        state.push_lp(Sequence::new(0, 0), "upc,region=east user=1 100");
     }
 
     #[test]
     #[should_panic(
         expected = "sequence number 13 is less/equal than current max sequencer number 13"
     )]
-    fn test_state_push_entry_panic_wrong_sequence_number_equal() {
+    fn test_state_push_write_panic_wrong_sequence_number_equal() {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence = Sequence::new(1, 13);
-        state.push_entry(SequencedEntry::new_from_sequence(
-            sequence,
-            Time::from_timestamp_nanos(0),
-            entry.clone(),
-        ));
-        state.push_entry(SequencedEntry::new_from_sequence(
-            sequence,
-            Time::from_timestamp_nanos(0),
-            entry,
-        ));
+        state.push_lp(Sequence::new(0, 13), "upc,region=east user=1 100");
+        state.push_lp(Sequence::new(0, 13), "upc,region=east user=1 100");
     }
 
     #[test]
     #[should_panic(
         expected = "sequence number 12 is less/equal than current max sequencer number 13"
     )]
-    fn test_state_push_entry_panic_wrong_sequence_number_less() {
+    fn test_state_push_write_panic_wrong_sequence_number_less() {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence_1 = Sequence::new(1, 13);
-        let sequence_2 = Sequence::new(1, 12);
-        state.push_entry(SequencedEntry::new_from_sequence(
-            sequence_1,
-            Time::from_timestamp_nanos(0),
-            entry.clone(),
-        ));
-        state.push_entry(SequencedEntry::new_from_sequence(
-            sequence_2,
-            Time::from_timestamp_nanos(0),
-            entry,
-        ));
+        state.push_lp(Sequence::new(0, 13), "upc,region=east user=1 100");
+        state.push_lp(Sequence::new(0, 12), "upc,region=east user=1 100");
     }
 
     #[test]
@@ -707,19 +692,8 @@ mod tests {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
 
-        let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence_1 = Sequence::new(0, 11);
-        let sequence_2 = Sequence::new(1, 12);
-        state.push_entry(SequencedEntry::new_from_sequence(
-            sequence_1,
-            Time::from_timestamp_nanos(0),
-            entry.clone(),
-        ));
-        state.push_entry(SequencedEntry::new_from_sequence(
-            sequence_2,
-            Time::from_timestamp_nanos(0),
-            entry,
-        ));
+        state.push_lp(Sequence::new(0, 11), "upc user=1 100");
+        state.push_lp(Sequence::new(1, 12), "upc user=1 100");
 
         assert_eq!(state.get_messages(0).len(), 1);
         assert_eq!(state.get_messages(1).len(), 1);
@@ -758,13 +732,11 @@ mod tests {
     async fn test_always_error_write() {
         let writer = MockBufferForWritingThatAlwaysErrors {};
 
-        let entry = lp_to_entry("upc user=1 100");
+        let tables = lines_to_batches("upc user=1 100", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+
         assert_eq!(
-            writer
-                .store_entry(&entry, 0, None)
-                .await
-                .unwrap_err()
-                .to_string(),
+            writer.store_write(0, &write).await.unwrap_err().to_string(),
             "Something bad happened on the way to writing an entry in the write buffer"
         );
     }
@@ -774,13 +746,7 @@ mod tests {
         let state = MockBufferSharedState::uninitialized();
         state.init(NonZeroU32::try_from(2).unwrap());
 
-        let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence_1 = Sequence::new(0, 11);
-        state.push_entry(SequencedEntry::new_from_sequence(
-            sequence_1,
-            Time::from_timestamp_nanos(0),
-            entry,
-        ));
+        state.push_lp(Sequence::new(0, 11), "upc user=1 100");
 
         assert_eq!(state.get_messages(0).len(), 1);
         assert_eq!(state.get_messages(1).len(), 0);
@@ -818,11 +784,7 @@ mod tests {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
 
-        state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 0),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry("mem foo=1 10"),
-        ));
+        state.push_lp(Sequence::new(0, 0), "mem foo=1 10");
 
         let mut read = MockBufferForReading::new(state.clone(), None).unwrap();
         let playback_state = Arc::clone(&read.playback_states);
@@ -838,11 +800,7 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(1)).await;
         }
 
-        state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, 1),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry("mem foo=2 20"),
-        ));
+        state.push_lp(Sequence::new(0, 1), "mem foo=2 20");
 
         tokio::time::timeout(Duration::from_millis(100), consumer)
             .await

@@ -61,7 +61,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Represents a mutable batch of rows (a horizontal subset of a table) which
 /// can be appended to and converted into an Arrow `RecordBatch`
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct MutableBatch {
     /// Map of column name to index in `MutableBatch::columns`
     column_names: HashMap<String, usize>,

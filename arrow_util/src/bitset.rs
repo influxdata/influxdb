@@ -5,7 +5,7 @@ use std::ops::Range;
 ///
 /// Note: This currently operates on individual bytes at a time
 /// it could be optimised to instead operate on usize blocks
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct BitSet {
     /// The underlying data
     ///

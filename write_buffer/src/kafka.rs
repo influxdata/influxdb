@@ -7,12 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{
-    sequence::Sequence, server_id::ServerId, write_buffer::WriteBufferCreationConfig,
-};
-use entry::Entry;
 use futures::{FutureExt, StreamExt};
-use observability_deps::tracing::{debug, info};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
@@ -24,8 +19,14 @@ use rdkafka::{
     util::Timeout,
     ClientConfig, Message, Offset, TopicPartitionList,
 };
+
+use data_types::{
+    sequence::Sequence, server_id::ServerId, write_buffer::WriteBufferCreationConfig,
+};
+use mutable_batch::{DbWrite, WriteMeta};
+use observability_deps::tracing::{debug, info};
 use time::{Time, TimeProvider};
-use trace::{ctx::SpanContext, TraceCollector};
+use trace::TraceCollector;
 
 use crate::{
     codec::{ContentType, IoxHeaders},
@@ -72,30 +73,36 @@ impl WriteBufferWriting for KafkaBufferProducer {
     }
 
     /// Send an `Entry` to Kafka using the sequencer ID as a partition.
-    async fn store_entry(
+    async fn store_write(
         &self,
-        entry: &Entry,
         sequencer_id: u32,
-        span_context: Option<&SpanContext>,
-    ) -> Result<(Sequence, Time), WriteBufferError> {
+        write: &DbWrite,
+    ) -> Result<WriteMeta, WriteBufferError> {
         let partition = i32::try_from(sequencer_id)?;
 
         // truncate milliseconds from timestamps because that's what Kafka supports
-        let date_time = self.time_provider.now().date_time();
-        let timestamp_millis = date_time.timestamp_millis();
+        let now = write
+            .meta()
+            .producer_ts()
+            .unwrap_or_else(|| self.time_provider.now());
+
+        let timestamp_millis = now.date_time().timestamp_millis();
         let timestamp = Time::from_timestamp_millis(timestamp_millis);
 
-        let headers = IoxHeaders::new(ContentType::Entry, span_context.cloned());
+        let headers = IoxHeaders::new(ContentType::Protobuf, write.meta().span_context().cloned());
+
+        let mut buf = Vec::new();
+        crate::codec::encode_write(&self.database_name, write, &mut buf)?;
 
         // This type annotation is necessary because `FutureRecord` is generic over key type, but
         // key is optional and we're not setting a key. `String` is arbitrary.
         let record: FutureRecord<'_, String, _> = FutureRecord::to(&self.database_name)
-            .payload(entry.data())
+            .payload(&buf)
             .partition(partition)
             .timestamp(timestamp_millis)
             .headers((&headers).into());
 
-        debug!(db_name=%self.database_name, partition, size=entry.data().len(), "writing to kafka");
+        debug!(db_name=%self.database_name, partition, size=buf.len(), "writing to kafka");
 
         let (partition, offset) = self
             .producer
@@ -103,14 +110,13 @@ impl WriteBufferWriting for KafkaBufferProducer {
             .await
             .map_err(|(e, _owned_message)| Box::new(e))?;
 
-        debug!(db_name=%self.database_name, %offset, %partition, size=entry.data().len(), "wrote to kafka");
+        debug!(db_name=%self.database_name, %offset, %partition, size=buf.len(), "wrote to kafka");
 
-        Ok((
-            Sequence {
-                id: partition.try_into()?,
-                number: offset.try_into()?,
-            },
-            timestamp,
+        Ok(WriteMeta::new(
+            Some(Sequence::new(partition.try_into()?, offset.try_into()?)),
+            Some(timestamp),
+            write.meta().span_context().cloned(),
+            Some(buf.len()),
         ))
     }
 
