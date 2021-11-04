@@ -1,6 +1,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -119,9 +120,9 @@ func (l *labelPairs) Reset() {}
 func (l *labelPairs) String() string {
 	var a []string
 	for _, lbl := range l.Label {
-		a = append(a, lbl.String())
+		a = append(a, fmt.Sprintf("label:<%s> ", lbl.String()))
 	}
-	return strings.Join(a, "\n")
+	return strings.Join(a, "")
 }
 
 func (*labelPairs) ProtoMessage() {}

@@ -116,7 +116,7 @@ func (p *prometheusScraper) parse(r io.Reader, header http.Header, target influx
 				Tags:      tags,
 				Fields:    fields,
 				Name:      name,
-				Type:      MetricType(family.GetType()),
+				Type:      family.GetType(),
 			}
 			ms = append(ms, me)
 		}

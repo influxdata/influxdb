@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	dto "github.com/prometheus/client_model/go"
 )
 
 var (
@@ -48,7 +49,7 @@ func TestPrometheusScraper(t *testing.T) {
 			ms: []Metrics{
 				{
 					Name: "go_gc_duration_seconds",
-					Type: MetricTypeSummary,
+					Type: dto.MetricType_SUMMARY,
 					Fields: map[string]interface{}{
 						"count": float64(326),
 						"sum":   0.07497837,
@@ -62,7 +63,7 @@ func TestPrometheusScraper(t *testing.T) {
 				},
 				{
 					Name: "go_goroutines",
-					Type: MetricTypeGauge,
+					Type: dto.MetricType_GAUGE,
 					Tags: map[string]string{},
 					Fields: map[string]interface{}{
 						"gauge": float64(36),
@@ -70,7 +71,7 @@ func TestPrometheusScraper(t *testing.T) {
 				},
 				{
 					Name: "go_info",
-					Type: MetricTypeGauge,
+					Type: dto.MetricType_GAUGE,
 					Tags: map[string]string{
 						"version": "go1.10.3",
 					},
@@ -80,7 +81,7 @@ func TestPrometheusScraper(t *testing.T) {
 				},
 				{
 					Name: "go_memstats_alloc_bytes",
-					Type: MetricTypeGauge,
+					Type: dto.MetricType_GAUGE,
 					Tags: map[string]string{},
 					Fields: map[string]interface{}{
 						"gauge": 2.0091312e+07,
@@ -88,7 +89,7 @@ func TestPrometheusScraper(t *testing.T) {
 				},
 				{
 					Name: "go_memstats_alloc_bytes_total",
-					Type: MetricTypeCounter,
+					Type: dto.MetricType_COUNTER,
 					Fields: map[string]interface{}{
 						"counter": 4.183173328e+09,
 					},
@@ -96,7 +97,7 @@ func TestPrometheusScraper(t *testing.T) {
 				},
 				{
 					Name: "go_memstats_buck_hash_sys_bytes",
-					Type: MetricTypeGauge,
+					Type: dto.MetricType_GAUGE,
 					Tags: map[string]string{},
 					Fields: map[string]interface{}{
 						"gauge": 1.533852e+06,
@@ -104,7 +105,7 @@ func TestPrometheusScraper(t *testing.T) {
 				},
 				{
 					Name: "go_memstats_frees_total",
-					Type: MetricTypeCounter,
+					Type: dto.MetricType_COUNTER,
 					Tags: map[string]string{},
 					Fields: map[string]interface{}{
 						"counter": 1.8944339e+07,
@@ -112,7 +113,7 @@ func TestPrometheusScraper(t *testing.T) {
 				},
 				{
 					Name: "go_memstats_gc_cpu_fraction",
-					Type: MetricTypeGauge,
+					Type: dto.MetricType_GAUGE,
 					Tags: map[string]string{},
 					Fields: map[string]interface{}{
 						"gauge": 1.972734963012756e-05,

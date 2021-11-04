@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -71,7 +72,7 @@ func TestScheduler(t *testing.T) {
 
 	want := Metrics{
 		Name: "go_goroutines",
-		Type: MetricTypeGauge,
+		Type: dto.MetricType_GAUGE,
 		Tags: map[string]string{},
 		Fields: map[string]interface{}{
 			"gauge": float64(36),
