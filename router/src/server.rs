@@ -6,7 +6,10 @@ use parking_lot::RwLock;
 use snafu::Snafu;
 use trace::TraceCollector;
 
-use crate::router::Router;
+use crate::{
+    resolver::{RemoteTemplate, Resolver},
+    router::Router,
+};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations)]
@@ -22,10 +25,14 @@ pub struct RouterServer {
     metric_registry: Arc<MetricRegistry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
     routers: RwLock<BTreeMap<String, Arc<Router>>>,
+    resolver: Arc<Resolver>,
 }
 
 impl RouterServer {
-    pub fn new(trace_collector: Option<Arc<dyn TraceCollector>>) -> Self {
+    pub fn new(
+        remote_template: Option<RemoteTemplate>,
+        trace_collector: Option<Arc<dyn TraceCollector>>,
+    ) -> Self {
         let metric_registry = Arc::new(metric::Registry::new());
 
         Self {
@@ -33,6 +40,7 @@ impl RouterServer {
             metric_registry,
             trace_collector,
             routers: Default::default(),
+            resolver: Arc::new(Resolver::new(remote_template)),
         }
     }
 
@@ -91,13 +99,18 @@ impl RouterServer {
     pub fn delete_router(&self, name: &str) -> bool {
         self.routers.write().remove(name).is_some()
     }
+
+    /// Resolver associated with this server.
+    pub fn resolver(&self) -> &Arc<Resolver> {
+        &self.resolver
+    }
 }
 
 pub mod test_utils {
     use super::RouterServer;
 
     pub fn make_router_server() -> RouterServer {
-        RouterServer::new(None)
+        RouterServer::new(None, None)
     }
 }
 
