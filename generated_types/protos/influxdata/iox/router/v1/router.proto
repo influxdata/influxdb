@@ -13,17 +13,14 @@ import "influxdata/iox/write_buffer/v1/write_buffer.proto";
 // # Write Routing
 //
 // ## Overall Picture
-// Data is accepted from all sources, is sharded, and is (according to the sharding) written into the sink sets. There
-// may be a prioritization for sources that is "HTTP and gRPC first, and write buffers in declared order".
+// Data is accepted from all sources, is sharded, and is (according to the sharding) written into the sink sets.
 //
 // ```text
 //           ( HTTP )--+        +------->( sink set 1 )
 //                     |        |
 //           ( gRPC )--+-->( sharder )--> ...
-//                     |        |
-// ( Write Buffer 1 )--+        +------->( sink set n )
-//        ...          |
-// ( Write Buffer n )--+
+//                              |
+//                              +------->( sink set n )
 // ```
 //
 // ## Sharder
@@ -71,11 +68,14 @@ import "influxdata/iox/write_buffer/v1/write_buffer.proto";
 message Router {
   // Router name.
   //
-  // The name is unique for this node.
+  // The name corresponds to the database name on the database node.
+  //
+  // The router name is unique for this router node.
   string name = 1;
 
-  // Sources of write requests.
-  WriteSources write_sources = 2;
+  // write source, current always HTTP and gRPC
+  reserved 2;
+  reserved "write_sources";
 
   // Write sharder.
   ShardConfig write_sharder = 3;
@@ -85,19 +85,6 @@ message Router {
 
   // Sinks for query requests.
   QuerySinks query_sinks = 5;
-}
-
-// Sources of write request aka new data.
-//
-// Data is accepted from these sources and a status is provided back to it.
-message WriteSources {
-  // If set writes via gRPC and HTTP are accepted.
-  //
-  // You may want to disable this when incoming data should solely be received via write buffer(s).
-  bool allow_unsequenced_inputs = 2;
-
-  // Write buffer connections.
-  repeated influxdata.iox.write_buffer.v1.WriteBufferConnection write_buffers = 3;
 }
 
 // Sink of write requests aka new data.

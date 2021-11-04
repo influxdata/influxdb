@@ -13,6 +13,9 @@ pub mod management;
 /// Client for remote API
 pub mod remote;
 
+/// Client for router API
+pub mod router;
+
 /// Client for write API
 pub mod write;
 

@@ -232,6 +232,12 @@ impl ServerFixture {
         influxdb_iox_client::remote::Client::new(self.grpc_channel())
     }
 
+    /// Return a router client suitable for communicating with this
+    /// server
+    pub fn router_client(&self) -> influxdb_iox_client::router::Client {
+        influxdb_iox_client::router::Client::new(self.grpc_channel())
+    }
+
     /// Return a write client suitable for communicating with this
     /// server
     pub fn write_client(&self) -> influxdb_iox_client::write::Client {
@@ -518,52 +524,57 @@ impl TestServer {
         }
 
         let channel = self.grpc_channel().await.expect("gRPC should be running");
-        let mut management_client = influxdb_iox_client::management::Client::new(channel);
+        let mut deployment_client = influxdb_iox_client::deployment::Client::new(channel.clone());
 
-        if let Ok(id) = management_client.get_server_id().await {
+        if let Ok(id) = deployment_client.get_server_id().await {
             // tell others that this server had some problem
             *ready = ServerState::Error;
             std::mem::drop(ready);
             panic!("Server already has an ID ({}); possibly a stray/orphan server from another test run.", id);
         }
 
-        // Set the writer id, if requested
+        // Set the server id, if requested
         match initial_config {
             InitialConfig::SetWriterId => {
                 let id = DEFAULT_SERVER_ID;
 
-                management_client
+                deployment_client
                     .update_server_id(id)
                     .await
                     .expect("set ID failed");
 
                 println!("Set writer_id to {:?}", id);
 
-                // if server ID was set, we can also wait until DBs are loaded
-                let check_dbs_loaded = async {
-                    let mut interval = tokio::time::interval(Duration::from_millis(1000));
+                if self.test_config.server_type == ServerType::Database {
+                    // if server ID was set, we can also wait until DBs are loaded
+                    let mut management_client =
+                        influxdb_iox_client::management::Client::new(channel);
+                    let check_dbs_loaded = async {
+                        let mut interval = tokio::time::interval(Duration::from_millis(1000));
 
-                    while !management_client
-                        .get_server_status()
-                        .await
-                        .unwrap()
-                        .initialized
-                    {
-                        interval.tick().await;
-                    }
-                };
+                        while !management_client
+                            .get_server_status()
+                            .await
+                            .unwrap()
+                            .initialized
+                        {
+                            interval.tick().await;
+                        }
+                    };
 
-                let capped_check = tokio::time::timeout(Duration::from_secs(30), check_dbs_loaded);
+                    let capped_check =
+                        tokio::time::timeout(Duration::from_secs(30), check_dbs_loaded);
 
-                match capped_check.await {
-                    Ok(_) => {
-                        println!("Databases loaded");
-                    }
-                    Err(e) => {
-                        // tell others that this server had some problem
-                        *ready = ServerState::Error;
-                        std::mem::drop(ready);
-                        panic!("Server did not load databases in required time: {}", e);
+                    match capped_check.await {
+                        Ok(_) => {
+                            println!("Databases loaded");
+                        }
+                        Err(e) => {
+                            // tell others that this server had some problem
+                            *ready = ServerState::Error;
+                            std::mem::drop(ready);
+                            panic!("Server did not load databases in required time: {}", e);
+                        }
                     }
                 }
             }

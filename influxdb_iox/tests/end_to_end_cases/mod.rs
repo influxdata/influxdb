@@ -15,6 +15,7 @@ mod persistence;
 mod read_api;
 mod read_cli;
 mod remote_api;
+mod router_api;
 mod run_cli;
 pub mod scenario;
 mod sql_cli;

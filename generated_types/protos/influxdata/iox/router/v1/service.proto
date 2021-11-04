@@ -6,7 +6,7 @@ import "influxdata/iox/router/v1/router.proto";
 
 service RouterService {
   // List configured routers.
-  rpc ListRouter(ListRouterRequest) returns (ListRouterResponse);
+  rpc ListRouters(ListRoutersRequest) returns (ListRoutersResponse);
 
   // Update router config (upsert).
   rpc UpdateRouter(UpdateRouterRequest) returns (UpdateRouterResponse);
@@ -15,9 +15,9 @@ service RouterService {
   rpc DeleteRouter(DeleteRouterRequest) returns (DeleteRouterResponse);
 }
 
-message ListRouterRequest {}
+message ListRoutersRequest {}
 
-message ListRouterResponse {
+message ListRoutersResponse {
   repeated Router routers = 1;
 }
 

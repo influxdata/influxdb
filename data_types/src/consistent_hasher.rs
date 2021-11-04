@@ -11,7 +11,7 @@ use std::hash::{Hash, Hasher};
 ///
 /// e.g. you can use it find the ShardID in vector of ShardIds
 /// that is closest to a given hash value.
-#[derive(Debug, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ConsistentHasher<T>
 where
     T: Copy + Hash,
@@ -50,6 +50,17 @@ where
         let mut hasher = DefaultHasher::new();
         h.hash(&mut hasher);
         hasher.finish()
+    }
+}
+
+impl<T> Default for ConsistentHasher<T>
+where
+    T: Copy + Hash,
+{
+    fn default() -> Self {
+        Self {
+            ring: Default::default(),
+        }
     }
 }
 
