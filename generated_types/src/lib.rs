@@ -85,6 +85,16 @@ pub mod influxdata {
             }
         }
 
+        pub mod router {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.router.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.router.v1.serde.rs"
+                ));
+            }
+        }
+
         pub mod write {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.write.v1.rs"));
@@ -194,19 +204,21 @@ pub use influxdata::platform::storage::*;
 
 pub mod google;
 
-#[cfg(feature = "data_types_conversions")]
+#[cfg(any(feature = "data_types_conversions", test))]
 pub mod chunk;
-#[cfg(feature = "data_types_conversions")]
+#[cfg(any(feature = "data_types_conversions", test))]
 pub mod database_rules;
-#[cfg(feature = "data_types_conversions")]
+#[cfg(any(feature = "data_types_conversions", test))]
 pub mod database_state;
-#[cfg(feature = "data_types_conversions")]
+#[cfg(any(feature = "data_types_conversions", test))]
 pub mod detailed_database;
-#[cfg(feature = "data_types_conversions")]
+#[cfg(any(feature = "data_types_conversions", test))]
 pub mod job;
-#[cfg(feature = "data_types_conversions")]
+#[cfg(any(feature = "data_types_conversions", test))]
+pub mod router;
+#[cfg(any(feature = "data_types_conversions", test))]
 pub mod server_config;
-#[cfg(feature = "data_types_conversions")]
+#[cfg(any(feature = "data_types_conversions", test))]
 pub mod write_buffer;
 
 pub use prost::{DecodeError, EncodeError};

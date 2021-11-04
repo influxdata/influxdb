@@ -17,6 +17,7 @@ tonic = "0.5"
 time = { path = "../time" }
 
 [dev-dependencies]
+data_types = { path = "../data_types" }
 num_cpus = "1.13.0"
 
 [build-dependencies] # In alphabetical order
