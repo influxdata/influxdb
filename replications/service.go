@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
 	"github.com/influxdata/influxdb/v2/replications/internal"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/sqlite"
@@ -64,9 +63,7 @@ type DurableQueueManager interface {
 	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error
 	DeleteQueue(replicationID platform.ID) error
 	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
-	QueuePath() string
-	ReplicationQueues() map[platform.ID]*durablequeue.Queue
-	StartReplicationQueues(ctx context.Context, store *sqlite.SqlStore) error
+	StartReplicationQueues(trackedReplications *influxdb.Replications) error
 	CloseAll() error
 }
 
@@ -403,15 +400,28 @@ func (s service) populateRemoteHTTPConfig(ctx context.Context, id platform.ID, t
 }
 
 func (s service) Open(ctx context.Context) error {
-	if err := s.durableQueueManager.StartReplicationQueues(ctx, s.store); err != nil {
+	var trackedReplications influxdb.Replications
+
+	// Get replications from sqlite
+	q := sq.Select(
+		"id", "max_queue_size_bytes").
+		From("replications")
+
+	query, args, err := q.ToSql()
+	if err != nil {
 		return err
 	}
 
-	for id, queue := range s.durableQueueManager.ReplicationQueues() {
-		s.log.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
+	if err := s.store.DB.SelectContext(ctx, &trackedReplications.Replications, query, args...); err != nil {
+		return err
 	}
 
-	return nil
+	// Queue manager completes startup tasks
+	if err := s.durableQueueManager.StartReplicationQueues(&trackedReplications); err != nil {
+		return err
+	} else {
+		return nil
+	}
 }
 
 func (s service) Close() error {

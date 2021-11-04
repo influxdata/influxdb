@@ -5,13 +5,11 @@
 package mock
 
 import (
-	context "context"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+	influxdb "github.com/influxdata/influxdb/v2"
 	platform "github.com/influxdata/influxdb/v2/kit/platform"
-	durablequeue "github.com/influxdata/influxdb/v2/pkg/durablequeue"
-	sqlite "github.com/influxdata/influxdb/v2/sqlite"
 )
 
 // MockDurableQueueManager is a mock of DurableQueueManager interface.
@@ -79,46 +77,18 @@ func (mr *MockDurableQueueManagerMockRecorder) InitializeQueue(arg0, arg1 interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitializeQueue", reflect.TypeOf((*MockDurableQueueManager)(nil).InitializeQueue), arg0, arg1)
 }
 
-// QueuePath mocks base method.
-func (m *MockDurableQueueManager) QueuePath() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueuePath")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// QueuePath indicates an expected call of QueuePath.
-func (mr *MockDurableQueueManagerMockRecorder) QueuePath() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueuePath", reflect.TypeOf((*MockDurableQueueManager)(nil).QueuePath))
-}
-
-// ReplicationQueues mocks base method.
-func (m *MockDurableQueueManager) ReplicationQueues() map[platform.ID]*durablequeue.Queue {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReplicationQueues")
-	ret0, _ := ret[0].(map[platform.ID]*durablequeue.Queue)
-	return ret0
-}
-
-// ReplicationQueues indicates an expected call of ReplicationQueues.
-func (mr *MockDurableQueueManagerMockRecorder) ReplicationQueues() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicationQueues", reflect.TypeOf((*MockDurableQueueManager)(nil).ReplicationQueues))
-}
-
 // StartReplicationQueues mocks base method.
-func (m *MockDurableQueueManager) StartReplicationQueues(arg0 context.Context, arg1 *sqlite.SqlStore) error {
+func (m *MockDurableQueueManager) StartReplicationQueues(arg0 *influxdb.Replications) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StartReplicationQueues", arg0, arg1)
+	ret := m.ctrl.Call(m, "StartReplicationQueues", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // StartReplicationQueues indicates an expected call of StartReplicationQueues.
-func (mr *MockDurableQueueManagerMockRecorder) StartReplicationQueues(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDurableQueueManagerMockRecorder) StartReplicationQueues(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartReplicationQueues", reflect.TypeOf((*MockDurableQueueManager)(nil).StartReplicationQueues), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartReplicationQueues", reflect.TypeOf((*MockDurableQueueManager)(nil).StartReplicationQueues), arg0)
 }
 
 // UpdateMaxQueueSize mocks base method.
