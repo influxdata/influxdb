@@ -37,7 +37,7 @@ name = "full_example"
 # with the name of the value as the tag key and the evaluated template as the value. These pairs
 # can be shared across tagsets and used in the agents as pre-generated data.
 [[values]]
-# The name is appears as the tag key in generated tag pairs and is used later when specifying tag_sets.
+# The name appears as the tag key in generated tag pairs and is used later when specifying tag_sets.
 # It must not have a . in it, which is used to access children later.
 name = "foo_bar"
 # This number of tag pairs will be generated. If this is > 1, the id or a random character string should be
@@ -108,7 +108,7 @@ for_each = [
 # increase the number of agents.
 count = 2
 # each agent will generate a sampling of data every 10ms. If running from a historical point in
-# time, the agents will push d
+# time, the agents will push data as quickly as they can until they catch up to now.
 sampling_interval = "10ms"
 # if specifying tag_pairs at the agent level, every line that the agent generates will have these
 # tag pairs added to it. Note that the template has the same helpers as those in value (except for id).
