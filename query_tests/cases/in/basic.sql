@@ -4,14 +4,7 @@
 -- query data
 SELECT * from cpu;
 
-
--- BUG: https://github.com/influxdata/influxdb_iox/issues/2776
---        "+----------------+",
---        "| MIN(cpu.region |",
---        "+----------------+",
---        "| west           |",
---        "+----------------+",
---SELECT min(region) from cpu;
+SELECT min(region) from cpu;
 
 -- projection
 -- expect that to get a subset of the columns and in the order specified
