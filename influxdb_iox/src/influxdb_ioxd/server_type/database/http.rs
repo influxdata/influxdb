@@ -923,32 +923,10 @@ mod tests {
             .unwrap()
             .clone();
 
-        let entry_ingest = metric_registry
-            .get_instrument::<Metric<U64Counter>>("ingest_entries_bytes")
-            .unwrap();
-
-        let entry_ingest_ok = entry_ingest
-            .get_observer(&Attributes::from(&[
-                ("db_name", "MyOrg_MyBucket"),
-                ("status", "ok"),
-            ]))
-            .unwrap()
-            .clone();
-
-        let entry_ingest_error = entry_ingest
-            .get_observer(&Attributes::from(&[
-                ("db_name", "MyOrg_MyBucket"),
-                ("status", "error"),
-            ]))
-            .unwrap()
-            .clone();
-
         assert_eq!(request_duration_ok.fetch().sample_count(), 1);
         assert_eq!(request_count_ok.fetch(), 1);
         assert_eq!(request_count_client_error.fetch(), 0);
         assert_eq!(request_count_server_error.fetch(), 0);
-        assert_ne!(entry_ingest_ok.fetch(), 0);
-        assert_eq!(entry_ingest_error.fetch(), 0);
 
         // A single successful point landed
         let ingest_lines = metric_registry
@@ -1051,8 +1029,6 @@ mod tests {
         assert_eq!(request_count_ok.fetch(), 1);
         assert_eq!(request_count_client_error.fetch(), 0);
         assert_eq!(request_count_server_error.fetch(), 1);
-        assert_ne!(entry_ingest_ok.fetch(), 0);
-        assert_ne!(entry_ingest_error.fetch(), 0);
     }
 
     /// Sets up a test database with some data for testing the query endpoint

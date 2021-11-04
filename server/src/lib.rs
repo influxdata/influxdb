@@ -105,6 +105,8 @@ use uuid::Uuid;
 pub use application::ApplicationState;
 pub use db::Db;
 pub use job::JobRegistry;
+use mutable_batch::{DbWrite, WriteMeta};
+use mutable_batch_entry::entry_to_batches;
 pub use resolver::{GrpcConnectionString, RemoteTemplate};
 
 mod application;
@@ -272,6 +274,9 @@ pub enum Error {
 
     #[snafu(display("error persisting server config to object storage: {}", source))]
     PersistServerConfig { source: object_store::Error },
+
+    #[snafu(display("Cannot convert entry to db write: {}", source))]
+    EntryConversion { source: mutable_batch_entry::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -1045,8 +1050,11 @@ where
     ) -> Result<()> {
         use database::WriteError;
 
+        let tables = entry_to_batches(&entry).context(EntryConversion)?;
+        let write = DbWrite::new(tables, WriteMeta::new(None, None, span_ctx, None));
+
         self.active_database(db_name)?
-            .write_entry(entry, span_ctx)
+            .route_write(&write)
             .await
             .map_err(|e| match e {
                 WriteError::NotInitialized { .. } => Error::DatabaseNotInitialized {
@@ -1498,7 +1506,6 @@ mod tests {
     use entry::test_helpers::lp_to_entry;
     use influxdb_line_protocol::parse_lines;
     use iox_object_store::IoxObjectStore;
-    use metric::{Attributes, Metric, U64Counter};
     use object_store::ObjectStore;
     use parquet_catalog::{
         core::{PreservedCatalog, PreservedCatalogConfig},
@@ -1856,9 +1863,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_entry_local() {
-        let application = make_application();
-        let registry = Arc::clone(application.metric_registry());
-        let server = make_server(application);
+        let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.wait_for_init().await.unwrap();
 
@@ -1881,10 +1886,11 @@ mod tests {
             rules.as_ref(),
         )
         .expect("sharded entries");
+        assert_eq!(sharded_entries.len(), 1);
 
-        let entry = &sharded_entries[0].entry;
+        let entry = sharded_entries.into_iter().next().unwrap().entry;
         server
-            .write_entry_local(&name, entry.clone(), None)
+            .write_entry_local(&name, entry, None)
             .await
             .expect("write entry");
 
@@ -1897,14 +1903,6 @@ mod tests {
             "+-----+--------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
-
-        let bytes = registry
-            .get_instrument::<Metric<U64Counter>>("ingest_entries_bytes")
-            .unwrap()
-            .get_observer(&Attributes::from(&[("status", "ok"), ("db_name", "foo")]))
-            .unwrap()
-            .fetch();
-        assert_eq!(bytes, 240)
     }
 
     // This tests sets up a database with a sharding config which defines exactly one shard
