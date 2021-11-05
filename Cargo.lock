@@ -1783,6 +1783,7 @@ dependencies = [
  "object_store",
  "observability_deps",
  "snafu",
+ "test_helpers",
  "tokio",
  "tokio-stream",
  "uuid",

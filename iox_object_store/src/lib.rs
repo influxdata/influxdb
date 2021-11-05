@@ -478,6 +478,7 @@ mod tests {
     use crate::paths::ALL_DATABASES_DIRECTORY;
     use data_types::chunk_metadata::{ChunkAddr, ChunkId};
     use object_store::{parsed_path, path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+    use test_helpers::assert_error;
     use uuid::Uuid;
 
     /// Creates a new in-memory object store
@@ -817,15 +818,9 @@ mod tests {
             .await
             .unwrap();
 
-        let err = IoxObjectStore::create(Arc::clone(&object_store), uuid)
-            .await
-            .unwrap_err();
-        assert!(
-            matches!(
-                err,
-                IoxObjectStoreError::DatabaseAlreadyExists { uuid: err_uuid } if err_uuid == uuid),
-            "got: {:?}",
-            err
+        assert_error!(
+            IoxObjectStore::create(Arc::clone(&object_store), uuid).await,
+            IoxObjectStoreError::DatabaseAlreadyExists { uuid: err_uuid } if err_uuid == uuid,
         );
     }
 
@@ -842,15 +837,9 @@ mod tests {
             .await
             .unwrap();
 
-        let err = IoxObjectStore::create(Arc::clone(&object_store), uuid)
-            .await
-            .unwrap_err();
-        assert!(
-            matches!(
-                err,
-                IoxObjectStoreError::DatabaseAlreadyExists { uuid: err_uuid } if err_uuid == uuid),
-            "got: {:?}",
-            err
+        assert_error!(
+            IoxObjectStore::create(Arc::clone(&object_store), uuid).await,
+            IoxObjectStoreError::DatabaseAlreadyExists { uuid: err_uuid } if err_uuid == uuid,
         );
     }
 
@@ -869,15 +858,9 @@ mod tests {
             .unwrap();
         iox_object_store.write_tombstone().await.unwrap();
 
-        let err = IoxObjectStore::create(Arc::clone(&object_store), uuid)
-            .await
-            .unwrap_err();
-        assert!(
-            matches!(
-                err,
-                IoxObjectStoreError::DatabaseAlreadyExists { uuid: err_uuid } if err_uuid == uuid),
-            "got: {:?}",
-            err
+        assert_error!(
+            IoxObjectStore::create(Arc::clone(&object_store), uuid).await,
+            IoxObjectStoreError::DatabaseAlreadyExists { uuid: err_uuid } if err_uuid == uuid,
         );
     }
 
@@ -970,14 +953,9 @@ mod tests {
         let db = Uuid::new_v4();
 
         // This fails, there are no rules to read
-        let err = IoxObjectStore::load_database_rules(object_store, db)
-            .await
-            .unwrap_err();
-
-        assert!(
-            matches!(err, object_store::Error::NotFound { .. }),
-            "got: {:?}",
-            err
+        assert_error!(
+            IoxObjectStore::load_database_rules(object_store, db).await,
+            object_store::Error::NotFound { .. },
         );
     }
 
@@ -987,13 +965,9 @@ mod tests {
 
         // Load can't find nonexistent database
         let nonexistent = Uuid::new_v4();
-        let returned = IoxObjectStore::load(Arc::clone(&object_store), nonexistent)
-            .await
-            .unwrap_err();
-        assert!(
-            matches!(returned, IoxObjectStoreError::NoRulesFound { .. }),
-            "got: {:?}",
-            returned
+        assert_error!(
+            IoxObjectStore::load(Arc::clone(&object_store), nonexistent).await,
+            IoxObjectStoreError::NoRulesFound { .. },
         );
 
         // Create a database
@@ -1013,13 +987,9 @@ mod tests {
         delete_database(&db_iox_store).await;
 
         // Load can't find deleted database
-        let returned = IoxObjectStore::load(Arc::clone(&object_store), db)
-            .await
-            .unwrap_err();
-        assert!(
-            matches!(returned, IoxObjectStoreError::DatabaseDeleted { .. }),
-            "got: {:?}",
-            returned
+        assert_error!(
+            IoxObjectStore::load(Arc::clone(&object_store), db).await,
+            IoxObjectStoreError::DatabaseDeleted { .. },
         );
     }
 
