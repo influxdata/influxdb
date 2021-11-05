@@ -100,6 +100,11 @@ impl RouterServer {
         self.routers.write().remove(name).is_some()
     }
 
+    /// Get registered router, if any.
+    pub fn router(&self, name: &str) -> Option<Arc<Router>> {
+        self.routers.read().get(name).cloned()
+    }
+
     /// Resolver associated with this server.
     pub fn resolver(&self) -> &Arc<Resolver> {
         &self.resolver
@@ -180,6 +185,8 @@ mod tests {
         assert_eq!(routers.len(), 2);
         assert_eq!(routers[0].config(), &cfg_bar);
         assert_eq!(routers[1].config(), &cfg_foo_1);
+        assert_eq!(server.router("bar").unwrap().config(), &cfg_bar);
+        assert_eq!(server.router("foo").unwrap().config(), &cfg_foo_1);
 
         // update router
         assert!(server.update_router(cfg_foo_2.clone()));
@@ -187,12 +194,18 @@ mod tests {
         assert_eq!(routers.len(), 2);
         assert_eq!(routers[0].config(), &cfg_bar);
         assert_eq!(routers[1].config(), &cfg_foo_2);
+        assert_eq!(server.router("bar").unwrap().config(), &cfg_bar);
+        assert_eq!(server.router("foo").unwrap().config(), &cfg_foo_2);
 
         // delete routers
         assert!(server.delete_router("foo"));
         let routers = server.routers();
         assert_eq!(routers.len(), 1);
         assert_eq!(routers[0].config(), &cfg_bar);
+        assert_eq!(server.router("bar").unwrap().config(), &cfg_bar);
+        assert!(server.router("foo").is_none());
+
+        // deleting router a 2nd time works
         assert!(!server.delete_router("foo"));
     }
 }
