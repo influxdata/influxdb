@@ -24,7 +24,7 @@ func BenchmarkQueueAppend(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		if err := q.Append([]byte(fmt.Sprintf("%d", i))); err != nil {
-			println(q.diskUsage())
+			println(q.DiskUsage())
 			b.Fatalf("Queue.Append failed: %v", err)
 		}
 	}

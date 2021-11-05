@@ -8,7 +8,6 @@ CREATE TABLE replications
     local_bucket_id          VARCHAR(16) NOT NULL,
     remote_bucket_id         VARCHAR(16) NOT NULL,
     max_queue_size_bytes     INTEGER     NOT NULL,
-    current_queue_size_bytes INTEGER     NOT NULL,
     latest_response_code     INTEGER,
     latest_error_message     TEXT,
     created_at               TIMESTAMP   NOT NULL,
