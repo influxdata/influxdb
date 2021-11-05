@@ -8,10 +8,11 @@ use crate::scenarios;
 use super::scenarios::*;
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
+use datafusion::error::DataFusionError;
 use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner};
+use test_helpers::assert_contains;
 
-/// Runs table_names(predicate) and compares it to the expected
-/// output.
+/// Runs the query in `sql` and compares it to the expected output.
 async fn run_sql_test_case<D>(db_setup: D, sql: &str, expected_lines: &[&str])
 where
     D: DbSetup,
@@ -36,6 +37,38 @@ where
 
         let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
         assert_batches_sorted_eq!(expected_lines, &results);
+    }
+}
+
+/// Runs the query in `sql` which is expected to error, and ensures
+/// the output contains the expected message.
+async fn run_sql_error_test_case<D>(db_setup: D, sql: &str, expected_error: &str)
+where
+    D: DbSetup,
+{
+    test_helpers::maybe_start_logging();
+
+    let sql = sql.to_string();
+    for scenario in db_setup.make().await {
+        let DbScenario {
+            scenario_name, db, ..
+        } = scenario;
+
+        println!("Running scenario '{}'", scenario_name);
+        println!("SQL: '{:#?}'", sql);
+        let planner = SqlQueryPlanner::default();
+        let ctx = db.new_query_context(None);
+
+        let result: Result<(), DataFusionError> = async {
+            let physical_plan = planner.query(&sql, &ctx).await?;
+
+            ctx.collect(physical_plan).await?;
+            Ok(())
+        }
+        .await;
+
+        let err = result.expect_err("Expected failure to plan");
+        assert_contains!(err.to_string(), expected_error);
     }
 }
 
@@ -768,6 +801,18 @@ async fn sql_select_without_delete_min_foo() {
         scenarios::delete::NoDeleteOneChunk {},
         "SELECT min(foo) from cpu",
         &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_create_external_table() {
+    let expected_error = "Unsupported logical plan: CreateExternalTable";
+    // Datafusion supports CREATE EXTERNAL TABLE, but IOx should not (as that would be a security hole)
+    run_sql_error_test_case(
+        scenarios::delete::NoDeleteOneChunk {},
+        "CREATE EXTERNAL TABLE foo(ts TIMESTAMP) STORED AS CSV LOCATION '/tmp/foo.csv';",
+        expected_error,
     )
     .await;
 }
