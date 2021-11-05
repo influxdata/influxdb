@@ -1,12 +1,15 @@
 package internal
 
 import (
+	"bytes"
+	"compress/gzip"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -248,4 +251,54 @@ func shutdown(t *testing.T, qm *durableQueueManager) {
 	// Clear replication queues map
 	emptyMap := make(map[platform.ID]*durablequeue.Queue)
 	qm.replicationQueues = emptyMap
+}
+
+func TestEnqueuePoints(t *testing.T) {
+	t.Parallel()
+
+	queuePath, err := os.MkdirTemp("", "testqueue")
+	require.NoError(t, err)
+	defer os.RemoveAll(queuePath)
+
+	logger := zaptest.NewLogger(t)
+	qm := NewDurableQueueManager(logger, queuePath)
+
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.DirExists(t, filepath.Join(queuePath, id1.String()))
+
+	sizes, err := qm.CurrentQueueSizes([]platform.ID{id1})
+	require.NoError(t, err)
+	// Empty queues are 8 bytes for the footer.
+	require.Equal(t, map[platform.ID]int64{id1: 8}, sizes)
+
+	points, err := models.ParsePointsString(`
+cpu,host=0 value=1.1 6000000000
+cpu,host=A value=1.2 2000000000
+cpu,host=A value=1.3 3000000000
+cpu,host=B value=1.3 4000000000
+cpu,host=B value=1.3 5000000000
+cpu,host=C value=1.3 1000000000
+mem,host=C value=1.3 1000000000
+disk,host=C value=1.3 1000000000`)
+	require.NoError(t, err)
+
+	require.NoError(t, qm.EnqueuePoints(id1, points))
+	sizes, err = qm.CurrentQueueSizes([]platform.ID{id1})
+	require.NoError(t, err)
+	require.Greater(t, sizes[id1], int64(8))
+
+	written, err := qm.replicationQueues[id1].Current()
+	require.NoError(t, err)
+	gzBuf := bytes.NewBuffer(written)
+	gzr, err := gzip.NewReader(gzBuf)
+	require.NoError(t, err)
+	defer gzr.Close()
+
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(gzr)
+	require.NoError(t, err)
+	require.NoError(t, gzr.Close())
+
+	readPoints, err := models.ParsePoints(buf.Bytes())
+	require.ElementsMatch(t, readPoints, points)
 }
