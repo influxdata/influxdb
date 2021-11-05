@@ -63,6 +63,18 @@
 | me  |
 | you |
 +-----+
+-- SQL: SELECT min(foo) from cpu;
++--------------+
+| MIN(cpu.foo) |
++--------------+
+| me           |
++--------------+
+-- SQL: SELECT max(foo) from cpu;
++--------------+
+| MAX(cpu.foo) |
++--------------+
+| you          |
++--------------+
 -- SQL: SELECT time from cpu;
 +--------------------------------+
 | time                           |

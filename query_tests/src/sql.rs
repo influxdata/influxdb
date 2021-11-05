@@ -738,15 +738,13 @@ async fn sql_select_without_delete_agg() {
     .await;
 }
 
-// BUG: https://github.com/influxdata/influxdb_iox/issues/2776
-#[ignore]
 #[tokio::test]
 async fn sql_select_without_delete_max_foo() {
     let expected = vec![
         "+--------------+",
         "| MAX(cpu.foo) |",
         "+--------------+",
-        "| you           |",
+        "| you          |",
         "+--------------+",
     ];
     run_sql_test_case(
@@ -757,15 +755,13 @@ async fn sql_select_without_delete_max_foo() {
     .await;
 }
 
-// BUG: as as above
-#[ignore]
 #[tokio::test]
 async fn sql_select_without_delete_min_foo() {
     let expected = vec![
         "+--------------+",
-        "| MIN(cpu.foo)  |",
+        "| MIN(cpu.foo) |",
         "+--------------+",
-        "| me            |",
+        "| me           |",
         "+--------------+",
     ];
     run_sql_test_case(

@@ -22,9 +22,8 @@ SELECT min(bar) from cpu;
 
 SELECT foo from cpu order by foo;
 
--- BUG: https://github.com/influxdata/influxdb_iox/issues/2776
--- SELECT min(foo) from cpu;
--- SELECT max(foo) from cpu
+SELECT min(foo) from cpu;
+SELECT max(foo) from cpu;
 
 -- BUG: https://github.com/influxdata/influxdb_iox/issues/2779
 --  inconsistent format returned
