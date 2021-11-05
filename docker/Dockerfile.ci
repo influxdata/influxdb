@@ -36,6 +36,18 @@ RUN apt-get update \
 
 ENV CURL_FLAGS="--proto =https --tlsv1.2 -sSf"
 
+# Install redpanda
+COPY docker/redpanda.gpg /tmp/redpanda.gpg
+
+# Generated from https://packages.vectorized.io/nzc4ZYQK3WRGd9sy/redpanda/cfg/setup/bash.deb.sh
+RUN apt-key add /tmp/redpanda.gpg \
+    && rm /tmp/redpanda.gpg \
+    && curl ${CURL_FLAGS} "https://packages.vectorized.io/nzc4ZYQK3WRGd9sy/redpanda/config.deb.txt?distro=debian&codename=buster&version=10&arch=x86_64" \
+      > /etc/apt/sources.list.d/vectorized-redpanda.list \
+    && apt-get update \
+    && apt-get install -y redpanda \
+    && rm -rf /var/lib/{apt,dpkg,cache,log}
+
 # Install bazel using the installer script to enable building of flatc in the flatbuffers check
 ENV BAZEL_VERSION=4.0.0
 ENV BAZEL_DOWNLOAD_BASE="https://github.com/bazelbuild/bazel/releases/download"

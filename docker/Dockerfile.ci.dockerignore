@@ -1,2 +1,3 @@
 # Ignore everything
 **
+!docker/redpanda.gpg
