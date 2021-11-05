@@ -46,7 +46,10 @@ impl ConnectionPool {
     /// Create new connection pool.
     ///
     /// If `use_mock_grpc` is set only mock gRPC clients are created.
-    pub fn new(use_mock_grpc: bool, wb_factory: WriteBufferConfigFactory) -> Self {
+    pub async fn new(use_mock_grpc: bool, wb_factory: WriteBufferConfigFactory) -> Self {
+        // Note: this function is async even though it does not contain any `.await` calls because `LoadingCache::new`
+        // requires tokio to be running and even if documented people will forget about this.
+
         let grpc_clients = if use_mock_grpc {
             LoadingCache::new(|_connection_string: String| async move {
                 use crate::grpc_client::MockClient;
@@ -85,11 +88,11 @@ impl ConnectionPool {
 
     /// Create new connection factory for testing purposes.
     #[cfg(test)]
-    pub fn new_testing() -> Self {
+    pub async fn new_testing() -> Self {
         use time::SystemProvider;
 
         let time_provider = Arc::new(SystemProvider::new());
-        Self::new(true, WriteBufferConfigFactory::new(time_provider))
+        Self::new(true, WriteBufferConfigFactory::new(time_provider)).await
     }
 
     /// Get gRPC client given a connection string.
@@ -137,11 +140,12 @@ mod tests {
         let pool1 = ConnectionPool::new(
             false,
             WriteBufferConfigFactory::new(Arc::clone(&time_provider)),
-        );
+        )
+        .await;
         // connection will fail
         pool1.grpc_client("foo").await.unwrap_err();
 
-        let pool2 = ConnectionPool::new(true, WriteBufferConfigFactory::new(time_provider));
+        let pool2 = ConnectionPool::new(true, WriteBufferConfigFactory::new(time_provider)).await;
         let client2 = pool2.grpc_client("foo").await.unwrap();
         client2.as_any().downcast_ref::<MockClient>().unwrap();
     }
