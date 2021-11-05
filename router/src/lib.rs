@@ -8,6 +8,8 @@
     clippy::clone_on_ref_ptr
 )]
 
+pub mod connection_pool;
+pub mod grpc_client;
 pub mod resolver;
 pub mod router;
 pub mod server;

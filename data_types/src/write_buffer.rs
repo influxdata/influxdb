@@ -1,7 +1,7 @@
-use std::{collections::HashMap, num::NonZeroU32};
+use std::{collections::BTreeMap, num::NonZeroU32};
 
 /// If the buffer is used for reading or writing.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum WriteBufferDirection {
     /// Writes into the buffer aka "producer".
     Write,
@@ -13,7 +13,7 @@ pub enum WriteBufferDirection {
 pub const DEFAULT_N_SEQUENCERS: u32 = 1;
 
 /// Configures the use of a write buffer.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub struct WriteBufferConnection {
     /// If the buffer is used for reading or writing.
     pub direction: WriteBufferDirection,
@@ -27,7 +27,7 @@ pub struct WriteBufferConnection {
     /// Special configs to be applied when establishing the connection.
     ///
     /// This depends on [`type_`](Self::type_) and can configure aspects like timeouts.
-    pub connection_config: HashMap<String, String>,
+    pub connection_config: BTreeMap<String, String>,
 
     /// Specifies if the sequencers (e.g. for Kafka in form of a topic) should be automatically created if they do not
     /// existing prior to reading or writing.
@@ -50,7 +50,7 @@ impl Default for WriteBufferConnection {
 ///
 /// What that means depends on the used write buffer, e.g. for Kafka this will create a new topic w/
 /// [`n_sequencers`](Self::n_sequencers) partitions.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub struct WriteBufferCreationConfig {
     /// Number of sequencers.
     ///
@@ -61,7 +61,7 @@ pub struct WriteBufferCreationConfig {
     /// Special configs to by applied when sequencers are created.
     ///
     /// This depends on [type](WriteBufferConnection::type_) and can setup parameters like retention policy.
-    pub options: HashMap<String, String>,
+    pub options: BTreeMap<String, String>,
 }
 
 impl Default for WriteBufferCreationConfig {
