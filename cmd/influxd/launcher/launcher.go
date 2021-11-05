@@ -216,6 +216,24 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	)
 	m.initTracing(opts)
 
+	// Parse feature flags.
+	// These flags can be used to modify the remaining setup logic in this method.
+	// They will also be injected into the contexts of incoming HTTP requests at runtime,
+	// for use in modifying behavior there.
+	if m.flagger == nil {
+		m.flagger = feature.DefaultFlagger()
+		if len(opts.FeatureFlags) > 0 {
+			f, err := overrideflagger.Make(opts.FeatureFlags, feature.ByKey)
+			if err != nil {
+				m.log.Error("Failed to configure feature flag overrides",
+					zap.Error(err), zap.Any("overrides", opts.FeatureFlags))
+				return err
+			}
+			m.log.Info("Running with feature flag overrides", zap.Any("overrides", opts.FeatureFlags))
+			m.flagger = f
+		}
+	}
+
 	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
 	m.reg.MustRegister(prometheus.NewGoCollector())
 
@@ -329,6 +347,37 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		backupService  platform.BackupService  = m.engine
 		restoreService platform.RestoreService = m.engine
 	)
+
+	remotesSvc := remotes.NewService(m.sqlStore)
+	remotesServer := remotesTransport.NewInstrumentedRemotesHandler(
+		m.log.With(zap.String("handler", "remotes")), m.reg, remotesSvc)
+
+	replicationSvc := replications.NewService(m.sqlStore, ts, m.log.With(zap.String("service", "replications")), opts.EnginePath)
+	replicationServer := replicationTransport.NewInstrumentedReplicationHandler(
+		m.log.With(zap.String("handler", "replications")), m.reg, replicationSvc)
+
+	if feature.ReplicationStreamBackend().Enabled(ctx, m.flagger) {
+		if err = replicationSvc.Open(ctx); err != nil {
+			m.log.Error("Failed to open replications service", zap.Error(err))
+			return err
+		}
+
+		m.closers = append(m.closers, labeledCloser{
+			label: "replications",
+			closer: func(context.Context) error {
+				return replicationSvc.Close()
+			},
+		})
+
+		ts.BucketService = replications.NewBucketService(
+			m.log.With(zap.String("service", "replication_buckets")), ts.BucketService, replicationSvc)
+
+		pointsWriter = &storage.MirroringPointsWriter{
+			Primary:   pointsWriter,
+			Secondary: replicationSvc,
+			Log:       m.log.With(zap.String("service", "mirroring-point-writer")),
+		}
+	}
 
 	deps, err := influxdb.NewDependencies(
 		storageflux.NewReader(storage2.NewStore(m.engine.TSDBStore(), m.engine.MetaClient())),
@@ -554,20 +603,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		log.Info("Stopping")
 	}(m.log)
 
-	if m.flagger == nil {
-		m.flagger = feature.DefaultFlagger()
-		if len(opts.FeatureFlags) > 0 {
-			f, err := overrideflagger.Make(opts.FeatureFlags, feature.ByKey)
-			if err != nil {
-				m.log.Error("Failed to configure feature flag overrides",
-					zap.Error(err), zap.Any("overrides", opts.FeatureFlags))
-				return err
-			}
-			m.log.Info("Running with feature flag overrides", zap.Any("overrides", opts.FeatureFlags))
-			m.flagger = f
-		}
-	}
-
 	var sessionSvc platform.SessionService
 	{
 		sessionSvc = session.NewService(
@@ -649,33 +684,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		CheckFinder:                checkSvc,
 		NotificationEndpointFinder: notificationEndpointSvc,
 		NotificationRuleFinder:     notificationRuleSvc,
-	}
-
-	remotesSvc := remotes.NewService(m.sqlStore)
-	remotesServer := remotesTransport.NewInstrumentedRemotesHandler(
-		m.log.With(zap.String("handler", "remotes")), m.reg, remotesSvc)
-
-	replicationSvc := replications.NewService(m.sqlStore, ts, m.log.With(zap.String("service", "replications")), opts.EnginePath)
-	replicationServer := replicationTransport.NewInstrumentedReplicationHandler(
-		m.log.With(zap.String("handler", "replications")), m.reg, replicationSvc)
-
-	ts.BucketService = replications.NewBucketService(
-		m.log.With(zap.String("service", "replication_buckets")), ts.BucketService, replicationSvc)
-
-	replicationsFlag := feature.ReplicationStreamBackend()
-
-	if replicationsFlag.Enabled(ctx, m.flagger) {
-		if err = replicationSvc.Open(ctx); err != nil {
-			m.log.Error("Failed to open replications service", zap.Error(err))
-			return err
-		}
-
-		m.closers = append(m.closers, labeledCloser{
-			label: "replications",
-			closer: func(context.Context) error {
-				return replicationSvc.Close()
-			},
-		})
 	}
 
 	errorHandler := kithttp.NewErrorHandler(m.log.With(zap.String("handler", "error_logger")))
