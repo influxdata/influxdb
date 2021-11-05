@@ -25,10 +25,22 @@ SELECT foo from cpu;
 SELECT min(foo) from cpu;
 SELECT max(foo) from cpu;
 
--- BUG: https://github.com/influxdata/influxdb_iox/issues/2779
---  inconsistent format returned
--- SELECT min(time) from cpu;
--- SELECT max(time) from cpu;
+-- SELECT min(foo) from cpu group by time;
+-- SELECT max(foo) from cpu group by time;
+-- SELECT time, max(foo) from cpu group by time;
+
+SELECT min(foo) from cpu group by bar;
+SELECT bar, max(foo) from cpu group by bar;
+-- Todo: Test not work in this framework. Exact same test works in sql.rs
+-- SELECT max(foo) from cpu group by time; 
+
+SELECT min(time) from cpu;
+SELECT max(time) from cpu;
+
+SELECT min(time) from cpu group by bar;
+SELECT bar, min(time) from cpu group by bar;
+-- Todo: Test not work in this framework. Exact same test works in sql.rs
+-- SELECT max(time) from cpu group by foo;
 
 SELECT time from cpu;
 

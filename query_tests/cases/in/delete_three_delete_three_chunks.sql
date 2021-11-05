@@ -25,10 +25,13 @@ SELECT foo from cpu order by foo;
 SELECT min(foo) from cpu;
 SELECT max(foo) from cpu;
 
--- BUG: https://github.com/influxdata/influxdb_iox/issues/2779
---  inconsistent format returned
--- SELECT min(time) from cpu;
--- SELECT max(time) from cpu;
+SELECT min(time) from cpu;
+SELECT max(time) from cpu;
+
+SELECT foo, min(time) from cpu group by foo;
+-- Todo: Test not work in this framework
+-- SELECT bar, max(time) from cpu group by bar;
+-- SELECT max(time) from cpu group by bar;
 
 SELECT time from cpu order by time;
 
@@ -51,8 +54,7 @@ SELECT * from cpu where foo = 'you' and (bar > 3.0 or bar = 1) order by bar, foo
 
 SELECT min(bar) from cpu where foo = 'me' and (bar > 2 or bar = 1.0);
 
---  BUG: https://github.com/influxdata/influxdb_iox/issues/2779
--- SELECT max(foo) from cpu where foo = 'me' and (bar > 2 or bar = 1.0);
+SELECT max(foo) from cpu where foo = 'me' and (bar > 2 or bar = 1.0);
 
 SELECT min(time) from cpu where foo = 'me' and (bar > 2 or bar = 1.0);
 

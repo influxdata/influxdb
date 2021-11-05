@@ -3,7 +3,10 @@
 //! wired all the pieces together (as well as ensure any particularly
 //! important SQL does not regress)
 
-use crate::scenarios;
+use crate::scenarios::{
+    self,
+    delete::{OneDeleteMultiExprsOneChunk, OneDeleteSimpleExprOneChunk},
+};
 
 use super::scenarios::*;
 use arrow::record_batch::RecordBatch;
@@ -767,6 +770,151 @@ async fn sql_select_without_delete_min_foo() {
     run_sql_test_case(
         scenarios::delete::NoDeleteOneChunk {},
         "SELECT min(foo) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_max_time_gb() {
+    let expected = vec![
+        "+--------------------------------+",
+        "| MAX(cpu.time)                  |",
+        "+--------------------------------+",
+        "| 1970-01-01T00:00:00.000000020Z |",
+        "+--------------------------------+",
+    ];
+    run_sql_test_case(
+        OneDeleteSimpleExprOneChunk {},
+        "SELECT max(time) from cpu group by bar",
+        &expected,
+    )
+    .await;
+
+    let expected = vec![
+        "+-----+--------------------------------+",
+        "| bar | MAX(cpu.time)                  |",
+        "+-----+--------------------------------+",
+        "| 2   | 1970-01-01T00:00:00.000000020Z |",
+        "+-----+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        OneDeleteSimpleExprOneChunk {},
+        "SELECT bar, max(time) from cpu group by bar",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_max_time_gb_bar() {
+    let expected = vec![
+        "+--------------------------------+",
+        "| MAX(cpu.time)                  |",
+        "+--------------------------------+",
+        "| 1970-01-01T00:00:00.000000020Z |",
+        "| 1970-01-01T00:00:00.000000040Z |",
+        "+--------------------------------+",
+    ];
+    run_sql_test_case(
+        OneDeleteMultiExprsOneChunk {},
+        "SELECT max(time) from cpu group by bar",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_bar_max_time_gb_bar() {
+    let expected = vec![
+        "+-----+--------------------------------+",
+        "| bar | MAX(cpu.time)                  |",
+        "+-----+--------------------------------+",
+        "| 1   | 1970-01-01T00:00:00.000000040Z |",
+        "| 2   | 1970-01-01T00:00:00.000000020Z |",
+        "+-----+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        OneDeleteMultiExprsOneChunk {},
+        "SELECT bar, max(time) from cpu group by bar",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_max_time_gb_foo() {
+    let expected = vec![
+        "+--------------------------------+",
+        "| MAX(cpu.time)                  |",
+        "+--------------------------------+",
+        "| 1970-01-01T00:00:00.000000020Z |",
+        "| 1970-01-01T00:00:00.000000040Z |",
+        "+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        OneDeleteMultiExprsOneChunk {},
+        "SELECT  max(time) from cpu group by foo",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_time_max_time_gb_foo() {
+    let expected = vec![
+        "+-----+--------------------------------+",
+        "| foo | MAX(cpu.time)                  |",
+        "+-----+--------------------------------+",
+        "| me  | 1970-01-01T00:00:00.000000040Z |",
+        "| you | 1970-01-01T00:00:00.000000020Z |",
+        "+-----+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        OneDeleteMultiExprsOneChunk {},
+        "SELECT foo, max(time) from cpu group by foo",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_min_foo_gb_time() {
+    let expected = vec![
+        "+--------------+",
+        "| MIN(cpu.foo) |",
+        "+--------------+",
+        "| me           |",
+        "| you          |",
+        "+--------------+",
+    ];
+
+    run_sql_test_case(
+        OneDeleteMultiExprsOneChunk {},
+        "SELECT min(foo) from cpu group by time",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_time_max_foo_gb_time() {
+    let expected = vec![
+        "+--------------------------------+--------------+",
+        "| time                           | MAX(cpu.foo) |",
+        "+--------------------------------+--------------+",
+        "| 1970-01-01T00:00:00.000000020Z | you          |",
+        "| 1970-01-01T00:00:00.000000040Z | me           |",
+        "+--------------------------------+--------------+",
+    ];
+
+    run_sql_test_case(
+        OneDeleteMultiExprsOneChunk {},
+        "SELECT time, max(foo) from cpu group by time",
         &expected,
     )
     .await;
