@@ -25,7 +25,7 @@ async fn test_querying_deleted_database() {
         .await
         .expect("create database failed");
     let num_lines_written = write_client
-        .write(&db_name, "cpu,region=west user=12.3 100")
+        .write_lp(&db_name, "cpu,region=west user=12.3 100", 0)
         .await
         .expect("cannot write");
 
@@ -60,7 +60,7 @@ async fn test_querying_deleted_database() {
         .await
         .expect("create database failed");
     let num_lines_written = write_client
-        .write(&db_name, "cpu,region=east user=99.9 200")
+        .write_lp(&db_name, "cpu,region=east user=99.9 200", 0)
         .await
         .expect("cannot write");
 

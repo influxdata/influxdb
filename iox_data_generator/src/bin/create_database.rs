@@ -11,10 +11,8 @@
 )]
 
 use clap::{App, Arg};
-use generated_types::influxdata::iox::{
-    management::v1::{self as management, database_rules::*, lifecycle_rules::*, *},
-    write_buffer::v1::*,
-};
+use influxdb_iox_client::management::generated_types::*;
+use influxdb_iox_client::write::generated_types::*;
 
 #[tokio::main]
 async fn main() {
@@ -85,9 +83,9 @@ Examples:
             ..Default::default()
         }),
         worker_cleanup_avg_sleep: None,
-        routing_rules: Some(RoutingRules::RoutingConfig(RoutingConfig {
-            sink: Some(management::Sink {
-                sink: Some(management::sink::Sink::Kafka(KafkaProducer {})),
+        routing_rules: Some(database_rules::RoutingRules::RoutingConfig(RoutingConfig {
+            sink: Some(Sink {
+                sink: Some(sink::Sink::Kafka(KafkaProducer {})),
             }),
         })),
         write_buffer_connection: Some(WriteBufferConnection {
@@ -110,15 +108,17 @@ Examples:
             buffer_size_soft: 1024 * 1024 * 1024,
             buffer_size_hard: 1024 * 1024 * 1024 * 2,
             worker_backoff_millis: 100,
-            max_active_compactions_cfg: Some(MaxActiveCompactionsCfg::MaxActiveCompactions(1)),
+            max_active_compactions_cfg: Some(
+                lifecycle_rules::MaxActiveCompactionsCfg::MaxActiveCompactions(1),
+            ),
             persist: true,
             persist_row_threshold: 10 * 1000 * 1000,
             ..Default::default()
         }),
         worker_cleanup_avg_sleep: None,
-        routing_rules: Some(RoutingRules::RoutingConfig(RoutingConfig {
-            sink: Some(management::Sink {
-                sink: Some(management::sink::Sink::Kafka(KafkaProducer {})),
+        routing_rules: Some(database_rules::RoutingRules::RoutingConfig(RoutingConfig {
+            sink: Some(Sink {
+                sink: Some(sink::Sink::Kafka(KafkaProducer {})),
             }),
         })),
         write_buffer_connection: Some(WriteBufferConnection {
@@ -144,16 +144,10 @@ Examples:
 
     // Write a few points
     let mut write_client = influxdb_iox_client::write::Client::new(writer_grpc_channel);
-    let lp_lines = [
-        "write_test,region=west user=23.2 100",
-        "write_test,region=west user=21.0 150",
-        "write_test,region=east bytes=99i 200",
-    ];
-    let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+    write_client
+        .write_pb(test_write(&db_name))
         .await
         .expect("cannot write");
-    assert_eq!(num_lines_written, 3);
 
     // Create the reader db
     let reader_grpc_bind_addr = format!("http://{}", reader);
@@ -169,4 +163,63 @@ Examples:
         .expect("create reader database failed");
 
     println!("Created database {}", db_name);
+}
+
+/// 3 rows of test data
+///
+/// "write_test,region=west user=23.2 100"
+//  "write_test,region=west user=21.0 150"
+//  "write_test,region=east bytes=99i 200"
+fn test_write(db_name: &str) -> WriteRequest {
+    WriteRequest {
+        database_batch: Some(DatabaseBatch {
+            database_name: db_name.to_string(),
+            table_batches: vec![TableBatch {
+                table_name: "write_test".to_string(),
+                columns: vec![
+                    Column {
+                        column_name: "time".to_string(),
+                        semantic_type: column::SemanticType::Time as _,
+                        values: Some(column::Values {
+                            i64_values: vec![100, 150, 200],
+                            ..Default::default()
+                        }),
+                        null_mask: vec![],
+                    },
+                    Column {
+                        column_name: "region".to_string(),
+                        semantic_type: column::SemanticType::Tag as _,
+                        values: Some(column::Values {
+                            string_values: vec![
+                                "west".to_string(),
+                                "west".to_string(),
+                                "east".to_string(),
+                            ],
+                            ..Default::default()
+                        }),
+                        null_mask: vec![],
+                    },
+                    Column {
+                        column_name: "user".to_string(),
+                        semantic_type: column::SemanticType::Field as _,
+                        values: Some(column::Values {
+                            f64_values: vec![23.2, 21.0],
+                            ..Default::default()
+                        }),
+                        null_mask: vec![0b00000100],
+                    },
+                    Column {
+                        column_name: "bytes".to_string(),
+                        semantic_type: column::SemanticType::Field as _,
+                        values: Some(column::Values {
+                            i64_values: vec![99],
+                            ..Default::default()
+                        }),
+                        null_mask: vec![0b00000011],
+                    },
+                ],
+                row_count: 3,
+            }],
+        }),
+    }
 }

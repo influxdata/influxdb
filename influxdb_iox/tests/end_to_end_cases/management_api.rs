@@ -51,7 +51,7 @@ async fn test_serving_readiness() {
         .expect("create database failed");
 
     mgmt_client.set_serving_readiness(false).await.unwrap();
-    let err = write_client.write(name, lp_data).await.unwrap_err();
+    let err = write_client.write_lp(name, lp_data, 0).await.unwrap_err();
     assert!(
         matches!(&err, WriteError::ServerError(status) if status.code() == Code::Unavailable),
         "{}",
@@ -59,7 +59,7 @@ async fn test_serving_readiness() {
     );
 
     mgmt_client.set_serving_readiness(true).await.unwrap();
-    write_client.write(name, lp_data).await.unwrap();
+    write_client.write_lp(name, lp_data, 0).await.unwrap();
 }
 
 #[tokio::test]
@@ -542,7 +542,7 @@ async fn test_chunk_get() {
     ];
 
     write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
 
@@ -711,7 +711,7 @@ async fn test_partition_get_error() {
         vec!["processes,host=foo running=4i,sleeping=514i,total=519i 1591894310000000000"];
 
     write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
 
@@ -739,7 +739,7 @@ async fn test_list_partition_chunks() {
     ];
 
     write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
 
@@ -802,7 +802,7 @@ async fn test_new_partition_chunk() {
     let lp_lines = vec!["cpu,region=west user=23.2 100"];
 
     write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
 
@@ -826,7 +826,7 @@ async fn test_new_partition_chunk() {
     let lp_lines = vec!["cpu,region=west user=21.0 150"];
 
     write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeeded");
 
@@ -906,7 +906,7 @@ async fn test_close_partition_chunk() {
     let lp_lines = vec!["cpu,region=west user=23.2 100"];
 
     write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
 
@@ -998,7 +998,7 @@ async fn test_chunk_lifecycle() {
     let lp_lines = vec!["cpu,region=west user=23.2 100"];
 
     write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
 
@@ -1305,7 +1305,7 @@ async fn test_unload_read_buffer() {
         .collect();
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("successful write");
     assert_eq!(num_lines_written, 1000);
@@ -1353,7 +1353,10 @@ async fn test_chunk_access_time() {
         .build(fixture.grpc_channel())
         .await;
 
-    write_client.write(&db_name, "cpu foo=1 10").await.unwrap();
+    write_client
+        .write_lp(&db_name, "cpu foo=1 10", 0)
+        .await
+        .unwrap();
 
     let to_datetime = |a: Option<&generated_types::google::protobuf::Timestamp>| -> DateTime<Utc> {
         a.unwrap().clone().try_into().unwrap()
@@ -1381,7 +1384,10 @@ async fn test_chunk_access_time() {
     assert_eq!(chunks.len(), 1);
     let t2 = to_datetime(chunks[0].time_of_last_access.as_ref());
 
-    write_client.write(&db_name, "cpu foo=1 20").await.unwrap();
+    write_client
+        .write_lp(&db_name, "cpu foo=1 20", 0)
+        .await
+        .unwrap();
 
     let chunks = management_client.list_chunks(&db_name).await.unwrap();
     assert_eq!(chunks.len(), 1);
@@ -1424,7 +1430,7 @@ async fn test_drop_partition() {
         .collect();
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("successful write");
     assert_eq!(num_lines_written, 1000);
@@ -1476,7 +1482,7 @@ async fn test_drop_partition_error() {
         .collect();
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("successful write");
     assert_eq!(num_lines_written, 1000);
@@ -1532,7 +1538,7 @@ async fn test_delete() {
     ];
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
 
@@ -1665,7 +1671,7 @@ async fn test_persist_partition() {
         .await;
 
     let num_lines_written = write_client
-        .write(&db_name, "data foo=1 10")
+        .write_lp(&db_name, "data foo=1 10", 0)
         .await
         .expect("successful write");
     assert_eq!(num_lines_written, 1);
@@ -1721,7 +1727,7 @@ async fn test_persist_partition_error() {
         .await;
 
     let num_lines_written = write_client
-        .write(&db_name, "data foo=1 10")
+        .write_lp(&db_name, "data foo=1 10", 0)
         .await
         .expect("successful write");
     assert_eq!(num_lines_written, 1);

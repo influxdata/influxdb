@@ -22,7 +22,7 @@ async fn test_operations() {
     let lp_lines = vec!["cpu,region=west user=23.2 100"];
 
     write_client
-        .write(&db_name1, lp_lines.join("\n"))
+        .write_lp(&db_name1, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
 

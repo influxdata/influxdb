@@ -56,7 +56,7 @@ async fn writes_go_to_write_buffer() {
     ];
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("cannot write");
     assert_eq!(num_lines_written, 3);
@@ -106,7 +106,7 @@ async fn writes_go_to_write_buffer_whitelist() {
     ];
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("cannot write");
     assert_eq!(num_lines_written, 4);
@@ -249,7 +249,7 @@ async fn cant_write_to_db_reading_from_write_buffer() {
     // Writing to this database is an error; all data comes from write buffer
     let mut write_client = server.write_client();
     let err = write_client
-        .write(&db_name, "temp,region=south color=1")
+        .write_lp(&db_name, "temp,region=south color=1", 0)
         .await
         .expect_err("expected write to fail");
 
@@ -352,7 +352,7 @@ pub async fn test_cross_write_buffer_tracing() {
         "disk,region=east bytes=99i 200",
     ];
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("cannot write");
     assert_eq!(num_lines_written, 3);

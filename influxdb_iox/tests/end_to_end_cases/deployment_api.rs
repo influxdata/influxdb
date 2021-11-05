@@ -32,7 +32,7 @@ async fn test_serving_readiness_database() {
         .set_serving_readiness(false)
         .await
         .unwrap();
-    let err = write_client.write(name, lp_data).await.unwrap_err();
+    let err = write_client.write_lp(name, lp_data, 0).await.unwrap_err();
     assert!(
         matches!(&err, WriteError::ServerError(status) if status.code() == Code::Unavailable),
         "{}",
@@ -43,7 +43,7 @@ async fn test_serving_readiness_database() {
 
     deployment_client.set_serving_readiness(true).await.unwrap();
     assert!(deployment_client.get_serving_readiness().await.unwrap());
-    write_client.write(name, lp_data).await.unwrap();
+    write_client.write_lp(name, lp_data, 0).await.unwrap();
 }
 
 // TODO(marco): add `test_serving_readiness_router` once we have some other API that we could use for testing

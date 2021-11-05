@@ -15,6 +15,7 @@ use influxdb_iox_client::{
 use std::{fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr, time::Duration};
 use structopt::StructOpt;
 use thiserror::Error;
+use time::TimeProvider;
 use uuid::Uuid;
 
 mod chunk;
@@ -303,7 +304,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                     source: e,
                 })?;
 
-            let lines_written = client.write(write.name, lp_data).await?;
+            let default_time = time::SystemProvider::new().now().timestamp_nanos();
+            let lines_written = client.write_lp(write.name, lp_data, default_time).await?;
 
             println!("{} Lines OK", lines_written);
         }

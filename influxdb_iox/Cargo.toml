@@ -12,7 +12,7 @@ data_types = { path = "../data_types" }
 entry = { path = "../entry" }
 generated_types = { path = "../generated_types" }
 
-influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format"] }
+influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
 iox_object_store = { path = "../iox_object_store" }
@@ -99,7 +99,6 @@ arrow_util = { path = "../arrow_util" }
 entry = { path = "../entry" }
 influxdb2_client = { path = "../influxdb2_client" }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
-influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight"] }
 test_helpers = { path = "../test_helpers" }
 parking_lot = "0.11.2"
 write_buffer = { path = "../write_buffer" }

@@ -34,7 +34,7 @@ async fn test_delete() {
     ];
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
 
