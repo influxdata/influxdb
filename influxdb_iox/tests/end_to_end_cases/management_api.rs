@@ -505,6 +505,52 @@ async fn disown_database() {
     assert_eq!(created_uuid, disowned_uuid);
 }
 
+#[tokio::test]
+async fn adopt_database() {
+    test_helpers::maybe_start_logging();
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let mut client = server_fixture.management_client();
+
+    let db_name = rand_name();
+    let rules = DatabaseRules {
+        name: db_name.clone(),
+        ..Default::default()
+    };
+
+    // Create a database on one server
+    let created_uuid = client.create_database(rules.clone()).await.unwrap();
+
+    // Disown database returns the UUID
+    let deleted_uuid = client.disown_database(&db_name, None).await.unwrap();
+    assert_eq!(created_uuid, deleted_uuid);
+
+    client.adopt_database(deleted_uuid).await.unwrap();
+
+    // Adopted database is back in this server's database list
+    assert_eq!(
+        client
+            .list_detailed_databases()
+            .await
+            .unwrap()
+            .into_iter()
+            // names may contain the names of other databases created by
+            // concurrent tests as well
+            .filter(|db| db.db_name == db_name)
+            .count(),
+        1
+    );
+
+    // Adopting the same database again is an error
+    let err = client.adopt_database(deleted_uuid).await.unwrap_err();
+    assert_contains!(
+        err.to_string(),
+        format!(
+            "The database with UUID `{}` is already owned by this server",
+            deleted_uuid
+        )
+    );
+}
+
 /// gets configuration both with and without defaults, and verifies
 /// that the worker_cleanup_avg_sleep field is the same and that
 /// lifecycle_rules are not present except when defaults are filled in

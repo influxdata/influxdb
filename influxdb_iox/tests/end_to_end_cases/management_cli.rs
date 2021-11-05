@@ -543,6 +543,163 @@ async fn disown_database() {
 }
 
 #[tokio::test]
+async fn adopt_database() {
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+    let db = &db_name;
+
+    // Create a database on one server
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created"));
+
+    // Disown database returns the UUID
+    let stdout = String::from_utf8(
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("disown")
+            .arg(db)
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(format!(
+                "Disowned database {}",
+                db
+            )))
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let deleted_uuid = stdout.lines().last().unwrap().trim();
+
+    // Create another database with the same name
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created"));
+
+    // Disown the other database too
+    let stdout = String::from_utf8(
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("disown")
+            .arg(db)
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(format!(
+                "Disowned database {}",
+                db
+            )))
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let second_deleted_uuid = stdout.lines().last().unwrap().trim();
+
+    // Adopt using the first UUID
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("adopt")
+        .arg(deleted_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(format!("Adopted database {}", db)));
+
+    // Adopted database is now in this server's database list
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(db));
+
+    // Adopting again is an error
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("adopt")
+        .arg(deleted_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "The database with UUID `{}` is already owned by this server",
+            deleted_uuid
+        )));
+
+    // Error if the UUID specified is not in a valid UUID format
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("adopt")
+        .arg("foo")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Invalid value for '<uuid>'"));
+
+    // Adopting a valid but unknown UUID is an error
+    let unknown_uuid = Uuid::new_v4();
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("adopt")
+        .arg(unknown_uuid.to_string())
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "Could not find a database with UUID `{}`",
+            unknown_uuid
+        )));
+
+    // Adopting the second db that has the same name as the existing database is an error
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("adopt")
+        .arg(second_deleted_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "A database with the name `{}` already exists",
+            db
+        )));
+}
+
+#[tokio::test]
 async fn test_get_chunks() {
     let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();

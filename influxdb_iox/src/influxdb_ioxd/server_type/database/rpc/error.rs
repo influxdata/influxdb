@@ -29,6 +29,13 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             ..Default::default()
         }
         .into(),
+        Error::DatabaseUuidNotFound { uuid } => NotFound {
+            resource_type: "database".to_string(),
+            resource_name: uuid.to_string(),
+            description: format!("Could not find database with UUID {}", uuid),
+            ..Default::default()
+        }
+        .into(),
         Error::InvalidDatabaseName { source } => FieldViolation {
             field: "db_name".into(),
             description: source.to_string(),
@@ -72,7 +79,9 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         Error::CannotRestoreDatabase {
             source: e @ server::database::InitError::AlreadyActive { .. },
         } => tonic::Status::already_exists(e.to_string()),
-        Error::DatabaseAlreadyActive { .. } | Error::DatabaseAlreadyExists { .. } => {
+        Error::DatabaseAlreadyActive { .. }
+        | Error::DatabaseAlreadyExists { .. }
+        | Error::DatabaseAlreadyOwnedByThisServer { .. } => {
             tonic::Status::already_exists(error.to_string())
         }
         Error::UuidMismatch { .. } => tonic::Status::invalid_argument(error.to_string()),

@@ -225,6 +225,25 @@ where
         Ok(Response::new(RestoreDatabaseResponse {}))
     }
 
+    async fn adopt_database(
+        &self,
+        request: Request<AdoptDatabaseRequest>,
+    ) -> Result<Response<AdoptDatabaseResponse>, Status> {
+        let AdoptDatabaseRequest { uuid } = request.into_inner();
+
+        let uuid = Uuid::from_slice(&uuid).field("uuid")?;
+
+        let db_name = self
+            .server
+            .adopt_database(uuid)
+            .await
+            .map_err(default_server_error_handler)?;
+
+        Ok(Response::new(AdoptDatabaseResponse {
+            db_name: db_name.to_string(),
+        }))
+    }
+
     async fn list_detailed_databases(
         &self,
         _: Request<ListDetailedDatabasesRequest>,
