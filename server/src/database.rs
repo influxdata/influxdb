@@ -928,13 +928,8 @@ pub enum InitError {
     #[snafu(display("error saving database owner: {}", source))]
     SavingOwner { source: object_store::Error },
 
-    #[snafu(display("error loading owner info: {}", source))]
-    LoadingOwnerInfo { source: object_store::Error },
-
-    #[snafu(display("error decoding owner info: {}", source))]
-    DecodingOwnerInfo {
-        source: generated_types::DecodeError,
-    },
+    #[snafu(display("error getting database owner info: {}", source))]
+    OwnerInfo { source: OwnerInfoError },
 
     #[snafu(display(
         "Server ID in the database's owner info file ({}) does not match this server's ID ({})",
@@ -1154,14 +1149,9 @@ impl DatabaseStateDatabaseObjectStoreFound {
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateOwnerInfoLoaded, InitError> {
-        let raw_owner_info = self
-            .iox_object_store
-            .get_owner_file()
+        let owner_info = fetch_owner_info(&self.iox_object_store)
             .await
-            .context(LoadingOwnerInfo)?;
-
-        let owner_info = generated_types::server_config::decode_database_owner_info(raw_owner_info)
-            .context(DecodingOwnerInfo)?;
+            .context(OwnerInfo)?;
 
         if owner_info.id != shared.config.server_id.get_u32() {
             return DatabaseOwnerMismatch {
@@ -1176,6 +1166,25 @@ impl DatabaseStateDatabaseObjectStoreFound {
             iox_object_store: Arc::clone(&self.iox_object_store),
         })
     }
+}
+
+#[derive(Debug, Snafu)]
+pub enum OwnerInfoError {
+    #[snafu(display("error loading owner info: {}", source))]
+    Loading { source: object_store::Error },
+
+    #[snafu(display("error decoding owner info: {}", source))]
+    Decoding {
+        source: generated_types::DecodeError,
+    },
+}
+
+async fn fetch_owner_info(
+    iox_object_store: &IoxObjectStore,
+) -> Result<management::v1::OwnerInfo, OwnerInfoError> {
+    let raw_owner_info = iox_object_store.get_owner_file().await.context(Loading)?;
+
+    generated_types::server_config::decode_database_owner_info(raw_owner_info).context(Decoding)
 }
 
 #[derive(Debug, Clone)]
