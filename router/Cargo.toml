@@ -5,7 +5,14 @@ edition = "2021"
 
 [dependencies]
 data_types = { path = "../data_types" }
+hashbrown = "0.11"
 metric = { path = "../metric" }
+mutable_batch = { path = "../mutable_batch" }
 trace = { path = "../trace" }
 parking_lot = "0.11.2"
 snafu = "0.6"
+
+[dev-dependencies]
+mutable_batch_lp = { path = "../mutable_batch_lp" }
+regex = "1.4"
+time = { path = "../time" }

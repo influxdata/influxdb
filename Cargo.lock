@@ -3572,9 +3572,14 @@ name = "router"
 version = "0.1.0"
 dependencies = [
  "data_types",
+ "hashbrown",
  "metric",
+ "mutable_batch",
+ "mutable_batch_lp",
  "parking_lot",
+ "regex",
  "snafu",
+ "time 0.1.0",
  "trace",
 ]
 
