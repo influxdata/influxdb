@@ -86,8 +86,6 @@ impl TryFrom<management::MatcherToShard> for MatcherToShard {
 impl From<HashRing> for management::HashRing {
     fn from(hash_ring: HashRing) -> Self {
         Self {
-            table_name: hash_ring.table_name,
-            columns: hash_ring.columns,
             shards: hash_ring.shards.into(),
         }
     }
@@ -98,8 +96,6 @@ impl TryFrom<management::HashRing> for HashRing {
 
     fn try_from(proto: management::HashRing) -> Result<Self, Self::Error> {
         Ok(Self {
-            table_name: proto.table_name,
-            columns: proto.columns,
             shards: proto.shards.into(),
         })
     }
@@ -140,7 +136,6 @@ impl From<Matcher> for management::Matcher {
                 .table_name_regex
                 .map(|r| r.to_string())
                 .unwrap_or_default(),
-            predicate: matcher.predicate.unwrap_or_default(),
         }
     }
 }
@@ -156,15 +151,8 @@ impl TryFrom<management::Matcher> for Matcher {
                 description: e.to_string(),
             })?),
         };
-        let predicate = match proto.predicate {
-            p if p.is_empty() => None,
-            p => Some(p),
-        };
 
-        Ok(Self {
-            table_name_regex,
-            predicate,
-        })
+        Ok(Self { table_name_regex })
     }
 }
 
@@ -186,16 +174,12 @@ mod tests {
 
         assert!(matcher.table_name_regex.is_none());
         assert_eq!(protobuf.table_name_regex, back.table_name_regex);
-
-        assert_eq!(matcher.predicate, None);
-        assert_eq!(protobuf.predicate, back.predicate);
     }
 
     #[test]
     fn test_matcher_regexp() {
         let protobuf = management::Matcher {
             table_name_regex: "^foo$".into(),
-            ..Default::default()
         };
 
         let matcher: Matcher = protobuf.clone().try_into().unwrap();
@@ -209,7 +193,6 @@ mod tests {
     fn test_matcher_bad_regexp() {
         let protobuf = management::Matcher {
             table_name_regex: "*".into(),
-            ..Default::default()
         };
 
         let matcher: Result<Matcher, FieldViolation> = protobuf.try_into();
@@ -226,20 +209,13 @@ mod tests {
         let hash_ring: HashRing = protobuf.clone().try_into().unwrap();
         let back: management::HashRing = hash_ring.clone().into();
 
-        assert!(!hash_ring.table_name);
-        assert_eq!(protobuf.table_name, back.table_name);
-        assert!(hash_ring.columns.is_empty());
-        assert_eq!(protobuf.columns, back.columns);
         assert!(hash_ring.shards.is_empty());
         assert_eq!(protobuf.shards, back.shards);
     }
 
     #[test]
     fn test_hash_ring_nodes() {
-        let protobuf = management::HashRing {
-            shards: vec![1, 2],
-            ..Default::default()
-        };
+        let protobuf = management::HashRing { shards: vec![1, 2] };
 
         let hash_ring: HashRing = protobuf.try_into().unwrap();
 
@@ -257,12 +233,7 @@ mod tests {
         let matcher_to_shard: MatcherToShard = protobuf.clone().try_into().unwrap();
         let back: management::MatcherToShard = matcher_to_shard.clone().into();
 
-        assert_eq!(
-            matcher_to_shard.matcher,
-            Matcher {
-                ..Default::default()
-            }
-        );
+        assert_eq!(matcher_to_shard.matcher, Default::default());
         assert_eq!(protobuf.matcher, back.matcher);
 
         assert_eq!(matcher_to_shard.shard, 0);
@@ -356,13 +327,10 @@ mod tests {
             specific_targets: vec![management::MatcherToShard {
                 matcher: Some(management::Matcher {
                     table_name_regex: "pu\\d.$".to_string(),
-                    ..Default::default()
                 }),
                 shard: 1,
             }],
             hash_ring: Some(management::HashRing {
-                table_name: true,
-                columns: vec!["t1".to_string(), "t2".to_string()],
                 shards: vec![1, 2, 3, 4],
             }),
             ..Default::default()
@@ -376,13 +344,10 @@ mod tests {
                 specific_targets: vec![MatcherToShard {
                     matcher: data_types::database_rules::Matcher {
                         table_name_regex: Some(Regex::new("pu\\d.$").unwrap()),
-                        predicate: None
                     },
                     shard: 1
                 }],
                 hash_ring: Some(HashRing {
-                    table_name: true,
-                    columns: vec!["t1".to_string(), "t2".to_string(),],
                     shards: ConsistentHasher::new(&[1, 2, 3, 4])
                 }),
                 ..Default::default()

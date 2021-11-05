@@ -59,11 +59,16 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Converts a [`SequencedEntry`] to a [`DbWrite`]
 pub fn sequenced_entry_to_write(entry: &SequencedEntry) -> Result<DbWrite> {
-    let meta = WriteMeta::new(
-        entry.sequence().cloned(),
-        entry.producer_wallclock_timestamp(),
+    let sequence = entry.sequence().cloned().expect("entry must be sequenced");
+    let timestamp = entry
+        .producer_wallclock_timestamp()
+        .expect("entry must be timestamped");
+
+    let meta = WriteMeta::sequenced(
+        sequence,
+        timestamp,
         entry.span_context().cloned(),
-        Some(entry.entry().data().len()),
+        entry.entry().data().len(),
     );
 
     let tables = entry_to_batches(entry.entry())?;

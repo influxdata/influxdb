@@ -14,6 +14,7 @@ use parquet_file::ParquetFilePath;
 pub mod transaction_file;
 use transaction_file::TransactionFilePath;
 
+pub(crate) const ALL_DATABASES_DIRECTORY: &str = "dbs";
 const SERVER_CONFIG_FILE_NAME: &str = "config.pb";
 const DATABASE_OWNER_FILE_NAME: &str = "owner.pb";
 
@@ -23,15 +24,6 @@ pub(crate) fn server_config_path(object_store: &ObjectStore, server_id: ServerId
     let mut path = object_store.new_path();
     path.push_dir(server_id.to_string());
     path.set_file_name(SERVER_CONFIG_FILE_NAME);
-    path
-}
-
-/// The path all database root paths should be in. Used for listing all databases and building
-/// database `RootPath`s in the same way. Not its own type because it's only needed ephemerally.
-// TODO: this is in the process of being deprecated in favor of server_config_path
-pub(crate) fn all_databases_path(object_store: &ObjectStore, server_id: ServerId) -> Path {
-    let mut path = object_store.new_path();
-    path.push_dir(server_id.to_string());
     path
 }
 
@@ -45,8 +37,9 @@ pub struct RootPath {
 
 impl RootPath {
     /// How the root of a database is defined in object storage.
-    pub(crate) fn new(object_store: &ObjectStore, server_id: ServerId, uuid: Uuid) -> Self {
-        let mut inner = all_databases_path(object_store, server_id);
+    pub(crate) fn new(object_store: &ObjectStore, uuid: Uuid) -> Self {
+        let mut inner = object_store.new_path();
+        inner.push_dir(ALL_DATABASES_DIRECTORY);
         inner.push_dir(uuid.to_string());
         Self { inner }
     }
@@ -206,12 +199,7 @@ mod tests {
     use super::*;
     use crate::IoxObjectStore;
     use object_store::ObjectStore;
-    use std::{num::NonZeroU32, sync::Arc};
-
-    /// Creates new test server ID
-    fn make_server_id() -> ServerId {
-        ServerId::new(NonZeroU32::new(1).unwrap())
-    }
+    use std::sync::Arc;
 
     /// Creates a new in-memory object store. These tests rely on the `Path`s being of type
     /// `DirsAndFileName` and thus using object_store::path::DELIMITER as the separator
@@ -220,51 +208,51 @@ mod tests {
     }
 
     #[test]
-    fn root_path_contains_server_id_and_db_name() {
+    fn root_path_contains_dbs_and_db_uuid() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
         let uuid = Uuid::new_v4();
-        let root_path = RootPath::new(&object_store, server_id, uuid);
+        let root_path = RootPath::new(&object_store, uuid);
 
-        assert_eq!(root_path.inner.to_string(), format!("mem:1/{}/", uuid));
+        assert_eq!(
+            root_path.inner.to_string(),
+            format!("mem:{}/{}/", ALL_DATABASES_DIRECTORY, uuid)
+        );
     }
 
     #[test]
     fn root_path_join_concatenates() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
         let uuid = Uuid::new_v4();
-        let root_path = RootPath::new(&object_store, server_id, uuid);
+        let root_path = RootPath::new(&object_store, uuid);
 
         let path = root_path.join("foo");
-        assert_eq!(path.to_string(), format!("mem:1/{}/foo/", uuid));
+        assert_eq!(
+            path.to_string(),
+            format!("mem:{}/{}/foo/", ALL_DATABASES_DIRECTORY, uuid)
+        );
     }
 
     #[test]
     fn transactions_path_is_relative_to_root_path() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
         let uuid = Uuid::new_v4();
-        let root_path = RootPath::new(&object_store, server_id, uuid);
-        let iox_object_store =
-            IoxObjectStore::existing(Arc::clone(&object_store), server_id, root_path);
+        let root_path = RootPath::new(&object_store, uuid);
+        let iox_object_store = IoxObjectStore::existing(Arc::clone(&object_store), root_path);
         assert_eq!(
             iox_object_store.transactions_path.inner.to_string(),
-            format!("mem:1/{}/transactions/", uuid)
+            format!("mem:{}/{}/transactions/", ALL_DATABASES_DIRECTORY, uuid)
         );
     }
 
     #[test]
     fn data_path_is_relative_to_root_path() {
         let object_store = make_object_store();
-        let server_id = make_server_id();
         let uuid = Uuid::new_v4();
-        let root_path = RootPath::new(&object_store, server_id, uuid);
-        let iox_object_store =
-            IoxObjectStore::existing(Arc::clone(&object_store), server_id, root_path);
+        let root_path = RootPath::new(&object_store, uuid);
+        let iox_object_store = IoxObjectStore::existing(Arc::clone(&object_store), root_path);
         assert_eq!(
             iox_object_store.data_path.inner.to_string(),
-            format!("mem:1/{}/data/", uuid)
+            format!("mem:{}/{}/data/", ALL_DATABASES_DIRECTORY, uuid)
         );
     }
 }

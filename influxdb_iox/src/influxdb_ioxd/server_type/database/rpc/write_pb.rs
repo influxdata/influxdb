@@ -1,5 +1,7 @@
-use generated_types::google::FieldViolation;
+use data_types::DatabaseName;
+use generated_types::google::{FieldViolation, FieldViolationExt};
 use generated_types::influxdata::pbdata::v1::*;
+use mutable_batch::{DbWrite, WriteMeta};
 use server::{connection::ConnectionManager, Server};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -25,8 +27,21 @@ where
             .database_batch
             .ok_or_else(|| FieldViolation::required("database_batch"))?;
 
+        let db_name = DatabaseName::new(&database_batch.database_name)
+            .field("database_batch.database_name")?;
+
+        let tables =
+            mutable_batch_pb::decode::decode_database_batch(&database_batch).map_err(|e| {
+                FieldViolation {
+                    field: "database_batch".into(),
+                    description: format!("Invalid DatabaseBatch: {}", e),
+                }
+            })?;
+
+        let write = DbWrite::new(tables, WriteMeta::unsequenced(span_ctx));
+
         self.server
-            .write_pb(database_batch, span_ctx)
+            .write(&db_name, write)
             .await
             .map_err(default_server_error_handler)?;
 

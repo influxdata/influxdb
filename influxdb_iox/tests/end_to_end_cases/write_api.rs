@@ -60,7 +60,7 @@ async fn test_write() {
 
     assert_contains!(
         err.to_string(),
-        r#"Client specified an invalid argument: Violation for field "lp_data": Invalid Line Protocol: A generic parsing error occurred"#
+        r#"Client specified an invalid argument: Violation for field "lp_data": Invalid Line Protocol: error parsing line 1: A generic parsing error occurred"#
     );
     assert!(matches!(dbg!(err), WriteError::InvalidArgument(_)));
 
@@ -221,22 +221,18 @@ async fn test_write_routed() {
             MatcherToShard {
                 matcher: Some(Matcher {
                     table_name_regex: "^cpu$".to_string(),
-                    ..Default::default()
                 }),
                 shard: TEST_SHARD_ID_1,
             },
             MatcherToShard {
                 matcher: Some(Matcher {
                     table_name_regex: "^mem$".to_string(),
-                    ..Default::default()
                 }),
                 shard: TEST_SHARD_ID_3,
             },
         ],
         hash_ring: Some(HashRing {
-            table_name: true,
             shards: vec![TEST_SHARD_ID_2],
-            ..Default::default()
         }),
         shards: vec![
             (
@@ -408,7 +404,6 @@ async fn test_write_routed_errors() {
         specific_targets: vec![MatcherToShard {
             matcher: Some(Matcher {
                 table_name_regex: "^cpu$".to_string(),
-                ..Default::default()
             }),
             shard: TEST_SHARD_ID,
         }],
@@ -477,7 +472,6 @@ async fn test_write_dev_null() {
         specific_targets: vec![MatcherToShard {
             matcher: Some(Matcher {
                 table_name_regex: "^cpu$".to_string(),
-                ..Default::default()
             }),
             shard: TEST_SHARD_ID,
         }],
@@ -515,8 +509,7 @@ async fn test_write_dev_null() {
     assert_eq!(
         err.to_string(),
         "Unexpected server error: The system is not in a state required for the operation's \
-         execution: error converting line protocol to flatbuffers: Error getting shard id No \
-         sharding rule matches line: mem bar=1 1"
+         execution: Error sharding write: No sharding rule matches table: mem"
     );
 }
 

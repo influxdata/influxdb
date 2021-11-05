@@ -19,6 +19,10 @@ iox_object_store = { path = "../iox_object_store" }
 logfmt = { path = "../logfmt" }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
+mutable_batch = { path = "../mutable_batch" }
+mutable_batch_entry = { path = "../mutable_batch_entry" }
+mutable_batch_lp = { path = "../mutable_batch_lp" }
+mutable_batch_pb = { path = "../mutable_batch_pb" }
 mutable_buffer = { path = "../mutable_buffer" }
 num_cpus = "1.13.0"
 object_store = { path = "../object_store" }

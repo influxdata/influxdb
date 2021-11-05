@@ -123,7 +123,7 @@ pub async fn command(config: Config) -> Result<()> {
         .context(CantFindDatabase)?;
 
     let iox_object_store =
-        IoxObjectStore::load_at_root_path(Arc::clone(&object_store), server_id, database_location)
+        IoxObjectStore::load_at_root_path(Arc::clone(&object_store), database_location)
             .await
             .context(IoxObjectStoreFailure)?;
 

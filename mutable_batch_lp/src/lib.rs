@@ -15,7 +15,7 @@ use hashbrown::HashMap;
 use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
 use mutable_batch::writer::Writer;
 use mutable_batch::MutableBatch;
-use snafu::{ResultExt, Snafu};
+use snafu::{ensure, ResultExt, Snafu};
 
 /// Error type for line protocol conversion
 #[derive(Debug, Snafu)]
@@ -32,17 +32,43 @@ pub enum Error {
         source: mutable_batch::writer::Error,
         line: usize,
     },
+
+    #[snafu(display("empty write payload"))]
+    EmptyPayload,
 }
 
 /// Result type for line protocol conversion
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Statistics about a line-protocol payload
+#[derive(Debug, Copy, Clone, Default)]
+pub struct PayloadStatistics {
+    /// The number of fields
+    pub num_fields: usize,
+    /// The number of lines
+    pub num_lines: usize,
+}
+
 /// Converts the provided lines of line protocol to a set of [`MutableBatch`]
 /// keyed by measurement name
 pub fn lines_to_batches(lines: &str, default_time: i64) -> Result<HashMap<String, MutableBatch>> {
+    Ok(lines_to_batches_stats(lines, default_time)?.0)
+}
+
+/// Converts the provided lines of line protocol to a set of [`MutableBatch`]
+/// keyed by measurement name, and a set of statistics about the converted line protocol
+pub fn lines_to_batches_stats(
+    lines: &str,
+    default_time: i64,
+) -> Result<(HashMap<String, MutableBatch>, PayloadStatistics)> {
+    let mut stats = PayloadStatistics::default();
     let mut batches = HashMap::new();
     for (line_idx, maybe_line) in parse_lines(lines).enumerate() {
         let line = maybe_line.context(LineProtocol { line: line_idx + 1 })?;
+
+        stats.num_lines += 1;
+        stats.num_fields += line.field_set.len();
+
         let measurement = line.series.measurement.as_str();
 
         let (_, batch) = batches
@@ -52,38 +78,40 @@ pub fn lines_to_batches(lines: &str, default_time: i64) -> Result<HashMap<String
 
         // TODO: Reuse writer
         let mut writer = Writer::new(batch, 1);
-        write_line(&mut writer, line, default_time).context(Write { line: line_idx + 1 })?;
+        write_line(&mut writer, &line, default_time).context(Write { line: line_idx + 1 })?;
         writer.commit();
     }
+    ensure!(!batches.is_empty(), EmptyPayload);
 
-    Ok(batches)
+    Ok((batches, stats))
 }
 
-fn write_line(
+/// Writes the [`ParsedLine`] to the [`MutableBatch`]
+pub fn write_line(
     writer: &mut Writer<'_>,
-    line: ParsedLine<'_>,
+    line: &ParsedLine<'_>,
     default_time: i64,
 ) -> mutable_batch::writer::Result<()> {
-    for (tag_key, tag_value) in line.series.tag_set.into_iter().flatten() {
+    for (tag_key, tag_value) in line.series.tag_set.iter().flatten() {
         writer.write_tag(tag_key.as_str(), None, std::iter::once(tag_value.as_str()))?
     }
 
-    for (field_key, field_value) in line.field_set {
+    for (field_key, field_value) in &line.field_set {
         match field_value {
             FieldValue::I64(value) => {
-                writer.write_i64(field_key.as_str(), None, std::iter::once(value))?;
+                writer.write_i64(field_key.as_str(), None, std::iter::once(*value))?;
             }
             FieldValue::U64(value) => {
-                writer.write_u64(field_key.as_str(), None, std::iter::once(value))?;
+                writer.write_u64(field_key.as_str(), None, std::iter::once(*value))?;
             }
             FieldValue::F64(value) => {
-                writer.write_f64(field_key.as_str(), None, std::iter::once(value))?;
+                writer.write_f64(field_key.as_str(), None, std::iter::once(*value))?;
             }
             FieldValue::String(value) => {
                 writer.write_string(field_key.as_str(), None, std::iter::once(value.as_str()))?;
             }
             FieldValue::Boolean(value) => {
-                writer.write_bool(field_key.as_str(), None, std::iter::once(value))?;
+                writer.write_bool(field_key.as_str(), None, std::iter::once(*value))?;
             }
         }
     }

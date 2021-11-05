@@ -183,10 +183,7 @@ pub mod test_utils {
         span_context: Option<&SpanContext>,
     ) -> DbWrite {
         let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
-        let mut write = DbWrite::new(
-            tables,
-            WriteMeta::new(None, None, span_context.cloned(), None),
-        );
+        let mut write = DbWrite::new(tables, WriteMeta::unsequenced(span_context.cloned()));
 
         let meta = writer.store_write(sequencer_id, &write).await.unwrap();
         write.set_meta(meta);

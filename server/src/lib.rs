@@ -73,7 +73,7 @@ use async_trait::async_trait;
 use connection::{ConnectionManager, RemoteServer};
 use data_types::{
     chunk_metadata::ChunkId,
-    database_rules::{NodeGroup, RoutingRules, ShardId, Sink},
+    database_rules::{NodeGroup, RoutingRules, Sink},
     detailed_database::ActiveDatabase,
     error::ErrorLogger,
     job::Job,
@@ -81,13 +81,9 @@ use data_types::{
     {DatabaseName, DatabaseNameError},
 };
 use database::{Database, DatabaseConfig};
-use entry::{lines_to_sharded_entries, pb_to_entry, Entry};
 use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
-use generated_types::{
-    google::FieldViolation, influxdata::iox::management, influxdata::pbdata::v1 as pb,
-};
+use generated_types::{google::FieldViolation, influxdata::iox::management};
 use hashbrown::HashMap;
-use influxdb_line_protocol::ParsedLine;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
@@ -98,15 +94,13 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
-use trace::ctx::SpanContext;
 use tracker::{TaskTracker, TrackedFutureExt};
 use uuid::Uuid;
 
 pub use application::ApplicationState;
 pub use db::Db;
 pub use job::JobRegistry;
-use mutable_batch::{DbWrite, WriteMeta};
-use mutable_batch_entry::entry_to_batches;
+use mutable_batch::DbWrite;
 pub use resolver::{GrpcConnectionString, RemoteTemplate};
 
 mod application;
@@ -200,30 +194,6 @@ pub enum Error {
         table: String,
     },
 
-    #[snafu(display("getting mutable buffer chunk: {}", source))]
-    MutableBufferChunk { source: DatabaseError },
-
-    #[snafu(display("no local buffer for database: {}", db))]
-    NoLocalBuffer { db: String },
-
-    #[snafu(display("unable to get connection to remote server: {}", server))]
-    UnableToGetConnection {
-        server: String,
-        source: DatabaseError,
-    },
-
-    #[snafu(display("error replicating to remote: {}", source))]
-    ErrorReplicating { source: DatabaseError },
-
-    #[snafu(display("error converting line protocol to flatbuffers: {}", source))]
-    LineConversion { source: entry::Error },
-
-    #[snafu(display("error converting protobuf to flatbuffers: {}", source))]
-    PBConversion { source: entry::Error },
-
-    #[snafu(display("shard not found: {}", shard_id))]
-    ShardNotFound { shard_id: ShardId },
-
     #[snafu(display("hard buffer limit reached"))]
     HardLimitReached {},
 
@@ -275,8 +245,10 @@ pub enum Error {
     #[snafu(display("error persisting server config to object storage: {}", source))]
     PersistServerConfig { source: object_store::Error },
 
-    #[snafu(display("Cannot convert entry to db write: {}", source))]
-    EntryConversion { source: mutable_batch_entry::Error },
+    #[snafu(display("Error sharding write: {}", source))]
+    ShardWrite {
+        source: data_types::database_rules::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -789,13 +761,10 @@ where
         };
 
         // Read the database's rules from object storage to get the database name
-        let db_name = database_name_from_rules_file(
-            Arc::clone(self.shared.application.object_store()),
-            server_id,
-            uuid,
-        )
-        .await
-        .context(CouldNotGetDatabaseNameFromRules)?;
+        let db_name =
+            database_name_from_rules_file(Arc::clone(self.shared.application.object_store()), uuid)
+                .await
+                .context(CouldNotGetDatabaseNameFromRules)?;
 
         info!(%db_name, %uuid, "start restoring database");
 
@@ -896,22 +865,6 @@ where
         Ok(())
     }
 
-    pub async fn write_pb(
-        &self,
-        database_batch: pb::DatabaseBatch,
-        span_ctx: Option<SpanContext>,
-    ) -> Result<()> {
-        let db_name = DatabaseName::new(database_batch.database_name.as_str())
-            .context(InvalidDatabaseName)?;
-
-        let entry = pb_to_entry(&database_batch).context(PBConversion)?;
-
-        // TODO: Apply routing/sharding logic (#2139)
-        self.write_entry_local(&db_name, entry, span_ctx).await?;
-
-        Ok(())
-    }
-
     /// `write_lines` takes in raw line protocol and converts it to a collection
     /// of ShardedEntry which are then sent to other IOx servers based on
     /// the ShardConfig or sent to the local database for buffering in the
@@ -920,75 +873,55 @@ where
     /// The provided `default_time` is nanoseconds since the epoch and will be assigned
     /// to any lines that don't have a timestamp.
     ///
-    /// TODO: Move this routing logic into a subsystem owned by `Database`
-    pub async fn write_lines(
-        &self,
-        db_name: &DatabaseName<'_>,
-        lines: &[ParsedLine<'_>],
-        default_time: i64,
-        span_ctx: Option<SpanContext>,
-    ) -> Result<()> {
+    /// TODO: Replace with dedicated router in terms of MutableBatch
+    pub async fn write(&self, db_name: &DatabaseName<'_>, write: DbWrite) -> Result<()> {
         let db = self.db(db_name)?;
         let rules = db.rules();
 
-        let shard_config = match &rules.routing_rules {
-            Some(RoutingRules::ShardConfig(shard_config)) => Some(shard_config),
-            _ => None,
+        let sharded_writes = match &rules.routing_rules {
+            Some(RoutingRules::ShardConfig(shard_config)) => {
+                let sharded_writes = write.shard(shard_config).context(ShardWrite)?;
+                itertools::Either::Left(sharded_writes.into_iter().map(|(s, w)| (Some(s), w)))
+            }
+            _ => itertools::Either::Right(std::iter::once((None, write))),
         };
-
-        let sharded_entries =
-            lines_to_sharded_entries(lines, default_time, shard_config, rules.as_ref())
-                .context(LineConversion)?;
 
         // Write to all shards in parallel; as soon as one fails return error
         // immediately to the client and abort all other outstanding requests.
-        futures_util::future::try_join_all(sharded_entries.into_iter().map(
-            |sharded_entry| async {
-                // capture entire entry in closure
-                let sharded_entry = sharded_entry;
-
-                let sink = match &rules.routing_rules {
-                    Some(RoutingRules::ShardConfig(shard_config)) => {
-                        let id = sharded_entry.shard_id.expect("sharded entry");
-                        Some(shard_config.shards.get(&id).expect("valid shard"))
-                    }
-                    Some(RoutingRules::RoutingConfig(config)) => Some(&config.sink),
-                    None => None,
-                };
-
-                match sink {
-                    Some(sink) => {
-                        self.write_entry_sink(db_name, sink, sharded_entry.entry, span_ctx.clone())
-                            .await
-                    }
-                    None => {
-                        self.write_entry_local(db_name, sharded_entry.entry, span_ctx.clone())
-                            .await
-                    }
+        futures_util::future::try_join_all(sharded_writes.map(|(shard, write)| {
+            let sink = match &rules.routing_rules {
+                Some(RoutingRules::ShardConfig(shard_config)) => {
+                    let id = shard.expect("sharded entry");
+                    Some(shard_config.shards.get(&id).expect("valid shard"))
                 }
-            },
-        ))
+                Some(RoutingRules::RoutingConfig(config)) => Some(&config.sink),
+                None => None,
+            };
+
+            async move {
+                match sink {
+                    Some(sink) => self.write_sink(db_name, sink, &write).await,
+                    None => self.write_local(db_name, &write).await,
+                }
+            }
+        }))
         .await?;
         Ok(())
     }
 
-    async fn write_entry_sink(
+    async fn write_sink(
         &self,
         db_name: &DatabaseName<'_>,
         sink: &Sink,
-        entry: Entry,
-        span_ctx: Option<SpanContext>,
+        write: &DbWrite,
     ) -> Result<()> {
         match sink {
-            Sink::Iox(node_group) => {
-                self.write_entry_downstream(db_name, node_group, entry)
-                    .await
-            }
+            Sink::Iox(node_group) => self.write_downstream(db_name, node_group, write).await,
             Sink::Kafka(_) => {
                 // The write buffer write path is currently implemented in "db", so confusingly we
                 // need to invoke write_entry_local.
                 // TODO(mkm): tracked in #2134
-                self.write_entry_local(db_name, entry, span_ctx).await
+                self.write_local(db_name, write).await
             }
             Sink::DevNull => {
                 // write is silently ignored, as requested by the configuration.
@@ -997,11 +930,11 @@ where
         }
     }
 
-    async fn write_entry_downstream(
+    async fn write_downstream(
         &self,
         db_name: &str,
         node_group: &[ServerId],
-        entry: Entry,
+        write: &DbWrite,
     ) -> Result<()> {
         // Return an error if this server is not yet ready
         self.shared.state.read().initialized()?;
@@ -1028,12 +961,7 @@ where
                     info!("error obtaining remote for {}: {}", addr, err);
                     errors.insert(addr.to_owned(), err);
                 }
-                Ok(remote) => {
-                    return remote
-                        .write_entry(db_name, entry)
-                        .await
-                        .context(RemoteError)
-                }
+                Ok(remote) => return remote.write(db_name, write).await.context(RemoteError),
             };
         }
         NoRemoteReachable { errors }.fail()
@@ -1041,20 +969,12 @@ where
 
     /// Write an entry to the local `Db`
     ///
-    /// TODO: Remove this and migrate callers to `Database::write_entry`
-    pub async fn write_entry_local(
-        &self,
-        db_name: &DatabaseName<'_>,
-        entry: Entry,
-        span_ctx: Option<SpanContext>,
-    ) -> Result<()> {
+    /// TODO: Remove this and migrate callers to `Database::route_write`
+    async fn write_local(&self, db_name: &DatabaseName<'_>, write: &DbWrite) -> Result<()> {
         use database::WriteError;
 
-        let tables = entry_to_batches(&entry).context(EntryConversion)?;
-        let write = DbWrite::new(tables, WriteMeta::new(None, None, span_ctx, None));
-
         self.active_database(db_name)?
-            .route_write(&write)
+            .route_write(write)
             .await
             .map_err(|e| match e {
                 WriteError::NotInitialized { .. } => Error::DatabaseNotInitialized {
@@ -1427,10 +1347,9 @@ pub enum DatabaseNameFromRulesError {
 
 async fn database_name_from_rules_file(
     object_store: Arc<object_store::ObjectStore>,
-    server_id: ServerId,
     uuid: Uuid,
 ) -> Result<DatabaseName<'static>, DatabaseNameFromRulesError> {
-    let rules_bytes = IoxObjectStore::load_database_rules(object_store, server_id, uuid)
+    let rules_bytes = IoxObjectStore::load_database_rules(object_store, uuid)
         .await
         .map_err(|e| match e {
             object_store::Error::NotFound { location, .. } => {
@@ -1498,15 +1417,14 @@ mod tests {
     use data_types::{
         chunk_metadata::{ChunkAddr, ChunkStorage},
         database_rules::{
-            DatabaseRules, HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart,
-            NO_SHARD_CONFIG,
+            DatabaseRules, HashRing, LifecycleRules, PartitionTemplate, ShardConfig, ShardId,
+            TemplatePart,
         },
         write_buffer::{WriteBufferConnection, WriteBufferDirection},
     };
-    use entry::test_helpers::lp_to_entry;
-    use influxdb_line_protocol::parse_lines;
     use iox_object_store::IoxObjectStore;
-    use object_store::ObjectStore;
+    use mutable_batch_lp::lines_to_batches;
+    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use parquet_catalog::{
         core::{PreservedCatalog, PreservedCatalogConfig},
         test_helpers::{load_ok, new_empty},
@@ -1522,20 +1440,14 @@ mod tests {
     };
     use test_helpers::assert_contains;
 
-    const ARBITRARY_DEFAULT_TIME: i64 = 456;
-
     #[tokio::test]
     async fn server_api_calls_return_error_with_no_id_set() {
         let server = make_server(make_application());
 
-        let lines = parsed_lines("cpu foo=1 10");
+        let tables = lines_to_batches("cpu foo=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
         let resp = server
-            .write_lines(
-                &DatabaseName::new("foo").unwrap(),
-                &lines,
-                ARBITRARY_DEFAULT_TIME,
-                None,
-            )
+            .write(&DatabaseName::new("foo").unwrap(), write)
             .await
             .unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
@@ -1636,10 +1548,7 @@ mod tests {
 
         // assert server config file exists and has 1 entry
         let config = server_config(application.object_store(), server_id).await;
-        assert_config_contents(
-            &config,
-            &[(&name, format!("{}/{}/", server_id, bananas_uuid))],
-        );
+        assert_config_contents(&config, &[(&name, format!("dbs/{}/", bananas_uuid))]);
 
         let db2 = DatabaseName::new("db_awesome").unwrap();
         let rules2 = DatabaseRules::new(db2.clone());
@@ -1656,8 +1565,8 @@ mod tests {
         assert_config_contents(
             &config,
             &[
-                (&name, format!("{}/{}/", server_id, bananas_uuid)),
-                (&db2, format!("{}/{}/", server_id, awesome_uuid)),
+                (&name, format!("dbs/{}/", bananas_uuid)),
+                (&db2, format!("dbs/{}/", awesome_uuid)),
             ],
         );
 
@@ -1679,8 +1588,8 @@ mod tests {
         assert_config_contents(
             &config,
             &[
-                (&name, format!("{}/{}/", server_id, bananas_uuid)),
-                (&db2, format!("{}/{}/", server_id, awesome_uuid)),
+                (&name, format!("dbs/{}/", bananas_uuid)),
+                (&db2, format!("dbs/{}/", awesome_uuid)),
             ],
         );
     }
@@ -1783,14 +1692,8 @@ mod tests {
         assert_config_contents(
             &config,
             &[
-                (
-                    &apples.config().name,
-                    format!("{}/{}/", server_id, apples_uuid),
-                ),
-                (
-                    &bananas.config().name,
-                    format!("{}/{}/", server_id, bananas_uuid),
-                ),
+                (&apples.config().name, format!("dbs/{}/", apples_uuid)),
+                (&bananas.config().name, format!("dbs/{}/", bananas_uuid)),
             ],
         );
 
@@ -1806,6 +1709,129 @@ mod tests {
         let err = bananas_database.wait_for_init().await.unwrap_err();
         assert_contains!(err.to_string(), "No rules found to load");
         assert!(Arc::ptr_eq(&err, &bananas_database.init_error().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn old_database_object_store_path() {
+        let application = make_application();
+        let server = make_server(Arc::clone(&application));
+        let server_id = ServerId::try_from(1).unwrap();
+        let object_store = application.object_store();
+
+        // Databases used to be stored under the server ID. Construct a database in the old
+        // location and list that in the serialized server config.
+        let old_loc_db_uuid = Uuid::new_v4();
+        let old_loc_db_name = DatabaseName::new("old").unwrap();
+
+        // Construct path in the old database location containing server ID
+        let mut old_root = object_store.new_path();
+        old_root.push_dir(&server_id.to_string());
+        old_root.push_dir(&old_loc_db_uuid.to_string());
+
+        // Write out a database owner file in the old location
+        let mut old_owner_path = old_root.clone();
+        old_owner_path.set_file_name("owner.pb");
+        let owner_info = management::v1::OwnerInfo {
+            id: server_id.get_u32(),
+            location: IoxObjectStore::server_config_path(object_store, server_id).to_string(),
+        };
+        let mut encoded_owner_info = bytes::BytesMut::new();
+        generated_types::server_config::encode_database_owner_info(
+            &owner_info,
+            &mut encoded_owner_info,
+        )
+        .expect("owner info serialization should be valid");
+        let encoded_owner_info = encoded_owner_info.freeze();
+        object_store
+            .put(&old_owner_path, encoded_owner_info)
+            .await
+            .unwrap();
+
+        // Write out a database rules file in the old location
+        let mut old_db_rules_path = old_root.clone();
+        old_db_rules_path.set_file_name("rules.pb");
+        let rules = management::v1::DatabaseRules {
+            name: old_loc_db_name.to_string(),
+            ..Default::default()
+        };
+        let persisted_database_rules = management::v1::PersistedDatabaseRules {
+            uuid: old_loc_db_uuid.as_bytes().to_vec(),
+            rules: Some(rules),
+        };
+        let mut encoded_rules = bytes::BytesMut::new();
+        generated_types::database_rules::encode_persisted_database_rules(
+            &persisted_database_rules,
+            &mut encoded_rules,
+        )
+        .unwrap();
+        let encoded_rules = encoded_rules.freeze();
+        object_store
+            .put(&old_db_rules_path, encoded_rules)
+            .await
+            .unwrap();
+
+        // Write out the server config with the database name and pointing to the old location
+        let old_location = old_root.to_raw().to_string();
+        let server_config = management::v1::ServerConfig {
+            databases: [(old_loc_db_name.to_string(), old_location.clone())]
+                .into_iter()
+                .collect(),
+        };
+        let mut encoded_server_config = bytes::BytesMut::new();
+        generated_types::server_config::encode_persisted_server_config(
+            &server_config,
+            &mut encoded_server_config,
+        )
+        .unwrap();
+        let encoded_server_config = encoded_server_config.freeze();
+        IoxObjectStore::put_server_config_file(object_store, server_id, encoded_server_config)
+            .await
+            .unwrap();
+
+        // The server should initialize successfully
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        // The database should initialize successfully
+        let old_loc_db = server.database(&old_loc_db_name).unwrap();
+        old_loc_db.wait_for_init().await.unwrap();
+
+        // Database rules can be updated
+        let mut new_rules = DatabaseRules::new(old_loc_db_name.clone());
+        new_rules.worker_cleanup_avg_sleep = Duration::from_secs(22);
+        server
+            .update_db_rules(make_provided_rules(new_rules.clone()))
+            .await
+            .unwrap();
+        let updated = old_loc_db.provided_rules().unwrap();
+        assert_eq!(
+            updated.rules().worker_cleanup_avg_sleep,
+            new_rules.worker_cleanup_avg_sleep
+        );
+
+        // Location remains the same
+        assert_eq!(old_loc_db.location(), old_location);
+
+        // New databases are created in the current database location, `dbs`
+        let new_loc_db_name = DatabaseName::new("new").unwrap();
+        let new_loc_rules = DatabaseRules::new(new_loc_db_name.clone());
+        let new_loc_db = server
+            .create_database(make_provided_rules(new_loc_rules))
+            .await
+            .unwrap();
+        let new_loc_db_uuid = new_loc_db.uuid().unwrap();
+        assert_eq!(new_loc_db.location(), format!("dbs/{}/", new_loc_db_uuid));
+
+        // Restarting the server with a database in the "old" location and a database in the "new"
+        // location works
+        std::mem::drop(server);
+        let server = make_server(Arc::clone(&application));
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.wait_for_init().await.unwrap();
+        let old_loc_db = server.database(&old_loc_db_name).unwrap();
+        old_loc_db.wait_for_init().await.unwrap();
+        let new_loc_db = server.database(&new_loc_db_name).unwrap();
+        new_loc_db.wait_for_init().await.unwrap();
     }
 
     #[tokio::test]
@@ -1840,61 +1866,14 @@ mod tests {
             .await
             .unwrap();
 
-        let line = "cpu bar=1 10";
-        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
-        server
-            .write_lines(&db_name, &lines, ARBITRARY_DEFAULT_TIME, None)
-            .await
-            .unwrap();
+        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        server.write(&db_name, write).await.unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
         let batches = run_query(db, "select * from cpu").await;
 
-        let expected = vec![
-            "+-----+--------------------------------+",
-            "| bar | time                           |",
-            "+-----+--------------------------------+",
-            "| 1   | 1970-01-01T00:00:00.000000010Z |",
-            "+-----+--------------------------------+",
-        ];
-        assert_batches_eq!(expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn write_entry_local() {
-        let server = make_server(make_application());
-        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        let name = DatabaseName::new("foo".to_string()).unwrap();
-        server
-            .create_database(default_rules(name.clone()))
-            .await
-            .unwrap();
-
-        let db_name = DatabaseName::new("foo").unwrap();
-        let db = server.db(&db_name).unwrap();
-        let rules = db.rules();
-
-        let line = "cpu bar=1 10";
-        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
-        let sharded_entries = lines_to_sharded_entries(
-            &lines,
-            ARBITRARY_DEFAULT_TIME,
-            NO_SHARD_CONFIG,
-            rules.as_ref(),
-        )
-        .expect("sharded entries");
-        assert_eq!(sharded_entries.len(), 1);
-
-        let entry = sharded_entries.into_iter().next().unwrap().entry;
-        server
-            .write_entry_local(&name, entry, None)
-            .await
-            .expect("write entry");
-
-        let batches = run_query(db, "select * from cpu").await;
         let expected = vec![
             "+-----+--------------------------------+",
             "| bar | time                           |",
@@ -1955,7 +1934,6 @@ mod tests {
         let shard_config = ShardConfig {
             hash_ring: Some(HashRing {
                 shards: vec![TEST_SHARD_ID].into(),
-                ..Default::default()
             }),
             shards: vec![(TEST_SHARD_ID, Sink::Iox(remote_ids.clone()))]
                 .into_iter()
@@ -1969,23 +1947,16 @@ mod tests {
 
         db.update_rules(rules);
 
-        let line = "cpu bar=1 10";
-        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
-
-        let err = server
-            .write_lines(&db_name, &lines, ARBITRARY_DEFAULT_TIME, None)
-            .await
-            .unwrap_err();
+        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        let err = server.write(&db_name, write.clone()).await.unwrap_err();
         assert!(
             matches!(err, Error::NoRemoteConfigured { node_group } if node_group == remote_ids)
         );
 
         // one remote is configured but it's down and we'll get connection error
         server.update_remote(bad_remote_id, BAD_REMOTE_ADDR.into());
-        let err = server
-            .write_lines(&db_name, &lines, ARBITRARY_DEFAULT_TIME, None)
-            .await
-            .unwrap_err();
+        let err = server.write(&db_name, write.clone()).await.unwrap_err();
         assert!(matches!(
             err,
             Error::NoRemoteReachable { errors } if matches!(
@@ -2005,7 +1976,7 @@ mod tests {
         // probability both the remotes will get hit.
         for _ in 0..100 {
             server
-                .write_lines(&db_name, &lines, ARBITRARY_DEFAULT_TIME, None)
+                .write(&db_name, write.clone())
                 .await
                 .expect("cannot write lines");
         }
@@ -2027,12 +1998,9 @@ mod tests {
             .await
             .unwrap();
 
-        let line = "cpu bar=1 10";
-        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
-        server
-            .write_lines(&db_name, &lines, ARBITRARY_DEFAULT_TIME, None)
-            .await
-            .unwrap();
+        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        server.write(&db_name, write).await.unwrap();
 
         // get chunk ID
         let db = server.db(&db_name).unwrap();
@@ -2093,10 +2061,6 @@ mod tests {
         server.join().await.unwrap();
     }
 
-    fn parsed_lines(lp: &str) -> Vec<ParsedLine<'_>> {
-        parse_lines(lp).map(|l| l.unwrap()).collect()
-    }
-
     #[tokio::test]
     async fn hard_buffer_limit() {
         let server = make_server(make_application());
@@ -2119,35 +2083,15 @@ mod tests {
         db.update_rules(Arc::clone(&rules));
 
         // inserting first line does not trigger hard buffer limit
-        let line_1 = "cpu bar=1 10";
-        let lines_1: Vec<_> = parse_lines(line_1).map(|l| l.unwrap()).collect();
-        let sharded_entries_1 = lines_to_sharded_entries(
-            &lines_1,
-            ARBITRARY_DEFAULT_TIME,
-            NO_SHARD_CONFIG,
-            rules.as_ref(),
-        )
-        .expect("first sharded entries");
-
-        let entry_1 = &sharded_entries_1[0].entry;
-        server
-            .write_entry_local(&name, entry_1.clone(), None)
-            .await
-            .expect("write first entry");
+        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        server.write(&name, write).await.unwrap();
 
         // inserting second line will
-        let line_2 = "cpu bar=2 20";
-        let lines_2: Vec<_> = parse_lines(line_2).map(|l| l.unwrap()).collect();
-        let sharded_entries_2 = lines_to_sharded_entries(
-            &lines_2,
-            ARBITRARY_DEFAULT_TIME,
-            NO_SHARD_CONFIG,
-            rules.as_ref(),
-        )
-        .expect("second sharded entries");
-        let entry_2 = &sharded_entries_2[0].entry;
-        let res = server.write_entry_local(&name, entry_2.clone(), None).await;
-        assert!(matches!(res, Err(super::Error::HardLimitReached {})));
+        let tables = lines_to_batches("cpu bar=2 20", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        let res = server.write(&name, write).await.unwrap_err();
+        assert!(matches!(res, super::Error::HardLimitReached {}));
     }
 
     #[tokio::test]
@@ -2295,16 +2239,11 @@ mod tests {
         );
 
         // can only write to successfully created DBs
-        let lines = parsed_lines("cpu foo=1 10");
-        server
-            .write_lines(&foo_db_name, &lines, ARBITRARY_DEFAULT_TIME, None)
-            .await
-            .unwrap();
+        let tables = lines_to_batches("cpu foo=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        server.write(&foo_db_name, write.clone()).await.unwrap();
 
-        let err = server
-            .write_lines(&bar_db_name, &lines, ARBITRARY_DEFAULT_TIME, None)
-            .await
-            .unwrap_err();
+        let err = server.write(&bar_db_name, write).await.unwrap_err();
         assert!(matches!(err, Error::DatabaseNotInitialized { .. }));
 
         // creating failed DBs does not work
@@ -2372,10 +2311,7 @@ mod tests {
 
         // server config contains foo
         let config = server_config(application.object_store(), server_id).await;
-        assert_config_contents(
-            &config,
-            &[(&foo_db_name, format!("{}/{}/", server_id, new_foo_uuid))],
-        );
+        assert_config_contents(&config, &[(&foo_db_name, format!("dbs/{}/", new_foo_uuid))]);
 
         // calling delete database works
         server.delete_database(&foo_db_name).await.unwrap();
@@ -2652,13 +2588,9 @@ mod tests {
             Error::DatabaseNotFound { .. }
         ));
         let non_existing_iox_object_store = Arc::new(
-            IoxObjectStore::create(
-                Arc::clone(application.object_store()),
-                server_id,
-                db_uuid_non_existing,
-            )
-            .await
-            .unwrap(),
+            IoxObjectStore::create(Arc::clone(application.object_store()), db_uuid_non_existing)
+                .await
+                .unwrap(),
         );
 
         let config = PreservedCatalogConfig::new(
@@ -2717,17 +2649,9 @@ mod tests {
         assert!(database.init_error().is_none());
 
         assert!(server.db(&db_name_catalog_broken).is_ok());
-        let line = "cpu bar=1 10";
-        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
-        server
-            .write_lines(
-                &db_name_catalog_broken,
-                &lines,
-                ARBITRARY_DEFAULT_TIME,
-                None,
-            )
-            .await
-            .expect("DB writable");
+        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        server.write(&db_name_catalog_broken, write).await.unwrap();
 
         // 5. cannot wipe if DB was just created
         let created = server
@@ -2783,13 +2707,14 @@ mod tests {
             .await
             .unwrap();
 
-        let entry = lp_to_entry("cpu bar=1 10");
+        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let write = DbWrite::new(tables, Default::default());
+        let err = server.write(&db_name, write).await.unwrap_err();
 
-        let res = server.write_entry_local(&db_name, entry, None).await;
         assert!(
-            matches!(res, Err(Error::WriteBuffer { .. })),
+            matches!(err, Error::WriteBuffer { .. }),
             "Expected Err(Error::WriteBuffer {{ .. }}), got: {:?}",
-            res
+            err
         );
     }
 

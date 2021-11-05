@@ -400,7 +400,6 @@ impl DatabaseBuilder {
                 Box::new(move |i: String| MatcherToShard {
                     matcher: Some(Matcher {
                         table_name_regex: format!("^{}$", i),
-                        ..Default::default()
                     }),
                     shard,
                 })
@@ -614,7 +613,7 @@ pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
         .unwrap();
 
     let mut path = fixture.dir().to_path_buf();
-    path.push(server_id.to_string());
+    path.push("dbs");
     path.push(uuid.to_string());
 
     path.push("transactions");

@@ -112,7 +112,7 @@ impl TransactionFilePath {
 
         // The number of `next`s here needs to match the total number of directories in
         // iox_object_store transactions_path
-        absolute_dirs.next(); // server id
+        absolute_dirs.next(); // "dbs"
         absolute_dirs.next(); // database uuid
         absolute_dirs.next(); // "transactions"
 
@@ -195,15 +195,9 @@ impl FromStr for TransactionFileSuffix {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{IoxObjectStore, RootPath};
-    use data_types::server_id::ServerId;
+    use crate::{paths::ALL_DATABASES_DIRECTORY, IoxObjectStore, RootPath};
     use object_store::{ObjectStore, ObjectStoreApi};
-    use std::{num::NonZeroU32, sync::Arc};
-
-    /// Creates new test server ID
-    fn make_server_id() -> ServerId {
-        ServerId::new(NonZeroU32::new(1).unwrap())
-    }
+    use std::sync::Arc;
 
     /// Creates a new in-memory object store. These tests rely on the `Path`s being of type
     /// `DirsAndFileName` and thus using object_store::path::DELIMITER as the separator
@@ -310,7 +304,7 @@ mod tests {
         // Success case
         let uuid = Uuid::new_v4();
         let mut path = object_store.new_path();
-        path.push_all_dirs(&["server", "uuid", "data", "00000000000000000123"]);
+        path.push_all_dirs(&["dbs", "uuid", "data", "00000000000000000123"]);
         path.set_file_name(&format!("{}.{}", uuid, CHECKPOINT_FILE_SUFFIX));
         let result = TransactionFilePath::from_absolute(path);
         assert_eq!(
@@ -338,7 +332,7 @@ mod tests {
         );
 
         let mut path = object_store.new_path();
-        path.push_all_dirs(&["server", "uuid", "data", "00000000000000000123"]);
+        path.push_all_dirs(&["dbs", "uuid", "data", "00000000000000000123"]);
         // missing file name
         let result = TransactionFilePath::from_absolute(path);
         assert!(matches!(result, Err(MissingFileName)), "got: {:?}", result);
@@ -364,12 +358,10 @@ mod tests {
 
     #[test]
     fn transactions_path_join_with_parquet_file_path() {
-        let server_id = make_server_id();
         let db_uuid = Uuid::new_v4();
         let object_store = make_object_store();
-        let root_path = RootPath::new(&object_store, server_id, db_uuid);
-        let iox_object_store =
-            IoxObjectStore::existing(Arc::clone(&object_store), server_id, root_path);
+        let root_path = RootPath::new(&object_store, db_uuid);
+        let iox_object_store = IoxObjectStore::existing(Arc::clone(&object_store), root_path);
 
         let uuid = Uuid::new_v4();
         let tfp = TransactionFilePath {
@@ -382,7 +374,7 @@ mod tests {
 
         let mut expected_path = object_store.new_path();
         expected_path.push_all_dirs(&[
-            &server_id.to_string(),
+            ALL_DATABASES_DIRECTORY,
             &db_uuid.to_string(),
             "transactions",
             "00000000000000000555",

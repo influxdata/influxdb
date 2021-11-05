@@ -121,9 +121,6 @@ pub enum Error {
     #[snafu(display("background task cancelled: {}", source))]
     TaskCancelled { source: futures::future::Aborted },
 
-    #[snafu(display("error computing time summary on table batch: {}", source))]
-    TableBatchTimeError { source: entry::Error },
-
     #[snafu(display("error batch had null times"))]
     TableBatchMissingTimes {},
 

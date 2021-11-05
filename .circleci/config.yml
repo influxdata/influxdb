@@ -213,7 +213,9 @@ jobs:
 
       - run:
           name: Run basic perf test to ensure that perf.py works
-          command: perf/perf.py --debug --no-volumes --object-store memory battery-0
+          command: |
+            trap "cat perf/logs/test.log" ERR
+            perf/perf.py --debug --no-volumes --object-store memory battery-0
 
   test_kafka_integration:
     machine: true

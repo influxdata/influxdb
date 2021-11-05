@@ -51,10 +51,11 @@ message MatcherToShard {
 /// A matcher is used to match routing rules or subscriptions on a row-by-row
 /// (or line) basis.
 message Matcher {
+  reserved 2;
+  reserved "predicate";
+
   // if provided, match if the table name matches against the regex
   string table_name_regex = 1;
-  // paul: what should we use for predicate matching here against a single row/line?
-  string predicate = 2;
 }
 
 // Configuration for a specific sink
@@ -87,10 +88,12 @@ message DevNull {
 // HashRing is a rule for creating a hash key for a row and mapping that to
 // an individual node on a ring.
 message HashRing {
-  // If true the table name will be included in the hash key
-  bool table_name = 1;
-  // include the values of these columns in the hash key
-  repeated string columns = 2;
+  reserved 1;
+  reserved "table_name";
+
+  reserved 2;
+  reserved "columns";
+
   // ring of shards.
   repeated uint32 shards = 3;
 }
