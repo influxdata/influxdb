@@ -9,6 +9,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	platform "github.com/influxdata/influxdb/v2/kit/platform"
+	models "github.com/influxdata/influxdb/v2/models"
 )
 
 // MockDurableQueueManager is a mock of DurableQueueManager interface.
@@ -75,6 +76,20 @@ func (m *MockDurableQueueManager) DeleteQueue(arg0 platform.ID) error {
 func (mr *MockDurableQueueManagerMockRecorder) DeleteQueue(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteQueue", reflect.TypeOf((*MockDurableQueueManager)(nil).DeleteQueue), arg0)
+}
+
+// EnqueuePoints mocks base method.
+func (m *MockDurableQueueManager) EnqueuePoints(arg0 platform.ID, arg1 []models.Point) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueuePoints", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EnqueuePoints indicates an expected call of EnqueuePoints.
+func (mr *MockDurableQueueManagerMockRecorder) EnqueuePoints(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueuePoints", reflect.TypeOf((*MockDurableQueueManager)(nil).EnqueuePoints), arg0, arg1)
 }
 
 // InitializeQueue mocks base method.

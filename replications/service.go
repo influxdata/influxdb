@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/replications/internal"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/sqlite"
@@ -70,6 +71,7 @@ type DurableQueueManager interface {
 	CurrentQueueSizes(ids []platform.ID) (map[platform.ID]int64, error)
 	StartReplicationQueues(trackedReplications map[platform.ID]int64) error
 	CloseAll() error
+	EnqueuePoints(replicationID platform.ID, points []models.Point) error
 }
 
 type service struct {
@@ -390,6 +392,32 @@ func (s service) ValidateReplication(ctx context.Context, id platform.ID) error 
 			Msg:  "replication failed validation",
 			Err:  err,
 		}
+	}
+	return nil
+}
+
+func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
+	q := sq.Select("id").From("replications").Where(sq.Eq{"org_id": orgID, "local_bucket_id": bucketID})
+	query, args, err := q.ToSql()
+	if err != nil {
+		return err
+	}
+
+	var ids []platform.ID
+	if err := s.store.DB.SelectContext(ctx, &ids, query, args...); err != nil {
+		return err
+	}
+
+	var errOccurred bool
+	for _, id := range ids {
+		if err := s.durableQueueManager.EnqueuePoints(id, points); err != nil {
+			errOccurred = true
+			s.log.Error("Failed to enqueue points for replication", zap.String("id", id.String()), zap.Error(err))
+		}
+	}
+
+	if errOccurred {
+		return fmt.Errorf("replicating points from bucket %q failed for at least one target, see logs for details", bucketID)
 	}
 	return nil
 }
