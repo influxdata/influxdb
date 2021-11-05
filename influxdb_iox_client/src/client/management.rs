@@ -146,7 +146,7 @@ pub enum DeleteDatabaseError {
     ServerError(tonic::Status),
 }
 
-/// Errors returned by Client::delete_database
+/// Errors returned by Client::restore_database
 #[derive(Debug, Error)]
 pub enum RestoreDatabaseError {
     /// Database not found
