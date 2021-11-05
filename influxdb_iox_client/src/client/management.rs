@@ -153,7 +153,7 @@ pub enum RestoreDatabaseError {
     #[error("Could not find a database with UUID `{}`", .uuid)]
     DatabaseNotFound {
         /// The UUID requested
-        uuid: String,
+        uuid: Uuid,
     },
 
     /// Server indicated that it is not (yet) available
@@ -698,13 +698,11 @@ impl Client {
     }
 
     /// Restore database
-    pub async fn restore_database(
-        &mut self,
-        uuid: impl Into<String> + Send,
-    ) -> Result<(), RestoreDatabaseError> {
-        let uuid = uuid.into();
+    pub async fn restore_database(&mut self, uuid: Uuid) -> Result<(), RestoreDatabaseError> {
         self.inner
-            .restore_database(RestoreDatabaseRequest { uuid: uuid.clone() })
+            .restore_database(RestoreDatabaseRequest {
+                uuid: uuid.as_bytes().to_vec(),
+            })
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::NotFound => RestoreDatabaseError::DatabaseNotFound { uuid },

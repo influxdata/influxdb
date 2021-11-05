@@ -384,8 +384,6 @@ async fn test_create_get_update_delete_restore_database() {
         .expect("delete database failed");
     assert_eq!(created_uuid, deleted_uuid);
 
-    let deleted_uuid = deleted_uuid.to_string();
-
     let err = client
         .get_database(&db_name, false)
         .await
@@ -393,7 +391,7 @@ async fn test_create_get_update_delete_restore_database() {
     assert_contains!(err.to_string(), "Database not found");
 
     client
-        .restore_database(&deleted_uuid)
+        .restore_database(deleted_uuid)
         .await
         .expect("restore database failed");
 
@@ -403,7 +401,7 @@ async fn test_create_get_update_delete_restore_database() {
         .expect("get database failed");
 
     let err = client
-        .restore_database(&deleted_uuid)
+        .restore_database(deleted_uuid)
         .await
         .expect_err("restore database should have failed but didn't");
     assert_contains!(
@@ -414,9 +412,9 @@ async fn test_create_get_update_delete_restore_database() {
         )
     );
 
-    let unknown_uuid = Uuid::new_v4().to_string();
+    let unknown_uuid = Uuid::new_v4();
     let err = client
-        .restore_database(&unknown_uuid)
+        .restore_database(unknown_uuid)
         .await
         .expect_err("restore database should have failed but didn't");
     assert_contains!(
@@ -433,12 +431,11 @@ async fn test_create_get_update_delete_restore_database() {
         .create_database(rules.clone())
         .await
         .expect("create database failed");
-    let newly_created_uuid = newly_created_uuid.to_string();
 
     assert_ne!(deleted_uuid, newly_created_uuid);
 
     let err = client
-        .restore_database(&deleted_uuid)
+        .restore_database(deleted_uuid)
         .await
         .expect_err("restore database should have failed but didn't");
     assert_contains!(
