@@ -251,7 +251,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
             let uuid = client.create_database(rules).await?;
 
-            println!("Created database {} ({})", command.name, uuid);
+            println!("Created database {}", command.name);
+            println!("{}", uuid);
         }
         Command::List(list) => {
             let mut client = management::Client::new(connection);
