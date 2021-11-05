@@ -587,7 +587,6 @@ mod tests {
         sync::atomic::{AtomicU32, Ordering},
     };
 
-    use entry::test_helpers::lp_to_entry;
     use time::TimeProvider;
     use trace::{RingBufferTraceCollector, TraceCollector};
 
@@ -720,10 +719,17 @@ mod tests {
         let adapter = KafkaTestAdapter::new(conn);
         let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
 
+        let headers = IoxHeaders::new(ContentType::Protobuf, None);
+        let mut owned_headers = OwnedHeaders::new();
+        for (name, value) in headers.headers() {
+            owned_headers = owned_headers.add(name, value.as_bytes());
+        }
+
         let writer = ctx.writing(true).await.unwrap();
         let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
-        let record: FutureRecord<'_, String, [u8]> =
-            FutureRecord::to(&writer.database_name).partition(partition);
+        let record: FutureRecord<'_, String, [u8]> = FutureRecord::to(&writer.database_name)
+            .partition(partition)
+            .headers(owned_headers);
         writer.producer.send(record, Timeout::Never).await.unwrap();
 
         let mut reader = ctx.reading(true).await.unwrap();
@@ -743,9 +749,8 @@ mod tests {
 
         let writer = ctx.writing(true).await.unwrap();
         let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
-        let entry = lp_to_entry("upc,region=east user=1 100");
         let record: FutureRecord<'_, String, _> = FutureRecord::to(&writer.database_name)
-            .payload(entry.data())
+            .payload(&[0])
             .partition(partition);
         writer.producer.send(record, Timeout::Never).await.unwrap();
 
@@ -753,7 +758,8 @@ mod tests {
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
         let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
-        stream.stream.next().await.unwrap().unwrap();
+        let err = stream.stream.next().await.unwrap().unwrap_err();
+        assert_eq!(err.to_string(), "No content type header");
     }
 
     #[tokio::test]
@@ -764,9 +770,8 @@ mod tests {
 
         let writer = ctx.writing(true).await.unwrap();
         let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
-        let entry = lp_to_entry("upc,region=east user=1 100");
         let record: FutureRecord<'_, String, _> = FutureRecord::to(&writer.database_name)
-            .payload(entry.data())
+            .payload(&[0])
             .partition(partition)
             .headers(OwnedHeaders::new().add(HEADER_CONTENT_TYPE, "foo"));
         writer.producer.send(record, Timeout::Never).await.unwrap();

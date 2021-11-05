@@ -3,12 +3,6 @@
 version = 3
 
 [[package]]
-name = "Inflector"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
-
-[[package]]
 name = "RustyXML"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -48,12 +42,6 @@ checksum = "1e37cfd5e7657ada45f742d6e99ca5788580b5c529dc78faf11ece6dc702656f"
 dependencies = [
  "memchr",
 ]
-
-[[package]]
-name = "aliasable"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "250f629c0161ad8107cf89319e990051fae62832fd343083bea452d93e2205fd"
 
 [[package]]
 name = "alloc-no-stdlib"
@@ -973,23 +961,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
 
 [[package]]
-name = "entry"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "chrono",
- "data_types",
- "flatbuffers",
- "generated_types",
- "influxdb_line_protocol",
- "ouroboros",
- "schema",
- "snafu",
- "time 0.1.0",
- "trace",
-]
-
-[[package]]
 name = "env_logger"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1598,7 +1569,6 @@ dependencies = [
  "datafusion 0.1.0",
  "dirs",
  "dotenv",
- "entry",
  "flate2",
  "futures",
  "generated_types",
@@ -1621,7 +1591,6 @@ dependencies = [
  "metric",
  "metric_exporters",
  "mutable_batch",
- "mutable_batch_entry",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "mutable_buffer",
@@ -2221,20 +2190,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mutable_batch_entry"
-version = "0.1.0"
-dependencies = [
- "arrow_util",
- "data_types",
- "entry",
- "flatbuffers",
- "hashbrown",
- "mutable_batch",
- "schema",
- "snafu",
-]
-
-[[package]]
 name = "mutable_batch_lp"
 version = "0.1.0"
 dependencies = [
@@ -2265,11 +2220,9 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "criterion",
- "entry",
  "flate2",
  "generated_types",
  "mutable_batch",
- "mutable_batch_entry",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "prost",
@@ -2282,7 +2235,6 @@ dependencies = [
  "arrow",
  "arrow_util",
  "data_types",
- "entry",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
@@ -2661,30 +2613,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97c9d06878b3a851e8026ef94bf7fef9ba93062cd412601da4d9cf369b1cc62d"
 dependencies = [
  "num-traits",
-]
-
-[[package]]
-name = "ouroboros"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f357ef82d1b4db66fbed0b8d542cbd3c22d0bf5b393b3c257b9ba4568e70c9c3"
-dependencies = [
- "aliasable",
- "ouroboros_macro",
- "stable_deref_trait",
-]
-
-[[package]]
-name = "ouroboros_macro"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44a0b52c2cbaef7dffa5fec1a43274afe8bd2a644fa9fc50a9ef4ff0269b1257"
-dependencies = [
- "Inflector",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -3957,7 +3885,6 @@ dependencies = [
  "criterion",
  "data_types",
  "datafusion 0.1.0",
- "entry",
  "flate2",
  "influxdb_line_protocol",
  "influxdb_tsm",
@@ -5056,13 +4983,11 @@ dependencies = [
  "async-trait",
  "data_types",
  "dotenv",
- "entry",
  "futures",
  "generated_types",
  "http",
  "httparse",
  "mutable_batch",
- "mutable_batch_entry",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "observability_deps",

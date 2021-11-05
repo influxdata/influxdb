@@ -5,11 +5,9 @@ edition = "2021"
 description = "MutableBatch integration tests and benchmarks"
 
 [dependencies]
-entry = { path = "../entry" }
 flate2 = "1.0"
 generated_types = { path = "../generated_types" }
 mutable_batch = { path = "../mutable_batch" }
-mutable_batch_entry = { path = "../mutable_batch_entry" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
 prost = "0.8"
@@ -20,10 +18,6 @@ criterion = "0.3"
 
 [[bench]]
 name = "write_lp"
-harness = false
-
-[[bench]]
-name = "write_entry"
 harness = false
 
 

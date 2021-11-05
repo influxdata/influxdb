@@ -48,17 +48,6 @@ RUN apt-key add /tmp/redpanda.gpg \
     && apt-get install -y redpanda \
     && rm -rf /var/lib/{apt,dpkg,cache,log}
 
-# Install bazel using the installer script to enable building of flatc in the flatbuffers check
-ENV BAZEL_VERSION=4.0.0
-ENV BAZEL_DOWNLOAD_BASE="https://github.com/bazelbuild/bazel/releases/download"
-RUN curl ${CURL_FLAGS} https://bazel.build/bazel-release.pub.gpg | gpg --import - \
-    && curl ${CURL_FLAGS} -LO ${BAZEL_DOWNLOAD_BASE}/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
-    && curl ${CURL_FLAGS} -LO ${BAZEL_DOWNLOAD_BASE}/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh.sig \
-    && gpg --verify bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh.sig bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
-    && chmod +x bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
-    && ./bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
-    && rm bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh.sig
-
 # Install InfluxDB 2.0 OSS to enable integration tests of the influxdb2_client crate
 ENV INFLUXDB2_VERSION=2.0.4
 ENV INFLUXDB2_DOWNLOAD_BASE="https://dl.influxdata.com/influxdb/releases"

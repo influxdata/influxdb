@@ -9,7 +9,6 @@ default-run = "influxdb_iox"
 # Workspace dependencies, in alphabetical order
 datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
-entry = { path = "../entry" }
 generated_types = { path = "../generated_types" }
 
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
@@ -20,7 +19,6 @@ logfmt = { path = "../logfmt" }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
 mutable_batch = { path = "../mutable_batch" }
-mutable_batch_entry = { path = "../mutable_batch_entry" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
 mutable_buffer = { path = "../mutable_buffer" }
@@ -96,7 +94,6 @@ heappy = { git = "https://github.com/mkmik/heappy", rev = "20aa466524ac9ce34a4ba
 [dev-dependencies]
 # Workspace dependencies, in alphabetical order
 arrow_util = { path = "../arrow_util" }
-entry = { path = "../entry" }
 influxdb2_client = { path = "../influxdb2_client" }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 test_helpers = { path = "../test_helpers" }

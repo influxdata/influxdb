@@ -313,22 +313,6 @@ jobs:
             # other stuff that may have been added to main since last merge)
             MERGE_BASE=$(git merge-base origin/main $CIRCLE_BRANCH) sh -c 'buf breaking --against ".git#ref=$MERGE_BASE"'
 
-  # Check that any generated files are  is up-to-date with the changes in this PR.
-  # named "check-flatbuffers" because that name is hardcoded into github checks
-  check-flatbuffers:
-    docker:
-      - image: quay.io/influxdb/rust:ci
-    resource_class: xlarge # use of a smaller executor tends crashes on link
-    steps:
-      - checkout
-      - rust_components # Regenerating flatbuffers uses rustfmt
-      - run:
-          name: Check Query Tests
-          command: ./query_tests/check-generated.sh
-      - run:
-          name: Check Flatbuffers
-          command: INFLUXDB_IOX_INTEGRATION_LOCAL=1 ./entry/check-flatbuffers.sh
-
   # Compile a cargo "release" profile binary for branches that end in `/perf`
   #
   # Uses the latest ci_image (influxdb/rust below) to build a release binary and
@@ -450,7 +434,6 @@ workflows:
       - test_kafka_integration
       - test_influxdb2_client
       - build
-      - check-flatbuffers
       - doc
       - perf_image:
           filters:
@@ -467,7 +450,6 @@ workflows:
             - test_kafka_integration
             - test_influxdb2_client
             - build
-            - check-flatbuffers
             - doc
 
   # Manual build of CI image
