@@ -48,8 +48,10 @@ service ManagementService {
   // Roughly follows the <https://google.aip.dev/134> pattern, except we wrap the response
   rpc UpdateDatabase(UpdateDatabaseRequest) returns (UpdateDatabaseResponse);
 
+  // Delete a database.
   rpc DeleteDatabase(DeleteDatabaseRequest) returns (DeleteDatabaseResponse);
 
+  // Restore a deleted database.
   rpc RestoreDatabase(RestoreDatabaseRequest) returns (RestoreDatabaseResponse);
 
   // List databases with their metadata.
