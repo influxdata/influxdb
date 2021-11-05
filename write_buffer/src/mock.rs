@@ -116,11 +116,11 @@ impl MockBufferSharedState {
     /// - when specified sequencer does not exist
     /// - when sequence number in entry is not larger the current maximum
     pub fn push_write(&self, write: DbWrite) {
+        let sequence = write.meta().sequence().expect("write must be sequenced");
         assert!(
             write.meta().producer_ts().is_some(),
             "write must have timestamp"
         );
-        let sequence = write.meta().sequence().expect("write must be sequenced");
 
         let mut guard = self.writes.lock();
         let writes = guard.as_mut().expect("no sequencers initialized");
@@ -141,12 +141,7 @@ impl MockBufferSharedState {
     /// Push line protocol data with placeholder values used for write metadata
     pub fn push_lp(&self, sequence: Sequence, lp: &str) {
         let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
-        let meta = WriteMeta::new(
-            Some(sequence),
-            Some(time::Time::from_timestamp_nanos(0)),
-            None,
-            Some(0),
-        );
+        let meta = WriteMeta::sequenced(sequence, time::Time::from_timestamp_nanos(0), None, 0);
         self.push_write(DbWrite::new(tables, meta))
     }
 
@@ -269,12 +264,8 @@ impl WriteBufferWriting for MockBufferForWriting {
             .producer_ts()
             .unwrap_or_else(|| self.time_provider.now());
 
-        let meta = WriteMeta::new(
-            Some(sequence),
-            Some(timestamp),
-            write.meta().span_context().cloned(),
-            None,
-        );
+        let meta =
+            WriteMeta::sequenced(sequence, timestamp, write.meta().span_context().cloned(), 0);
 
         let mut write = write.clone();
         write.set_meta(meta.clone());
@@ -597,10 +588,7 @@ mod tests {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         let tables = lines_to_batches("upc user=1 100", 0).unwrap();
-        state.push_write(DbWrite::new(
-            tables,
-            WriteMeta::new(None, Some(time::Time::from_timestamp_nanos(0)), None, None),
-        ));
+        state.push_write(DbWrite::new(tables, WriteMeta::unsequenced(None)));
     }
 
     #[test]

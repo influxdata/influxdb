@@ -60,7 +60,7 @@ async fn test_write() {
 
     assert_contains!(
         err.to_string(),
-        r#"Client specified an invalid argument: Violation for field "lp_data": Invalid Line Protocol: A generic parsing error occurred"#
+        r#"Client specified an invalid argument: Violation for field "lp_data": Invalid Line Protocol: error parsing line 1: A generic parsing error occurred"#
     );
     assert!(matches!(dbg!(err), WriteError::InvalidArgument(_)));
 
@@ -509,8 +509,7 @@ async fn test_write_dev_null() {
     assert_eq!(
         err.to_string(),
         "Unexpected server error: The system is not in a state required for the operation's \
-         execution: error converting line protocol to flatbuffers: Error getting shard id No \
-         sharding rule matches table: mem"
+         execution: Error sharding write: No sharding rule matches table: mem"
     );
 }
 

@@ -176,12 +176,7 @@ pub fn decode(
 
             Ok(DbWrite::new(
                 tables,
-                WriteMeta::new(
-                    Some(sequence),
-                    Some(producer_ts),
-                    headers.span_context,
-                    Some(data.len()),
-                ),
+                WriteMeta::sequenced(sequence, producer_ts, headers.span_context, data.len()),
             ))
         }
     }

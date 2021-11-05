@@ -16,7 +16,6 @@ use data_types::{
     DatabaseName,
 };
 use influxdb_iox_client::format::QueryOutputFormat;
-use influxdb_line_protocol::parse_lines;
 use predicate::delete_predicate::{parse_delete, DeletePredicate};
 use query::exec::ExecutionContextProvider;
 use server::{connection::ConnectionManager, Error};
@@ -35,6 +34,7 @@ use crate::influxdb_ioxd::{
     planner::Planner,
     server_type::{ApiErrorCode, RouteError},
 };
+use mutable_batch::{DbWrite, WriteMeta};
 use std::{
     fmt::Debug,
     str::{self, FromStr},
@@ -119,9 +119,7 @@ pub enum ApplicationError {
     ReadingBodyAsUtf8 { source: std::str::Utf8Error },
 
     #[snafu(display("Error parsing line protocol: {}", source))]
-    ParsingLineProtocol {
-        source: influxdb_line_protocol::Error,
-    },
+    ParsingLineProtocol { source: mutable_batch_lp::Error },
 
     #[snafu(display("Error parsing delete {}: {}", input, source))]
     ParsingDelete {
@@ -386,41 +384,52 @@ where
     // contain a timestamp
     let default_time = Utc::now().timestamp_nanos();
 
-    let mut num_fields = 0;
+    let (tables, stats) = match mutable_batch_lp::lines_to_batches_stats(body, default_time) {
+        Ok(x) => x,
+        Err(mutable_batch_lp::Error::EmptyPayload) => {
+            debug!("nothing to write");
+            return Ok(Response::builder()
+                .status(StatusCode::NO_CONTENT)
+                .body(Body::empty())
+                .unwrap());
+        }
+        Err(source) => return Err(ApplicationError::ParsingLineProtocol { source }),
+    };
 
-    let lines = parse_lines(body)
-        .inspect(|line| {
-            if let Ok(line) = line {
-                num_fields += line.field_set.len();
-            }
-        })
-        .collect::<Result<Vec<_>, influxdb_line_protocol::Error>>()
-        .context(ParsingLineProtocol)?;
+    debug!(num_lines=stats.num_lines, num_fields=stats.num_fields, body_size=body.len(), %db_name, org=%write_info.org, bucket=%write_info.bucket, "inserting lines into database");
 
-    let num_lines = lines.len();
-    debug!(num_lines, num_fields, body_size=body.len(), %db_name, org=%write_info.org, bucket=%write_info.bucket, "inserting lines into database");
+    let write = DbWrite::new(tables, WriteMeta::unsequenced(span_ctx));
 
-    match server
-        .write_lines(&db_name, &lines, default_time, span_ctx)
-        .await
-    {
+    match server.write(&db_name, write).await {
         Ok(_) => {
-            lp_metrics.record_write(&db_name, lines.len(), num_fields, body.len(), true);
+            lp_metrics.record_write(
+                &db_name,
+                stats.num_lines,
+                stats.num_fields,
+                body.len(),
+                true,
+            );
             Ok(Response::builder()
                 .status(StatusCode::NO_CONTENT)
                 .body(Body::empty())
                 .unwrap())
         }
         Err(server::Error::DatabaseNotFound { .. }) => {
-            debug!(%db_name, %num_lines, "database not found");
+            debug!(%db_name, ?stats, "database not found");
             // Purposefully do not record ingest metrics
             Err(ApplicationError::DatabaseNotFound {
                 db_name: db_name.to_string(),
             })
         }
         Err(e) => {
-            debug!(%e, %db_name, %num_lines, "error writing lines");
-            lp_metrics.record_write(&db_name, lines.len(), num_fields, body.len(), false);
+            debug!(%e, %db_name, ?stats, "error writing lines");
+            lp_metrics.record_write(
+                &db_name,
+                stats.num_lines,
+                stats.num_fields,
+                body.len(),
+                false,
+            );
             Err(ApplicationError::WritingPoints {
                 org: write_info.org.clone(),
                 bucket_name: write_info.bucket.clone(),
@@ -1226,6 +1235,7 @@ mod tests {
                 bucket_name,
                 org_name
             ))
+            .body("cpu bar=1 10")
             .send()
             .await;
 

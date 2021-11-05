@@ -240,11 +240,11 @@ impl WriteBufferWriting for FileBufferProducer {
         // unlink scratchpad file (and ignore error)
         tokio::fs::remove_file(&temp_file).await.ok();
 
-        Ok(WriteMeta::new(
-            Some(Sequence::new(sequencer_id, sequence_number)),
-            Some(now),
+        Ok(WriteMeta::sequenced(
+            Sequence::new(sequencer_id, sequence_number),
+            now,
             write.meta().span_context().cloned(),
-            Some(message.len()),
+            message.len(),
         ))
     }
 

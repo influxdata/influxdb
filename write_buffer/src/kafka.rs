@@ -112,11 +112,11 @@ impl WriteBufferWriting for KafkaBufferProducer {
 
         debug!(db_name=%self.database_name, %offset, %partition, size=buf.len(), "wrote to kafka");
 
-        Ok(WriteMeta::new(
-            Some(Sequence::new(partition.try_into()?, offset.try_into()?)),
-            Some(timestamp),
+        Ok(WriteMeta::sequenced(
+            Sequence::new(partition.try_into()?, offset.try_into()?),
+            timestamp,
             write.meta().span_context().cloned(),
-            Some(buf.len()),
+            buf.len(),
         ))
     }
 

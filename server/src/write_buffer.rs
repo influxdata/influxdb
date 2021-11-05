@@ -298,11 +298,11 @@ mod tests {
         let ingest_ts2 = Time::from_timestamp_millis(1337);
         write_buffer_state.push_write(DbWrite::new(
             lines_to_batches("mem foo=1 10", 0).unwrap(),
-            WriteMeta::new(Some(Sequence::new(0, 0)), Some(ingest_ts1), None, Some(50)),
+            WriteMeta::sequenced(Sequence::new(0, 0), ingest_ts1, None, 50),
         ));
         write_buffer_state.push_write(DbWrite::new(
             lines_to_batches("cpu bar=2 20\ncpu bar=3 30", 0).unwrap(),
-            WriteMeta::new(Some(Sequence::new(0, 7)), Some(ingest_ts2), None, Some(150)),
+            WriteMeta::sequenced(Sequence::new(0, 7), ingest_ts2, None, 150),
         ));
         let test_db = TestDb::builder().build().await;
         let db = test_db.db;

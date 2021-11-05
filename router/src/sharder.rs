@@ -52,7 +52,6 @@ mod tests {
     use mutable_batch::{test_util::assert_writes_eq, WriteMeta};
     use mutable_batch_lp::lines_to_batches;
     use regex::Regex;
-    use time::Time;
 
     use super::*;
 
@@ -100,7 +99,7 @@ mod tests {
             }),
         };
 
-        let meta = WriteMeta::new(None, Some(Time::from_timestamp_millis(1337)), None, None);
+        let meta = WriteMeta::unsequenced(None);
         let write = db_write(
             &[
                 "some_foo x=1 10",

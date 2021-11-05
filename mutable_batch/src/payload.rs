@@ -2,7 +2,7 @@
 
 use crate::column::ColumnData;
 use crate::{MutableBatch, Result};
-use data_types::database_rules::PartitionTemplate;
+use data_types::database_rules::{PartitionTemplate, ShardConfig, ShardId, Sharder};
 use data_types::partition_metadata::{StatValues, Statistics};
 use data_types::sequence::Sequence;
 use hashbrown::HashMap;
@@ -182,18 +182,28 @@ pub struct WriteMeta {
 }
 
 impl WriteMeta {
-    /// Create a new [`WriteMeta`]
-    pub fn new(
-        sequence: Option<Sequence>,
-        producer_ts: Option<Time>,
+    /// Create a new [`WriteMeta`] for a sequenced write
+    pub fn sequenced(
+        sequence: Sequence,
+        producer_ts: Time,
         span_ctx: Option<SpanContext>,
-        bytes_read: Option<usize>,
+        bytes_read: usize,
     ) -> Self {
         Self {
-            sequence,
-            producer_ts,
+            sequence: Some(sequence),
+            producer_ts: Some(producer_ts),
             span_ctx,
-            bytes_read,
+            bytes_read: Some(bytes_read),
+        }
+    }
+
+    /// Create a new [`WriteMeta`] for an unsequenced write
+    pub fn unsequenced(span_ctx: Option<SpanContext>) -> Self {
+        Self {
+            sequence: None,
+            producer_ts: None,
+            span_ctx,
+            bytes_read: None,
         }
     }
 
@@ -296,5 +306,25 @@ impl DbWrite {
     /// Returns the maximum timestamp in the write
     pub fn max_timestamp(&self) -> i64 {
         self.max_timestamp
+    }
+
+    /// Shards this DbWrite
+    pub fn shard(
+        self,
+        config: &ShardConfig,
+    ) -> Result<HashMap<ShardId, Self>, data_types::database_rules::Error> {
+        let mut sharded_tables = HashMap::new();
+        for (table, batch) in self.tables {
+            let shard = config.shard(&table)?;
+            sharded_tables
+                .entry(shard)
+                .or_insert_with(HashMap::new)
+                .insert(table, batch);
+        }
+
+        Ok(sharded_tables
+            .into_iter()
+            .map(|(shard, tables)| (shard, Self::new(tables, self.meta.clone())))
+            .collect())
     }
 }

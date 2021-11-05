@@ -39,7 +39,7 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         }
         .into(),
         source @ Error::WritingOnlyAllowedThroughWriteBuffer { .. }
-        | source @ Error::LineConversion { .. } => {
+        | source @ Error::ShardWrite { .. } => {
             tonic::Status::failed_precondition(source.to_string())
         }
         Error::NoRemoteConfigured { node_group } => NotFound {
