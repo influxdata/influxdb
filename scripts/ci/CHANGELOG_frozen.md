@@ -1,4 +1,4 @@
-## v2.1.0 [2021-10-04]
+## v2.1.0 [2021-11-04]
 
 ### `influx` CLI moved to separate repository
 
