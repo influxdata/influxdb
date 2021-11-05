@@ -38,7 +38,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let router_path = root.join("influxdata/iox/router/v1");
     let storage_path = root.join("influxdata/platform/storage");
     let write_buffer_path = root.join("influxdata/iox/write_buffer/v1");
-    let write_path = root.join("influxdata/iox/write/v1");
 
     let proto_files = vec![
         delete_path.join("service.proto"),
@@ -70,7 +69,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         storage_path.join("storage_common.proto"),
         storage_path.join("storage_common_idpe.proto"),
         storage_path.join("test.proto"),
-        write_path.join("service.proto"),
         write_buffer_path.join("write_buffer.proto"),
     ];
 

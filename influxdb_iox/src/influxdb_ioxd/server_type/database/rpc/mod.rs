@@ -15,7 +15,6 @@ mod management;
 mod operations;
 mod remote;
 mod storage;
-mod write;
 mod write_pb;
 
 pub async fn server_grpc<M>(
@@ -39,7 +38,6 @@ where
         builder,
         delete::make_server(Arc::clone(&server_type.server))
     );
-    add_gated_service!(builder, write::make_server(Arc::clone(&server_type.server)));
     add_gated_service!(
         builder,
         write_pb::make_server(Arc::clone(&server_type.server))
