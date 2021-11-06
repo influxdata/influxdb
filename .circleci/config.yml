@@ -190,8 +190,7 @@ workflows:
               only:
                 - "2.1"
     jobs:
-      - changelog:
-          nightly: true
+      - changelog
       - godeps
       - test-race:
           # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
@@ -257,8 +256,7 @@ workflows:
         - << pipeline.parameters.build_and_sign >>
         - << pipeline.parameters.build_and_sign_tag >>
     jobs:
-      - changelog:
-          nightly: false
+      - changelog
       - release:
           requires:
             - changelog
@@ -314,7 +312,6 @@ workflows:
                 - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
                 - /^.*test$/
       - changelog:
-          nightly: false
           requires:
             - gotest
             - fluxtest
@@ -1138,88 +1135,52 @@ jobs:
             docker load < docker-image.tar
             docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:2.1
             docker push quay.io/influxdb/oss-acceptance:2.1
+
   changelog:
-    parameters:
-      nightly:
-        type: boolean
     docker:
-      - image: quay.io/influxdb/changelogger:latest
+      - image: quay.io/influxdb/changelogger:cf2648551b43797458d21e061501f60590b31daa
     steps:
       - checkout
-      - when:
-          condition: << parameters.nightly >>
-          steps:
-            - run:
-                name: Nightly Changelog
-                command: |
-                  set -x
-                  S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/2.1"
-                  CHANGELOG_FILENAME="CHANGELOG.md"
-                  COMMIT_FILE_PATH="changelog-commit.txt"
-                  curl -o ${CHANGELOG_FILENAME} ${S3_PATH}/${CHANGELOG_FILENAME}
-                  curl -o ${COMMIT_FILE_PATH} ${S3_PATH}/${COMMIT_FILE_PATH}
-                  LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
-                  NEWEST_COMMIT=${CIRCLE_SHA1}
-                  cat \<< EOF >> env_vars.sh
-                  S3_PATH=${S3_PATH}
-                  CHANGELOG_FILENAME=${CHANGELOG_FILENAME}
-                  COMMIT_RANGE="${LAST_COMMIT}..${NEWEST_COMMIT}"
-                  COMMIT_FILE_PATH=$COMMIT_FILE_PATH
-                  SCRIPT_OPTIONS="--prepend ${CHANGELOG_FILENAME}"
-                  EOF
-      - unless:
-          condition: << parameters.nightly >>
-          steps:
-            - run:
-                name: Release Changelog
-                command: |
-                  set -x
-                  S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/influxdb/releases"
-                  CHANGELOG_FILENAME="CHANGELOG-${CIRCLE_TAG}.md"
-                  COMMIT_FILE_PATH="changelog-commit-2.1.txt"
-                  curl -o ${COMMIT_FILE_PATH} ${S3_PATH}/${COMMIT_FILE_PATH}
-                  LAST_COMMIT=$(git describe --abbrev=0 --tags --exclude='*[rc]*' $(git rev-list --tags='v2.1*' --skip=1 --max-count=1))
-                  NEWEST_COMMIT=${CIRCLE_SHA1}
-                  if [ -n "<< pipeline.parameters.build_and_sign_tag >>" ]; then
-                    git fetch --all --tags
-                    CIRCLE_TAG=<< pipeline.parameters.build_and_sign_tag >>
-                    LAST_COMMIT=$(git tag -l --sort=-version:refname 'v2.1*[!-rc].[0-9]' | grep -A 1 << pipeline.parameters.build_and_sign_tag >> | tail -n 1)
-                    NEWEST_COMMIT=${CIRCLE_TAG}
-                    CHANGELOG_FILENAME="CHANGELOG-${CIRCLE_TAG}.md"
-                    COMMIT_FILE_PATH="changelog-commit-${CIRCLE_TAG}.txt"
-                  fi
-                  cat \<< EOF >> env_vars.sh
-                  S3_PATH=${S3_PATH}
-                  CHANGELOG_FILENAME="${CHANGELOG_FILENAME}"
-                  COMMIT_RANGE="${LAST_COMMIT}..${NEWEST_COMMIT}"
-                  COMMIT_FILE_PATH=${COMMIT_FILE_PATH}
-                  SCRIPT_OPTIONS=""
-                  CIRCLE_TAG=${CIRCLE_TAG}
-                  EOF
       - run:
-          name: Changelog
+          name: Generate changelog
           command: |
-            set -x
-            source env_vars.sh
-            TIMESTAMP="$(date -u '+%Y%m%d')"
-            TAG=${TIMESTAMP}
-            if [ -n "${CIRCLE_TAG}" ]; then
-              TAG=${CIRCLE_TAG}
+            BRANCH="<< pipeline.git.branch >>"
+            VERSION="v$BRANCH"
+            DOCS_LINKS_VERSION="$VERSION"
+
+            # Runs triggered by pushed tags do not have the pipeline.git.branch parameter available.
+            if [ -n "<< pipeline.git.tag >>" ]; then
+              VERSION="<< pipeline.git.tag >>"
+              DOCS_LINKS_VERSION="$(echo "$VERSION" | sed 's/\.[^.]*$//')"
+              BRANCH="$(echo "$DOCS_LINKS_VERSION" | sed 's/v//' )"
             fi
-            ./scripts/ci/update-changelog.sh \
-              --commit-range "${COMMIT_RANGE}" \
-              ${SCRIPT_OPTIONS} \
-              -- \
-              --tag ${TAG} > $CHANGELOG_FILENAME
-            if [ -z "<< pipeline.parameters.build_and_sign >>" ]; then
-              echo "${CIRCLE_SHA1}" > "${COMMIT_FILE_PATH}"
+
+            # Runs triggered via the API parameters do have the branch parameter, but make sure the right version is used.
+            if [ -n "<< pipeline.parameters.build_and_sign_tag >>" ]; then
+              VERSION="<< pipeline.parameters.build_and_sign_tag >>"
             fi
+
             mkdir changelog_artifacts
-            cp $CHANGELOG_FILENAME changelog_artifacts
-            cp $COMMIT_FILE_PATH changelog_artifacts
+
+            echo -e "CHANGELOG for InfluxDB OSS $VERSION commit ${CIRCLE_SHA1}\n" > changelog_artifacts/CHANGELOG.md
+
+            if [[ ! "$BRANCH" == "master" ]] ;  then
+              echo -e "In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/$DOCS_LINKS_VERSION/reference/release-notes/influxdb/) for other important information about this release.\n" >> changelog_artifacts/CHANGELOG.md
+            fi
+
+            if [[ "$BRANCH" == "master" ]] ;  then
+               LATEST_21X="$(git tag | grep '^v2\.1\.[0-9]*$' | sort -V | tail -1)"
+               # build 2.1.0 to 2.1.x changelog, plus unreleased from master
+               build-multibranch-changelog.sh HEAD "$LATEST_21X" v2.1.0 >> changelog_artifacts/CHANGELOG.md
+            elif [[ "$BRANCH" == "2.1" ]] ;  then
+               # build 2.1.0 to current 2.1 changelog
+               build-simple-changelog.sh HEAD v2.1.0 >> changelog_artifacts/CHANGELOG.md
+            fi
+
+            cat ./scripts/ci/CHANGELOG_frozen.md >> changelog_artifacts/CHANGELOG.md
       - store_artifacts:
           path: changelog_artifacts/
       - persist_to_workspace:
           root: .
-          paths: changelog_artifacts/
-
+          paths:
+            - changelog_artifacts
