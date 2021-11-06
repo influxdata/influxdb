@@ -941,35 +941,44 @@ jobs:
             docker push quay.io/influxdb/oss-acceptance:latest
   changelog:
     docker:
-      - image: quay.io/influxdb/changelogger:latest
+      - image: quay.io/influxdb/changelogger:cf2648551b43797458d21e061501f60590b31daa
     steps:
       - checkout
       - run:
-          name: Run script
+          name: Generate changelog
           command: |
-            S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/master"
-            curl -o CHANGELOG.md ${S3_PATH}/CHANGELOG.md
-            curl -o scripts/ci/changelog-commit.txt ${S3_PATH}/changelog-commit.txt
+            BRANCH="<< pipeline.git.branch >>"
+            VERSION="v$BRANCH"
+            DOCS_LINKS_VERSION="$VERSION"
 
-            TIMESTAMP="$(date -u '+%Y%m%d')"
-            COMMIT_FILE_PATH="scripts/ci/changelog-commit.txt"
-            LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
-            NEWEST_COMMIT=${CIRCLE_SHA1}
-            ./scripts/ci/update-changelog.sh \
-              --commit-range "$LAST_COMMIT..$NEWEST_COMMIT" \
-              --prepend CHANGELOG.md \
-              -- \
-              --tag $TIMESTAMP > CHANGELOG-2.md
-            echo ${CIRCLE_SHA1} > $COMMIT_FILE_PATH
-            cat CHANGELOG-2.md
+            # Runs triggered by pushed tags do not have the pipeline.git.branch parameter available.
+            if [ -n "<< pipeline.git.tag >>" ]; then
+              VERSION="<< pipeline.git.tag >>"
+              DOCS_LINKS_VERSION="$(echo "$VERSION" | sed 's/\.[^.]*$//')"
+              BRANCH="$(echo "$DOCS_LINKS_VERSION" | sed 's/v//' )"
+            fi
 
             mkdir changelog_artifacts
-            cp CHANGELOG-2.md changelog_artifacts/CHANGELOG.md
-            cp $COMMIT_FILE_PATH changelog_artifacts
+
+            echo -e "CHANGELOG for InfluxDB OSS $VERSION commit ${CIRCLE_SHA1}\n" > changelog_artifacts/CHANGELOG.md
+
+            if [[ ! "$BRANCH" == "master" ]] ;  then
+              echo -e "In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/$DOCS_LINKS_VERSION/reference/release-notes/influxdb/) for other important information about this release.\n" >> changelog_artifacts/CHANGELOG.md
+            fi
+
+            if [[ "$BRANCH" == "master" ]] ;  then
+               LATEST_21X="$(git tag | grep '^v2\.1\.[0-9]*$' | sort -V | tail -1)"
+               # build 2.1.0 to 2.1.x changelog, plus unreleased from master
+               build-multibranch-changelog.sh HEAD "$LATEST_21X" v2.1.0 >> changelog_artifacts/CHANGELOG.md
+            elif [[ "$BRANCH" == "2.1" ]] ;  then
+               # build 2.1.0 to current 2.1 changelog
+               build-simple-changelog.sh HEAD v2.1.0 >> changelog_artifacts/CHANGELOG.md
+            fi
+
+            cat ./scripts/ci/CHANGELOG_frozen.md >> changelog_artifacts/CHANGELOG.md
       - store_artifacts:
           path: changelog_artifacts/
       - persist_to_workspace:
           root: .
           paths:
             - changelog_artifacts
-
