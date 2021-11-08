@@ -136,6 +136,7 @@ mod tests {
             Matcher, MatcherToShard, ShardConfig, WriteSink as WriteSinkConfig,
             WriteSinkSet as WriteSinkSetConfig, WriteSinkVariant as WriteSinkVariantConfig,
         },
+        sequence::Sequence,
         server_id::ServerId,
     };
     use mutable_batch::WriteMeta;
@@ -235,7 +236,12 @@ mod tests {
         let router = Router::new(cfg.clone(), resolver, connection_pool);
 
         // clean write
-        let meta_1 = WriteMeta::new(None, Some(Time::from_timestamp_nanos(1337)), None, None);
+        let meta_1 = WriteMeta::sequenced(
+            Sequence::new(1, 2),
+            Time::from_timestamp_nanos(1337),
+            None,
+            10,
+        );
         let write_1 = db_write(
             &["foo_x x=2 2", "foo_bar x=1 1", "foo_y x=3 3", "www x=4 4"],
             &meta_1,
@@ -252,7 +258,12 @@ mod tests {
 
         // write w/ errors
         client_2.poison();
-        let meta_2 = WriteMeta::new(None, Some(Time::from_timestamp_nanos(42)), None, None);
+        let meta_2 = WriteMeta::sequenced(
+            Sequence::new(3, 4),
+            Time::from_timestamp_nanos(42),
+            None,
+            20,
+        );
         let write_2 = db_write(
             &[
                 "foo_bar x=5 5",
