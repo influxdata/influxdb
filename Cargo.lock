@@ -3506,16 +3506,23 @@ dependencies = [
 name = "router"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "cache_loader_async",
  "data_types",
  "hashbrown",
+ "influxdb_iox_client",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
+ "mutable_batch_pb",
+ "observability_deps",
  "parking_lot",
  "regex",
  "snafu",
  "time 0.1.0",
+ "tokio",
  "trace",
+ "write_buffer",
 ]
 
 [[package]]

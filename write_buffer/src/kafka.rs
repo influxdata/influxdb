@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     convert::{TryFrom, TryInto},
     num::NonZeroU32,
     sync::Arc,
@@ -129,7 +129,7 @@ impl KafkaBufferProducer {
     pub async fn new(
         conn: impl Into<String> + Send,
         database_name: impl Into<String> + Send,
-        connection_config: &HashMap<String, String>,
+        connection_config: &BTreeMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Result<Self, WriteBufferError> {
@@ -313,7 +313,7 @@ impl KafkaBufferConsumer {
         conn: impl Into<String> + Send + Sync,
         server_id: ServerId,
         database_name: impl Into<String> + Send + Sync,
-        connection_config: &HashMap<String, String>,
+        connection_config: &BTreeMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
         // `trace_collector` has to be a reference due to https://github.com/rust-lang/rust/issues/63033
         trace_collector: Option<&Arc<dyn TraceCollector>>,
@@ -426,7 +426,7 @@ async fn create_kafka_topic(
     kafka_connection: &str,
     database_name: &str,
     n_sequencers: NonZeroU32,
-    cfg: &HashMap<String, String>,
+    cfg: &BTreeMap<String, String>,
 ) -> Result<(), WriteBufferError> {
     let admin = admin_client(kafka_connection)?;
 
@@ -489,7 +489,7 @@ async fn maybe_auto_create_topics(
 }
 
 pub mod test_utils {
-    use std::{collections::HashMap, time::Duration};
+    use std::{collections::BTreeMap, time::Duration};
 
     use rdkafka::admin::{AdminOptions, AlterConfig, ResourceSpecifier};
     use uuid::Uuid;
@@ -544,12 +544,12 @@ pub mod test_utils {
     }
 
     /// Create topic creation config that is ideal for testing and works with [`purge_kafka_topic`]
-    pub fn kafka_sequencer_options() -> HashMap<String, String> {
-        let mut cfg: HashMap<String, String> = Default::default();
-        cfg.insert("cleanup.policy".to_string(), "delete".to_string());
-        cfg.insert("retention.ms".to_string(), "-1".to_string());
-        cfg.insert("segment.ms".to_string(), "10".to_string());
-        cfg
+    pub fn kafka_sequencer_options() -> BTreeMap<String, String> {
+        BTreeMap::from([
+            ("cleanup.policy".to_string(), "delete".to_string()),
+            ("retention.ms".to_string(), "-1".to_string()),
+            ("segment.ms".to_string(), "10".to_string()),
+        ])
     }
 
     /// Purge all records from given topic.
