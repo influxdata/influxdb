@@ -29,9 +29,8 @@ SELECT min(time) from cpu;
 SELECT max(time) from cpu;
 
 SELECT foo, min(time) from cpu group by foo;
--- Todo: Test not work in this framework
--- SELECT bar, max(time) from cpu group by bar;
--- SELECT max(time) from cpu group by bar;
+SELECT bar, max(time) as max_time from cpu group by bar order by bar, max_time;
+SELECT max(time) as max_time from cpu group by bar order by max_time;
 
 SELECT time from cpu order by time;
 
