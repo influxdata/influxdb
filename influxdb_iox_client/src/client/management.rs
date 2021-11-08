@@ -148,7 +148,30 @@ pub enum DeleteDatabaseError {
 
 /// Errors returned by Client::disown_database
 #[derive(Debug, Error)]
-pub enum DisownDatabaseError {}
+pub enum DisownDatabaseError {
+    /// The UUID specified was not in a valid format
+    #[error("Invalid UUID: {0}")]
+    InvalidUuid(#[from] uuid::Error),
+
+    /// Database not found
+    #[error("Could not find database {}", .name)]
+    DatabaseNotFound {
+        /// The name specified
+        name: String,
+    },
+
+    /// Server returned an invalid argument error
+    #[error("Invalid argument {}: {}", .0.code(), .0.message())]
+    InvalidArgument(tonic::Status),
+
+    /// Server ID is not set
+    #[error("Server ID not set")]
+    NoServerId,
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
 
 /// Errors returned by Client::restore_database
 #[derive(Debug, Error)]
@@ -708,7 +731,36 @@ impl Client {
         uuid: Option<String>,
         context: Option<String>,
     ) -> Result<Uuid, DisownDatabaseError> {
-        unimplemented!()
+        let db_name = db_name.into();
+        let response = self
+            .inner
+            .disown_database(DisownDatabaseRequest {
+                db_name: db_name.clone(),
+                uuid: uuid
+                    .map(|s| s.parse::<Uuid>().map(|u| u.as_bytes().to_vec()))
+                    .transpose()?
+                    .unwrap_or_default(),
+                context: context.unwrap_or_default(),
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => DisownDatabaseError::DatabaseNotFound { name: db_name },
+                tonic::Code::FailedPrecondition => DisownDatabaseError::NoServerId,
+                tonic::Code::InvalidArgument => DisownDatabaseError::InvalidArgument(status),
+                _ => DisownDatabaseError::ServerError(status),
+            })?;
+
+        let server_uuid = response.into_inner().uuid;
+        let uuid = Uuid::from_slice(&server_uuid)
+            .map_err(|e| {
+                format!(
+                    "Could not create UUID from server value {:?}: {}",
+                    server_uuid, e
+                )
+            })
+            .unwrap();
+
+        Ok(uuid)
     }
 
     /// Restore database

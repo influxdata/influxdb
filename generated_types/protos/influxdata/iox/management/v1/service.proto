@@ -51,6 +51,9 @@ service ManagementService {
   // Delete a database.
   rpc DeleteDatabase(DeleteDatabaseRequest) returns (DeleteDatabaseResponse);
 
+  // Disown a database from its current server.
+  rpc DisownDatabase(DisownDatabaseRequest) returns (DisownDatabaseResponse);
+
   // Restore a deleted database.
   rpc RestoreDatabase(RestoreDatabaseRequest) returns (RestoreDatabaseResponse);
 
@@ -208,6 +211,21 @@ message DeleteDatabaseRequest {
 }
 
 message DeleteDatabaseResponse {
+  bytes uuid = 1;
+}
+
+message DisownDatabaseRequest {
+  // the name of the database
+  string db_name = 1;
+
+  // the optional UUID of the database that must match
+  bytes uuid = 2;
+
+  // the optional context to record with the history of this disown operation
+  string context = 3;
+}
+
+message DisownDatabaseResponse {
   bytes uuid = 1;
 }
 

@@ -447,6 +447,103 @@ async fn test_create_get_update_delete_restore_database() {
     );
 }
 
+#[tokio::test]
+async fn disown_database() {
+    test_helpers::maybe_start_logging();
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let mut client = server_fixture.management_client();
+
+    let db_name = rand_name();
+    let rules = DatabaseRules {
+        name: db_name.clone(),
+        ..Default::default()
+    };
+
+    // Create a database on one server
+    let created_uuid = client.create_database(rules.clone()).await.unwrap();
+
+    // Disown database returns the UUID
+    let deleted_uuid = client.delete_database(&db_name).await.unwrap();
+    assert_eq!(created_uuid, deleted_uuid);
+
+    // Disowned database is no longer in this server's database list
+    let databases: Vec<_> = client
+        .list_detailed_databases()
+        .await
+        .unwrap()
+        .into_iter()
+        // names may contain the names of other databases created by
+        // concurrent tests as well
+        .filter(|db| db.db_name == db_name)
+        .collect();
+    assert_eq!(databases.len(), 0);
+
+    // Disowning the same database again is an error
+    let err = client
+        .disown_database(&db_name, None, None)
+        .await
+        .unwrap_err();
+    assert_contains!(
+        err.to_string(),
+        format!("Could not find database {}", db_name)
+    );
+
+    // Create another database
+    let created_uuid = client.create_database(rules.clone()).await.unwrap();
+
+    // If an optional UUID is specified, don't disown the database if the UUID doesn't match
+    let incorrect_uuid = Uuid::new_v4();
+    let err = client
+        .disown_database(&db_name, Some(incorrect_uuid.to_string()), None)
+        .await
+        .unwrap_err();
+    assert_contains!(
+        err.to_string(),
+        format!(
+            "Could not disown {}: the UUID specified ({}) does not match the current UUID ({})",
+            db_name, incorrect_uuid, created_uuid,
+        )
+    );
+
+    // Error if the UUID specified is not in a valid UUID format
+    let err = client
+        .disown_database(&db_name, Some("not-a-uuid".to_string()), None)
+        .await
+        .unwrap_err();
+    assert_contains!(err.to_string(), "Invalid UUID");
+
+    // If an optional UUID is specified, disown the database if the UUID does match
+    let deleted_uuid = client
+        .disown_database(&db_name, Some(created_uuid.to_string()), None)
+        .await
+        .unwrap();
+    assert_eq!(created_uuid, deleted_uuid);
+
+    // Create another database
+    let created_uuid = client.create_database(rules.clone()).await.unwrap();
+
+    // Can optionally specify a context and not a UUID
+    let deleted_uuid = client
+        .disown_database(&db_name, None, Some("secret reasons".to_string()))
+        .await
+        .unwrap();
+    assert_eq!(created_uuid, deleted_uuid);
+
+    // Create another database
+    let created_uuid = client.create_database(rules.clone()).await.unwrap();
+
+    // Can optionally specify a context AND a UUID
+    let deleted_uuid = client
+        .disown_database(
+            &db_name,
+            Some(created_uuid.to_string()),
+            Some("oops".to_string()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(created_uuid, deleted_uuid);
+}
+
 /// gets configuration both with and without defaults, and verifies
 /// that the worker_cleanup_avg_sleep field is the same and that
 /// lifecycle_rules are not present except when defaults are filled in

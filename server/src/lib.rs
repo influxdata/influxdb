@@ -745,6 +745,17 @@ where
         Ok(uuid)
     }
 
+    /// Disown an existing, active database with this name from this server. Return an error if no
+    /// active database with this name can be found.
+    pub async fn disown_database(
+        &self,
+        db_name: &DatabaseName<'static>,
+        uuid: Option<Uuid>,
+        context: Option<String>,
+    ) -> Result<Uuid> {
+        unimplemented!()
+    }
+
     /// Restore a database that has been marked as deleted. Return an error if no database with
     /// this UUID can be found, or if there's already an active database with this name.
     pub async fn restore_database(&self, uuid: Uuid) -> Result<()> {
