@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -63,7 +62,7 @@ type DurableQueueManager interface {
 	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error
 	DeleteQueue(replicationID platform.ID) error
 	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
-	StartReplicationQueues(trackedReplications *influxdb.Replications) error
+	StartReplicationQueues(trackedReplications map[platform.ID]int64) error
 	CloseAll() error
 }
 
@@ -416,8 +415,13 @@ func (s service) Open(ctx context.Context) error {
 		return err
 	}
 
+	trackedReplicationsMap := make(map[platform.ID]int64)
+	for _, r := range trackedReplications.Replications {
+		trackedReplicationsMap[r.ID] = r.MaxQueueSizeBytes
+	}
+
 	// Queue manager completes startup tasks
-	if err := s.durableQueueManager.StartReplicationQueues(&trackedReplications); err != nil {
+	if err := s.durableQueueManager.StartReplicationQueues(trackedReplicationsMap); err != nil {
 		return err
 	} else {
 		return nil

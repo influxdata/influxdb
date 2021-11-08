@@ -98,3 +98,23 @@ func TestUpdateMaxQueueSizeNonexistentID(t *testing.T) {
 	err = qm.UpdateMaxQueueSize(replicationID, influxdb.DefaultReplicationMaxQueueSizeBytes)
 	require.EqualError(t, err, "durable queue not found for replication ID \"0000000000000001\"")
 }
+
+func TestNormalStartupReplicationQueues(t *testing.T) {
+	t.Parallel()
+
+	tempEnginePath, err := os.MkdirTemp("", "engine")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempEnginePath)
+
+	logger := zaptest.NewLogger(t)
+	qm := NewDurableQueueManager(logger, tempEnginePath)
+	err = qm.InitializeQueue(replicationID, maxQueueSizeBytes)
+
+	require.NoError(t, err)
+	require.DirExists(t, filepath.Join(tempEnginePath, "replicationq", replicationID.String()))
+
+	err = qm.CloseAll()
+	require.NoError(t, err)
+
+
+}

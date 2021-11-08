@@ -8,7 +8,6 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	influxdb "github.com/influxdata/influxdb/v2"
 	platform "github.com/influxdata/influxdb/v2/kit/platform"
 )
 
@@ -78,7 +77,7 @@ func (mr *MockDurableQueueManagerMockRecorder) InitializeQueue(arg0, arg1 interf
 }
 
 // StartReplicationQueues mocks base method.
-func (m *MockDurableQueueManager) StartReplicationQueues(arg0 *influxdb.Replications) error {
+func (m *MockDurableQueueManager) StartReplicationQueues(arg0 map[platform.ID]int64) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StartReplicationQueues", arg0)
 	ret0, _ := ret[0].(error)

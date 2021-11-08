@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
 	"go.uber.org/zap"
@@ -135,14 +134,14 @@ func (qm *durableQueueManager) UpdateMaxQueueSize(replicationID platform.ID, max
 
 // StartReplicationQueues updates the durableQueueManager.replicationQueues map, fully removing any partially deleted
 // queues (present on disk, but not tracked in sqlite), opening all current queues, and logging info for each.
-func (qm *durableQueueManager) StartReplicationQueues(trackedReplications *influxdb.Replications) error {
+func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[platform.ID]int64) error {
 	errOccurred := false
 
-	for _, r := range trackedReplications.Replications {
+	for id, size := range trackedReplications {
 		// Re-initialize a queue struct for each replication stream from sqlite
 		queue, err := durablequeue.NewQueue(
-			filepath.Join(qm.queuePath, r.ID.String()),
-			r.MaxQueueSizeBytes,
+			filepath.Join(qm.queuePath, id.String()),
+			size,
 			durablequeue.DefaultSegmentSize,
 			&durablequeue.SharedCount{},
 			durablequeue.MaxWritesPending,
@@ -158,11 +157,11 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications *influ
 
 		// Open and map the queue struct to its replication ID
 		if err := queue.Open(); err != nil {
-			qm.logger.Error("failed to open replication stream durable queue", zap.Error(err), zap.String("id", r.ID.String()))
+			qm.logger.Error("failed to open replication stream durable queue", zap.Error(err), zap.String("id", id.String()))
 			errOccurred = true
 		} else {
-			qm.replicationQueues[r.ID] = queue
-			qm.logger.Info("Opened replication stream", zap.String("id", r.ID.String()), zap.String("path", queue.Dir()))
+			qm.replicationQueues[id] = queue
+			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
 		}
 	}
 
@@ -188,39 +187,14 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications *influ
 		}
 
 		// Partial delete found, needs to be fully removed
-		if qm.replicationQueues[*id] == nil {
-			// Initialize queue struct for existing queue on disk
-			newQueue, err := durablequeue.NewQueue(
-				filepath.Join(qm.queuePath, id.String()),
-				67108860, // use default here, to allow for deletion
-				durablequeue.DefaultSegmentSize,
-				&durablequeue.SharedCount{},
-				durablequeue.MaxWritesPending,
-				func(bytes []byte) error {
-					return nil
-				},
-			)
-
-			if err != nil {
-				qm.logger.Error("failed to create durable queue struct during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
-				errOccurred = true
-			}
-
-			// Close and remove the queue
-			if err := newQueue.Close(); err != nil {
-				qm.logger.Error("failed to close durable queue during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
-				errOccurred = true
-			}
-
-			if err := newQueue.Remove(); err != nil {
-				qm.logger.Error("failed to remove durable queue during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
-				errOccurred = true
-			}
+		if err := os.RemoveAll(filepath.Join(qm.queuePath, id.String())); err != nil {
+			qm.logger.Error("failed to remove durable queue during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
+			errOccurred = true
 		}
 	}
 
 	if errOccurred {
-		return fmt.Errorf("startup tasks for replications durable queue management failed, see server logs for details")
+		return fmt.Errorf("startup tasks for replications durable queues failed, see server logs for details")
 	} else {
 		return nil
 	}
@@ -228,10 +202,18 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications *influ
 
 // CloseAll loops through all current replication stream queues and closes them without deleting on-disk resources
 func (qm *durableQueueManager) CloseAll() error {
-	for _, queue := range qm.replicationQueues {
+	errOccurred := false
+
+	for id, queue := range qm.replicationQueues {
 		if err := queue.Close(); err != nil {
-			return err
+			qm.logger.Error("failed to close durable queue", zap.Error(err), zap.String("id", id.String()))
+			errOccurred = true
 		}
 	}
-	return nil
+
+	if errOccurred {
+		return fmt.Errorf("shutdown tasks for replications durable queues failed, see server logs for details")
+	} else {
+		return nil
+	}
 }
