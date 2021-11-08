@@ -355,6 +355,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	replicationSvc := replications.NewService(m.sqlStore, ts, m.log.With(zap.String("service", "replications")), opts.EnginePath)
 	replicationServer := replicationTransport.NewInstrumentedReplicationHandler(
 		m.log.With(zap.String("handler", "replications")), m.reg, replicationSvc)
+	ts.BucketService = replications.NewBucketService(
+		m.log.With(zap.String("service", "replication_buckets")), ts.BucketService, replicationSvc)
 
 	if feature.ReplicationStreamBackend().Enabled(ctx, m.flagger) {
 		if err = replicationSvc.Open(ctx); err != nil {
@@ -368,9 +370,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 				return replicationSvc.Close()
 			},
 		})
-
-		ts.BucketService = replications.NewBucketService(
-			m.log.With(zap.String("service", "replication_buckets")), ts.BucketService, replicationSvc)
 
 		pointsWriter = &storage.MirroringPointsWriter{
 			Primary:   pointsWriter,
