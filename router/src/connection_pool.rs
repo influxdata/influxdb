@@ -105,7 +105,7 @@ impl ConnectionPool {
             .get_with_meta(connection_string.to_string())
             .await
             .map_err(|e| Arc::new(e) as ConnectionError)?;
-        debug!(was_cached=%res.cached, %connection_string, "getting IOx write client");
+        debug!(was_cached=%res.cached, %connection_string, "getting IOx client");
         Ok(res.result)
     }
 
