@@ -12,7 +12,7 @@
 # The CI for every PR and merge to main runs tests, fmt, lints and compiles debug binaries
 #
 # On main if all these checks pass it will then additionally compile in "release" mode and
-# publish a docker image to quay.io/influxdb/fusion:$COMMIT_SHA
+# publish a docker image to quay.io/influxdb/iox:$COMMIT_SHA
 #
 # Manual CI Image:
 #
@@ -317,11 +317,11 @@ jobs:
   #
   # Uses the latest ci_image (influxdb/rust below) to build a release binary and
   # copies it to a minimal container image based upon `rust:slim-buster`. This
-  # minimal image is then pushed to `quay.io/influxdb/fusion:${BRANCH}` with '/'
+  # minimal image is then pushed to `quay.io/influxdb/iox:${BRANCH}` with '/'
   # repaced by '.' - as an example:
   #
   #   git branch: dom/my-awesome-feature/perf
-  #   container: quay.io/influxdb/fusion:dom.my-awesome-feature.perf
+  #   container: quay.io/influxdb/iox:dom.my-awesome-feature.perf
   #
   # Subsequent CI runs will overwrite the tag if you push more changes, so watch
   # out for parallel CI runs!
@@ -365,7 +365,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y docker.io
       - run: |
-          echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
+          echo "$QUAY_INFLUXDB_IOX_PASS" | docker login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
       - run:
           # Docker has functionality to support per-Dockerfile .dockerignore
           # This was added in https://github.com/moby/buildkit/pull/901
@@ -379,8 +379,8 @@ jobs:
           echo sha256sum after build is
           sha256sum target/release/influxdb_iox
           COMMIT_SHA=$(git rev-parse --short HEAD)
-          docker build -t quay.io/influxdb/fusion:$COMMIT_SHA -f docker/Dockerfile.iox .
-          docker push quay.io/influxdb/fusion:$COMMIT_SHA
+          docker build -t quay.io/influxdb/iox:$COMMIT_SHA -f docker/Dockerfile.iox .
+          docker push quay.io/influxdb/iox:$COMMIT_SHA
           echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
       - run:
           name: Deploy tags
