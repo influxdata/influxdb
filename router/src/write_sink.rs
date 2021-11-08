@@ -353,6 +353,10 @@ mod tests {
         );
         sink_set.write(&write_2).await.unwrap_err();
 
+        // The sink set stops on first non-ignored error. So
+        // - client 1 got the new data
+        // - client 2 failed, but still has the data from the first write
+        // - client 3 got skipped due to the failure, but still has the data from the first write
         let writes_2 = [
             (String::from("my_db"), write_1.clone()),
             (String::from("my_db"), write_2.clone()),
