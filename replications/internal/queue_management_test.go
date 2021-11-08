@@ -300,5 +300,6 @@ disk,host=C value=1.3 1000000000`)
 	require.NoError(t, gzr.Close())
 
 	readPoints, err := models.ParsePoints(buf.Bytes())
+	require.NoError(t, err)
 	require.ElementsMatch(t, readPoints, points)
 }
