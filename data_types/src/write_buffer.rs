@@ -27,6 +27,8 @@ pub struct WriteBufferConnection {
     /// Special configs to be applied when establishing the connection.
     ///
     /// This depends on [`type_`](Self::type_) and can configure aspects like timeouts.
+    ///
+    /// Note: This config should be a [`BTreeMap`] to ensure that a stable hash.
     pub connection_config: BTreeMap<String, String>,
 
     /// Specifies if the sequencers (e.g. for Kafka in form of a topic) should be automatically created if they do not
@@ -61,6 +63,8 @@ pub struct WriteBufferCreationConfig {
     /// Special configs to by applied when sequencers are created.
     ///
     /// This depends on [type](WriteBufferConnection::type_) and can setup parameters like retention policy.
+    ///
+    /// Note: This config should be a [`BTreeMap`] to ensure that a stable hash.
     pub options: BTreeMap<String, String>,
 }
 
