@@ -2,7 +2,7 @@ syntax = "proto3";
 package influxdata.iox.preserved_catalog.v1;
 
 import "google/protobuf/timestamp.proto";
-import "influxdata/iox/preserved_catalog/v1/predicate.proto";
+import "influxdata/iox/predicate/v1/predicate.proto";
 
 // Path for object store interaction.
 message Path {
@@ -68,7 +68,7 @@ message ChunkAddr {
 // Register new delete predicate
 message DeletePredicate {
   // Predicate to be applied.
-  Predicate predicate = 1;
+  influxdata.iox.predicate.v1.Predicate predicate = 1;
 
   // Chunks that are affected by the predicate.
   repeated ChunkAddr chunks = 2;

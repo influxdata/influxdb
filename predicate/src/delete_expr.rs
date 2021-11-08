@@ -3,7 +3,7 @@ use std::{
     ops::Deref,
 };
 
-use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
+use generated_types::influxdata::iox::predicate::v1 as proto;
 use ordered_float::OrderedFloat;
 use snafu::{OptionExt, ResultExt, Snafu};
 
