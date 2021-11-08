@@ -4,9 +4,12 @@ use data_types::{router::Router as RouterConfig, server_id::ServerId};
 use metric::Registry as MetricRegistry;
 use parking_lot::RwLock;
 use snafu::Snafu;
+use time::TimeProvider;
 use trace::TraceCollector;
+use write_buffer::config::WriteBufferConfigFactory;
 
 use crate::{
+    connection_pool::ConnectionPool,
     resolver::{RemoteTemplate, Resolver},
     router::Router,
 };
@@ -26,12 +29,14 @@ pub struct RouterServer {
     trace_collector: Option<Arc<dyn TraceCollector>>,
     routers: RwLock<BTreeMap<String, Arc<Router>>>,
     resolver: Arc<Resolver>,
+    connection_pool: Arc<ConnectionPool>,
 }
 
 impl RouterServer {
-    pub fn new(
+    pub async fn new(
         remote_template: Option<RemoteTemplate>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         let metric_registry = Arc::new(metric::Registry::new());
 
@@ -41,6 +46,9 @@ impl RouterServer {
             trace_collector,
             routers: Default::default(),
             resolver: Arc::new(Resolver::new(remote_template)),
+            connection_pool: Arc::new(
+                ConnectionPool::new(false, WriteBufferConfigFactory::new(time_provider)).await,
+            ),
         }
     }
 
@@ -86,7 +94,11 @@ impl RouterServer {
     ///
     /// Returns `true` if the router already existed.
     pub fn update_router(&self, config: RouterConfig) -> bool {
-        let router = Router::new(config);
+        let router = Router::new(
+            config,
+            Arc::clone(&self.resolver),
+            Arc::clone(&self.connection_pool),
+        );
         self.routers
             .write()
             .insert(router.name().to_string(), Arc::new(router))
@@ -96,8 +108,15 @@ impl RouterServer {
     /// Delete router.
     ///
     /// Returns `true` if the router existed.
-    pub fn delete_router(&self, name: &str) -> bool {
-        self.routers.write().remove(name).is_some()
+    pub fn delete_router(&self, router_name: &str) -> bool {
+        self.routers.write().remove(router_name).is_some()
+    }
+
+    /// Get registered router, if any.
+    ///
+    /// The router name is identical to the database for which this router handles data.
+    pub fn router(&self, router_name: &str) -> Option<Arc<Router>> {
+        self.routers.read().get(router_name).cloned()
     }
 
     /// Resolver associated with this server.
@@ -107,10 +126,14 @@ impl RouterServer {
 }
 
 pub mod test_utils {
+    use std::sync::Arc;
+
+    use time::SystemProvider;
+
     use super::RouterServer;
 
-    pub fn make_router_server() -> RouterServer {
-        RouterServer::new(None, None)
+    pub async fn make_router_server() -> RouterServer {
+        RouterServer::new(None, None, Arc::new(SystemProvider::new())).await
     }
 }
 
@@ -122,13 +145,13 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_server_id() {
+    #[tokio::test]
+    async fn test_server_id() {
         let id13 = ServerId::try_from(13).unwrap();
         let id42 = ServerId::try_from(42).unwrap();
 
         // server starts w/o any ID
-        let server = make_router_server();
+        let server = make_router_server().await;
         assert_eq!(server.server_id(), None);
 
         // setting ID
@@ -144,9 +167,9 @@ mod tests {
         assert!(matches!(err, SetServerIdError::AlreadySet { .. }));
     }
 
-    #[test]
-    fn test_router_crud() {
-        let server = make_router_server();
+    #[tokio::test]
+    async fn test_router_crud() {
+        let server = make_router_server().await;
 
         let cfg_foo_1 = RouterConfig {
             name: String::from("foo"),
@@ -180,6 +203,8 @@ mod tests {
         assert_eq!(routers.len(), 2);
         assert_eq!(routers[0].config(), &cfg_bar);
         assert_eq!(routers[1].config(), &cfg_foo_1);
+        assert_eq!(server.router("bar").unwrap().config(), &cfg_bar);
+        assert_eq!(server.router("foo").unwrap().config(), &cfg_foo_1);
 
         // update router
         assert!(server.update_router(cfg_foo_2.clone()));
@@ -187,12 +212,18 @@ mod tests {
         assert_eq!(routers.len(), 2);
         assert_eq!(routers[0].config(), &cfg_bar);
         assert_eq!(routers[1].config(), &cfg_foo_2);
+        assert_eq!(server.router("bar").unwrap().config(), &cfg_bar);
+        assert_eq!(server.router("foo").unwrap().config(), &cfg_foo_2);
 
         // delete routers
         assert!(server.delete_router("foo"));
         let routers = server.routers();
         assert_eq!(routers.len(), 1);
         assert_eq!(routers[0].config(), &cfg_bar);
+        assert_eq!(server.router("bar").unwrap().config(), &cfg_bar);
+        assert!(server.router("foo").is_none());
+
+        // deleting router a 2nd time works
         assert!(!server.delete_router("foo"));
     }
 }

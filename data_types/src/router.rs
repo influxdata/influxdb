@@ -19,6 +19,12 @@ impl ShardId {
     }
 }
 
+impl std::fmt::Display for ShardId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ShardId({})", self.get())
+    }
+}
+
 /// ShardConfig defines rules for assigning a line/row to an individual
 /// host or a group of hosts. A shard
 /// is a logical concept, but the usage is meant to split data into
