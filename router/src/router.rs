@@ -55,7 +55,7 @@ pub struct Router {
     /// Router config.
     config: RouterConfig,
 
-    /// Write sink sets, one per shard ID.
+    /// We use a [`HashMap`] here for `O(1)` lookups. Do not rely on the iteration order.
     write_sink_sets: HashMap<ShardId, WriteSinkSet>,
 }
 
@@ -104,7 +104,9 @@ impl Router {
     pub async fn write(&self, write: DbWrite) -> Result<(), WriteError> {
         let mut errors: BTreeMap<ShardId, WriteErrorShard> = Default::default();
 
-        for (shard_id, write) in shard_write(&write, &self.config.write_sharder) {
+        // The iteration order is stable here due to the [`BTreeMap`], so we ensure deterministic behavior and error order.
+        let sharded: BTreeMap<_, _> = shard_write(&write, &self.config.write_sharder);
+        for (shard_id, write) in sharded {
             if let Err(e) = self.write_shard(shard_id, &write).await {
                 errors.insert(shard_id, e);
             }
