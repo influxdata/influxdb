@@ -9,7 +9,7 @@ bytes = "1.0"
 cache_loader_async = {version  = "0.1.2", features = ["ttl-cache"] }
 futures = "0.3"
 observability_deps = { path = "../observability_deps" }
-paste = "1.0.5"
+paste = "1.0.6"
 prost = "0.8"
 prost-types = "0.8"
 thiserror = "1.0.30"
@@ -20,7 +20,7 @@ tonic = "0.5"
 tonic-reflection = "0.2.0"
 
 [build-dependencies]
-paste = "1.0.5"
+paste = "1.0.6"
 prost-build = "0.8"
 tonic-build = "0.5"
 
