@@ -33,6 +33,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let deployment_path = root.join("influxdata/iox/deployment/v1");
     let idpe_path = root.join("com/github/influxdata/idpe/storage/read");
     let management_path = root.join("influxdata/iox/management/v1");
+    let predicate_path = root.join("influxdata/iox/predicate/v1");
     let preserved_catalog_path = root.join("influxdata/iox/preserved_catalog/v1");
     let remote_path = root.join("influxdata/iox/remote/v1");
     let router_path = root.join("influxdata/iox/router/v1");
@@ -51,9 +52,9 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("server_config.proto"),
         management_path.join("service.proto"),
         management_path.join("shard.proto"),
+        predicate_path.join("predicate.proto"),
         preserved_catalog_path.join("catalog.proto"),
         preserved_catalog_path.join("parquet_metadata.proto"),
-        preserved_catalog_path.join("predicate.proto"),
         root.join("google/longrunning/operations.proto"),
         root.join("google/rpc/error_details.proto"),
         root.join("google/rpc/status.proto"),
