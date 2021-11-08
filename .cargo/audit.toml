@@ -35,6 +35,10 @@ ignore = [
     # upstream issue: https://github.com/apache/arrow-rs/issues/774
     "RUSTSEC-2021-0118",
 
+    # title: Generated code can read and write out of bounds in safe code
+    # why needed: part of `arrow`
+    # upstream issue: https://github.com/google/flatbuffers/issues/6627
+    "RUSTSEC-2021-0122",
 ]
 
 [output]

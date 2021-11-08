@@ -3,12 +3,6 @@
 version = 3
 
 [[package]]
-name = "Inflector"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
-
-[[package]]
 name = "RustyXML"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -48,12 +42,6 @@ checksum = "1e37cfd5e7657ada45f742d6e99ca5788580b5c529dc78faf11ece6dc702656f"
 dependencies = [
  "memchr",
 ]
-
-[[package]]
-name = "aliasable"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "250f629c0161ad8107cf89319e990051fae62832fd343083bea452d93e2205fd"
 
 [[package]]
 name = "alloc-no-stdlib"
@@ -111,7 +99,7 @@ checksum = "a900a6164aa0abf26d7a6dfea727116a3619456decfbf573e60c7615bf49e84c"
 dependencies = [
  "bitflags",
  "chrono",
- "comfy-table",
+ "comfy-table 4.1.1",
  "csv",
  "flatbuffers",
  "hex",
@@ -151,7 +139,7 @@ dependencies = [
  "ahash",
  "arrow",
  "chrono",
- "comfy-table",
+ "comfy-table 5.0.0",
  "hashbrown",
  "num-traits",
  "rand",
@@ -599,8 +587,19 @@ version = "4.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11e95a3e867422fd8d04049041f5671f94d53c32a9dcd82e2be268714942f3f3"
 dependencies = [
- "strum",
- "strum_macros",
+ "strum 0.21.0",
+ "strum_macros 0.21.1",
+ "unicode-width",
+]
+
+[[package]]
+name = "comfy-table"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c42350b81f044f576ff88ac750419f914abb46a03831bb1747134344ee7a4e64"
+dependencies = [
+ "strum 0.22.0",
+ "strum_macros 0.22.0",
  "unicode-width",
 ]
 
@@ -973,23 +972,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
 
 [[package]]
-name = "entry"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "chrono",
- "data_types",
- "flatbuffers",
- "generated_types",
- "influxdb_line_protocol",
- "ouroboros",
- "schema",
- "snafu",
- "time 0.1.0",
- "trace",
-]
-
-[[package]]
 name = "env_logger"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1346,9 +1328,9 @@ checksum = "ac5956d4e63858efaec57e0d6c1c2f6a41e1487f830314a324ccd7e2223a7ca0"
 
 [[package]]
 name = "handlebars"
-version = "4.1.3"
+version = "4.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66b09e2322d20d14bc2572401ce7c1d60b4748580a76c230ed9c1f8938f0c833"
+checksum = "e1874024f4a29f47d609014caec0b1c866f1c1eb0661a09c9733ecc4757f5f88"
 dependencies = [
  "log",
  "pest",
@@ -1592,13 +1574,12 @@ dependencies = [
  "bytes",
  "chrono",
  "clap",
- "comfy-table",
+ "comfy-table 5.0.0",
  "csv",
  "data_types",
  "datafusion 0.1.0",
  "dirs",
  "dotenv",
- "entry",
  "flate2",
  "futures",
  "generated_types",
@@ -1621,7 +1602,6 @@ dependencies = [
  "metric",
  "metric_exporters",
  "mutable_batch",
- "mutable_batch_entry",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "mutable_buffer",
@@ -1684,6 +1664,9 @@ dependencies = [
  "client_util",
  "futures-util",
  "generated_types",
+ "mutable_batch",
+ "mutable_batch_lp",
+ "mutable_batch_pb",
  "prost",
  "rand",
  "serde",
@@ -2218,20 +2201,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mutable_batch_entry"
-version = "0.1.0"
-dependencies = [
- "arrow_util",
- "data_types",
- "entry",
- "flatbuffers",
- "hashbrown",
- "mutable_batch",
- "schema",
- "snafu",
-]
-
-[[package]]
 name = "mutable_batch_lp"
 version = "0.1.0"
 dependencies = [
@@ -2262,11 +2231,9 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "criterion",
- "entry",
  "flate2",
  "generated_types",
  "mutable_batch",
- "mutable_batch_entry",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "prost",
@@ -2279,7 +2246,6 @@ dependencies = [
  "arrow",
  "arrow_util",
  "data_types",
- "entry",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
@@ -2661,30 +2627,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ouroboros"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f357ef82d1b4db66fbed0b8d542cbd3c22d0bf5b393b3c257b9ba4568e70c9c3"
-dependencies = [
- "aliasable",
- "ouroboros_macro",
- "stable_deref_trait",
-]
-
-[[package]]
-name = "ouroboros_macro"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44a0b52c2cbaef7dffa5fec1a43274afe8bd2a644fa9fc50a9ef4ff0269b1257"
-dependencies = [
- "Inflector",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "packers"
 version = "0.1.0"
 dependencies = [
@@ -2834,9 +2776,9 @@ dependencies = [
 
 [[package]]
 name = "paste"
-version = "1.0.5"
+version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acbf547ad0c65e31259204bd90935776d1c693cec2f4ff7abb7a1bbbd40dfe58"
+checksum = "0744126afe1a6dd7f394cb50a716dbe086cb06e255e53d8d0185d82828358fb5"
 
 [[package]]
 name = "pbjson"
@@ -3575,16 +3517,23 @@ dependencies = [
 name = "router"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "cache_loader_async",
  "data_types",
  "hashbrown",
+ "influxdb_iox_client",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
+ "mutable_batch_pb",
+ "observability_deps",
  "parking_lot",
  "regex",
  "snafu",
  "time 0.1.0",
+ "tokio",
  "trace",
+ "write_buffer",
 ]
 
 [[package]]
@@ -3857,9 +3806,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.68"
+version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f690853975602e1bfe1ccbf50504d67174e3bcf340f23b5ea9992e0587a52d8"
+checksum = "e466864e431129c7e0d3476b92f20458e5879919a0596c6472738d9fa2d342f8"
 dependencies = [
  "indexmap",
  "itoa",
@@ -3954,7 +3903,6 @@ dependencies = [
  "criterion",
  "data_types",
  "datafusion 0.1.0",
- "entry",
  "flate2",
  "influxdb_line_protocol",
  "influxdb_tsm",
@@ -4163,10 +4111,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aaf86bbcfd1fa9670b7a129f64fc0c9fcbbfe4f1bc4210e9e98fe71ffc12cde2"
 
 [[package]]
+name = "strum"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7ac893c7d471c8a21f31cfe213ec4f6d9afeed25537c772e08ef3f005f8729e"
+
+[[package]]
 name = "strum_macros"
 version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d06aaeeee809dbc59eb4556183dd927df67db1540de5be8d3ec0b6636358a5ec"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "339f799d8b549e3744c7ac7feb216383e4005d94bdb22561b3ab8f3b808ae9fb"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -5053,13 +5019,11 @@ dependencies = [
  "async-trait",
  "data_types",
  "dotenv",
- "entry",
  "futures",
  "generated_types",
  "http",
  "httparse",
  "mutable_batch",
- "mutable_batch_entry",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "observability_deps",

@@ -30,7 +30,7 @@ async fn test_chunk_is_persisted_automatically() {
         .collect();
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("successful write");
     assert_eq!(num_lines_written, 1000);
@@ -68,7 +68,7 @@ async fn write_data(
         // Writing the same data multiple times should be compacted away
         for _ in 0..=num_duplicates {
             let num_lines_written = write_client
-                .write(db_name, payload)
+                .write_lp(db_name, payload, 0)
                 .await
                 .expect("successful write");
             assert_eq!(num_lines_written, payload_size as usize);
@@ -257,7 +257,7 @@ async fn create_readbuffer_chunk(fixture: &ServerFixture, db_name: &str) -> Chun
     let lp_lines = vec!["cpu,region=west user=23.2 100"];
 
     write_client
-        .write(db_name, lp_lines.join("\n"))
+        .write_lp(db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
 

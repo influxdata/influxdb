@@ -62,6 +62,16 @@ pub mod influxdata {
             }
         }
 
+        pub mod predicate {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.predicate.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.predicate.v1.serde.rs"
+                ));
+            }
+        }
+
         pub mod preserved_catalog {
             pub mod v1 {
                 include!(concat!(
@@ -91,16 +101,6 @@ pub mod influxdata {
                 include!(concat!(
                     env!("OUT_DIR"),
                     "/influxdata.iox.router.v1.serde.rs"
-                ));
-            }
-        }
-
-        pub mod write {
-            pub mod v1 {
-                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.write.v1.rs"));
-                include!(concat!(
-                    env!("OUT_DIR"),
-                    "/influxdata.iox.write.v1.serde.rs"
                 ));
             }
         }

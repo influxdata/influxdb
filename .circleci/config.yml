@@ -7,20 +7,25 @@
 #   pushed to `quay.io/influxdb/rust:ci`. This build image is then used to run
 #   the CI tasks for the day.
 #
-# CI runs for git branches ending in `/perf`:
+# Every commit:
 #
-#   Runs tests, fmt, & lints and then compiles binaries using the "release"
-#   cargo target and pushes a container with the binary to
-#   `quay.io/influxdb/fusion` (see perf_image below).
+# The CI for every PR and merge to main runs tests, fmt, lints and compiles debug binaries
 #
-# CI for all other branches:
+# On main if all these checks pass it will then additionally compile in "release" mode and
+# publish a docker image to quay.io/influxdb/iox:$COMMIT_SHA
 #
-#   - cargo build with the default cargo profile ("dev")
-#   - cargo test
-#   - cargo fmt
-#   - clippy (with warnings denied)
-#   - lint protobufs
-#   - check if generated flatbuffers code is up to date
+# Manual CI Image:
+#
+# It is possible to manually trigger a rebuild of the image used in CI. To do this, navigate to
+# https://app.circleci.com/pipelines/github/influxdata/influxdb_iox?branch=main (overriding the
+# branch name if desired). Then:
+# - Click "Run Pipeline" in the top-right
+# - Expand "Add Parameters"
+# - Add a "boolean" parameter called "ci_image" with the value true
+# - Click "Run Pipeline"
+#
+# If you refresh the page you should see a newly running ci_image workflow
+#
 
 version: 2.1
 
@@ -305,34 +310,18 @@ jobs:
             if wget -O -  https://api.github.com/repos/influxdata/influxdb_iox/issues/$(echo $CIRCLE_PULL_REQUEST | grep -oE "[^/pull]+$") | grep "$SKIP_LABEL" ; then echo "SKIPPING (FOUND LABEL)" && exit ; else echo "CHECKING (NO LABEL FOUND)"; fi
             git fetch origin main
             # compare against only changes in this branch (not against
-            # other stuff that may have been added to master since last merge)
+            # other stuff that may have been added to main since last merge)
             MERGE_BASE=$(git merge-base origin/main $CIRCLE_BRANCH) sh -c 'buf breaking --against ".git#ref=$MERGE_BASE"'
-
-  # Check that any generated files are  is up-to-date with the changes in this PR.
-  # named "check-flatbuffers" because that name is hardcoded into github checks
-  check-flatbuffers:
-    docker:
-      - image: quay.io/influxdb/rust:ci
-    resource_class: xlarge # use of a smaller executor tends crashes on link
-    steps:
-      - checkout
-      - rust_components # Regenerating flatbuffers uses rustfmt
-      - run:
-          name: Check Query Tests
-          command: ./query_tests/check-generated.sh
-      - run:
-          name: Check Flatbuffers
-          command: INFLUXDB_IOX_INTEGRATION_LOCAL=1 ./entry/check-flatbuffers.sh
 
   # Compile a cargo "release" profile binary for branches that end in `/perf`
   #
   # Uses the latest ci_image (influxdb/rust below) to build a release binary and
   # copies it to a minimal container image based upon `rust:slim-buster`. This
-  # minimal image is then pushed to `quay.io/influxdb/fusion:${BRANCH}` with '/'
+  # minimal image is then pushed to `quay.io/influxdb/iox:${BRANCH}` with '/'
   # repaced by '.' - as an example:
   #
   #   git branch: dom/my-awesome-feature/perf
-  #   container: quay.io/influxdb/fusion:dom.my-awesome-feature.perf
+  #   container: quay.io/influxdb/iox:dom.my-awesome-feature.perf
   #
   # Subsequent CI runs will overwrite the tag if you push more changes, so watch
   # out for parallel CI runs!
@@ -376,7 +365,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y docker.io
       - run: |
-          echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
+          echo "$QUAY_INFLUXDB_IOX_PASS" | docker login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
       - run:
           # Docker has functionality to support per-Dockerfile .dockerignore
           # This was added in https://github.com/moby/buildkit/pull/901
@@ -390,8 +379,8 @@ jobs:
           echo sha256sum after build is
           sha256sum target/release/influxdb_iox
           COMMIT_SHA=$(git rev-parse --short HEAD)
-          docker build -t quay.io/influxdb/fusion:$COMMIT_SHA -f docker/Dockerfile.iox .
-          docker push quay.io/influxdb/fusion:$COMMIT_SHA
+          docker build -t quay.io/influxdb/iox:$COMMIT_SHA -f docker/Dockerfile.iox .
+          docker push quay.io/influxdb/iox:$COMMIT_SHA
           echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
       - run:
           name: Deploy tags
@@ -419,11 +408,21 @@ jobs:
           docker push quay.io/influxdb/rust:$COMMIT_SHA
           docker push quay.io/influxdb/rust:ci
 
+
+
+parameters:
+  # Trigger build of CI image
+  ci_image:
+    type: boolean
+    default: false
+
 workflows:
   version: 2
 
   # CI for all pull requests.
   ci:
+    when:
+      not: << pipeline.parameters.ci_image >>
     jobs:
       - fmt
       - lint
@@ -435,34 +434,7 @@ workflows:
       - test_kafka_integration
       - test_influxdb2_client
       - build
-      - check-flatbuffers
       - doc
-
-  # Internal pipeline for perf builds.
-  #
-  # Filter ensures this only runs for git branches ending in `/perf`.
-  perf_build:
-    jobs:
-      - fmt:
-          filters:
-            branches:
-              only: main
-      - lint:
-          filters:
-            branches:
-              only: main
-      - cargo_audit:
-          filters:
-            branches:
-              only: main
-      - test:
-          filters:
-            branches:
-              only: main
-      - build:
-          filters:
-            branches:
-              only: main
       - perf_image:
           filters:
             branches:
@@ -471,11 +443,23 @@ workflows:
             - fmt
             - lint
             - cargo_audit
+            - protobuf-lint
             - test
+            - test_heappy
+            - test_perf
+            - test_kafka_integration
+            - test_influxdb2_client
             - build
+            - doc
+
+  # Manual build of CI image
+  ci_image:
+    when: << pipeline.parameters.ci_image >>
+    jobs:
+      - ci_image
 
   # Nightly rebuild of the build container
-  ci_image:
+  ci_image_nightly:
     triggers:
       - schedule:
           cron: "0 5 * * *"

@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     convert::{TryFrom, TryInto},
     num::NonZeroU32,
     sync::Arc,
@@ -129,7 +129,7 @@ impl KafkaBufferProducer {
     pub async fn new(
         conn: impl Into<String> + Send,
         database_name: impl Into<String> + Send,
-        connection_config: &HashMap<String, String>,
+        connection_config: &BTreeMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Result<Self, WriteBufferError> {
@@ -313,7 +313,7 @@ impl KafkaBufferConsumer {
         conn: impl Into<String> + Send + Sync,
         server_id: ServerId,
         database_name: impl Into<String> + Send + Sync,
-        connection_config: &HashMap<String, String>,
+        connection_config: &BTreeMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
         // `trace_collector` has to be a reference due to https://github.com/rust-lang/rust/issues/63033
         trace_collector: Option<&Arc<dyn TraceCollector>>,
@@ -426,7 +426,7 @@ async fn create_kafka_topic(
     kafka_connection: &str,
     database_name: &str,
     n_sequencers: NonZeroU32,
-    cfg: &HashMap<String, String>,
+    cfg: &BTreeMap<String, String>,
 ) -> Result<(), WriteBufferError> {
     let admin = admin_client(kafka_connection)?;
 
@@ -489,7 +489,7 @@ async fn maybe_auto_create_topics(
 }
 
 pub mod test_utils {
-    use std::{collections::HashMap, time::Duration};
+    use std::{collections::BTreeMap, time::Duration};
 
     use rdkafka::admin::{AdminOptions, AlterConfig, ResourceSpecifier};
     use uuid::Uuid;
@@ -544,12 +544,12 @@ pub mod test_utils {
     }
 
     /// Create topic creation config that is ideal for testing and works with [`purge_kafka_topic`]
-    pub fn kafka_sequencer_options() -> HashMap<String, String> {
-        let mut cfg: HashMap<String, String> = Default::default();
-        cfg.insert("cleanup.policy".to_string(), "delete".to_string());
-        cfg.insert("retention.ms".to_string(), "-1".to_string());
-        cfg.insert("segment.ms".to_string(), "10".to_string());
-        cfg
+    pub fn kafka_sequencer_options() -> BTreeMap<String, String> {
+        BTreeMap::from([
+            ("cleanup.policy".to_string(), "delete".to_string()),
+            ("retention.ms".to_string(), "-1".to_string()),
+            ("segment.ms".to_string(), "10".to_string()),
+        ])
     }
 
     /// Purge all records from given topic.
@@ -587,7 +587,6 @@ mod tests {
         sync::atomic::{AtomicU32, Ordering},
     };
 
-    use entry::test_helpers::lp_to_entry;
     use time::TimeProvider;
     use trace::{RingBufferTraceCollector, TraceCollector};
 
@@ -720,10 +719,17 @@ mod tests {
         let adapter = KafkaTestAdapter::new(conn);
         let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
 
+        let headers = IoxHeaders::new(ContentType::Protobuf, None);
+        let mut owned_headers = OwnedHeaders::new();
+        for (name, value) in headers.headers() {
+            owned_headers = owned_headers.add(name, value.as_bytes());
+        }
+
         let writer = ctx.writing(true).await.unwrap();
         let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
-        let record: FutureRecord<'_, String, [u8]> =
-            FutureRecord::to(&writer.database_name).partition(partition);
+        let record: FutureRecord<'_, String, [u8]> = FutureRecord::to(&writer.database_name)
+            .partition(partition)
+            .headers(owned_headers);
         writer.producer.send(record, Timeout::Never).await.unwrap();
 
         let mut reader = ctx.reading(true).await.unwrap();
@@ -743,9 +749,8 @@ mod tests {
 
         let writer = ctx.writing(true).await.unwrap();
         let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
-        let entry = lp_to_entry("upc,region=east user=1 100");
         let record: FutureRecord<'_, String, _> = FutureRecord::to(&writer.database_name)
-            .payload(entry.data())
+            .payload(&[0])
             .partition(partition);
         writer.producer.send(record, Timeout::Never).await.unwrap();
 
@@ -753,7 +758,8 @@ mod tests {
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
         let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
-        stream.stream.next().await.unwrap().unwrap();
+        let err = stream.stream.next().await.unwrap().unwrap_err();
+        assert_eq!(err.to_string(), "No content type header");
     }
 
     #[tokio::test]
@@ -764,9 +770,8 @@ mod tests {
 
         let writer = ctx.writing(true).await.unwrap();
         let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
-        let entry = lp_to_entry("upc,region=east user=1 100");
         let record: FutureRecord<'_, String, _> = FutureRecord::to(&writer.database_name)
-            .payload(entry.data())
+            .payload(&[0])
             .partition(partition)
             .headers(OwnedHeaders::new().add(HEADER_CONTENT_TYPE, "foo"));
         writer.producer.send(record, Timeout::Never).await.unwrap();

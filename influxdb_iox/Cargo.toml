@@ -9,10 +9,9 @@ default-run = "influxdb_iox"
 # Workspace dependencies, in alphabetical order
 datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
-entry = { path = "../entry" }
 generated_types = { path = "../generated_types" }
 
-influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format"] }
+influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
 iox_object_store = { path = "../iox_object_store" }
@@ -20,7 +19,6 @@ logfmt = { path = "../logfmt" }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
 mutable_batch = { path = "../mutable_batch" }
-mutable_batch_entry = { path = "../mutable_batch_entry" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
 mutable_buffer = { path = "../mutable_buffer" }
@@ -68,12 +66,12 @@ itertools = "0.10.1"
 parquet = "6.0"
 pin-project = "1.0"
 # used by arrow/datafusion anyway
-comfy-table = { version = "4.0", default-features = false }
+comfy-table = { version = "5.0", default-features = false }
 pprof = { version = "^0.5", default-features = false, features = ["flamegraph", "protobuf"], optional = true }
 prost = "0.8"
 rustyline = { version = "9.0", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.67"
+serde_json = "1.0.69"
 serde_urlencoded = "0.7.0"
 snafu = "0.6.9"
 structopt = "0.3.25"
@@ -96,10 +94,8 @@ heappy = { git = "https://github.com/mkmik/heappy", rev = "20aa466524ac9ce34a4ba
 [dev-dependencies]
 # Workspace dependencies, in alphabetical order
 arrow_util = { path = "../arrow_util" }
-entry = { path = "../entry" }
 influxdb2_client = { path = "../influxdb2_client" }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
-influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight"] }
 test_helpers = { path = "../test_helpers" }
 parking_lot = "0.11.2"
 write_buffer = { path = "../write_buffer" }

@@ -9,7 +9,7 @@
 use std::convert::TryInto;
 
 use data_types::timestamp::TimestampRange;
-use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
+use generated_types::influxdata::iox::predicate::v1 as proto;
 use snafu::{ResultExt, Snafu};
 
 use crate::{delete_expr::DeleteExpr, delete_predicate::DeletePredicate};

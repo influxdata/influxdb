@@ -33,12 +33,12 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let deployment_path = root.join("influxdata/iox/deployment/v1");
     let idpe_path = root.join("com/github/influxdata/idpe/storage/read");
     let management_path = root.join("influxdata/iox/management/v1");
+    let predicate_path = root.join("influxdata/iox/predicate/v1");
     let preserved_catalog_path = root.join("influxdata/iox/preserved_catalog/v1");
     let remote_path = root.join("influxdata/iox/remote/v1");
     let router_path = root.join("influxdata/iox/router/v1");
     let storage_path = root.join("influxdata/platform/storage");
     let write_buffer_path = root.join("influxdata/iox/write_buffer/v1");
-    let write_path = root.join("influxdata/iox/write/v1");
 
     let proto_files = vec![
         delete_path.join("service.proto"),
@@ -52,9 +52,9 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("server_config.proto"),
         management_path.join("service.proto"),
         management_path.join("shard.proto"),
+        predicate_path.join("predicate.proto"),
         preserved_catalog_path.join("catalog.proto"),
         preserved_catalog_path.join("parquet_metadata.proto"),
-        preserved_catalog_path.join("predicate.proto"),
         root.join("google/longrunning/operations.proto"),
         root.join("google/rpc/error_details.proto"),
         root.join("google/rpc/status.proto"),
@@ -70,7 +70,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         storage_path.join("storage_common.proto"),
         storage_path.join("storage_common_idpe.proto"),
         storage_path.join("test.proto"),
-        write_path.join("service.proto"),
         write_buffer_path.join("write_buffer.proto"),
     ];
 

@@ -8,16 +8,11 @@ use crate::{
 
 use super::scenario::{create_readable_database, rand_name};
 use arrow_util::assert_batches_sorted_eq;
-use entry::{
-    lines_to_sharded_entries,
-    test_helpers::{partitioner, sharder},
-};
 use generated_types::influxdata::iox::management::v1::database_rules::RoutingRules;
 use generated_types::influxdata::iox::management::v1::{
     node_group::Node, sink, HashRing, Matcher, MatcherToShard, NodeGroup, RoutingConfig,
     ShardConfig, Sink,
 };
-use influxdb_line_protocol::parse_lines;
 use std::collections::HashMap;
 
 #[tokio::test]
@@ -46,7 +41,7 @@ async fn test_write() {
     ];
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("cannot write");
 
@@ -54,19 +49,19 @@ async fn test_write() {
 
     // ---- test bad data ----
     let err = write_client
-        .write(&db_name, "XXX")
+        .write_lp(&db_name, "XXX", 0)
         .await
         .expect_err("expected write to fail");
 
     assert_contains!(
         err.to_string(),
-        r#"Client specified an invalid argument: Violation for field "lp_data": Invalid Line Protocol: error parsing line 1: A generic parsing error occurred"#
+        r#"Error converting lines: error parsing line 1: A generic parsing error occurred: TakeWhile1"#
     );
-    assert!(matches!(dbg!(err), WriteError::InvalidArgument(_)));
+    assert!(matches!(dbg!(err), WriteError::LinesConversion(_)));
 
     // ---- test non existent database ----
     let err = write_client
-        .write("Non_existent_database", lp_lines.join("\n"))
+        .write_lp("Non_existent_database", lp_lines.join("\n"), 0)
         .await
         .expect_err("expected write to fail");
 
@@ -83,7 +78,10 @@ async fn test_write() {
         let lp_lines: Vec<_> = (0..1_000)
             .map(|j| format!("flood,tag1={},tag2={} x={},y={} 0", i, j, i, j))
             .collect();
-        if let Err(err) = write_client.write(&db_name, lp_lines.join("\n")).await {
+        if let Err(err) = write_client
+            .write_lp(&db_name, lp_lines.join("\n"), 0)
+            .await
+        {
             maybe_err = Some(err);
             break;
         }
@@ -98,48 +96,6 @@ async fn test_write() {
 
     // IMPORTANT: At this point, the database is flooded and pretty much
     // useless. Don't append any tests after the "hard limit" test!
-}
-
-#[tokio::test]
-async fn test_write_entry() {
-    let fixture = ServerFixture::create_shared(ServerType::Database).await;
-    let mut write_client = fixture.write_client();
-
-    let db_name = rand_name();
-    create_readable_database(&db_name, fixture.grpc_channel()).await;
-
-    let lp_data = vec!["cpu bar=1 10", "cpu bar=2 20"].join("\n");
-
-    let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-    let default_time = 456;
-    let sharded_entries =
-        lines_to_sharded_entries(&lines, default_time, sharder(1).as_ref(), &partitioner(1))
-            .unwrap();
-
-    let entry = sharded_entries.into_iter().next().unwrap().entry;
-
-    write_client.write_entry(&db_name, entry).await.unwrap();
-
-    let mut query_results = fixture
-        .flight_client()
-        .perform_query(&db_name, "select * from cpu")
-        .await
-        .unwrap();
-
-    let mut batches = Vec::new();
-    while let Some(data) = query_results.next().await.unwrap() {
-        batches.push(data);
-    }
-
-    let expected = vec![
-        "+-----+--------------------------------+",
-        "| bar | time                           |",
-        "+-----+--------------------------------+",
-        "| 1   | 1970-01-01T00:00:00.000000010Z |",
-        "| 2   | 1970-01-01T00:00:00.000000020Z |",
-        "+-----+--------------------------------+",
-    ];
-    assert_batches_sorted_eq!(&expected, &batches);
 }
 
 #[tokio::test]
@@ -288,7 +244,7 @@ async fn test_write_routed() {
     ];
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("cannot write");
 
@@ -430,7 +386,7 @@ async fn test_write_routed_errors() {
     let mut write_client = router.write_client();
     let lp_lines = vec!["cpu bar=1 100", "cpu bar=2 200"];
     let err = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .unwrap_err();
 
@@ -495,14 +451,14 @@ async fn test_write_dev_null() {
     let mut write_client = router.write_client();
     let lp_lines = vec!["cpu bar=1 100", "cpu bar=2 200"];
     write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("dev null eats them all");
 
     // Rows not matching that shard won't be send to "/dev/null".
     let lp_lines = vec!["mem bar=1 1", "mem bar=2 2"];
     let err = write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .unwrap_err();
 
@@ -613,7 +569,7 @@ async fn test_write_routed_no_shard() {
 
     for (&ref db_name, &ref line) in &[(&db_name_1, line_1), (&db_name_2, line_2)] {
         let num_lines_written = write_client
-            .write(db_name, line)
+            .write_lp(db_name, line, 0)
             .await
             .expect("cannot write");
         assert_eq!(num_lines_written, 1);
@@ -709,12 +665,12 @@ async fn test_write_schema_mismatch() {
     create_readable_database(&db_name, fixture.grpc_channel()).await;
 
     write_client
-        .write(&db_name, "table field=1i 10")
+        .write_lp(&db_name, "table field=1i 10", 0)
         .await
         .expect("cannot write");
 
     let err = write_client
-        .write(&db_name, "table field=1.1 10")
+        .write_lp(&db_name, "table field=1.1 10", 0)
         .await
         .unwrap_err();
     assert_contains!(err.to_string(), "Table batch has mismatching schema");

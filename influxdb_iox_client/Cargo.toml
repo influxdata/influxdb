@@ -7,6 +7,7 @@ edition = "2021"
 [features]
 flight = ["arrow", "arrow-flight", "arrow_util", "serde/derive", "serde_json", "futures-util"]
 format = ["arrow", "arrow_util"]
+write_lp = ["mutable_batch", "mutable_batch_lp", "mutable_batch_pb"]
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
@@ -19,10 +20,13 @@ arrow = { version = "6.0", optional = true }
 arrow-flight = { version = "6.0", optional = true }
 bytes = "1.0"
 futures-util = { version = "0.3.1", optional = true }
+mutable_batch = { path = "../mutable_batch", optional = true }
+mutable_batch_lp = { path = "../mutable_batch_lp", optional = true }
+mutable_batch_pb = { path = "../mutable_batch_pb", optional = true }
 prost = "0.8"
 rand = "0.8.3"
 serde = "1.0.128"
-serde_json = { version = "1.0.67", optional = true }
+serde_json = { version = "1.0.69", optional = true }
 thiserror = "1.0.30"
 tonic = { version = "0.5.0" }
 uuid = { version = "0.8", features = ["v4"] }

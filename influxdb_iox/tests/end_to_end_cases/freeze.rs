@@ -28,7 +28,7 @@ async fn test_mub_freeze() {
         .collect();
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.iter().join("\n"))
+        .write_lp(&db_name, lp_lines.iter().join("\n"), 0)
         .await
         .expect("successful write");
     assert_eq!(num_lines_written, 20);
@@ -38,7 +38,7 @@ async fn test_mub_freeze() {
     assert_eq!(chunks[0].storage, ChunkStorage::ClosedMutableBuffer);
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.iter().take(10).join("\n"))
+        .write_lp(&db_name, lp_lines.iter().take(10).join("\n"), 0)
         .await
         .expect("successful write");
     assert_eq!(num_lines_written, 10);
@@ -51,7 +51,7 @@ async fn test_mub_freeze() {
     assert_eq!(chunks[1].storage, ChunkStorage::ClosedMutableBuffer);
 
     let num_lines_written = write_client
-        .write(&db_name, lp_lines.iter().take(10).join("\n"))
+        .write_lp(&db_name, lp_lines.iter().take(10).join("\n"), 0)
         .await
         .expect("successful write");
     assert_eq!(num_lines_written, 10);

@@ -490,7 +490,7 @@ pub async fn create_two_partition_database(db_name: impl Into<String>, channel: 
     ];
 
     write_client
-        .write(&db_name, lp_lines.join("\n"))
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
 }

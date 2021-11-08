@@ -482,7 +482,7 @@ mod tests {
 
         let mut write = influxdb_iox_client::write::Client::new(conn.clone());
         write
-            .write(db_info.db_name(), "cpu,tag0=foo val=1 100\n")
+            .write_lp(db_info.db_name(), "cpu,tag0=foo val=1 100\n", 0)
             .await
             .unwrap();
 
