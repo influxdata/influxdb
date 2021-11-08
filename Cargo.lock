@@ -99,7 +99,7 @@ checksum = "a900a6164aa0abf26d7a6dfea727116a3619456decfbf573e60c7615bf49e84c"
 dependencies = [
  "bitflags",
  "chrono",
- "comfy-table",
+ "comfy-table 4.1.1",
  "csv",
  "flatbuffers",
  "hex",
@@ -139,7 +139,7 @@ dependencies = [
  "ahash",
  "arrow",
  "chrono",
- "comfy-table",
+ "comfy-table 5.0.0",
  "hashbrown",
  "num-traits",
  "rand",
@@ -587,8 +587,19 @@ version = "4.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11e95a3e867422fd8d04049041f5671f94d53c32a9dcd82e2be268714942f3f3"
 dependencies = [
- "strum",
- "strum_macros",
+ "strum 0.21.0",
+ "strum_macros 0.21.1",
+ "unicode-width",
+]
+
+[[package]]
+name = "comfy-table"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c42350b81f044f576ff88ac750419f914abb46a03831bb1747134344ee7a4e64"
+dependencies = [
+ "strum 0.22.0",
+ "strum_macros 0.22.0",
  "unicode-width",
 ]
 
@@ -1563,7 +1574,7 @@ dependencies = [
  "bytes",
  "chrono",
  "clap",
- "comfy-table",
+ "comfy-table 5.0.0",
  "csv",
  "data_types",
  "datafusion 0.1.0",
@@ -4100,10 +4111,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aaf86bbcfd1fa9670b7a129f64fc0c9fcbbfe4f1bc4210e9e98fe71ffc12cde2"
 
 [[package]]
+name = "strum"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7ac893c7d471c8a21f31cfe213ec4f6d9afeed25537c772e08ef3f005f8729e"
+
+[[package]]
 name = "strum_macros"
 version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d06aaeeee809dbc59eb4556183dd927df67db1540de5be8d3ec0b6636358a5ec"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "339f799d8b549e3744c7ac7feb216383e4005d94bdb22561b3ab8f3b808ae9fb"
 dependencies = [
  "heck",
  "proc-macro2",
