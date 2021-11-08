@@ -153,6 +153,11 @@ macro_rules! assert_not_contains {
 macro_rules! assert_error {
     ($OPERATION: expr, $(|)? $( $ERROR_PATTERN:pat_param )|+ $( if $GUARD: expr )? $(,)?) => {
         let err = $OPERATION.unwrap_err();
-        assert!(matches!(err, $( $ERROR_PATTERN )|+ $( if $GUARD )?), "got: {:?}", err);
+        assert!(
+            matches!(err, $( $ERROR_PATTERN )|+ $( if $GUARD )?),
+            "Expected {}, but got {:?}",
+            stringify!($( $ERROR_PATTERN )|+ $( if $GUARD )?),
+            err
+        );
     };
 }
