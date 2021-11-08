@@ -111,7 +111,10 @@ impl VariantWriteBuffer {
 
 #[derive(Debug)]
 enum WriteSinkVariant {
+    /// Send write to a remote server via gRPC
     GrpcRemote(VariantGrpcRemote),
+
+    /// Send write to a write buffer (which may be backed by kafka, local disk, etc)
     WriteBuffer(VariantWriteBuffer),
 }
 
