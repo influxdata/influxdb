@@ -1438,7 +1438,7 @@ mod tests {
         },
         time::{Duration, Instant},
     };
-    use test_helpers::assert_contains;
+    use test_helpers::{assert_contains, assert_error};
 
     #[tokio::test]
     async fn server_api_calls_return_error_with_no_id_set() {
@@ -2377,16 +2377,11 @@ mod tests {
 
         let nonexistent_uuid = Uuid::new_v4();
 
-        let err = server.restore_database(nonexistent_uuid).await.unwrap_err();
-        assert!(
-            matches!(
-                err,
-                Error::CouldNotGetDatabaseNameFromRules {
-                    source: DatabaseNameFromRulesError::DatabaseRulesNotFound { .. },
-                }
-            ),
-            "got: {:?}",
-            err
+        assert_error!(
+            server.restore_database(nonexistent_uuid).await,
+            Error::CouldNotGetDatabaseNameFromRules {
+                source: DatabaseNameFromRulesError::DatabaseRulesNotFound { .. },
+            }
         );
     }
 
@@ -2421,11 +2416,9 @@ mod tests {
             .expect("failed to create database");
 
         // trying to restore the first foo fails
-        let err = server.restore_database(first_foo_uuid).await.unwrap_err();
-        assert!(
-            matches!(err, Error::DatabaseAlreadyExists { .. }),
-            "got: {:?}",
-            err
+        assert_error!(
+            server.restore_database(first_foo_uuid).await,
+            Error::DatabaseAlreadyExists { .. },
         );
     }
 
@@ -2458,11 +2451,9 @@ mod tests {
         server.restore_database(foo_uuid).await.unwrap();
 
         // restoring again fails
-        let err = server.restore_database(foo_uuid).await.unwrap_err();
-        assert!(
-            matches!(err, Error::DatabaseAlreadyActive { .. }),
-            "got: {:?}",
-            err
+        assert_error!(
+            server.restore_database(foo_uuid).await,
+            Error::DatabaseAlreadyActive { .. },
         );
     }
 
@@ -2709,12 +2700,9 @@ mod tests {
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
         let write = DbWrite::new(tables, Default::default());
-        let err = server.write(&db_name, write).await.unwrap_err();
-
-        assert!(
-            matches!(err, Error::WriteBuffer { .. }),
-            "Expected Err(Error::WriteBuffer {{ .. }}), got: {:?}",
-            err
+        assert_error!(
+            server.write(&db_name, write).await,
+            Error::WriteBuffer { .. },
         );
     }
 
