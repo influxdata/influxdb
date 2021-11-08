@@ -167,14 +167,17 @@ mod tests {
     async fn test_write() {
         let server_id_1 = ServerId::try_from(1).unwrap();
         let server_id_2 = ServerId::try_from(2).unwrap();
+        let server_id_3 = ServerId::try_from(3).unwrap();
 
         let resolver = Arc::new(Resolver::new(Some(RemoteTemplate::new("{id}"))));
         let connection_pool = Arc::new(ConnectionPool::new_testing().await);
 
         let client_1 = connection_pool.grpc_client("1").await.unwrap();
         let client_2 = connection_pool.grpc_client("2").await.unwrap();
+        let client_3 = connection_pool.grpc_client("3").await.unwrap();
         let client_1 = client_1.as_any().downcast_ref::<MockClient>().unwrap();
         let client_2 = client_2.as_any().downcast_ref::<MockClient>().unwrap();
+        let client_3 = client_3.as_any().downcast_ref::<MockClient>().unwrap();
 
         let cfg = RouterConfig {
             name: String::from("my_router"),
@@ -188,6 +191,12 @@ mod tests {
                     },
                     MatcherToShard {
                         matcher: Matcher {
+                            table_name_regex: Some(Regex::new("foo_three").unwrap()),
+                        },
+                        shard: ShardId::new(30),
+                    },
+                    MatcherToShard {
+                        matcher: Matcher {
                             table_name_regex: Some(Regex::new("foo_.*").unwrap()),
                         },
                         shard: ShardId::new(20),
@@ -196,13 +205,13 @@ mod tests {
                         matcher: Matcher {
                             table_name_regex: Some(Regex::new("doom").unwrap()),
                         },
-                        shard: ShardId::new(30),
+                        shard: ShardId::new(40),
                     },
                     MatcherToShard {
                         matcher: Matcher {
                             table_name_regex: Some(Regex::new("nooo").unwrap()),
                         },
-                        shard: ShardId::new(40),
+                        shard: ShardId::new(50),
                     },
                     MatcherToShard {
                         matcher: Matcher {
@@ -228,6 +237,15 @@ mod tests {
                     WriteSinkSetConfig {
                         sinks: vec![WriteSinkConfig {
                             sink: WriteSinkVariantConfig::GrpcRemote(server_id_2),
+                            ignore_errors: false,
+                        }],
+                    },
+                ),
+                (
+                    ShardId::new(30),
+                    WriteSinkSetConfig {
+                        sinks: vec![WriteSinkConfig {
+                            sink: WriteSinkVariantConfig::GrpcRemote(server_id_3),
                             ignore_errors: false,
                         }],
                     },
@@ -275,11 +293,18 @@ mod tests {
                 "foo_bar x=9 9",
                 "nooo x=10 10",
                 "foo_bar x=11 11",
+                "foo_three x=12 12",
+                "doom x=13 13",
+                "foo_three x=14 14",
+                "www x=15 15",
+                "foo_three x=16 16",
+                "nooo x=17 17",
+                "foo_three x=18 18",
             ],
             &meta_2,
         );
         let err = router.write(write_2).await.unwrap_err();
-        assert_eq!(err.to_string(), "One or more writes failed: ShardId(20) => \"Write to sink set failed: Cannot write: poisened\", ShardId(30) => \"Did not find sink set for shard ID 30\"...");
+        assert_eq!(err.to_string(), "One or more writes failed: ShardId(20) => \"Write to sink set failed: Cannot write: poisened\", ShardId(40) => \"Did not find sink set for shard ID 40\"...");
         client_1.assert_writes(&[
             (
                 String::from("my_router"),
@@ -301,6 +326,18 @@ mod tests {
         client_2.assert_writes(&[(
             String::from("my_router"),
             db_write(&["foo_x x=2 2", "foo_y x=3 3", "www x=4 4"], &meta_1),
+        )]);
+        client_3.assert_writes(&[(
+            String::from("my_router"),
+            db_write(
+                &[
+                    "foo_three x=12 12",
+                    "foo_three x=14 14",
+                    "foo_three x=16 16",
+                    "foo_three x=18 18",
+                ],
+                &meta_2,
+            ),
         )]);
     }
 
