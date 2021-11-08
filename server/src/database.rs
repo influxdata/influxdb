@@ -91,6 +91,18 @@ pub enum Error {
         db_name
     ))]
     CannotDeleteInactiveDatabase { db_name: String },
+
+    #[snafu(display(
+        "cannot disown database named {} that has already been disowned",
+        db_name
+    ))]
+    CannotDisownUnowned { db_name: String },
+
+    #[snafu(display("cannot disown database {}: {}", db_name, source))]
+    CannotDisown {
+        db_name: String,
+        source: OwnerInfoUpdateError,
+    },
 }
 
 #[derive(Debug, Snafu)]
@@ -260,6 +272,50 @@ impl Database {
         Ok(uuid)
     }
 
+    /// Disown this database from this server.
+    pub async fn disown(&self, context: Option<String>) -> Result<Uuid, Error> {
+        let db_name = &self.shared.config.name;
+
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
+        let uuid = {
+            let state = self.shared.state.read();
+            // Can't disown an already disowned database
+            ensure!(state.is_active(), CannotDisownUnowned { db_name });
+
+            state.uuid().expect("Active databases have UUIDs")
+        };
+
+        info!(%db_name, %uuid, "disowning database");
+
+        // If there is an object store for this database, update its owner file to indicate the
+        // database is now unowned and record the history of the state change.
+        // If there isn't an object store, something is wrong and we shouldn't switch the
+        // state without being able to write to object storage.
+        let iox_object_store = self.iox_object_store().with_context(|| {
+            let state = self.shared.state.read();
+            TransitionInProgress {
+                db_name: db_name.clone(),
+                state: state.state_code(),
+            }
+        })?;
+
+        update_owner_info(None, None, &iox_object_store)
+            .await
+            .context(CannotDisown { db_name })?;
+
+        let mut state = self.shared.state.write();
+        let mut state = state.unfreeze(handle);
+        *state = DatabaseState::NoActiveDatabase(
+            DatabaseStateKnown {},
+            Arc::new(InitError::NoActiveDatabase),
+        );
+        self.shared.state_notify.notify_waiters();
+
+        Ok(uuid)
+    }
+
     /// Create a restored database without any state. Returns its location in object storage
     /// for saving in the server config file.
     pub async fn restore(
@@ -289,7 +345,7 @@ impl Database {
         let server_location =
             IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
 
-        update_owner_info(server_id, server_location, &iox_object_store)
+        update_owner_info(Some(server_id), Some(server_location), &iox_object_store)
             .await
             .context(UpdatingOwnerInfo)?;
 
@@ -1226,16 +1282,18 @@ pub enum OwnerInfoUpdateError {
 /// history, and overwrite the contents of the owner file. Errors if the owner info file does NOT
 /// currently exist.
 async fn update_owner_info(
-    new_server_id: ServerId,
-    new_server_location: String,
+    new_server_id: Option<ServerId>,
+    new_server_location: Option<String>,
     iox_object_store: &IoxObjectStore,
 ) -> Result<(), OwnerInfoUpdateError> {
     let mut owner_info = fetch_owner_info(iox_object_store)
         .await
         .context(CouldNotFetch)?;
 
-    owner_info.id = new_server_id.get_u32();
-    owner_info.location = new_server_location;
+    // 0 is not a valid server ID, so it indicates "unowned".
+    owner_info.id = new_server_id.map(|s| s.get_u32()).unwrap_or_default();
+    // Owner location is empty when the database is unowned.
+    owner_info.location = new_server_location.unwrap_or_default();
 
     let mut encoded = bytes::BytesMut::new();
     generated_types::server_config::encode_database_owner_info(&owner_info, &mut encoded)
@@ -1604,6 +1662,45 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn database_disown() {
+        let (_application, database) = initialized_database().await;
+        let iox_object_store = database.iox_object_store().unwrap();
+
+        database.disown(None).await.unwrap();
+
+        assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
+        assert!(matches!(
+            database.init_error().unwrap().as_ref(),
+            InitError::NoActiveDatabase
+        ));
+
+        let owner_info = fetch_owner_info(&iox_object_store).await.unwrap();
+        assert_eq!(owner_info.id, 0);
+        assert_eq!(owner_info.location, "");
+    }
+
+    #[tokio::test]
+    async fn database_disown_with_context() {
+        let (_application, database) = initialized_database().await;
+        let iox_object_store = database.iox_object_store().unwrap();
+
+        database
+            .disown(Some("I don't like this database anymore".into()))
+            .await
+            .unwrap();
+
+        assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
+        assert!(matches!(
+            database.init_error().unwrap().as_ref(),
+            InitError::NoActiveDatabase
+        ));
+
+        let owner_info = fetch_owner_info(&iox_object_store).await.unwrap();
+        assert_eq!(owner_info.id, 0);
+        assert_eq!(owner_info.location, "");
     }
 
     #[tokio::test]
