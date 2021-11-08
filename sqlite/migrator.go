@@ -3,16 +3,21 @@ package sqlite
 import (
 	"context"
 	"embed"
+	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/kit/migration"
 	"go.uber.org/zap"
 )
 
 type Migrator struct {
 	store *SqlStore
 	log   *zap.Logger
+
+	backupPath string
 }
 
 func NewMigrator(store *SqlStore, log *zap.Logger) *Migrator {
@@ -22,60 +27,146 @@ func NewMigrator(store *SqlStore, log *zap.Logger) *Migrator {
 	}
 }
 
+// SetBackupPath records the filepath where pre-migration state should be written prior to running migrations.
+func (m *Migrator) SetBackupPath(path string) {
+	m.backupPath = path
+}
+
 func (m *Migrator) Up(ctx context.Context, source embed.FS) error {
-	list, err := source.ReadDir(".")
+	knownMigrations, err := source.ReadDir(".")
 	if err != nil {
 		return err
 	}
+
 	// sort the list according to the version number to ensure the migrations are applied in the correct order
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].Name() < list[j].Name()
+	sort.Slice(knownMigrations, func(i, j int) bool {
+		return knownMigrations[i].Name() < knownMigrations[j].Name()
 	})
 
-	// get the current value for user_version from the database
-	current, err := m.store.userVersion()
+	executedMigrations, err := m.store.allMigrationNames()
 	if err != nil {
 		return err
 	}
 
-	// get the migration number of the latest migration for logging purposes
-	final, err := scriptVersion(list[len(list)-1].Name())
-	if err != nil {
-		return err
-	}
+	var lastMigration int
+	for idx := range executedMigrations {
+		if idx > len(knownMigrations)-1 || executedMigrations[idx] != dropExtension(knownMigrations[idx].Name()) {
+			return migration.ErrInvalidMigration(executedMigrations[idx])
+		}
 
-	// log this message only if there are migrations to run
-	if final > current {
-		m.log.Info("Bringing up metadata migrations", zap.Int("migration_count", final-current))
-	}
-
-	for _, f := range list {
-		n := f.Name()
-		// get the version of this migration script
-		v, err := scriptVersion(n)
+		lastMigration, err = scriptVersion(executedMigrations[idx])
 		if err != nil {
 			return err
 		}
+	}
 
-		// get the current value for user_version from the database. this is done in the loop as well to ensure
-		// that if for some reason the migrations are out of order, newer migrations are not applied after older ones.
-		c, err := m.store.userVersion()
-		if err != nil {
-			return err
-		}
+	migrationsToDo := len(knownMigrations[lastMigration:])
+	if migrationsToDo == 0 {
+		return nil
+	}
 
-		// if the version of the script is greater than the current user_version,
-		// execute the script to apply the migration
-		if v > c {
-			m.log.Debug("Executing metadata migration", zap.String("migration_name", n))
-			mBytes, err := source.ReadFile(n)
+	if m.backupPath != "" && lastMigration != 0 {
+		m.log.Info("Backing up pre-migration metadata", zap.String("backup_path", m.backupPath))
+		if err := func() error {
+			out, err := os.Create(m.backupPath)
 			if err != nil {
 				return err
 			}
+			defer out.Close()
 
-			if err := m.store.execTrans(ctx, string(mBytes)); err != nil {
+			if err := m.store.BackupSqlStore(ctx, out); err != nil {
 				return err
 			}
+			return nil
+		}(); err != nil {
+			return fmt.Errorf("failed to back up pre-migration metadata: %w", err)
+		}
+	}
+
+	m.log.Info("Bringing up metadata migrations", zap.Int("migration_count", migrationsToDo))
+
+	for _, f := range knownMigrations[lastMigration:] {
+		n := f.Name()
+
+		m.log.Debug("Executing metadata migration", zap.String("migration_name", n))
+		mBytes, err := source.ReadFile(n)
+		if err != nil {
+			return err
+		}
+
+		recordStmt := fmt.Sprintf(`INSERT INTO %s (name) VALUES (%q);`, migrationsTableName, dropExtension(n))
+
+		if err := m.store.execTrans(ctx, string(mBytes)+recordStmt); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
+}
+
+// Down applies the "down" migrations until the SQL database has migrations only >= untilMigration. Use untilMigration = 0 to apply all
+// down migrations, which will delete all data from the database.
+func (m *Migrator) Down(ctx context.Context, untilMigration int, source embed.FS) error {
+	knownMigrations, err := source.ReadDir(".")
+	if err != nil {
+		return err
+	}
+
+	// sort the list according to the version number to ensure the migrations are applied in the correct order
+	sort.Slice(knownMigrations, func(i, j int) bool {
+		return knownMigrations[i].Name() < knownMigrations[j].Name()
+	})
+
+	executedMigrations, err := m.store.allMigrationNames()
+	if err != nil {
+		return err
+	}
+
+	migrationsToDo := len(executedMigrations) - untilMigration
+	if migrationsToDo == 0 {
+		return nil
+	}
+
+	if migrationsToDo < 0 {
+		m.log.Warn("SQL metadata is already on a schema older than target, nothing to do")
+		return nil
+	}
+
+	if m.backupPath != "" {
+		m.log.Info("Backing up pre-migration metadata", zap.String("backup_path", m.backupPath))
+		if err := func() error {
+			out, err := os.Create(m.backupPath)
+			if err != nil {
+				return err
+			}
+			defer out.Close()
+
+			if err := m.store.BackupSqlStore(ctx, out); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return fmt.Errorf("failed to back up pre-migration metadata: %w", err)
+		}
+	}
+
+	m.log.Info("Tearing down metadata migrations", zap.Int("migration_count", migrationsToDo))
+
+	for i := len(executedMigrations) - 1; i >= untilMigration; i-- {
+		downName := knownMigrations[i].Name()
+		downNameNoExtension := dropExtension(downName)
+
+		m.log.Debug("Executing metadata migration", zap.String("migration_name", downName))
+		mBytes, err := source.ReadFile(downName)
+		if err != nil {
+			return err
+		}
+
+		deleteStmt := fmt.Sprintf(`DELETE FROM %s WHERE name = %q;`, migrationsTableName, downNameNoExtension)
+
+		if err := m.store.execTrans(ctx, deleteStmt+string(mBytes)); err != nil {
+			return err
 		}
 	}
 
@@ -91,4 +182,14 @@ func scriptVersion(filename string) (int, error) {
 	}
 
 	return vInt, nil
+}
+
+// dropExtension returns the filename excluding anything after the first "."
+func dropExtension(filename string) string {
+	idx := strings.Index(filename, ".")
+	if idx == -1 {
+		return filename
+	}
+
+	return filename[:idx]
 }

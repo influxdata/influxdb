@@ -24,11 +24,9 @@ require (
 	github.com/glycerine/goconvey v0.0.0-20180728074245-46e3a41ad493 // indirect
 	github.com/go-chi/chi v4.1.0+incompatible
 	github.com/go-stack/stack v1.8.0
-	github.com/gogo/protobuf v1.3.2
 	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
 	github.com/golang/mock v1.5.0
-	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.3
 	github.com/google/btree v1.0.1
 	github.com/google/go-cmp v0.5.6
@@ -39,7 +37,7 @@ require (
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe
-	github.com/influxdata/flux v0.136.0
+	github.com/influxdata/flux v0.139.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v1.1.1-0.20211004132434-7e7d61973256
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839
@@ -93,6 +91,7 @@ require (
 	golang.org/x/text v0.3.6
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	golang.org/x/tools v0.1.4
+	google.golang.org/protobuf v1.27.1
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
 	gopkg.in/yaml.v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
@@ -150,9 +149,11 @@ require (
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang/geo v0.0.0-20190916061304-5b978397cfec // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
+	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/flatbuffers v2.0.0+incompatible // indirect
 	github.com/google/uuid v1.1.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
@@ -203,6 +204,7 @@ require (
 	github.com/uber-go/tally v3.3.15+incompatible // indirect
 	github.com/uber/athenadriver v1.1.4 // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
+	github.com/vertica/vertica-sql-go v1.1.1 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.uber.org/atomic v1.6.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
@@ -216,7 +218,6 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20210630183607-d20f26d13c79 // indirect
 	google.golang.org/grpc v1.39.0 // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/ini.v1 v1.51.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
 )

@@ -62,6 +62,7 @@ type DurableQueueManager interface {
 	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error
 	DeleteQueue(replicationID platform.ID) error
 	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
+	CurrentQueueSizes(ids []platform.ID) (map[platform.ID]int64, error)
 	StartReplicationQueues(trackedReplications map[platform.ID]int64) error
 	CloseAll() error
 }
@@ -77,10 +78,8 @@ type service struct {
 
 func (s service) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
 	q := sq.Select(
-		"id", "org_id", "name", "description",
-		"remote_id", "local_bucket_id", "remote_bucket_id",
-		"max_queue_size_bytes", "current_queue_size_bytes",
-		"latest_response_code", "latest_error_message").
+		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id",
+		"max_queue_size_bytes", "latest_response_code", "latest_error_message").
 		From("replications").
 		Where(sq.Eq{"org_id": filter.OrgID})
 
@@ -103,6 +102,23 @@ func (s service) ListReplications(ctx context.Context, filter influxdb.Replicati
 	if err := s.store.DB.SelectContext(ctx, &rs.Replications, query, args...); err != nil {
 		return nil, err
 	}
+
+	if len(rs.Replications) == 0 {
+		return &rs, nil
+	}
+
+	ids := make([]platform.ID, len(rs.Replications))
+	for i := range rs.Replications {
+		ids[i] = rs.Replications[i].ID
+	}
+	sizes, err := s.durableQueueManager.CurrentQueueSizes(ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range rs.Replications {
+		rs.Replications[i].CurrentQueueSizeBytes = sizes[rs.Replications[i].ID]
+	}
+
 	return &rs, nil
 }
 
@@ -124,19 +140,18 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 
 	q := sq.Insert("replications").
 		SetMap(sq.Eq{
-			"id":                       newID,
-			"org_id":                   request.OrgID,
-			"name":                     request.Name,
-			"description":              request.Description,
-			"remote_id":                request.RemoteID,
-			"local_bucket_id":          request.LocalBucketID,
-			"remote_bucket_id":         request.RemoteBucketID,
-			"max_queue_size_bytes":     request.MaxQueueSizeBytes,
-			"current_queue_size_bytes": 0,
-			"created_at":               "datetime('now')",
-			"updated_at":               "datetime('now')",
+			"id":                   newID,
+			"org_id":               request.OrgID,
+			"name":                 request.Name,
+			"description":          request.Description,
+			"remote_id":            request.RemoteID,
+			"local_bucket_id":      request.LocalBucketID,
+			"remote_bucket_id":     request.RemoteBucketID,
+			"max_queue_size_bytes": request.MaxQueueSizeBytes,
+			"created_at":           "datetime('now')",
+			"updated_at":           "datetime('now')",
 		}).
-		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes, current_queue_size_bytes")
+		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes")
 
 	cleanupQueue := func() {
 		if cleanupErr := s.durableQueueManager.DeleteQueue(newID); cleanupErr != nil {
@@ -188,8 +203,7 @@ func (s service) GetReplication(ctx context.Context, id platform.ID) (*influxdb.
 	q := sq.Select(
 		"id", "org_id", "name", "description",
 		"remote_id", "local_bucket_id", "remote_bucket_id",
-		"max_queue_size_bytes", "current_queue_size_bytes",
-		"latest_response_code", "latest_error_message").
+		"max_queue_size_bytes", "latest_response_code", "latest_error_message").
 		From("replications").
 		Where(sq.Eq{"id": id})
 
@@ -205,6 +219,13 @@ func (s service) GetReplication(ctx context.Context, id platform.ID) (*influxdb.
 		}
 		return nil, err
 	}
+
+	sizes, err := s.durableQueueManager.CurrentQueueSizes([]platform.ID{r.ID})
+	if err != nil {
+		return nil, err
+	}
+	r.CurrentQueueSizeBytes = sizes[r.ID]
+
 	return &r, nil
 }
 
@@ -230,7 +251,7 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 	}
 
 	q := sq.Update("replications").SetMap(updates).Where(sq.Eq{"id": id}).
-		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes, current_queue_size_bytes")
+		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes")
 
 	query, args, err := q.ToSql()
 	if err != nil {
@@ -254,6 +275,13 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 			return nil, err
 		}
 	}
+
+	sizes, err := s.durableQueueManager.CurrentQueueSizes([]platform.ID{r.ID})
+	if err != nil {
+		return nil, err
+	}
+	r.CurrentQueueSizeBytes = sizes[r.ID]
+
 	return &r, nil
 }
 

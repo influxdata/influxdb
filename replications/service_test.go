@@ -19,6 +19,10 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+//go:generate go run github.com/golang/mock/mockgen -package mock -destination ./mock/validator.go github.com/influxdata/influxdb/v2/replications ReplicationValidator
+//go:generate go run github.com/golang/mock/mockgen -package mock -destination ./mock/bucket_service.go github.com/influxdata/influxdb/v2/replications BucketService
+//go:generate go run github.com/golang/mock/mockgen -package mock -destination ./mock/queue_management.go github.com/influxdata/influxdb/v2/replications DurableQueueManager
+
 var (
 	ctx         = context.Background()
 	initID      = platform.ID(1)
@@ -99,6 +103,8 @@ func TestCreateAndGetReplication(t *testing.T) {
 	require.Equal(t, replication, *created)
 
 	// Read the created replication and assert it matches the creation response.
+	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
+		Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
 	got, err = svc.GetReplication(ctx, initID)
 	require.NoError(t, err)
 	require.Equal(t, replication, *got)
@@ -249,6 +255,8 @@ func TestUpdateAndGetReplication(t *testing.T) {
 
 	// Update the replication.
 	mocks.durableQueueManager.EXPECT().UpdateMaxQueueSize(initID, *updateReq.MaxQueueSizeBytes)
+	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
+		Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
 	updated, err = svc.UpdateReplication(ctx, initID, updateReq)
 	require.NoError(t, err)
 	require.Equal(t, updatedReplication, *updated)
@@ -279,6 +287,8 @@ func TestUpdateMissingRemote(t *testing.T) {
 	require.Nil(t, updated)
 
 	// Make sure nothing changed in the DB.
+	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
+		Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
 	got, err := svc.GetReplication(ctx, initID)
 	require.NoError(t, err)
 	require.Equal(t, replication, *got)
@@ -303,6 +313,8 @@ func TestUpdateNoop(t *testing.T) {
 	require.Equal(t, replication, *created)
 
 	// Send a no-op update, assert nothing changed.
+	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
+		Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
 	updated, err := svc.UpdateReplication(ctx, initID, influxdb.UpdateReplicationRequest{})
 	require.NoError(t, err)
 	require.Equal(t, replication, *updated)
@@ -334,6 +346,8 @@ func TestValidateUpdatedReplicationWithoutPersisting(t *testing.T) {
 			fmt.Sprintf("remote %q not found", *updateReq.RemoteID))
 
 		// Make sure nothing changed in the DB.
+		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
+			Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
 		got, err := svc.GetReplication(ctx, initID)
 		require.NoError(t, err)
 		require.Equal(t, replication, *got)
@@ -365,6 +379,8 @@ func TestValidateUpdatedReplicationWithoutPersisting(t *testing.T) {
 		require.Contains(t, svc.ValidateUpdatedReplication(ctx, initID, updateReq).Error(), fakeErr.Error())
 
 		// Make sure nothing changed in the DB.
+		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
+			Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
 		got, err := svc.GetReplication(ctx, initID)
 		require.NoError(t, err)
 		require.Equal(t, replication, *got)
@@ -395,6 +411,8 @@ func TestValidateUpdatedReplicationWithoutPersisting(t *testing.T) {
 		require.NoError(t, svc.ValidateUpdatedReplication(ctx, initID, updateReq))
 
 		// Make sure nothing changed in the DB.
+		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
+			Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
 		got, err := svc.GetReplication(ctx, initID)
 		require.NoError(t, err)
 		require.Equal(t, replication, *got)
@@ -457,6 +475,8 @@ func TestDeleteReplications(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID, initID + 1, initID + 2}).
+		Return(map[platform.ID]int64{initID: 0, initID + 1: 0, initID + 2: 0}, nil)
 	listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: replication.OrgID})
 	require.NoError(t, err)
 	require.Len(t, listed.Replications, 3)
@@ -466,6 +486,8 @@ func TestDeleteReplications(t *testing.T) {
 	require.NoError(t, svc.DeleteBucketReplications(ctx, createReq.LocalBucketID))
 
 	// Ensure they were deleted.
+	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID + 1}).
+		Return(map[platform.ID]int64{initID + 1: 0}, nil)
 	listed, err = svc.ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: replication.OrgID})
 	require.NoError(t, err)
 	require.Len(t, listed.Replications, 1)
@@ -505,6 +527,8 @@ func TestListReplications(t *testing.T) {
 		defer clean(t)
 		allRepls := setup(t, svc, mocks)
 
+		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID, initID + 1, initID + 2}).
+			Return(map[platform.ID]int64{initID: 0, initID + 1: 0, initID + 2: 0}, nil)
 		listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: createReq.OrgID})
 		require.NoError(t, err)
 		require.Equal(t, influxdb.Replications{Replications: allRepls}, *listed)
@@ -517,6 +541,8 @@ func TestListReplications(t *testing.T) {
 		defer clean(t)
 		allRepls := setup(t, svc, mocks)
 
+		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID + 1}).
+			Return(map[platform.ID]int64{initID + 1: 0}, nil)
 		listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{
 			OrgID: createReq.OrgID,
 			Name:  &createReq2.Name,
@@ -532,6 +558,8 @@ func TestListReplications(t *testing.T) {
 		defer clean(t)
 		allRepls := setup(t, svc, mocks)
 
+		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID, initID + 1}).
+			Return(map[platform.ID]int64{initID: 0, initID + 1: 0}, nil)
 		listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{
 			OrgID:    createReq.OrgID,
 			RemoteID: &createReq.RemoteID,
@@ -547,6 +575,8 @@ func TestListReplications(t *testing.T) {
 		defer clean(t)
 		allRepls := setup(t, svc, mocks)
 
+		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID, initID + 2}).
+			Return(map[platform.ID]int64{initID: 0, initID + 2: 0}, nil)
 		listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{
 			OrgID:         createReq.OrgID,
 			LocalBucketID: &createReq.LocalBucketID,
@@ -578,7 +608,7 @@ func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
 	store, clean := sqlite.NewTestStore(t)
 	logger := zaptest.NewLogger(t)
 	sqliteMigrator := sqlite.NewMigrator(store, logger)
-	require.NoError(t, sqliteMigrator.Up(ctx, migrations.All))
+	require.NoError(t, sqliteMigrator.Up(ctx, migrations.AllUp))
 
 	// Make sure foreign-key checking is enabled.
 	_, err := store.DB.Exec("PRAGMA foreign_keys = ON;")

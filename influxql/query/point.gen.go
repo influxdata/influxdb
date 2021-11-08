@@ -13,8 +13,8 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/gogo/protobuf/proto"
 	internal "github.com/influxdata/influxdb/v2/influxql/query/internal"
+	"google.golang.org/protobuf/proto"
 )
 
 // FloatPoint represents a point with a float64 value.

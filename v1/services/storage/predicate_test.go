@@ -12,31 +12,31 @@ import (
 
 func TestRewriteExprRemoveFieldKeyAndValue(t *testing.T) {
 	node := &datatypes.Node{
-		NodeType: datatypes.NodeTypeLogicalExpression,
-		Value:    &datatypes.Node_Logical_{Logical: datatypes.LogicalAnd},
+		NodeType: datatypes.Node_TypeLogicalExpression,
+		Value:    &datatypes.Node_Logical_{Logical: datatypes.Node_LogicalAnd},
 		Children: []*datatypes.Node{
 			{
-				NodeType: datatypes.NodeTypeComparisonExpression,
-				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				NodeType: datatypes.Node_TypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 				Children: []*datatypes.Node{
-					{NodeType: datatypes.NodeTypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "host"}},
-					{NodeType: datatypes.NodeTypeLiteral, Value: &datatypes.Node_StringValue{StringValue: "host1"}},
+					{NodeType: datatypes.Node_TypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "host"}},
+					{NodeType: datatypes.Node_TypeLiteral, Value: &datatypes.Node_StringValue{StringValue: "host1"}},
 				},
 			},
 			{
-				NodeType: datatypes.NodeTypeComparisonExpression,
-				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonRegex},
+				NodeType: datatypes.Node_TypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonRegex},
 				Children: []*datatypes.Node{
-					{NodeType: datatypes.NodeTypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "_field"}},
-					{NodeType: datatypes.NodeTypeLiteral, Value: &datatypes.Node_RegexValue{RegexValue: "^us-west"}},
+					{NodeType: datatypes.Node_TypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "_field"}},
+					{NodeType: datatypes.Node_TypeLiteral, Value: &datatypes.Node_RegexValue{RegexValue: "^us-west"}},
 				},
 			},
 			{
-				NodeType: datatypes.NodeTypeComparisonExpression,
-				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				NodeType: datatypes.Node_TypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 				Children: []*datatypes.Node{
-					{NodeType: datatypes.NodeTypeFieldRef, Value: &datatypes.Node_FieldRefValue{FieldRefValue: "$"}},
-					{NodeType: datatypes.NodeTypeLiteral, Value: &datatypes.Node_FloatValue{FloatValue: 0.5}},
+					{NodeType: datatypes.Node_TypeFieldRef, Value: &datatypes.Node_FieldRefValue{FieldRefValue: "$"}},
+					{NodeType: datatypes.Node_TypeLiteral, Value: &datatypes.Node_FloatValue{FloatValue: 0.5}},
 				},
 			},
 		},

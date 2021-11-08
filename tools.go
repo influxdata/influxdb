@@ -6,13 +6,12 @@ package influxdb
 import (
 	_ "github.com/benbjohnson/tmpl"
 	_ "github.com/editorconfig-checker/editorconfig-checker/cmd/editorconfig-checker"
-	_ "github.com/gogo/protobuf/protoc-gen-gogo"
-	_ "github.com/gogo/protobuf/protoc-gen-gogofaster"
 	_ "github.com/influxdata/pkg-config"
 	_ "github.com/kevinburke/go-bindata/go-bindata"
 	_ "github.com/mna/pigeon"
 	_ "golang.org/x/tools/cmd/goimports"
 	_ "golang.org/x/tools/cmd/stringer"
+	_ "google.golang.org/protobuf/cmd/protoc-gen-go"
 	_ "gopkg.in/yaml.v2"
 	_ "honnef.co/go/tools/cmd/staticcheck"
 )

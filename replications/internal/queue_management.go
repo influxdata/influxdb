@@ -132,6 +132,23 @@ func (qm *durableQueueManager) UpdateMaxQueueSize(replicationID platform.ID, max
 	return nil
 }
 
+// CurrentQueueSizes returns the current size-on-disk for the requested set of durable queues.
+func (qm *durableQueueManager) CurrentQueueSizes(ids []platform.ID) (map[platform.ID]int64, error) {
+	qm.mutex.RLock()
+	defer qm.mutex.RUnlock()
+
+	sizes := make(map[platform.ID]int64, len(ids))
+
+	for _, id := range ids {
+		if qm.replicationQueues[id] == nil {
+			return nil, fmt.Errorf("durable queue not found for replication ID %q", id)
+		}
+		sizes[id] = qm.replicationQueues[id].DiskUsage()
+	}
+
+	return sizes, nil
+}
+
 // StartReplicationQueues updates the durableQueueManager.replicationQueues map, fully removing any partially deleted
 // queues (present on disk, but not tracked in sqlite), opening all current queues, and logging info for each.
 func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[platform.ID]int64) error {

@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/golang/protobuf/proto" //lint:ignore SA1019 this deprecated package will be removed by https://github.com/influxdata/influxdb/pull/22571
 	pr "github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestFilter_Gather(t *testing.T) {

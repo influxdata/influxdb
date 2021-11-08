@@ -78,45 +78,56 @@ func TestMigration_RemotesReplicationsOperToken(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Run the migration
-	require.NoError(t, Migration0019_AddRemotesReplicationsToTokens.Up(context.Background(), ts.Store))
-
-	// the first item should not be changed
 	encoded1, err := id1.Encode()
 	require.NoError(t, err)
-	err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
-		bkt, err := tx.Bucket(authBucket)
-		require.NoError(t, err)
-
-		b, err := bkt.Get(encoded1)
-		require.NoError(t, err)
-
-		var token influxdb.Authorization
-		require.NoError(t, json.Unmarshal(b, &token))
-		require.Equal(t, auths[0], token)
-
-		return nil
-	})
-	require.NoError(t, err)
-
-	// the second item is the 2.0.x operator token and should have been updated
-	// with a new permissions list
 	encoded2, err := id2.Encode()
 	require.NoError(t, err)
-	err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
-		bkt, err := tx.Bucket(authBucket)
+
+	checkPerms := func(expectedAllPerms []influxdb.Permission) {
+		// the first item should never change
+		err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
+			bkt, err := tx.Bucket(authBucket)
+			require.NoError(t, err)
+
+			b, err := bkt.Get(encoded1)
+			require.NoError(t, err)
+
+			var token influxdb.Authorization
+			require.NoError(t, json.Unmarshal(b, &token))
+			require.Equal(t, auths[0], token)
+
+			return nil
+		})
 		require.NoError(t, err)
 
-		b, err := bkt.Get(encoded2)
+		// the second item is a 2.0.x all-access token and should have been updated to match our expectations
+		err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
+			bkt, err := tx.Bucket(authBucket)
+			require.NoError(t, err)
+
+			b, err := bkt.Get(encoded2)
+			require.NoError(t, err)
+
+			var token influxdb.Authorization
+			require.NoError(t, json.Unmarshal(b, &token))
+
+			require.ElementsMatch(t, expectedAllPerms, token.Permissions)
+			return nil
+		})
 		require.NoError(t, err)
+	}
 
-		var token influxdb.Authorization
-		require.NoError(t, json.Unmarshal(b, &token))
+	// Test applying the migration for the 1st time.
+	require.NoError(t, Migration0019_AddRemotesReplicationsToTokens.Up(context.Background(), ts.Store))
+	checkPerms(append(preReplicationOpPerms(), remotesAndReplicationsPerms(0)...))
 
-		require.ElementsMatch(t, append(preReplicationOpPerms(), remotesAndReplicationsPerms(0)...), token.Permissions)
-		return nil
-	})
-	require.NoError(t, err)
+	// Downgrade the migration.
+	require.NoError(t, Migration0019_AddRemotesReplicationsToTokens.Down(context.Background(), ts.Store))
+	checkPerms(preReplicationOpPerms())
+
+	// Test re-applying the migration after a downgrade.
+	require.NoError(t, Migration0019_AddRemotesReplicationsToTokens.Up(context.Background(), ts.Store))
+	checkPerms(append(preReplicationOpPerms(), remotesAndReplicationsPerms(0)...))
 }
 
 func TestMigration_RemotesReplicationsAllAccessToken(t *testing.T) {
@@ -168,43 +179,54 @@ func TestMigration_RemotesReplicationsAllAccessToken(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Run the migration
-	require.NoError(t, Migration0019_AddRemotesReplicationsToTokens.Up(context.Background(), ts.Store))
-
-	// the first item should not be changed
 	encoded1, err := id1.Encode()
 	require.NoError(t, err)
-	err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
-		bkt, err := tx.Bucket(authBucket)
-		require.NoError(t, err)
-
-		b, err := bkt.Get(encoded1)
-		require.NoError(t, err)
-
-		var token influxdb.Authorization
-		require.NoError(t, json.Unmarshal(b, &token))
-		require.Equal(t, auths[0], token)
-
-		return nil
-	})
-	require.NoError(t, err)
-
-	// the second item is a 2.0.x all-access token and should have been updated
-	// with a new permissions list
 	encoded2, err := id2.Encode()
 	require.NoError(t, err)
-	err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
-		bkt, err := tx.Bucket(authBucket)
+
+	checkPerms := func(expectedAllPerms []influxdb.Permission) {
+		// the first item should never change
+		err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
+			bkt, err := tx.Bucket(authBucket)
+			require.NoError(t, err)
+
+			b, err := bkt.Get(encoded1)
+			require.NoError(t, err)
+
+			var token influxdb.Authorization
+			require.NoError(t, json.Unmarshal(b, &token))
+			require.Equal(t, auths[0], token)
+
+			return nil
+		})
 		require.NoError(t, err)
 
-		b, err := bkt.Get(encoded2)
+		// the second item is a 2.0.x all-access token and should have been updated to match our expectations
+		err = ts.Store.View(context.Background(), func(tx kv.Tx) error {
+			bkt, err := tx.Bucket(authBucket)
+			require.NoError(t, err)
+
+			b, err := bkt.Get(encoded2)
+			require.NoError(t, err)
+
+			var token influxdb.Authorization
+			require.NoError(t, json.Unmarshal(b, &token))
+
+			require.ElementsMatch(t, expectedAllPerms, token.Permissions)
+			return nil
+		})
 		require.NoError(t, err)
+	}
 
-		var token influxdb.Authorization
-		require.NoError(t, json.Unmarshal(b, &token))
+	// Test applying the migration for the 1st time.
+	require.NoError(t, Migration0019_AddRemotesReplicationsToTokens.Up(context.Background(), ts.Store))
+	checkPerms(append(preReplicationAllAccessPerms(OrgID, UserID), remotesAndReplicationsPerms(OrgID)...))
 
-		require.ElementsMatch(t, append(preReplicationAllAccessPerms(OrgID, UserID), remotesAndReplicationsPerms(OrgID)...), token.Permissions)
-		return nil
-	})
-	require.NoError(t, err)
+	// Downgrade the migration.
+	require.NoError(t, Migration0019_AddRemotesReplicationsToTokens.Down(context.Background(), ts.Store))
+	checkPerms(preReplicationAllAccessPerms(OrgID, UserID))
+
+	// Test re-applying the migration after a downgrade.
+	require.NoError(t, Migration0019_AddRemotesReplicationsToTokens.Up(context.Background(), ts.Store))
+	checkPerms(append(preReplicationAllAccessPerms(OrgID, UserID), remotesAndReplicationsPerms(OrgID)...))
 }

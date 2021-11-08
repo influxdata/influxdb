@@ -170,17 +170,9 @@ Most changes to the source do not require that the generated protocol buffer cod
 But if you need to modify the protocol buffer code, you'll first need to install the protocol buffers toolchain.
 
 First install the [protocol buffer compiler](https://developers.google.com/protocol-buffers/
-) 2.6.1 or later for your OS:
+) 3.17.3 or later for your OS.
 
-Then install the go plugins:
-
-```bash
-$ go get github.com/gogo/protobuf/proto
-$ go get github.com/gogo/protobuf/protoc-gen-gogo
-$ go get github.com/gogo/protobuf/gogoproto
-```
-
-Finally run, `go generate` after updating any `*.proto` file:
+Then run `go generate` after updating any `*.proto` file:
 
 ```bash
 $ go generate ./...
@@ -189,7 +181,7 @@ $ go generate ./...
 
 If generating the protobuf code is failing for you, check each of the following:
 * Ensure the protobuf library can be found. Make sure that `LD_LIBRARY_PATH` includes the directory in which the library `libprotoc.so` has been installed.
-* Ensure the command `protoc-gen-gogo`, found in `GOPATH/bin`, is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
+* Ensure the command `protoc-gen-go`, found in `GOPATH/bin`, is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
 
 
 ## Generated Go Templates

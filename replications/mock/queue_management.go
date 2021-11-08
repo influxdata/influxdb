@@ -34,6 +34,21 @@ func (m *MockDurableQueueManager) EXPECT() *MockDurableQueueManagerMockRecorder 
 	return m.recorder
 }
 
+// CurrentQueueSizes mocks base method.
+func (m *MockDurableQueueManager) CurrentQueueSizes(arg0 []platform.ID) (map[platform.ID]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CurrentQueueSizes", arg0)
+	ret0, _ := ret[0].(map[platform.ID]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CurrentQueueSizes indicates an expected call of CurrentQueueSizes.
+func (mr *MockDurableQueueManagerMockRecorder) CurrentQueueSizes(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentQueueSizes", reflect.TypeOf((*MockDurableQueueManager)(nil).CurrentQueueSizes), arg0)
+}
+
 // CloseAll mocks base method.
 func (m *MockDurableQueueManager) CloseAll() error {
 	m.ctrl.T.Helper()

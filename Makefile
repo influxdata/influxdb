@@ -115,20 +115,22 @@ checktidy:
 checkgenerate:
 	./etc/checkgenerate.sh
 
+checksqlmigrations:
+	./etc/check-sql-migrations.sh
+
 # generate-web-assets outputs all the files needed to link the UI to the back-end.
 # Currently, none of these files are tracked by git.
 generate-web-assets: static/static_gen.go
 
 # generate-sources outputs all the Go files generated from protobufs, tmpls, and other tooling.
 # These files are tracked by git; CI will enforce that they are up-to-date.
-generate-sources: gogo tmpl stringer goimports
+generate-sources: protoc tmpl stringer goimports
 	$(GO_GENERATE) ./influxql/... ./models/... ./pkg/... ./storage/... ./tsdb/... ./v1/...
 
 generate: generate-web-assets generate-sources
 
-gogo:
-	$(GO_INSTALL) github.com/gogo/protobuf/protoc-gen-gogo
-	$(GO_INSTALL) github.com/gogo/protobuf/protoc-gen-gogofaster
+protoc:
+	$(GO_INSTALL) google.golang.org/protobuf/cmd/protoc-gen-go@v1.27.1
 
 tmpl:
 	$(GO_INSTALL) github.com/benbjohnson/tmpl

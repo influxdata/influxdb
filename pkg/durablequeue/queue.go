@@ -189,7 +189,7 @@ func (l *Queue) Open() error {
 		return l.trimHead(false)
 	}
 
-	l.queueTotalSize.Add(l.diskUsage())
+	l.queueTotalSize.Add(l.DiskUsage())
 
 	return nil
 }
@@ -365,8 +365,8 @@ func (l *Queue) Dir() string {
 	return l.dir
 }
 
-// diskUsage returns the total size on disk used by the Queue.
-func (l *Queue) diskUsage() int64 {
+// DiskUsage returns the total size on disk used by the Queue.
+func (l *Queue) DiskUsage() int64 {
 	var size int64
 	for _, s := range l.segments {
 		size += s.diskUsage()

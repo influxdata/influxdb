@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	dto "github.com/prometheus/client_model/go"
 )
 
 func TestMetricsReader(t *testing.T) {
@@ -41,7 +42,7 @@ func TestMetricsReader(t *testing.T) {
 					Fields: map[string]interface{}{
 						"value": "yes",
 					},
-					Type:      MetricTypeGauge,
+					Type:      dto.MetricType_GAUGE,
 					Timestamp: time.Unix(0, 1422568543702900257),
 				},
 			},
@@ -59,7 +60,7 @@ func TestMetricsReader(t *testing.T) {
 					Fields: map[string]interface{}{
 						"value": 0.64,
 					},
-					Type:      MetricTypeGauge,
+					Type:      dto.MetricType_GAUGE,
 					Timestamp: time.Unix(0, 1422568543702900257),
 				},
 			},
@@ -148,7 +149,7 @@ func TestMetricsMarshal(t *testing.T) {
 						"x": 12.3,
 						"y": "a long string",
 					},
-					Type: MetricTypeSummary,
+					Type: dto.MetricType_SUMMARY,
 				},
 			},
 		},
@@ -166,7 +167,7 @@ func TestMetricsMarshal(t *testing.T) {
 						"x": 12.3,
 						"y": "a long string",
 					},
-					Type: MetricTypeSummary,
+					Type: dto.MetricType_SUMMARY,
 				},
 
 				{
@@ -180,7 +181,7 @@ func TestMetricsMarshal(t *testing.T) {
 						"x": 12.5,
 						"y": "a long string2",
 					},
-					Type: MetricTypeGauge,
+					Type: dto.MetricType_GAUGE,
 				},
 			},
 		},

@@ -1002,7 +1002,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 
 		// If a sqlite-path is not specified, store sqlite db in the same directory as bolt with the default filename.
 		if opts.SqLitePath == "" {
-			opts.SqLitePath = filepath.Dir(opts.BoltPath) + "/" + sqlite.DefaultFilename
+			opts.SqLitePath = filepath.Join(filepath.Dir(opts.BoltPath), sqlite.DefaultFilename)
 		}
 		sqlStore, err = sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")))
 		if err != nil {
@@ -1034,8 +1034,9 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		m.flushers = append(m.flushers, kvStore, sqlStore)
 	}
 
-	boltMigrator, err := migration.NewMigrator(
-		m.log.With(zap.String("service", "bolt migrations")),
+	// Apply migrations to the KV and SQL metadata stores.
+	kvMigrator, err := migration.NewMigrator(
+		m.log.With(zap.String("service", "KV migrations")),
 		kvStore,
 		all.Migrations[:]...,
 	)
@@ -1043,18 +1044,21 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 		m.log.Error("Failed to initialize kv migrator", zap.Error(err))
 		return "", err
 	}
+	sqlMigrator := sqlite.NewMigrator(sqlStore, m.log.With(zap.String("service", "SQL migrations")))
 
-	// apply migrations to the bolt metadata store
-	if err := boltMigrator.Up(ctx); err != nil {
-		m.log.Error("Failed to apply bolt migrations", zap.Error(err))
+	// If we're migrating a persistent data store, take a backup of the pre-migration state for rollback.
+	if opts.StoreType == DiskStore || opts.StoreType == BoltStore {
+		backupPattern := "%s.pre-%s-upgrade.backup"
+		info := platform.GetBuildInfo()
+		kvMigrator.SetBackupPath(fmt.Sprintf(backupPattern, opts.BoltPath, info.Version))
+		sqlMigrator.SetBackupPath(fmt.Sprintf(backupPattern, opts.SqLitePath, info.Version))
+	}
+	if err := kvMigrator.Up(ctx); err != nil {
+		m.log.Error("Failed to apply KV migrations", zap.Error(err))
 		return "", err
 	}
-
-	sqliteMigrator := sqlite.NewMigrator(sqlStore, m.log.With(zap.String("service", "sqlite migrations")))
-
-	// apply migrations to the sqlite metadata store
-	if err := sqliteMigrator.Up(ctx, sqliteMigrations.All); err != nil {
-		m.log.Error("Failed to apply sqlite migrations", zap.Error(err))
+	if err := sqlMigrator.Up(ctx, sqliteMigrations.AllUp); err != nil {
+		m.log.Error("Failed to apply SQL migrations", zap.Error(err))
 		return "", err
 	}
 

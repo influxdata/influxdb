@@ -5,9 +5,9 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
-var Migration0019_AddRemotesReplicationsToTokens = UpOnlyMigration(
-	"add remotes and replications resource types to operator and all-access tokens",
-	migrateTokensMigration(
+var Migration0019_AddRemotesReplicationsToTokens = &Migration{
+	name: "add remotes and replications resource types to operator and all-access tokens",
+	up: migrateTokensMigration(
 		func(t influxdb.Authorization) bool {
 			return permListsMatch(preReplicationOpPerms(), t.Permissions) ||
 				permListsMatch(preReplicationAllAccessPerms(t.OrgID, t.UserID), t.Permissions)
@@ -20,7 +20,25 @@ var Migration0019_AddRemotesReplicationsToTokens = UpOnlyMigration(
 			}
 		},
 	),
-)
+	down: migrateTokensMigration(
+		func(t influxdb.Authorization) bool {
+			return permListsMatch(append(preReplicationOpPerms(), remotesAndReplicationsPerms(0)...), t.Permissions) ||
+				permListsMatch(append(preReplicationAllAccessPerms(t.OrgID, t.UserID), remotesAndReplicationsPerms(t.OrgID)...), t.Permissions)
+		},
+		func(t *influxdb.Authorization) {
+			newPerms := t.Permissions[:0]
+			for _, p := range t.Permissions {
+				switch p.Resource.Type {
+				case influxdb.RemotesResourceType:
+				case influxdb.ReplicationsResourceType:
+				default:
+					newPerms = append(newPerms, p)
+				}
+			}
+			t.Permissions = newPerms
+		},
+	),
+}
 
 func preReplicationOpPerms() []influxdb.Permission {
 	return append(preNotebooksAnnotationsOpPerms(), notebooksAndAnnotationsPerms(0)...)

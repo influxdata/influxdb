@@ -1,5 +1,6 @@
 syntax = "proto2";
 package query;
+option go_package = ".;query";
 
 message Point {
     required string Name       = 1;

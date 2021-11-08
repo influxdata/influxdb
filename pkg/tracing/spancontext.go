@@ -1,8 +1,8 @@
 package tracing
 
 import (
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/v2/pkg/tracing/wire"
+	"google.golang.org/protobuf/proto"
 )
 
 // A SpanContext represents the minimal information to identify a span in a trace.
@@ -13,15 +13,20 @@ type SpanContext struct {
 }
 
 func (s SpanContext) MarshalBinary() ([]byte, error) {
-	ws := wire.SpanContext(s)
-	return proto.Marshal(&ws)
+	return proto.Marshal(&wire.SpanContext{
+		TraceID: s.TraceID,
+		SpanID:  s.SpanID,
+	})
 }
 
 func (s *SpanContext) UnmarshalBinary(data []byte) error {
 	var ws wire.SpanContext
 	err := proto.Unmarshal(data, &ws)
 	if err == nil {
-		*s = SpanContext(ws)
+		*s = SpanContext{
+			TraceID: ws.TraceID,
+			SpanID:  ws.SpanID,
+		}
 	}
 	return err
 }
