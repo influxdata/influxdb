@@ -7,8 +7,8 @@ use influxdb_iox_client::{
     flight,
     format::QueryOutputFormat,
     management::{
-        self, generated_types::*, CreateDatabaseError, DeleteDatabaseError, GetDatabaseError,
-        ListDatabaseError, RestoreDatabaseError,
+        self, generated_types::*, CreateDatabaseError, DeleteDatabaseError, DisownDatabaseError,
+        GetDatabaseError, ListDatabaseError, RestoreDatabaseError,
     },
     write::{self, WriteError},
 };
@@ -36,6 +36,9 @@ pub enum Error {
 
     #[error("Error deleting database: {0}")]
     DeleteDatabaseError(#[from] DeleteDatabaseError),
+
+    #[error("Error disowning database: {0}")]
+    DisownDatabaseError(#[from] DisownDatabaseError),
 
     #[error("Error restoring database: {0}")]
     RestoreDatabaseError(#[from] RestoreDatabaseError),
@@ -187,6 +190,23 @@ struct Delete {
     name: String,
 }
 
+/// Disown a database from its current server owner
+#[derive(Debug, StructOpt)]
+struct Disown {
+    /// The name of the database to disown
+    name: String,
+
+    /// Optionally, the UUID of the database to delete. This must match the UUID of the current
+    /// database with the given name, or the disown operation will result in an error.
+    #[structopt(short, long)]
+    uuid: Option<String>,
+
+    /// Optionally, context for this operation, to be stored in the database's owner file as a
+    /// historical record
+    #[structopt(short, long)]
+    context: Option<String>,
+}
+
 /// Restore a deleted database
 #[derive(Debug, StructOpt)]
 struct Restore {
@@ -206,6 +226,7 @@ enum Command {
     Partition(partition::Config),
     Recover(recover::Config),
     Delete(Delete),
+    Disown(Disown),
     Restore(Restore),
 }
 
@@ -346,6 +367,14 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             let mut client = management::Client::new(connection);
             let uuid = client.delete_database(&command.name).await?;
             println!("Deleted database {}", command.name);
+            println!("{}", uuid);
+        }
+        Command::Disown(command) => {
+            let mut client = management::Client::new(connection);
+            let uuid = client
+                .disown_database(&command.name, command.uuid, command.context)
+                .await?;
+            println!("Disowned database {}", command.name);
             println!("{}", uuid);
         }
         Command::Restore(command) => {

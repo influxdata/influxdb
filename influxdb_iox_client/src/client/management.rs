@@ -146,6 +146,10 @@ pub enum DeleteDatabaseError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by Client::disown_database
+#[derive(Debug, Error)]
+pub enum DisownDatabaseError {}
+
 /// Errors returned by Client::restore_database
 #[derive(Debug, Error)]
 pub enum RestoreDatabaseError {
@@ -695,6 +699,16 @@ impl Client {
             .unwrap();
 
         Ok(uuid)
+    }
+
+    /// Disown database
+    pub async fn disown_database(
+        &mut self,
+        db_name: impl Into<String> + Send,
+        uuid: Option<String>,
+        context: Option<String>,
+    ) -> Result<Uuid, DisownDatabaseError> {
+        unimplemented!()
     }
 
     /// Restore database
