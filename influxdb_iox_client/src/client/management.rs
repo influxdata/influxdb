@@ -1,7 +1,8 @@
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
 use crate::{
     connection::Connection,
-    google::{longrunning::IoxOperation, FieldViolation},
+    google::{self, longrunning::IoxOperation, FieldViolation},
+    protobuf_type_url,
 };
 use bytes::Bytes;
 use std::{convert::TryInto, num::NonZeroU32};
@@ -740,7 +741,10 @@ impl Client {
                     .map(|s| s.parse::<Uuid>().map(|u| u.as_bytes().to_vec()))
                     .transpose()?
                     .unwrap_or_default(),
-                context: context.unwrap_or_default(),
+                context: vec![google::protobuf::Any {
+                    type_url: protobuf_type_url("google.protobuf.StringValue"),
+                    value: context.unwrap_or_default().into(),
+                }],
             })
             .await
             .map_err(|status| match status.code() {

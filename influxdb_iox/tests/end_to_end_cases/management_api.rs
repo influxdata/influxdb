@@ -1324,6 +1324,7 @@ async fn test_get_server_status_db_error() {
     let owner_info = OwnerInfo {
         id: 42,
         location: "arbitrary".to_string(),
+        transactions: vec![],
     };
     let mut owner_info_bytes = bytes::BytesMut::new();
     generated_types::server_config::encode_database_owner_info(&owner_info, &mut owner_info_bytes)

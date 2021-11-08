@@ -14,7 +14,7 @@ use futures::{
     FutureExt, TryFutureExt,
 };
 use generated_types::{
-    database_state::DatabaseState as DatabaseStateCode, influxdata::iox::management,
+    database_state::DatabaseState as DatabaseStateCode, google, influxdata::iox::management,
 };
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
@@ -25,6 +25,7 @@ use parquet_catalog::core::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
+use time::Time;
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -273,7 +274,11 @@ impl Database {
     }
 
     /// Disown this database from this server.
-    pub async fn disown(&self, context: Option<String>) -> Result<Uuid, Error> {
+    pub async fn disown(
+        &self,
+        context: Vec<google::protobuf::Any>,
+        timestamp: Time,
+    ) -> Result<Uuid, Error> {
         let db_name = &self.shared.config.name;
 
         let handle = self.shared.state.read().freeze();
@@ -301,7 +306,7 @@ impl Database {
             }
         })?;
 
-        update_owner_info(None, None, &iox_object_store)
+        update_owner_info(None, None, context, timestamp, &iox_object_store)
             .await
             .context(CannotDisown { db_name })?;
 
@@ -345,9 +350,16 @@ impl Database {
         let server_location =
             IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
 
-        update_owner_info(Some(server_id), Some(server_location), &iox_object_store)
-            .await
-            .context(UpdatingOwnerInfo)?;
+        let timestamp = Time::from_timestamp(295293, 3);
+        update_owner_info(
+            Some(server_id),
+            Some(server_location),
+            vec![],
+            timestamp,
+            &iox_object_store,
+        )
+        .await
+        .context(UpdatingOwnerInfo)?;
 
         Ok(database_location)
     }
@@ -1255,6 +1267,7 @@ async fn create_owner_info(
     let owner_info = management::v1::OwnerInfo {
         id: server_id.get_u32(),
         location: server_location,
+        transactions: vec![],
     };
     let mut encoded = bytes::BytesMut::new();
     generated_types::server_config::encode_database_owner_info(&owner_info, &mut encoded)
@@ -1284,19 +1297,38 @@ pub enum OwnerInfoUpdateError {
 async fn update_owner_info(
     new_server_id: Option<ServerId>,
     new_server_location: Option<String>,
+    context: Vec<google::protobuf::Any>,
+    timestamp: Time,
     iox_object_store: &IoxObjectStore,
 ) -> Result<(), OwnerInfoUpdateError> {
-    let mut owner_info = fetch_owner_info(iox_object_store)
+    let management::v1::OwnerInfo {
+        id,
+        location,
+        mut transactions,
+    } = fetch_owner_info(iox_object_store)
         .await
         .context(CouldNotFetch)?;
 
-    // 0 is not a valid server ID, so it indicates "unowned".
-    owner_info.id = new_server_id.map(|s| s.get_u32()).unwrap_or_default();
-    // Owner location is empty when the database is unowned.
-    owner_info.location = new_server_location.unwrap_or_default();
+    let new_transaction = management::v1::OwnershipTransaction {
+        id,
+        location,
+        timestamp: Some(timestamp.date_time().into()),
+        context,
+    };
+    transactions.push(new_transaction);
+
+    // TODO: only save latest 100 transactions
+
+    let new_owner_info = management::v1::OwnerInfo {
+        // 0 is not a valid server ID, so it indicates "unowned".
+        id: new_server_id.map(|s| s.get_u32()).unwrap_or_default(),
+        // Owner location is empty when the database is unowned.
+        location: new_server_location.unwrap_or_default(),
+        transactions,
+    };
 
     let mut encoded = bytes::BytesMut::new();
-    generated_types::server_config::encode_database_owner_info(&owner_info, &mut encoded)
+    generated_types::server_config::encode_database_owner_info(&new_owner_info, &mut encoded)
         .expect("owner info serialization should be valid");
     let encoded = encoded.freeze();
 
@@ -1492,11 +1524,12 @@ mod tests {
     use crate::test_utils::make_application;
 
     use super::*;
-    use data_types::sequence::Sequence;
     use data_types::{
         database_rules::{PartitionTemplate, TemplatePart},
+        sequence::Sequence,
         write_buffer::{WriteBufferConnection, WriteBufferDirection},
     };
+    use generated_types::protobuf_type_url;
     use std::{num::NonZeroU32, time::Instant};
     use uuid::Uuid;
     use write_buffer::mock::MockBufferSharedState;
@@ -1666,10 +1699,14 @@ mod tests {
 
     #[tokio::test]
     async fn database_disown() {
-        let (_application, database) = initialized_database().await;
+        let (application, database) = initialized_database().await;
+        let server_id = database.shared.config.server_id;
+        let server_location =
+            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
         let iox_object_store = database.iox_object_store().unwrap();
+        let timestamp = Time::from_timestamp(295293, 3);
 
-        database.disown(None).await.unwrap();
+        database.disown(vec![], timestamp).await.unwrap();
 
         assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
         assert!(matches!(
@@ -1680,15 +1717,35 @@ mod tests {
         let owner_info = fetch_owner_info(&iox_object_store).await.unwrap();
         assert_eq!(owner_info.id, 0);
         assert_eq!(owner_info.location, "");
+        assert_eq!(owner_info.transactions.len(), 1);
+
+        let transaction = &owner_info.transactions[0];
+        assert_eq!(transaction.id, server_id.get_u32());
+        assert_eq!(transaction.location, server_location);
+        let expected_timestamp: google::protobuf::Timestamp = timestamp.date_time().into();
+        assert_eq!(transaction.timestamp, Some(expected_timestamp));
+        assert!(transaction.context.is_empty());
     }
 
     #[tokio::test]
     async fn database_disown_with_context() {
-        let (_application, database) = initialized_database().await;
+        let (application, database) = initialized_database().await;
+        let server_id = database.shared.config.server_id;
+        let server_location =
+            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
         let iox_object_store = database.iox_object_store().unwrap();
+        let timestamp = Time::from_timestamp(295293, 3);
+
+        let comment = "I bequeath this database unto the universe";
 
         database
-            .disown(Some("I don't like this database anymore".into()))
+            .disown(
+                vec![google::protobuf::Any {
+                    type_url: protobuf_type_url("google.protobuf.StringValue"),
+                    value: comment.into(),
+                }],
+                timestamp,
+            )
             .await
             .unwrap();
 
@@ -1701,6 +1758,15 @@ mod tests {
         let owner_info = fetch_owner_info(&iox_object_store).await.unwrap();
         assert_eq!(owner_info.id, 0);
         assert_eq!(owner_info.location, "");
+        let transaction = &owner_info.transactions[0];
+        assert_eq!(transaction.id, server_id.get_u32());
+        assert_eq!(transaction.location, server_location);
+        let expected_timestamp: google::protobuf::Timestamp = timestamp.date_time().into();
+        assert_eq!(transaction.timestamp, Some(expected_timestamp));
+        assert_eq!(transaction.context.len(), 1);
+
+        let context = transaction.context[0].value.slice(..);
+        assert_eq!(std::str::from_utf8(&context).unwrap(), comment);
     }
 
     #[tokio::test]

@@ -202,11 +202,6 @@ where
         } else {
             Some(Uuid::from_slice(&uuid).field("uuid")?)
         };
-        let context = if context.is_empty() {
-            None
-        } else {
-            Some(context)
-        };
 
         let returned_uuid = self
             .server

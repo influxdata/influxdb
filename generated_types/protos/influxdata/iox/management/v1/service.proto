@@ -4,6 +4,7 @@ option go_package = "github.com/influxdata/iox/management/v1";
 
 import "google/longrunning/operations.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
 import "influxdata/iox/management/v1/database_rules.proto";
 import "influxdata/iox/management/v1/chunk.proto";
 import "influxdata/iox/management/v1/partition.proto";
@@ -221,8 +222,10 @@ message DisownDatabaseRequest {
   // the optional UUID of the database that must match
   bytes uuid = 2;
 
-  // the optional context to record with the history of this disown operation
-  string context = 3;
+  // optional context to annotate the disown event in the disowned database's owner info file.
+  // The context objects are qualified by protobuf message type.
+  // The user/orchestration system can provide their own messages.
+  repeated google.protobuf.Any context = 3;
 }
 
 message DisownDatabaseResponse {
