@@ -384,7 +384,9 @@ jobs:
           echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
       - run:
           name: Deploy tags
-          command: ./.circleci/get-deploy-tags.sh "${COMMIT_SHA}"
+          command: |
+            echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
+            ./.circleci/get-deploy-tags.sh "${COMMIT_SHA}"
       - cache_save
 
   # Prepare the CI image used for other tasks.
