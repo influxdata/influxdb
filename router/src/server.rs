@@ -108,13 +108,15 @@ impl RouterServer {
     /// Delete router.
     ///
     /// Returns `true` if the router existed.
-    pub fn delete_router(&self, name: &str) -> bool {
-        self.routers.write().remove(name).is_some()
+    pub fn delete_router(&self, router_name: &str) -> bool {
+        self.routers.write().remove(router_name).is_some()
     }
 
     /// Get registered router, if any.
-    pub fn router(&self, name: &str) -> Option<Arc<Router>> {
-        self.routers.read().get(name).cloned()
+    ///
+    /// The router name is identical to the database for which this router handles data.
+    pub fn router(&self, router_name: &str) -> Option<Arc<Router>> {
+        self.routers.read().get(router_name).cloned()
     }
 
     /// Resolver associated with this server.
