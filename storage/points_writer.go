@@ -36,10 +36,13 @@ func (w *MirroringPointsWriter) WritePoints(ctx context.Context, orgID platform.
 	}
 
 	// Mirror points to the secondary writer, logging on failure.
-	if err := w.Secondary.WritePoints(ctx, orgID, bucketID, p); err != nil {
-		w.Log.Error("Mirroring points to secondary writer failed", zap.Error(err),
-			zap.String("org_id", orgID.String()), zap.String("bucket_id", bucketID.String()))
-	}
+	// Run the mirroring asynchronously to avoid adding too much overhead to the primary write path.
+	go func() {
+		if err := w.Secondary.WritePoints(ctx, orgID, bucketID, p); err != nil {
+			w.Log.Error("Mirroring points to secondary writer failed", zap.Error(err),
+				zap.String("org_id", orgID.String()), zap.String("bucket_id", bucketID.String()))
+		}
+	}()
 
 	return nil
 }
