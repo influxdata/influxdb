@@ -10,10 +10,9 @@ SELECT min(bar), max(bar) from cpu;
 
 SELECT time from cpu;
 
--- BUG: https://github.com/influxdata/influxdb_iox/issues/2779
--- inconsistent format returned
--- ignore for now
--- SELECT max(time)  from cpu;
+SELECT max(time)  from cpu;
+SELECT min(time)  from cpu group by bar;
+SELECT bar, min(time)  from cpu group by bar;
 
 SELECT count(time), max(time)  from cpu;
 

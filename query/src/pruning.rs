@@ -123,7 +123,7 @@ impl<'a> PruningStatistics for ChunkMetaStats<'a> {
     fn min_values(&self, column: &Column) -> Option<ArrayRef> {
         let min = self
             .column_summary(&column.name)
-            .and_then(|c| min_to_scalar(&c.stats))
+            .and_then(|c| min_to_scalar(&c.influxdb_type, &c.stats))
             .map(|s| s.to_array_of_size(1));
         min
     }
@@ -131,7 +131,7 @@ impl<'a> PruningStatistics for ChunkMetaStats<'a> {
     fn max_values(&self, column: &Column) -> Option<ArrayRef> {
         let max = self
             .column_summary(&column.name)
-            .and_then(|c| max_to_scalar(&c.stats))
+            .and_then(|c| max_to_scalar(&c.influxdb_type, &c.stats))
             .map(|s| s.to_array_of_size(1));
         max
     }
