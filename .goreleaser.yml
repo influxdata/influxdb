@@ -91,7 +91,6 @@ blobs:
     folder: "platform/nightlies/"
     extra_files:
       - glob: ./changelog_artifacts/CHANGELOG.md
-      - glob: ./changelog_artifacts/changelog-commit.txt
   # Duplicating the contents to another folder in the bucket ensures
   # scheme parity with release branches; eventually the artifacts should
   # __only__ appear in the branch-specific folder
