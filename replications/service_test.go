@@ -1,6 +1,8 @@
 package replications
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/replications/internal"
 	replicationsMock "github.com/influxdata/influxdb/v2/replications/mock"
 	"github.com/influxdata/influxdb/v2/sqlite"
@@ -630,6 +633,65 @@ func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
 	}
 
 	return &svc, mocks, clean
+}
+
+func TestWritePoints(t *testing.T) {
+	t.Parallel()
+
+	svc, mocks, clean := newTestService(t)
+	defer clean(t)
+
+	// Register a handful of replications.
+	createReq2, createReq3 := createReq, createReq
+	createReq2.Name, createReq3.Name = "test2", "test3"
+	createReq2.LocalBucketID = platform.ID(77777)
+	createReq3.RemoteID = updatedReplication.RemoteID
+	mocks.bucketSvc.EXPECT().RLock().Times(3)
+	mocks.bucketSvc.EXPECT().RUnlock().Times(3)
+	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).Return(&influxdb.Bucket{}, nil).Times(2)
+	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq2.LocalBucketID).Return(&influxdb.Bucket{}, nil)
+	insertRemote(t, svc.store, createReq.RemoteID)
+	insertRemote(t, svc.store, createReq3.RemoteID)
+
+	for _, req := range []influxdb.CreateReplicationRequest{createReq, createReq2, createReq3} {
+		mocks.durableQueueManager.EXPECT().InitializeQueue(gomock.Any(), req.MaxQueueSizeBytes)
+		_, err := svc.CreateReplication(ctx, req)
+		require.NoError(t, err)
+	}
+
+	points, err := models.ParsePointsString(`
+cpu,host=0 value=1.1 6000000000
+cpu,host=A value=1.2 2000000000
+cpu,host=A value=1.3 3000000000
+cpu,host=B value=1.3 4000000000
+cpu,host=B value=1.3 5000000000
+cpu,host=C value=1.3 1000000000
+mem,host=C value=1.3 1000000000
+disk,host=C value=1.3 1000000000`)
+	require.NoError(t, err)
+
+	for _, id := range []platform.ID{initID, initID + 2} {
+		mocks.durableQueueManager.EXPECT().
+			EnqueueData(id, gomock.Any()).
+			DoAndReturn(func(_ platform.ID, data []byte) error {
+				gzBuf := bytes.NewBuffer(data)
+				gzr, err := gzip.NewReader(gzBuf)
+				require.NoError(t, err)
+				defer gzr.Close()
+
+				var buf bytes.Buffer
+				_, err = buf.ReadFrom(gzr)
+				require.NoError(t, err)
+				require.NoError(t, gzr.Close())
+
+				writtenPoints, err := models.ParsePoints(buf.Bytes())
+				require.NoError(t, err)
+				require.ElementsMatch(t, writtenPoints, points)
+				return nil
+			})
+	}
+
+	require.NoError(t, svc.WritePoints(ctx, replication.OrgID, replication.LocalBucketID, points))
 }
 
 func insertRemote(t *testing.T, store *sqlite.SqlStore, id platform.ID) {
