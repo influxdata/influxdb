@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
 use async_trait::async_trait;
 use futures::{
@@ -73,6 +73,10 @@ impl TraceCollector for AsyncExporter {
                 warn!("background worker shutdown")
             }
         }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
