@@ -10,6 +10,7 @@ use reqwest::Client;
 use serde::de::DeserializeOwned;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
+use trace::RingBufferTraceCollector;
 
 use crate::influxdb_ioxd::{http::serve, server_type::ServerType};
 
@@ -207,4 +208,35 @@ where
     // Should include 404 but not encode the path
     assert!(!data.contains(&"nonexistent"));
     assert!(data.contains(&"\nhttp_requests_total{status=\"client_error\"} 1\n"));
+}
+
+/// Assert that tracing works.
+///
+/// For this to work the used trace collector must be a [`RingBufferTraceCollector`].
+pub async fn assert_tracing<T>(test_server: TestServer<T>)
+where
+    T: ServerType,
+{
+    let trace_collector = test_server.server_type().trace_collector().unwrap();
+    let trace_collector = trace_collector
+        .as_any()
+        .downcast_ref::<RingBufferTraceCollector>()
+        .unwrap();
+
+    let client = Client::new();
+    let response = client
+        .get(&format!("{}/health", test_server.url()))
+        .header("uber-trace-id", "34f3495:36e34:0:1")
+        .send()
+        .await;
+
+    // Print the response so if the test fails, we have a log of what went wrong
+    check_response("health", response, StatusCode::OK, Some("OK")).await;
+
+    let mut spans = trace_collector.spans();
+    assert_eq!(spans.len(), 1);
+
+    let span = spans.pop().unwrap();
+    assert_eq!(span.ctx.trace_id.get(), 0x34f3495);
+    assert_eq!(span.ctx.parent_span_id.unwrap().get(), 0x36e34);
 }

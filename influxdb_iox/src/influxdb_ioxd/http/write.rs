@@ -235,3 +235,300 @@ pub struct WriteInfo {
     pub org: String,
     pub bucket: String,
 }
+
+#[cfg(test)]
+pub mod test_utils {
+    use http::{header::CONTENT_ENCODING, StatusCode};
+    use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Histogram};
+    use mutable_batch::DbWrite;
+    use mutable_batch_lp::lines_to_batches;
+    use reqwest::Client;
+
+    use crate::influxdb_ioxd::{
+        http::test_utils::{check_response, TestServer},
+        server_type::ServerType,
+    };
+
+    /// Assert that writes work.
+    ///
+    /// The database `bucket_name="MyBucket", org_name="MyOrg"` must exist for this test to work.
+    ///
+    /// Returns write that was generated. The caller MUST check that the write is actually present.
+    pub async fn assert_write<T>(test_server: &TestServer<T>) -> DbWrite
+    where
+        T: ServerType,
+    {
+        let client = Client::new();
+
+        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1617286224000000000";
+
+        // send write data
+        let bucket_name = "MyBucket";
+        let org_name = "MyOrg";
+        let response = client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                test_server.url(),
+                bucket_name,
+                org_name
+            ))
+            .body(lp_data)
+            .send()
+            .await;
+
+        check_response("write", response, StatusCode::NO_CONTENT, Some("")).await;
+
+        DbWrite::new(lines_to_batches(lp_data, 0).unwrap(), Default::default())
+    }
+
+    /// Assert that GZIP-compressed writes work.
+    ///
+    /// The database `bucket_name="MyBucket", org_name="MyOrg"` must exist for this test to work.
+    ///
+    /// Returns write that was generated. The caller MUST check that the write is actually present.
+    pub async fn assert_gzip_write<T>(test_server: &TestServer<T>) -> DbWrite
+    where
+        T: ServerType,
+    {
+        let client = Client::new();
+        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1617286224000000000";
+
+        // send write data encoded with gzip
+        let bucket_name = "MyBucket";
+        let org_name = "MyOrg";
+        let response = client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                test_server.url(),
+                bucket_name,
+                org_name
+            ))
+            .header(CONTENT_ENCODING, "gzip")
+            .body(gzip_str(lp_data))
+            .send()
+            .await;
+
+        check_response("gzip_write", response, StatusCode::NO_CONTENT, Some("")).await;
+
+        DbWrite::new(lines_to_batches(lp_data, 0).unwrap(), Default::default())
+    }
+
+    /// Assert that write to an invalid database behave as expected.
+    pub async fn assert_write_to_invalid_database<T>(test_server: TestServer<T>)
+    where
+        T: ServerType,
+    {
+        let client = Client::new();
+
+        let bucket_name = "NotMyBucket";
+        let org_name = "MyOrg";
+        let response = client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                test_server.url(),
+                bucket_name,
+                org_name
+            ))
+            .body("cpu bar=1 10")
+            .send()
+            .await;
+
+        check_response(
+            "write_to_invalid_databases",
+            response,
+            StatusCode::NOT_FOUND,
+            Some(""),
+        )
+        .await;
+    }
+
+    /// Assert that write metrics work.
+    ///
+    /// The database `bucket_name="MyBucket", org_name="MyOrg"` must exist for this test to work.
+    ///
+    /// If `test_incompatible` is set this will test the ingestion of schema-incompatible data.
+    pub async fn assert_write_metrics<T>(test_server: TestServer<T>, test_incompatible: bool)
+    where
+        T: ServerType,
+    {
+        let metric_registry = test_server.server_type().metric_registry();
+
+        let client = Client::new();
+
+        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
+        let incompatible_lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=\"incompatible\" 1568756170";
+
+        // send good data
+        let org_name = "MyOrg";
+        let bucket_name = "MyBucket";
+        let post_url = format!(
+            "{}/api/v2/write?bucket={}&org={}",
+            test_server.url(),
+            bucket_name,
+            org_name
+        );
+        client
+            .post(&post_url)
+            .body(lp_data)
+            .send()
+            .await
+            .expect("sent data");
+
+        // The request completed successfully
+        let request_count = metric_registry
+            .get_instrument::<Metric<U64Counter>>("http_requests")
+            .unwrap();
+
+        let request_count_ok = request_count
+            .get_observer(&Attributes::from(&[
+                ("path", "/api/v2/write"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .clone();
+
+        let request_count_client_error = request_count
+            .get_observer(&Attributes::from(&[
+                ("path", "/api/v2/write"),
+                ("status", "client_error"),
+            ]))
+            .unwrap()
+            .clone();
+
+        let request_count_server_error = request_count
+            .get_observer(&Attributes::from(&[
+                ("path", "/api/v2/write"),
+                ("status", "server_error"),
+            ]))
+            .unwrap()
+            .clone();
+
+        let request_duration_ok = metric_registry
+            .get_instrument::<Metric<DurationHistogram>>("http_request_duration")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("path", "/api/v2/write"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .clone();
+
+        assert_eq!(request_duration_ok.fetch().sample_count(), 1);
+        assert_eq!(request_count_ok.fetch(), 1);
+        assert_eq!(request_count_client_error.fetch(), 0);
+        assert_eq!(request_count_server_error.fetch(), 0);
+
+        // A single successful point landed
+        let ingest_lines = metric_registry
+            .get_instrument::<Metric<U64Counter>>("ingest_lines")
+            .unwrap();
+
+        let ingest_lines_ok = ingest_lines
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MyOrg_MyBucket"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .clone();
+
+        let ingest_lines_error = ingest_lines
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MyOrg_MyBucket"),
+                ("status", "error"),
+            ]))
+            .unwrap()
+            .clone();
+
+        assert_eq!(ingest_lines_ok.fetch(), 1);
+        assert_eq!(ingest_lines_error.fetch(), 0);
+
+        // Which consists of two fields
+        let observation = metric_registry
+            .get_instrument::<Metric<U64Counter>>("ingest_fields")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MyOrg_MyBucket"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation, 2);
+
+        // Bytes of data were written
+        let observation = metric_registry
+            .get_instrument::<Metric<U64Counter>>("ingest_bytes")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MyOrg_MyBucket"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation, 98);
+
+        // Batch size distribution is measured
+        let observation = metric_registry
+            .get_instrument::<Metric<U64Histogram>>("ingest_batch_size_bytes")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MyOrg_MyBucket"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation.total, 98);
+        assert_eq!(observation.buckets[0].count, 1);
+        assert_eq!(observation.buckets[1].count, 0);
+
+        // Write to a non-existent database
+        client
+            .post(&format!(
+                "{}/api/v2/write?bucket=NotMyBucket&org=NotMyOrg",
+                test_server.url(),
+            ))
+            .body(lp_data)
+            .send()
+            .await
+            .unwrap();
+
+        // An invalid database should not be reported as a new metric
+        assert!(metric_registry
+            .get_instrument::<Metric<U64Counter>>("ingest_lines")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "NotMyOrg_NotMyBucket"),
+                ("status", "error"),
+            ]))
+            .is_none());
+        assert_eq!(ingest_lines_ok.fetch(), 1);
+        assert_eq!(ingest_lines_error.fetch(), 0);
+
+        // Perform an invalid write
+        if test_incompatible {
+            client
+                .post(&post_url)
+                .body(incompatible_lp_data)
+                .send()
+                .await
+                .unwrap();
+
+            // This currently results in an InternalServerError which is correctly recorded
+            // as a server error, but this should probably be a BadRequest client error (#2538)
+            assert_eq!(ingest_lines_ok.fetch(), 1);
+            assert_eq!(ingest_lines_error.fetch(), 1);
+            assert_eq!(request_duration_ok.fetch().sample_count(), 1);
+            assert_eq!(request_count_ok.fetch(), 1);
+            assert_eq!(request_count_client_error.fetch(), 0);
+            assert_eq!(request_count_server_error.fetch(), 1);
+        }
+    }
+
+    fn gzip_str(s: &str) -> Vec<u8> {
+        use flate2::{write::GzEncoder, Compression};
+        use std::io::Write;
+
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        write!(encoder, "{}", s).expect("writing into encoder");
+        encoder.finish().expect("successfully encoding gzip data")
+    }
+}
