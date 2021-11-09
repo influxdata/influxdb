@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -57,11 +58,12 @@ func (cmd *Command) Run(args []string) (err error) {
 
 	var log = zap.NewNop()
 	if cmd.verbose {
-		cfg := logger.Config{Format: "logfmt"}
+		cfg := logger.Config{Format: "logfmt", Level: zapcore.DebugLevel}
 		log, err = cfg.New(os.Stdout)
 		if err != nil {
 			return err
 		}
+		log.Info("Logging", zap.String("level", cfg.Level.String()))
 	}
 
 	fmt.Fprintf(cmd.Stdout, "opening shard at path %q\n\n", cmd.path)
