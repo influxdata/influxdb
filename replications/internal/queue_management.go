@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,15 +19,14 @@ type durableQueueManager struct {
 	mutex             sync.RWMutex
 }
 
+var startupError = errors.New("startup tasks for replications durable queue management failed, see server logs for details")
+var shutdownError = errors.New("shutdown tasks for replications durable queues failed, see server logs for details")
+
 // NewDurableQueueManager creates a new durableQueueManager struct, for managing durable queues associated with
 //replication streams.
-func NewDurableQueueManager(log *zap.Logger, enginePath string) *durableQueueManager {
+func NewDurableQueueManager(log *zap.Logger, queuePath string) *durableQueueManager {
 	replicationQueues := make(map[platform.ID]*durablequeue.Queue)
 
-	queuePath := filepath.Join(
-		enginePath,
-		"replicationq",
-	)
 	os.MkdirAll(queuePath, 0777)
 
 	return &durableQueueManager{
@@ -170,12 +170,14 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 		if err != nil {
 			qm.logger.Error("failed to initialize replication stream durable queue", zap.Error(err))
 			errOccurred = true
+			continue
 		}
 
 		// Open and map the queue struct to its replication ID
 		if err := queue.Open(); err != nil {
 			qm.logger.Error("failed to open replication stream durable queue", zap.Error(err), zap.String("id", id.String()))
 			errOccurred = true
+			continue
 		} else {
 			qm.replicationQueues[id] = queue
 			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
@@ -183,7 +185,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 	}
 
 	if errOccurred {
-		return fmt.Errorf("startup tasks for replications durable queue management failed, see server logs for details")
+		return startupError
 	}
 
 	// Get contents of replicationq directory
@@ -213,7 +215,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 	}
 
 	if errOccurred {
-		return fmt.Errorf("startup tasks for replications durable queues failed, see server logs for details")
+		return startupError
 	} else {
 		return nil
 	}
@@ -231,7 +233,7 @@ func (qm *durableQueueManager) CloseAll() error {
 	}
 
 	if errOccurred {
-		return fmt.Errorf("shutdown tasks for replications durable queues failed, see server logs for details")
+		return shutdownError
 	} else {
 		return nil
 	}

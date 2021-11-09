@@ -5,10 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -22,20 +21,20 @@ var (
 func TestCreateNewQueueDirExists(t *testing.T) {
 	t.Parallel()
 
-	enginePath, qm := initQueueManager(t)
-	defer os.RemoveAll(enginePath)
+	queuePath, qm := initQueueManager(t)
+	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
 
 	require.NoError(t, err)
-	require.DirExists(t, filepath.Join(enginePath, "replicationq", id1.String()))
+	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 }
 
 func TestCreateNewQueueDuplicateID(t *testing.T) {
 	t.Parallel()
 
-	enginePath, qm := initQueueManager(t)
-	defer os.RemoveAll(enginePath)
+	queuePath, qm := initQueueManager(t)
+	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create a valid new queue
 	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
@@ -49,25 +48,25 @@ func TestCreateNewQueueDuplicateID(t *testing.T) {
 func TestDeleteQueueDirRemoved(t *testing.T) {
 	t.Parallel()
 
-	enginePath, qm := initQueueManager(t)
-	defer os.RemoveAll(enginePath)
+	queuePath, qm := initQueueManager(t)
+	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create a valid new queue
 	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
 	require.NoError(t, err)
-	require.DirExists(t, filepath.Join(enginePath, "replicationq", id1.String()))
+	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	// Delete queue and make sure its queue has been deleted from disk
 	err = qm.DeleteQueue(id1)
 	require.NoError(t, err)
-	require.NoDirExists(t, filepath.Join(enginePath, "replicationq", id1.String()))
+	require.NoDirExists(t, filepath.Join(queuePath, id1.String()))
 }
 
 func TestDeleteQueueNonexistentID(t *testing.T) {
 	t.Parallel()
 
-	enginePath, qm := initQueueManager(t)
-	defer os.RemoveAll(enginePath)
+	queuePath, qm := initQueueManager(t)
+	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Delete nonexistent queue
 	err := qm.DeleteQueue(id1)
@@ -77,8 +76,8 @@ func TestDeleteQueueNonexistentID(t *testing.T) {
 func TestUpdateMaxQueueSizeNonexistentID(t *testing.T) {
 	t.Parallel()
 
-	enginePath, qm := initQueueManager(t)
-	defer os.RemoveAll(enginePath)
+	queuePath, qm := initQueueManager(t)
+	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Update nonexistent queue
 	err := qm.UpdateMaxQueueSize(id1, influxdb.DefaultReplicationMaxQueueSizeBytes)
@@ -88,13 +87,13 @@ func TestUpdateMaxQueueSizeNonexistentID(t *testing.T) {
 func TestStartReplicationQueue(t *testing.T) {
 	t.Parallel()
 
-	enginePath, qm := initQueueManager(t)
-	defer os.RemoveAll(enginePath)
+	queuePath, qm := initQueueManager(t)
+	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create new queue
 	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
 	require.NoError(t, err)
-	require.DirExists(t, filepath.Join(enginePath, "replicationq", id1.String()))
+	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	// Represents the replications tracked in sqlite, this one is tracked
 	trackedReplications := make(map[platform.ID]int64)
@@ -118,13 +117,13 @@ func TestStartReplicationQueue(t *testing.T) {
 func TestStartReplicationQueuePartialDelete(t *testing.T) {
 	t.Parallel()
 
-	enginePath, qm := initQueueManager(t)
-	defer os.RemoveAll(enginePath)
+	queuePath, qm := initQueueManager(t)
+	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create new queue
 	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
 	require.NoError(t, err)
-	require.DirExists(t, filepath.Join(enginePath, "replicationq", id1.String()))
+	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	// Represents the replications tracked in sqlite, replication above is not tracked (not present in map)
 	trackedReplications := make(map[platform.ID]int64)
@@ -140,24 +139,24 @@ func TestStartReplicationQueuePartialDelete(t *testing.T) {
 	require.Nil(t, qm.replicationQueues[id1])
 
 	// Check for queue on disk, should be removed
-	require.NoDirExists(t, filepath.Join(enginePath, id1.String()))
+	require.NoDirExists(t, filepath.Join(queuePath, id1.String()))
 }
 
 func TestStartReplicationQueuesMultiple(t *testing.T) {
 	t.Parallel()
 
-	enginePath, qm := initQueueManager(t)
-	defer os.RemoveAll(enginePath)
+	queuePath, qm := initQueueManager(t)
+	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create queue1
 	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
 	require.NoError(t, err)
-	require.DirExists(t, filepath.Join(enginePath, "replicationq", id1.String()))
+	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	// Create queue2
 	err = qm.InitializeQueue(id2, maxQueueSizeBytes)
 	require.NoError(t, err)
-	require.DirExists(t, filepath.Join(enginePath, "replicationq", id2.String()))
+	require.DirExists(t, filepath.Join(queuePath, id2.String()))
 
 	// Represents the replications tracked in sqlite, both replications above are tracked
 	trackedReplications := make(map[platform.ID]int64)
@@ -176,8 +175,8 @@ func TestStartReplicationQueuesMultiple(t *testing.T) {
 	require.NotNil(t, qm.replicationQueues[id2])
 
 	// Make sure both queues are present on disk
-	require.DirExists(t, filepath.Join(enginePath, "replicationq", id1.String()))
-	require.DirExists(t, filepath.Join(enginePath, "replicationq", id2.String()))
+	require.DirExists(t, filepath.Join(queuePath, id1.String()))
+	require.DirExists(t, filepath.Join(queuePath, id2.String()))
 
 	// Ensure both queues are open by trying to remove, will error if open
 	err = qm.replicationQueues[id1].Remove()
@@ -189,18 +188,18 @@ func TestStartReplicationQueuesMultiple(t *testing.T) {
 func TestStartReplicationQueuesMultipleWithPartialDelete(t *testing.T) {
 	t.Parallel()
 
-	enginePath, qm := initQueueManager(t)
-	defer os.RemoveAll(enginePath)
+	queuePath, qm := initQueueManager(t)
+	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create queue1
 	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
 	require.NoError(t, err)
-	require.DirExists(t, filepath.Join(enginePath, "replicationq", id1.String()))
+	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	// Create queue2
 	err = qm.InitializeQueue(id2, maxQueueSizeBytes)
 	require.NoError(t, err)
-	require.DirExists(t, filepath.Join(enginePath, "replicationq", id2.String()))
+	require.DirExists(t, filepath.Join(queuePath, id2.String()))
 
 	// Represents the replications tracked in sqlite, queue1 is tracked and queue2 is not
 	trackedReplications := make(map[platform.ID]int64)
@@ -218,8 +217,8 @@ func TestStartReplicationQueuesMultipleWithPartialDelete(t *testing.T) {
 	require.Nil(t, qm.replicationQueues[id2])
 
 	// Make sure queue1 is present on disk and queue2 has been removed
-	require.DirExists(t, filepath.Join(enginePath, "replicationq", id1.String()))
-	require.NoDirExists(t, filepath.Join(enginePath, "replicationq", id2.String()))
+	require.DirExists(t, filepath.Join(queuePath, id1.String()))
+	require.NoDirExists(t, filepath.Join(queuePath, id2.String()))
 
 	// Ensure queue1 is open by trying to remove, will error if open
 	err = qm.replicationQueues[id1].Remove()
@@ -231,11 +230,12 @@ func initQueueManager(t *testing.T) (string, *durableQueueManager) {
 
 	enginePath, err := os.MkdirTemp("", "engine")
 	require.NoError(t, err)
+	queuePath := filepath.Join(enginePath, "replicationq")
 
 	logger := zaptest.NewLogger(t)
-	qm := NewDurableQueueManager(logger, enginePath)
+	qm := NewDurableQueueManager(logger, queuePath)
 
-	return enginePath, qm
+	return queuePath, qm
 }
 
 func shutdown(t *testing.T, qm *durableQueueManager) {

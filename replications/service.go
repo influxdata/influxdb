@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/influxdata/influxdb/v2"
@@ -40,12 +41,15 @@ func errLocalBucketNotFound(id platform.ID, cause error) error {
 
 func NewService(store *sqlite.SqlStore, bktSvc BucketService, log *zap.Logger, enginePath string) *service {
 	return &service{
-		store:               store,
-		idGenerator:         snowflake.NewIDGenerator(),
-		bucketService:       bktSvc,
-		validator:           internal.NewValidator(),
-		log:                 log,
-		durableQueueManager: internal.NewDurableQueueManager(log, enginePath),
+		store:         store,
+		idGenerator:   snowflake.NewIDGenerator(),
+		bucketService: bktSvc,
+		validator:     internal.NewValidator(),
+		log:           log,
+		durableQueueManager: internal.NewDurableQueueManager(
+			log,
+			filepath.Join(enginePath, "replicationq"),
+		),
 	}
 }
 
@@ -452,9 +456,8 @@ func (s service) Open(ctx context.Context) error {
 	// Queue manager completes startup tasks
 	if err := s.durableQueueManager.StartReplicationQueues(trackedReplicationsMap); err != nil {
 		return err
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func (s service) Close() error {
