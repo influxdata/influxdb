@@ -204,9 +204,11 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 		}
 
 		// Partial delete found, needs to be fully removed
-		if err := os.RemoveAll(filepath.Join(qm.queuePath, id.String())); err != nil {
-			qm.logger.Error("failed to remove durable queue during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
-			errOccurred = true
+		if qm.replicationQueues[*id] == nil {
+			if err := os.RemoveAll(filepath.Join(qm.queuePath, id.String())); err != nil {
+				qm.logger.Error("failed to remove durable queue during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
+				errOccurred = true
+			}
 		}
 	}
 
