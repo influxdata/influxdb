@@ -19,8 +19,8 @@ type durableQueueManager struct {
 	mutex             sync.RWMutex
 }
 
-var startupError = errors.New("startup tasks for replications durable queue management failed, see server logs for details")
-var shutdownError = errors.New("shutdown tasks for replications durable queues failed, see server logs for details")
+var errStartup = errors.New("startup tasks for replications durable queue management failed, see server logs for details")
+var errShutdown = errors.New("shutdown tasks for replications durable queues failed, see server logs for details")
 
 // NewDurableQueueManager creates a new durableQueueManager struct, for managing durable queues associated with
 //replication streams.
@@ -185,7 +185,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 	}
 
 	if errOccurred {
-		return startupError
+		return errStartup
 	}
 
 	// Get contents of replicationq directory
@@ -215,7 +215,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 	}
 
 	if errOccurred {
-		return startupError
+		return errStartup
 	} else {
 		return nil
 	}
@@ -233,7 +233,7 @@ func (qm *durableQueueManager) CloseAll() error {
 	}
 
 	if errOccurred {
-		return shutdownError
+		return errShutdown
 	} else {
 		return nil
 	}
