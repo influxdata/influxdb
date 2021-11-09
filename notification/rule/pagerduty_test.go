@@ -73,18 +73,23 @@ statuses = monitor["from"](start: -2h, fn: (r) => r["foo"] == "bar" and r["baz"]
 crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
 all_statuses = crit |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses |> monitor["notify"](data: notification, endpoint: pagerduty_endpoint(mapFn: (r) => ({
-    routingKey: pagerduty_secret,
-    client: "influxdata",
-    clientURL: "http://localhost:7777/host/${r.host}",
-    class: r._check_name,
-    group: r["_source_measurement"],
-    severity: pagerduty["severityFromLevel"](level: r["_level"]),
-    eventAction: pagerduty["actionFromLevel"](level: r["_level"]),
-    source: notification["_notification_rule_name"],
-    summary: r["_message"],
-    timestamp: time(v: r["_source_timestamp"]),
-})))`,
+all_statuses |> monitor["notify"](
+    data: notification,
+    endpoint: pagerduty_endpoint(
+        mapFn: (r) => ({
+            routingKey: pagerduty_secret,
+            client: "influxdata",
+            clientURL: "http://localhost:7777/host/${r.host}",
+            class: r._check_name,
+            group: r["_source_measurement"],
+            severity: pagerduty["severityFromLevel"](level: r["_level"]),
+            eventAction: pagerduty["actionFromLevel"](level: r["_level"]),
+            source: notification["_notification_rule_name"],
+            summary: r["_message"],
+            timestamp: time(v: r["_source_timestamp"]),
+        }),
+    ),
+)`,
 		},
 		{
 			name: "notify on info to crit",
@@ -143,18 +148,23 @@ statuses = monitor["from"](start: -2h, fn: (r) => r["foo"] == "bar" and r["baz"]
 info_to_crit = statuses |> monitor["stateChanges"](fromLevel: "info", toLevel: "crit")
 all_statuses = info_to_crit |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses |> monitor["notify"](data: notification, endpoint: pagerduty_endpoint(mapFn: (r) => ({
-    routingKey: pagerduty_secret,
-    client: "influxdata",
-    clientURL: "http://localhost:7777/host/${r.host}",
-    class: r._check_name,
-    group: r["_source_measurement"],
-    severity: pagerduty["severityFromLevel"](level: r["_level"]),
-    eventAction: pagerduty["actionFromLevel"](level: r["_level"]),
-    source: notification["_notification_rule_name"],
-    summary: r["_message"],
-    timestamp: time(v: r["_source_timestamp"]),
-})))`,
+all_statuses |> monitor["notify"](
+    data: notification,
+    endpoint: pagerduty_endpoint(
+        mapFn: (r) => ({
+            routingKey: pagerduty_secret,
+            client: "influxdata",
+            clientURL: "http://localhost:7777/host/${r.host}",
+            class: r._check_name,
+            group: r["_source_measurement"],
+            severity: pagerduty["severityFromLevel"](level: r["_level"]),
+            eventAction: pagerduty["actionFromLevel"](level: r["_level"]),
+            source: notification["_notification_rule_name"],
+            summary: r["_message"],
+            timestamp: time(v: r["_source_timestamp"]),
+        }),
+    ),
+)`,
 		},
 		{
 			name: "notify on crit or ok to warn",
@@ -217,18 +227,23 @@ crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
 ok_to_warn = statuses |> monitor["stateChanges"](fromLevel: "ok", toLevel: "warn")
 all_statuses = union(tables: [crit, ok_to_warn]) |> sort(columns: ["_time"]) |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses |> monitor["notify"](data: notification, endpoint: pagerduty_endpoint(mapFn: (r) => ({
-    routingKey: pagerduty_secret,
-    client: "influxdata",
-    clientURL: "http://localhost:7777/host/${r.host}",
-    class: r._check_name,
-    group: r["_source_measurement"],
-    severity: pagerduty["severityFromLevel"](level: r["_level"]),
-    eventAction: pagerduty["actionFromLevel"](level: r["_level"]),
-    source: notification["_notification_rule_name"],
-    summary: r["_message"],
-    timestamp: time(v: r["_source_timestamp"]),
-})))`,
+all_statuses |> monitor["notify"](
+    data: notification,
+    endpoint: pagerduty_endpoint(
+        mapFn: (r) => ({
+            routingKey: pagerduty_secret,
+            client: "influxdata",
+            clientURL: "http://localhost:7777/host/${r.host}",
+            class: r._check_name,
+            group: r["_source_measurement"],
+            severity: pagerduty["severityFromLevel"](level: r["_level"]),
+            eventAction: pagerduty["actionFromLevel"](level: r["_level"]),
+            source: notification["_notification_rule_name"],
+            summary: r["_message"],
+            timestamp: time(v: r["_source_timestamp"]),
+        }),
+    ),
+)`,
 		},
 	}
 

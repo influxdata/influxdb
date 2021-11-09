@@ -3,6 +3,7 @@ package rule_test
 import (
 	"testing"
 
+	"github.com/andreyvit/diff"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/notification"
@@ -27,11 +28,16 @@ statuses = monitor["from"](start: -2h)
 crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
 all_statuses = crit |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses |> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
-    body = {r with _version: 1}
-
-    return {headers: headers, data: json["encode"](v: body)}
-}))`
+all_statuses |> monitor["notify"](
+    data: notification,
+    endpoint: endpoint(
+        mapFn: (r) => {
+            body = {r with _version: 1}
+        
+            return {headers: headers, data: json["encode"](v: body)}
+        },
+    ),
+)`
 
 	s := &rule.HTTP{
 		Base: rule.Base{
@@ -64,7 +70,7 @@ all_statuses |> monitor["notify"](data: notification, endpoint: endpoint(mapFn: 
 	}
 
 	if f != want {
-		t.Errorf("scripts did not match. want:\n%v\n\ngot:\n%v", want, f)
+		t.Errorf("\n\nScripts did not match:\n\n%s", diff.LineDiff(f, want))
 	}
 }
 
@@ -84,11 +90,16 @@ statuses = monitor["from"](start: -2h)
 crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
 all_statuses = crit |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses |> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
-    body = {r with _version: 1}
-
-    return {headers: headers, data: json["encode"](v: body)}
-}))`
+all_statuses |> monitor["notify"](
+    data: notification,
+    endpoint: endpoint(
+        mapFn: (r) => {
+            body = {r with _version: 1}
+        
+            return {headers: headers, data: json["encode"](v: body)}
+        },
+    ),
+)`
 	s := &rule.HTTP{
 		Base: rule.Base{
 			ID:         1,
@@ -127,7 +138,7 @@ all_statuses |> monitor["notify"](data: notification, endpoint: endpoint(mapFn: 
 	}
 
 	if f != want {
-		t.Errorf("scripts did not match. want:\n%v\n\ngot:\n%v", want, f)
+		t.Errorf("\n\nScripts did not match:\n\n%s", diff.LineDiff(f, want))
 	}
 }
 
@@ -147,11 +158,16 @@ statuses = monitor["from"](start: -2h)
 crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
 all_statuses = crit |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses |> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
-    body = {r with _version: 1}
-
-    return {headers: headers, data: json["encode"](v: body)}
-}))`
+all_statuses |> monitor["notify"](
+    data: notification,
+    endpoint: endpoint(
+        mapFn: (r) => {
+            body = {r with _version: 1}
+        
+            return {headers: headers, data: json["encode"](v: body)}
+        },
+    ),
+)`
 
 	s := &rule.HTTP{
 		Base: rule.Base{
@@ -188,7 +204,7 @@ all_statuses |> monitor["notify"](data: notification, endpoint: endpoint(mapFn: 
 	}
 
 	if f != want {
-		t.Errorf("scripts did not match. want:\n%v\n\ngot:\n%v", want, f)
+		t.Errorf("\n\nScripts did not match:\n\n%s", diff.LineDiff(f, want))
 	}
 }
 
@@ -208,11 +224,16 @@ statuses = monitor["from"](start: -10s)
 crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
 all_statuses = crit |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 5s))
 
-all_statuses |> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
-    body = {r with _version: 1}
-
-    return {headers: headers, data: json["encode"](v: body)}
-}))`
+all_statuses |> monitor["notify"](
+    data: notification,
+    endpoint: endpoint(
+        mapFn: (r) => {
+            body = {r with _version: 1}
+        
+            return {headers: headers, data: json["encode"](v: body)}
+        },
+    ),
+)`
 
 	s := &rule.HTTP{
 		Base: rule.Base{
