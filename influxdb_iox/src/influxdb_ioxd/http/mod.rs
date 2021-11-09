@@ -21,6 +21,8 @@ mod heappy;
 mod pprof;
 
 pub mod metrics;
+pub mod utils;
+pub mod write;
 
 #[cfg(test)]
 pub mod test_utils;
