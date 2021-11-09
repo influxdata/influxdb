@@ -115,7 +115,8 @@ pub enum RequestOrResponse {
 pub trait HttpDrivenWrite: ServerType {
     /// Routes HTTP write requests.
     ///
-    /// Returns `RequestOrResponse::Response` if the request routed, otherwise the route does not match.
+    /// Returns `RequestOrResponse::Response` if the request was routed,
+    /// Returns `RequestOrResponse::Response` if the request did not match (and needs to be handled some other way)
     async fn route_write_http_request(
         &self,
         req: Request<Body>,
