@@ -1341,7 +1341,7 @@ mod tests {
         },
         utils::{make_db, make_db_time, TestDb},
     };
-    use ::test_helpers::assert_contains;
+    use ::test_helpers::{assert_contains, assert_error};
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
@@ -1481,11 +1481,7 @@ mod tests {
         let write = DbWrite::new(tables, Default::default());
         let res = db.route_write(&write).await;
 
-        assert!(
-            matches!(res, Err(Error::WriteBufferWritingError { .. })),
-            "Expected Err(Error::WriteBufferWritingError {{ .. }}), got: {:?}",
-            res
-        );
+        assert_error!(res, Error::WriteBufferWritingError { .. });
     }
 
     #[tokio::test]

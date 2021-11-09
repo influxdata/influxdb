@@ -198,6 +198,7 @@ mod tests {
     use crate::{paths::ALL_DATABASES_DIRECTORY, IoxObjectStore, RootPath};
     use object_store::{ObjectStore, ObjectStoreApi};
     use std::sync::Arc;
+    use test_helpers::assert_error;
 
     /// Creates a new in-memory object store. These tests rely on the `Path`s being of type
     /// `DirsAndFileName` and thus using object_store::path::DELIMITER as the separator
@@ -324,18 +325,15 @@ mod tests {
         // right directories so we don't check again on the way out
         path.push_all_dirs(&["foo", "bar", "baz", "}*", "aoeu", "blah"]);
         path.set_file_name("rules.pb");
-        let result = TransactionFilePath::from_absolute(path);
-        assert!(
-            matches!(result, Err(InvalidRevisionCounter { .. })),
-            "got: {:?}",
-            result
+        assert_error!(
+            TransactionFilePath::from_absolute(path),
+            InvalidRevisionCounter { .. },
         );
 
         let mut path = object_store.new_path();
         path.push_all_dirs(&["dbs", "uuid", "data", "00000000000000000123"]);
         // missing file name
-        let result = TransactionFilePath::from_absolute(path);
-        assert!(matches!(result, Err(MissingFileName)), "got: {:?}", result);
+        assert_error!(TransactionFilePath::from_absolute(path), MissingFileName,);
     }
 
     #[test]
