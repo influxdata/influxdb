@@ -352,7 +352,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	remotesServer := remotesTransport.NewInstrumentedRemotesHandler(
 		m.log.With(zap.String("handler", "remotes")), m.reg, remotesSvc)
 
-	replicationSvc := replications.NewService(m.sqlStore, ts, m.log.With(zap.String("service", "replications")), opts.EnginePath)
+	replicationSvc := replications.NewService(m.sqlStore, ts, pointsWriter, m.log.With(zap.String("service", "replications")), opts.EnginePath)
 	replicationServer := replicationTransport.NewInstrumentedReplicationHandler(
 		m.log.With(zap.String("handler", "replications")), m.reg, replicationSvc)
 	ts.BucketService = replications.NewBucketService(
@@ -371,11 +371,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			},
 		})
 
-		pointsWriter = &storage.MirroringPointsWriter{
-			Primary:   pointsWriter,
-			Secondary: replicationSvc,
-			Log:       m.log.With(zap.String("service", "mirroring-point-writer")),
-		}
+		pointsWriter = replicationSvc
 	}
 
 	deps, err := influxdb.NewDependencies(
