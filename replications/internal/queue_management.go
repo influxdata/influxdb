@@ -1,8 +1,6 @@
 package internal
 
 import (
-	"bytes"
-	"compress/gzip"
 	"errors"
 	"fmt"
 	"os"
@@ -10,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
 	"go.uber.org/zap"
 )
@@ -242,8 +239,8 @@ func (qm *durableQueueManager) CloseAll() error {
 	}
 }
 
-// EnqueuePoints persists a set of points to a replication's durable queue.
-func (qm *durableQueueManager) EnqueuePoints(replicationID platform.ID, points []models.Point) error {
+// EnqueueData persists a set of bytes to a replication's durable queue.
+func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byte) error {
 	qm.mutex.RLock()
 	defer qm.mutex.RUnlock()
 
@@ -251,23 +248,7 @@ func (qm *durableQueueManager) EnqueuePoints(replicationID platform.ID, points [
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}
 
-	// Serialize the points back into line protocol.
-	// gzip the data so it takes up less room on disk. We can send the gzip directly to the remote
-	// without needing to decompress it.
-	var buf bytes.Buffer
-	gzw := gzip.NewWriter(&buf)
-
-	for _, p := range points {
-		if _, err := gzw.Write(append([]byte(p.PrecisionString("ns")), '\n')); err != nil {
-			_ = gzw.Close()
-			return err
-		}
-	}
-	if err := gzw.Close(); err != nil {
-		return err
-	}
-
-	if err := qm.replicationQueues[replicationID].Append(buf.Bytes()); err != nil {
+	if err := qm.replicationQueues[replicationID].Append(data); err != nil {
 		return err
 	}
 

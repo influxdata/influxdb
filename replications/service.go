@@ -1,11 +1,14 @@
 package replications
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/influxdata/influxdb/v2"
@@ -71,9 +74,8 @@ type DurableQueueManager interface {
 	CurrentQueueSizes(ids []platform.ID) (map[platform.ID]int64, error)
 	StartReplicationQueues(trackedReplications map[platform.ID]int64) error
 	CloseAll() error
-	EnqueuePoints(replicationID platform.ID, points []models.Point) error
+	EnqueueData(replicationID platform.ID, data []byte) error
 }
-
 type service struct {
 	store               *sqlite.SqlStore
 	idGenerator         platform.IDGenerator
@@ -408,17 +410,40 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 		return err
 	}
 
-	var errOccurred bool
-	for _, id := range ids {
-		if err := s.durableQueueManager.EnqueuePoints(id, points); err != nil {
-			errOccurred = true
-			s.log.Error("Failed to enqueue points for replication", zap.String("id", id.String()), zap.Error(err))
-		}
+	// Bail out early if there are no registered replications.
+	if len(ids) == 0 {
+		return nil
 	}
 
-	if errOccurred {
-		return fmt.Errorf("replicating points from bucket %q failed for at least one target, see logs for details", bucketID)
+	// Serialize the points back into line protocol.
+	// gzip the data so it takes up less room on disk. We can send the gzip directly to the remote
+	// without needing to decompress it.
+	var buf bytes.Buffer
+	gzw := gzip.NewWriter(&buf)
+
+	for _, p := range points {
+		if _, err := gzw.Write(append([]byte(p.PrecisionString("ns")), '\n')); err != nil {
+			_ = gzw.Close()
+			return err
+		}
 	}
+	if err := gzw.Close(); err != nil {
+		return err
+	}
+
+	// Enqueue the data into all registered replications.
+	var wg sync.WaitGroup
+	wg.Add(len(ids))
+	for _, id := range ids {
+		go func(id platform.ID) {
+			defer wg.Done()
+			if err := s.durableQueueManager.EnqueueData(id, buf.Bytes()); err != nil {
+				s.log.Error("Failed to enqueue points for replication", zap.String("id", id.String()), zap.Error(err))
+			}
+		}(id)
+	}
+	wg.Wait()
+
 	return nil
 }
 
