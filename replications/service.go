@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/influxdata/influxdb/v2"
@@ -40,12 +41,15 @@ func errLocalBucketNotFound(id platform.ID, cause error) error {
 
 func NewService(store *sqlite.SqlStore, bktSvc BucketService, log *zap.Logger, enginePath string) *service {
 	return &service{
-		store:               store,
-		idGenerator:         snowflake.NewIDGenerator(),
-		bucketService:       bktSvc,
-		validator:           internal.NewValidator(),
-		log:                 log,
-		durableQueueManager: internal.NewDurableQueueManager(log, enginePath),
+		store:         store,
+		idGenerator:   snowflake.NewIDGenerator(),
+		bucketService: bktSvc,
+		validator:     internal.NewValidator(),
+		log:           log,
+		durableQueueManager: internal.NewDurableQueueManager(
+			log,
+			filepath.Join(enginePath, "replicationq"),
+		),
 	}
 }
 
@@ -64,6 +68,8 @@ type DurableQueueManager interface {
 	DeleteQueue(replicationID platform.ID) error
 	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
 	CurrentQueueSizes(ids []platform.ID) (map[platform.ID]int64, error)
+	StartReplicationQueues(trackedReplications map[platform.ID]int64) error
+	CloseAll() error
 }
 
 type service struct {
@@ -154,7 +160,7 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 
 	cleanupQueue := func() {
 		if cleanupErr := s.durableQueueManager.DeleteQueue(newID); cleanupErr != nil {
-			s.log.Warn("durable queue remaining on disk after initialization failure", zap.Error(cleanupErr), zap.String("ID", newID.String()))
+			s.log.Warn("durable queue remaining on disk after initialization failure", zap.Error(cleanupErr), zap.String("id", newID.String()))
 		}
 	}
 
@@ -270,7 +276,7 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 
 	if request.MaxQueueSizeBytes != nil {
 		if err := s.durableQueueManager.UpdateMaxQueueSize(id, *request.MaxQueueSizeBytes); err != nil {
-			s.log.Warn("actual max queue size does not match the max queue size recorded in database", zap.String("ID", id.String()))
+			s.log.Warn("actual max queue size does not match the max queue size recorded in database", zap.String("id", id.String()))
 			return nil, err
 		}
 	}
@@ -353,12 +359,12 @@ func (s service) DeleteBucketReplications(ctx context.Context, localBucketID pla
 	for _, replication := range deleted {
 		id, err := platform.IDFromString(replication)
 		if err != nil {
-			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err), zap.String("ID", replication))
+			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err), zap.String("id", replication))
 			errOccurred = true
 		}
 
 		if err := s.durableQueueManager.DeleteQueue(*id); err != nil {
-			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err), zap.String("ID", replication))
+			s.log.Error("durable queue remaining on disk after deletion failure", zap.Error(err), zap.String("id", replication))
 			errOccurred = true
 		}
 	}
@@ -422,5 +428,41 @@ func (s service) populateRemoteHTTPConfig(ctx context.Context, id platform.ID, t
 		return err
 	}
 
+	return nil
+}
+
+func (s service) Open(ctx context.Context) error {
+	var trackedReplications influxdb.Replications
+
+	// Get replications from sqlite
+	q := sq.Select(
+		"id", "max_queue_size_bytes").
+		From("replications")
+
+	query, args, err := q.ToSql()
+	if err != nil {
+		return err
+	}
+
+	if err := s.store.DB.SelectContext(ctx, &trackedReplications.Replications, query, args...); err != nil {
+		return err
+	}
+
+	trackedReplicationsMap := make(map[platform.ID]int64)
+	for _, r := range trackedReplications.Replications {
+		trackedReplicationsMap[r.ID] = r.MaxQueueSizeBytes
+	}
+
+	// Queue manager completes startup tasks
+	if err := s.durableQueueManager.StartReplicationQueues(trackedReplicationsMap); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s service) Close() error {
+	if err := s.durableQueueManager.CloseAll(); err != nil {
+		return err
+	}
 	return nil
 }

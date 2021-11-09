@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,23 +15,28 @@ import (
 type durableQueueManager struct {
 	replicationQueues map[platform.ID]*durablequeue.Queue
 	logger            *zap.Logger
-	enginePath        string
+	queuePath         string
 	mutex             sync.RWMutex
 }
 
+var errStartup = errors.New("startup tasks for replications durable queue management failed, see server logs for details")
+var errShutdown = errors.New("shutdown tasks for replications durable queues failed, see server logs for details")
+
 // NewDurableQueueManager creates a new durableQueueManager struct, for managing durable queues associated with
 //replication streams.
-func NewDurableQueueManager(log *zap.Logger, enginePath string) *durableQueueManager {
+func NewDurableQueueManager(log *zap.Logger, queuePath string) *durableQueueManager {
 	replicationQueues := make(map[platform.ID]*durablequeue.Queue)
+
+	os.MkdirAll(queuePath, 0777)
 
 	return &durableQueueManager{
 		replicationQueues: replicationQueues,
 		logger:            log,
-		enginePath:        enginePath,
+		queuePath:         queuePath,
 	}
 }
 
-// InitializeQueue creates a new durable queue which is associated with a replication stream.
+// InitializeQueue creates and opens a new durable queue which is associated with a replication stream.
 func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error {
 	qm.mutex.Lock()
 	defer qm.mutex.Unlock()
@@ -42,8 +48,7 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 
 	// Set up path for new queue on disk
 	dir := filepath.Join(
-		qm.enginePath,
-		"replicationq",
+		qm.queuePath,
 		replicationID.String(),
 	)
 	if err := os.MkdirAll(dir, 0777); err != nil {
@@ -111,7 +116,7 @@ func (qm *durableQueueManager) DeleteQueue(replicationID platform.ID) error {
 	return nil
 }
 
-// UpdateMaxQueueSize updates the maximum size of the durable queue.
+// UpdateMaxQueueSize updates the maximum size of a durable queue.
 func (qm *durableQueueManager) UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error {
 	qm.mutex.RLock()
 	defer qm.mutex.RUnlock()
@@ -142,4 +147,94 @@ func (qm *durableQueueManager) CurrentQueueSizes(ids []platform.ID) (map[platfor
 	}
 
 	return sizes, nil
+}
+
+// StartReplicationQueues updates the durableQueueManager.replicationQueues map, fully removing any partially deleted
+// queues (present on disk, but not tracked in sqlite), opening all current queues, and logging info for each.
+func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[platform.ID]int64) error {
+	errOccurred := false
+
+	for id, size := range trackedReplications {
+		// Re-initialize a queue struct for each replication stream from sqlite
+		queue, err := durablequeue.NewQueue(
+			filepath.Join(qm.queuePath, id.String()),
+			size,
+			durablequeue.DefaultSegmentSize,
+			&durablequeue.SharedCount{},
+			durablequeue.MaxWritesPending,
+			func(bytes []byte) error {
+				return nil
+			},
+		)
+
+		if err != nil {
+			qm.logger.Error("failed to initialize replication stream durable queue", zap.Error(err))
+			errOccurred = true
+			continue
+		}
+
+		// Open and map the queue struct to its replication ID
+		if err := queue.Open(); err != nil {
+			qm.logger.Error("failed to open replication stream durable queue", zap.Error(err), zap.String("id", id.String()))
+			errOccurred = true
+			continue
+		} else {
+			qm.replicationQueues[id] = queue
+			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
+		}
+	}
+
+	if errOccurred {
+		return errStartup
+	}
+
+	// Get contents of replicationq directory
+	entries, err := os.ReadDir(qm.queuePath)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		// Skip over non-relevant entries (must be a dir named with a replication ID)
+		if !entry.IsDir() {
+			continue
+		}
+
+		id, err := platform.IDFromString(entry.Name())
+		if err != nil {
+			continue
+		}
+
+		// Partial delete found, needs to be fully removed
+		if qm.replicationQueues[*id] == nil {
+			if err := os.RemoveAll(filepath.Join(qm.queuePath, id.String())); err != nil {
+				qm.logger.Error("failed to remove durable queue during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
+				errOccurred = true
+			}
+		}
+	}
+
+	if errOccurred {
+		return errStartup
+	} else {
+		return nil
+	}
+}
+
+// CloseAll loops through all current replication stream queues and closes them without deleting on-disk resources
+func (qm *durableQueueManager) CloseAll() error {
+	errOccurred := false
+
+	for id, queue := range qm.replicationQueues {
+		if err := queue.Close(); err != nil {
+			qm.logger.Error("failed to close durable queue", zap.Error(err), zap.String("id", id.String()))
+			errOccurred = true
+		}
+	}
+
+	if errOccurred {
+		return errShutdown
+	} else {
+		return nil
+	}
 }

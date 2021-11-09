@@ -49,6 +49,20 @@ func (mr *MockDurableQueueManagerMockRecorder) CurrentQueueSizes(arg0 interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentQueueSizes", reflect.TypeOf((*MockDurableQueueManager)(nil).CurrentQueueSizes), arg0)
 }
 
+// CloseAll mocks base method.
+func (m *MockDurableQueueManager) CloseAll() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseAll")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CloseAll indicates an expected call of CloseAll.
+func (mr *MockDurableQueueManagerMockRecorder) CloseAll() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseAll", reflect.TypeOf((*MockDurableQueueManager)(nil).CloseAll))
+}
+
 // DeleteQueue mocks base method.
 func (m *MockDurableQueueManager) DeleteQueue(arg0 platform.ID) error {
 	m.ctrl.T.Helper()
@@ -75,6 +89,20 @@ func (m *MockDurableQueueManager) InitializeQueue(arg0 platform.ID, arg1 int64) 
 func (mr *MockDurableQueueManagerMockRecorder) InitializeQueue(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitializeQueue", reflect.TypeOf((*MockDurableQueueManager)(nil).InitializeQueue), arg0, arg1)
+}
+
+// StartReplicationQueues mocks base method.
+func (m *MockDurableQueueManager) StartReplicationQueues(arg0 map[platform.ID]int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StartReplicationQueues", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// StartReplicationQueues indicates an expected call of StartReplicationQueues.
+func (mr *MockDurableQueueManagerMockRecorder) StartReplicationQueues(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartReplicationQueues", reflect.TypeOf((*MockDurableQueueManager)(nil).StartReplicationQueues), arg0)
 }
 
 // UpdateMaxQueueSize mocks base method.
