@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::iter::once;
+use std::num::NonZeroU32;
 use std::path::Path;
 use std::time::Duration;
 use std::{convert::TryInto, str, u32};
@@ -19,6 +21,7 @@ use rand::{
     distributions::{Alphanumeric, Standard},
     thread_rng, Rng,
 };
+use tempfile::TempDir;
 use test_helpers::assert_contains;
 
 use data_types::{names::org_and_bucket_to_database, DatabaseName};
@@ -33,8 +36,8 @@ use generated_types::{
 };
 use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
 use time::SystemProvider;
-use write_buffer::core::WriteBufferWriting;
-use write_buffer::file::FileBufferProducer;
+use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
+use write_buffer::file::{FileBufferConsumer, FileBufferProducer};
 
 use crate::common::server_fixture::{ServerFixture, TestConfig, DEFAULT_SERVER_ID};
 
@@ -766,4 +769,69 @@ pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> S
     assert_contains!(load_error, "error during replay: Cannot replay");
 
     fixture
+}
+
+pub async fn create_router_to_write_buffer(
+    fixture: &ServerFixture,
+    db_name: &str,
+) -> (TempDir, Box<dyn WriteBufferReading>) {
+    use influxdb_iox_client::router::generated_types::{
+        write_sink::Sink, Matcher, MatcherToShard, Router, ShardConfig, WriteSink, WriteSinkSet,
+    };
+
+    let write_buffer_dir = TempDir::new().unwrap();
+
+    let write_buffer_connection = WriteBufferConnection {
+        direction: write_buffer_connection::Direction::Write.into(),
+        r#type: "file".to_string(),
+        connection: write_buffer_dir.path().display().to_string(),
+        creation_config: Some(WriteBufferCreationConfig {
+            n_sequencers: 1,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let router_cfg = Router {
+        name: db_name.to_string(),
+        write_sharder: Some(ShardConfig {
+            specific_targets: vec![MatcherToShard {
+                matcher: Some(Matcher {
+                    table_name_regex: String::from(".*"),
+                }),
+                shard: 1,
+            }],
+            hash_ring: None,
+        }),
+        write_sinks: HashMap::from([(
+            1,
+            WriteSinkSet {
+                sinks: vec![WriteSink {
+                    ignore_errors: false,
+                    sink: Some(Sink::WriteBuffer(write_buffer_connection)),
+                }],
+            },
+        )]),
+        query_sinks: Default::default(),
+    };
+    fixture
+        .router_client()
+        .update_router(router_cfg)
+        .await
+        .unwrap();
+
+    let write_buffer: Box<dyn WriteBufferReading> = Box::new(
+        FileBufferConsumer::new(
+            write_buffer_dir.path(),
+            db_name,
+            Some(&data_types::write_buffer::WriteBufferCreationConfig {
+                n_sequencers: NonZeroU32::new(1).unwrap(),
+                ..Default::default()
+            }),
+            None,
+        )
+        .await
+        .unwrap(),
+    );
+
+    (write_buffer_dir, write_buffer)
 }

@@ -6,6 +6,7 @@ use std::{
 
 use http::header::CONTENT_TYPE;
 use hyper::{server::conn::AddrIncoming, StatusCode};
+use reqwest::Client;
 use serde::de::DeserializeOwned;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -141,4 +142,69 @@ where
     fn drop(&mut self) {
         self.join_handle.abort();
     }
+}
+
+pub const TEST_MAX_REQUEST_SIZE: usize = 1024 * 1024;
+
+/// Assert that health route is working.
+pub async fn assert_health<T>(test_server: TestServer<T>)
+where
+    T: ServerType,
+{
+    let client = Client::new();
+    let response = client
+        .get(&format!("{}/health", test_server.url()))
+        .send()
+        .await;
+
+    // Print the response so if the test fails, we have a log of what went wrong
+    check_response("health", response, StatusCode::OK, Some("OK")).await;
+}
+
+/// Assert that metrics exposure is working.
+pub async fn assert_metrics<T>(test_server: TestServer<T>)
+where
+    T: ServerType,
+{
+    use metric::{Metric, U64Counter};
+
+    let metric: Metric<U64Counter> = test_server
+        .server_type()
+        .metric_registry()
+        .register_metric("my_metric", "description");
+
+    metric.recorder(&[("tag", "value")]).inc(20);
+
+    let client = Client::new();
+    let response = client
+        .get(&format!("{}/metrics", test_server.url()))
+        .send()
+        .await
+        .unwrap();
+
+    let data = response.text().await.unwrap();
+
+    assert!(data.contains(&"\nmy_metric_total{tag=\"value\"} 20\n"));
+
+    let response = client
+        .get(&format!("{}/nonexistent", test_server.url()))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status().as_u16(), 404);
+
+    let response = client
+        .get(&format!("{}/metrics", test_server.url()))
+        .send()
+        .await
+        .unwrap();
+
+    let data = response.text().await.unwrap();
+
+    // Should include previous metrics scrape but not the current one
+    assert!(data.contains(&"\nhttp_requests_total{path=\"/metrics\",status=\"ok\"} 1\n"));
+    // Should include 404 but not encode the path
+    assert!(!data.contains(&"nonexistent"));
+    assert!(data.contains(&"\nhttp_requests_total{status=\"client_error\"} 1\n"));
 }
