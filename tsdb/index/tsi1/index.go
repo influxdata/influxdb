@@ -397,9 +397,9 @@ func (i *Index) updateMeasurementSketches() error {
 	for j := 0; j < int(i.PartitionN); j++ {
 		if s, t, err := i.partitions[j].MeasurementsSketches(); err != nil {
 			return err
-		} else if i.mSketch.Merge(s); err != nil {
+		} else if err := i.mSketch.Merge(s); err != nil {
 			return err
-		} else if i.mTSketch.Merge(t); err != nil {
+		} else if err := i.mTSketch.Merge(t); err != nil {
 			return err
 		}
 	}
@@ -411,9 +411,9 @@ func (i *Index) updateSeriesSketches() error {
 	for j := 0; j < int(i.PartitionN); j++ {
 		if s, t, err := i.partitions[j].SeriesSketches(); err != nil {
 			return err
-		} else if i.sSketch.Merge(s); err != nil {
+		} else if err := i.sSketch.Merge(s); err != nil {
 			return err
-		} else if i.sTSketch.Merge(t); err != nil {
+		} else if err := i.sTSketch.Merge(t); err != nil {
 			return err
 		}
 	}
