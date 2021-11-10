@@ -7,7 +7,6 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -110,7 +109,7 @@ func TestStartReplicationQueue(t *testing.T) {
 	require.NotNil(t, qm.replicationQueues[id1])
 
 	// Ensure queue is open by trying to remove, will error if open
-	err = qm.replicationQueues[id1].Remove()
+	err = qm.replicationQueues[id1].queue.Remove()
 	require.Errorf(t, err, "queue is open")
 }
 
@@ -179,9 +178,9 @@ func TestStartReplicationQueuesMultiple(t *testing.T) {
 	require.DirExists(t, filepath.Join(queuePath, id2.String()))
 
 	// Ensure both queues are open by trying to remove, will error if open
-	err = qm.replicationQueues[id1].Remove()
+	err = qm.replicationQueues[id1].queue.Remove()
 	require.Errorf(t, err, "queue is open")
-	err = qm.replicationQueues[id2].Remove()
+	err = qm.replicationQueues[id2].queue.Remove()
 	require.Errorf(t, err, "queue is open")
 }
 
@@ -221,7 +220,7 @@ func TestStartReplicationQueuesMultipleWithPartialDelete(t *testing.T) {
 	require.NoDirExists(t, filepath.Join(queuePath, id2.String()))
 
 	// Ensure queue1 is open by trying to remove, will error if open
-	err = qm.replicationQueues[id1].Remove()
+	err = qm.replicationQueues[id1].queue.Remove()
 	require.Errorf(t, err, "queue is open")
 }
 
@@ -246,7 +245,7 @@ func shutdown(t *testing.T, qm *durableQueueManager) {
 	require.NoError(t, err)
 
 	// Clear replication queues map
-	emptyMap := make(map[platform.ID]*durablequeue.Queue)
+	emptyMap := make(map[platform.ID]replicationQueue)
 	qm.replicationQueues = emptyMap
 }
 
@@ -275,7 +274,7 @@ func TestEnqueueData(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, sizes[id1], int64(8))
 
-	written, err := qm.replicationQueues[id1].Current()
+	written, err := qm.replicationQueues[id1].queue.Current()
 	require.NoError(t, err)
 
 	require.Equal(t, data, string(written))
