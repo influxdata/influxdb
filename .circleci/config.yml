@@ -360,10 +360,11 @@ jobs:
           # Disabling for now, and tracked further investigations
           # in https://github.com/influxdata/k8s-idpe/issues/3038
           docker_layer_caching: false
-          version: 20.10.7
+          version: 19.03.14
       - run: |
           sudo apt-get update
           sudo apt-get install -y docker.io
+          docker --version
       - run: |
           echo "$QUAY_INFLUXDB_IOX_PASS" | docker login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
       - run:
@@ -380,7 +381,7 @@ jobs:
           sha256sum target/release/influxdb_iox
           COMMIT_SHA=$(git rev-parse --short HEAD)
           docker build -t quay.io/influxdb/iox:$COMMIT_SHA -t quay.io/influxdb/iox:main -f docker/Dockerfile.iox .
-          docker push quay.io/influxdb/iox --all-tags
+          docker push quay.io/influxdb/iox
           echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
       - run:
           name: Deploy tags
