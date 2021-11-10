@@ -116,14 +116,6 @@ go get \
   github.com/influxdata/influxdb-comparisons/cmd/bulk_query_gen \
   github.com/influxdata/influxdb-comparisons/cmd/query_benchmarker_influxdb
 
-# hack to get the daemon to start up again until https://github.com/influxdata/influxdb/issues/21757 is resolved
-systemctl stop influxdb
-sed -i 's/User=influxdb/User=root/g' /lib/systemd/system/influxdb.service
-sed -i 's/Group=influxdb/Group=root/g' /lib/systemd/system/influxdb.service
-systemctl daemon-reload
-systemctl unmask influxdb.service
-systemctl start influxdb
-
 # Common variables used across all tests
 datestring=${TEST_COMMIT_TIME}
 seed=$datestring
@@ -163,12 +155,12 @@ force_compaction() {
   set -e
   for shard in $shards; do
     if [ -n "$(find $shard -name *.tsm)" ]; then
-      /home/ubuntu/influx_tools compact-shard -force -verbose -path $shard
+      # compact as the influxdb user in order to keep file permissions correct
+      sudo -u influxdb /home/ubuntu/influx_tools compact-shard -force -verbose -path $shard
     fi
   done
 
   # restart daemon
-  systemctl unmask influxdb.service
   systemctl start influxdb
 }
 
@@ -342,9 +334,7 @@ for usecase in iot metaquery multi-measurement; do
         $working_dir/test-query-$format-$query_usecase-$type.json
 
       # Restart daemon between query tests.
-      systemctl stop influxdb
-      systemctl unmask influxdb.service
-      systemctl start influxdb
+      systemctl restart influxdb
   done
 
   # Delete DB to start anew.
