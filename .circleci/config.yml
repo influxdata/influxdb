@@ -348,8 +348,11 @@ jobs:
       - run:
           name: Cargo release build with target arch set for CRoaring
           command: cargo build --release --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc"
+      - run:
+          name: Compress debug symbols
+          command: objcopy --compress-debug-sections target/release/influxdb_iox
       - run: |
-          echo sha256sum after build is
+          echo "binary sha256sum after build is (not to be confused w/ the GIT SHA and the resulting image SHA!)"
           sha256sum target/release/influxdb_iox
       - run:
           name: Print rustc target CPU options
@@ -377,8 +380,6 @@ jobs:
           command: mv docker/Dockerfile.iox.dockerignore .dockerignore
       - run: |
           BRANCH=$(git rev-parse --abbrev-ref HEAD | tr '/' '.')
-          echo sha256sum after build is
-          sha256sum target/release/influxdb_iox
           COMMIT_SHA=$(git rev-parse --short HEAD)
           docker build -t quay.io/influxdb/iox:$COMMIT_SHA -t quay.io/influxdb/iox:main -f docker/Dockerfile.iox .
           docker push quay.io/influxdb/iox
