@@ -24,7 +24,7 @@ cleanup() {
       --url https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline \
       --header "Circle-Token: ${CIRCLE_TOKEN}" \
       --header 'content-type: application/json' \
-      --data "{\"branch\":\"${INFLUXDB_VERSION}\", \"parameters\":{\"aws_teardown\": true, \"aws_teardown_branch\":\"${INFLUXDB_VERSION}\", \"aws_teardown_sha\":\"${TEST_COMMIT}\", \"aws_teardown_datestring\":\"${CIRCLE_TEARDOWN_DATESTRING}\", \"aws_teardown_query_format\":\"${TEST_FORMAT}\"}}"
+      --data "{\"branch\":\"${INFLUXDB_VERSION}\", \"parameters\":{\"workflow_type\": \"aws_teardown\", \"aws_teardown_branch\":\"${INFLUXDB_VERSION}\", \"aws_teardown_sha\":\"${TEST_COMMIT}\", \"aws_teardown_datestring\":\"${CIRCLE_TEARDOWN_DATESTRING}\"}}"
   fi
 }
 trap "cleanup" EXIT KILL
@@ -214,13 +214,13 @@ query_types() {
 # clear. This function will translate the aliased query use cases to their
 # dataset use cases. Effectively this means "for this query use case, run the
 # queries against this dataset use case".
-query_usecase_alias() {
+queries_for_dataset() {
   case $1 in
-    window-agg|group-agg|bare-agg|ungrouped-agg|group-window-transpose|iot|group-window-transpose-low-card)
-      echo iot
+    iot)
+      echo window-agg group-agg bare-agg ungrouped-agg group-window-transpose iot group-window-transpose-low-card
       ;;
-    metaquery|group-window-transpose-high-card|cardinality)
-      echo metaquery
+    metaquery)
+      echo metaquery group-window-transpose-high-card cardinality
       ;;
     multi-measurement)
       echo multi-measurement
@@ -257,27 +257,11 @@ curl -XPOST -H "Authorization: Token ${TEST_TOKEN}" \
 ## Run and record tests ##
 ##########################
 
-# Generate queries to test.
-query_files=""
-for usecase in window-agg group-agg bare-agg ungrouped-agg group-window-transpose-low-card group-window-transpose-high-card iot metaquery multi-measurement; do
-  for type in $(query_types $usecase); do
-    query_fname="${TEST_FORMAT}_${usecase}_${type}"
-    $GOPATH/bin/bulk_query_gen \
-        -use-case=$usecase \
-        -query-type=$type \
-        -format=influx-${TEST_FORMAT} \
-        -timestamp-start=$(start_time $usecase) \
-        -timestamp-end=$(end_time $usecase) \
-        -queries=$queries \
-        -scale-var=$scale_var > \
-      ${DATASET_DIR}/$query_fname
-    query_files="$query_files $query_fname"
-  done
-done
-
 # Generate and ingest bulk data. Record the time spent as an ingest test if
 # specified, and run the query performance tests for each dataset.
 for usecase in iot metaquery multi-measurement; do
+  USECASE_DIR="${DATASET_DIR}/$usecase"
+  mkdir "$USECASE_DIR"
   data_fname="influx-bulk-records-usecase-$usecase"
   $GOPATH/bin/bulk_data_gen \
       -seed=$seed \
@@ -285,41 +269,51 @@ for usecase in iot metaquery multi-measurement; do
       -scale-var=$scale_var \
       -timestamp-start=$(start_time $usecase) \
       -timestamp-end=$(end_time $usecase) > \
-    ${DATASET_DIR}/$data_fname
+    ${USECASE_DIR}/$data_fname
 
-  load_opts="-file=${DATASET_DIR}/$data_fname -batch-size=$batch -workers=$workers -urls=http://${NGINX_HOST}:8086 -do-abort-on-exist=false -do-db-create=true -backoff=1s -backoff-timeout=300m0s"
+  load_opts="-file=${USECASE_DIR}/$data_fname -batch-size=$batch -workers=$workers -urls=http://${NGINX_HOST}:8086 -do-abort-on-exist=false -do-db-create=true -backoff=1s -backoff-timeout=300m0s"
   if [ -z $INFLUXDB2 ] || [ $INFLUXDB2 = true ]; then
     load_opts="$load_opts -organization=$TEST_ORG -token=$TEST_TOKEN"
   fi
 
-  # Run ingest tests. Only write the results to disk if this run should contribute to ingest-test results.
-  out=/dev/null
-  if [ "${TEST_RECORD_INGEST_RESULTS}" = true ]; then
-    out=$working_dir/test-ingest-$usecase.json
-  fi
   $GOPATH/bin/bulk_load_influx $load_opts | \
-    jq ". += {branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", use_case: \"$usecase\"}" > ${out}
+    jq ". += {branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", use_case: \"$usecase\"}" > "$working_dir/test-ingest-$usecase.json"
 
   # Cleanup from the data generation and loading.
   force_compaction
-  rm ${DATASET_DIR}/$data_fname
+  rm ${USECASE_DIR}/$data_fname
 
   # Generate a DBRP mapping for use by InfluxQL queries.
   create_dbrp
- 
+
+  # Generate queries to test.
+  query_files=""
+  for TEST_FORMAT in http flux-http ; do
+    for query_usecase in $(queries_for_dataset $usecase) ; do
+      for type in $(query_types $query_usecase) ; do
+        query_fname="${TEST_FORMAT}_${query_usecase}_${type}"
+        $GOPATH/bin/bulk_query_gen \
+            -use-case=$query_usecase \
+            -query-type=$type \
+            -format=influx-${TEST_FORMAT} \
+            -timestamp-start=$(start_time $query_usecase) \
+            -timestamp-end=$(end_time $query_usecase) \
+            -queries=$queries \
+            -scale-var=$scale_var > \
+          ${USECASE_DIR}/$query_fname
+        query_files="$query_files $query_fname"
+      done
+    done
+  done
+
   # Run the query tests applicable to this dataset.
-  for query_file in $query_files; do 
+  for query_file in $query_files; do
     format=$(echo $query_file | cut -d '_' -f1)
     query_usecase=$(echo $query_file | cut -d '_' -f2)
     type=$(echo $query_file | cut -d '_' -f3)
 
-    # Only run the query tests for queries applicable to this dataset.
-    if [ "$usecase" != "$(query_usecase_alias $query_usecase)" ]; then
-      continue
-    fi
-
     ${GOPATH}/bin/query_benchmarker_influxdb \
-        -file=${DATASET_DIR}/$query_file \
+        -file=${USECASE_DIR}/$query_file \
         -urls=http://${NGINX_HOST}:8086 \
         -debug=0 \
         -print-interval=0 \
@@ -339,9 +333,11 @@ for usecase in iot metaquery multi-measurement; do
 
   # Delete DB to start anew.
   curl -X DELETE -H "Authorization: Token ${TEST_TOKEN}" http://${NGINX_HOST}:8086/api/v2/buckets/$(bucket_id)
+  rm -rf "$USECASE_DIR"
 done
 
-echo "Using Telegraph to report results from the following files:"
-ls $working_dir
-
-telegraf --debug --once
+if [[ "${TEST_RECORD_INGEST_RESULTS}" == true ]] ; then
+  echo "Using Telegraph to report results from the following files:"
+  ls $working_dir
+  telegraf --debug --once
+fi
