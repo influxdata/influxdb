@@ -1,21 +1,27 @@
 package replications
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/replications/internal"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/sqlite"
+	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/mattn/go-sqlite3"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 var errReplicationNotFound = &ierrors.Error{
@@ -39,11 +45,12 @@ func errLocalBucketNotFound(id platform.ID, cause error) error {
 	}
 }
 
-func NewService(store *sqlite.SqlStore, bktSvc BucketService, log *zap.Logger, enginePath string) *service {
+func NewService(store *sqlite.SqlStore, bktSvc BucketService, localWriter storage.PointsWriter, log *zap.Logger, enginePath string) *service {
 	return &service{
 		store:         store,
 		idGenerator:   snowflake.NewIDGenerator(),
 		bucketService: bktSvc,
+		localWriter:   localWriter,
 		validator:     internal.NewValidator(),
 		log:           log,
 		durableQueueManager: internal.NewDurableQueueManager(
@@ -70,6 +77,7 @@ type DurableQueueManager interface {
 	CurrentQueueSizes(ids []platform.ID) (map[platform.ID]int64, error)
 	StartReplicationQueues(trackedReplications map[platform.ID]int64) error
 	CloseAll() error
+	EnqueueData(replicationID platform.ID, data []byte) error
 }
 
 type service struct {
@@ -78,6 +86,7 @@ type service struct {
 	bucketService       BucketService
 	validator           ReplicationValidator
 	durableQueueManager DurableQueueManager
+	localWriter         storage.PointsWriter
 	log                 *zap.Logger
 }
 
@@ -391,6 +400,68 @@ func (s service) ValidateReplication(ctx context.Context, id platform.ID) error 
 			Err:  err,
 		}
 	}
+	return nil
+}
+
+func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
+	q := sq.Select("id").From("replications").Where(sq.Eq{"org_id": orgID, "local_bucket_id": bucketID})
+	query, args, err := q.ToSql()
+	if err != nil {
+		return err
+	}
+
+	var ids []platform.ID
+	if err := s.store.DB.SelectContext(ctx, &ids, query, args...); err != nil {
+		return err
+	}
+
+	// If there are no registered replications, all we need to do is a local write.
+	if len(ids) == 0 {
+		return s.localWriter.WritePoints(ctx, orgID, bucketID, points)
+	}
+
+	// Concurrently...
+	var egroup errgroup.Group
+	var buf bytes.Buffer
+	gzw := gzip.NewWriter(&buf)
+
+	// 1. Write points to local TSM
+	egroup.Go(func() error {
+		return s.localWriter.WritePoints(ctx, orgID, bucketID, points)
+	})
+	// 2. Serialize points to gzipped line protocol, to be enqueued for replication if the local write succeeds.
+	//    We gzip the LP to take up less room on disk. On the other end of the queue, we can send the gzip data
+	//    directly to the remote API without needing to decompress it.
+	egroup.Go(func() error {
+		for _, p := range points {
+			if _, err := gzw.Write(append([]byte(p.PrecisionString("ns")), '\n')); err != nil {
+				_ = gzw.Close()
+				return fmt.Errorf("failed to serialize points for replication: %w", err)
+			}
+		}
+		if err := gzw.Close(); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err := egroup.Wait(); err != nil {
+		return err
+	}
+
+	// Enqueue the data into all registered replications.
+	var wg sync.WaitGroup
+	wg.Add(len(ids))
+	for _, id := range ids {
+		go func(id platform.ID) {
+			defer wg.Done()
+			if err := s.durableQueueManager.EnqueueData(id, buf.Bytes()); err != nil {
+				s.log.Error("Failed to enqueue points for replication", zap.String("id", id.String()), zap.Error(err))
+			}
+		}(id)
+	}
+	wg.Wait()
+
 	return nil
 }
 

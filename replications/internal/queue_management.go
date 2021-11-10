@@ -238,3 +238,19 @@ func (qm *durableQueueManager) CloseAll() error {
 		return nil
 	}
 }
+
+// EnqueueData persists a set of bytes to a replication's durable queue.
+func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byte) error {
+	qm.mutex.RLock()
+	defer qm.mutex.RUnlock()
+
+	if qm.replicationQueues[replicationID] == nil {
+		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
+	}
+
+	if err := qm.replicationQueues[replicationID].Append(data); err != nil {
+		return err
+	}
+
+	return nil
+}

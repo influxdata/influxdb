@@ -249,3 +249,34 @@ func shutdown(t *testing.T, qm *durableQueueManager) {
 	emptyMap := make(map[platform.ID]*durablequeue.Queue)
 	qm.replicationQueues = emptyMap
 }
+
+func TestEnqueueData(t *testing.T) {
+	t.Parallel()
+
+	queuePath, err := os.MkdirTemp("", "testqueue")
+	require.NoError(t, err)
+	defer os.RemoveAll(queuePath)
+
+	logger := zaptest.NewLogger(t)
+	qm := NewDurableQueueManager(logger, queuePath)
+
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.DirExists(t, filepath.Join(queuePath, id1.String()))
+
+	sizes, err := qm.CurrentQueueSizes([]platform.ID{id1})
+	require.NoError(t, err)
+	// Empty queues are 8 bytes for the footer.
+	require.Equal(t, map[platform.ID]int64{id1: 8}, sizes)
+
+	data := "some fake data"
+
+	require.NoError(t, qm.EnqueueData(id1, []byte(data)))
+	sizes, err = qm.CurrentQueueSizes([]platform.ID{id1})
+	require.NoError(t, err)
+	require.Greater(t, sizes[id1], int64(8))
+
+	written, err := qm.replicationQueues[id1].Current()
+	require.NoError(t, err)
+
+	require.Equal(t, data, string(written))
+}
