@@ -1,0 +1,14 @@
+[package]
+name = "dml"
+version = "0.1.0"
+edition = "2021"
+description = "DML types"
+
+[dependencies]
+arrow_util = { path = "../arrow_util" }
+data_types = { path = "../data_types" }
+hashbrown = "0.11"
+mutable_batch = { path = "../mutable_batch" }
+schema = { path = "../schema" }
+time = { path = "../time" }
+trace = { path = "../trace" }

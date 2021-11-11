@@ -58,7 +58,11 @@ static VERSION_STRING: Lazy<String> = Lazy::new(|| {
 /// +------+--------------------------------------+
 const TABLE_STYLE_SINGLE_LINE_BORDERS: &str = "||--+-++|    ++++++";
 
-#[cfg(all(feature = "heappy", feature = "jemalloc_replacing_malloc"))]
+#[cfg(all(
+    feature = "heappy",
+    feature = "jemalloc_replacing_malloc",
+    not(feature = "clippy")
+))]
 compile_error!("heappy and jemalloc_replacing_malloc features are mutually exclusive");
 
 #[derive(Debug, StructOpt)]

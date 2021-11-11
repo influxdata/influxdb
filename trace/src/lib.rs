@@ -7,7 +7,7 @@
     clippy::future_not_send
 )]
 
-use std::collections::VecDeque;
+use std::{any::Any, collections::VecDeque};
 
 use parking_lot::Mutex;
 
@@ -22,6 +22,9 @@ pub mod span;
 pub trait TraceCollector: std::fmt::Debug + Send + Sync {
     /// Exports the specified `Span` for collection by the sink
     fn export(&self, span: Span);
+
+    /// Cast client to [`Any`], useful for downcasting.
+    fn as_any(&self) -> &dyn Any;
 }
 
 /// A basic trace collector that prints to stdout
@@ -43,6 +46,10 @@ impl Default for LogTraceCollector {
 impl TraceCollector for LogTraceCollector {
     fn export(&self, span: Span) {
         info!("completed span {:?}", span)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -71,5 +78,9 @@ impl TraceCollector for RingBufferTraceCollector {
             buffer.pop_front();
         }
         buffer.push_back(span);
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }

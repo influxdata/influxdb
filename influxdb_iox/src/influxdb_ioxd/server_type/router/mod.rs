@@ -8,6 +8,7 @@ use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 use crate::influxdb_ioxd::{
+    http::metrics::LineProtocolMetrics,
     rpc::RpcBuilderInput,
     server_type::{common_state::CommonServerState, RpcError, ServerType},
     serving_readiness::ServingReadiness,
@@ -23,14 +24,20 @@ pub struct RouterServerType {
     server: Arc<RouterServer>,
     serving_readiness: ServingReadiness,
     shutdown: CancellationToken,
+    max_request_size: usize,
+    lp_metrics: Arc<LineProtocolMetrics>,
 }
 
 impl RouterServerType {
     pub fn new(server: Arc<RouterServer>, common_state: &CommonServerState) -> Self {
+        let lp_metrics = Arc::new(LineProtocolMetrics::new(server.metric_registry().as_ref()));
+
         Self {
             server,
             serving_readiness: common_state.serving_readiness().clone(),
             shutdown: CancellationToken::new(),
+            max_request_size: common_state.run_config().max_http_request_size,
+            lp_metrics,
         }
     }
 }

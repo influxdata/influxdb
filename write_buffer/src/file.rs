@@ -122,8 +122,8 @@ use std::{
 use crate::codec::{ContentType, IoxHeaders};
 use async_trait::async_trait;
 use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
+use dml::{DmlMeta, DmlWrite};
 use futures::{channel::mpsc::Receiver, FutureExt, SinkExt, Stream, StreamExt};
-use mutable_batch::{DbWrite, WriteMeta};
 use pin_project::{pin_project, pinned_drop};
 use time::{Time, TimeProvider};
 use tokio::task::JoinHandle;
@@ -173,8 +173,8 @@ impl WriteBufferWriting for FileBufferProducer {
     async fn store_write(
         &self,
         sequencer_id: u32,
-        write: &DbWrite,
-    ) -> Result<WriteMeta, WriteBufferError> {
+        write: &DmlWrite,
+    ) -> Result<DmlMeta, WriteBufferError> {
         let sequencer_path = self
             .dirs
             .get(&sequencer_id)
@@ -240,7 +240,7 @@ impl WriteBufferWriting for FileBufferProducer {
         // unlink scratchpad file (and ignore error)
         tokio::fs::remove_file(&temp_file).await.ok();
 
-        Ok(WriteMeta::sequenced(
+        Ok(DmlMeta::sequenced(
             Sequence::new(sequencer_id, sequence_number),
             now,
             write.meta().span_context().cloned(),
@@ -345,7 +345,7 @@ impl WriteBufferReading for FileBufferConsumer {
 struct ConsumerStream {
     join_handle: JoinHandle<()>,
     #[pin]
-    rx: Receiver<Result<DbWrite, WriteBufferError>>,
+    rx: Receiver<Result<DmlWrite, WriteBufferError>>,
 }
 
 impl ConsumerStream {
@@ -438,7 +438,7 @@ impl ConsumerStream {
         mut data: Vec<u8>,
         sequence: Sequence,
         trace_collector: Option<Arc<dyn TraceCollector>>,
-    ) -> Result<DbWrite, WriteBufferError> {
+    ) -> Result<DmlWrite, WriteBufferError> {
         let mut headers = [httparse::EMPTY_HEADER; 16];
         match httparse::parse_headers(&data, &mut headers)? {
             httparse::Status::Complete((offset, headers)) => {
@@ -482,7 +482,7 @@ impl PinnedDrop for ConsumerStream {
 }
 
 impl Stream for ConsumerStream {
-    type Item = Result<DbWrite, WriteBufferError>;
+    type Item = Result<DmlWrite, WriteBufferError>;
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -630,7 +630,7 @@ pub mod test_utils {
 mod tests {
     use std::num::NonZeroU32;
 
-    use mutable_batch::test_util::assert_writes_eq;
+    use dml::test_util::assert_writes_eq;
     use tempfile::TempDir;
     use trace::RingBufferTraceCollector;
 

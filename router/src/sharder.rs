@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
 
 use data_types::router::{ShardConfig, ShardId};
+use dml::DmlWrite;
 use hashbrown::HashMap;
-use mutable_batch::{DbWrite, MutableBatch};
+use mutable_batch::MutableBatch;
 
 /// Shard given write according to config.
-pub fn shard_write(write: &DbWrite, config: &ShardConfig) -> BTreeMap<ShardId, DbWrite> {
+pub fn shard_write(write: &DmlWrite, config: &ShardConfig) -> BTreeMap<ShardId, DmlWrite> {
     let mut batches: HashMap<ShardId, HashMap<String, MutableBatch>> = HashMap::new();
 
     for (table, batch) in write.tables() {
@@ -39,7 +40,7 @@ pub fn shard_write(write: &DbWrite, config: &ShardConfig) -> BTreeMap<ShardId, D
 
     batches
         .into_iter()
-        .map(|(shard_id, tables)| (shard_id, DbWrite::new(tables, write.meta().clone())))
+        .map(|(shard_id, tables)| (shard_id, DmlWrite::new(tables, write.meta().clone())))
         .collect()
 }
 
@@ -49,7 +50,7 @@ mod tests {
         consistent_hasher::ConsistentHasher,
         router::{HashRing, Matcher, MatcherToShard},
     };
-    use mutable_batch::{test_util::assert_writes_eq, WriteMeta};
+    use dml::{test_util::assert_writes_eq, DmlMeta};
     use mutable_batch_lp::lines_to_batches;
     use regex::Regex;
 
@@ -99,7 +100,7 @@ mod tests {
             }),
         };
 
-        let meta = WriteMeta::unsequenced(None);
+        let meta = DmlMeta::unsequenced(None);
         let write = db_write(
             &[
                 "some_foo x=1 10",
@@ -140,15 +141,15 @@ mod tests {
     fn test_no_mach() {
         let config = ShardConfig::default();
 
-        let meta = WriteMeta::default();
+        let meta = DmlMeta::default();
         let write = db_write(&["foo x=1 10"], &meta);
 
         let actual = shard_write(&write, &config);
         assert!(actual.is_empty());
     }
 
-    fn db_write(lines: &[&str], meta: &WriteMeta) -> DbWrite {
-        DbWrite::new(
+    fn db_write(lines: &[&str], meta: &DmlMeta) -> DmlWrite {
+        DmlWrite::new(
             lines_to_batches(&lines.join("\n"), 0).unwrap(),
             meta.clone(),
         )

@@ -7,11 +7,9 @@ use http::{HeaderMap, HeaderValue};
 use prost::Message;
 
 use data_types::sequence::Sequence;
-use entry::{Entry, SequencedEntry};
+use dml::{DmlMeta, DmlWrite};
 use generated_types::influxdata::iox::write_buffer::v1::write_buffer_payload::Payload;
 use generated_types::influxdata::iox::write_buffer::v1::WriteBufferPayload;
-use mutable_batch::{DbWrite, WriteMeta};
-use mutable_batch_entry::sequenced_entry_to_write;
 use mutable_batch_pb::decode::decode_database_batch;
 use time::Time;
 use trace::ctx::SpanContext;
@@ -19,16 +17,6 @@ use trace::TraceCollector;
 use trace_http::ctx::{format_jaeger_trace_context, TraceHeaderParser};
 
 use crate::core::WriteBufferError;
-
-/// Current flatbuffer-based content type.
-///
-/// This is a value for [`HEADER_CONTENT_TYPE`].
-///
-/// Inspired by:
-/// - <https://stackoverflow.com/a/56502135>
-/// - <https://stackoverflow.com/a/48051331>
-pub const CONTENT_TYPE_FLATBUFFER: &str =
-    r#"application/x-flatbuffers; schema="influxdata.iox.write.v1.Entry""#;
 
 /// Pbdata based content type
 pub const CONTENT_TYPE_PROTOBUF: &str =
@@ -42,7 +30,6 @@ pub const HEADER_TRACE_CONTEXT: &str = "uber-trace-id";
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ContentType {
-    Entry,
     Protobuf,
 }
 
@@ -62,29 +49,20 @@ impl IoxHeaders {
         }
     }
 
-    /// Create new headers where all information is missing.
-    fn empty() -> Self {
-        Self {
-            // Fallback for now https://github.com/influxdata/influxdb_iox/issues/2805
-            content_type: ContentType::Entry,
-            span_context: None,
-        }
-    }
-
     /// Creates a new IoxHeaders from an iterator of headers
     pub fn from_headers(
         headers: impl IntoIterator<Item = (impl AsRef<str>, impl AsRef<[u8]>)>,
         trace_collector: Option<&Arc<dyn TraceCollector>>,
     ) -> Result<Self, WriteBufferError> {
-        let mut res = Self::empty();
+        let mut span_context = None;
+        let mut content_type = None;
 
         for (name, value) in headers {
             let name = name.as_ref();
 
             if name.eq_ignore_ascii_case(HEADER_CONTENT_TYPE) {
-                res.content_type = match std::str::from_utf8(value.as_ref()) {
-                    Ok(CONTENT_TYPE_FLATBUFFER) => ContentType::Entry,
-                    Ok(CONTENT_TYPE_PROTOBUF) => ContentType::Protobuf,
+                content_type = match std::str::from_utf8(value.as_ref()) {
+                    Ok(CONTENT_TYPE_PROTOBUF) => Some(ContentType::Protobuf),
                     Ok(c) => return Err(format!("Unknown message format: {}", c).into()),
                     Err(e) => {
                         return Err(format!("Error decoding content type header: {}", e).into())
@@ -101,7 +79,7 @@ impl IoxHeaders {
                         let parser = TraceHeaderParser::new()
                             .with_jaeger_trace_context_header_name(HEADER_TRACE_CONTEXT);
 
-                        res.span_context = match parser.parse(trace_collector, &headers) {
+                        span_context = match parser.parse(trace_collector, &headers) {
                             Ok(ctx) => ctx,
                             Err(e) => {
                                 return Err(format!("Error decoding trace context: {}", e).into())
@@ -112,7 +90,10 @@ impl IoxHeaders {
             }
         }
 
-        Ok(res)
+        Ok(Self {
+            content_type: content_type.ok_or_else(|| "No content type header".to_string())?,
+            span_context,
+        })
     }
 
     /// Gets the content type
@@ -128,7 +109,6 @@ impl IoxHeaders {
     /// Returns the header map to encode
     pub fn headers(&self) -> impl Iterator<Item = (&str, Cow<'static, str>)> + '_ {
         let content_type = match self.content_type {
-            ContentType::Entry => CONTENT_TYPE_FLATBUFFER.into(),
             ContentType::Protobuf => CONTENT_TYPE_PROTOBUF.into(),
         };
 
@@ -152,18 +132,8 @@ pub fn decode(
     headers: IoxHeaders,
     sequence: Sequence,
     producer_ts: Time,
-) -> Result<DbWrite, WriteBufferError> {
+) -> Result<DmlWrite, WriteBufferError> {
     match headers.content_type {
-        ContentType::Entry => {
-            let entry = Entry::try_from(data.to_vec())?;
-            let entry = SequencedEntry::new_from_sequence_and_span_context(
-                sequence,
-                producer_ts,
-                entry,
-                headers.span_context,
-            );
-            sequenced_entry_to_write(&entry).map_err(|e| Box::new(e) as WriteBufferError)
-        }
         ContentType::Protobuf => {
             let payload: WriteBufferPayload = prost::Message::decode(data)
                 .map_err(|e| format!("failed to decode WriteBufferPayload: {}", e))?;
@@ -174,18 +144,18 @@ pub fn decode(
                     .map_err(|e| format!("failed to decode database batch: {}", e))?,
             };
 
-            Ok(DbWrite::new(
+            Ok(DmlWrite::new(
                 tables,
-                WriteMeta::sequenced(sequence, producer_ts, headers.span_context, data.len()),
+                DmlMeta::sequenced(sequence, producer_ts, headers.span_context, data.len()),
             ))
         }
     }
 }
 
-/// Encodes a [`DbWrite`] as a protobuf [`WriteBufferPayload`]
+/// Encodes a [`DmlWrite`] as a protobuf [`WriteBufferPayload`]
 pub fn encode_write(
     db_name: &str,
-    write: &DbWrite,
+    write: &DmlWrite,
     buf: &mut Vec<u8>,
 ) -> Result<(), WriteBufferError> {
     let batch = mutable_batch_pb::encode::encode_write(db_name, write);
@@ -209,7 +179,7 @@ mod tests {
 
         let span_context_parent = SpanContext::new(Arc::clone(&collector));
         let span_context = span_context_parent.child("foo").ctx;
-        let iox_headers1 = IoxHeaders::new(ContentType::Entry, Some(span_context));
+        let iox_headers1 = IoxHeaders::new(ContentType::Protobuf, Some(span_context));
 
         let encoded: Vec<_> = iox_headers1
             .headers()

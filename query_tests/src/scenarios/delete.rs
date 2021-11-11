@@ -99,9 +99,9 @@ impl DbSetup for OneDeleteMultiExprsOneChunk {
         let table_name = "cpu";
         // chunk data
         let lp_lines = vec![
-            "cpu,foo=me bar=1 10",
+            "cpu,foo=me bar=1 10", // deleted
             "cpu,foo=you bar=2 20",
-            "cpu,foo=me bar=1 30",
+            "cpu,foo=me bar=1 30", // deleted
             "cpu,foo=me bar=1 40",
         ];
         // delete predicate

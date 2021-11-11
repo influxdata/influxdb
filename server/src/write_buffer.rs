@@ -8,7 +8,7 @@ use futures::{FutureExt, StreamExt, TryFutureExt};
 use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 
-use mutable_batch::DbWrite;
+use dml::DmlWrite;
 use observability_deps::tracing::{debug, error, info, warn};
 use trace::span::SpanRecorder;
 use write_buffer::core::{FetchHighWatermark, WriteBufferError, WriteBufferReading};
@@ -101,7 +101,7 @@ impl Drop for WriteBufferConsumer {
 async fn stream_in_sequenced_entries<'a>(
     db: Arc<Db>,
     sequencer_id: u32,
-    mut stream: BoxStream<'a, Result<DbWrite, WriteBufferError>>,
+    mut stream: BoxStream<'a, Result<DmlWrite, WriteBufferError>>,
     f_mark: FetchHighWatermark<'a>,
     mut metrics: SequencerMetrics,
 ) {
@@ -221,8 +221,8 @@ mod tests {
     use crate::utils::TestDb;
 
     use super::*;
+    use dml::DmlMeta;
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
-    use mutable_batch::WriteMeta;
     use mutable_batch_lp::lines_to_batches;
     use time::Time;
 
@@ -296,13 +296,13 @@ mod tests {
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let ingest_ts1 = Time::from_timestamp_millis(42);
         let ingest_ts2 = Time::from_timestamp_millis(1337);
-        write_buffer_state.push_write(DbWrite::new(
+        write_buffer_state.push_write(DmlWrite::new(
             lines_to_batches("mem foo=1 10", 0).unwrap(),
-            WriteMeta::sequenced(Sequence::new(0, 0), ingest_ts1, None, 50),
+            DmlMeta::sequenced(Sequence::new(0, 0), ingest_ts1, None, 50),
         ));
-        write_buffer_state.push_write(DbWrite::new(
+        write_buffer_state.push_write(DmlWrite::new(
             lines_to_batches("cpu bar=2 20\ncpu bar=3 30", 0).unwrap(),
-            WriteMeta::sequenced(Sequence::new(0, 7), ingest_ts2, None, 150),
+            DmlMeta::sequenced(Sequence::new(0, 7), ingest_ts2, None, 150),
         ));
         let test_db = TestDb::builder().build().await;
         let db = test_db.db;

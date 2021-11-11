@@ -139,6 +139,7 @@ mod tests {
     use super::*;
     use crate::{paths::ALL_DATABASES_DIRECTORY, IoxObjectStore, RootPath};
     use object_store::{ObjectStore, ObjectStoreApi};
+    use test_helpers::assert_error;
 
     /// Creates a new in-memory object store. These tests rely on the `Path`s being of type
     /// `DirsAndFileName` and thus using object_store::path::DELIMITER as the separator
@@ -250,18 +251,12 @@ mod tests {
         path.push_all_dirs(&["server", "uuid", "data", "}*", "aoeu"]);
         // but this file name doesn't contain a chunk id
         path.set_file_name("rules.pb");
-        let result = ParquetFilePath::from_absolute(path);
-        assert!(
-            matches!(result, Err(InvalidChunkId { .. })),
-            "got: {:?}",
-            result
-        );
+        assert_error!(ParquetFilePath::from_absolute(path), InvalidChunkId { .. });
 
         let mut path = object_store.new_path();
         path.push_all_dirs(&["server", "uuid", "data", "}*", "aoeu"]);
         // missing file name
-        let result = ParquetFilePath::from_absolute(path);
-        assert!(matches!(result, Err(MissingChunkId)), "got: {:?}", result);
+        assert_error!(ParquetFilePath::from_absolute(path), MissingChunkId);
     }
 
     #[test]

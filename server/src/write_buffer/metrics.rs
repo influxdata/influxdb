@@ -1,5 +1,5 @@
+use dml::DmlWrite;
 use metric::{Attributes, DurationHistogram, Metric, ResultMetric, U64Counter, U64Gauge};
-use mutable_batch::DbWrite;
 use std::time::Instant;
 
 /// Metrics for data ingest via write buffer.
@@ -140,7 +140,7 @@ pub struct IngestRecorder<'a> {
     start_time: Instant,
 
     /// The `IngestRecorder` is initially created without a write in case of decode error
-    write: Option<&'a DbWrite>,
+    write: Option<&'a DmlWrite>,
 
     /// The SequencerMetrics are taken out of this on record to both avoid duplicate
     /// recording and also work around lifetime shenanigans
@@ -148,7 +148,7 @@ pub struct IngestRecorder<'a> {
 }
 
 impl<'a> IngestRecorder<'a> {
-    pub fn write(mut self, write: &'a DbWrite) -> IngestRecorder<'a> {
+    pub fn write(mut self, write: &'a DmlWrite) -> IngestRecorder<'a> {
         assert!(self.write.is_none());
         Self {
             write: Some(write),

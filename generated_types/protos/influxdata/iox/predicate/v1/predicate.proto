@@ -1,5 +1,5 @@
 syntax = "proto3";
-package influxdata.iox.preserved_catalog.v1;
+package influxdata.iox.predicate.v1;
 
 // Represents a parsed predicate for evaluation by the InfluxDB IOx query engine.
 message Predicate {
@@ -19,18 +19,6 @@ message Predicate {
   // 'AND'ed together). Only rows that evaluate to TRUE for all these expressions should be returned. Other rows are
   // excluded from the results.
   repeated Expr exprs = 5;
-}
-
-// A optional string set.
-//
-// This is used instead of a `repeated string` to differenctiate between "empty set" and "none".
-message OptionalStringSet {
-  repeated string values = 1;
-}
-
-// An optional string.
-message OptionalString {
-  string value = 1;
 }
 
 // Specifies a continuous range of nanosecond timestamps.

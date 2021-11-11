@@ -1,6 +1,8 @@
 //! Code to translate IOx statistics to DataFusion statistics
 
-use data_types::partition_metadata::{ColumnSummary, Statistics as IOxStatistics, TableSummary};
+use data_types::partition_metadata::{
+    ColumnSummary, InfluxDbType, Statistics as IOxStatistics, TableSummary,
+};
 use datafusion::{
     physical_plan::{ColumnStatistics, Statistics as DFStatistics},
     scalar::ScalarValue,
@@ -8,9 +10,18 @@ use datafusion::{
 use schema::Schema;
 
 /// Converts stats.min and an appropriate `ScalarValue`
-pub(crate) fn min_to_scalar(stats: &IOxStatistics) -> Option<ScalarValue> {
+pub(crate) fn min_to_scalar(
+    influx_type: &Option<InfluxDbType>,
+    stats: &IOxStatistics,
+) -> Option<ScalarValue> {
     match stats {
-        IOxStatistics::I64(v) => v.min.map(ScalarValue::from),
+        IOxStatistics::I64(v) => {
+            if let Some(InfluxDbType::Timestamp) = *influx_type {
+                Some(ScalarValue::TimestampNanosecond(v.min))
+            } else {
+                v.min.map(ScalarValue::from)
+            }
+        }
         IOxStatistics::U64(v) => v.min.map(ScalarValue::from),
         IOxStatistics::F64(v) => v.min.map(ScalarValue::from),
         IOxStatistics::Bool(v) => v.min.map(ScalarValue::from),
@@ -19,9 +30,18 @@ pub(crate) fn min_to_scalar(stats: &IOxStatistics) -> Option<ScalarValue> {
 }
 
 /// Converts stats.max to an appropriate `ScalarValue`
-pub(crate) fn max_to_scalar(stats: &IOxStatistics) -> Option<ScalarValue> {
+pub(crate) fn max_to_scalar(
+    influx_type: &Option<InfluxDbType>,
+    stats: &IOxStatistics,
+) -> Option<ScalarValue> {
     match stats {
-        IOxStatistics::I64(v) => v.max.map(ScalarValue::from),
+        IOxStatistics::I64(v) => {
+            if let Some(InfluxDbType::Timestamp) = *influx_type {
+                Some(ScalarValue::TimestampNanosecond(v.max))
+            } else {
+                v.max.map(ScalarValue::from)
+            }
+        }
         IOxStatistics::U64(v) => v.max.map(ScalarValue::from),
         IOxStatistics::F64(v) => v.max.map(ScalarValue::from),
         IOxStatistics::Bool(v) => v.max.map(ScalarValue::from),
@@ -66,6 +86,7 @@ pub(crate) fn df_from_iox(schema: &Schema, summary: &TableSummary) -> DFStatisti
 /// Convert IOx `ColumnSummary` to DataFusion's `ColumnStatistics`
 fn df_from_iox_col(col: &ColumnSummary) -> ColumnStatistics {
     let stats = &col.stats;
+    let col_data_type = &col.influxdb_type;
 
     let distinct_count = stats.distinct_count().map(|v| {
         let v: u64 = v.into();
@@ -76,8 +97,8 @@ fn df_from_iox_col(col: &ColumnSummary) -> ColumnStatistics {
 
     ColumnStatistics {
         null_count,
-        max_value: max_to_scalar(stats),
-        min_value: min_to_scalar(stats),
+        max_value: max_to_scalar(col_data_type, stats),
+        min_value: min_to_scalar(col_data_type, stats),
         distinct_count,
     }
 }

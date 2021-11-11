@@ -12,7 +12,7 @@
 # The CI for every PR and merge to main runs tests, fmt, lints and compiles debug binaries
 #
 # On main if all these checks pass it will then additionally compile in "release" mode and
-# publish a docker image to quay.io/influxdb/fusion:$COMMIT_SHA
+# publish a docker image to quay.io/influxdb/iox:$COMMIT_SHA
 #
 # Manual CI Image:
 #
@@ -92,7 +92,7 @@ jobs:
       - cache_restore
       - run:
           name: Clippy
-          command: cargo clippy --all-targets --workspace -- -D warnings
+          command: cargo clippy --all-targets --all-features --workspace -- -D warnings
       - cache_save
   cargo_audit:
     docker:
@@ -149,7 +149,16 @@ jobs:
       # "1" means line tables only, which is useful for panic tracebacks.
       RUSTFLAGS: "-C debuginfo=1"
       RUST_BACKTRACE: "1"
+      # Run integration tests
+      TEST_INTEGRATION: 1
+      INFLUXDB_IOX_INTEGRATION_LOCAL: 1
+      KAFKA_CONNECT: "localhost:9092"
     steps:
+      - run:
+          name: Run Kafka
+          # Sudo needed because data directory owned by root but container runs as unprivileged user
+          command: sudo rpk redpanda start
+          background: true
       - checkout
       - rust_components
       - cache_restore
@@ -222,42 +231,6 @@ jobs:
             trap "cat perf/logs/test.log" ERR
             perf/perf.py --debug --no-volumes --object-store memory battery-0
 
-  test_kafka_integration:
-    machine: true
-    resource_class: xlarge
-    environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
-      RUST_BACKTRACE: "1"
-    steps:
-      - checkout
-      - run:
-          name: Run integration tests with Docker Compose
-          command: docker-compose -f docker/ci-kafka-docker-compose.yml up --build --force-recreate --exit-code-from rust
-
-  # Integration tests for the influxdb2_client crate against InfluxDB 2.0 OSS.
-  test_influxdb2_client:
-    docker:
-      - image: quay.io/influxdb/rust:ci
-    environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
-      RUST_BACKTRACE: "1"
-    steps:
-      - checkout
-      - rust_components
-      - cache_restore
-      - run:
-          name: Cargo test
-          command: TEST_INTEGRATION=1 INFLUXDB_IOX_INTEGRATION_LOCAL=1 cargo test -p influxdb2_client
-      - cache_save
-
   # Build a dev binary.
   #
   # Compiles a binary with the default ("dev") cargo profile from the iox source
@@ -313,31 +286,15 @@ jobs:
             # other stuff that may have been added to main since last merge)
             MERGE_BASE=$(git merge-base origin/main $CIRCLE_BRANCH) sh -c 'buf breaking --against ".git#ref=$MERGE_BASE"'
 
-  # Check that any generated files are  is up-to-date with the changes in this PR.
-  # named "check-flatbuffers" because that name is hardcoded into github checks
-  check-flatbuffers:
-    docker:
-      - image: quay.io/influxdb/rust:ci
-    resource_class: xlarge # use of a smaller executor tends crashes on link
-    steps:
-      - checkout
-      - rust_components # Regenerating flatbuffers uses rustfmt
-      - run:
-          name: Check Query Tests
-          command: ./query_tests/check-generated.sh
-      - run:
-          name: Check Flatbuffers
-          command: INFLUXDB_IOX_INTEGRATION_LOCAL=1 ./entry/check-flatbuffers.sh
-
   # Compile a cargo "release" profile binary for branches that end in `/perf`
   #
   # Uses the latest ci_image (influxdb/rust below) to build a release binary and
   # copies it to a minimal container image based upon `rust:slim-buster`. This
-  # minimal image is then pushed to `quay.io/influxdb/fusion:${BRANCH}` with '/'
+  # minimal image is then pushed to `quay.io/influxdb/iox:${BRANCH}` with '/'
   # repaced by '.' - as an example:
   #
   #   git branch: dom/my-awesome-feature/perf
-  #   container: quay.io/influxdb/fusion:dom.my-awesome-feature.perf
+  #   container: quay.io/influxdb/iox:dom.my-awesome-feature.perf
   #
   # Subsequent CI runs will overwrite the tag if you push more changes, so watch
   # out for parallel CI runs!
@@ -380,8 +337,9 @@ jobs:
       - run: |
           sudo apt-get update
           sudo apt-get install -y docker.io
+          docker --version
       - run: |
-          echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
+          echo "$QUAY_INFLUXDB_IOX_PASS" | docker login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
       - run:
           # Docker has functionality to support per-Dockerfile .dockerignore
           # This was added in https://github.com/moby/buildkit/pull/901
@@ -395,12 +353,14 @@ jobs:
           echo sha256sum after build is
           sha256sum target/release/influxdb_iox
           COMMIT_SHA=$(git rev-parse --short HEAD)
-          docker build -t quay.io/influxdb/fusion:$COMMIT_SHA -f docker/Dockerfile.iox .
-          docker push quay.io/influxdb/fusion:$COMMIT_SHA
+          docker build -t quay.io/influxdb/iox:$COMMIT_SHA -t quay.io/influxdb/iox:main -f docker/Dockerfile.iox .
+          docker push quay.io/influxdb/iox
           echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
       - run:
           name: Deploy tags
-          command: ./.circleci/get-deploy-tags.sh "${COMMIT_SHA}"
+          command: |
+            echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
+            ./.circleci/get-deploy-tags.sh "${COMMIT_SHA}"
       - cache_save
 
   # Prepare the CI image used for other tasks.
@@ -447,10 +407,7 @@ workflows:
       - test
       - test_heappy
       - test_perf
-      - test_kafka_integration
-      - test_influxdb2_client
       - build
-      - check-flatbuffers
       - doc
       - perf_image:
           filters:
@@ -464,10 +421,7 @@ workflows:
             - test
             - test_heappy
             - test_perf
-            - test_kafka_integration
-            - test_influxdb2_client
             - build
-            - check-flatbuffers
             - doc
 
   # Manual build of CI image

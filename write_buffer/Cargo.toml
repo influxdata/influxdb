@@ -6,14 +6,12 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1"
 data_types = { path = "../data_types" }
+dml = { path = "../dml" }
 dotenv = "0.15.0"
-entry = { path = "../entry" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 http = "0.2"
 httparse = "1.5"
-mutable_batch = { path = "../mutable_batch" }
-mutable_batch_entry = { path = "../mutable_batch_entry" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
 observability_deps = { path = "../observability_deps" }

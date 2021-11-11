@@ -6,9 +6,11 @@ use std::{
 
 use http::header::CONTENT_TYPE;
 use hyper::{server::conn::AddrIncoming, StatusCode};
+use reqwest::Client;
 use serde::de::DeserializeOwned;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
+use trace::RingBufferTraceCollector;
 
 use crate::influxdb_ioxd::{http::serve, server_type::ServerType};
 
@@ -141,4 +143,100 @@ where
     fn drop(&mut self) {
         self.join_handle.abort();
     }
+}
+
+pub const TEST_MAX_REQUEST_SIZE: usize = 1024 * 1024;
+
+/// Assert that health route is working.
+pub async fn assert_health<T>(test_server: TestServer<T>)
+where
+    T: ServerType,
+{
+    let client = Client::new();
+    let response = client
+        .get(&format!("{}/health", test_server.url()))
+        .send()
+        .await;
+
+    // Print the response so if the test fails, we have a log of what went wrong
+    check_response("health", response, StatusCode::OK, Some("OK")).await;
+}
+
+/// Assert that metrics exposure is working.
+pub async fn assert_metrics<T>(test_server: TestServer<T>)
+where
+    T: ServerType,
+{
+    use metric::{Metric, U64Counter};
+
+    let metric: Metric<U64Counter> = test_server
+        .server_type()
+        .metric_registry()
+        .register_metric("my_metric", "description");
+
+    metric.recorder(&[("tag", "value")]).inc(20);
+
+    let client = Client::new();
+    let response = client
+        .get(&format!("{}/metrics", test_server.url()))
+        .send()
+        .await
+        .unwrap();
+
+    let data = response.text().await.unwrap();
+
+    assert!(data.contains(&"\nmy_metric_total{tag=\"value\"} 20\n"));
+
+    let response = client
+        .get(&format!("{}/nonexistent", test_server.url()))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status().as_u16(), 404);
+
+    let response = client
+        .get(&format!("{}/metrics", test_server.url()))
+        .send()
+        .await
+        .unwrap();
+
+    let data = response.text().await.unwrap();
+
+    // Should include previous metrics scrape but not the current one
+    assert!(data.contains(&"\nhttp_requests_total{path=\"/metrics\",status=\"ok\"} 1\n"));
+    // Should include 404 but not encode the path
+    assert!(!data.contains(&"nonexistent"));
+    assert!(data.contains(&"\nhttp_requests_total{status=\"client_error\"} 1\n"));
+}
+
+/// Assert that tracing works.
+///
+/// For this to work the used trace collector must be a [`RingBufferTraceCollector`].
+pub async fn assert_tracing<T>(test_server: TestServer<T>)
+where
+    T: ServerType,
+{
+    let trace_collector = test_server.server_type().trace_collector().unwrap();
+    let trace_collector = trace_collector
+        .as_any()
+        .downcast_ref::<RingBufferTraceCollector>()
+        .unwrap();
+
+    let client = Client::new();
+    let response = client
+        .get(&format!("{}/health", test_server.url()))
+        .header("uber-trace-id", "34f3495:36e34:0:1")
+        .send()
+        .await;
+
+    // Print the response so if the test fails, we have a log of what went wrong
+    check_response("health", response, StatusCode::OK, Some("OK")).await;
+
+    let mut spans = trace_collector.spans();
+    assert_eq!(spans.len(), 1);
+
+    let span = spans.pop().unwrap();
+    assert_eq!(span.ctx.trace_id.get(), 0x34f3495);
+    assert_eq!(span.ctx.parent_span_id.unwrap().get(), 0x36e34);
 }

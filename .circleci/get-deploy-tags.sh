@@ -20,7 +20,7 @@
 set -euo pipefail
 
 DOCKER_IMAGE_TAG=${1}
-DOCKER_IMAGE="quay.io/influxdb/fusion"
+DOCKER_IMAGE="quay.io/influxdb/iox"
 APP_NAME="IOx"
 
 DOCKER_IMAGE_DIGEST="$(docker image inspect "${DOCKER_IMAGE}:${DOCKER_IMAGE_TAG}" --format '{{ if eq (len .RepoDigests) 1 }}{{index .RepoDigests 0}}{{ end }}')"
