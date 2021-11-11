@@ -7,9 +7,9 @@ use http::{HeaderMap, HeaderValue};
 use prost::Message;
 
 use data_types::sequence::Sequence;
+use dml::{DmlMeta, DmlWrite};
 use generated_types::influxdata::iox::write_buffer::v1::write_buffer_payload::Payload;
 use generated_types::influxdata::iox::write_buffer::v1::WriteBufferPayload;
-use mutable_batch::{DbWrite, WriteMeta};
 use mutable_batch_pb::decode::decode_database_batch;
 use time::Time;
 use trace::ctx::SpanContext;
@@ -132,7 +132,7 @@ pub fn decode(
     headers: IoxHeaders,
     sequence: Sequence,
     producer_ts: Time,
-) -> Result<DbWrite, WriteBufferError> {
+) -> Result<DmlWrite, WriteBufferError> {
     match headers.content_type {
         ContentType::Protobuf => {
             let payload: WriteBufferPayload = prost::Message::decode(data)
@@ -144,18 +144,18 @@ pub fn decode(
                     .map_err(|e| format!("failed to decode database batch: {}", e))?,
             };
 
-            Ok(DbWrite::new(
+            Ok(DmlWrite::new(
                 tables,
-                WriteMeta::sequenced(sequence, producer_ts, headers.span_context, data.len()),
+                DmlMeta::sequenced(sequence, producer_ts, headers.span_context, data.len()),
             ))
         }
     }
 }
 
-/// Encodes a [`DbWrite`] as a protobuf [`WriteBufferPayload`]
+/// Encodes a [`DmlWrite`] as a protobuf [`WriteBufferPayload`]
 pub fn encode_write(
     db_name: &str,
-    write: &DbWrite,
+    write: &DmlWrite,
     buf: &mut Vec<u8>,
 ) -> Result<(), WriteBufferError> {
     let batch = mutable_batch_pb::encode::encode_write(db_name, write);

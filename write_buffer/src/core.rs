@@ -4,15 +4,15 @@ use std::{
 };
 
 use async_trait::async_trait;
+use dml::{DmlMeta, DmlWrite};
 use futures::{future::BoxFuture, stream::BoxStream};
-use mutable_batch::{DbWrite, WriteMeta};
 
 /// Generic boxed error type that is used in this crate.
 ///
 /// The dynamic boxing makes it easier to deal with error from different implementations.
 pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
 
-/// Writing to a Write Buffer takes a [`DbWrite`] and returns the [`WriteMeta`] for the
+/// Writing to a Write Buffer takes a [`DmlWrite`] and returns the [`DmlMeta`] for the
 /// payload that was written
 #[async_trait]
 pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
@@ -21,16 +21,16 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     /// This set  not empty.
     fn sequencer_ids(&self) -> BTreeSet<u32>;
 
-    /// Send a [`DbWrite`] to the write buffer using the specified sequencer ID.
+    /// Send a [`DmlWrite`] to the write buffer using the specified sequencer ID.
     ///
-    /// The [`mutable_batch::WriteMeta`] will be propagated where applicable
+    /// The [`dml::DmlMeta`] will be propagated where applicable
     ///
     /// Returns the metadata that was written
     async fn store_write(
         &self,
         sequencer_id: u32,
-        write: &DbWrite,
-    ) -> Result<WriteMeta, WriteBufferError>;
+        write: &DmlWrite,
+    ) -> Result<DmlMeta, WriteBufferError>;
 
     /// Sends line protocol to the write buffer - primarily intended for testing
     async fn store_lp(
@@ -38,9 +38,9 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
         sequencer_id: u32,
         lp: &str,
         default_time: i64,
-    ) -> Result<WriteMeta, WriteBufferError> {
+    ) -> Result<DmlMeta, WriteBufferError> {
         let tables = mutable_batch_lp::lines_to_batches(lp, default_time).map_err(Box::new)?;
-        self.store_write(sequencer_id, &DbWrite::new(tables, Default::default()))
+        self.store_write(sequencer_id, &DmlWrite::new(tables, Default::default()))
             .await
     }
 
@@ -54,7 +54,7 @@ pub type FetchHighWatermark<'a> = Box<dyn (Fn() -> FetchHighWatermarkFut<'a>) + 
 /// Output stream of [`WriteBufferReading`].
 pub struct WriteStream<'a> {
     /// Stream that produces entries.
-    pub stream: BoxStream<'a, Result<DbWrite, WriteBufferError>>,
+    pub stream: BoxStream<'a, Result<DmlWrite, WriteBufferError>>,
 
     /// Get high watermark (= what we believe is the next sequence number to be added).
     ///
@@ -69,7 +69,7 @@ impl<'a> Debug for WriteStream<'a> {
     }
 }
 
-/// Produce streams (one per sequencer) of [`DbWrite`]s.
+/// Produce streams (one per sequencer) of [`DmlWrite`]s.
 #[async_trait]
 pub trait WriteBufferReading: Sync + Send + Debug + 'static {
     /// Returns a stream per sequencer.
@@ -105,8 +105,8 @@ pub mod test_utils {
     };
 
     use async_trait::async_trait;
+    use dml::{test_util::assert_writes_eq, DmlMeta, DmlWrite};
     use futures::{StreamExt, TryStreamExt};
-    use mutable_batch::{test_util::assert_writes_eq, DbWrite, WriteMeta};
     use time::{Time, TimeProvider};
     use trace::{ctx::SpanContext, RingBufferTraceCollector, TraceCollector};
 
@@ -175,15 +175,15 @@ pub mod test_utils {
         test_unknown_sequencer_write(&adapter).await;
     }
 
-    /// Writes line protocol and returns the [`DbWrite`] that was written
+    /// Writes line protocol and returns the [`DmlWrite`] that was written
     pub async fn write(
         writer: &impl WriteBufferWriting,
         lp: &str,
         sequencer_id: u32,
         span_context: Option<&SpanContext>,
-    ) -> DbWrite {
+    ) -> DmlWrite {
         let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
-        let mut write = DbWrite::new(tables, WriteMeta::unsequenced(span_context.cloned()));
+        let mut write = DmlWrite::new(tables, DmlMeta::unsequenced(span_context.cloned()));
 
         let meta = writer.store_write(sequencer_id, &write).await.unwrap();
         write.set_meta(meta);
@@ -636,7 +636,7 @@ pub mod test_utils {
         let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
         let tables = mutable_batch_lp::lines_to_batches("upc user=1 100", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
 
         let writer = context.writing(true).await.unwrap();
 
@@ -648,7 +648,7 @@ pub mod test_utils {
     /// Assert that the content of the reader is as expected.
     ///
     /// This will read `expected.len()` from the reader and then ensures that the stream is pending.
-    async fn assert_reader_content<R>(reader: &mut R, expected: &[(u32, &[&DbWrite])])
+    async fn assert_reader_content<R>(reader: &mut R, expected: &[(u32, &[&DmlWrite])])
     where
         R: WriteBufferReading,
     {

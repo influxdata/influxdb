@@ -1,8 +1,8 @@
 use bytes::{Bytes, BytesMut};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-
+use dml::DmlWrite;
 use generated_types::influxdata::pbdata::v1::DatabaseBatch;
-use mutable_batch::{DbWrite, MutableBatch};
+use mutable_batch::MutableBatch;
 use mutable_batch_lp::lines_to_batches;
 use mutable_batch_tests::benchmark_lp;
 use prost::Message;
@@ -12,7 +12,7 @@ fn generate_pbdata_bytes() -> Vec<(String, (usize, Bytes))> {
         .into_iter()
         .map(|(bench, lp)| {
             let batches = lines_to_batches(&lp, 0).unwrap();
-            let write = DbWrite::new(batches, Default::default());
+            let write = DmlWrite::new(batches, Default::default());
             let database_batch = mutable_batch_pb::encode::encode_write("db", &write);
 
             let mut bytes = BytesMut::new();

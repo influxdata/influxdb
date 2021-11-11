@@ -4,9 +4,9 @@ use async_trait::async_trait;
 use cache_loader_async::cache_api::LoadingCache;
 use snafu::{ResultExt, Snafu};
 
+use dml::DmlWrite;
 use generated_types::influxdata::pbdata::v1::WriteRequest;
 use influxdb_iox_client::{connection::Builder, write};
-use mutable_batch::DbWrite;
 use observability_deps::tracing::debug;
 
 type RemoteServerError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -36,9 +36,9 @@ pub trait ConnectionManager {
 /// querying other servers.
 #[async_trait]
 pub trait RemoteServer {
-    /// Sends a [`DbWrite`] to the remote server. An IOx server acting as a
+    /// Sends a [`DmlWrite`] to the remote server. An IOx server acting as a
     /// router/sharder will call this method to send entries to remotes.
-    async fn write(&self, db: &str, write: &DbWrite) -> Result<(), ConnectionManagerError>;
+    async fn write(&self, db: &str, write: &DmlWrite) -> Result<(), ConnectionManagerError>;
 }
 
 /// The connection manager maps a host identifier to a remote server.
@@ -112,7 +112,7 @@ pub struct RemoteServerImpl {
 impl RemoteServer for RemoteServerImpl {
     /// Sends a write to the remote server. An IOx server acting as a
     /// router/sharder will call this method to send entries to remotes.
-    async fn write(&self, db_name: &str, write: &DbWrite) -> Result<(), ConnectionManagerError> {
+    async fn write(&self, db_name: &str, write: &DmlWrite) -> Result<(), ConnectionManagerError> {
         let data = mutable_batch_pb::encode::encode_write(db_name, write);
         self.client
             .clone() // cheap, see https://docs.rs/tonic/0.4.2/tonic/client/index.html#concurrent-usage
@@ -177,7 +177,7 @@ pub mod test_helpers {
 
     #[async_trait]
     impl<'a> RemoteServer for TestRemoteServer {
-        async fn write(&self, _db: &str, _write: &DbWrite) -> Result<(), ConnectionManagerError> {
+        async fn write(&self, _db: &str, _write: &DmlWrite) -> Result<(), ConnectionManagerError> {
             self.written.store(true, Ordering::Relaxed);
             Ok(())
         }

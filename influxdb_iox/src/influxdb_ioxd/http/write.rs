@@ -6,8 +6,8 @@ use data_types::{
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     DatabaseName,
 };
+use dml::{DmlMeta, DmlWrite};
 use hyper::{Body, Method, Request, Response, StatusCode};
-use mutable_batch::{DbWrite, WriteMeta};
 use observability_deps::tracing::debug;
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -172,7 +172,7 @@ pub trait HttpDrivenWrite: ServerType {
             "inserting lines into database",
         );
 
-        let write = DbWrite::new(tables, WriteMeta::unsequenced(span_ctx));
+        let write = DmlWrite::new(tables, DmlMeta::unsequenced(span_ctx));
 
         match self.write(&db_name, write).await {
             Ok(_) => {
@@ -225,7 +225,7 @@ pub trait HttpDrivenWrite: ServerType {
     async fn write(
         &self,
         db_name: &DatabaseName<'_>,
-        write: DbWrite,
+        write: DmlWrite,
     ) -> Result<(), InnerWriteError>;
 }
 
@@ -238,9 +238,9 @@ pub struct WriteInfo {
 
 #[cfg(test)]
 pub mod test_utils {
+    use dml::DmlWrite;
     use http::{header::CONTENT_ENCODING, StatusCode};
     use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Histogram};
-    use mutable_batch::DbWrite;
     use mutable_batch_lp::lines_to_batches;
     use reqwest::Client;
 
@@ -254,7 +254,7 @@ pub mod test_utils {
     /// The database `bucket_name="MyBucket", org_name="MyOrg"` must exist for this test to work.
     ///
     /// Returns write that was generated. The caller MUST check that the write is actually present.
-    pub async fn assert_write<T>(test_server: &TestServer<T>) -> DbWrite
+    pub async fn assert_write<T>(test_server: &TestServer<T>) -> DmlWrite
     where
         T: ServerType,
     {
@@ -278,7 +278,7 @@ pub mod test_utils {
 
         check_response("write", response, StatusCode::NO_CONTENT, Some("")).await;
 
-        DbWrite::new(lines_to_batches(lp_data, 0).unwrap(), Default::default())
+        DmlWrite::new(lines_to_batches(lp_data, 0).unwrap(), Default::default())
     }
 
     /// Assert that GZIP-compressed writes work.
@@ -286,7 +286,7 @@ pub mod test_utils {
     /// The database `bucket_name="MyBucket", org_name="MyOrg"` must exist for this test to work.
     ///
     /// Returns write that was generated. The caller MUST check that the write is actually present.
-    pub async fn assert_gzip_write<T>(test_server: &TestServer<T>) -> DbWrite
+    pub async fn assert_gzip_write<T>(test_server: &TestServer<T>) -> DmlWrite
     where
         T: ServerType,
     {
@@ -310,7 +310,7 @@ pub mod test_utils {
 
         check_response("gzip_write", response, StatusCode::NO_CONTENT, Some("")).await;
 
-        DbWrite::new(lines_to_batches(lp_data, 0).unwrap(), Default::default())
+        DmlWrite::new(lines_to_batches(lp_data, 0).unwrap(), Default::default())
     }
 
     /// Assert that write to an invalid database behave as expected.

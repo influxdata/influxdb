@@ -2,8 +2,6 @@ use crate::{
     consistent_hasher::ConsistentHasher, server_id::ServerId, write_buffer::WriteBufferConnection,
     DatabaseName,
 };
-use chrono::{TimeZone, Utc};
-use influxdb_line_protocol::ParsedLine;
 use regex::Regex;
 use snafu::{OptionExt, Snafu};
 use std::{
@@ -73,10 +71,6 @@ pub enum RoutingRules {
 }
 
 impl DatabaseRules {
-    pub fn partition_key(&self, line: &ParsedLine<'_>, default_time: i64) -> Result<String> {
-        self.partition_template.partition_key(line, default_time)
-    }
-
     pub fn new(name: DatabaseName<'static>) -> Self {
         Self {
             name,
@@ -90,17 +84,6 @@ impl DatabaseRules {
 
     pub fn db_name(&self) -> &str {
         self.name.as_str()
-    }
-}
-
-/// Generates a partition key based on the line and the default time.
-pub trait Partitioner {
-    fn partition_key(&self, _line: &ParsedLine<'_>, _default_time: i64) -> Result<String>;
-}
-
-impl Partitioner for DatabaseRules {
-    fn partition_key(&self, line: &ParsedLine<'_>, default_time: i64) -> Result<String> {
-        self.partition_key(line, default_time)
     }
 }
 
@@ -252,32 +235,6 @@ impl Default for LifecycleRules {
 #[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct PartitionTemplate {
     pub parts: Vec<TemplatePart>,
-}
-
-impl Partitioner for PartitionTemplate {
-    fn partition_key(&self, line: &ParsedLine<'_>, default_time: i64) -> Result<String> {
-        let parts: Vec<_> = self
-            .parts
-            .iter()
-            .map(|p| match p {
-                TemplatePart::Table => line.series.measurement.to_string(),
-                TemplatePart::Column(column) => match line.tag_value(column) {
-                    Some(v) => format!("{}_{}", column, v),
-                    None => match line.field_value(column) {
-                        Some(v) => format!("{}_{}", column, v),
-                        None => "".to_string(),
-                    },
-                },
-                TemplatePart::TimeFormat(format) => {
-                    let nanos = line.timestamp.unwrap_or(default_time);
-                    Utc.timestamp_nanos(nanos).format(format).to_string()
-                }
-                _ => unimplemented!(),
-            })
-            .collect();
-
-        Ok(parts.join("-"))
-    }
 }
 
 /// `TemplatePart` specifies what part of a row should be used to compute this
@@ -441,178 +398,9 @@ impl Matcher {
     }
 }
 
-/// `PartitionId` is the object storage identifier for a specific partition. It
-/// should be a path that can be used against an object store to locate all the
-/// files and subdirectories for a partition. It takes the form of `/<writer
-/// ID>/<database>/<partition key>/`.
-pub type PartitionId = String;
-
 #[cfg(test)]
 mod tests {
-    use influxdb_line_protocol::parse_lines;
-
     use super::*;
-
-    const ARBITRARY_DEFAULT_TIME: i64 = 456;
-
-    #[test]
-    fn partition_key_with_table() {
-        let template = PartitionTemplate {
-            parts: vec![TemplatePart::Table],
-        };
-
-        let line = parse_line("cpu foo=1 10");
-        assert_eq!(
-            "cpu",
-            template
-                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
-                .unwrap()
-        );
-    }
-
-    #[test]
-    fn partition_key_with_int_field() {
-        let template = PartitionTemplate {
-            parts: vec![TemplatePart::Column("foo".to_string())],
-        };
-
-        let line = parse_line("cpu foo=1 10");
-        assert_eq!(
-            "foo_1",
-            template
-                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
-                .unwrap()
-        );
-    }
-
-    #[test]
-    fn partition_key_with_float_field() {
-        let template = PartitionTemplate {
-            parts: vec![TemplatePart::Column("foo".to_string())],
-        };
-
-        let line = parse_line("cpu foo=1.1 10");
-        assert_eq!(
-            "foo_1.1",
-            template
-                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
-                .unwrap()
-        );
-    }
-
-    #[test]
-    fn partition_key_with_string_field() {
-        let template = PartitionTemplate {
-            parts: vec![TemplatePart::Column("foo".to_string())],
-        };
-
-        let line = parse_line("cpu foo=\"asdf\" 10");
-        assert_eq!(
-            "foo_asdf",
-            template
-                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
-                .unwrap()
-        );
-    }
-
-    #[test]
-    fn partition_key_with_bool_field() {
-        let template = PartitionTemplate {
-            parts: vec![TemplatePart::Column("bar".to_string())],
-        };
-
-        let line = parse_line("cpu bar=true 10");
-        assert_eq!(
-            "bar_true",
-            template
-                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
-                .unwrap()
-        );
-    }
-
-    #[test]
-    fn partition_key_with_tag_column() {
-        let template = PartitionTemplate {
-            parts: vec![TemplatePart::Column("region".to_string())],
-        };
-
-        let line = parse_line("cpu,region=west usage_user=23.2 10");
-        assert_eq!(
-            "region_west",
-            template
-                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
-                .unwrap()
-        );
-    }
-
-    #[test]
-    fn partition_key_with_missing_column() {
-        let template = PartitionTemplate {
-            parts: vec![TemplatePart::Column("not_here".to_string())],
-        };
-
-        let line = parse_line("cpu,foo=asdf bar=true 10");
-        assert_eq!(
-            "",
-            template
-                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
-                .unwrap()
-        );
-    }
-
-    #[test]
-    fn partition_key_with_time() {
-        let template = PartitionTemplate {
-            parts: vec![TemplatePart::TimeFormat("%Y-%m-%d %H:%M:%S".to_string())],
-        };
-
-        let line = parse_line("cpu,foo=asdf bar=true 1602338097000000000");
-        assert_eq!(
-            "2020-10-10 13:54:57",
-            template
-                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
-                .unwrap()
-        );
-    }
-
-    #[test]
-    fn partition_key_with_default_time() {
-        let format_string = "%Y-%m-%d %H:%M:%S";
-        let template = PartitionTemplate {
-            parts: vec![TemplatePart::TimeFormat(format_string.to_string())],
-        };
-
-        let default_time = Utc::now();
-        let line = parse_line("cpu,foo=asdf bar=true");
-        assert_eq!(
-            default_time.format(format_string).to_string(),
-            template
-                .partition_key(&line, default_time.timestamp_nanos())
-                .unwrap()
-        );
-    }
-
-    #[test]
-    fn partition_key_with_many_parts() {
-        let template = PartitionTemplate {
-            parts: vec![
-                TemplatePart::Table,
-                TemplatePart::Column("region".to_string()),
-                TemplatePart::Column("usage_system".to_string()),
-                TemplatePart::TimeFormat("%Y-%m-%d %H:%M:%S".to_string()),
-            ],
-        };
-
-        let line = parse_line(
-            "cpu,host=a,region=west usage_user=22.1,usage_system=53.1 1602338097000000000",
-        );
-        assert_eq!(
-            "cpu-region_west-usage_system_53.1-2020-10-10 13:54:57",
-            template
-                .partition_key(&line, ARBITRARY_DEFAULT_TIME)
-                .unwrap()
-        );
-    }
 
     #[test]
     #[allow(clippy::trivial_regex)]
@@ -653,14 +441,6 @@ mod tests {
         let err = shard_config.shard("cpu").unwrap_err();
 
         assert!(matches!(err, Error::NoShardsDefined));
-    }
-
-    fn parsed_lines(lp: &str) -> Vec<ParsedLine<'_>> {
-        parse_lines(lp).map(|l| l.unwrap()).collect()
-    }
-
-    fn parse_line(line: &str) -> ParsedLine<'_> {
-        parsed_lines(line).pop().unwrap()
     }
 
     #[test]

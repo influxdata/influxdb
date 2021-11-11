@@ -8,7 +8,7 @@ use query::QueryDatabase;
 use server::{
     connection::ConnectionManager, rules::ProvidedDatabaseRules, ApplicationState, Error, Server,
 };
-use std::{convert::TryFrom, fmt::Debug, str::FromStr, sync::Arc};
+use std::{convert::TryFrom, fmt::Debug, sync::Arc};
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
@@ -191,7 +191,7 @@ where
         request: Request<RestoreDatabaseRequest>,
     ) -> Result<Response<RestoreDatabaseResponse>, Status> {
         let request = request.into_inner();
-        let uuid = Uuid::from_str(&request.uuid).field("uuid")?;
+        let uuid = Uuid::from_slice(&request.uuid).field("uuid")?;
 
         self.server
             .restore_database(uuid)

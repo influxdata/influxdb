@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use mutable_batch::DbWrite;
+use dml::DmlWrite;
 use parking_lot::RwLock;
 
 /// Generic write error.
@@ -17,7 +17,7 @@ pub type WriteError = Box<dyn std::error::Error + Send + Sync>;
 #[async_trait]
 pub trait GrpcClient: Sync + Send + std::fmt::Debug + 'static {
     /// Write data to the given database.
-    async fn write(&self, db_name: &str, write: &DbWrite) -> Result<(), WriteError>;
+    async fn write(&self, db_name: &str, write: &DmlWrite) -> Result<(), WriteError>;
 
     /// Cast client to [`Any`], useful for downcasting.
     fn as_any(&self) -> &dyn Any;
@@ -41,7 +41,7 @@ impl RealClient {
 
 #[async_trait]
 impl GrpcClient for RealClient {
-    async fn write(&self, db_name: &str, write: &DbWrite) -> Result<(), WriteError> {
+    async fn write(&self, db_name: &str, write: &DmlWrite) -> Result<(), WriteError> {
         use influxdb_iox_client::write::generated_types::WriteRequest;
         use mutable_batch_pb::encode::encode_write;
 
@@ -67,7 +67,7 @@ impl GrpcClient for RealClient {
 #[derive(Debug, Default)]
 pub struct MockClient {
     /// All writes recorded by this client.
-    writes: RwLock<Vec<(String, DbWrite)>>,
+    writes: RwLock<Vec<(String, DmlWrite)>>,
 
     /// Poisen pill.
     ///
@@ -84,13 +84,13 @@ impl MockClient {
     }
 
     /// Get a copy of all recorded writes.
-    pub fn writes(&self) -> Vec<(String, DbWrite)> {
+    pub fn writes(&self) -> Vec<(String, DmlWrite)> {
         self.writes.read().clone()
     }
 
     /// Assert that writes are as expected.
-    pub fn assert_writes(&self, expected: &[(String, DbWrite)]) {
-        use mutable_batch::test_util::assert_writes_eq;
+    pub fn assert_writes(&self, expected: &[(String, DmlWrite)]) {
+        use dml::test_util::assert_writes_eq;
 
         let actual = self.writes();
 
@@ -117,7 +117,7 @@ impl MockClient {
 
 #[async_trait]
 impl GrpcClient for MockClient {
-    async fn write(&self, db_name: &str, write: &DbWrite) -> Result<(), WriteError> {
+    async fn write(&self, db_name: &str, write: &DmlWrite) -> Result<(), WriteError> {
         if self.poisoned.load(Ordering::SeqCst) {
             return Err("poisened".to_string().into());
         }
@@ -143,15 +143,15 @@ mod tests {
     async fn test_mock() {
         let client = MockClient::default();
 
-        let write1 = DbWrite::new(
+        let write1 = DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         );
-        let write2 = DbWrite::new(
+        let write2 = DmlWrite::new(
             lines_to_batches("foo x=2 2", 0).unwrap(),
             Default::default(),
         );
-        let write3 = DbWrite::new(
+        let write3 = DmlWrite::new(
             lines_to_batches("foo x=3 3", 0).unwrap(),
             Default::default(),
         );
@@ -177,7 +177,7 @@ mod tests {
     async fn test_assert_writes_fail_count() {
         let client = MockClient::default();
 
-        let write1 = DbWrite::new(
+        let write1 = DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         );
@@ -193,7 +193,7 @@ mod tests {
     async fn test_assert_writes_fail_db_name() {
         let client = MockClient::default();
 
-        let write = DbWrite::new(
+        let write = DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         );
@@ -209,11 +209,11 @@ mod tests {
     async fn test_assert_writes_fail_batch() {
         let client = MockClient::default();
 
-        let write1 = DbWrite::new(
+        let write1 = DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         );
-        let write2 = DbWrite::new(
+        let write2 = DmlWrite::new(
             lines_to_batches("foo x=2 2", 0).unwrap(),
             Default::default(),
         );

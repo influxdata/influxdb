@@ -5,6 +5,7 @@ edition = "2021"
 description = "MutableBatch integration tests and benchmarks"
 
 [dependencies]
+dml = { path = "../dml" }
 flate2 = "1.0"
 generated_types = { path = "../generated_types" }
 mutable_batch = { path = "../mutable_batch" }
