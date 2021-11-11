@@ -955,8 +955,8 @@ jobs:
       - run:
           name: Do local tags for testing
           command: |
-            git tag zzz_i_am_a_bad_tag
             git tag v9.9.9-testing-please-delete-me
+            git tag zzz_i_am_a_bad_tag
       - run:
           name: Create RAM disk
           command: |
