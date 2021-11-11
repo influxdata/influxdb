@@ -475,7 +475,6 @@ commands:
                 name: Import GPG key
                 command: |
                   echo -e "$GPG_PRIVATE_KEY" | gpg --batch --import --
-            - quay_login
             - run:
                 name: Copy changelog artifacts into checkout dir
                 # This step is required to enable goreleaser to find the
@@ -488,29 +487,6 @@ commands:
           command: |
             echo 'export GOPATH=/home/circleci/go' >> $BASH_ENV
             echo 'export PATH=${GOPATH}/bin:${PATH}' >> $BASH_ENV
-      - run:
-          name: Set up Docker cross-builder
-          command: |
-            # Get jq to parse binfmt output.
-            sudo apt-get update && sudo apt-get install -y jq
-
-            # Uninstall any emulators provided by the system.
-            emulators=($(docker run --rm --privileged tonistiigi/binfmt:latest | jq -r .emulators[]))
-            for e in ${emulators[@]}; do
-              docker run --rm --privileged tonistiigi/binfmt:latest --uninstall ${e}
-            done
-
-            # Install the QEMU emulators we need to cross-build.
-            docker run --rm --privileged tonistiigi/binfmt:latest --install all
-
-            # Create a new buildx context using the freshly-installed emulators.
-            docker buildx create --name cross-builder
-            docker buildx use --default cross-builder
-            docker buildx inspect --bootstrap
-
-            # Build the 1st stage of our Docker(s) on our target platforms, to flush out
-            # any problems in our emulator setup.
-            docker buildx build --target dependency-base --platform linux/amd64,linux/arm64 docker/influxd
       - install_cross_bin_deps
       - unless:
           condition:
@@ -979,7 +955,7 @@ jobs:
       - run:
           name: Do local tags for testing
           command: |
-            git tag v9.9.9-testing-please-delete-me
+            git tag zzz_i_am_a_bad_tag
       - run:
           name: Create RAM disk
           command: |
@@ -993,7 +969,7 @@ jobs:
       - upgrade_go
       - run_goreleaser:
           publish_release: true
-          build_tag: 'v9.9.9-testing-please-delete-me'
+          build_tag: 'zzz_i_am_a_bad_tag'
       - persist_to_workspace:
           root: .
           paths:
