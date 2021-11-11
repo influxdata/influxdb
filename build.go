@@ -1,5 +1,7 @@
 package influxdb
 
+const BuildType = "OSS"
+
 // BuildInfo represents the information about InfluxDB build.
 type BuildInfo struct {
 	Version string // Version is the current git tag with v prefix stripped

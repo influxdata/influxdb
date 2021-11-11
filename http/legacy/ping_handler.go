@@ -8,13 +8,15 @@ import (
 
 type PingHandler struct {
 	*httprouter.Router
-	InfluxDBVersion string
+	InfluxDBVersion   string
+	InfluxDBBuildType string
 }
 
-func NewPingHandler(version string) *PingHandler {
+func NewPingHandler(version string, buildType string) *PingHandler {
 	h := &PingHandler{
-		Router:          httprouter.New(),
-		InfluxDBVersion: version,
+		Router:            httprouter.New(),
+		InfluxDBVersion:   version,
+		InfluxDBBuildType: buildType,
 	}
 
 	h.HandlerFunc("GET", "/ping", h.pingHandler)
@@ -24,7 +26,7 @@ func NewPingHandler(version string) *PingHandler {
 
 // handlePostLegacyWrite is the HTTP handler for the POST /write route.
 func (h *PingHandler) pingHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("X-Influxdb-Build", "oss2")
-	w.Header().Add("X-Influxdb-Version", h.InfluxDBVersion)
+	w.Header().Set("X-Influxdb-Build", h.InfluxDBBuildType)
+	w.Header().Set("X-Influxdb-Version", h.InfluxDBVersion)
 	w.WriteHeader(http.StatusNoContent)
 }

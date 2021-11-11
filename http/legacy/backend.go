@@ -40,11 +40,12 @@ type Backend struct {
 // HandlerConfig provides configuration for the legacy handler.
 type HandlerConfig struct {
 	Version           string
+	BuildType         string
 	DefaultRoutingKey string
 }
 
 func NewHandlerConfig() *HandlerConfig {
-	return &HandlerConfig{Version: influxdb.GetBuildInfo().Version}
+	return &HandlerConfig{Version: influxdb.GetBuildInfo().Version, BuildType: influxdb.BuildType}
 }
 
 // Opts returns the CLI options for use with kit/cli.

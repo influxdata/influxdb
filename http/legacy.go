@@ -34,6 +34,6 @@ func newLegacyHandler(b *legacy.Backend, config legacy.HandlerConfig) *legacy.Ha
 	influxqlBackend := legacy.NewInfluxQLBackend(b)
 	h.InfluxQLHandler = legacy.NewInfluxQLHandler(influxqlBackend, config)
 
-	h.PingHandler = legacy.NewPingHandler(config.Version)
+	h.PingHandler = legacy.NewPingHandler(config.Version, config.BuildType)
 	return h
 }

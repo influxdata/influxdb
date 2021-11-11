@@ -25,7 +25,7 @@ func TestPingHandler(t *testing.T) {
 			wants: wants{
 				statusCode: http.StatusNoContent,
 				version:    "2.0.0",
-				build:      "oss2",
+				build:      "OSS",
 			},
 		},
 		{
@@ -35,13 +35,13 @@ func TestPingHandler(t *testing.T) {
 			wants: wants{
 				statusCode: http.StatusNoContent,
 				version:    "2.0.0",
-				build:      "oss2",
+				build:      "OSS",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NewPingHandler("2.0.0").pingHandler(tt.w, tt.r)
+			NewPingHandler("2.0.0", "OSS").pingHandler(tt.w, tt.r)
 			res := tt.w.Result()
 			build := res.Header.Get("X-Influxdb-Build")
 			version := res.Header.Get("X-Influxdb-Version")
