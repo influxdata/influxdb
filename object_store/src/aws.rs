@@ -276,12 +276,10 @@ impl ObjectStoreApi for AmazonS3 {
             .map_ok(|list_objects_v2_result| {
                 let contents = list_objects_v2_result.contents.unwrap_or_default();
 
-                let names = contents
+                contents
                     .into_iter()
                     .flat_map(|object| object.key.map(CloudPath::raw))
-                    .collect();
-
-                names
+                    .collect()
             })
             .boxed())
     }
@@ -430,7 +428,7 @@ impl AmazonS3 {
         let request_factory = move || rusoto_s3::ListObjectsV2Request {
             bucket,
             prefix: raw_prefix.clone(),
-            delimiter: delimiter.clone(),
+            delimiter,
             ..Default::default()
         };
 
@@ -510,9 +508,10 @@ impl AmazonS3 {
 /// Client errors (4xx) will never be retried by this function.
 async fn s3_request<E, F, G, R>(future_factory: F) -> Result<R, rusoto_core::RusotoError<E>>
 where
-    E: std::error::Error,
-    F: Fn() -> G,
+    E: std::error::Error + Send,
+    F: Fn() -> G + Send,
     G: Future<Output = Result<R, rusoto_core::RusotoError<E>>> + Send,
+    R: Send,
 {
     let mut attempts = 0;
 
