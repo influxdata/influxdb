@@ -191,7 +191,7 @@ struct Delete {
 #[derive(Debug, StructOpt)]
 struct Restore {
     /// The UUID of the database to restore
-    uuid: String,
+    uuid: Uuid,
 }
 
 /// All possible subcommands for database
@@ -349,7 +349,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Restore(command) => {
             let mut client = management::Client::new(connection);
-            client.restore_database(&command.uuid).await?;
+            client.restore_database(command.uuid).await?;
             println!("Restored database {}", command.uuid);
         }
     }
