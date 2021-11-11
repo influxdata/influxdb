@@ -124,3 +124,7 @@ aws = ["object_store/aws"] # Optional AWS / S3 object store support
 # Cargo cannot currently implement mutually exclusive features so let's force every build
 # to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
 jemalloc_replacing_malloc = ["tikv-jemalloc-sys"]
+
+# Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
+# linting
+clippy = []
