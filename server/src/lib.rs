@@ -855,6 +855,8 @@ where
             }
         }
 
+        let timestamp = self.shared.application.time_provider().now();
+
         // Mark the database as restored in object storage and get its location for the server
         // config file
         let location = Database::restore(
@@ -862,6 +864,7 @@ where
             &db_name,
             uuid,
             server_id,
+            timestamp,
         )
         .await
         .context(CannotRestoreDatabase)?;

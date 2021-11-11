@@ -328,6 +328,7 @@ impl Database {
         db_name: &DatabaseName<'static>,
         uuid: Uuid,
         server_id: ServerId,
+        timestamp: Time,
     ) -> Result<String, InitError> {
         info!(%db_name, %uuid, "restoring database");
 
@@ -350,7 +351,6 @@ impl Database {
         let server_location =
             IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
 
-        let timestamp = Time::from_timestamp(295293, 3);
         update_owner_info(
             Some(server_id),
             Some(server_location),
@@ -1662,6 +1662,8 @@ mod tests {
         let db_name = &database.shared.config.name;
         let uuid = database.uuid().unwrap();
         let server_id = database.shared.config.server_id;
+        let timestamp = Time::from_timestamp(295293, 3);
+
         database.delete().await.unwrap();
 
         assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
@@ -1670,9 +1672,15 @@ mod tests {
             InitError::NoActiveDatabase
         ));
 
-        let location = Database::restore(Arc::clone(&application), db_name, uuid, server_id)
-            .await
-            .unwrap();
+        let location = Database::restore(
+            Arc::clone(&application),
+            db_name,
+            uuid,
+            server_id,
+            timestamp,
+        )
+        .await
+        .unwrap();
 
         let db_config = DatabaseConfig {
             name: db_name.clone(),
