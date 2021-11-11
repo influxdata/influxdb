@@ -467,16 +467,14 @@ async fn disown_database() {
     assert_eq!(created_uuid, deleted_uuid);
 
     // Disowned database is no longer in this server's database list
-    let databases: Vec<_> = client
+    assert!(!client
         .list_detailed_databases()
         .await
         .unwrap()
         .into_iter()
         // names may contain the names of other databases created by
         // concurrent tests as well
-        .filter(|db| db.db_name == db_name)
-        .collect();
-    assert_eq!(databases.len(), 0);
+        .any(|db| db.db_name == db_name));
 
     // Disowning the same database again is an error
     let err = client
