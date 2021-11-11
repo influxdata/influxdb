@@ -2,6 +2,27 @@
 
 echo "Running as user: $(whoami)"
 
+# Source env variables
+. /home/ubuntu/vars.sh
+
+# Install influxdb
+DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes /home/ubuntu/influxdb2*amd64.deb
+systemctl start influxdb
+DATASET_DIR=/mnt/ramdisk
+mkdir -p "$DATASET_DIR"
+mount -t tmpfs -o size=32G tmpfs "$DATASET_DIR"
+
+# set up influxdb
+export INFLUXDB2=true
+export TEST_ORG=example_org
+export TEST_TOKEN=token
+result="$(curl -s -o /dev/null -H "Content-Type: application/json" -XPOST -d '{"username": "default", "password": "thisisnotused", "retentionPeriodSeconds": 0, "org": "'"$TEST_ORG"'", "bucket": "unused_bucket", "token": "'"$TEST_TOKEN"'"}' http://localhost:8086/api/v2/setup -w %{http_code})"
+if [[ "$result" != "201" ]] ; then
+  echo "Influxdb2 failed to setup correctly"
+  exit 1
+fi
+
+
 # Install Telegraf
 wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -
 echo "deb https://repos.influxdata.com/ubuntu focal stable" | tee /etc/apt/sources.list.d/influxdb.list
@@ -9,20 +30,13 @@ echo "deb https://repos.influxdata.com/ubuntu focal stable" | tee /etc/apt/sourc
 DEBIAN_FRONTEND=noninteractive apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y git jq telegraf awscli
 
-# we need libc6 version 2.32 (released in ubuntu for 20.10 and later) for influx_tools
-cp /etc/apt/sources.list /etc/apt/sources.list.d/groovy.list
-sed -i 's/focal/groovy/g' /etc/apt/sources.list.d/groovy.list
-DEBIAN_FRONTEND=noninteractive apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y libc6 -t groovy
+# Install influx_tools
+aws --region us-west-2 s3 cp s3://perftest-binaries-influxdb/influx_tools/influx_tools-d3be25b251256755d622792ec91826c5670c6106 ./influx_tools
+mv ./influx_tools /usr/bin/influx_tools
+chmod 755 /usr/bin/influx_tools
 
 root_branch="$(echo "${INFLUXDB_VERSION}" | rev | cut -d '-' -f1 | rev)"
 log_date=$(date +%Y%m%d%H%M%S)
-cleanup() {
-  aws s3 cp /home/ubuntu/perftest_log.txt s3://perftest-logs-influxdb/oss/$root_branch/${TEST_COMMIT}-${log_date}.log
-  # Just shut down the instance. There is a daily cleanup job to terminate it.
-  sudo shutdown now
-}
-trap "cleanup" EXIT KILL
 
 working_dir=$(mktemp -d)
 mkdir -p /etc/telegraf
@@ -151,7 +165,7 @@ force_compaction() {
   for shard in $shards; do
     if [ -n "$(find $shard -name *.tsm)" ]; then
       # compact as the influxdb user in order to keep file permissions correct
-      sudo -u influxdb /home/ubuntu/influx_tools compact-shard -force -verbose -path $shard
+      sudo -u influxdb influx_tools compact-shard -force -verbose -path $shard
     fi
   done
 
@@ -212,10 +226,10 @@ query_types() {
 queries_for_dataset() {
   case $1 in
     iot)
-      echo window-agg group-agg bare-agg ungrouped-agg group-window-transpose iot group-window-transpose-low-card
+      echo window-agg group-agg bare-agg ungrouped-agg iot group-window-transpose-low-card
       ;;
     metaquery)
-      echo metaquery group-window-transpose-high-card cardinality
+      echo metaquery group-window-transpose-high-card
       ;;
     multi-measurement)
       echo multi-measurement
@@ -331,7 +345,7 @@ for usecase in iot metaquery multi-measurement; do
   rm -rf "$USECASE_DIR"
 done
 
-if [[ "${TEST_RECORD_INGEST_RESULTS}" == true ]] ; then
+if [[ "${TEST_RECORD_RESULTS}" == true ]] ; then
   echo "Using Telegraph to report results from the following files:"
   ls $working_dir
   telegraf --debug --once
