@@ -279,3 +279,7 @@ func TestEnqueueData(t *testing.T) {
 
 	require.Equal(t, data, string(written))
 }
+
+func TestGoroutineClose(t *testing.T) {
+
+}

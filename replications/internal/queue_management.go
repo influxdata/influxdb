@@ -3,9 +3,11 @@ package internal
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
@@ -13,8 +15,11 @@ import (
 )
 
 type replicationQueue struct {
-	queue	*durablequeue.Queue
-	scanner *durablequeue.Scanner
+	queue   *durablequeue.Queue
+	wg      *sync.WaitGroup
+	done    chan struct{}
+	receive chan struct{}
+	logger  *zap.Logger
 }
 
 type durableQueueManager struct {
@@ -81,22 +86,99 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 		return err
 	}
 
-	// Create scanner
-	scan, err := newQueue.NewScanner()
-	if err != nil {
-		return err
-	}
-
 	// Map new durable queue and scanner to its corresponding replication stream via replication ID
-	qm.replicationQueues[replicationID] = replicationQueue{
-		newQueue,
-		&scan,
+	rq := replicationQueue{
+		queue:   newQueue,
+		logger:  qm.logger,
+		done:    make(chan struct{}),
+		receive: make(chan struct{}),
 	}
+	qm.replicationQueues[replicationID] = rq // todo does this need to be held?
+	rq.Open()
 
 	qm.logger.Debug("Created new durable queue for replication stream",
 		zap.String("id", replicationID.String()), zap.String("path", dir))
 
 	return nil
+}
+
+func (rq replicationQueue) Open() {
+	rq.wg.Add(1)
+	go rq.run()
+}
+
+func (rq replicationQueue) Close() error {
+	close(rq.receive)
+	close(rq.done)
+	return rq.queue.Close()
+}
+
+func (rq replicationQueue) run() {
+	defer rq.wg.Done()
+
+	retryInterval := time.Second // todo configurable?
+	retryTimer := time.NewTicker(retryInterval)
+	defer retryTimer.Stop()
+
+	writer := func() {
+		for {
+			_, err := rq.SendWrite(func(b []byte) error {
+				rq.logger.Info("written bytes", zap.String("bytes", string(b)))
+				return nil
+			})
+			if err != nil {
+				if err == io.EOF {
+					// No more data
+					rq.logger.Debug("Finished replication writes for queue")
+				} else {
+					// todo more error handling
+					panic(1)
+				}
+				break
+			}
+		}
+	}
+
+	for {
+		select {
+		case <-rq.done: // end the goroutine when done is messaged
+			return
+		case <-retryTimer.C: // run the scanner every 1s
+			writer()
+		case <-rq.receive: // run the scanner on data append
+			writer()
+		}
+	}
+}
+
+func (rq replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
+	// err here can be io.EOF, indicating nothing to write
+	scan, err := rq.queue.NewScanner()
+	if err != nil {
+		return 0, err
+	}
+
+	var count int
+ 	for scan.Next() {
+		if scan.Err() != nil {
+			err = scan.Err()
+			break
+		}
+		if err = dp(scan.Bytes()); err != nil {
+			break
+		}
+		count += len(scan.Bytes())
+	}
+
+	if err != nil { // todo handle "skippable" errors
+		rq.logger.Info("Segment read error.", zap.Error(scan.Err()))
+	}
+
+	// This may return io.EOF to indicate an empty queue
+	if _, err := scan.Advance(); err != nil {
+		return count, err
+	}
+	return count, nil
 }
 
 // DeleteQueue deletes a durable queue and its associated data on disk.
@@ -108,21 +190,23 @@ func (qm *durableQueueManager) DeleteQueue(replicationID platform.ID) error {
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}
 
+	rq := qm.replicationQueues[replicationID]
+
 	// Close the queue
-	if err := qm.replicationQueues[replicationID].queue.Close(); err != nil {
+	if err := rq.Close(); err != nil {
 		return err
 	}
 
 	qm.logger.Debug("Closed replication stream durable queue",
-		zap.String("id", replicationID.String()), zap.String("path", qm.replicationQueues[replicationID].queue.Dir()))
+		zap.String("id", replicationID.String()), zap.String("path", rq.queue.Dir()))
 
 	// Delete any enqueued, un-flushed data on disk for this queue
-	if err := qm.replicationQueues[replicationID].queue.Remove(); err != nil {
+	if err := rq.queue.Remove(); err != nil {
 		return err
 	}
 
 	qm.logger.Debug("Deleted data associated with replication stream durable queue",
-		zap.String("id", replicationID.String()), zap.String("path", qm.replicationQueues[replicationID].queue.Dir()))
+		zap.String("id", replicationID.String()), zap.String("path", rq.queue.Dir()))
 
 	// Remove entry from replicationQueues map
 	delete(qm.replicationQueues, replicationID)
@@ -193,16 +277,14 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 			errOccurred = true
 			continue
 		} else {
-			// Create scanner
-			scan, err := queue.NewScanner()
-			if err != nil {
-				return err
-			}
-
 			qm.replicationQueues[id] = replicationQueue{
-				queue,
-				&scan,
+				queue:   queue,
+				logger:  qm.logger,
+				done:    make(chan struct{}),
+				receive: make(chan struct{}),
 			}
+			qm.replicationQueues[id].wg.Add(1)
+			go qm.replicationQueues[id].run()
 			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
 		}
 	}
@@ -249,7 +331,7 @@ func (qm *durableQueueManager) CloseAll() error {
 	errOccurred := false
 
 	for id, replicationQueue := range qm.replicationQueues {
-		if err := replicationQueue.queue.Close(); err != nil {
+		if err := replicationQueue.Close(); err != nil {
 			qm.logger.Error("failed to close durable queue", zap.Error(err), zap.String("id", id.String()))
 			errOccurred = true
 		}
@@ -274,6 +356,7 @@ func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byt
 	if err := qm.replicationQueues[replicationID].queue.Append(data); err != nil {
 		return err
 	}
+	qm.replicationQueues[replicationID].receive <- struct{}{}
 
 	return nil
 }
