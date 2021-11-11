@@ -57,9 +57,10 @@ We're also hosting monthly tech talks and community office hours on the project 
 
 To compile and run InfluxDB IOx from source, you'll need the following:
 
-- [Rust](#rust)
-- [Clang](#clang)
-- [lld (on Linux)](#lld)
+* [Rust](#rust)
+* [Clang](#clang)
+* [lld (on Linux)](#lld)
+* [protoc (on Apple Silicon)](#protoc)
 
 #### Rust
 
@@ -97,6 +98,33 @@ Invoke ld.lld (Unix), ld64.lld (macOS), lld-link (Windows), wasm-ld (WebAssembly
 ```
 
 If `lld` is not already present, it can typically be installed with the system package manager.
+
+#### protoc
+
+If you are building InfluxDB IOx on Apple Silicon you may find that the build fails with an error containing:
+
+```shell
+failed to invoke protoc (hint: https://docs.rs/prost-build/#sourcing-protoc): Bad CPU type in executable (os error 86)
+```
+
+Prost bundles a `protoc` binary, which it uses if it cannot find a system alternative.
+The binary it chooses with the above error is an `x86` one, which won't work if you do not have Rosetta installed on your system.
+
+An alternative to installing Rosetta is to point Prost at an `arm` build of `protoc`.
+First, install `protoc`, e.g., via Homebrew:
+
+```shell
+brew update && brew install protobuf
+```
+
+Then set the following environment variables to point Prost at your system install:
+
+```shell
+PROTOC=/opt/homebrew/bin/protoc 
+PROTOC_INCLUDE=/opt/homebrew/include
+```
+
+IOx should then build correctly.
 
 ### Clone the repository
 
