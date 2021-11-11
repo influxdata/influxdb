@@ -96,6 +96,34 @@ checksum:
   name_template: "influxdb2-{{ .Env.VERSION }}.sha256"
   algorithm: sha256
 
+dockers:
+  - goos: linux
+    goarch: amd64
+    image_templates:
+      - "quay.io/influxdb/influxdb-amd64:{{ .Env.VERSION }}"
+    dockerfile: docker/influxd/Dockerfile
+    extra_files:
+      - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/amd64"
+    use_buildx: true
+  - goos: linux
+    goarch: arm64
+    image_templates:
+      - "quay.io/influxdb/influxdb-arm64v8:{{ .Env.VERSION }}"
+    dockerfile: docker/influxd/Dockerfile
+    extra_files:
+      - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+    use_buildx: true
+
+docker_manifests:
+  - name_template: "quay.io/influxdb/influxdb:{{ .Env.VERSION }}"
+    image_templates:
+      - "quay.io/influxdb/influxdb-amd64:{{ .Env.VERSION }}"
+      - "quay.io/influxdb/influxdb-arm64v8:{{ .Env.VERSION }}"
+
 signs:
   - signature: "${artifact}.asc"
     cmd: gpg
