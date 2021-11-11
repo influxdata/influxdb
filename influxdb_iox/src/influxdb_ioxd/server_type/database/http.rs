@@ -402,10 +402,17 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 #[cfg(test)]
 mod tests {
     use crate::influxdb_ioxd::{
-        http::test_utils::{
-            assert_health, assert_metrics, check_response, get_content_type, TestServer,
+        http::{
+            test_utils::{
+                assert_health, assert_metrics, assert_tracing, check_response, get_content_type,
+                TestServer,
+            },
+            write::test_utils::{
+                assert_gzip_write, assert_write, assert_write_metrics,
+                assert_write_to_invalid_database,
+            },
         },
-        server_type::{common_state::CommonServerState, ServerType},
+        server_type::common_state::CommonServerState,
     };
 
     use super::*;
@@ -413,12 +420,11 @@ mod tests {
 
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
-    use http::header::CONTENT_ENCODING;
     use reqwest::Client;
 
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
-    use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Histogram};
     use object_store::ObjectStore;
+    use schema::selection::Selection;
     use server::{
         connection::ConnectionManagerImpl, db::Db, rules::ProvidedDatabaseRules, ApplicationState,
         Server,
@@ -429,7 +435,7 @@ mod tests {
         Arc::new(ApplicationState::new(
             Arc::new(ObjectStore::new_in_memory()),
             None,
-            None,
+            Some(Arc::new(RingBufferTraceCollector::new(5))),
         ))
     }
 
@@ -453,75 +459,55 @@ mod tests {
 
     #[tokio::test]
     async fn test_tracing() {
-        let trace_collector = Arc::new(RingBufferTraceCollector::new(5));
-        let application = Arc::new(ApplicationState::new(
-            Arc::new(ObjectStore::new_in_memory()),
-            None,
-            Some(Arc::<RingBufferTraceCollector>::clone(&trace_collector)),
-        ));
-        let app_server = make_server(Arc::clone(&application));
-        let server_type =
-            DatabaseServerType::new(application, app_server, &CommonServerState::for_testing());
-        let test_server = TestServer::new(Arc::new(server_type));
-
-        let client = Client::new();
-        let response = client
-            .get(&format!("{}/health", test_server.url()))
-            .header("uber-trace-id", "34f3495:36e34:0:1")
-            .send()
-            .await;
-
-        // Print the response so if the test fails, we have a log of what went wrong
-        check_response("health", response, StatusCode::OK, Some("OK")).await;
-
-        let mut spans = trace_collector.spans();
-        assert_eq!(spans.len(), 1);
-
-        let span = spans.pop().unwrap();
-        assert_eq!(span.ctx.trace_id.get(), 0x34f3495);
-        assert_eq!(span.ctx.parent_span_id.unwrap().get(), 0x36e34);
+        assert_tracing(setup_server().await).await;
     }
 
-    #[tokio::test]
-    async fn test_write() {
-        let test_server = setup_server().await;
+    async fn assert_dbwrite(
+        test_server: TestServer<DatabaseServerType<ConnectionManagerImpl>>,
+        write: DbWrite,
+    ) {
+        let (table_name, mutable_batch) = write.tables().next().unwrap();
 
-        let client = Client::new();
-
-        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1617286224000000000";
-
-        // send write data
-        let bucket_name = "MyBucket";
-        let org_name = "MyOrg";
-        let response = client
-            .post(&format!(
-                "{}/api/v2/write?bucket={}&org={}",
-                test_server.url(),
-                bucket_name,
-                org_name
-            ))
-            .body(lp_data)
-            .send()
-            .await;
-
-        check_response("write", response, StatusCode::NO_CONTENT, Some("")).await;
-
-        // Check that the data got into the right bucket
         let test_db = test_server
             .server_type()
             .server
             .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
             .expect("Database exists");
+        let batches = run_query(test_db, &format!("select * from {}", table_name)).await;
 
-        let batches = run_query(test_db, "select * from h2o_temperature").await;
-        let expected = vec![
-            "+----------------+--------------+-------+-----------------+----------------------+",
-            "| bottom_degrees | location     | state | surface_degrees | time                 |",
-            "+----------------+--------------+-------+-----------------+----------------------+",
-            "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01T14:10:24Z |",
-            "+----------------+--------------+-------+-----------------+----------------------+",
-        ];
+        let expected = arrow_util::display::pretty_format_batches(&[mutable_batch
+            .to_arrow(Selection::All)
+            .unwrap()])
+        .unwrap();
+        let expected = expected.split('\n');
+
         assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_write() {
+        let test_server = setup_server().await;
+        let write = assert_write(&test_server).await;
+
+        assert_dbwrite(test_server, write).await;
+    }
+
+    #[tokio::test]
+    async fn test_write_metrics() {
+        assert_write_metrics(setup_server().await, true).await;
+    }
+
+    #[tokio::test]
+    async fn test_gzip_write() {
+        let test_server = setup_server().await;
+        let write = assert_gzip_write(&test_server).await;
+
+        assert_dbwrite(test_server, write).await;
+    }
+
+    #[tokio::test]
+    async fn write_to_invalid_database() {
+        assert_write_to_invalid_database(setup_server().await).await;
     }
 
     #[tokio::test]
@@ -650,179 +636,6 @@ mod tests {
             Some("Cannot delete data from non-existing table"),
         )
         .await;
-    }
-
-    #[tokio::test]
-    async fn test_write_metrics() {
-        let test_server = setup_server().await;
-        let metric_registry = test_server.server_type().metric_registry();
-
-        let client = Client::new();
-
-        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
-        let incompatible_lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=\"incompatible\" 1568756170";
-
-        // send good data
-        let org_name = "MyOrg";
-        let bucket_name = "MyBucket";
-        let post_url = format!(
-            "{}/api/v2/write?bucket={}&org={}",
-            test_server.url(),
-            bucket_name,
-            org_name
-        );
-        client
-            .post(&post_url)
-            .body(lp_data)
-            .send()
-            .await
-            .expect("sent data");
-
-        // The request completed successfully
-        let request_count = metric_registry
-            .get_instrument::<Metric<U64Counter>>("http_requests")
-            .unwrap();
-
-        let request_count_ok = request_count
-            .get_observer(&Attributes::from(&[
-                ("path", "/api/v2/write"),
-                ("status", "ok"),
-            ]))
-            .unwrap()
-            .clone();
-
-        let request_count_client_error = request_count
-            .get_observer(&Attributes::from(&[
-                ("path", "/api/v2/write"),
-                ("status", "client_error"),
-            ]))
-            .unwrap()
-            .clone();
-
-        let request_count_server_error = request_count
-            .get_observer(&Attributes::from(&[
-                ("path", "/api/v2/write"),
-                ("status", "server_error"),
-            ]))
-            .unwrap()
-            .clone();
-
-        let request_duration_ok = metric_registry
-            .get_instrument::<Metric<DurationHistogram>>("http_request_duration")
-            .unwrap()
-            .get_observer(&Attributes::from(&[
-                ("path", "/api/v2/write"),
-                ("status", "ok"),
-            ]))
-            .unwrap()
-            .clone();
-
-        assert_eq!(request_duration_ok.fetch().sample_count(), 1);
-        assert_eq!(request_count_ok.fetch(), 1);
-        assert_eq!(request_count_client_error.fetch(), 0);
-        assert_eq!(request_count_server_error.fetch(), 0);
-
-        // A single successful point landed
-        let ingest_lines = metric_registry
-            .get_instrument::<Metric<U64Counter>>("ingest_lines")
-            .unwrap();
-
-        let ingest_lines_ok = ingest_lines
-            .get_observer(&Attributes::from(&[
-                ("db_name", "MyOrg_MyBucket"),
-                ("status", "ok"),
-            ]))
-            .unwrap()
-            .clone();
-
-        let ingest_lines_error = ingest_lines
-            .get_observer(&Attributes::from(&[
-                ("db_name", "MyOrg_MyBucket"),
-                ("status", "error"),
-            ]))
-            .unwrap()
-            .clone();
-
-        assert_eq!(ingest_lines_ok.fetch(), 1);
-        assert_eq!(ingest_lines_error.fetch(), 0);
-
-        // Which consists of two fields
-        let observation = metric_registry
-            .get_instrument::<Metric<U64Counter>>("ingest_fields")
-            .unwrap()
-            .get_observer(&Attributes::from(&[
-                ("db_name", "MyOrg_MyBucket"),
-                ("status", "ok"),
-            ]))
-            .unwrap()
-            .fetch();
-        assert_eq!(observation, 2);
-
-        // Bytes of data were written
-        let observation = metric_registry
-            .get_instrument::<Metric<U64Counter>>("ingest_bytes")
-            .unwrap()
-            .get_observer(&Attributes::from(&[
-                ("db_name", "MyOrg_MyBucket"),
-                ("status", "ok"),
-            ]))
-            .unwrap()
-            .fetch();
-        assert_eq!(observation, 98);
-
-        // Batch size distribution is measured
-        let observation = metric_registry
-            .get_instrument::<Metric<U64Histogram>>("ingest_batch_size_bytes")
-            .unwrap()
-            .get_observer(&Attributes::from(&[
-                ("db_name", "MyOrg_MyBucket"),
-                ("status", "ok"),
-            ]))
-            .unwrap()
-            .fetch();
-        assert_eq!(observation.total, 98);
-        assert_eq!(observation.buckets[0].count, 1);
-        assert_eq!(observation.buckets[1].count, 0);
-
-        // Write to a non-existent database
-        client
-            .post(&format!(
-                "{}/api/v2/write?bucket=NotMyBucket&org=NotMyOrg",
-                test_server.url(),
-            ))
-            .body(lp_data)
-            .send()
-            .await
-            .unwrap();
-
-        // An invalid database should not be reported as a new metric
-        assert!(metric_registry
-            .get_instrument::<Metric<U64Counter>>("ingest_lines")
-            .unwrap()
-            .get_observer(&Attributes::from(&[
-                ("db_name", "NotMyOrg_NotMyBucket"),
-                ("status", "error"),
-            ]))
-            .is_none());
-        assert_eq!(ingest_lines_ok.fetch(), 1);
-        assert_eq!(ingest_lines_error.fetch(), 0);
-
-        // Perform an invalid write
-        client
-            .post(&post_url)
-            .body(incompatible_lp_data)
-            .send()
-            .await
-            .unwrap();
-
-        // This currently results in an InternalServerError which is correctly recorded
-        // as a server error, but this should probably be a BadRequest client error (#2538)
-        assert_eq!(ingest_lines_ok.fetch(), 1);
-        assert_eq!(ingest_lines_error.fetch(), 1);
-        assert_eq!(request_duration_ok.fetch().sample_count(), 1);
-        assert_eq!(request_count_ok.fetch(), 1);
-        assert_eq!(request_count_client_error.fetch(), 0);
-        assert_eq!(request_count_server_error.fetch(), 1);
     }
 
     /// Sets up a test database with some data for testing the query endpoint
@@ -954,85 +767,6 @@ mod tests {
         // Note two json records: one record on each line
         let res = r#"[{"location":"Boston","state":"MA","surface_degrees":50.2,"time":"2021-04-01 14:10:24"},{"bottom_degrees":50.4,"location":"santa_monica","state":"CA","surface_degrees":65.2,"time":"2021-04-01 14:10:24"}]"#;
         check_response("query", response, StatusCode::OK, Some(res)).await;
-    }
-
-    fn gzip_str(s: &str) -> Vec<u8> {
-        use flate2::{write::GzEncoder, Compression};
-        use std::io::Write;
-        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        write!(encoder, "{}", s).expect("writing into encoder");
-        encoder.finish().expect("successfully encoding gzip data")
-    }
-
-    #[tokio::test]
-    async fn test_gzip_write() {
-        let test_server = setup_server().await;
-
-        let client = Client::new();
-        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1617286224000000000";
-
-        // send write data encoded with gzip
-        let bucket_name = "MyBucket";
-        let org_name = "MyOrg";
-        let response = client
-            .post(&format!(
-                "{}/api/v2/write?bucket={}&org={}",
-                test_server.url(),
-                bucket_name,
-                org_name
-            ))
-            .header(CONTENT_ENCODING, "gzip")
-            .body(gzip_str(lp_data))
-            .send()
-            .await;
-
-        check_response("gzip_write", response, StatusCode::NO_CONTENT, Some("")).await;
-
-        // Check that the data got into the right bucket
-        let test_db = test_server
-            .server_type()
-            .server
-            .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
-            .expect("Database exists");
-
-        let batches = run_query(test_db, "select * from h2o_temperature").await;
-
-        let expected = vec![
-            "+----------------+--------------+-------+-----------------+----------------------+",
-            "| bottom_degrees | location     | state | surface_degrees | time                 |",
-            "+----------------+--------------+-------+-----------------+----------------------+",
-            "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01T14:10:24Z |",
-            "+----------------+--------------+-------+-----------------+----------------------+",
-        ];
-        assert_batches_eq!(expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn write_to_invalid_database() {
-        let test_server = setup_server().await;
-
-        let client = Client::new();
-
-        let bucket_name = "NotMyBucket";
-        let org_name = "MyOrg";
-        let response = client
-            .post(&format!(
-                "{}/api/v2/write?bucket={}&org={}",
-                test_server.url(),
-                bucket_name,
-                org_name
-            ))
-            .body("cpu bar=1 10")
-            .send()
-            .await;
-
-        check_response(
-            "write_to_invalid_databases",
-            response,
-            StatusCode::NOT_FOUND,
-            Some(""),
-        )
-        .await;
     }
 
     /// Run the specified SQL query and return formatted results as a string

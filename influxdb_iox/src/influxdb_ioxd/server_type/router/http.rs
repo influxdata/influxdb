@@ -1,7 +1,18 @@
-use hyper::{Body, Method, Request, Response};
-use snafu::Snafu;
+use std::sync::Arc;
 
-use crate::influxdb_ioxd::server_type::RouteError;
+use async_trait::async_trait;
+use data_types::DatabaseName;
+use hyper::{Body, Method, Request, Response};
+use mutable_batch::DbWrite;
+use snafu::{ResultExt, Snafu};
+
+use crate::influxdb_ioxd::{
+    http::{
+        metrics::LineProtocolMetrics,
+        write::{HttpDrivenWrite, InnerWriteError, RequestOrResponse},
+    },
+    server_type::RouteError,
+};
 
 use super::RouterServerType;
 
@@ -9,41 +20,86 @@ use super::RouterServerType;
 pub enum ApplicationError {
     #[snafu(display("No handler for {:?} {}", method, path))]
     RouteNotFound { method: Method, path: String },
+
+    #[snafu(display("Cannot write data: {}", source))]
+    WriteError {
+        source: crate::influxdb_ioxd::http::write::HttpWriteError,
+    },
 }
 
 impl RouteError for ApplicationError {
     fn response(&self) -> http::Response<hyper::Body> {
         match self {
-            ApplicationError::RouteNotFound { .. } => self.not_found(),
+            Self::RouteNotFound { .. } => self.not_found(),
+            Self::WriteError { source } => source.response(),
+        }
+    }
+}
+
+#[async_trait]
+impl HttpDrivenWrite for RouterServerType {
+    fn max_request_size(&self) -> usize {
+        self.max_request_size
+    }
+
+    fn lp_metrics(&self) -> Arc<LineProtocolMetrics> {
+        Arc::clone(&self.lp_metrics)
+    }
+
+    async fn write(
+        &self,
+        db_name: &DatabaseName<'_>,
+        write: DbWrite,
+    ) -> Result<(), InnerWriteError> {
+        match self.server.router(db_name) {
+            Some(router) => router
+                .write(write)
+                .await
+                .map_err(|e| InnerWriteError::OtherError {
+                    source: Box::new(e),
+                }),
+            None => Err(InnerWriteError::NotFound {
+                db_name: db_name.to_string(),
+            }),
         }
     }
 }
 
 #[allow(clippy::match_single_binding)]
 pub async fn route_request(
-    _server_type: &RouterServerType,
+    server_type: &RouterServerType,
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let method = req.method().clone();
-    let uri = req.uri().clone();
-
-    match (method, uri.path()) {
-        (method, path) => Err(ApplicationError::RouteNotFound {
-            method,
-            path: path.to_string(),
+    match server_type
+        .route_write_http_request(req)
+        .await
+        .context(WriteError)?
+    {
+        RequestOrResponse::Response(resp) => Ok(resp),
+        RequestOrResponse::Request(req) => Err(ApplicationError::RouteNotFound {
+            method: req.method().clone(),
+            path: req.uri().path().to_string(),
         }),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{collections::BTreeMap, sync::Arc};
 
-    use router::server::RouterServer;
+    use data_types::server_id::ServerId;
+    use router::{grpc_client::MockClient, resolver::RemoteTemplate, server::RouterServer};
     use time::SystemProvider;
+    use trace::RingBufferTraceCollector;
 
     use crate::influxdb_ioxd::{
-        http::test_utils::{assert_health, assert_metrics, TestServer},
+        http::{
+            test_utils::{assert_health, assert_metrics, assert_tracing, TestServer},
+            write::test_utils::{
+                assert_gzip_write, assert_write, assert_write_metrics,
+                assert_write_to_invalid_database,
+            },
+        },
         server_type::common_state::CommonServerState,
     };
 
@@ -59,12 +115,91 @@ mod tests {
         assert_metrics(test_server().await).await;
     }
 
+    #[tokio::test]
+    async fn test_tracing() {
+        assert_tracing(test_server().await).await;
+    }
+
+    #[tokio::test]
+    async fn test_write() {
+        let test_server = test_server().await;
+        let write = assert_write(&test_server).await;
+        assert_dbwrite(test_server, write).await;
+    }
+
+    #[tokio::test]
+    async fn test_gzip_write() {
+        let test_server = test_server().await;
+        let write = assert_gzip_write(&test_server).await;
+        assert_dbwrite(test_server, write).await;
+    }
+
+    #[tokio::test]
+    async fn test_write_metrics() {
+        assert_write_metrics(test_server().await, false).await;
+    }
+
+    #[tokio::test]
+    async fn test_write_to_invalid_database() {
+        assert_write_to_invalid_database(test_server().await).await;
+    }
+
     async fn test_server() -> TestServer<RouterServerType> {
+        use data_types::router::{
+            Matcher, MatcherToShard, Router, ShardConfig, ShardId, WriteSink, WriteSinkSet,
+            WriteSinkVariant,
+        };
+        use regex::Regex;
+
         let common_state = CommonServerState::for_testing();
         let time_provider = Arc::new(SystemProvider::new());
-        let server =
-            Arc::new(RouterServer::new(None, common_state.trace_collector(), time_provider).await);
+        let server_id_1 = ServerId::try_from(1).unwrap();
+        let remote_template = RemoteTemplate::new("{id}");
+
+        let server = Arc::new(
+            RouterServer::for_testing(
+                Some(remote_template),
+                Some(Arc::new(RingBufferTraceCollector::new(1))),
+                time_provider,
+            )
+            .await,
+        );
+        server.update_router(Router {
+            name: String::from("MyOrg_MyBucket"),
+            write_sharder: ShardConfig {
+                specific_targets: vec![MatcherToShard {
+                    matcher: Matcher {
+                        table_name_regex: Some(Regex::new(".*").unwrap()),
+                    },
+                    shard: ShardId::new(1),
+                }],
+                hash_ring: None,
+            },
+            write_sinks: BTreeMap::from([(
+                ShardId::new(1),
+                WriteSinkSet {
+                    sinks: vec![WriteSink {
+                        ignore_errors: false,
+                        sink: WriteSinkVariant::GrpcRemote(server_id_1),
+                    }],
+                },
+            )]),
+            query_sinks: Default::default(),
+        });
+
         let server_type = Arc::new(RouterServerType::new(server, &common_state));
         TestServer::new(server_type)
+    }
+
+    async fn assert_dbwrite(test_server: TestServer<RouterServerType>, write: DbWrite) {
+        let grpc_client = test_server
+            .server_type()
+            .server
+            .connection_pool()
+            .grpc_client("1")
+            .await
+            .unwrap();
+        let grpc_client = grpc_client.as_any().downcast_ref::<MockClient>().unwrap();
+        grpc_client.assert_writes(&[(String::from("MyOrg_MyBucket"), write)]);
     }
 }
