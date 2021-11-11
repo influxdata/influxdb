@@ -12,12 +12,12 @@ use observability_deps::tracing::debug;
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use crate::influxdb_ioxd::{
-    http::utils::parse_body,
-    server_type::{ApiErrorCode, RouteError, ServerType},
-};
+use crate::influxdb_ioxd::{http::utils::parse_body, server_type::ServerType};
 
-use super::metrics::LineProtocolMetrics;
+use super::{
+    error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
+    metrics::LineProtocolMetrics,
+};
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Snafu)]
@@ -63,27 +63,17 @@ pub enum HttpWriteError {
     },
 }
 
-impl RouteError for HttpWriteError {
-    fn response(&self) -> Response<Body> {
+impl HttpApiErrorSource for HttpWriteError {
+    fn to_http_api_error(&self) -> HttpApiError {
         match self {
-            Self::BucketMappingError { .. } => self.internal_error(),
-            Self::WritingPoints { .. } => self.internal_error(),
-            Self::ExpectedQueryString { .. } => self.bad_request(),
-            Self::InvalidQueryString { .. } => self.bad_request(),
-            Self::ReadingBodyAsUtf8 { .. } => self.bad_request(),
-            Self::ParsingLineProtocol { .. } => self.bad_request(),
-            Self::DatabaseNotFound { .. } => self.not_found(),
-            Self::ParseBody { source } => source.response(),
-        }
-    }
-
-    /// Map the error type into an API error code.
-    fn api_error_code(&self) -> u32 {
-        match self {
-            Self::DatabaseNotFound { .. } => ApiErrorCode::DB_NOT_FOUND.into(),
-            Self::ParseBody { source } => source.api_error_code(),
-            // A "catch all" error code
-            _ => ApiErrorCode::UNKNOWN.into(),
+            e @ Self::BucketMappingError { .. } => e.internal_error(),
+            e @ Self::WritingPoints { .. } => e.internal_error(),
+            e @ Self::ExpectedQueryString { .. } => e.invalid(),
+            e @ Self::InvalidQueryString { .. } => e.invalid(),
+            e @ Self::ReadingBodyAsUtf8 { .. } => e.invalid(),
+            e @ Self::ParsingLineProtocol { .. } => e.invalid(),
+            e @ Self::DatabaseNotFound { .. } => e.not_found(),
+            Self::ParseBody { source } => source.to_http_api_error(),
         }
     }
 }
