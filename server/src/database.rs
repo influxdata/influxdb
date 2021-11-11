@@ -9,6 +9,7 @@ use crate::{
     ApplicationState, Db,
 };
 use data_types::{server_id::ServerId, write_buffer::WriteBufferDirection, DatabaseName};
+use dml::DmlWrite;
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
@@ -18,7 +19,6 @@ use generated_types::{
 };
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
-use mutable_batch::DbWrite;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use parquet_catalog::core::PreservedCatalog;
@@ -577,12 +577,12 @@ impl Database {
         Ok(())
     }
 
-    /// Writes a [`DbWrite`] to this `Database` this will either:
+    /// Writes a [`DmlWrite`] to this `Database` this will either:
     ///
     /// - write it to a write buffer
     /// - write it to a local `Db`
     ///
-    pub async fn route_write(&self, write: &DbWrite) -> Result<(), WriteError> {
+    pub async fn route_write(&self, write: &DmlWrite) -> Result<(), WriteError> {
         let db = {
             let state = self.shared.state.read();
             match &**state {

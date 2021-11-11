@@ -11,7 +11,7 @@ use parking_lot::Mutex;
 
 use data_types::sequence::Sequence;
 use data_types::write_buffer::WriteBufferCreationConfig;
-use mutable_batch::{DbWrite, WriteMeta};
+use dml::{DmlMeta, DmlWrite};
 use time::TimeProvider;
 
 use crate::core::{
@@ -25,7 +25,7 @@ struct WriteResVec {
     max_seqno: Option<u64>,
 
     /// The writes
-    writes: Vec<Result<DbWrite, WriteBufferError>>,
+    writes: Vec<Result<DmlWrite, WriteBufferError>>,
 
     /// A list of Waker waiting for a new entry to be pushed
     ///
@@ -35,7 +35,7 @@ struct WriteResVec {
 }
 
 impl WriteResVec {
-    pub fn push(&mut self, val: Result<DbWrite, WriteBufferError>) {
+    pub fn push(&mut self, val: Result<DmlWrite, WriteBufferError>) {
         if let Ok(entry) = &val {
             if let Some(seqno) = entry.meta().sequence() {
                 self.max_seqno = Some(match self.max_seqno {
@@ -115,7 +115,7 @@ impl MockBufferSharedState {
     /// - when no sequencer was initialized
     /// - when specified sequencer does not exist
     /// - when sequence number in entry is not larger the current maximum
-    pub fn push_write(&self, write: DbWrite) {
+    pub fn push_write(&self, write: DmlWrite) {
         let sequence = write.meta().sequence().expect("write must be sequenced");
         assert!(
             write.meta().producer_ts().is_some(),
@@ -141,8 +141,8 @@ impl MockBufferSharedState {
     /// Push line protocol data with placeholder values used for write metadata
     pub fn push_lp(&self, sequence: Sequence, lp: &str) {
         let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
-        let meta = WriteMeta::sequenced(sequence, time::Time::from_timestamp_nanos(0), None, 0);
-        self.push_write(DbWrite::new(tables, meta))
+        let meta = DmlMeta::sequenced(sequence, time::Time::from_timestamp_nanos(0), None, 0);
+        self.push_write(DmlWrite::new(tables, meta))
     }
 
     /// Push error to specified sequencer.
@@ -165,7 +165,7 @@ impl MockBufferSharedState {
     /// # Panics
     /// - when no sequencer was initialized
     /// - when sequencer does not exist
-    pub fn get_messages(&self, sequencer_id: u32) -> Vec<Result<DbWrite, WriteBufferError>> {
+    pub fn get_messages(&self, sequencer_id: u32) -> Vec<Result<DmlWrite, WriteBufferError>> {
         let mut guard = self.writes.lock();
         let writes = guard.as_mut().expect("no sequencers initialized");
         let writes_vec = writes.get_mut(&sequencer_id).expect("invalid sequencer ID");
@@ -242,8 +242,8 @@ impl WriteBufferWriting for MockBufferForWriting {
     async fn store_write(
         &self,
         sequencer_id: u32,
-        write: &DbWrite,
-    ) -> Result<WriteMeta, WriteBufferError> {
+        write: &DmlWrite,
+    ) -> Result<DmlMeta, WriteBufferError> {
         let mut guard = self.state.writes.lock();
         let writes = guard.as_mut().unwrap();
         let writes_vec = writes
@@ -264,8 +264,7 @@ impl WriteBufferWriting for MockBufferForWriting {
             .producer_ts()
             .unwrap_or_else(|| self.time_provider.now());
 
-        let meta =
-            WriteMeta::sequenced(sequence, timestamp, write.meta().span_context().cloned(), 0);
+        let meta = DmlMeta::sequenced(sequence, timestamp, write.meta().span_context().cloned(), 0);
 
         let mut write = write.clone();
         write.set_meta(meta.clone());
@@ -293,8 +292,8 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
     async fn store_write(
         &self,
         _sequencer_id: u32,
-        _write: &DbWrite,
-    ) -> Result<WriteMeta, WriteBufferError> {
+        _write: &DmlWrite,
+    ) -> Result<DmlMeta, WriteBufferError> {
         Err(String::from(
             "Something bad happened on the way to writing an entry in the write buffer",
         )
@@ -588,7 +587,7 @@ mod tests {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         let tables = lines_to_batches("upc user=1 100", 0).unwrap();
-        state.push_write(DbWrite::new(tables, WriteMeta::unsequenced(None)));
+        state.push_write(DmlWrite::new(tables, DmlMeta::unsequenced(None)));
     }
 
     #[test]
@@ -721,7 +720,7 @@ mod tests {
         let writer = MockBufferForWritingThatAlwaysErrors {};
 
         let tables = lines_to_batches("upc user=1 100", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
 
         assert_eq!(
             writer.store_write(0, &write).await.unwrap_err().to_string(),

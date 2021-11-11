@@ -933,6 +933,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dml"
+version = "0.1.0"
+dependencies = [
+ "arrow_util",
+ "data_types",
+ "hashbrown",
+ "mutable_batch",
+ "schema",
+ "time 0.1.0",
+ "trace",
+]
+
+[[package]]
 name = "doc-comment"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1579,6 +1592,7 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "dirs",
+ "dml",
  "dotenv",
  "flate2",
  "futures",
@@ -1601,7 +1615,6 @@ dependencies = [
  "logfmt",
  "metric",
  "metric_exporters",
- "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "mutable_buffer",
@@ -1664,6 +1677,7 @@ dependencies = [
  "arrow_util",
  "bytes",
  "client_util",
+ "dml",
  "futures-util",
  "generated_types",
  "mutable_batch",
@@ -2199,8 +2213,6 @@ dependencies = [
  "rand",
  "schema",
  "snafu",
- "time 0.1.0",
- "trace",
 ]
 
 [[package]]
@@ -2220,6 +2232,7 @@ name = "mutable_batch_pb"
 version = "0.1.0"
 dependencies = [
  "arrow_util",
+ "dml",
  "generated_types",
  "hashbrown",
  "mutable_batch",
@@ -2234,6 +2247,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "criterion",
+ "dml",
  "flate2",
  "generated_types",
  "mutable_batch",
@@ -3523,6 +3537,7 @@ dependencies = [
  "async-trait",
  "cache_loader_async",
  "data_types",
+ "dml",
  "hashbrown",
  "influxdb_iox_client",
  "metric",
@@ -3854,6 +3869,7 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
+ "dml",
  "futures",
  "futures-util",
  "generated_types",
@@ -5021,12 +5037,12 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "data_types",
+ "dml",
  "dotenv",
  "futures",
  "generated_types",
  "http",
  "httparse",
- "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "observability_deps",

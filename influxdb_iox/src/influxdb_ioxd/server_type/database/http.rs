@@ -37,7 +37,7 @@ use crate::influxdb_ioxd::{
     planner::Planner,
     server_type::{ApiErrorCode, RouteError},
 };
-use mutable_batch::DbWrite;
+use dml::DmlWrite;
 use std::{
     fmt::Debug,
     str::{self, FromStr},
@@ -225,7 +225,7 @@ where
     async fn write(
         &self,
         db_name: &DatabaseName<'_>,
-        write: DbWrite,
+        write: DmlWrite,
     ) -> Result<(), InnerWriteError> {
         self.server
             .write(db_name, write)
@@ -464,7 +464,7 @@ mod tests {
 
     async fn assert_dbwrite(
         test_server: TestServer<DatabaseServerType<ConnectionManagerImpl>>,
-        write: DbWrite,
+        write: DmlWrite,
     ) {
         let (table_name, mutable_batch) = write.tables().next().unwrap();
 

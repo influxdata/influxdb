@@ -8,7 +8,7 @@ use data_types::{
     server_id::ServerId,
     write_buffer::WriteBufferConnection,
 };
-use mutable_batch::DbWrite;
+use dml::DmlWrite;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use crate::{
@@ -53,7 +53,7 @@ impl VariantGrpcRemote {
         }
     }
 
-    async fn write(&self, write: &DbWrite) -> Result<(), Error> {
+    async fn write(&self, write: &DmlWrite) -> Result<(), Error> {
         let connection_string = self
             .resolver
             .resolve_remote(self.server_id)
@@ -92,7 +92,7 @@ impl VariantWriteBuffer {
         }
     }
 
-    async fn write(&self, write: &DbWrite) -> Result<(), Error> {
+    async fn write(&self, write: &DmlWrite) -> Result<(), Error> {
         let write_buffer = self
             .connection_pool
             .write_buffer_producer(&self.db_name, &self.write_buffer_cfg)
@@ -147,7 +147,7 @@ impl WriteSink {
         }
     }
 
-    pub async fn write(&self, write: &DbWrite) -> Result<(), Error> {
+    pub async fn write(&self, write: &DmlWrite) -> Result<(), Error> {
         let res = match &self.variant {
             WriteSinkVariant::GrpcRemote(v) => v.write(write).await,
             WriteSinkVariant::WriteBuffer(v) => v.write(write).await,
@@ -192,7 +192,7 @@ impl WriteSinkSet {
     }
 
     /// Write to sinks. Fails on first error.
-    pub async fn write(&self, write: &DbWrite) -> Result<(), Error> {
+    pub async fn write(&self, write: &DmlWrite) -> Result<(), Error> {
         for sink in &self.sinks {
             sink.write(write).await?;
         }
@@ -228,7 +228,7 @@ mod tests {
         let client_grpc = client_grpc.as_any().downcast_ref::<MockClient>().unwrap();
         client_grpc.poison();
 
-        let write = DbWrite::new(
+        let write = DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         );
@@ -334,7 +334,7 @@ mod tests {
             connection_pool,
         );
 
-        let write_1 = DbWrite::new(
+        let write_1 = DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         );
@@ -347,7 +347,7 @@ mod tests {
 
         client_2.poison();
 
-        let write_2 = DbWrite::new(
+        let write_2 = DmlWrite::new(
             lines_to_batches("foo x=2 2", 0).unwrap(),
             Default::default(),
         );

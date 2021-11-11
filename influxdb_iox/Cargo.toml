@@ -9,6 +9,7 @@ default-run = "influxdb_iox"
 # Workspace dependencies, in alphabetical order
 datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
+dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
 
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
@@ -18,7 +19,6 @@ iox_object_store = { path = "../iox_object_store" }
 logfmt = { path = "../logfmt" }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
-mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
 mutable_buffer = { path = "../mutable_buffer" }

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use data_types::DatabaseName;
+use dml::DmlWrite;
 use hyper::{Body, Method, Request, Response};
-use mutable_batch::DbWrite;
 use snafu::{ResultExt, Snafu};
 
 use crate::influxdb_ioxd::{
@@ -49,7 +49,7 @@ impl HttpDrivenWrite for RouterServerType {
     async fn write(
         &self,
         db_name: &DatabaseName<'_>,
-        write: DbWrite,
+        write: DmlWrite,
     ) -> Result<(), InnerWriteError> {
         match self.server.router(db_name) {
             Some(router) => router
@@ -191,7 +191,7 @@ mod tests {
         TestServer::new(server_type)
     }
 
-    async fn assert_dbwrite(test_server: TestServer<RouterServerType>, write: DbWrite) {
+    async fn assert_dbwrite(test_server: TestServer<RouterServerType>, write: DmlWrite) {
         let grpc_client = test_server
             .server_type()
             .server
