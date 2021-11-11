@@ -62,108 +62,112 @@ workflows:
           - << pipeline.parameters.aws_teardown >>
           - << pipeline.parameters.build_and_sign >>
     jobs:
-      - godeps
-      - test-race:
-          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
-          name: gotest
-      - test-build:
-          matrix:
-            parameters:
-              os: [ linux, darwin, windows ]
-              arch: [ amd64, arm64 ]
-            exclude:
-              - os: darwin
-                arch: arm64
-              - os: windows
-                arch: arm64
-              # linux/amd64 can be tested directly from our cross-builder image
-              # to save time & enable running with the race detector.
-              - os: linux
-                arch: amd64
-      - test-prebuilt:
-          name: test-linux-arm64
-          executor: linux-arm64
+#      - godeps
+#      - test-race:
+#          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+#          name: gotest
+#      - test-build:
+#          matrix:
+#            parameters:
+#              os: [ linux, darwin, windows ]
+#              arch: [ amd64, arm64 ]
+#            exclude:
+#              - os: darwin
+#                arch: arm64
+#              - os: windows
+#                arch: arm64
+#              # linux/amd64 can be tested directly from our cross-builder image
+#              # to save time & enable running with the race detector.
+#              - os: linux
+#                arch: amd64
+#      - test-prebuilt:
+#          name: test-linux-arm64
+#          executor: linux-arm64
+#          requires:
+#            - test-build-arm64-linux
+#      - test-prebuilt:
+#          name: test-darwin
+#          executor: darwin
+#          requires:
+#            - test-build-amd64-darwin
+#      - test-prebuilt:
+#          name: test-windows
+#          executor: windows
+#          requires:
+#            - test-build-amd64-windows
+#      - fluxtest:
+#          requires:
+#            - godeps
+#      - tlstest:
+#          requires:
+#            - godeps
+#      - lint:
+#          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+#          name: golint
+#      - build:
+#          requires:
+#            - godeps
+#      - cross_build:
+#          requires:
+#            - godeps
+#      - test-downgrade:
+#          requires:
+#            - build
+#      - e2e-monitor-ci:
+#          filters:
+#            branches:
+#              ignore: /pull\/[0-9]+/
+#          requires:
+#            - build
+#      - pkg_run_test:
+#          filters:
+#            branches:
+#              ignore: /pull\/[0-9]+/
+#          requires:
+#            - cross_build
+#      - perf_test:
+#          name: perf-test-flux
+#          format: flux-http
+#          record_ingest_results: true
+#          requires:
+#            - cross_build
+#          filters:
+#            branches:
+#              only:
+#                - "2.1"
+#      - perf_test:
+#          name: perf-test-influxql
+#          format: http
+#          record_ingest_results: false
+#          requires:
+#            - cross_build
+#          filters:
+#            branches:
+#              only:
+#                - "2.1"
+#      - grace_daily:
+#          requires:
+#            - build
+#      - litmus_daily:
+#          requires:
+#            - build
+#      - litmus_integration:
+#          requires:
+#            - build
+#          filters:
+#            branches:
+#              only: "2.1"
+#      - share-testing-image:
+#          filters:
+#            branches:
+#              only:
+#                - "2.1"
+#          requires:
+#            - e2e-monitor-ci
+      - changelog
+      - release:
           requires:
-            - test-build-arm64-linux
-      - test-prebuilt:
-          name: test-darwin
-          executor: darwin
-          requires:
-            - test-build-amd64-darwin
-      - test-prebuilt:
-          name: test-windows
-          executor: windows
-          requires:
-            - test-build-amd64-windows
-      - fluxtest:
-          requires:
-            - godeps
-      - tlstest:
-          requires:
-            - godeps
-      - lint:
-          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
-          name: golint
-      - build:
-          requires:
-            - godeps
-      - cross_build:
-          requires:
-            - godeps
-      - test-downgrade:
-          requires:
-            - build
-      - e2e-monitor-ci:
-          filters:
-            branches:
-              ignore: /pull\/[0-9]+/
-          requires:
-            - build
-      - pkg_run_test:
-          filters:
-            branches:
-              ignore: /pull\/[0-9]+/
-          requires:
-            - cross_build
-      - perf_test:
-          name: perf-test-flux
-          format: flux-http
-          record_ingest_results: true
-          requires:
-            - cross_build
-          filters:
-            branches:
-              only:
-                - "2.1"
-      - perf_test:
-          name: perf-test-influxql
-          format: http
-          record_ingest_results: false
-          requires:
-            - cross_build
-          filters:
-            branches:
-              only:
-                - "2.1"
-      - grace_daily:
-          requires:
-            - build
-      - litmus_daily:
-          requires:
-            - build
-      - litmus_integration:
-          requires:
-            - build
-          filters:
-            branches:
-              only: "2.1"
-      - share-testing-image:
-          filters:
-            branches:
-              only:
-                - "2.1"
-          requires:
-            - e2e-monitor-ci
+            - changelog
 
   aws_destroy_daily:
     triggers:
@@ -541,6 +545,8 @@ commands:
                   goreleaser \
                     --debug \
                     release \
+                  --skip-publish \
+                  --skip-sign \
                       -p 1 \
                       --rm-dist \
                       --skip-validate
@@ -962,14 +968,18 @@ jobs:
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - when:
-          condition: << pipeline.parameters.build_and_sign_tag >>
-          steps:
-            - run:
-                name: checkout by tag
-                command: |
-                  git fetch --all --tags
-                  git checkout tags/<< pipeline.parameters.build_and_sign_tag >> -b << pipeline.parameters.build_and_sign_tag >>
+#      - when:
+#          condition: << pipeline.parameters.build_and_sign_tag >>
+#          steps:
+#            - run:
+#                name: checkout by tag
+#                command: |
+#                  git fetch --all --tags
+#                  git checkout tags/<< pipeline.parameters.build_and_sign_tag >> -b << pipeline.parameters.build_and_sign_tag >>
+      - run:
+          name: Do local tags for testing
+          command: |
+            git tag v9.9.9-testing-please-delete-me
       - run:
           name: Create RAM disk
           command: |
@@ -983,7 +993,7 @@ jobs:
       - upgrade_go
       - run_goreleaser:
           publish_release: true
-          build_tag: << pipeline.parameters.build_and_sign_tag >>
+          build_tag: 'v9.9.9-testing-please-delete-me'
       - persist_to_workspace:
           root: .
           paths:
