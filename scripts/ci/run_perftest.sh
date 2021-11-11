@@ -19,13 +19,8 @@ root_branch="$(echo "${INFLUXDB_VERSION}" | rev | cut -d '-' -f1 | rev)"
 log_date=$(date +%Y%m%d%H%M%S)
 cleanup() {
   aws s3 cp /home/ubuntu/perftest_log.txt s3://perftest-logs-influxdb/oss/$root_branch/${TEST_COMMIT}-${log_date}.log
-  if [ "${CIRCLE_TEARDOWN}" = true ]; then
-    curl --request POST \
-      --url https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline \
-      --header "Circle-Token: ${CIRCLE_TOKEN}" \
-      --header 'content-type: application/json' \
-      --data "{\"branch\":\"${INFLUXDB_VERSION}\", \"parameters\":{\"workflow_type\": \"aws_teardown\", \"aws_teardown_branch\":\"${INFLUXDB_VERSION}\", \"aws_teardown_sha\":\"${TEST_COMMIT}\", \"aws_teardown_datestring\":\"${CIRCLE_TEARDOWN_DATESTRING}\"}}"
-  fi
+  # Just shut down the instance. There is a daily cleanup job to terminate it.
+  sudo shutdown now
 }
 trap "cleanup" EXIT KILL
 
