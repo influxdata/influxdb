@@ -492,7 +492,7 @@ async fn disown_database() {
     // If an optional UUID is specified, don't disown the database if the UUID doesn't match
     let incorrect_uuid = Uuid::new_v4();
     let err = client
-        .disown_database(&db_name, Some(incorrect_uuid.to_string()), None)
+        .disown_database(&db_name, Some(incorrect_uuid), None)
         .await
         .unwrap_err();
     assert_contains!(
@@ -503,16 +503,9 @@ async fn disown_database() {
         )
     );
 
-    // Error if the UUID specified is not in a valid UUID format
-    let err = client
-        .disown_database(&db_name, Some("not-a-uuid".to_string()), None)
-        .await
-        .unwrap_err();
-    assert_contains!(err.to_string(), "Invalid UUID");
-
     // If an optional UUID is specified, disown the database if the UUID does match
     let deleted_uuid = client
-        .disown_database(&db_name, Some(created_uuid.to_string()), None)
+        .disown_database(&db_name, Some(created_uuid), None)
         .await
         .unwrap();
     assert_eq!(created_uuid, deleted_uuid);
@@ -532,11 +525,7 @@ async fn disown_database() {
 
     // Can optionally specify a context AND a UUID
     let deleted_uuid = client
-        .disown_database(
-            &db_name,
-            Some(created_uuid.to_string()),
-            Some("oops".to_string()),
-        )
+        .disown_database(&db_name, Some(created_uuid), Some("oops".to_string()))
         .await
         .unwrap();
     assert_eq!(created_uuid, deleted_uuid);

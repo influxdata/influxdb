@@ -199,7 +199,7 @@ struct Disown {
     /// Optionally, the UUID of the database to delete. This must match the UUID of the current
     /// database with the given name, or the disown operation will result in an error.
     #[structopt(short, long)]
-    uuid: Option<String>,
+    uuid: Option<Uuid>,
 
     /// Optionally, context for this operation, to be stored in the database's owner file as a
     /// historical record

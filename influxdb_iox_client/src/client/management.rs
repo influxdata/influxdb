@@ -729,7 +729,7 @@ impl Client {
     pub async fn disown_database(
         &mut self,
         db_name: impl Into<String> + Send,
-        uuid: Option<String>,
+        uuid: Option<Uuid>,
         context: Option<String>,
     ) -> Result<Uuid, DisownDatabaseError> {
         let db_name = db_name.into();
@@ -737,10 +737,7 @@ impl Client {
             .inner
             .disown_database(DisownDatabaseRequest {
                 db_name: db_name.clone(),
-                uuid: uuid
-                    .map(|s| s.parse::<Uuid>().map(|u| u.as_bytes().to_vec()))
-                    .transpose()?
-                    .unwrap_or_default(),
+                uuid: uuid.map(|u| u.as_bytes().to_vec()).unwrap_or_default(),
                 context: vec![google::protobuf::Any {
                     type_url: protobuf_type_url("google.protobuf.StringValue"),
                     value: context.unwrap_or_default().into(),

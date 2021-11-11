@@ -512,7 +512,9 @@ async fn disown_database() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Invalid UUID"));
+        .stderr(predicate::str::contains(
+            "Invalid value for '--uuid <uuid>'",
+        ));
 
     // If an optional UUID is specified, disown the database if the UUID does match
     let stdout = String::from_utf8(
