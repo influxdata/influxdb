@@ -20,6 +20,18 @@ For more details on the motivation behind the project and some of our goals, rea
 If you prefer a video that covers a little bit of InfluxDB history and high level goals for [InfluxDB IOx you can watch Paul Dix's announcement talk from InfluxDays NA 2020](https://www.youtube.com/watch?v=pnwkAAyMp18).
 For more details on the motivation behind the selection of [Apache Arrow, Flight and Parquet, read this](https://www.influxdata.com/blog/apache-arrow-parquet-flight-and-their-ecosystem-are-a-game-changer-for-olap/).
 
+## Supported Platforms
+
+As we commit to support platforms they will be added here.
+Our current goal is that the following platforms will be able to run InfluxDB IOx.
+
+* Linux x86 (`x86_64-unknown-linux-gnu`)
+* Darwin x86 (`x86_64-apple-darwin`)
+* Darwin arm (`aarch64-apple-darwin`)
+
+This list is very unlikely to be complete; we will add more platforms based on
+our ability to support them effectively.
+
 ## Project Status
 
 This project is very early and in active development. It isn't yet ready for testing, which is why we're not producing builds or documentation yet. If you're interested in following along with the project, drop into our community Slack channel #influxdb_iox. You can find [links to join here](https://community.influxdata.com/).
