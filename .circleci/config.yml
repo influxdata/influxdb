@@ -956,6 +956,7 @@ jobs:
           name: Do local tags for testing
           command: |
             git tag zzz_i_am_a_bad_tag
+            git tag v9.9.9-testing-please-delete-me
       - run:
           name: Create RAM disk
           command: |
@@ -969,7 +970,7 @@ jobs:
       - upgrade_go
       - run_goreleaser:
           publish_release: true
-          build_tag: 'zzz_i_am_a_bad_tag'
+          build_tag: 'v9.9.9-testing-please-delete-me'
       - persist_to_workspace:
           root: .
           paths:
