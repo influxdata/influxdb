@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -280,6 +281,49 @@ func TestEnqueueData(t *testing.T) {
 	require.Equal(t, data, string(written))
 }
 
-func TestGoroutineClose(t *testing.T) {
+func TestGoroutineReceives(t *testing.T) {
+	path, qm := initQueueManager(t)
+	defer os.RemoveAll(path)
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.DirExists(t, filepath.Join(path, id1.String()))
 
+	rq, ok := qm.replicationQueues[id1]
+	require.True(t, ok)
+	require.NotNil(t, rq)
+	close(rq.done) // atypical from normal behavior, but lets us receive channels to test
+
+	// listen on the receive channel
+	ch := make(chan struct{})
+	go func() {
+		var hasReceived bool
+		for {
+			select {
+			case <-ch:
+				require.True(t, hasReceived)
+				return
+			case <-rq.receive:
+				hasReceived = true
+			}
+		}
+	}()
+	require.NoError(t, qm.EnqueueData(id1, []byte("1234")))
+	time.Sleep(time.Second) // give some time to receive the channel
+	ch <- struct{}{}
+	time.Sleep(time.Second) // give some time to check that the channel was hit
+}
+
+func TestGoroutineCloses(t *testing.T) {
+	path, qm := initQueueManager(t)
+	defer os.RemoveAll(path)
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.DirExists(t, filepath.Join(path, id1.String()))
+
+	rq, ok := qm.replicationQueues[id1]
+	require.True(t, ok)
+	require.NotNil(t, rq)
+	require.NoError(t, qm.CloseAll())
+
+	// wg should be zero here, indicating that the goroutine has closed
+	// if this does not panic, then the routine is still active
+	require.Panics(t, func() { rq.wg.Add(-1) })
 }

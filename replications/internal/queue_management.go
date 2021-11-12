@@ -110,7 +110,7 @@ func (rq *replicationQueue) Open() {
 func (rq *replicationQueue) Close() error {
 	close(rq.receive)
 	close(rq.done)
-	rq.wg.Wait()
+	rq.wg.Wait() // wait for goroutine to finish processing all messages
 	return rq.queue.Close()
 }
 
@@ -152,7 +152,7 @@ func (rq *replicationQueue) run() {
 	}
 }
 
-func (rq replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
+func (rq *replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
 	// err here can be io.EOF, indicating nothing to write
 	scan, err := rq.queue.NewScanner()
 	if err != nil {
