@@ -274,7 +274,7 @@ impl Database {
     }
 
     /// Disown this database from this server.
-    pub async fn disown(&self, timestamp: Time) -> Result<Uuid, Error> {
+    pub async fn disown(&self) -> Result<Uuid, Error> {
         let db_name = &self.shared.config.name;
 
         let handle = self.shared.state.read().freeze();
@@ -295,9 +295,14 @@ impl Database {
 
         info!(%db_name, %uuid, "disowning database");
 
-        update_owner_info(None, None, timestamp, &iox_object_store)
-            .await
-            .context(CannotDisown { db_name })?;
+        update_owner_info(
+            None,
+            None,
+            self.shared.application.time_provider().now(),
+            &iox_object_store,
+        )
+        .await
+        .context(CannotDisown { db_name })?;
 
         let mut state = self.shared.state.write();
         let mut state = state.unfreeze(handle);
@@ -317,7 +322,6 @@ impl Database {
         db_name: &DatabaseName<'static>,
         uuid: Uuid,
         server_id: ServerId,
-        timestamp: Time,
     ) -> Result<String, InitError> {
         info!(%db_name, %uuid, "restoring database");
 
@@ -343,7 +347,7 @@ impl Database {
         update_owner_info(
             Some(server_id),
             Some(server_location),
-            timestamp,
+            application.time_provider().now(),
             &iox_object_store,
         )
         .await
@@ -1514,7 +1518,6 @@ mod tests {
         sequence::Sequence,
         write_buffer::{WriteBufferConnection, WriteBufferDirection},
     };
-    use generated_types::google;
     use std::{num::NonZeroU32, time::Instant};
     use uuid::Uuid;
     use write_buffer::mock::MockBufferSharedState;
@@ -1647,7 +1650,6 @@ mod tests {
         let db_name = &database.shared.config.name;
         let uuid = database.uuid().unwrap();
         let server_id = database.shared.config.server_id;
-        let timestamp = Time::from_timestamp(295293, 3);
 
         database.delete().await.unwrap();
 
@@ -1657,15 +1659,9 @@ mod tests {
             InitError::NoActiveDatabase
         ));
 
-        let location = Database::restore(
-            Arc::clone(&application),
-            db_name,
-            uuid,
-            server_id,
-            timestamp,
-        )
-        .await
-        .unwrap();
+        let location = Database::restore(Arc::clone(&application), db_name, uuid, server_id)
+            .await
+            .unwrap();
 
         let db_config = DatabaseConfig {
             name: db_name.clone(),
@@ -1697,9 +1693,8 @@ mod tests {
         let server_location =
             IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
         let iox_object_store = database.iox_object_store().unwrap();
-        let timestamp = Time::from_timestamp(295293, 3);
 
-        database.disown(timestamp).await.unwrap();
+        database.disown().await.unwrap();
 
         assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
         assert!(matches!(
@@ -1715,8 +1710,6 @@ mod tests {
         let transaction = &owner_info.transactions[0];
         assert_eq!(transaction.id, server_id.get_u32());
         assert_eq!(transaction.location, server_location);
-        let expected_timestamp: google::protobuf::Timestamp = timestamp.date_time().into();
-        assert_eq!(transaction.timestamp, Some(expected_timestamp));
     }
 
     #[tokio::test]

@@ -787,12 +787,7 @@ where
             .fail();
         }
 
-        let timestamp = self.shared.application.time_provider().now();
-
-        let returned_uuid = database
-            .disown(timestamp)
-            .await
-            .context(CannotDisownDatabase)?;
+        let returned_uuid = database.disown().await.context(CannotDisownDatabase)?;
 
         {
             let mut state = self.shared.state.write();
@@ -851,8 +846,6 @@ where
             }
         }
 
-        let timestamp = self.shared.application.time_provider().now();
-
         // Mark the database as restored in object storage and get its location for the server
         // config file
         let location = Database::restore(
@@ -860,7 +853,6 @@ where
             &db_name,
             uuid,
             server_id,
-            timestamp,
         )
         .await
         .context(CannotRestoreDatabase)?;
