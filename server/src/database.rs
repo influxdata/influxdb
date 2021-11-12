@@ -1238,7 +1238,7 @@ pub enum OwnerInfoCreateError {
     OwnerFileAlreadyExists,
 
     #[snafu(display("error creating database owner info file: {}", source))]
-    CreatingOwnerFile { source: object_store::Error },
+    CreatingOwnerFile { source: Box<object_store::Error> },
 }
 
 /// Create a new owner info file for this database. Existing content at this location in object
@@ -1269,6 +1269,7 @@ async fn create_owner_info(
     iox_object_store
         .put_owner_file(encoded)
         .await
+        .map_err(Box::new)
         .context(CreatingOwnerFile)?;
 
     Ok(())
