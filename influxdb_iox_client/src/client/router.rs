@@ -7,6 +7,7 @@ use crate::connection::Connection;
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::influxdata::iox::router::v1::*;
+    pub use generated_types::influxdata::iox::write_buffer::v1::*;
 }
 
 /// Errors returned by Client::list_routers
