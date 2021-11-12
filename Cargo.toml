@@ -75,7 +75,9 @@ exclude = [
 ]
 
 [profile.release]
+codegen-units = 1
 debug = true
+lto = "thin"
 
 [profile.bench]
 debug = true
