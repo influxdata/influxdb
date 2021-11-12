@@ -12,6 +12,10 @@ pub mod generated_types {
 #[derive(Debug, Error)]
 pub enum UpdateServerIdError {
     /// Client received an unexpected error from the server
+    #[error("Server ID already set")]
+    AlreadySet,
+
+    /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
 }
@@ -52,6 +56,7 @@ pub enum GetServingReadinessError {
 /// ```no_run
 /// #[tokio::main]
 /// # async fn main() {
+/// use std::num::NonZeroU32;
 /// use influxdb_iox_client::{
 ///     deployment::Client,
 ///     connection::Builder,
@@ -65,8 +70,9 @@ pub enum GetServingReadinessError {
 /// let mut client = Client::new(connection);
 ///
 /// // Update server ID.
+/// let server_id = NonZeroU32::new(42).unwrap();
 /// client
-///     .update_server_id(42)
+///     .update_server_id(server_id)
 ///     .await
 ///     .expect("could not update server ID");
 /// # }
@@ -85,11 +91,14 @@ impl Client {
     }
 
     /// Set the server's ID.
-    pub async fn update_server_id(&mut self, id: u32) -> Result<(), UpdateServerIdError> {
+    pub async fn update_server_id(&mut self, id: NonZeroU32) -> Result<(), UpdateServerIdError> {
         self.inner
-            .update_server_id(UpdateServerIdRequest { id })
+            .update_server_id(UpdateServerIdRequest { id: id.get() })
             .await
-            .map_err(UpdateServerIdError::ServerError)?;
+            .map_err(|status| match status.code() {
+                tonic::Code::InvalidArgument => UpdateServerIdError::AlreadySet,
+                _ => UpdateServerIdError::ServerError(status),
+            })?;
         Ok(())
     }
 

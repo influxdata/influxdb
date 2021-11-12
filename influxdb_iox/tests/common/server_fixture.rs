@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::net::SocketAddrV4;
+use std::num::NonZeroU32;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -539,7 +540,7 @@ impl TestServer {
                 let id = DEFAULT_SERVER_ID;
 
                 deployment_client
-                    .update_server_id(id)
+                    .update_server_id(NonZeroU32::try_from(id).unwrap())
                     .await
                     .expect("set ID failed");
 

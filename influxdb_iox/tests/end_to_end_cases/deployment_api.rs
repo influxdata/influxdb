@@ -1,6 +1,10 @@
+use std::num::NonZeroU32;
+
 use influxdb_iox_client::{
-    management::generated_types::DatabaseRules, router::generated_types::Router, write::WriteError,
+    deployment::UpdateServerIdError, management::generated_types::DatabaseRules,
+    router::generated_types::Router, write::WriteError,
 };
+use test_helpers::assert_error;
 use tonic::Code;
 
 use crate::common::server_fixture::{ServerFixture, ServerType};
@@ -16,7 +20,7 @@ async fn test_serving_readiness_database() {
     let lp_data = "bar baz=1 10";
 
     deployment_client
-        .update_server_id(42)
+        .update_server_id(NonZeroU32::try_from(42).unwrap())
         .await
         .expect("set ID failed");
     server_fixture.wait_server_initialized().await;
@@ -59,7 +63,7 @@ async fn test_serving_readiness_router() {
     let lp_data = "bar baz=1 10";
 
     deployment_client
-        .update_server_id(42)
+        .update_server_id(NonZeroU32::try_from(42).unwrap())
         .await
         .expect("set ID failed");
     router_client
@@ -103,14 +107,19 @@ async fn test_set_get_writer_id_router() {
 async fn assert_set_get_writer_id(server_fixture: ServerFixture) {
     let mut client = server_fixture.deployment_client();
 
-    const TEST_ID: u32 = 42;
+    let test_id = NonZeroU32::try_from(42).unwrap();
 
     client
-        .update_server_id(TEST_ID)
+        .update_server_id(test_id)
         .await
         .expect("set ID failed");
 
     let got = client.get_server_id().await.expect("get ID failed");
+    assert_eq!(got, test_id);
 
-    assert_eq!(got.get(), TEST_ID);
+    // setting server ID a second time should fail
+    let result = client
+        .update_server_id(NonZeroU32::try_from(13).unwrap())
+        .await;
+    assert_error!(result, UpdateServerIdError::AlreadySet);
 }
