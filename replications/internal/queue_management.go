@@ -16,7 +16,7 @@ import (
 
 type replicationQueue struct {
 	queue   *durablequeue.Queue
-	wg      *sync.WaitGroup
+	wg      sync.WaitGroup
 	done    chan struct{}
 	receive chan struct{}
 	logger  *zap.Logger
@@ -90,7 +90,6 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 	rq := replicationQueue{
 		queue:   newQueue,
 		logger:  qm.logger,
-		wg: &sync.WaitGroup{},
 		done:    make(chan struct{}),
 		receive: make(chan struct{}),
 	}
@@ -103,19 +102,19 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 	return nil
 }
 
-func (rq replicationQueue) Open() {
+func (rq *replicationQueue) Open() {
 	rq.wg.Add(1)
 	go rq.run()
 }
 
-func (rq replicationQueue) Close() error {
+func (rq *replicationQueue) Close() error {
 	close(rq.receive)
 	close(rq.done)
 	rq.wg.Wait()
 	return rq.queue.Close()
 }
 
-func (rq replicationQueue) run() {
+func (rq *replicationQueue) run() {
 	defer rq.wg.Done()
 
 	retryInterval := time.Second // todo configurable?
@@ -161,7 +160,7 @@ func (rq replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
 	}
 
 	var count int
- 	for scan.Next() {
+	for scan.Next() {
 		if scan.Err() != nil {
 			err = scan.Err()
 			break
@@ -188,7 +187,7 @@ func (qm *durableQueueManager) DeleteQueue(replicationID platform.ID) error {
 	qm.mutex.Lock()
 	defer qm.mutex.Unlock()
 
-	if _, exist := qm.replicationQueues[replicationID]; !exist{
+	if _, exist := qm.replicationQueues[replicationID]; !exist {
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}
 
@@ -221,7 +220,7 @@ func (qm *durableQueueManager) UpdateMaxQueueSize(replicationID platform.ID, max
 	qm.mutex.RLock()
 	defer qm.mutex.RUnlock()
 
-	if _, exist := qm.replicationQueues[replicationID]; !exist{
+	if _, exist := qm.replicationQueues[replicationID]; !exist {
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}
 
@@ -240,7 +239,7 @@ func (qm *durableQueueManager) CurrentQueueSizes(ids []platform.ID) (map[platfor
 	sizes := make(map[platform.ID]int64, len(ids))
 
 	for _, id := range ids {
-		if _, exist := qm.replicationQueues[id]; !exist{
+		if _, exist := qm.replicationQueues[id]; !exist {
 			return nil, fmt.Errorf("durable queue not found for replication ID %q", id)
 		}
 		sizes[id] = qm.replicationQueues[id].queue.DiskUsage()
@@ -282,12 +281,10 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 			qm.replicationQueues[id] = &replicationQueue{
 				queue:   queue,
 				logger:  qm.logger,
-				wg: &sync.WaitGroup{},
 				done:    make(chan struct{}),
 				receive: make(chan struct{}),
 			}
-			qm.replicationQueues[id].wg.Add(1)
-			go qm.replicationQueues[id].run()
+			qm.replicationQueues[id].Open()
 			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
 		}
 	}
@@ -314,7 +311,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 		}
 
 		// Partial delete found, needs to be fully removed
-		if _, exist := qm.replicationQueues[*id]; !exist{
+		if _, exist := qm.replicationQueues[*id]; !exist {
 			if err := os.RemoveAll(filepath.Join(qm.queuePath, id.String())); err != nil {
 				qm.logger.Error("failed to remove durable queue during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
 				errOccurred = true
@@ -352,7 +349,7 @@ func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byt
 	qm.mutex.RLock()
 	defer qm.mutex.RUnlock()
 
-	if _, exist := qm.replicationQueues[replicationID]; !exist{
+	if _, exist := qm.replicationQueues[replicationID]; !exist {
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}
 
