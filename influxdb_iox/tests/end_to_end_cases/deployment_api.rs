@@ -95,16 +95,16 @@ async fn test_serving_readiness_router() {
 }
 
 #[tokio::test]
-async fn test_set_get_writer_id_database() {
-    assert_set_get_writer_id(ServerFixture::create_single_use(ServerType::Database).await).await;
+async fn test_set_get_server_id_database() {
+    assert_set_get_server_id(ServerFixture::create_single_use(ServerType::Database).await).await;
 }
 
 #[tokio::test]
-async fn test_set_get_writer_id_router() {
-    assert_set_get_writer_id(ServerFixture::create_single_use(ServerType::Router).await).await;
+async fn test_set_get_server_id_router() {
+    assert_set_get_server_id(ServerFixture::create_single_use(ServerType::Router).await).await;
 }
 
-async fn assert_set_get_writer_id(server_fixture: ServerFixture) {
+async fn assert_set_get_server_id(server_fixture: ServerFixture) {
     let mut client = server_fixture.deployment_client();
 
     let test_id = NonZeroU32::try_from(42).unwrap();
