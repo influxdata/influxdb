@@ -4,8 +4,8 @@
 FROM debian:buster-slim
 
 RUN apt-get update \
-    && apt-get install -y libssl1.1 libgcc1 libc6 ca-certificates --no-install-recommends \
-	&& rm -rf /var/lib/{apt,dpkg,cache,log}
+  && apt-get install -y libssl1.1 libgcc1 libc6 ca-certificates gettext-base --no-install-recommends \
+  && rm -rf /var/lib/{apt,dpkg,cache,log}
 
 RUN groupadd -g 1500 rust \
   && useradd -u 1500 -g rust -s /bin/bash -m rust
@@ -15,10 +15,13 @@ USER rust
 RUN mkdir ~/.influxdb_iox
 RUN ls -la ~/.influxdb_iox
 
+ENV INFLUXDB_IOX_SERVER_MODE=database
+
+COPY docker/entrypoint.sh /usr/bin/entrypoint.sh
 COPY target/release/influxdb_iox /usr/bin/influxdb_iox
 
 EXPOSE 8080 8082
 
-ENTRYPOINT ["influxdb_iox"]
+ENTRYPOINT ["/usr/bin/entrypoint.sh"]
 
-CMD ["run", "database"]
+CMD ["run", "$INFLUXDB_IOX_SERVER_MODE"]
