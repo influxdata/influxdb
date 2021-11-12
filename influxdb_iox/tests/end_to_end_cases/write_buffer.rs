@@ -295,7 +295,7 @@ pub async fn test_cross_write_buffer_tracing() {
 
     // setup tracing
     let udp_capture = UdpCapture::new().await;
-    let test_config = TestConfig::new()
+    let test_config = TestConfig::new(ServerType::Database)
         .with_env("TRACES_EXPORTER", "jaeger")
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_HOST", udp_capture.ip())
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())

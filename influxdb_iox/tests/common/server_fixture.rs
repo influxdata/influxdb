@@ -124,10 +124,7 @@ impl ServerFixture {
             Some(server) => server,
             None => {
                 // if not, create one
-                let test_config = TestConfig {
-                    server_type,
-                    ..Default::default()
-                };
+                let test_config = TestConfig::new(server_type);
                 let server = TestServer::new(test_config);
                 let server = Arc::new(server);
 
@@ -150,10 +147,7 @@ impl ServerFixture {
     /// waits. The server is left unconfigured (e.g. no server id) and
     /// is not shared with any other tests.
     pub async fn create_single_use(server_type: ServerType) -> Self {
-        let test_config = TestConfig {
-            server_type,
-            ..Default::default()
-        };
+        let test_config = TestConfig::new(server_type);
         Self::create_single_use_with_config(test_config).await
     }
 
@@ -342,7 +336,7 @@ impl Default for ServerType {
 }
 
 // Options for creating test servers
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct TestConfig {
     /// Additional environment variables
     env: Vec<(String, String)>,
@@ -355,8 +349,12 @@ pub struct TestConfig {
 }
 
 impl TestConfig {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(server_type: ServerType) -> Self {
+        Self {
+            env: vec![],
+            client_headers: vec![],
+            server_type,
+        }
     }
     // add a name=value environment variable when starting the server
     pub fn with_env(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
