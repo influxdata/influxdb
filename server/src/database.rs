@@ -280,27 +280,20 @@ impl Database {
         let handle = self.shared.state.read().freeze();
         let handle = handle.await;
 
-        let uuid = {
+        let (uuid, iox_object_store) = {
             let state = self.shared.state.read();
             // Can't disown an already disowned database
             ensure!(state.is_active(), CannotDisownUnowned { db_name });
 
-            state.uuid().expect("Active databases have UUIDs")
+            let uuid = state.uuid().expect("Active databases have UUIDs");
+            let iox_object_store = self
+                .iox_object_store()
+                .expect("Active databases have iox_object_stores");
+
+            (uuid, iox_object_store)
         };
 
         info!(%db_name, %uuid, "disowning database");
-
-        // If there is an object store for this database, update its owner file to indicate the
-        // database is now unowned and record the history of the state change.
-        // If there isn't an object store, something is wrong and we shouldn't switch the
-        // state without being able to write to object storage.
-        let iox_object_store = self.iox_object_store().with_context(|| {
-            let state = self.shared.state.read();
-            TransitionInProgress {
-                db_name: db_name.clone(),
-                state: state.state_code(),
-            }
-        })?;
 
         update_owner_info(None, None, timestamp, &iox_object_store)
             .await
