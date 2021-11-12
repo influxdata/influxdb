@@ -270,6 +270,12 @@ func TestEnqueueData(t *testing.T) {
 
 	data := "some fake data"
 
+	// close the scanner goroutine to specifically test EnqueueData()
+	rq, ok := qm.replicationQueues[id1]
+	require.True(t, ok)
+	close(rq.done)
+	go func () { <-rq.receive }() // absorb the receive to avoid testcase deadlock
+
 	require.NoError(t, qm.EnqueueData(id1, []byte(data)))
 	sizes, err = qm.CurrentQueueSizes([]platform.ID{id1})
 	require.NoError(t, err)
