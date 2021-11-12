@@ -77,9 +77,18 @@ fn build_malloc_conf() -> String {
         .to_string()
 }
 
-#[cfg(all(feature = "heappy", feature = "jemalloc_replacing_malloc"))]
+#[cfg(all(
+    feature = "heappy",
+    feature = "jemalloc_replacing_malloc",
+    not(feature = "clippy")
+))]
 fn build_malloc_conf() -> String {
     compile_error!("must use exactly one memory allocator")
+}
+
+#[cfg(feature = "clippy")]
+fn build_malloc_conf() -> String {
+    "clippy".to_string()
 }
 
 /// This is the entry point for the IOx server.

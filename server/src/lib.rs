@@ -99,8 +99,8 @@ use uuid::Uuid;
 
 pub use application::ApplicationState;
 pub use db::Db;
+use dml::DmlWrite;
 pub use job::JobRegistry;
-use mutable_batch::DbWrite;
 pub use resolver::{GrpcConnectionString, RemoteTemplate};
 
 mod application;
@@ -947,7 +947,7 @@ where
     /// to any lines that don't have a timestamp.
     ///
     /// TODO: Replace with dedicated router in terms of MutableBatch
-    pub async fn write(&self, db_name: &DatabaseName<'_>, write: DbWrite) -> Result<()> {
+    pub async fn write(&self, db_name: &DatabaseName<'_>, write: DmlWrite) -> Result<()> {
         let db = self.db(db_name)?;
         let rules = db.rules();
 
@@ -986,7 +986,7 @@ where
         &self,
         db_name: &DatabaseName<'_>,
         sink: &Sink,
-        write: &DbWrite,
+        write: &DmlWrite,
     ) -> Result<()> {
         match sink {
             Sink::Iox(node_group) => self.write_downstream(db_name, node_group, write).await,
@@ -1007,7 +1007,7 @@ where
         &self,
         db_name: &str,
         node_group: &[ServerId],
-        write: &DbWrite,
+        write: &DmlWrite,
     ) -> Result<()> {
         // Return an error if this server is not yet ready
         self.shared.state.read().initialized()?;
@@ -1043,7 +1043,7 @@ where
     /// Write an entry to the local `Db`
     ///
     /// TODO: Remove this and migrate callers to `Database::route_write`
-    async fn write_local(&self, db_name: &DatabaseName<'_>, write: &DbWrite) -> Result<()> {
+    async fn write_local(&self, db_name: &DatabaseName<'_>, write: &DmlWrite) -> Result<()> {
         use database::WriteError;
 
         self.active_database(db_name)?
@@ -1518,7 +1518,7 @@ mod tests {
         let server = make_server(make_application());
 
         let tables = lines_to_batches("cpu foo=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         let resp = server
             .write(&DatabaseName::new("foo").unwrap(), write)
             .await
@@ -1941,7 +1941,7 @@ mod tests {
             .unwrap();
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         server.write(&db_name, write).await.unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
@@ -2022,7 +2022,7 @@ mod tests {
         db.update_rules(rules);
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         let err = server.write(&db_name, write.clone()).await.unwrap_err();
         assert!(
             matches!(err, Error::NoRemoteConfigured { node_group } if node_group == remote_ids)
@@ -2073,7 +2073,7 @@ mod tests {
             .unwrap();
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         server.write(&db_name, write).await.unwrap();
 
         // get chunk ID
@@ -2158,12 +2158,12 @@ mod tests {
 
         // inserting first line does not trigger hard buffer limit
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         server.write(&name, write).await.unwrap();
 
         // inserting second line will
         let tables = lines_to_batches("cpu bar=2 20", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         let res = server.write(&name, write).await.unwrap_err();
         assert!(matches!(res, super::Error::HardLimitReached {}));
     }
@@ -2315,7 +2315,7 @@ mod tests {
 
         // can only write to successfully created DBs
         let tables = lines_to_batches("cpu foo=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         server.write(&foo_db_name, write.clone()).await.unwrap();
 
         let err = server.write(&bar_db_name, write).await.unwrap_err();
@@ -2782,7 +2782,7 @@ mod tests {
 
         assert!(server.db(&db_name_catalog_broken).is_ok());
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         server.write(&db_name_catalog_broken, write).await.unwrap();
 
         // 5. cannot wipe if DB was just created
@@ -2840,7 +2840,7 @@ mod tests {
             .unwrap();
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         assert_error!(
             server.write(&db_name, write).await,
             Error::WriteBuffer { .. },

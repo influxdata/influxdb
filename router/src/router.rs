@@ -5,7 +5,7 @@ use std::{
 };
 
 use data_types::router::{Router as RouterConfig, ShardId};
-use mutable_batch::DbWrite;
+use dml::DmlWrite;
 use snafu::{ResultExt, Snafu};
 
 use crate::{
@@ -101,7 +101,7 @@ impl Router {
     }
 
     /// Shard and write data.
-    pub async fn write(&self, write: DbWrite) -> Result<(), WriteError> {
+    pub async fn write(&self, write: DmlWrite) -> Result<(), WriteError> {
         let mut errors: BTreeMap<ShardId, WriteErrorShard> = Default::default();
 
         // The iteration order is stable here due to the [`BTreeMap`], so we ensure deterministic behavior and error order.
@@ -119,7 +119,11 @@ impl Router {
         }
     }
 
-    async fn write_shard(&self, shard_id: ShardId, write: &DbWrite) -> Result<(), WriteErrorShard> {
+    async fn write_shard(
+        &self,
+        shard_id: ShardId,
+        write: &DmlWrite,
+    ) -> Result<(), WriteErrorShard> {
         match self.write_sink_sets.get(&shard_id) {
             Some(sink_set) => sink_set.write(write).await.context(SinkSetFailure),
             None => Err(WriteErrorShard::NoSinkSetFound { shard_id }),
@@ -141,7 +145,7 @@ mod tests {
         sequence::Sequence,
         server_id::ServerId,
     };
-    use mutable_batch::WriteMeta;
+    use dml::DmlMeta;
     use mutable_batch_lp::lines_to_batches;
     use regex::Regex;
     use time::Time;
@@ -256,7 +260,7 @@ mod tests {
         let router = Router::new(cfg.clone(), resolver, connection_pool);
 
         // clean write
-        let meta_1 = WriteMeta::sequenced(
+        let meta_1 = DmlMeta::sequenced(
             Sequence::new(1, 2),
             Time::from_timestamp_nanos(1337),
             None,
@@ -278,7 +282,7 @@ mod tests {
 
         // write w/ errors
         client_2.poison();
-        let meta_2 = WriteMeta::sequenced(
+        let meta_2 = DmlMeta::sequenced(
             Sequence::new(3, 4),
             Time::from_timestamp_nanos(42),
             None,
@@ -341,8 +345,8 @@ mod tests {
         )]);
     }
 
-    fn db_write(lines: &[&str], meta: &WriteMeta) -> DbWrite {
-        DbWrite::new(
+    fn db_write(lines: &[&str], meta: &DmlMeta) -> DmlWrite {
+        DmlWrite::new(
             lines_to_batches(&lines.join("\n"), 0).unwrap(),
             meta.clone(),
         )

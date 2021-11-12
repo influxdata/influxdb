@@ -236,8 +236,11 @@ message RestoreDatabaseRequest {
   reserved 2;
   reserved "db_name";
 
+  // Was the string-formatted UUID of the deleted database.
+  reserved 3;
+
   // The UUID of the deleted database.
-  string uuid = 3;
+  bytes uuid = 4;
 }
 
 message RestoreDatabaseResponse {}

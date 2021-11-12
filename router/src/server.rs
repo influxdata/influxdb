@@ -38,6 +38,23 @@ impl RouterServer {
         trace_collector: Option<Arc<dyn TraceCollector>>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
+        Self::new_inner(remote_template, trace_collector, time_provider, false).await
+    }
+
+    pub async fn for_testing(
+        remote_template: Option<RemoteTemplate>,
+        trace_collector: Option<Arc<dyn TraceCollector>>,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
+        Self::new_inner(remote_template, trace_collector, time_provider, true).await
+    }
+
+    async fn new_inner(
+        remote_template: Option<RemoteTemplate>,
+        trace_collector: Option<Arc<dyn TraceCollector>>,
+        time_provider: Arc<dyn TimeProvider>,
+        use_mock_grpc: bool,
+    ) -> Self {
         let metric_registry = Arc::new(metric::Registry::new());
 
         Self {
@@ -47,7 +64,8 @@ impl RouterServer {
             routers: Default::default(),
             resolver: Arc::new(Resolver::new(remote_template)),
             connection_pool: Arc::new(
-                ConnectionPool::new(false, WriteBufferConfigFactory::new(time_provider)).await,
+                ConnectionPool::new(use_mock_grpc, WriteBufferConfigFactory::new(time_provider))
+                    .await,
             ),
         }
     }
@@ -122,6 +140,11 @@ impl RouterServer {
     /// Resolver associated with this server.
     pub fn resolver(&self) -> &Arc<Resolver> {
         &self.resolver
+    }
+
+    /// Connection pool associated with this server.
+    pub fn connection_pool(&self) -> &Arc<ConnectionPool> {
+        &self.connection_pool
     }
 }
 

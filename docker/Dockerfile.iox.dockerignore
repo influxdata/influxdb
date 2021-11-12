@@ -1,4 +1,5 @@
 # Ignore everything
 **
 # Except
+!docker/entrypoint.sh
 !target/release/influxdb_iox

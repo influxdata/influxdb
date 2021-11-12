@@ -1,7 +1,7 @@
 use data_types::DatabaseName;
+use dml::{DmlMeta, DmlWrite};
 use generated_types::google::{FieldViolation, FieldViolationExt};
 use generated_types::influxdata::pbdata::v1::*;
-use mutable_batch::{DbWrite, WriteMeta};
 use server::{connection::ConnectionManager, Server};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -38,7 +38,7 @@ where
                 }
             })?;
 
-        let write = DbWrite::new(tables, WriteMeta::unsequenced(span_ctx));
+        let write = DmlWrite::new(tables, DmlMeta::unsequenced(span_ctx));
 
         self.server
             .write(&db_name, write)

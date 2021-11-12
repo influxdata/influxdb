@@ -26,8 +26,9 @@ use data_types::{
     server_id::ServerId,
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
+use dml::DmlWrite;
 use iox_object_store::IoxObjectStore;
-use mutable_batch::payload::{DbWrite, PartitionWrite};
+use mutable_batch::payload::PartitionWrite;
 use mutable_buffer::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info, warn};
 use parquet_catalog::{
@@ -909,7 +910,7 @@ impl Db {
     /// Stores the write on this [`Db`] and/or routes it to the write buffer
     ///
     /// TODO: Remove this method (#2243)
-    pub async fn route_write(&self, write: &DbWrite) -> Result<()> {
+    pub async fn route_write(&self, write: &DmlWrite) -> Result<()> {
         let immutable = {
             let rules = self.rules.read();
             rules.lifecycle_rules.immutable
@@ -955,13 +956,17 @@ impl Db {
         self.store_write(write)
     }
 
-    /// Writes the provided [`DbWrite`] to this database
-    pub fn store_write(&self, db_write: &DbWrite) -> Result<()> {
+    /// Writes the provided [`DmlWrite`] to this database
+    pub fn store_write(&self, db_write: &DmlWrite) -> Result<()> {
         self.store_filtered_write(db_write, WriteFilterNone::default())
     }
 
-    /// Writes the provided [`DbWrite`] to this database with the provided [`WriteFilter`]
-    pub fn store_filtered_write(&self, db_write: &DbWrite, filter: impl WriteFilter) -> Result<()> {
+    /// Writes the provided [`DmlWrite`] to this database with the provided [`WriteFilter`]
+    pub fn store_filtered_write(
+        &self,
+        db_write: &DmlWrite,
+        filter: impl WriteFilter,
+    ) -> Result<()> {
         // Get all needed database rule values, then release the lock
         let rules = self.rules.read();
         let partition_template = rules.partition_template.clone();
@@ -1206,7 +1211,7 @@ pub mod test_helpers {
         let tables = lines_to_batches(lp, 0).unwrap();
         let mut table_names: Vec<_> = tables.keys().cloned().collect();
 
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         db.route_write(&write).await?;
 
         table_names.sort_unstable();
@@ -1398,7 +1403,7 @@ mod tests {
         let db = immutable_db().await;
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         let res = db.route_write(&write).await;
         assert_contains!(
             res.unwrap_err().to_string(),
@@ -1427,7 +1432,7 @@ mod tests {
             .db;
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         test_db.route_write(&write).await.unwrap();
 
         assert_eq!(write_buffer_state.get_messages(0).len(), 1);
@@ -1450,7 +1455,7 @@ mod tests {
             .db;
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         db.route_write(&write).await.unwrap();
 
         assert_eq!(write_buffer_state.get_messages(0).len(), 1);
@@ -1478,7 +1483,7 @@ mod tests {
             .db;
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         let res = db.route_write(&write).await;
 
         assert_error!(res, Error::WriteBufferWritingError { .. });
@@ -1489,7 +1494,7 @@ mod tests {
         // Validate that writes are rejected if this database is reading from the write buffer
         let db = immutable_db().await;
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         let res = db.route_write(&write).await;
         assert_contains!(
             res.unwrap_err().to_string(),
@@ -1526,7 +1531,7 @@ mod tests {
         "#;
 
         let tables = lines_to_batches(lp, 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
 
         // This should succeed and start chunks in the MUB
         db.route_write(&write).await.unwrap();
@@ -1540,7 +1545,7 @@ mod tests {
             .to_string();
 
         let tables = lines_to_batches(&lp, 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
 
         // This should return an error because there was at least one error in the loop
         let err = db.route_write(&write).await.unwrap_err();
@@ -2342,7 +2347,7 @@ mod tests {
         time.inc(Duration::from_secs(1));
 
         let tables = lines_to_batches("cpu bar=true 10", 0).unwrap();
-        let write = DbWrite::new(tables, Default::default());
+        let write = DmlWrite::new(tables, Default::default());
         db.route_write(&write).await.unwrap_err();
         {
             let partition = db.catalog.partition("cpu", partition_key).unwrap();

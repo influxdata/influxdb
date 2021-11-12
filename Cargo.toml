@@ -6,6 +6,7 @@ members = [
     "data_types",
     "datafusion",
     "datafusion_util",
+    "dml",
     "generated_types",
     "grpc-router",
     "grpc-router-test-gen",
@@ -74,7 +75,9 @@ exclude = [
 ]
 
 [profile.release]
+codegen-units = 1
 debug = true
+lto = "thin"
 
 [profile.bench]
 debug = true

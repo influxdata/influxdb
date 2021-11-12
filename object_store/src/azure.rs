@@ -27,25 +27,25 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[allow(missing_docs)]
 pub enum Error {
     #[snafu(display("Unable to DELETE data. Location: {}, Error: {}", location, source,))]
-    UnableToDeleteData {
+    Delete {
         source: Box<dyn std::error::Error + Send + Sync>,
         location: String,
     },
 
     #[snafu(display("Unable to GET data. Location: {}, Error: {}", location, source,))]
-    UnableToGetData {
+    Get {
         source: Box<dyn std::error::Error + Send + Sync>,
         location: String,
     },
 
     #[snafu(display("Unable to PUT data. Location: {}, Error: {}", location, source,))]
-    UnableToPutData {
+    Put {
         source: Box<dyn std::error::Error + Send + Sync>,
         location: String,
     },
 
     #[snafu(display("Unable to list data. Error: {}", source))]
-    UnableToListData {
+    List {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 }
@@ -80,7 +80,7 @@ impl ObjectStoreApi for MicrosoftAzure {
             .put_block_blob(bytes)
             .execute()
             .await
-            .context(UnableToPutData {
+            .context(Put {
                 location: location.to_owned(),
             })?;
 
@@ -96,8 +96,8 @@ impl ObjectStoreApi for MicrosoftAzure {
                 .get()
                 .execute()
                 .await
-                .map(|blob| blob.data.into())
-                .context(UnableToGetData {
+                .map(|blob| blob.data)
+                .context(Get {
                     location: location.to_owned(),
                 })
         }
@@ -113,7 +113,7 @@ impl ObjectStoreApi for MicrosoftAzure {
             .delete_snapshots_method(DeleteSnapshotsMethod::Include)
             .execute()
             .await
-            .context(UnableToDeleteData {
+            .context(Delete {
                 location: location.to_owned(),
             })?;
 
@@ -149,7 +149,7 @@ impl ObjectStoreApi for MicrosoftAzure {
                 ListState::Start => {}
             }
 
-            let resp = match request.execute().await.context(UnableToListData) {
+            let resp = match request.execute().await.context(List) {
                 Ok(resp) => resp,
                 Err(err) => return Some((Err(err), state)),
             };
@@ -180,7 +180,7 @@ impl ObjectStoreApi for MicrosoftAzure {
         request = request.delimiter(Delimiter::new(DELIMITER));
         request = request.prefix(&*prefix);
 
-        let resp = request.execute().await.context(UnableToListData)?;
+        let resp = request.execute().await.context(List)?;
 
         let next_token = resp.next_marker.as_ref().map(|m| m.as_str().to_string());
 
