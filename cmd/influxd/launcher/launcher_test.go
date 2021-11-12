@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	nethttp "net/http"
 	"testing"
+	"time"
 
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
@@ -148,6 +149,8 @@ func TestLauncher_PingHeaders(t *testing.T) {
 	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
+	platform.SetBuildInfo("dev", "none", time.Now().UTC().Format(time.RFC3339))
+
 	r, err := nethttp.NewRequest("GET", l.URL().String()+"/ping", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -159,5 +162,5 @@ func TestLauncher_PingHeaders(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{"OSS"}, resp.Header.Values("X-Influxdb-Build"))
-	assert.Equal(t, 1, len(resp.Header.Values("X-Influxdb-Version")))
+	assert.Equal(t, []string{"dev"}, resp.Header.Values("X-Influxdb-Version"))
 }

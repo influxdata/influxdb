@@ -128,8 +128,8 @@ func NewRootHandler(name string, opts ...HandlerOptFn) *Handler {
 	r := chi.NewRouter()
 	buildHeader := &AddHeader{
 		WriteHeader: func(header http.Header) {
-			header.Set("X-Influxdb-Build", influxdb.BuildType)
-			header.Set("X-Influxdb-Version", influxdb.GetBuildInfo().Version)
+			header.Add("X-Influxdb-Build", "OSS")
+			header.Add("X-Influxdb-Version", influxdb.GetBuildInfo().Version)
 		},
 	}
 	r.Use(buildHeader.Middleware)
