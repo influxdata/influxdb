@@ -94,6 +94,9 @@ enum InitialConfig {
     /// Set the writer id to something so it can accept writes
     SetWriterId,
 
+    /// Server ID already set (e.g. via environment variable)
+    ServerIdAlreadySet,
+
     /// leave the writer id empty so the test can set it
     None,
 }
@@ -155,11 +158,17 @@ impl ServerFixture {
     /// and wait for it to be ready. The database is left unconfigured (no writer id)
     /// and is not shared with any other tests.
     pub async fn create_single_use_with_config(test_config: TestConfig) -> Self {
+        let initial_config = if test_config.server_id.is_some() {
+            InitialConfig::ServerIdAlreadySet
+        } else {
+            InitialConfig::None
+        };
+
         let server = TestServer::new(test_config);
         let server = Arc::new(server);
 
         // ensure the server is ready
-        server.wait_until_ready(InitialConfig::None).await;
+        server.wait_until_ready(initial_config).await;
         Self::create_common(server).await
     }
 
@@ -344,6 +353,9 @@ pub struct TestConfig {
     /// Headers to add to all client requests
     client_headers: Vec<(HeaderName, HeaderValue)>,
 
+    /// Server ID
+    server_id: Option<NonZeroU32>,
+
     /// Server type
     server_type: ServerType,
 }
@@ -353,6 +365,7 @@ impl TestConfig {
         Self {
             env: vec![],
             client_headers: vec![],
+            server_id: None,
             server_type,
         }
     }
@@ -368,6 +381,12 @@ impl TestConfig {
             name.as_ref().parse().expect("valid header name"),
             value.as_ref().parse().expect("valid header value"),
         ));
+        self
+    }
+
+    /// Set server ID on startup.
+    pub fn with_server_id(mut self, server_id: NonZeroU32) -> Self {
+        self.server_id = Some(server_id);
         self
     }
 }
@@ -388,6 +407,7 @@ impl TestServer {
             &addrs,
             &dir,
             &test_config.env,
+            test_config.server_id,
             test_config.server_type,
         ));
 
@@ -409,6 +429,7 @@ impl TestServer {
             &self.addrs,
             &self.dir,
             &self.test_config.env,
+            self.test_config.server_id,
             self.test_config.server_type,
         );
         *ready_guard = ServerState::Started;
@@ -418,6 +439,7 @@ impl TestServer {
         addrs: &BindAddresses,
         dir: &TempDir,
         env: &[(String, String)],
+        server_id: Option<NonZeroU32>,
         server_type: ServerType,
     ) -> Process {
         // Create a new file each time and keep it around to aid debugging
@@ -458,6 +480,7 @@ impl TestServer {
             .env("INFLUXDB_IOX_DB_DIR", dir.path())
             .env("INFLUXDB_IOX_BIND_ADDR", addrs.http_bind_addr())
             .env("INFLUXDB_IOX_GRPC_BIND_ADDR", addrs.grpc_bind_addr())
+            .envs(server_id.map(|id| ("INFLUXDB_IOX_ID", id.get().to_string())))
             .envs(env.iter().map(|(a, b)| (a.as_str(), b.as_str())))
             // redirect output to log file
             .stdout(stdout_log_file)
@@ -525,11 +548,13 @@ impl TestServer {
         let channel = self.grpc_channel().await.expect("gRPC should be running");
         let mut deployment_client = influxdb_iox_client::deployment::Client::new(channel.clone());
 
-        if let Ok(id) = deployment_client.get_server_id().await {
-            // tell others that this server had some problem
-            *ready = ServerState::Error;
-            std::mem::drop(ready);
-            panic!("Server already has an ID ({}); possibly a stray/orphan server from another test run.", id);
+        if !matches!(initial_config, InitialConfig::ServerIdAlreadySet) {
+            if let Ok(id) = deployment_client.get_server_id().await {
+                // tell others that this server had some problem
+                *ready = ServerState::Error;
+                std::mem::drop(ready);
+                panic!("Server already has an ID ({}); possibly a stray/orphan server from another test run.", id);
+            }
         }
 
         // Set the server id, if requested
@@ -577,7 +602,7 @@ impl TestServer {
                     }
                 }
             }
-            InitialConfig::None => {}
+            InitialConfig::ServerIdAlreadySet | InitialConfig::None => {}
         };
     }
 
