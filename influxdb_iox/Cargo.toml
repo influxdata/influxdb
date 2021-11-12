@@ -9,6 +9,7 @@ default-run = "influxdb_iox"
 # Workspace dependencies, in alphabetical order
 datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
+dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
 
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
@@ -18,7 +19,6 @@ iox_object_store = { path = "../iox_object_store" }
 logfmt = { path = "../logfmt" }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
-mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
 mutable_buffer = { path = "../mutable_buffer" }
@@ -98,6 +98,8 @@ influxdb2_client = { path = "../influxdb2_client" }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 test_helpers = { path = "../test_helpers" }
 parking_lot = "0.11.2"
+regex = "1.4"
+schema = { path = "../schema" }
 write_buffer = { path = "../write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
@@ -122,3 +124,7 @@ aws = ["object_store/aws"] # Optional AWS / S3 object store support
 # Cargo cannot currently implement mutually exclusive features so let's force every build
 # to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
 jemalloc_replacing_malloc = ["tikv-jemalloc-sys"]
+
+# Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
+# linting
+clippy = []

@@ -1,9 +1,9 @@
 use super::scenario::{create_readable_database, create_router_to_write_buffer, rand_name};
 use crate::common::server_fixture::{ServerFixture, ServerType};
 use arrow_util::assert_batches_sorted_eq;
+use dml::{test_util::assert_writes_eq, DmlWrite};
 use futures::StreamExt;
 use generated_types::influxdata::pbdata::v1 as pb;
-use mutable_batch::{test_util::assert_writes_eq, DbWrite};
 use mutable_batch_lp::lines_to_batches;
 
 #[tokio::test]
@@ -55,7 +55,7 @@ pub async fn test_write_pb_router() {
 
     let mut stream = write_buffer.streams().into_values().next().unwrap();
     let write_actual = stream.stream.next().await.unwrap().unwrap();
-    let write_expected = DbWrite::new(
+    let write_expected = DmlWrite::new(
         lines_to_batches("mytable mycol1=5 3", 0).unwrap(),
         // We don't care about the metadata here, timestamps and sequence numbers are hard to guess
         write_actual.meta().clone(),

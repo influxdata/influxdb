@@ -92,7 +92,7 @@ jobs:
       - cache_restore
       - run:
           name: Clippy
-          command: cargo clippy --all-targets --workspace -- -D warnings
+          command: cargo clippy --all-targets --all-features --workspace -- -D warnings
       - cache_save
   cargo_audit:
     docker:
@@ -149,7 +149,16 @@ jobs:
       # "1" means line tables only, which is useful for panic tracebacks.
       RUSTFLAGS: "-C debuginfo=1"
       RUST_BACKTRACE: "1"
+      # Run integration tests
+      TEST_INTEGRATION: 1
+      INFLUXDB_IOX_INTEGRATION_LOCAL: 1
+      KAFKA_CONNECT: "localhost:9092"
     steps:
+      - run:
+          name: Run Kafka
+          # Sudo needed because data directory owned by root but container runs as unprivileged user
+          command: sudo rpk redpanda start
+          background: true
       - checkout
       - rust_components
       - cache_restore
@@ -221,42 +230,6 @@ jobs:
           command: |
             trap "cat perf/logs/test.log" ERR
             perf/perf.py --debug --no-volumes --object-store memory battery-0
-
-  test_kafka_integration:
-    machine: true
-    resource_class: xlarge
-    environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
-      RUST_BACKTRACE: "1"
-    steps:
-      - checkout
-      - run:
-          name: Run integration tests with Docker Compose
-          command: docker-compose -f docker/ci-kafka-docker-compose.yml up --build --force-recreate --exit-code-from rust
-
-  # Integration tests for the influxdb2_client crate against InfluxDB 2.0 OSS.
-  test_influxdb2_client:
-    docker:
-      - image: quay.io/influxdb/rust:ci
-    environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
-      RUST_BACKTRACE: "1"
-    steps:
-      - checkout
-      - rust_components
-      - cache_restore
-      - run:
-          name: Cargo test
-          command: TEST_INTEGRATION=1 INFLUXDB_IOX_INTEGRATION_LOCAL=1 cargo test -p influxdb2_client
-      - cache_save
 
   # Build a dev binary.
   #
@@ -435,8 +408,6 @@ workflows:
       - test
       - test_heappy
       - test_perf
-      - test_kafka_integration
-      - test_influxdb2_client
       - build
       - doc
       - perf_image:
@@ -451,8 +422,6 @@ workflows:
             - test
             - test_heappy
             - test_perf
-            - test_kafka_integration
-            - test_influxdb2_client
             - build
             - doc
 

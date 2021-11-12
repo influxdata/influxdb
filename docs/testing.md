@@ -111,48 +111,43 @@ If you do not want to use Docker locally, but you do have `influxd` for InfluxDB
 
 ## Kafka Write Buffer
 
-If you want to run integration tests with a Kafka instance serving as a write buffer, you will need
-to set `TEST_INTEGRATION=1`.
+By default, the integration tests for the Kafka-based write buffer are not run. 
 
-You will also need to set `KAFKA_CONNECT` to the host and port where the tests can connect to a
-running Kafka instance.
+In order to run them you must set two environment variables:
 
-There is a Docker Compose file for running Kafka and Zookeeper using Docker in
-`docker/ci-kafka-docker-compose.yml` that CI also uses to run the integration tests.
+* `TEST_INTEGRATION=1`
+* `KAFKA_CONNECT` to a host and port where the tests can connect to a running Kafka broker
 
-You have two options for running `cargo test`: on your local (host) machine (likely what you
-normally do with tests), or within another Docker container (what CI does).
+### Running Kafka Locally
 
-### Running `cargo test` on the host machine
+[Redpanda](https://vectorized.io/redpanda/) is a Kafka-compatible broker that can be used to run the tests, and is used
+by the CI to test IOx.
 
-If you want to compile the tests and run `cargo test` on your local machine, you can start Kafka
-using the Docker Compose file with:
+Either follow the instructions on the website to install redpanda directly onto your system, or alternatively 
+it can be run in a docker container with:
 
 ```
-$ docker-compose -f docker/ci-kafka-docker-compose.yml up kafka
+docker run -d --pull=always --name=redpanda-1 --rm \
+    -p 9092:9092 \
+    -p 9644:9644 \
+    docker.vectorized.io/vectorized/redpanda:latest \
+    redpanda start \
+    --overprovisioned \
+    --smp 1  \
+    --memory 1G \
+    --reserve-memory 0M \
+    --node-id 0 \
+    --check=false
 ```
 
-You can then run the tests with `KAFKA_CONNECT=localhost:9093`. To run just the Kafka integration
-tests, the full command would then be:
+It is then just a case of setting the environment variables and running the tests as normal
+
+```
+TEST_INTEGRATION=1 KAFKA_CONNECT=localhost:9093 cargo test
+```
+
+Or to just run the Kafka tests
 
 ```
 TEST_INTEGRATION=1 KAFKA_CONNECT=localhost:9093 cargo test -p write_buffer kafka --nocapture
 ```
-
-### Running `cargo test` in a Docker container
-
-Alternatively, you can do what CI does by compiling the tests and running `cargo test` in a Docker
-container as well. First, make sure you have the latest `rust:ci` image by running:
-
-```
-docker image pull quay.io/influxdb/rust:ci
-```
-
-Then run this Docker Compose command that uses `docker/Dockerfile.ci.integration`:
-
-```
-docker-compose -f docker/ci-kafka-docker-compose.yml up --build --force-recreate --exit-code-from rust
-```
-
-Because the `rust` service depends on the `kafka` service in the Docker Compose file, you don't
-need to start the `kafka` service separately.

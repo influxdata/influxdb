@@ -23,7 +23,7 @@ use rdkafka::{
 use data_types::{
     sequence::Sequence, server_id::ServerId, write_buffer::WriteBufferCreationConfig,
 };
-use mutable_batch::{DbWrite, WriteMeta};
+use dml::{DmlMeta, DmlWrite};
 use observability_deps::tracing::{debug, info};
 use time::{Time, TimeProvider};
 use trace::TraceCollector;
@@ -76,8 +76,8 @@ impl WriteBufferWriting for KafkaBufferProducer {
     async fn store_write(
         &self,
         sequencer_id: u32,
-        write: &DbWrite,
-    ) -> Result<WriteMeta, WriteBufferError> {
+        write: &DmlWrite,
+    ) -> Result<DmlMeta, WriteBufferError> {
         let partition = i32::try_from(sequencer_id)?;
 
         // truncate milliseconds from timestamps because that's what Kafka supports
@@ -112,7 +112,7 @@ impl WriteBufferWriting for KafkaBufferProducer {
 
         debug!(db_name=%self.database_name, %offset, %partition, size=buf.len(), "wrote to kafka");
 
-        Ok(WriteMeta::sequenced(
+        Ok(DmlMeta::sequenced(
             Sequence::new(partition.try_into()?, offset.try_into()?),
             timestamp,
             write.meta().span_context().cloned(),

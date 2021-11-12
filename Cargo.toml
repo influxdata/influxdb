@@ -6,6 +6,7 @@ members = [
     "data_types",
     "datafusion",
     "datafusion_util",
+    "dml",
     "generated_types",
     "grpc-router",
     "grpc-router-test-gen",

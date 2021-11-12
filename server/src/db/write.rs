@@ -4,7 +4,7 @@ use mutable_batch::PartitionWrite;
 /// before they are written to a partition.
 ///
 /// This important for replay where it needs to apply per-partition filtering
-/// despite [`mutable_batch::payload::DbWrite`] not having a notion of partitioning
+/// despite [`dml::DmlWrite`] not having a notion of partitioning
 pub trait WriteFilter {
     fn filter_write<'a>(
         &self,
