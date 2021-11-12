@@ -23,7 +23,7 @@ type replicationQueue struct {
 }
 
 type durableQueueManager struct {
-	replicationQueues map[platform.ID]replicationQueue
+	replicationQueues map[platform.ID]*replicationQueue
 	logger            *zap.Logger
 	queuePath         string
 	mutex             sync.RWMutex
@@ -35,7 +35,7 @@ var errShutdown = errors.New("shutdown tasks for replications durable queues fai
 // NewDurableQueueManager creates a new durableQueueManager struct, for managing durable queues associated with
 //replication streams.
 func NewDurableQueueManager(log *zap.Logger, queuePath string) *durableQueueManager {
-	replicationQueues := make(map[platform.ID]replicationQueue)
+	replicationQueues := make(map[platform.ID]*replicationQueue)
 
 	os.MkdirAll(queuePath, 0777)
 
@@ -90,10 +90,11 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 	rq := replicationQueue{
 		queue:   newQueue,
 		logger:  qm.logger,
+		wg: &sync.WaitGroup{},
 		done:    make(chan struct{}),
 		receive: make(chan struct{}),
 	}
-	qm.replicationQueues[replicationID] = rq // todo does this need to be held?
+	qm.replicationQueues[replicationID] = &rq // todo does this need to be held?
 	rq.Open()
 
 	qm.logger.Debug("Created new durable queue for replication stream",
@@ -110,6 +111,7 @@ func (rq replicationQueue) Open() {
 func (rq replicationQueue) Close() error {
 	close(rq.receive)
 	close(rq.done)
+	rq.wg.Wait()
 	return rq.queue.Close()
 }
 
@@ -277,9 +279,10 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 			errOccurred = true
 			continue
 		} else {
-			qm.replicationQueues[id] = replicationQueue{
+			qm.replicationQueues[id] = &replicationQueue{
 				queue:   queue,
 				logger:  qm.logger,
+				wg: &sync.WaitGroup{},
 				done:    make(chan struct{}),
 				receive: make(chan struct{}),
 			}

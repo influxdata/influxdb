@@ -245,7 +245,7 @@ func shutdown(t *testing.T, qm *durableQueueManager) {
 	require.NoError(t, err)
 
 	// Clear replication queues map
-	emptyMap := make(map[platform.ID]replicationQueue)
+	emptyMap := make(map[platform.ID]*replicationQueue)
 	qm.replicationQueues = emptyMap
 }
 
