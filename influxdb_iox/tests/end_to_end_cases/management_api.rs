@@ -463,8 +463,8 @@ async fn disown_database() {
     let created_uuid = client.create_database(rules.clone()).await.unwrap();
 
     // Disown database returns the UUID
-    let deleted_uuid = client.delete_database(&db_name).await.unwrap();
-    assert_eq!(created_uuid, deleted_uuid);
+    let disowned_uuid = client.disown_database(&db_name, None, None).await.unwrap();
+    assert_eq!(created_uuid, disowned_uuid);
 
     // Disowned database is no longer in this server's database list
     assert!(!client
@@ -504,31 +504,31 @@ async fn disown_database() {
     );
 
     // If an optional UUID is specified, disown the database if the UUID does match
-    let deleted_uuid = client
+    let disowned_uuid = client
         .disown_database(&db_name, Some(created_uuid), None)
         .await
         .unwrap();
-    assert_eq!(created_uuid, deleted_uuid);
+    assert_eq!(created_uuid, disowned_uuid);
 
     // Create another database
     let created_uuid = client.create_database(rules.clone()).await.unwrap();
 
     // Can optionally specify a context and not a UUID
-    let deleted_uuid = client
+    let disowned_uuid = client
         .disown_database(&db_name, None, Some("secret reasons".to_string()))
         .await
         .unwrap();
-    assert_eq!(created_uuid, deleted_uuid);
+    assert_eq!(created_uuid, disowned_uuid);
 
     // Create another database
     let created_uuid = client.create_database(rules.clone()).await.unwrap();
 
     // Can optionally specify a context AND a UUID
-    let deleted_uuid = client
+    let disowned_uuid = client
         .disown_database(&db_name, Some(created_uuid), Some("oops".to_string()))
         .await
         .unwrap();
-    assert_eq!(created_uuid, deleted_uuid);
+    assert_eq!(created_uuid, disowned_uuid);
 }
 
 /// gets configuration both with and without defaults, and verifies
