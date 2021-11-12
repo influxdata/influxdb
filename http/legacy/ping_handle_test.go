@@ -7,53 +7,37 @@ import (
 )
 
 func TestPingHandler(t *testing.T) {
-	type wants struct {
-		statusCode int
-		version    string
-		build      string
-	}
 	tests := []struct {
-		name  string
-		w     *httptest.ResponseRecorder
-		r     *http.Request
-		wants wants
+		name string
+		w    *httptest.ResponseRecorder
+		r    *http.Request
 	}{
 		{
 			name: "GET request",
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest(http.MethodGet, "/ping", nil),
-			wants: wants{
-				statusCode: http.StatusNoContent,
-				version:    "2.0.0",
-				build:      "oss2",
-			},
 		},
 		{
 			name: "HEAD request",
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest(http.MethodHead, "/ping", nil),
-			wants: wants{
-				statusCode: http.StatusNoContent,
-				version:    "2.0.0",
-				build:      "oss2",
-			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NewPingHandler("2.0.0").pingHandler(tt.w, tt.r)
+			NewPingHandler().pingHandler(tt.w, tt.r)
 			res := tt.w.Result()
 			build := res.Header.Get("X-Influxdb-Build")
 			version := res.Header.Get("X-Influxdb-Version")
 
-			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. PingHandler() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+			if res.StatusCode != http.StatusNoContent {
+				t.Errorf("%q. PingHandler() = %v, want %v", tt.name, res.StatusCode, http.StatusNoContent)
 			}
-			if build != tt.wants.build {
-				t.Errorf("%q. PingHandler() = %v, want %v", tt.name, build, tt.wants.build)
+			if build != "" {
+				t.Errorf("%q. PingHandler() = %v, want empty string", tt.name, build)
 			}
-			if version != tt.wants.version {
-				t.Errorf("%q. PingHandler() = %v, want %v", tt.name, version, tt.wants.version)
+			if version != "" {
+				t.Errorf("%q. PingHandler() = %v, want empty string", tt.name, version)
 			}
 		})
 	}

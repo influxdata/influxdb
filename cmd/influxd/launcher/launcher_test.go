@@ -6,12 +6,14 @@ import (
 	"io/ioutil"
 	nethttp "net/http"
 	"testing"
+	"time"
 
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/tenant"
+	"github.com/stretchr/testify/assert"
 )
 
 // Default context.
@@ -141,4 +143,24 @@ func TestLauncher_SetupWithUsers(t *testing.T) {
 	if len(exp.Users) != 2 {
 		t.Fatalf("unexpected 2 users: %#+v", exp)
 	}
+}
+
+func TestLauncher_PingHeaders(t *testing.T) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	platform.SetBuildInfo("dev", "none", time.Now().UTC().Format(time.RFC3339))
+
+	r, err := nethttp.NewRequest("GET", l.URL().String()+"/ping", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := nethttp.DefaultClient.Do(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, []string{"OSS"}, resp.Header.Values("X-Influxdb-Build"))
+	assert.Equal(t, []string{"dev"}, resp.Header.Values("X-Influxdb-Version"))
 }
