@@ -744,7 +744,7 @@ where
         let _ = database
             .join()
             .await
-            .log_if_error("database background worker");
+            .log_if_error("database background worker while deleting database");
 
         {
             let mut state = self.shared.state.write();
@@ -797,7 +797,7 @@ where
         let _ = database
             .join()
             .await
-            .log_if_error("database background worker");
+            .log_if_error("database background worker while disowning database");
 
         {
             let mut state = self.shared.state.write();
