@@ -740,6 +740,11 @@ where
 
         let database = self.database(db_name)?;
         let uuid = database.delete().await.context(CannotMarkDatabaseDeleted)?;
+        database.shutdown();
+        let _ = database
+            .join()
+            .await
+            .log_if_error("database background worker");
 
         {
             let mut state = self.shared.state.write();
@@ -788,6 +793,11 @@ where
         }
 
         let returned_uuid = database.disown().await.context(CannotDisownDatabase)?;
+        database.shutdown();
+        let _ = database
+            .join()
+            .await
+            .log_if_error("database background worker");
 
         {
             let mut state = self.shared.state.write();
