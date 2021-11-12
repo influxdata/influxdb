@@ -337,8 +337,8 @@ commands:
       - run:
           name: Install goreleaser
           environment:
-            GORELEASER_VERSION: 0.177.0
-            GO_RELEASER_SHA: 8dd5fff1d04eff3789d200920bf280391f96fd5cc1565dd0d6e0db2b9a710854
+            GORELEASER_VERSION: 0.184.0
+            GO_RELEASER_SHA: 0972c17d94f2a95aafbef0c9f6d01ea774abfb8d37b85778e8cb4885efc24511
           command: |
             # checksum from `checksums.txt` file at https://github.com/goreleaser/goreleaser/releases
             curl --proto '=https' --tlsv1.2 -sSfL --max-redirs 1 -O \
