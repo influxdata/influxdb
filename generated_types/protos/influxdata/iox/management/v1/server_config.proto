@@ -41,7 +41,4 @@ message OwnershipTransaction {
 
   // When the transaction took place
   google.protobuf.Timestamp timestamp = 3;
-
-  // Context provided in the disown/adopt calls
-  repeated google.protobuf.Any context = 4;
 }

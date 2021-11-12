@@ -221,11 +221,6 @@ message DisownDatabaseRequest {
 
   // the optional UUID of the database that must match
   bytes uuid = 2;
-
-  // optional context to annotate the disown event in the disowned database's owner info file.
-  // The context objects are qualified by protobuf message type.
-  // The user/orchestration system can provide their own messages.
-  repeated google.protobuf.Any context = 3;
 }
 
 message DisownDatabaseResponse {

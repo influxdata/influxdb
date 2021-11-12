@@ -200,11 +200,6 @@ struct Disown {
     /// database with the given name, or the disown operation will result in an error.
     #[structopt(short, long)]
     uuid: Option<Uuid>,
-
-    /// Optionally, context for this operation, to be stored in the database's owner file as a
-    /// historical record
-    #[structopt(short, long)]
-    context: Option<String>,
 }
 
 /// Restore a deleted database
@@ -371,9 +366,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Disown(command) => {
             let mut client = management::Client::new(connection);
-            let uuid = client
-                .disown_database(&command.name, command.uuid, command.context)
-                .await?;
+            let uuid = client.disown_database(&command.name, command.uuid).await?;
             println!("Disowned database {}", command.name);
             println!("{}", uuid);
         }

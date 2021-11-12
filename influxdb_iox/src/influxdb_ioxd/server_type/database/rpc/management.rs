@@ -190,11 +190,7 @@ where
         &self,
         request: Request<DisownDatabaseRequest>,
     ) -> Result<Response<DisownDatabaseResponse>, Status> {
-        let DisownDatabaseRequest {
-            db_name,
-            uuid,
-            context,
-        } = request.into_inner();
+        let DisownDatabaseRequest { db_name, uuid } = request.into_inner();
 
         let db_name = DatabaseName::new(db_name).field("db_name")?;
         let uuid = if uuid.is_empty() {
@@ -205,7 +201,7 @@ where
 
         let returned_uuid = self
             .server
-            .disown_database(&db_name, uuid, context)
+            .disown_database(&db_name, uuid)
             .await
             .map_err(default_server_error_handler)?;
 

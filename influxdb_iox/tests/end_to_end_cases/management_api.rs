@@ -463,7 +463,7 @@ async fn disown_database() {
     let created_uuid = client.create_database(rules.clone()).await.unwrap();
 
     // Disown database returns the UUID
-    let disowned_uuid = client.disown_database(&db_name, None, None).await.unwrap();
+    let disowned_uuid = client.disown_database(&db_name, None).await.unwrap();
     assert_eq!(created_uuid, disowned_uuid);
 
     // Disowned database is no longer in this server's database list
@@ -477,10 +477,7 @@ async fn disown_database() {
         .any(|db| db.db_name == db_name));
 
     // Disowning the same database again is an error
-    let err = client
-        .disown_database(&db_name, None, None)
-        .await
-        .unwrap_err();
+    let err = client.disown_database(&db_name, None).await.unwrap_err();
     assert_contains!(
         err.to_string(),
         format!("Could not find database {}", db_name)
@@ -492,7 +489,7 @@ async fn disown_database() {
     // If an optional UUID is specified, don't disown the database if the UUID doesn't match
     let incorrect_uuid = Uuid::new_v4();
     let err = client
-        .disown_database(&db_name, Some(incorrect_uuid), None)
+        .disown_database(&db_name, Some(incorrect_uuid))
         .await
         .unwrap_err();
     assert_contains!(
@@ -505,27 +502,7 @@ async fn disown_database() {
 
     // If an optional UUID is specified, disown the database if the UUID does match
     let disowned_uuid = client
-        .disown_database(&db_name, Some(created_uuid), None)
-        .await
-        .unwrap();
-    assert_eq!(created_uuid, disowned_uuid);
-
-    // Create another database
-    let created_uuid = client.create_database(rules.clone()).await.unwrap();
-
-    // Can optionally specify a context and not a UUID
-    let disowned_uuid = client
-        .disown_database(&db_name, None, Some("secret reasons".to_string()))
-        .await
-        .unwrap();
-    assert_eq!(created_uuid, disowned_uuid);
-
-    // Create another database
-    let created_uuid = client.create_database(rules.clone()).await.unwrap();
-
-    // Can optionally specify a context AND a UUID
-    let disowned_uuid = client
-        .disown_database(&db_name, Some(created_uuid), Some("oops".to_string()))
+        .disown_database(&db_name, Some(created_uuid))
         .await
         .unwrap();
     assert_eq!(created_uuid, disowned_uuid);

@@ -14,7 +14,7 @@ use futures::{
     FutureExt, TryFutureExt,
 };
 use generated_types::{
-    database_state::DatabaseState as DatabaseStateCode, google, influxdata::iox::management,
+    database_state::DatabaseState as DatabaseStateCode, influxdata::iox::management,
 };
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
@@ -274,11 +274,7 @@ impl Database {
     }
 
     /// Disown this database from this server.
-    pub async fn disown(
-        &self,
-        context: Vec<google::protobuf::Any>,
-        timestamp: Time,
-    ) -> Result<Uuid, Error> {
+    pub async fn disown(&self, timestamp: Time) -> Result<Uuid, Error> {
         let db_name = &self.shared.config.name;
 
         let handle = self.shared.state.read().freeze();
@@ -306,7 +302,7 @@ impl Database {
             }
         })?;
 
-        update_owner_info(None, None, context, timestamp, &iox_object_store)
+        update_owner_info(None, None, timestamp, &iox_object_store)
             .await
             .context(CannotDisown { db_name })?;
 
@@ -354,7 +350,6 @@ impl Database {
         update_owner_info(
             Some(server_id),
             Some(server_location),
-            vec![],
             timestamp,
             &iox_object_store,
         )
@@ -1297,7 +1292,6 @@ pub enum OwnerInfoUpdateError {
 async fn update_owner_info(
     new_server_id: Option<ServerId>,
     new_server_location: Option<String>,
-    context: Vec<google::protobuf::Any>,
     timestamp: Time,
     iox_object_store: &IoxObjectStore,
 ) -> Result<(), OwnerInfoUpdateError> {
@@ -1313,7 +1307,6 @@ async fn update_owner_info(
         id,
         location,
         timestamp: Some(timestamp.date_time().into()),
-        context,
     };
     transactions.push(new_transaction);
 
@@ -1521,15 +1514,14 @@ impl DatabaseStateInitialized {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::make_application;
-
     use super::*;
+    use crate::test_utils::make_application;
     use data_types::{
         database_rules::{PartitionTemplate, TemplatePart},
         sequence::Sequence,
         write_buffer::{WriteBufferConnection, WriteBufferDirection},
     };
-    use generated_types::protobuf_type_url;
+    use generated_types::google;
     use std::{num::NonZeroU32, time::Instant};
     use uuid::Uuid;
     use write_buffer::mock::MockBufferSharedState;
@@ -1714,7 +1706,7 @@ mod tests {
         let iox_object_store = database.iox_object_store().unwrap();
         let timestamp = Time::from_timestamp(295293, 3);
 
-        database.disown(vec![], timestamp).await.unwrap();
+        database.disown(timestamp).await.unwrap();
 
         assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
         assert!(matches!(
@@ -1732,49 +1724,6 @@ mod tests {
         assert_eq!(transaction.location, server_location);
         let expected_timestamp: google::protobuf::Timestamp = timestamp.date_time().into();
         assert_eq!(transaction.timestamp, Some(expected_timestamp));
-        assert!(transaction.context.is_empty());
-    }
-
-    #[tokio::test]
-    async fn database_disown_with_context() {
-        let (application, database) = initialized_database().await;
-        let server_id = database.shared.config.server_id;
-        let server_location =
-            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
-        let iox_object_store = database.iox_object_store().unwrap();
-        let timestamp = Time::from_timestamp(295293, 3);
-
-        let comment = "I bequeath this database unto the universe";
-
-        database
-            .disown(
-                vec![google::protobuf::Any {
-                    type_url: protobuf_type_url("google.protobuf.StringValue"),
-                    value: comment.into(),
-                }],
-                timestamp,
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
-        assert!(matches!(
-            database.init_error().unwrap().as_ref(),
-            InitError::NoActiveDatabase
-        ));
-
-        let owner_info = fetch_owner_info(&iox_object_store).await.unwrap();
-        assert_eq!(owner_info.id, 0);
-        assert_eq!(owner_info.location, "");
-        let transaction = &owner_info.transactions[0];
-        assert_eq!(transaction.id, server_id.get_u32());
-        assert_eq!(transaction.location, server_location);
-        let expected_timestamp: google::protobuf::Timestamp = timestamp.date_time().into();
-        assert_eq!(transaction.timestamp, Some(expected_timestamp));
-        assert_eq!(transaction.context.len(), 1);
-
-        let context = transaction.context[0].value.slice(..);
-        assert_eq!(std::str::from_utf8(&context).unwrap(), comment);
     }
 
     #[tokio::test]

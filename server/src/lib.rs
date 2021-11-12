@@ -82,10 +82,7 @@ use data_types::{
 };
 use database::{Database, DatabaseConfig};
 use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
-use generated_types::{
-    google::{self, FieldViolation},
-    influxdata::iox::management,
-};
+use generated_types::{google::FieldViolation, influxdata::iox::management};
 use hashbrown::HashMap;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
@@ -769,7 +766,6 @@ where
         &self,
         db_name: &DatabaseName<'static>,
         uuid: Option<Uuid>,
-        context: Vec<google::protobuf::Any>,
     ) -> Result<Uuid> {
         // Wait for exclusive access to mutate server state
         let handle_fut = self.shared.state.read().freeze();
@@ -794,7 +790,7 @@ where
         let timestamp = self.shared.application.time_provider().now();
 
         let returned_uuid = database
-            .disown(context, timestamp)
+            .disown(timestamp)
             .await
             .context(CannotDisownDatabase)?;
 
@@ -2460,10 +2456,7 @@ mod tests {
         let first_foo_uuid = foo.uuid().unwrap();
 
         // disown database by name
-        let disowned_uuid = server
-            .disown_database(&foo_db_name, None, vec![])
-            .await
-            .unwrap();
+        let disowned_uuid = server.disown_database(&foo_db_name, None).await.unwrap();
         assert_eq!(first_foo_uuid, disowned_uuid);
 
         assert_error!(
@@ -2482,14 +2475,14 @@ mod tests {
         let incorrect_uuid = Uuid::new_v4();
         assert_error!(
             server
-                .disown_database(&foo_db_name, Some(incorrect_uuid), vec![])
+                .disown_database(&foo_db_name, Some(incorrect_uuid))
                 .await,
             Error::UuidMismatch { .. }
         );
 
         // disown database specifying UUID works if UUID *does* match
         server
-            .disown_database(&foo_db_name, Some(second_foo_uuid), vec![])
+            .disown_database(&foo_db_name, Some(second_foo_uuid))
             .await
             .unwrap();
     }
@@ -2507,7 +2500,7 @@ mod tests {
         server.wait_for_init().await.unwrap();
 
         assert_error!(
-            server.disown_database(&foo_db_name, None, vec![]).await,
+            server.disown_database(&foo_db_name, None).await,
             Error::DatabaseNotFound { .. },
         );
     }

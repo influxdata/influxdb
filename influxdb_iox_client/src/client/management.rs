@@ -1,8 +1,7 @@
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
 use crate::{
     connection::Connection,
-    google::{self, longrunning::IoxOperation, FieldViolation},
-    protobuf_type_url,
+    google::{longrunning::IoxOperation, FieldViolation},
 };
 use bytes::Bytes;
 use std::{convert::TryInto, num::NonZeroU32};
@@ -730,7 +729,6 @@ impl Client {
         &mut self,
         db_name: impl Into<String> + Send,
         uuid: Option<Uuid>,
-        context: Option<String>,
     ) -> Result<Uuid, DisownDatabaseError> {
         let db_name = db_name.into();
         let response = self
@@ -738,10 +736,6 @@ impl Client {
             .disown_database(DisownDatabaseRequest {
                 db_name: db_name.clone(),
                 uuid: uuid.map(|u| u.as_bytes().to_vec()).unwrap_or_default(),
-                context: vec![google::protobuf::Any {
-                    type_url: protobuf_type_url("google.protobuf.StringValue"),
-                    value: context.unwrap_or_default().into(),
-                }],
             })
             .await
             .map_err(|status| match status.code() {
