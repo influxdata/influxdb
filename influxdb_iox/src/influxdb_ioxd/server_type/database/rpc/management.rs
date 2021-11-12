@@ -186,6 +186,30 @@ where
         }))
     }
 
+    async fn disown_database(
+        &self,
+        request: Request<DisownDatabaseRequest>,
+    ) -> Result<Response<DisownDatabaseResponse>, Status> {
+        let DisownDatabaseRequest { db_name, uuid } = request.into_inner();
+
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let uuid = if uuid.is_empty() {
+            None
+        } else {
+            Some(Uuid::from_slice(&uuid).field("uuid")?)
+        };
+
+        let returned_uuid = self
+            .server
+            .disown_database(&db_name, uuid)
+            .await
+            .map_err(default_server_error_handler)?;
+
+        Ok(Response::new(DisownDatabaseResponse {
+            uuid: returned_uuid.as_bytes().to_vec(),
+        }))
+    }
+
     async fn restore_database(
         &self,
         request: Request<RestoreDatabaseRequest>,

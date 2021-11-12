@@ -25,6 +25,7 @@ use parquet_catalog::core::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
+use time::Time;
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -91,6 +92,18 @@ pub enum Error {
         db_name
     ))]
     CannotDeleteInactiveDatabase { db_name: String },
+
+    #[snafu(display(
+        "cannot disown database named {} that has already been disowned",
+        db_name
+    ))]
+    CannotDisownUnowned { db_name: String },
+
+    #[snafu(display("cannot disown database {}: {}", db_name, source))]
+    CannotDisown {
+        db_name: String,
+        source: OwnerInfoUpdateError,
+    },
 }
 
 #[derive(Debug, Snafu)]
@@ -190,22 +203,13 @@ impl Database {
             },
         );
 
-        let location = iox_object_store.root_path();
+        let database_location = iox_object_store.root_path();
+        let server_location =
+            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
 
-        let owner_info = management::v1::OwnerInfo {
-            id: server_id.get_u32(),
-            location: IoxObjectStore::server_config_path(application.object_store(), server_id)
-                .to_string(),
-        };
-        let mut encoded = bytes::BytesMut::new();
-        generated_types::server_config::encode_database_owner_info(&owner_info, &mut encoded)
-            .expect("owner info serialization should be valid");
-        let encoded = encoded.freeze();
-
-        iox_object_store
-            .put_owner_file(encoded)
+        create_owner_info(server_id, server_location, &iox_object_store)
             .await
-            .context(SavingOwner)?;
+            .context(CreatingOwnerInfo)?;
 
         let rules_to_persist = PersistedDatabaseRules::new(uuid, provided_rules);
         rules_to_persist
@@ -223,7 +227,7 @@ impl Database {
         .await
         .context(CannotCreatePreservedCatalog)?;
 
-        Ok(location)
+        Ok(database_location)
     }
 
     /// Mark this database as deleted.
@@ -269,6 +273,48 @@ impl Database {
         Ok(uuid)
     }
 
+    /// Disown this database from this server.
+    pub async fn disown(&self) -> Result<Uuid, Error> {
+        let db_name = &self.shared.config.name;
+
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
+        let (uuid, iox_object_store) = {
+            let state = self.shared.state.read();
+            // Can't disown an already disowned database
+            ensure!(state.is_active(), CannotDisownUnowned { db_name });
+
+            let uuid = state.uuid().expect("Active databases have UUIDs");
+            let iox_object_store = self
+                .iox_object_store()
+                .expect("Active databases have iox_object_stores");
+
+            (uuid, iox_object_store)
+        };
+
+        info!(%db_name, %uuid, "disowning database");
+
+        update_owner_info(
+            None,
+            None,
+            self.shared.application.time_provider().now(),
+            &iox_object_store,
+        )
+        .await
+        .context(CannotDisown { db_name })?;
+
+        let mut state = self.shared.state.write();
+        let mut state = state.unfreeze(handle);
+        *state = DatabaseState::NoActiveDatabase(
+            DatabaseStateKnown {},
+            Arc::new(InitError::NoActiveDatabase),
+        );
+        self.shared.state_notify.notify_waiters();
+
+        Ok(uuid)
+    }
+
     /// Create a restored database without any state. Returns its location in object storage
     /// for saving in the server config file.
     pub async fn restore(
@@ -294,24 +340,20 @@ impl Database {
             other => other.context(IoxObjectStoreError)?,
         };
 
-        let location = iox_object_store.root_path();
+        let database_location = iox_object_store.root_path();
+        let server_location =
+            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
 
-        let owner_info = management::v1::OwnerInfo {
-            id: server_id.get_u32(),
-            location: IoxObjectStore::server_config_path(application.object_store(), server_id)
-                .to_string(),
-        };
-        let mut encoded = bytes::BytesMut::new();
-        generated_types::server_config::encode_database_owner_info(&owner_info, &mut encoded)
-            .expect("owner info serialization should be valid");
-        let encoded = encoded.freeze();
+        update_owner_info(
+            Some(server_id),
+            Some(server_location),
+            application.time_provider().now(),
+            &iox_object_store,
+        )
+        .await
+        .context(UpdatingOwnerInfo)?;
 
-        iox_object_store
-            .put_owner_file(encoded)
-            .await
-            .context(SavingOwner)?;
-
-        Ok(location)
+        Ok(database_location)
     }
 
     /// Triggers shutdown of this `Database`
@@ -925,16 +967,14 @@ pub enum InitError {
     #[snafu(display("error during replay: {}", source))]
     Replay { source: crate::db::Error },
 
-    #[snafu(display("error saving database owner: {}", source))]
-    SavingOwner { source: object_store::Error },
+    #[snafu(display("error creating database owner info: {}", source))]
+    CreatingOwnerInfo { source: OwnerInfoCreateError },
 
-    #[snafu(display("error loading owner info: {}", source))]
-    LoadingOwnerInfo { source: object_store::Error },
+    #[snafu(display("error getting database owner info: {}", source))]
+    FetchingOwnerInfo { source: OwnerInfoFetchError },
 
-    #[snafu(display("error decoding owner info: {}", source))]
-    DecodingOwnerInfo {
-        source: generated_types::DecodeError,
-    },
+    #[snafu(display("error updating database owner info: {}", source))]
+    UpdatingOwnerInfo { source: OwnerInfoUpdateError },
 
     #[snafu(display(
         "Server ID in the database's owner info file ({}) does not match this server's ID ({})",
@@ -1154,14 +1194,9 @@ impl DatabaseStateDatabaseObjectStoreFound {
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateOwnerInfoLoaded, InitError> {
-        let raw_owner_info = self
-            .iox_object_store
-            .get_owner_file()
+        let owner_info = fetch_owner_info(&self.iox_object_store)
             .await
-            .context(LoadingOwnerInfo)?;
-
-        let owner_info = generated_types::server_config::decode_database_owner_info(raw_owner_info)
-            .context(DecodingOwnerInfo)?;
+            .context(FetchingOwnerInfo)?;
 
         if owner_info.id != shared.config.server_id.get_u32() {
             return DatabaseOwnerMismatch {
@@ -1176,6 +1211,123 @@ impl DatabaseStateDatabaseObjectStoreFound {
             iox_object_store: Arc::clone(&self.iox_object_store),
         })
     }
+}
+
+#[derive(Debug, Snafu)]
+pub enum OwnerInfoFetchError {
+    #[snafu(display("error loading owner info: {}", source))]
+    Loading { source: object_store::Error },
+
+    #[snafu(display("error decoding owner info: {}", source))]
+    Decoding {
+        source: generated_types::DecodeError,
+    },
+}
+
+async fn fetch_owner_info(
+    iox_object_store: &IoxObjectStore,
+) -> Result<management::v1::OwnerInfo, OwnerInfoFetchError> {
+    let raw_owner_info = iox_object_store.get_owner_file().await.context(Loading)?;
+
+    generated_types::server_config::decode_database_owner_info(raw_owner_info).context(Decoding)
+}
+
+#[derive(Debug, Snafu)]
+pub enum OwnerInfoCreateError {
+    #[snafu(display("could not create new owner info file; it already exists"))]
+    OwnerFileAlreadyExists,
+
+    #[snafu(display("error creating database owner info file: {}", source))]
+    CreatingOwnerFile { source: Box<object_store::Error> },
+}
+
+/// Create a new owner info file for this database. Existing content at this location in object
+/// storage is an error.
+async fn create_owner_info(
+    server_id: ServerId,
+    server_location: String,
+    iox_object_store: &IoxObjectStore,
+) -> Result<(), OwnerInfoCreateError> {
+    ensure!(
+        matches!(
+            iox_object_store.get_owner_file().await,
+            Err(object_store::Error::NotFound { .. })
+        ),
+        OwnerFileAlreadyExists,
+    );
+
+    let owner_info = management::v1::OwnerInfo {
+        id: server_id.get_u32(),
+        location: server_location,
+        transactions: vec![],
+    };
+    let mut encoded = bytes::BytesMut::new();
+    generated_types::server_config::encode_database_owner_info(&owner_info, &mut encoded)
+        .expect("owner info serialization should be valid");
+    let encoded = encoded.freeze();
+
+    iox_object_store
+        .put_owner_file(encoded)
+        .await
+        .map_err(Box::new)
+        .context(CreatingOwnerFile)?;
+
+    Ok(())
+}
+
+#[derive(Debug, Snafu)]
+pub enum OwnerInfoUpdateError {
+    #[snafu(display("could not fetch existing owner info: {}", source))]
+    CouldNotFetch { source: OwnerInfoFetchError },
+
+    #[snafu(display("error updating database owner info file: {}", source))]
+    UpdatingOwnerFile { source: object_store::Error },
+}
+
+/// Fetch existing owner info, set the `id` and `location`, insert a new entry into the transaction
+/// history, and overwrite the contents of the owner file. Errors if the owner info file does NOT
+/// currently exist.
+async fn update_owner_info(
+    new_server_id: Option<ServerId>,
+    new_server_location: Option<String>,
+    timestamp: Time,
+    iox_object_store: &IoxObjectStore,
+) -> Result<(), OwnerInfoUpdateError> {
+    let management::v1::OwnerInfo {
+        id,
+        location,
+        mut transactions,
+    } = fetch_owner_info(iox_object_store)
+        .await
+        .context(CouldNotFetch)?;
+
+    let new_transaction = management::v1::OwnershipTransaction {
+        id,
+        location,
+        timestamp: Some(timestamp.date_time().into()),
+    };
+    transactions.push(new_transaction);
+
+    // TODO: only save latest 100 transactions
+
+    let new_owner_info = management::v1::OwnerInfo {
+        // 0 is not a valid server ID, so it indicates "unowned".
+        id: new_server_id.map(|s| s.get_u32()).unwrap_or_default(),
+        // Owner location is empty when the database is unowned.
+        location: new_server_location.unwrap_or_default(),
+        transactions,
+    };
+
+    let mut encoded = bytes::BytesMut::new();
+    generated_types::server_config::encode_database_owner_info(&new_owner_info, &mut encoded)
+        .expect("owner info serialization should be valid");
+    let encoded = encoded.freeze();
+
+    iox_object_store
+        .put_owner_file(encoded)
+        .await
+        .context(UpdatingOwnerFile)?;
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -1360,12 +1512,11 @@ impl DatabaseStateInitialized {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::make_application;
-
     use super::*;
-    use data_types::sequence::Sequence;
+    use crate::test_utils::make_application;
     use data_types::{
         database_rules::{PartitionTemplate, TemplatePart},
+        sequence::Sequence,
         write_buffer::{WriteBufferConnection, WriteBufferDirection},
     };
     use std::{num::NonZeroU32, time::Instant};
@@ -1500,6 +1651,7 @@ mod tests {
         let db_name = &database.shared.config.name;
         let uuid = database.uuid().unwrap();
         let server_id = database.shared.config.server_id;
+
         database.delete().await.unwrap();
 
         assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
@@ -1533,6 +1685,32 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn database_disown() {
+        let (application, database) = initialized_database().await;
+        let server_id = database.shared.config.server_id;
+        let server_location =
+            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
+        let iox_object_store = database.iox_object_store().unwrap();
+
+        database.disown().await.unwrap();
+
+        assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
+        assert!(matches!(
+            database.init_error().unwrap().as_ref(),
+            InitError::NoActiveDatabase
+        ));
+
+        let owner_info = fetch_owner_info(&iox_object_store).await.unwrap();
+        assert_eq!(owner_info.id, 0);
+        assert_eq!(owner_info.location, "");
+        assert_eq!(owner_info.transactions.len(), 1);
+
+        let transaction = &owner_info.transactions[0];
+        assert_eq!(transaction.id, server_id.get_u32());
+        assert_eq!(transaction.location, server_location);
     }
 
     #[tokio::test]
