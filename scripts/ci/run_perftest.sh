@@ -17,7 +17,7 @@ export INFLUXDB2=true
 export TEST_ORG=example_org
 export TEST_TOKEN=token
 result="$(curl -s -o /dev/null -H "Content-Type: application/json" -XPOST -d '{"username": "default", "password": "thisisnotused", "retentionPeriodSeconds": 0, "org": "'"$TEST_ORG"'", "bucket": "unused_bucket", "token": "'"$TEST_TOKEN"'"}' http://localhost:8086/api/v2/setup -w %{http_code})"
-if [[ "$result" != "201" ]] ; then
+if [ "$result" != "201" ] ; then
   echo "Influxdb2 failed to setup correctly"
   exit 1
 fi
@@ -114,11 +114,7 @@ if [ `whoami` = root ]; then
 fi
 go version
 
-# clone influxdb comparisons
-git clone https://github.com/influxdata/influxdb-comparisons.git $working_dir/influxdb-comparisons
-cd $working_dir/influxdb-comparisons
-
-# install cmds
+# install influxdb-comparisons cmds
 go get \
   github.com/influxdata/influxdb-comparisons/cmd/bulk_data_gen \
   github.com/influxdata/influxdb-comparisons/cmd/bulk_load_influx \
@@ -345,7 +341,7 @@ for usecase in iot metaquery multi-measurement; do
   rm -rf "$USECASE_DIR"
 done
 
-if [[ "${TEST_RECORD_RESULTS}" == true ]] ; then
+if [ "${TEST_RECORD_RESULTS}" = "true" ] ; then
   echo "Using Telegraph to report results from the following files:"
   ls $working_dir
   telegraf --debug --once
