@@ -225,8 +225,8 @@ where
     // Purposefully use log not tokio-tracing to ensure correctly hooked up
     log::info!("InfluxDB IOx server ready");
 
-    // Get IOx background worker task
-    let server_worker = Arc::clone(&server_type).background_worker().fuse();
+    // Get IOx background worker join handle
+    let server_handle = Arc::clone(&server_type).join().fuse();
 
     // Shutdown signal
     let signal = wait_for_signal().fuse();
@@ -255,7 +255,7 @@ where
     // pin_mut constructs a Pin<&mut T> from a T by preventing moving the T
     // from the current stack frame and constructing a Pin<&mut T> to it
     pin_mut!(signal);
-    pin_mut!(server_worker);
+    pin_mut!(server_handle);
     pin_mut!(grpc_server);
     pin_mut!(http_server);
 
@@ -274,8 +274,8 @@ where
     while !grpc_server.is_terminated() && !http_server.is_terminated() {
         futures::select! {
             _ = signal => info!("Shutdown requested"),
-            _ = server_worker => {
-                info!("server worker shutdown prematurely");
+            _ = server_handle => {
+                error!("server worker shutdown prematurely");
             },
             result = grpc_server => match result {
                 Ok(_) => info!("gRPC server shutdown"),
@@ -297,9 +297,9 @@ where
     }
     info!("frontend shutdown completed");
 
-    server_type.shutdown_background_worker();
-    if !server_worker.is_terminated() {
-        server_worker.await;
+    server_type.shutdown();
+    if !server_handle.is_terminated() {
+        server_handle.await;
     }
     info!("backend shutdown completed");
 
