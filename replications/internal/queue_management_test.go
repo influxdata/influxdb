@@ -375,24 +375,14 @@ func TestGoroutineReceives(t *testing.T) {
 	require.NotNil(t, rq)
 	close(rq.done) // atypical from normal behavior, but lets us receive channels to test
 
-	// listen on the receive channel
-	ch := make(chan struct{})
-	go func() {
-		var hasReceived bool
-		for {
-			select {
-			case <-ch:
-				require.True(t, hasReceived)
-				return
-			case <-rq.receive:
-				hasReceived = true
-			}
-		}
-	}()
-	require.NoError(t, qm.EnqueueData(id1, []byte("1234")))
-	time.Sleep(time.Second) // give some time to receive the channel
-	ch <- struct{}{}
-	time.Sleep(time.Second) // give some time to check that the channel was hit
+	go func() { require.NoError(t, qm.EnqueueData(id1, []byte("1234"))) }()
+	select {
+	case <-rq.receive:
+		return
+	case <-time.After(time.Second):
+		t.Fatal("Test timed out")
+		return
+	}
 }
 
 func TestGoroutineCloses(t *testing.T) {
