@@ -124,13 +124,13 @@ func (rq *replicationQueue) run() {
 	writer := func() {
 		for {
 			_, err := rq.SendWrite(func(b []byte) error {
-				rq.logger.Info("written bytes", zap.String("bytes", string(b)))
+				rq.logger.Info("written bytes", zap.Int("len", len(b)))
 				return nil
 			})
 			if err != nil {
 				if err == io.EOF {
 					// No more data
-					rq.logger.Debug("Finished replication writes for queue")
+					// Handle this gracefully, as it is an expected error to receive
 				} else {
 					// todo more error handling
 					panic(1)
@@ -161,6 +161,7 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
 
 	var count int
 	for scan.Next() {
+		// This may return io.EOF to indicate an empty queue
 		if scan.Err() != nil {
 			err = scan.Err()
 			break
@@ -175,7 +176,6 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
 		rq.logger.Info("Segment read error.", zap.Error(scan.Err()))
 	}
 
-	// This may return io.EOF to indicate an empty queue
 	if _, err := scan.Advance(); err != nil {
 		return count, err
 	}

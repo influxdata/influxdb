@@ -63,7 +63,7 @@ func TestEnqueueScanLog(t *testing.T) {
 	allLogs := observedLogs.All()
 	firstLog := allLogs[0]
 	require.Equal(t, firstLog.Message, "written bytes")
-	require.Equal(t, "weather,location=us-midwest temperature=82 1465839830100400200", firstLog.ContextMap()["bytes"])
+	require.Equal(t, int64(62), firstLog.ContextMap()["len"])
 }
 
 func TestEnqueueScanLogMultiple(t *testing.T) {
@@ -101,10 +101,10 @@ func TestEnqueueScanLogMultiple(t *testing.T) {
 	allLogs := observedLogs.All()
 
 	require.Equal(t, allLogs[0].Message, "written bytes")
-	require.Equal(t, "weather,location=us-midwest temperature=82 1465839830100400200", allLogs[0].ContextMap()["bytes"])
+	require.Equal(t, int64(62), allLogs[0].ContextMap()["len"])
 
 	require.Equal(t, allLogs[1].Message, "written bytes")
-	require.Equal(t, "weather,location=us-midwest temperature=83 1465839830100400201", allLogs[1].ContextMap()["bytes"])
+	require.Equal(t, int64(62), allLogs[1].ContextMap()["len"])
 }
 
 func TestCreateNewQueueDuplicateID(t *testing.T) {
