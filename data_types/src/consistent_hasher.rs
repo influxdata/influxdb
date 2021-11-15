@@ -1,5 +1,6 @@
-use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+
+use siphasher::sip::SipHasher13;
 
 /// A ConsistentHasher implements a simple consistent hashing mechanism
 /// that maps a point to the nearest "node" N.
@@ -47,7 +48,7 @@ where
     }
 
     fn hash<H: Hash>(h: H) -> u64 {
-        let mut hasher = DefaultHasher::new();
+        let mut hasher = SipHasher13::new();
         h.hash(&mut hasher);
         hasher.finish()
     }
@@ -85,9 +86,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_roundtrip() {}
 
     #[test]
     fn test_consistent_hasher() {
