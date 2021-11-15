@@ -28,11 +28,12 @@ function main () {
         linux_amd64)
             cc=musl-gcc
             ldflags="$ldflags -extldflags '$LINUX_EXTLD'"
+            tags="$tags,static_build"
             ;;
         linux_arm64)
             cc=aarch64-unknown-linux-musl-gcc
             ldflags="$ldflags -extldflags '$LINUX_EXTLD'"
-            tags="$tags,noasm"
+            tags="$tags,static_build,noasm"
             ;;
         darwin_amd64)
             cc=x86_64-apple-darwin16-clang
