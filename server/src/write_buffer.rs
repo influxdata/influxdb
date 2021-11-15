@@ -8,7 +8,7 @@ use futures::{FutureExt, StreamExt, TryFutureExt};
 use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 
-use dml::DmlWrite;
+use dml::DmlOperation;
 use observability_deps::tracing::{debug, error, info, warn};
 use trace::span::SpanRecorder;
 use write_buffer::core::{FetchHighWatermark, WriteBufferError, WriteBufferReading};
@@ -101,7 +101,7 @@ impl Drop for WriteBufferConsumer {
 async fn stream_in_sequenced_entries<'a>(
     db: Arc<Db>,
     sequencer_id: u32,
-    mut stream: BoxStream<'a, Result<DmlWrite, WriteBufferError>>,
+    mut stream: BoxStream<'a, Result<DmlOperation, WriteBufferError>>,
     f_mark: FetchHighWatermark<'a>,
     mut metrics: SequencerMetrics,
 ) {
@@ -138,7 +138,7 @@ async fn stream_in_sequenced_entries<'a>(
         let ingest_recorder = metrics.recorder(watermark);
 
         // get entry from sequencer
-        let db_write = match db_write_result {
+        let dml_operation = match db_write_result {
             Ok(db_write) => db_write,
             // skip over invalid data in the write buffer so recovery can succeed
             Err(e) => {
@@ -152,19 +152,23 @@ async fn stream_in_sequenced_entries<'a>(
             }
         };
 
-        let ingest_recorder = ingest_recorder.write(&db_write);
+        let ingest_recorder = ingest_recorder.operation(&dml_operation);
 
         // store entry
         let mut logged_hard_limit = false;
         loop {
             let mut span_recorder = SpanRecorder::new(
-                db_write
+                dml_operation
                     .meta()
                     .span_context()
                     .map(|parent| parent.child("IOx write buffer")),
             );
 
-            match db.store_write(&db_write) {
+            let result = match &dml_operation {
+                DmlOperation::Write(db_write) => db.store_write(db_write),
+            };
+
+            match result {
                 Ok(_) => {
                     ingest_recorder.success();
                     span_recorder.ok("stored write");
@@ -221,7 +225,7 @@ mod tests {
     use crate::utils::TestDb;
 
     use super::*;
-    use dml::DmlMeta;
+    use dml::{DmlMeta, DmlWrite};
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
     use mutable_batch_lp::lines_to_batches;
     use time::Time;

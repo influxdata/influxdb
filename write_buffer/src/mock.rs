@@ -11,7 +11,7 @@ use parking_lot::Mutex;
 
 use data_types::sequence::Sequence;
 use data_types::write_buffer::WriteBufferCreationConfig;
-use dml::{DmlMeta, DmlWrite};
+use dml::{DmlMeta, DmlOperation, DmlWrite};
 use time::TimeProvider;
 
 use crate::core::{
@@ -25,7 +25,7 @@ struct WriteResVec {
     max_seqno: Option<u64>,
 
     /// The writes
-    writes: Vec<Result<DmlWrite, WriteBufferError>>,
+    writes: Vec<Result<DmlOperation, WriteBufferError>>,
 
     /// A list of Waker waiting for a new entry to be pushed
     ///
@@ -35,7 +35,7 @@ struct WriteResVec {
 }
 
 impl WriteResVec {
-    pub fn push(&mut self, val: Result<DmlWrite, WriteBufferError>) {
+    pub fn push(&mut self, val: Result<DmlOperation, WriteBufferError>) {
         if let Ok(entry) = &val {
             if let Some(seqno) = entry.meta().sequence() {
                 self.max_seqno = Some(match self.max_seqno {
@@ -135,7 +135,7 @@ impl MockBufferSharedState {
             );
         }
 
-        writes_vec.push(Ok(write));
+        writes_vec.push(Ok(DmlOperation::Write(write)));
     }
 
     /// Push line protocol data with placeholder values used for write metadata
@@ -165,7 +165,7 @@ impl MockBufferSharedState {
     /// # Panics
     /// - when no sequencer was initialized
     /// - when sequencer does not exist
-    pub fn get_messages(&self, sequencer_id: u32) -> Vec<Result<DmlWrite, WriteBufferError>> {
+    pub fn get_messages(&self, sequencer_id: u32) -> Vec<Result<DmlOperation, WriteBufferError>> {
         let mut guard = self.writes.lock();
         let writes = guard.as_mut().expect("no sequencers initialized");
         let writes_vec = writes.get_mut(&sequencer_id).expect("invalid sequencer ID");
@@ -269,7 +269,7 @@ impl WriteBufferWriting for MockBufferForWriting {
         let mut write = write.clone();
         write.set_meta(meta.clone());
 
-        writes_vec.push(Ok(write));
+        writes_vec.push(Ok(DmlOperation::Write(write)));
 
         Ok(meta)
     }

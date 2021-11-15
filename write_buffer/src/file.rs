@@ -122,7 +122,7 @@ use std::{
 use crate::codec::{ContentType, IoxHeaders};
 use async_trait::async_trait;
 use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
-use dml::{DmlMeta, DmlWrite};
+use dml::{DmlMeta, DmlOperation, DmlWrite};
 use futures::{channel::mpsc::Receiver, FutureExt, SinkExt, Stream, StreamExt};
 use pin_project::{pin_project, pinned_drop};
 use time::{Time, TimeProvider};
@@ -345,7 +345,7 @@ impl WriteBufferReading for FileBufferConsumer {
 struct ConsumerStream {
     join_handle: JoinHandle<()>,
     #[pin]
-    rx: Receiver<Result<DmlWrite, WriteBufferError>>,
+    rx: Receiver<Result<DmlOperation, WriteBufferError>>,
 }
 
 impl ConsumerStream {
@@ -438,7 +438,7 @@ impl ConsumerStream {
         mut data: Vec<u8>,
         sequence: Sequence,
         trace_collector: Option<Arc<dyn TraceCollector>>,
-    ) -> Result<DmlWrite, WriteBufferError> {
+    ) -> Result<DmlOperation, WriteBufferError> {
         let mut headers = [httparse::EMPTY_HEADER; 16];
         match httparse::parse_headers(&data, &mut headers)? {
             httparse::Status::Complete((offset, headers)) => {
@@ -482,7 +482,7 @@ impl PinnedDrop for ConsumerStream {
 }
 
 impl Stream for ConsumerStream {
-    type Item = Result<DmlWrite, WriteBufferError>;
+    type Item = Result<DmlOperation, WriteBufferError>;
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -630,7 +630,7 @@ pub mod test_utils {
 mod tests {
     use std::num::NonZeroU32;
 
-    use dml::test_util::assert_writes_eq;
+    use dml::test_util::assert_write_op_eq;
     use tempfile::TempDir;
     use trace::RingBufferTraceCollector;
 
@@ -754,8 +754,8 @@ mod tests {
         let mut reader = ctx.reading(true).await.unwrap();
         let mut stream = reader.streams().remove(&sequencer_id).unwrap();
 
-        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
-        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w4);
+        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
+        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w4);
     }
 
     #[tokio::test]
@@ -782,6 +782,6 @@ mod tests {
         let mut reader = ctx.reading(true).await.unwrap();
         let mut stream = reader.streams().remove(&sequencer_id).unwrap();
 
-        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w2);
+        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w2);
     }
 }
