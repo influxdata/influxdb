@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use data_types::database_rules::{PartitionTemplate, RegexCapture, StrftimeColumn, TemplatePart};
 
 use crate::google::protobuf::Empty;
-use crate::google::{FieldViolation, FromFieldOpt, FromFieldString, FromFieldVec};
+use crate::google::{FieldViolation, FromOptionalField, FromRepeatedField, NonEmptyString};
 use crate::influxdata::iox::management::v1 as management;
 
 impl From<PartitionTemplate> for management::PartitionTemplate {
@@ -18,7 +18,7 @@ impl TryFrom<management::PartitionTemplate> for PartitionTemplate {
     type Error = FieldViolation;
 
     fn try_from(proto: management::PartitionTemplate) -> Result<Self, Self::Error> {
-        let parts = proto.parts.vec_field("parts")?;
+        let parts = proto.parts.repeated("parts")?;
         Ok(Self { parts })
     }
 }
@@ -52,18 +52,18 @@ impl TryFrom<management::partition_template::part::Part> for TemplatePart {
 
         Ok(match proto {
             Part::Table(_) => Self::Table,
-            Part::Column(column) => Self::Column(column.required("column")?),
+            Part::Column(column) => Self::Column(column.non_empty("column")?),
             Part::Regex(ColumnFormat { column, format }) => Self::RegexCapture(RegexCapture {
-                column: column.required("regex.column")?,
-                regex: format.required("regex.format")?,
+                column: column.non_empty("regex.column")?,
+                regex: format.non_empty("regex.format")?,
             }),
             Part::StrfTime(ColumnFormat { column, format }) => {
                 Self::StrftimeColumn(StrftimeColumn {
-                    column: column.required("strf_time.column")?,
-                    format: format.required("strf_time.format")?,
+                    column: column.non_empty("strf_time.column")?,
+                    format: format.non_empty("strf_time.format")?,
                 })
             }
-            Part::Time(format) => Self::TimeFormat(format.required("time")?),
+            Part::Time(format) => Self::TimeFormat(format.non_empty("time")?),
         })
     }
 }

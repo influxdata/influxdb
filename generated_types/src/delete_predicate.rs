@@ -7,7 +7,7 @@
 //! [Ballista]: https://github.com/apache/arrow-datafusion/blob/22fcb3d7a68a56afbe12eab9e7d98f7b8de33703/ballista/rust/core/proto/ballista.proto
 //! [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
 
-use crate::google::{FieldViolation, FromFieldOpt, FromFieldVec};
+use crate::google::{FieldViolation, FromOptionalField, FromRepeatedField, OptionalField};
 use crate::influxdata::iox::predicate::v1 as proto;
 use crate::influxdata::iox::predicate::v1::scalar::Value;
 use crate::influxdata::iox::predicate::v1::{Expr, Predicate};
@@ -32,16 +32,14 @@ impl TryFrom<proto::Predicate> for DeletePredicate {
     type Error = FieldViolation;
 
     fn try_from(value: Predicate) -> Result<Self, Self::Error> {
-        let range = value
-            .range
-            .ok_or_else(|| FieldViolation::required("range"))?;
+        let range = value.range.unwrap_field("range")?;
 
         Ok(Self {
             range: TimestampRange {
                 start: range.start,
                 end: range.end,
             },
-            exprs: value.exprs.vec_field("exprs")?,
+            exprs: value.exprs.repeated("exprs")?,
         })
     }
 }
@@ -72,10 +70,7 @@ impl TryFrom<proto::Scalar> for Scalar {
     type Error = FieldViolation;
 
     fn try_from(value: proto::Scalar) -> Result<Self, Self::Error> {
-        Ok(value
-            .value
-            .ok_or_else(|| FieldViolation::required("value"))?
-            .into())
+        Ok(value.value.unwrap_field("value")?.into())
     }
 }
 

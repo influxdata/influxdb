@@ -28,7 +28,7 @@ where
             .ok_or_else(|| FieldViolation::required("database_batch"))?;
 
         let db_name = DatabaseName::new(&database_batch.database_name)
-            .field("database_batch.database_name")?;
+            .scope("database_batch.database_name")?;
 
         let tables =
             mutable_batch_pb::decode::decode_database_batch(&database_batch).map_err(|e| {

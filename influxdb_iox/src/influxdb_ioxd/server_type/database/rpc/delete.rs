@@ -32,7 +32,7 @@ where
         } = request.into_inner();
 
         // Validate that the database name is legit
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
         let db = self
             .server
             .db(&db_name)

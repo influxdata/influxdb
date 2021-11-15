@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use generated_types::{google::FromFieldOpt, influxdata::iox::router::v1::*};
+use generated_types::{google::FromOptionalField, influxdata::iox::router::v1::*};
 use router::server::RouterServer;
 use tonic::{Request, Response, Status};
 

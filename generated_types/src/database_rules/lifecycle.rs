@@ -1,4 +1,4 @@
-use crate::google::{FieldViolationExt, FromFieldOpt};
+use crate::google::{FieldViolationExt, FromOptionalField, OptionalField};
 use std::convert::{TryFrom, TryInto};
 use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
 
@@ -76,7 +76,7 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
                 NonZeroU64::new(DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT).unwrap()
             }),
             catalog_transaction_prune_age: match proto.catalog_transaction_prune_age {
-                Some(d) => d.try_into().field("catalog_transaction_prune_age")?,
+                Some(d) => d.try_into().scope("catalog_transaction_prune_age")?,
                 None => DEFAULT_CATALOG_TRANSACTION_PRUNE_AGE,
             },
             late_arrive_window_seconds: NonZeroU32::new(proto.late_arrive_window_seconds)
@@ -103,10 +103,7 @@ impl TryFrom<management::lifecycle_rules::MaxActiveCompactionsCfg> for MaxActive
         use management::lifecycle_rules::MaxActiveCompactionsCfg::*;
         Ok(match value {
             MaxActiveCompactions(n) => {
-                Self::MaxActiveCompactions(NonZeroU32::new(n).ok_or_else(|| FieldViolation {
-                    field: "max_active_compactions".to_string(),
-                    description: "must be non-zero".to_string(),
-                })?)
+                Self::MaxActiveCompactions(NonZeroU32::new(n).unwrap_field("")?)
             }
             MaxActiveCompactionsCpuFraction(fraction) => Self::new(fraction),
         })
