@@ -96,13 +96,13 @@ workflows:
               ignore: /pull\/[0-9]+/
           requires:
             - build-snapshot-linux-amd64
-      - pkg_run_test:
+      - test-linux-packages:
           filters:
             branches:
               ignore: /pull\/[0-9]+/
           requires:
             - package-snapshot
-      - perf_test:
+      - perf-test:
           record_results: true
           requires:
             - package-snapshot
@@ -110,13 +110,13 @@ workflows:
             branches:
               only:
                 - master
-      - grace_daily:
+      - grace-test:
           requires:
             - build-snapshot-linux-amd64
-      - litmus_daily:
+      - litmus-smoke-test:
           requires:
             - build-snapshot-linux-amd64
-      - litmus_integration:
+      - litmus-full-test:
           requires:
             - build-snapshot-linux-amd64
           filters:
@@ -130,7 +130,7 @@ workflows:
           requires:
             - e2e-monitor-ci
 
-  aws_destroy_daily:
+  aws-destroy-daily:
     triggers:
       - schedule:
           # run every day at 10pm -- note: use spaces, not tabs
@@ -140,7 +140,7 @@ workflows:
               only:
                 - "master"
     jobs:
-      - aws_destroy_by_date
+      - aws-destroy-by-date
 
   nightly:
 #    triggers:
@@ -204,10 +204,10 @@ workflows:
           requires:
             - build
             - changelog
-      - litmus_integration:
+      - litmus-full-test:
           requires:
             - build-nightly-linux-amd64
-      - grace_daily:
+      - grace-test:
           requires:
             - build-nightly-linux-amd64
 
@@ -403,7 +403,7 @@ jobs:
           paths:
             - artifacts
 
-  pkg_run_test:
+  test-linux-packages:
     executor: terraform/default
     steps:
       - attach_workspace:
@@ -453,7 +453,7 @@ jobs:
               destroy \
                 -auto-approve
 
-  perf_test:
+  perf-test:
     docker:
       - image: cimg/base:2021.04
     resource_class: small
@@ -479,7 +479,7 @@ jobs:
       - run:
           name: Set up AWS instance
           command: |
-            scripts/ci/perf_test.sh
+            scripts/ci/perf-test.sh
       - run:
           name: Run perf test
           no_output_timeout: 20m
@@ -497,7 +497,7 @@ jobs:
               aws --region us-west-2 ec2 terminate-instances --instance-ids "$EC2_INSTANCE_ID"
             fi
 
-  aws_destroy_by_date:
+  aws-destroy-by-date:
     executor: linux-amd64
     steps:
       - attach_workspace:
@@ -556,7 +556,7 @@ jobs:
           path: monitor-ci/test-artifacts/results/shared
           destination: test_artifacts/results/shared
 
-  litmus_daily:
+  litmus-smoke-test:
     executor: linux-amd64
     steps:
       - attach_workspace:
@@ -568,7 +568,7 @@ jobs:
       - store_test_results:
           path: ~/project
 
-  litmus_integration:
+  litmus-full-test:
     executor: linux-amd64
     steps:
       - attach_workspace:
@@ -580,7 +580,7 @@ jobs:
       - store_test_results:
           path: ~/project
 
-  grace_daily:
+  grace-test:
     executor: linux-amd64
     steps:
       - attach_workspace:
