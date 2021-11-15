@@ -93,7 +93,7 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 		done:    make(chan struct{}),
 		receive: make(chan struct{}),
 	}
-	qm.replicationQueues[replicationID] = &rq // todo does this need to be held?
+	qm.replicationQueues[replicationID] = &rq
 	rq.Open()
 
 	qm.logger.Debug("Created new durable queue for replication stream",
@@ -117,7 +117,7 @@ func (rq *replicationQueue) Close() error {
 func (rq *replicationQueue) run() {
 	defer rq.wg.Done()
 
-	retryInterval := time.Second // todo configurable?
+	retryInterval := time.Second
 	retryTimer := time.NewTicker(retryInterval)
 	defer retryTimer.Stop()
 
