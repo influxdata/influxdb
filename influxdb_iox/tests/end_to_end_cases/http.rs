@@ -11,6 +11,6 @@ async fn test_http_error_messages() {
         .await
         .expect_err("Should have errored");
 
-    let expected_error = "HTTP request returned an error: 400 Bad Request, `{\"error\":\"Error parsing line protocol: error parsing line 1: A generic parsing error occurred: TakeWhile1\",\"error_code\":100}`";
+    let expected_error = r#"HTTP request returned an error: 400 Bad Request, `{"code":"invalid","message":"Error parsing line protocol: error parsing line 1: A generic parsing error occurred: TakeWhile1"}`"#;
     assert_eq!(result.to_string(), expected_error);
 }

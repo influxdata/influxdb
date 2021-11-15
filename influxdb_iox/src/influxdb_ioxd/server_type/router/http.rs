@@ -6,12 +6,10 @@ use dml::DmlWrite;
 use hyper::{Body, Method, Request, Response};
 use snafu::{ResultExt, Snafu};
 
-use crate::influxdb_ioxd::{
-    http::{
-        metrics::LineProtocolMetrics,
-        write::{HttpDrivenWrite, InnerWriteError, RequestOrResponse},
-    },
-    server_type::RouteError,
+use crate::influxdb_ioxd::http::{
+    error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
+    metrics::LineProtocolMetrics,
+    write::{HttpDrivenWrite, InnerWriteError, RequestOrResponse},
 };
 
 use super::RouterServerType;
@@ -27,11 +25,11 @@ pub enum ApplicationError {
     },
 }
 
-impl RouteError for ApplicationError {
-    fn response(&self) -> http::Response<hyper::Body> {
+impl HttpApiErrorSource for ApplicationError {
+    fn to_http_api_error(&self) -> HttpApiError {
         match self {
-            Self::RouteNotFound { .. } => self.not_found(),
-            Self::WriteError { source } => source.response(),
+            e @ Self::RouteNotFound { .. } => e.not_found(),
+            Self::WriteError { source } => source.to_http_api_error(),
         }
     }
 }
