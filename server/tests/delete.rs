@@ -9,11 +9,11 @@ use arrow_util::assert_batches_sorted_eq;
 use data_types::{
     chunk_metadata::ChunkStorage,
     database_rules::{DatabaseRules, LifecycleRules, PartitionTemplate, TemplatePart},
+    delete_predicate::{DeleteExpr, DeletePredicate},
     server_id::ServerId,
     timestamp::TimestampRange,
     DatabaseName,
 };
-use predicate::{delete_expr::DeleteExpr, delete_predicate::DeletePredicate};
 use query::{QueryChunk, QueryChunkMeta, QueryDatabase};
 use server::{
     db::test_helpers::{run_query, write_lp},
@@ -106,8 +106,8 @@ async fn delete_predicate_preservation() {
         },
         exprs: vec![DeleteExpr::new(
             "selector".to_string(),
-            predicate::delete_expr::Op::Eq,
-            predicate::delete_expr::Scalar::I64(1),
+            data_types::delete_predicate::Op::Eq,
+            data_types::delete_predicate::Scalar::I64(1),
         )],
     });
     db.delete("cpu", Arc::clone(&pred)).await.unwrap();

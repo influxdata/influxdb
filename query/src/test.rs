@@ -16,13 +16,13 @@ use arrow::{
 use data_types::chunk_metadata::{ChunkId, ChunkOrder};
 use data_types::{
     chunk_metadata::ChunkSummary,
+    delete_predicate::DeletePredicate,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
 };
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 use futures::StreamExt;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
-use predicate::delete_predicate::DeletePredicate;
 use schema::selection::Selection;
 use schema::{
     builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema,

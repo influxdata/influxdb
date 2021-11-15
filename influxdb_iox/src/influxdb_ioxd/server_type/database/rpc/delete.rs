@@ -4,7 +4,7 @@ use std::sync::Arc;
 use data_types::DatabaseName;
 use generated_types::google::FieldViolationExt;
 use generated_types::influxdata::iox::delete::v1::*;
-use predicate::delete_predicate::DeletePredicate;
+use predicate::delete_predicate::parse_delete_predicate;
 use server::{connection::ConnectionManager, Error, Server};
 use tonic::Response;
 
@@ -38,7 +38,7 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        let del_predicate_result = DeletePredicate::try_new(&start_time, &stop_time, &predicate);
+        let del_predicate_result = parse_delete_predicate(&start_time, &stop_time, &predicate);
         match del_predicate_result {
             Err(_) => {
                 return Err(default_server_error_handler(Error::DeleteExpression {

@@ -5,8 +5,8 @@ use std::{
 };
 
 use data_types::chunk_metadata::{ChunkAddr, ChunkId};
+use data_types::delete_predicate::DeletePredicate;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
-use predicate::delete_predicate::DeletePredicate;
 use snafu::Snafu;
 
 use parquet_file::metadata::IoxParquetMetaData;

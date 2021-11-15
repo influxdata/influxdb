@@ -9,15 +9,12 @@ use crate::{
         types::TransactionKey,
     },
 };
+use data_types::delete_predicate::{DeleteExpr, DeletePredicate, Op, Scalar};
 use data_types::{chunk_metadata::ChunkId, timestamp::TimestampRange};
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
 use parquet_file::{
     metadata::IoxParquetMetaData,
     test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
-};
-use predicate::{
-    delete_expr::{DeleteExpr, Op, Scalar},
-    delete_predicate::DeletePredicate,
 };
 use snafu::ResultExt;
 use std::{

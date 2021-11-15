@@ -5,6 +5,7 @@ use std::{
 };
 
 use data_types::sequence::Sequence;
+use dml::DmlOperation;
 use futures::TryStreamExt;
 use mutable_batch::payload::PartitionWrite;
 use observability_deps::tracing::{info, warn};
@@ -214,13 +215,16 @@ pub async fn perform_replay(
                 "replay sequencer",
             );
 
-            while let Some(db_write) = stream
+            while let Some(dml_operation) = stream
                 .stream
                 .try_next()
                 .await
                 .context(EntryError { sequencer_id })?
             {
-                let sequence = *db_write.meta().sequence().expect("entry must be sequenced");
+                let sequence = *dml_operation
+                    .meta()
+                    .sequence()
+                    .expect("entry must be sequenced");
                 if sequence.number > min_max.max() {
                     return Err(Error::EntryLostError {
                         sequencer_id,
@@ -237,7 +241,11 @@ pub async fn perform_replay(
                 let mut logged_hard_limit = false;
                 let n_tries = 600; // 600*100ms = 60s
                 for n_try in 1..=n_tries {
-                    match db.store_filtered_write(&db_write, filter) {
+                    let result = match &dml_operation {
+                        DmlOperation::Write(write) => db.store_filtered_write(write, filter),
+                    };
+
+                    match result {
                         Ok(_) => {
                             break;
                         }

@@ -16,7 +16,7 @@ use data_types::{
     DatabaseName,
 };
 use influxdb_iox_client::format::QueryOutputFormat;
-use predicate::delete_predicate::{parse_delete, DeletePredicate};
+use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use query::exec::ExecutionContextProvider;
 use server::{connection::ConnectionManager, Error};
 
@@ -288,7 +288,7 @@ where
     let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
 
     // Parse and extract table name (which can be empty), start, stop, and predicate
-    let parsed_delete = parse_delete(body).context(ParsingDelete { input: body })?;
+    let parsed_delete = parse_http_delete_request(body).context(ParsingDelete { input: body })?;
 
     let table_name = parsed_delete.table_name;
     let predicate = parsed_delete.predicate;
@@ -300,7 +300,7 @@ where
     let db = server.db(&db_name)?;
 
     // Build delete predicate
-    let del_predicate = DeletePredicate::try_new(&start, &stop, &predicate)
+    let del_predicate = parse_delete_predicate(&start, &stop, &predicate)
         .context(BuildingDeletePredicate { input: body })?;
 
     // Tables data will be deleted from

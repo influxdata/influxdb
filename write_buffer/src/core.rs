@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use dml::{DmlMeta, DmlWrite};
+use dml::{DmlMeta, DmlOperation, DmlWrite};
 use futures::{future::BoxFuture, stream::BoxStream};
 
 /// Generic boxed error type that is used in this crate.
@@ -54,7 +54,7 @@ pub type FetchHighWatermark<'a> = Box<dyn (Fn() -> FetchHighWatermarkFut<'a>) + 
 /// Output stream of [`WriteBufferReading`].
 pub struct WriteStream<'a> {
     /// Stream that produces entries.
-    pub stream: BoxStream<'a, Result<DmlWrite, WriteBufferError>>,
+    pub stream: BoxStream<'a, Result<DmlOperation, WriteBufferError>>,
 
     /// Get high watermark (= what we believe is the next sequence number to be added).
     ///
@@ -105,7 +105,7 @@ pub mod test_utils {
     };
 
     use async_trait::async_trait;
-    use dml::{test_util::assert_writes_eq, DmlMeta, DmlWrite};
+    use dml::{test_util::assert_write_op_eq, DmlMeta, DmlWrite};
     use futures::{StreamExt, TryStreamExt};
     use time::{Time, TimeProvider};
     use trace::{ctx::SpanContext, RingBufferTraceCollector, TraceCollector};
@@ -221,7 +221,7 @@ pub mod test_utils {
 
         // adding content allows us to get results
         let w1 = write(&writer, entry_1, sequencer_id, None).await;
-        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
+        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
 
         // stream is pending again
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
@@ -230,8 +230,8 @@ pub mod test_utils {
         let w2 = write(&writer, entry_2, sequencer_id, None).await;
         let w3 = write(&writer, entry_3, sequencer_id, None).await;
 
-        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w2);
-        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w3);
+        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w2);
+        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w3);
 
         // stream is pending again
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
@@ -270,7 +270,7 @@ pub mod test_utils {
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
         let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
-        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
+        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
 
         // re-creating stream after reading remembers offset
         drop(stream);
@@ -279,8 +279,8 @@ pub mod test_utils {
         assert_eq!(streams.len(), 1);
         let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
 
-        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w2);
-        assert_writes_eq(&stream.stream.next().await.unwrap().unwrap(), &w3);
+        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w2);
+        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w3);
 
         // re-creating stream after reading everything makes it pending
         drop(stream);
@@ -324,16 +324,16 @@ pub mod test_utils {
 
         // entries arrive at the right target stream
         let w1 = write(&writer, entry_1, sequencer_id_1, None).await;
-        assert_writes_eq(&stream_1.stream.next().await.unwrap().unwrap(), &w1);
+        assert_write_op_eq(&stream_1.stream.next().await.unwrap().unwrap(), &w1);
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
 
         let w2 = write(&writer, entry_2, sequencer_id_2, None).await;
         assert!(stream_1.stream.poll_next_unpin(&mut cx).is_pending());
-        assert_writes_eq(&stream_2.stream.next().await.unwrap().unwrap(), &w2);
+        assert_write_op_eq(&stream_2.stream.next().await.unwrap().unwrap(), &w2);
 
         let w3 = write(&writer, entry_3, sequencer_id_1, None).await;
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
-        assert_writes_eq(&stream_1.stream.next().await.unwrap().unwrap(), &w3);
+        assert_write_op_eq(&stream_1.stream.next().await.unwrap().unwrap(), &w3);
 
         // streams are pending again
         assert!(stream_1.stream.poll_next_unpin(&mut cx).is_pending());
@@ -679,7 +679,7 @@ pub mod test_utils {
             let actual_writes: Vec<_> = results.iter().collect();
             assert_eq!(actual_writes.len(), expected_writes.len());
             for (actual, expected) in actual_writes.iter().zip(expected_writes.iter()) {
-                assert_writes_eq(actual, expected);
+                assert_write_op_eq(actual, expected);
             }
         }
 

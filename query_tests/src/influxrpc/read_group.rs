@@ -8,16 +8,15 @@ use crate::{
 };
 
 use async_trait::async_trait;
-use data_types::timestamp::TimestampRange;
+use data_types::{
+    delete_predicate::{DeleteExpr, DeletePredicate},
+    timestamp::TimestampRange,
+};
 use datafusion::{
     logical_plan::{binary_expr, Operator},
     prelude::*,
 };
-use predicate::{
-    delete_expr::DeleteExpr,
-    delete_predicate::DeletePredicate,
-    predicate::{Predicate, PredicateBuilder},
-};
+use predicate::predicate::{Predicate, PredicateBuilder};
 use query::{frontend::influxrpc::InfluxRpcPlanner, group_by::Aggregate};
 
 /// runs read_group(predicate) and compares it to the expected
@@ -90,8 +89,8 @@ impl DbSetup for OneMeasurementNoTagsWithDelete {
             range: TimestampRange { start: 1, end: 1 },
             exprs: vec![DeleteExpr::new(
                 "foo".to_string(),
-                predicate::delete_expr::Op::Eq,
-                predicate::delete_expr::Scalar::F64((1.0).into()),
+                data_types::delete_predicate::Op::Eq,
+                data_types::delete_predicate::Scalar::F64((1.0).into()),
             )],
         };
 

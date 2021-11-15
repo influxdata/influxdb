@@ -10,6 +10,7 @@ readme = "README.md"
 bytes = "1.0"
 num_cpus = "1.13.0"
 observability_deps = { path = "../observability_deps" }
+ordered-float = "2"
 percent-encoding = "2.1.0"
 regex = "1.4"
 snafu = "0.6"

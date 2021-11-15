@@ -7,7 +7,7 @@ use http::{HeaderMap, HeaderValue};
 use prost::Message;
 
 use data_types::sequence::Sequence;
-use dml::{DmlMeta, DmlWrite};
+use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::write_buffer::v1::write_buffer_payload::Payload;
 use generated_types::influxdata::iox::write_buffer::v1::WriteBufferPayload;
 use mutable_batch_pb::decode::decode_database_batch;
@@ -132,22 +132,25 @@ pub fn decode(
     headers: IoxHeaders,
     sequence: Sequence,
     producer_ts: Time,
-) -> Result<DmlWrite, WriteBufferError> {
+) -> Result<DmlOperation, WriteBufferError> {
     match headers.content_type {
         ContentType::Protobuf => {
             let payload: WriteBufferPayload = prost::Message::decode(data)
                 .map_err(|e| format!("failed to decode WriteBufferPayload: {}", e))?;
 
             let payload = payload.payload.ok_or_else(|| "no payload".to_string())?;
-            let tables = match &payload {
-                Payload::Write(write) => decode_database_batch(write)
-                    .map_err(|e| format!("failed to decode database batch: {}", e))?,
-            };
 
-            Ok(DmlWrite::new(
-                tables,
-                DmlMeta::sequenced(sequence, producer_ts, headers.span_context, data.len()),
-            ))
+            match &payload {
+                Payload::Write(write) => {
+                    let tables = decode_database_batch(write)
+                        .map_err(|e| format!("failed to decode database batch: {}", e))?;
+
+                    Ok(DmlOperation::Write(DmlWrite::new(
+                        tables,
+                        DmlMeta::sequenced(sequence, producer_ts, headers.span_context, data.len()),
+                    )))
+                }
+            }
         }
     }
 }

@@ -6,11 +6,10 @@ use crate::db::{
     lifecycle::{collect_rub, merge_schemas, write::write_chunk_to_object_store},
     DbChunk,
 };
-use data_types::{chunk_metadata::ChunkOrder, job::Job};
+use data_types::{chunk_metadata::ChunkOrder, delete_predicate::DeletePredicate, job::Job};
 use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
-use predicate::delete_predicate::DeletePredicate;
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use std::{collections::HashSet, future::Future, sync::Arc};
 use time::Time;
@@ -233,12 +232,14 @@ mod tests {
     };
 
     use data_types::{
-        chunk_metadata::ChunkStorage, database_rules::LifecycleRules, server_id::ServerId,
+        chunk_metadata::ChunkStorage,
+        database_rules::LifecycleRules,
+        delete_predicate::{DeleteExpr, Op, Scalar},
+        server_id::ServerId,
         timestamp::TimestampRange,
     };
     use lifecycle::{LockableChunk, LockablePartition};
     use object_store::ObjectStore;
-    use predicate::delete_expr::{DeleteExpr, Op, Scalar};
     use query::QueryDatabase;
     use std::{
         convert::TryFrom,

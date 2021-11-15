@@ -6,26 +6,23 @@
 //!
 //! [Ballista]: https://github.com/apache/arrow-datafusion/blob/22fcb3d7a68a56afbe12eab9e7d98f7b8de33703/ballista/rust/core/proto/ballista.proto
 //! [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
-use std::convert::TryInto;
 
-use data_types::timestamp::TimestampRange;
+use data_types::{delete_predicate::DeletePredicate, timestamp::TimestampRange};
 use generated_types::influxdata::iox::predicate::v1 as proto;
 use snafu::{ResultExt, Snafu};
 
-use crate::{delete_expr::DeleteExpr, delete_predicate::DeletePredicate};
+use crate::delete_expr::{expr_to_proto, proto_to_expr};
 
 /// Serialize IOx [`DeletePredicate`] to a protobuf object.
+///
+/// TODO: Pull conversion logic out of this crate
 pub fn serialize(predicate: &DeletePredicate) -> proto::Predicate {
     proto::Predicate {
         range: Some(proto::TimestampRange {
             start: predicate.range.start,
             end: predicate.range.end,
         }),
-        exprs: predicate
-            .exprs
-            .iter()
-            .map(|expr| expr.clone().into())
-            .collect(),
+        exprs: predicate.exprs.iter().cloned().map(expr_to_proto).collect(),
     }
 }
 
@@ -41,6 +38,8 @@ pub enum DeserializeError {
 }
 
 /// Deserialize IOx [`DeletePredicate`] from a protobuf object.
+///
+/// TODO: Pull conversion logic out of this crate
 pub fn deserialize(
     proto_predicate: &proto::Predicate,
 ) -> Result<DeletePredicate, DeserializeError> {
@@ -56,11 +55,10 @@ pub fn deserialize(
         exprs: proto_predicate
             .exprs
             .iter()
-            .map(|expr| {
-                let expr: DeleteExpr = expr.clone().try_into().context(CannotDeserializeExpr)?;
-                Ok(expr)
-            })
-            .collect::<Result<Vec<DeleteExpr>, DeserializeError>>()?,
+            .cloned()
+            .map(proto_to_expr)
+            .collect::<Result<_, _>>()
+            .context(CannotDeserializeExpr)?,
     };
     Ok(predicate)
 }
@@ -68,6 +66,7 @@ pub fn deserialize(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::delete_predicate::parse_delete_predicate;
 
     #[test]
     fn test_roundtrip() {
@@ -82,6 +81,6 @@ mod tests {
         let stop_time = "22";
         let predicate = r#"city=Boston and cost!=100 and temp=87.5 and good=true"#;
 
-        DeletePredicate::try_new(start_time, stop_time, predicate).unwrap()
+        parse_delete_predicate(start_time, stop_time, predicate).unwrap()
     }
 }

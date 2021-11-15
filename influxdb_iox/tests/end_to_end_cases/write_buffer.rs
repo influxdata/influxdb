@@ -6,6 +6,7 @@ use crate::{
     end_to_end_cases::scenario::{rand_name, DatabaseBuilder},
 };
 use arrow_util::assert_batches_sorted_eq;
+use dml::DmlOperation;
 use futures::StreamExt;
 use generated_types::influxdata::iox::write_buffer::v1::{
     write_buffer_connection::Direction as WriteBufferDirection, WriteBufferConnection,
@@ -67,8 +68,9 @@ async fn writes_go_to_write_buffer() {
             .await
             .unwrap();
     let (_, mut stream) = consumer.streams().into_iter().next().unwrap();
-    let db_write = stream.stream.next().await.unwrap().unwrap();
-    assert_eq!(db_write.table_count(), 2);
+    match stream.stream.next().await.unwrap().unwrap() {
+        DmlOperation::Write(write) => assert_eq!(write.table_count(), 2),
+    }
 }
 
 #[tokio::test]
@@ -117,8 +119,9 @@ async fn writes_go_to_write_buffer_whitelist() {
             .await
             .unwrap();
     let (_, mut stream) = consumer.streams().into_iter().next().unwrap();
-    let db_write = stream.stream.next().await.unwrap().unwrap();
-    assert_eq!(db_write.table_count(), 1);
+    match stream.stream.next().await.unwrap().unwrap() {
+        DmlOperation::Write(write) => assert_eq!(write.table_count(), 1),
+    }
 }
 
 #[tokio::test]
@@ -295,7 +298,7 @@ pub async fn test_cross_write_buffer_tracing() {
 
     // setup tracing
     let udp_capture = UdpCapture::new().await;
-    let test_config = TestConfig::new()
+    let test_config = TestConfig::new(ServerType::Database)
         .with_env("TRACES_EXPORTER", "jaeger")
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_HOST", udp_capture.ip())
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())
