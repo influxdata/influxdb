@@ -162,13 +162,13 @@ pub enum Error {
     CannotMarkDatabaseDeleted { source: crate::database::Error },
 
     #[snafu(display("{}", source))]
-    CannotDisownDatabase { source: crate::database::Error },
+    CannotReleaseDatabase { source: crate::database::Error },
 
     #[snafu(display("{}", source))]
     CannotRestoreDatabase { source: crate::database::InitError },
 
     #[snafu(display("{}", source))]
-    CannotAdoptDatabase { source: crate::database::InitError },
+    CannotClaimDatabase { source: crate::database::InitError },
 
     #[snafu(display("A database with the name `{}` already exists", db_name))]
     DatabaseAlreadyExists { db_name: String },
@@ -180,7 +180,7 @@ pub enum Error {
     DatabaseAlreadyOwnedByThisServer { uuid: Uuid },
 
     #[snafu(display(
-        "Could not disown {}: the UUID specified ({}) does not match the current UUID ({})",
+        "Could not release {}: the UUID specified ({}) does not match the current UUID ({})",
         db_name,
         specified,
         current
@@ -774,9 +774,9 @@ where
         Ok(uuid)
     }
 
-    /// Disown an existing, active database with this name from this server. Return an error if no
+    /// Release an existing, active database with this name from this server. Return an error if no
     /// active database with this name can be found.
-    pub async fn disown_database(
+    pub async fn release_database(
         &self,
         db_name: &DatabaseName<'static>,
         uuid: Option<Uuid>,
@@ -791,7 +791,7 @@ where
             .expect("Previous line should return not found if the database is inactive");
 
         // If a UUID has been specified, it has to match this database's UUID
-        // Should this check be here or in database.disown?
+        // Should this check be here or in database.release?
         if matches!(uuid, Some(specified) if specified != current) {
             return UuidMismatch {
                 db_name: db_name.to_string(),
@@ -801,12 +801,12 @@ where
             .fail();
         }
 
-        let returned_uuid = database.disown().await.context(CannotDisownDatabase)?;
+        let returned_uuid = database.release().await.context(CannotReleaseDatabase)?;
         database.shutdown();
         let _ = database
             .join()
             .await
-            .log_if_error("database background worker while disowning database");
+            .log_if_error("database background worker while releasing database");
 
         {
             let mut state = self.shared.state.write();
@@ -914,13 +914,13 @@ where
         Ok(())
     }
 
-    /// Adopt a database that has been marked as deleted. Return an error if:
+    /// Claim a database that has been released. Return an error if:
     ///
     /// * No database with this UUID can be found
     /// * There's already an active database with this name
     /// * This database is already owned by this server
     /// * This database is already owned by a different server
-    pub async fn adopt_database(&self, uuid: Uuid) -> Result<DatabaseName<'static>> {
+    pub async fn claim_database(&self, uuid: Uuid) -> Result<DatabaseName<'static>> {
         // Wait for exclusive access to mutate server state
         let handle_fut = self.shared.state.read().freeze();
         let handle = handle_fut.await;
@@ -955,16 +955,16 @@ where
             }
         }
 
-        // Mark the database as adopted in object storage and get its location for the server
+        // Mark the database as claimed in object storage and get its location for the server
         // config file
-        let location = Database::adopt(
+        let location = Database::claim(
             Arc::clone(&self.shared.application),
             &db_name,
             uuid,
             server_id,
         )
         .await
-        .context(CannotAdoptDatabase)?;
+        .context(CannotClaimDatabase)?;
 
         let database = {
             let mut state = self.shared.state.write();
@@ -2535,7 +2535,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn disown_database_removes_from_memory_and_persisted_config() {
+    async fn release_database_removes_from_memory_and_persisted_config() {
         let application = make_application();
         let server_id = ServerId::try_from(1).unwrap();
 
@@ -2550,9 +2550,9 @@ mod tests {
         let foo = create_simple_database(&server, &foo_db_name).await.unwrap();
         let first_foo_uuid = foo.uuid().unwrap();
 
-        // disown database by name
-        let disowned_uuid = server.disown_database(&foo_db_name, None).await.unwrap();
-        assert_eq!(first_foo_uuid, disowned_uuid);
+        // release database by name
+        let released_uuid = server.release_database(&foo_db_name, None).await.unwrap();
+        assert_eq!(first_foo_uuid, released_uuid);
 
         assert_error!(
             server.database(&foo_db_name),
@@ -2566,24 +2566,24 @@ mod tests {
         let foo = create_simple_database(&server, &foo_db_name).await.unwrap();
         let second_foo_uuid = foo.uuid().unwrap();
 
-        // disown database specifying UUID; error if UUID doesn't match
+        // release database specifying UUID; error if UUID doesn't match
         let incorrect_uuid = Uuid::new_v4();
         assert_error!(
             server
-                .disown_database(&foo_db_name, Some(incorrect_uuid))
+                .release_database(&foo_db_name, Some(incorrect_uuid))
                 .await,
             Error::UuidMismatch { .. }
         );
 
-        // disown database specifying UUID works if UUID *does* match
+        // release database specifying UUID works if UUID *does* match
         server
-            .disown_database(&foo_db_name, Some(second_foo_uuid))
+            .release_database(&foo_db_name, Some(second_foo_uuid))
             .await
             .unwrap();
     }
 
     #[tokio::test]
-    async fn cant_disown_nonexistent_database() {
+    async fn cant_release_nonexistent_database() {
         let application = make_application();
         let server_id = ServerId::try_from(1).unwrap();
 
@@ -2595,13 +2595,13 @@ mod tests {
         server.wait_for_init().await.unwrap();
 
         assert_error!(
-            server.disown_database(&foo_db_name, None).await,
+            server.release_database(&foo_db_name, None).await,
             Error::DatabaseNotFound { .. },
         );
     }
 
     #[tokio::test]
-    async fn adopt_database_adds_to_memory_and_persisted_config() {
+    async fn claim_database_adds_to_memory_and_persisted_config() {
         let application = make_application();
         let server_id = ServerId::try_from(1).unwrap();
 
@@ -2615,24 +2615,24 @@ mod tests {
         // create database
         create_simple_database(&server, &foo_db_name).await.unwrap();
 
-        // disown database by name
-        let disowned_uuid = server.disown_database(&foo_db_name, None).await.unwrap();
+        // release database by name
+        let released_uuid = server.release_database(&foo_db_name, None).await.unwrap();
 
-        // adopt database by UUID
-        server.adopt_database(disowned_uuid).await.unwrap();
+        // claim database by UUID
+        server.claim_database(released_uuid).await.unwrap();
 
-        let adopted = server.database(&foo_db_name).unwrap();
-        adopted.wait_for_init().await.unwrap();
+        let claimed = server.database(&foo_db_name).unwrap();
+        claimed.wait_for_init().await.unwrap();
 
         let config = server_config(application.object_store(), server_id).await;
         assert_config_contents(
             &config,
-            &[(&foo_db_name, format!("dbs/{}/", disowned_uuid))],
+            &[(&foo_db_name, format!("dbs/{}/", released_uuid))],
         );
     }
 
     #[tokio::test]
-    async fn cant_adopt_nonexistent_database() {
+    async fn cant_claim_nonexistent_database() {
         let application = make_application();
         let server_id = ServerId::try_from(1).unwrap();
 
@@ -2644,13 +2644,13 @@ mod tests {
         server.wait_for_init().await.unwrap();
 
         assert_error!(
-            server.adopt_database(invalid_uuid).await,
+            server.claim_database(invalid_uuid).await,
             Error::DatabaseUuidNotFound { .. },
         );
     }
 
     #[tokio::test]
-    async fn cant_adopt_database_owned_by_another_server() {
+    async fn cant_claim_database_owned_by_another_server() {
         let application = make_application();
         let server_id1 = ServerId::try_from(1).unwrap();
         let server_id2 = ServerId::try_from(2).unwrap();
@@ -2672,19 +2672,19 @@ mod tests {
         server2.set_id(server_id2).unwrap();
         server2.wait_for_init().await.unwrap();
 
-        // Attempting to adopt on server 2 will fail
+        // Attempting to claim on server 2 will fail
         assert_error!(
-            server2.adopt_database(uuid).await,
-            Error::CannotAdoptDatabase {
-                source: database::InitError::CantAdoptDatabaseCurrentlyOwned { server_id, .. }
+            server2.claim_database(uuid).await,
+            Error::CannotClaimDatabase {
+                source: database::InitError::CantClaimDatabaseCurrentlyOwned { server_id, .. }
             } if server_id == server_id1.get_u32()
         );
 
-        // Have to disown from server 1 first
-        server1.disown_database(&foo_db_name, None).await.unwrap();
+        // Have to release from server 1 first
+        server1.release_database(&foo_db_name, None).await.unwrap();
 
-        // Then adopting on server 2 will work
-        server2.adopt_database(uuid).await.unwrap();
+        // Then claiming on server 2 will work
+        server2.claim_database(uuid).await.unwrap();
     }
 
     #[tokio::test]

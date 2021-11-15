@@ -94,13 +94,13 @@ pub enum Error {
     CannotDeleteInactiveDatabase { db_name: String },
 
     #[snafu(display(
-        "cannot disown database named {} that has already been disowned",
+        "cannot release database named {} that has already been released",
         db_name
     ))]
-    CannotDisownUnowned { db_name: String },
+    CannotReleaseUnowned { db_name: String },
 
-    #[snafu(display("cannot disown database {}: {}", db_name, source))]
-    CannotDisown {
+    #[snafu(display("cannot release database {}: {}", db_name, source))]
+    CannotRelease {
         db_name: String,
         source: OwnerInfoUpdateError,
     },
@@ -273,8 +273,8 @@ impl Database {
         Ok(uuid)
     }
 
-    /// Disown this database from this server.
-    pub async fn disown(&self) -> Result<Uuid, Error> {
+    /// Release this database from this server.
+    pub async fn release(&self) -> Result<Uuid, Error> {
         let db_name = &self.shared.config.name;
 
         let handle = self.shared.state.read().freeze();
@@ -282,8 +282,8 @@ impl Database {
 
         let (uuid, iox_object_store) = {
             let state = self.shared.state.read();
-            // Can't disown an already disowned database
-            ensure!(state.is_active(), CannotDisownUnowned { db_name });
+            // Can't release an already released database
+            ensure!(state.is_active(), CannotReleaseUnowned { db_name });
 
             let uuid = state.uuid().expect("Active databases have UUIDs");
             let iox_object_store = self
@@ -293,7 +293,7 @@ impl Database {
             (uuid, iox_object_store)
         };
 
-        info!(%db_name, %uuid, "disowning database");
+        info!(%db_name, %uuid, "releasing database");
 
         update_owner_info(
             None,
@@ -302,7 +302,7 @@ impl Database {
             &iox_object_store,
         )
         .await
-        .context(CannotDisown { db_name })?;
+        .context(CannotRelease { db_name })?;
 
         let mut state = self.shared.state.write();
         let mut state = state.unfreeze(handle);
@@ -356,15 +356,15 @@ impl Database {
         Ok(database_location)
     }
 
-    /// Create an adopted database without any state. Returns its location in object storage
+    /// Create an claimed database without any state. Returns its location in object storage
     /// for saving in the server config file.
-    pub async fn adopt(
+    pub async fn claim(
         application: Arc<ApplicationState>,
         db_name: &DatabaseName<'static>,
         uuid: Uuid,
         server_id: ServerId,
     ) -> Result<String, InitError> {
-        info!(%db_name, %uuid, "adopting database");
+        info!(%db_name, %uuid, "claiming database");
 
         let iox_object_store = IoxObjectStore::load(Arc::clone(application.object_store()), uuid)
             .await
@@ -376,7 +376,7 @@ impl Database {
 
         ensure!(
             owner_info.id == 0,
-            CantAdoptDatabaseCurrentlyOwned {
+            CantClaimDatabaseCurrentlyOwned {
                 uuid,
                 server_id: owner_info.id
             }
@@ -1030,7 +1030,7 @@ pub enum InitError {
         uuid,
         server_id
     ))]
-    CantAdoptDatabaseCurrentlyOwned { uuid: Uuid, server_id: u32 },
+    CantClaimDatabaseCurrentlyOwned { uuid: Uuid, server_id: u32 },
 
     #[snafu(display("error saving database rules: {}", source))]
     SavingRules { source: crate::rules::Error },
@@ -1737,14 +1737,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn database_disown() {
+    async fn database_release() {
         let (application, database) = initialized_database().await;
         let server_id = database.shared.config.server_id;
         let server_location =
             IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
         let iox_object_store = database.iox_object_store().unwrap();
 
-        database.disown().await.unwrap();
+        database.release().await.unwrap();
 
         assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
         assert!(matches!(
@@ -1763,7 +1763,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn database_adopt() {
+    async fn database_claim() {
         let (application, database) = initialized_database().await;
         let db_name = &database.shared.config.name;
         let server_id = database.shared.config.server_id;
@@ -1774,9 +1774,9 @@ mod tests {
         let new_server_location =
             IoxObjectStore::server_config_path(application.object_store(), new_server_id)
                 .to_string();
-        let uuid = database.disown().await.unwrap();
+        let uuid = database.release().await.unwrap();
 
-        Database::adopt(application, db_name, uuid, new_server_id)
+        Database::claim(application, db_name, uuid, new_server_id)
             .await
             .unwrap();
 
@@ -1791,13 +1791,13 @@ mod tests {
         assert_eq!(owner_info.location, new_server_location);
         assert_eq!(owner_info.transactions.len(), 2);
 
-        let disown_transaction = &owner_info.transactions[0];
-        assert_eq!(disown_transaction.id, server_id.get_u32());
-        assert_eq!(disown_transaction.location, server_location);
+        let release_transaction = &owner_info.transactions[0];
+        assert_eq!(release_transaction.id, server_id.get_u32());
+        assert_eq!(release_transaction.location, server_location);
 
-        let adopt_transaction = &owner_info.transactions[1];
-        assert_eq!(adopt_transaction.id, 0);
-        assert_eq!(adopt_transaction.location, "");
+        let claim_transaction = &owner_info.transactions[1];
+        assert_eq!(claim_transaction.id, 0);
+        assert_eq!(claim_transaction.location, "");
     }
 
     #[tokio::test]

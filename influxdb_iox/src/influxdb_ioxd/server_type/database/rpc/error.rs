@@ -84,7 +84,7 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         | Error::DatabaseAlreadyOwnedByThisServer { .. } => {
             tonic::Status::already_exists(error.to_string())
         }
-        Error::UuidMismatch { .. } | Error::CannotAdoptDatabase { .. } => {
+        Error::UuidMismatch { .. } | Error::CannotClaimDatabase { .. } => {
             tonic::Status::invalid_argument(error.to_string())
         }
         Error::CouldNotGetDatabaseNameFromRules {
@@ -150,11 +150,11 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
             error!(%source, "Unexpected error deleting database");
             InternalError {}.into()
         }
-        Error::CannotDeleteInactiveDatabase { .. } | Error::CannotDisownUnowned { .. } => {
+        Error::CannotDeleteInactiveDatabase { .. } | Error::CannotReleaseUnowned { .. } => {
             tonic::Status::failed_precondition(error.to_string())
         }
-        Error::CannotDisown { source, .. } => {
-            error!(%source, "Unexpected error disowning database");
+        Error::CannotRelease { source, .. } => {
+            error!(%source, "Unexpected error releasing database");
             InternalError {}.into()
         }
     }

@@ -7,8 +7,8 @@ use influxdb_iox_client::{
     flight,
     format::QueryOutputFormat,
     management::{
-        self, generated_types::*, AdoptDatabaseError, CreateDatabaseError, DeleteDatabaseError,
-        DisownDatabaseError, GetDatabaseError, ListDatabaseError, RestoreDatabaseError,
+        self, generated_types::*, ClaimDatabaseError, CreateDatabaseError, DeleteDatabaseError,
+        GetDatabaseError, ListDatabaseError, ReleaseDatabaseError, RestoreDatabaseError,
     },
     write::{self, WriteError},
 };
@@ -37,14 +37,14 @@ pub enum Error {
     #[error("Error deleting database: {0}")]
     DeleteDatabaseError(#[from] DeleteDatabaseError),
 
-    #[error("Error disowning database: {0}")]
-    DisownDatabaseError(#[from] DisownDatabaseError),
+    #[error("Error releasing database: {0}")]
+    ReleaseDatabaseError(#[from] ReleaseDatabaseError),
 
     #[error("Error restoring database: {0}")]
     RestoreDatabaseError(#[from] RestoreDatabaseError),
 
-    #[error("Error adopting database: {0}")]
-    AdoptDatabaseError(#[from] AdoptDatabaseError),
+    #[error("Error claiming database: {0}")]
+    ClaimDatabaseError(#[from] ClaimDatabaseError),
 
     #[error("Error reading file {:?}: {}", file_name, source)]
     ReadingFile {
@@ -193,14 +193,14 @@ struct Delete {
     name: String,
 }
 
-/// Disown a database from its current server owner
+/// Release a database from its current server owner
 #[derive(Debug, StructOpt)]
-struct Disown {
-    /// The name of the database to disown
+struct Release {
+    /// The name of the database to release
     name: String,
 
     /// Optionally, the UUID of the database to delete. This must match the UUID of the current
-    /// database with the given name, or the disown operation will result in an error.
+    /// database with the given name, or the release operation will result in an error.
     #[structopt(short, long)]
     uuid: Option<Uuid>,
 }
@@ -212,10 +212,10 @@ struct Restore {
     uuid: Uuid,
 }
 
-/// Adopt an unowned database
+/// Claim an unowned database
 #[derive(Debug, StructOpt)]
-struct Adopt {
-    /// The UUID of the database to adopt
+struct Claim {
+    /// The UUID of the database to claim
     uuid: Uuid,
 }
 
@@ -231,9 +231,9 @@ enum Command {
     Partition(partition::Config),
     Recover(recover::Config),
     Delete(Delete),
-    Disown(Disown),
+    Release(Release),
     Restore(Restore),
-    Adopt(Adopt),
+    Claim(Claim),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
@@ -375,10 +375,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             println!("Deleted database {}", command.name);
             println!("{}", uuid);
         }
-        Command::Disown(command) => {
+        Command::Release(command) => {
             let mut client = management::Client::new(connection);
-            let uuid = client.disown_database(&command.name, command.uuid).await?;
-            println!("Disowned database {}", command.name);
+            let uuid = client.release_database(&command.name, command.uuid).await?;
+            println!("Released database {}", command.name);
             println!("{}", uuid);
         }
         Command::Restore(command) => {
@@ -386,10 +386,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             client.restore_database(command.uuid).await?;
             println!("Restored database {}", command.uuid);
         }
-        Command::Adopt(command) => {
+        Command::Claim(command) => {
             let mut client = management::Client::new(connection);
-            let db_name = client.adopt_database(command.uuid).await?;
-            println!("Adopted database {}", db_name);
+            let db_name = client.claim_database(command.uuid).await?;
+            println!("Claimed database {}", db_name);
         }
     }
 

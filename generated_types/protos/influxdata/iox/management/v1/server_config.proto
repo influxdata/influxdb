@@ -27,7 +27,7 @@ message OwnerInfo {
   // The path to this server's config file in object storage
   string location = 2;
 
-  // Recent history of disown/adopt transactions (truncated at 100 transactions)
+  // Recent history of release/claim transactions (truncated at 100 transactions)
   repeated OwnershipTransaction transactions = 3;
 }
 

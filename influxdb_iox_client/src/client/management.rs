@@ -146,9 +146,9 @@ pub enum DeleteDatabaseError {
     ServerError(tonic::Status),
 }
 
-/// Errors returned by Client::disown_database
+/// Errors returned by Client::release_database
 #[derive(Debug, Error)]
-pub enum DisownDatabaseError {
+pub enum ReleaseDatabaseError {
     /// The UUID specified was not in a valid format
     #[error("Invalid UUID: {0}")]
     InvalidUuid(#[from] uuid::Error),
@@ -196,9 +196,9 @@ pub enum RestoreDatabaseError {
     ServerError(tonic::Status),
 }
 
-/// Errors returned by Client::adopt_database
+/// Errors returned by Client::claim_database
 #[derive(Debug, Error)]
-pub enum AdoptDatabaseError {
+pub enum ClaimDatabaseError {
     /// Database not found
     #[error("Could not find a database with UUID `{}`", .uuid)]
     DatabaseNotFound {
@@ -747,25 +747,25 @@ impl Client {
         Ok(uuid)
     }
 
-    /// Disown database
-    pub async fn disown_database(
+    /// Release database
+    pub async fn release_database(
         &mut self,
         db_name: impl Into<String> + Send,
         uuid: Option<Uuid>,
-    ) -> Result<Uuid, DisownDatabaseError> {
+    ) -> Result<Uuid, ReleaseDatabaseError> {
         let db_name = db_name.into();
         let response = self
             .inner
-            .disown_database(DisownDatabaseRequest {
+            .release_database(ReleaseDatabaseRequest {
                 db_name: db_name.clone(),
                 uuid: uuid.map(|u| u.as_bytes().to_vec()).unwrap_or_default(),
             })
             .await
             .map_err(|status| match status.code() {
-                tonic::Code::NotFound => DisownDatabaseError::DatabaseNotFound { name: db_name },
-                tonic::Code::FailedPrecondition => DisownDatabaseError::NoServerId,
-                tonic::Code::InvalidArgument => DisownDatabaseError::InvalidArgument(status),
-                _ => DisownDatabaseError::ServerError(status),
+                tonic::Code::NotFound => ReleaseDatabaseError::DatabaseNotFound { name: db_name },
+                tonic::Code::FailedPrecondition => ReleaseDatabaseError::NoServerId,
+                tonic::Code::InvalidArgument => ReleaseDatabaseError::InvalidArgument(status),
+                _ => ReleaseDatabaseError::ServerError(status),
             })?;
 
         let server_uuid = response.into_inner().uuid;
@@ -798,19 +798,19 @@ impl Client {
         Ok(())
     }
 
-    /// Adopt database
-    pub async fn adopt_database(&mut self, uuid: Uuid) -> Result<String, AdoptDatabaseError> {
+    /// Claim database
+    pub async fn claim_database(&mut self, uuid: Uuid) -> Result<String, ClaimDatabaseError> {
         let uuid_bytes = uuid.as_bytes().to_vec();
 
         self.inner
-            .adopt_database(AdoptDatabaseRequest { uuid: uuid_bytes })
+            .claim_database(ClaimDatabaseRequest { uuid: uuid_bytes })
             .await
             .map(|response| response.into_inner().db_name)
             .map_err(|status| match status.code() {
-                tonic::Code::NotFound => AdoptDatabaseError::DatabaseNotFound { uuid },
-                tonic::Code::FailedPrecondition => AdoptDatabaseError::NoServerId,
-                tonic::Code::Unavailable => AdoptDatabaseError::Unavailable(status),
-                _ => AdoptDatabaseError::ServerError(status),
+                tonic::Code::NotFound => ClaimDatabaseError::DatabaseNotFound { uuid },
+                tonic::Code::FailedPrecondition => ClaimDatabaseError::NoServerId,
+                tonic::Code::Unavailable => ClaimDatabaseError::Unavailable(status),
+                _ => ClaimDatabaseError::ServerError(status),
             })
     }
 
