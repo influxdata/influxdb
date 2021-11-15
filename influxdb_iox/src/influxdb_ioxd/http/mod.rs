@@ -7,12 +7,15 @@ use hyper::{
 };
 use observability_deps::tracing::{debug, error};
 use serde::Deserialize;
-use snafu::{ResultExt, Snafu};
+use snafu::Snafu;
 use tokio_util::sync::CancellationToken;
 use tower::Layer;
 use trace_http::{ctx::TraceHeaderParser, tower::TraceLayer};
 
-use crate::influxdb_ioxd::server_type::{RouteError, ServerType};
+use crate::influxdb_ioxd::{
+    http::error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
+    server_type::ServerType,
+};
 
 #[cfg(feature = "heappy")]
 mod heappy;
@@ -20,6 +23,7 @@ mod heappy;
 #[cfg(feature = "pprof")]
 mod pprof;
 
+pub mod error;
 pub mod metrics;
 pub mod utils;
 pub mod write;
@@ -62,23 +66,23 @@ pub enum ApplicationError {
     #[snafu(display("pprof support is not compiled"))]
     PProfIsNotCompiled,
 
-    #[snafu(display("Route error from run mode: {}", source))]
-    RunModeRouteError { source: Box<dyn RouteError> },
+    #[snafu(display("Route error from run mode: {}", e))]
+    RunModeRouteError { e: Box<dyn HttpApiErrorSource> },
 }
 
-impl RouteError for ApplicationError {
-    fn response(&self) -> Response<Body> {
+impl HttpApiErrorSource for ApplicationError {
+    fn to_http_api_error(&self) -> HttpApiError {
         match self {
-            Self::InvalidQueryString { .. } => self.bad_request(),
-            Self::PProf { .. } => self.internal_error(),
-            Self::Prost { .. } => self.internal_error(),
-            Self::ProstIO { .. } => self.internal_error(),
-            Self::EmptyFlamegraph => self.no_content(),
-            Self::HeappyIsNotCompiled => self.internal_error(),
-            Self::PProfIsNotCompiled => self.internal_error(),
+            e @ Self::InvalidQueryString { .. } => e.invalid(),
+            e @ Self::PProf { .. } => e.internal_error(),
+            e @ Self::Prost { .. } => e.internal_error(),
+            e @ Self::ProstIO { .. } => e.internal_error(),
+            e @ Self::EmptyFlamegraph => e.empty_value(),
+            e @ Self::HeappyIsNotCompiled => e.internal_error(),
+            e @ Self::PProfIsNotCompiled => e.internal_error(),
             #[cfg(feature = "heappy")]
-            Self::HeappyError { .. } => self.internal_error(),
-            Self::RunModeRouteError { source } => source.response(),
+            e @ Self::HeappyError { .. } => e.internal_error(),
+            Self::RunModeRouteError { e } => e.to_http_api_error(),
         }
     }
 }
@@ -135,8 +139,7 @@ where
         _ => server_type
             .route_http_request(req)
             .await
-            .map_err(|e| Box::new(e) as _)
-            .context(RunModeRouteError),
+            .map_err(|e| ApplicationError::RunModeRouteError { e: Box::new(e) }),
     };
 
     // TODO: Move logging to TraceLayer
@@ -146,7 +149,12 @@ where
             Ok(response)
         }
         Err(error) => {
-            error!(%error, %method, %uri, ?content_length, "Error while handling request");
+            let error: HttpApiError = error.to_http_api_error();
+            if error.is_internal() {
+                error!(%error, %method, %uri, ?content_length, "Error while handling request");
+            } else {
+                debug!(%error, %method, %uri, ?content_length, "Error while handling request");
+            }
             Ok(error.response())
         }
     }
@@ -236,6 +244,8 @@ impl PProfAllocsArgs {
 #[cfg(feature = "pprof")]
 async fn pprof_profile(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
     use ::pprof::protos::Message;
+    use snafu::ResultExt;
+
     let query_string = req.uri().query().unwrap_or_default();
     let query: PProfArgs =
         serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
@@ -282,6 +292,8 @@ async fn pprof_profile(_req: Request<Body>) -> Result<Response<Body>, Applicatio
 // If heappy support is enabled, call it
 #[cfg(feature = "heappy")]
 async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+    use snafu::ResultExt;
+
     let query_string = req.uri().query().unwrap_or_default();
     let query: PProfAllocsArgs =
         serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
