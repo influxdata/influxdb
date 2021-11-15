@@ -58,7 +58,7 @@ pub trait ServerType: std::fmt::Debug + Send + Sync + 'static {
 
     /// Join shutdown worker.
     ///
-    /// This MUST NOT before `shutdown` is called, otherwise the server is deemed to be dead and the process will exit.
+    /// This MUST NOT exit before `shutdown` is called, otherwise the server is deemed to be dead and the process will exit.
     async fn join(self: Arc<Self>);
 
     /// Shutdown background worker.
