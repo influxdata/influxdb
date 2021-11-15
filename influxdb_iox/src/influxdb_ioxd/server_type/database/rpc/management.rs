@@ -231,7 +231,7 @@ where
     ) -> Result<Response<AdoptDatabaseResponse>, Status> {
         let AdoptDatabaseRequest { uuid } = request.into_inner();
 
-        let uuid = Uuid::from_slice(&uuid).field("uuid")?;
+        let uuid = Uuid::from_slice(&uuid).scope("uuid")?;
 
         let db_name = self
             .server
