@@ -5,10 +5,7 @@ use crate::{
 use data_types::write_buffer::{
     WriteBufferConnection, WriteBufferCreationConfig, WriteBufferDirection, DEFAULT_N_SEQUENCERS,
 };
-use std::{
-    convert::{TryFrom, TryInto},
-    num::NonZeroU32,
-};
+use std::{convert::TryFrom, num::NonZeroU32};
 
 impl From<WriteBufferConnection> for write_buffer::WriteBufferConnection {
     fn from(v: WriteBufferConnection) -> Self {
@@ -47,14 +44,8 @@ impl TryFrom<write_buffer::WriteBufferConnection> for WriteBufferConnection {
     fn try_from(proto: write_buffer::WriteBufferConnection) -> Result<Self, Self::Error> {
         use write_buffer::write_buffer_connection::Direction;
 
-        let direction: Direction =
-            Direction::from_i32(proto.direction).ok_or_else(|| FieldViolation {
-                field: "direction".to_string(),
-                description: "Cannot decode enum variant from i32".to_string(),
-            })?;
-
         Ok(Self {
-            direction: direction.try_into()?,
+            direction: Direction::from_i32(proto.direction).required("direction")?,
             type_: proto.r#type,
             connection: proto.connection,
             connection_config: proto.connection_config.into_iter().collect(),
@@ -72,7 +63,7 @@ impl TryFrom<write_buffer::write_buffer_connection::Direction> for WriteBufferDi
         use write_buffer::write_buffer_connection::Direction;
 
         match proto {
-            Direction::Unspecified => Err(FieldViolation::required("direction")),
+            Direction::Unspecified => Err(FieldViolation::required("")),
             Direction::Write => Ok(Self::Write),
             Direction::Read => Ok(Self::Read),
         }

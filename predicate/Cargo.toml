@@ -9,7 +9,6 @@ chrono = "0.4"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
-generated_types = { path = "../generated_types" }
 schema = { path = "../schema" }
 observability_deps = { path = "../observability_deps" }
 ordered-float = "2"

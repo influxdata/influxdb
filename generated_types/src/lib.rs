@@ -211,6 +211,8 @@ pub mod database_rules;
 #[cfg(any(feature = "data_types_conversions", test))]
 pub mod database_state;
 #[cfg(any(feature = "data_types_conversions", test))]
+pub mod delete_predicate;
+#[cfg(any(feature = "data_types_conversions", test))]
 pub mod detailed_database;
 #[cfg(any(feature = "data_types_conversions", test))]
 pub mod job;

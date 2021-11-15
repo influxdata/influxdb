@@ -1,8 +1,7 @@
 use std::ops::Deref;
 
 use data_types::delete_predicate::{DeleteExpr, Op, Scalar};
-use generated_types::influxdata::iox::predicate::v1 as proto;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 
 pub(crate) fn expr_to_df(expr: DeleteExpr) -> datafusion::logical_plan::Expr {
     use datafusion::logical_plan::Expr;
@@ -17,41 +16,6 @@ pub(crate) fn expr_to_df(expr: DeleteExpr) -> datafusion::logical_plan::Expr {
         op: op_to_df(expr.op),
         right: Box::new(Expr::Literal(scalar_to_df(expr.scalar))),
     }
-}
-
-#[derive(Debug, Snafu)]
-pub enum ProtoToExprError {
-    #[snafu(display("cannot deserialize operator: {}", source))]
-    CannotDeserializeOperator {
-        source: crate::delete_expr::ProtoToOpError,
-    },
-
-    #[snafu(display("illegal operator enum value: {}", value))]
-    IllegalOperatorEnumValue { value: i32 },
-
-    #[snafu(display("missing scalar"))]
-    MissingScalar,
-
-    #[snafu(display("cannot deserialize scalar: {}", source))]
-    CannotDeserializeScalar {
-        source: crate::delete_expr::ProtoToScalarError,
-    },
-}
-
-pub(crate) fn proto_to_expr(expr: proto::Expr) -> Result<DeleteExpr, ProtoToExprError> {
-    let op = proto_to_op(
-        proto::Op::from_i32(expr.op).context(IllegalOperatorEnumValue { value: expr.op })?,
-    )
-    .context(CannotDeserializeOperator)?;
-
-    let scalar = proto_to_scalar(expr.scalar.clone().context(MissingScalar)?)
-        .context(CannotDeserializeScalar)?;
-
-    Ok(DeleteExpr {
-        column: expr.column,
-        op,
-        scalar,
-    })
 }
 
 #[derive(Debug, Snafu)]
@@ -113,16 +77,6 @@ pub(crate) fn df_to_expr(
     }
 }
 
-pub(crate) fn expr_to_proto(expr: DeleteExpr) -> proto::Expr {
-    let op = op_to_proto(expr.op);
-
-    proto::Expr {
-        column: expr.column,
-        op: op.into(),
-        scalar: Some(scalar_to_proto(expr.scalar)),
-    }
-}
-
 pub(crate) fn op_to_df(op: Op) -> datafusion::logical_plan::Operator {
     match op {
         Op::Eq => datafusion::logical_plan::Operator::Eq,
@@ -147,28 +101,6 @@ pub(crate) fn df_to_op(op: datafusion::logical_plan::Operator) -> Result<Op, Dat
     }
 }
 
-pub(crate) fn op_to_proto(op: Op) -> proto::Op {
-    match op {
-        Op::Eq => proto::Op::Eq,
-        Op::Ne => proto::Op::Ne,
-    }
-}
-
-#[derive(Debug, Snafu)]
-#[allow(missing_copy_implementations)] // allow extensions
-pub enum ProtoToOpError {
-    #[snafu(display("unspecified operator"))]
-    UnspecifiedOperator,
-}
-
-pub(crate) fn proto_to_op(op: proto::Op) -> Result<Op, ProtoToOpError> {
-    match op {
-        proto::Op::Unspecified => Err(ProtoToOpError::UnspecifiedOperator),
-        proto::Op::Eq => Ok(Op::Eq),
-        proto::Op::Ne => Ok(Op::Ne),
-    }
-}
-
 pub(crate) fn scalar_to_df(scalar: Scalar) -> datafusion::scalar::ScalarValue {
     use datafusion::scalar::ScalarValue;
     match scalar {
@@ -176,22 +108,6 @@ pub(crate) fn scalar_to_df(scalar: Scalar) -> datafusion::scalar::ScalarValue {
         Scalar::I64(value) => ScalarValue::Int64(Some(value)),
         Scalar::F64(value) => ScalarValue::Float64(Some(value.into())),
         Scalar::String(value) => ScalarValue::Utf8(Some(value)),
-    }
-}
-
-#[derive(Debug, Snafu)]
-#[allow(missing_copy_implementations)] // allow extensions
-pub enum ProtoToScalarError {
-    #[snafu(display("missing scalar value"))]
-    MissingScalarValue,
-}
-
-pub(crate) fn proto_to_scalar(scalar: proto::Scalar) -> Result<Scalar, ProtoToScalarError> {
-    match scalar.value.context(MissingScalarValue)? {
-        proto::scalar::Value::ValueBool(value) => Ok(Scalar::Bool(value)),
-        proto::scalar::Value::ValueI64(value) => Ok(Scalar::I64(value)),
-        proto::scalar::Value::ValueF64(value) => Ok(Scalar::F64(value.into())),
-        proto::scalar::Value::ValueString(value) => Ok(Scalar::String(value)),
     }
 }
 
@@ -213,23 +129,6 @@ pub(crate) fn df_to_scalar(
         ScalarValue::Float64(Some(value)) => Ok(Scalar::F64(value.into())),
         ScalarValue::Boolean(Some(value)) => Ok(Scalar::Bool(value)),
         other => Err(DataFusionToScalarError::UnsupportedScalarValue { value: other }),
-    }
-}
-
-pub(crate) fn scalar_to_proto(scalar: Scalar) -> proto::Scalar {
-    match scalar {
-        Scalar::Bool(value) => proto::Scalar {
-            value: Some(proto::scalar::Value::ValueBool(value)),
-        },
-        Scalar::I64(value) => proto::Scalar {
-            value: Some(proto::scalar::Value::ValueI64(value)),
-        },
-        Scalar::F64(value) => proto::Scalar {
-            value: Some(proto::scalar::Value::ValueF64(value.into())),
-        },
-        Scalar::String(value) => proto::Scalar {
-            value: Some(proto::scalar::Value::ValueString(value)),
-        },
     }
 }
 
@@ -279,10 +178,6 @@ mod tests {
         let df_expr = expr_to_df(expr.clone());
         let expr2 = df_to_expr(df_expr).unwrap();
         assert_eq!(expr2, expr);
-
-        let proto_expr: proto::Expr = expr_to_proto(expr.clone());
-        let expr3 = proto_to_expr(proto_expr).unwrap();
-        assert_eq!(expr3, expr);
 
         assert_eq!(expr.to_string(), display);
     }

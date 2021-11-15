@@ -3,6 +3,7 @@
 use bytes::Bytes;
 use data_types::delete_predicate::DeletePredicate;
 use futures::{StreamExt, TryStreamExt};
+use generated_types::google::FieldViolation;
 use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
@@ -150,9 +151,7 @@ pub enum Error {
     DeletePredicateMissing,
 
     #[snafu(display("Cannot deserialize predicate: {}", source))]
-    CannotDeserializePredicate {
-        source: predicate::serialize::DeserializeError,
-    },
+    CannotDeserializePredicate { source: FieldViolation },
 
     #[snafu(display("Cannot decode chunk id: {}", source))]
     CannotDecodeChunkId {
@@ -586,10 +585,10 @@ impl OpenTransaction {
             }
             proto::transaction::action::Action::DeletePredicate(d) => {
                 let predicate = Arc::new(
-                    predicate::serialize::deserialize(
-                        &d.predicate.context(DeletePredicateMissing)?,
-                    )
-                    .context(CannotDeserializePredicate)?,
+                    d.predicate
+                        .context(DeletePredicateMissing)?
+                        .try_into()
+                        .context(CannotDeserializePredicate)?,
                 );
                 let chunks = d
                     .chunks
@@ -885,7 +884,7 @@ impl<'c> TransactionHandle<'c> {
             .expect("transaction handle w/o transaction?!")
             .record_action(proto::transaction::action::Action::DeletePredicate(
                 proto::DeletePredicate {
-                    predicate: Some(predicate::serialize::serialize(predicate)),
+                    predicate: Some(predicate.clone().into()),
                     chunks: chunks
                         .iter()
                         .map(|chunk| proto::ChunkAddr {
@@ -1024,7 +1023,7 @@ impl<'c> CheckpointHandle<'c> {
                 };
 
                 let action = proto::DeletePredicate {
-                    predicate: Some(predicate::serialize::serialize(&predicate)),
+                    predicate: Some(predicate.as_ref().clone().into()),
                     chunks: chunks
                         .iter()
                         .map(|chunk| proto::ChunkAddr {
