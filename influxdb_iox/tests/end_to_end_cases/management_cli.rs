@@ -366,8 +366,8 @@ async fn delete_restore_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "The database with UUID `{}` named `{}` is already active",
-            db_uuid, db
+            "The database with UUID `{}` is already owned by this server",
+            db_uuid
         )));
 
     // Restoring a database with a valid but unknown UUID is an error
@@ -386,6 +386,245 @@ async fn delete_restore_database() {
             "Could not find a database with UUID `{}`",
             unknown_uuid
         )));
+}
+
+// Ensure that "database delete" works with "database claim"
+#[tokio::test]
+async fn delete_claim_database() {
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+    let db = &db_name;
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created"));
+
+    // Delete the database, returns the UUID
+    let stdout = String::from_utf8(
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("delete")
+            .arg(db)
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(format!("Deleted database {}", db)))
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let db_uuid = stdout.lines().last().unwrap().trim();
+
+    // Creating a new database with the same name works
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created"));
+
+    // The newly-created database will be in the active list
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(db));
+
+    // Claiming the 1st database is an error because the new, currently active database has the
+    // same name
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("claim")
+        .arg(db_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "A database with the name `{}` already exists",
+            db
+        )));
+
+    // Delete the 2nd database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("delete")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(format!("Deleted database {}", db)));
+
+    // Claim the 1st database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("claim")
+        .arg(db_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(format!("Claimed database {}", db)));
+
+    // The 1st database is back in the active list
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(db));
+
+    // Claiming again is an error
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("claim")
+        .arg(db_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "The database with UUID `{}` is already owned by this server",
+            db_uuid
+        )));
+}
+
+// Ensure that "database release" works with "database restore"
+#[tokio::test]
+async fn release_restore_database() {
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+    let db = &db_name;
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created"));
+
+    // Release the database, returns the UUID
+    let stdout = String::from_utf8(
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("release")
+            .arg(db)
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(format!(
+                "Released database {}",
+                db
+            )))
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let db_uuid = stdout.lines().last().unwrap().trim();
+
+    // Creating a new database with the same name works
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created"));
+
+    // Restoring the 1st database is an error because the new, currently active database has the
+    // same name
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("restore")
+        .arg(db_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "A database with the name `{}` already exists",
+            db
+        )));
+
+    // Release the 2nd database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("release")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(format!(
+            "Released database {}",
+            db
+        )));
+
+    // Restore the 1st database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("restore")
+        .arg(db_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(format!(
+            "Restored database {}",
+            db_uuid
+        )));
+
+    // The 1st database is back in the active list
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(db));
 }
 
 #[tokio::test]

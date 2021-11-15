@@ -177,7 +177,7 @@ where
 
         let uuid = self
             .server
-            .delete_database(&db_name)
+            .release_database(&db_name, None)
             .await
             .map_err(default_server_error_handler)?;
 
@@ -218,7 +218,7 @@ where
         let uuid = Uuid::from_slice(&request.uuid).scope("uuid")?;
 
         self.server
-            .restore_database(uuid)
+            .claim_database(uuid)
             .await
             .map_err(default_server_error_handler)?;
 

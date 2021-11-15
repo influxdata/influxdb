@@ -439,8 +439,8 @@ async fn test_create_get_update_delete_restore_database() {
     assert_contains!(
         err.to_string(),
         format!(
-            "The database with UUID `{}` named `{}` is already active",
-            deleted_uuid, db_name
+            "The database with UUID `{}` is already owned by this server",
+            deleted_uuid
         )
     );
 

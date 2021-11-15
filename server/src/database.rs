@@ -230,49 +230,6 @@ impl Database {
         Ok(database_location)
     }
 
-    /// Mark this database as deleted.
-    pub async fn delete(&self) -> Result<Uuid, Error> {
-        let db_name = &self.shared.config.name;
-
-        let handle = self.shared.state.read().freeze();
-        let handle = handle.await;
-
-        let uuid = {
-            let state = self.shared.state.read();
-            // Can't delete an already deleted database.
-            ensure!(state.is_active(), CannotDeleteInactiveDatabase { db_name });
-
-            state.uuid().expect("Active databases have UUIDs")
-        };
-
-        info!(%db_name, %uuid, "marking database deleted");
-
-        // If there is an object store for this database, write out a tombstone file.
-        // If there isn't an object store, something is wrong and we shouldn't switch the
-        // state without being able to write the tombstone file.
-        self.iox_object_store()
-            .with_context(|| {
-                let state = self.shared.state.read();
-                TransitionInProgress {
-                    db_name: db_name.clone(),
-                    state: state.state_code(),
-                }
-            })?
-            .write_tombstone()
-            .await
-            .context(CannotMarkDatabaseDeleted { db_name })?;
-
-        let mut state = self.shared.state.write();
-        let mut state = state.unfreeze(handle);
-        *state = DatabaseState::NoActiveDatabase(
-            DatabaseStateKnown {},
-            Arc::new(InitError::NoActiveDatabase),
-        );
-        self.shared.state_notify.notify_waiters();
-
-        Ok(uuid)
-    }
-
     /// Release this database from this server.
     pub async fn release(&self) -> Result<Uuid, Error> {
         let db_name = &self.shared.config.name;
@@ -313,47 +270,6 @@ impl Database {
         self.shared.state_notify.notify_waiters();
 
         Ok(uuid)
-    }
-
-    /// Create a restored database without any state. Returns its location in object storage
-    /// for saving in the server config file.
-    pub async fn restore(
-        application: Arc<ApplicationState>,
-        db_name: &DatabaseName<'static>,
-        uuid: Uuid,
-        server_id: ServerId,
-    ) -> Result<String, InitError> {
-        info!(%db_name, %uuid, "restoring database");
-
-        let iox_object_store_result =
-            IoxObjectStore::restore_database(Arc::clone(application.object_store()), uuid).await;
-
-        let iox_object_store = match iox_object_store_result {
-            Ok(iox_os) => iox_os,
-            Err(iox_object_store::IoxObjectStoreError::DatabaseAlreadyActive { .. }) => {
-                return AlreadyActive {
-                    name: db_name.to_string(),
-                    uuid,
-                }
-                .fail();
-            }
-            other => other.context(IoxObjectStoreError)?,
-        };
-
-        let database_location = iox_object_store.root_path();
-        let server_location =
-            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
-
-        update_owner_info(
-            Some(server_id),
-            Some(server_location),
-            application.time_provider().now(),
-            &iox_object_store,
-        )
-        .await
-        .context(UpdatingOwnerInfo)?;
-
-        Ok(database_location)
     }
 
     /// Create an claimed database without any state. Returns its location in object storage
@@ -1679,48 +1595,6 @@ mod tests {
         tokio::time::timeout(Duration::from_millis(1), database.join())
             .await
             .unwrap_err();
-
-        // Database should re-initialize correctly
-        tokio::time::timeout(Duration::from_millis(1), database.wait_for_init())
-            .await
-            .unwrap()
-            .unwrap();
-
-        database.shutdown();
-        // Database should shutdown
-        tokio::time::timeout(Duration::from_millis(1), database.join())
-            .await
-            .unwrap()
-            .unwrap();
-    }
-
-    #[tokio::test]
-    async fn database_delete_restore() {
-        let (application, database) = initialized_database().await;
-        let db_name = &database.shared.config.name;
-        let uuid = database.uuid().unwrap();
-        let server_id = database.shared.config.server_id;
-
-        database.delete().await.unwrap();
-
-        assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
-        assert!(matches!(
-            database.init_error().unwrap().as_ref(),
-            InitError::NoActiveDatabase
-        ));
-
-        let location = Database::restore(Arc::clone(&application), db_name, uuid, server_id)
-            .await
-            .unwrap();
-
-        let db_config = DatabaseConfig {
-            name: db_name.clone(),
-            location,
-            server_id,
-            wipe_catalog_on_error: false,
-            skip_replay: false,
-        };
-        let database = Database::new(Arc::clone(&application), db_config.clone());
 
         // Database should re-initialize correctly
         tokio::time::timeout(Duration::from_millis(1), database.wait_for_init())

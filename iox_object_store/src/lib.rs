@@ -15,7 +15,6 @@
 )]
 
 use bytes::{Bytes, BytesMut};
-use chrono::{DateTime, Utc};
 use data_types::server_id::ServerId;
 use futures::{stream::BoxStream, StreamExt, TryStreamExt};
 use object_store::{path::Path, ObjectStore, ObjectStoreApi, Result};
@@ -31,7 +30,7 @@ pub use paths::{
     parquet_file::{ParquetFilePath, ParquetFilePathParseError},
     transaction_file::TransactionFilePath,
 };
-use paths::{DataPath, RootPath, TombstonePath, TransactionsPath};
+use paths::{DataPath, RootPath, TransactionsPath};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -51,9 +50,6 @@ pub enum IoxObjectStoreError {
     #[snafu(display("No rules found to load at {}", root_path))]
     NoRulesFound { root_path: RootPath },
 
-    #[snafu(display("Database at {} is marked as deleted", root_path))]
-    DatabaseDeleted { root_path: RootPath },
-
     #[snafu(display("Could not restore database with UUID `{}`: {}", uuid, source))]
     RestoreFailed {
         uuid: Uuid,
@@ -68,7 +64,6 @@ pub enum IoxObjectStoreError {
 pub struct IoxObjectStore {
     inner: Arc<ObjectStore>,
     root_path: RootPath,
-    tombstone_path: TombstonePath,
     data_path: DataPath,
     transactions_path: TransactionsPath,
 }
@@ -109,25 +104,6 @@ impl IoxObjectStore {
     /// validity of the path in object storage.
     pub fn root_path_for(inner: &ObjectStore, uuid: Uuid) -> RootPath {
         RootPath::new(inner, uuid)
-    }
-
-    // Private function to check if a given database has been deleted or not. If the database is
-    // active, this returns `None`. If the database has been deleted, this returns
-    // `Some(deleted_at)` where `deleted_at` is the time at which the database was deleted.
-    async fn check_deleted(
-        inner: &ObjectStore,
-        root_path: &RootPath,
-    ) -> Result<Option<DateTime<Utc>>> {
-        let list_result = inner.list_with_delimiter(&root_path.inner).await?;
-
-        let tombstone_file = root_path.tombstone_path();
-        let deleted_at = list_result
-            .objects
-            .into_iter()
-            .find(|object| object.location == tombstone_file.inner)
-            .map(|object| object.last_modified);
-
-        Ok(deleted_at)
     }
 
     /// Create a database-specific wrapper. Takes all the information needed to create a new
@@ -187,28 +163,18 @@ impl IoxObjectStore {
 
         ensure!(rules_exists, NoRulesFound { root_path });
 
-        let tombstone_file = root_path.tombstone_path();
-        let tombstone_exists = list_result
-            .objects
-            .iter()
-            .any(|object| object.location == tombstone_file.inner);
-
-        ensure!(!tombstone_exists, DatabaseDeleted { root_path });
-
         Ok(Self::existing(inner, root_path))
     }
 
     /// Access the database-specific object storage files for an existing database that has
     /// already been located and verified to be active. Does not check object storage.
     fn existing(inner: Arc<ObjectStore>, root_path: RootPath) -> Self {
-        let tombstone_path = root_path.tombstone_path();
         let data_path = root_path.data_path();
         let transactions_path = root_path.transactions_path();
 
         Self {
             inner,
             root_path,
-            tombstone_path,
             data_path,
             transactions_path,
         }
@@ -248,43 +214,6 @@ impl IoxObjectStore {
     /// subject to change!
     pub fn root_path(&self) -> String {
         self.root_path.to_string()
-    }
-
-    // Deliberately private; this should not leak outside this crate
-    // so assumptions about the object store organization are confined
-    // (and can be changed) in this crate
-    fn tombstone_path(&self) -> Path {
-        self.root_path.tombstone_path().inner
-    }
-
-    /// Write the file in the database directory that indicates this database is marked as deleted,
-    /// without yet actually deleting this directory or any files it contains in object storage.
-    pub async fn write_tombstone(&self) -> Result<()> {
-        self.inner.put(&self.tombstone_path(), Bytes::new()).await
-    }
-
-    /// Remove the tombstone file to restore a database. Will return an error if this database is
-    /// already active. Returns the reactivated IoxObjectStore.
-    pub async fn restore_database(
-        inner: Arc<ObjectStore>,
-        uuid: Uuid,
-    ) -> Result<Self, IoxObjectStoreError> {
-        let root_path = Self::root_path_for(&inner, uuid);
-
-        let deleted_at = Self::check_deleted(&inner, &root_path)
-            .await
-            .context(UnderlyingObjectStoreError)?;
-
-        ensure!(deleted_at.is_some(), DatabaseAlreadyActive { uuid });
-
-        let tombstone_path = root_path.tombstone_path();
-
-        inner
-            .delete(&tombstone_path.inner)
-            .await
-            .context(RestoreFailed { uuid })?;
-
-        Ok(Self::existing(inner, root_path))
     }
 
     // Catalog transaction file methods ===========================================================
@@ -778,33 +707,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_tombstone_twice_is_fine() {
-        let object_store = make_object_store();
-        let uuid = Uuid::new_v4();
-        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
-            .await
-            .unwrap();
-
-        // tombstone file should not exist
-        let mut tombstone = object_store.new_path();
-        tombstone.push_all_dirs([ALL_DATABASES_DIRECTORY, uuid.to_string().as_str()]);
-        tombstone.set_file_name("DELETED");
-
-        object_store.get(&tombstone).await.err().unwrap();
-
-        iox_object_store.write_tombstone().await.unwrap();
-
-        // tombstone file should exist
-        object_store.get(&tombstone).await.unwrap();
-
-        // deleting again should still succeed
-        iox_object_store.write_tombstone().await.unwrap();
-
-        // tombstone file should still exist
-        object_store.get(&tombstone).await.unwrap();
-    }
-
-    #[tokio::test]
     async fn create_new_with_same_uuid_errors() {
         let object_store = make_object_store();
         let uuid = Uuid::new_v4();
@@ -843,27 +745,6 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn delete_then_create_new_with_same_uuid_errors() {
-        let object_store = make_object_store();
-        let uuid = Uuid::new_v4();
-
-        let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
-            .await
-            .unwrap();
-
-        iox_object_store
-            .put_database_rules_file(Bytes::new())
-            .await
-            .unwrap();
-        iox_object_store.write_tombstone().await.unwrap();
-
-        assert_error!(
-            IoxObjectStore::create(Arc::clone(&object_store), uuid).await,
-            IoxObjectStoreError::DatabaseAlreadyExists { uuid: err_uuid } if err_uuid == uuid,
-        );
-    }
-
     async fn create_database(object_store: Arc<ObjectStore>, uuid: Uuid) -> IoxObjectStore {
         let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
@@ -875,74 +756,6 @@ mod tests {
             .unwrap();
 
         iox_object_store
-    }
-
-    async fn delete_database(iox_object_store: &IoxObjectStore) {
-        iox_object_store.write_tombstone().await.unwrap();
-    }
-
-    async fn restore_database(
-        object_store: Arc<ObjectStore>,
-        uuid: Uuid,
-    ) -> Result<IoxObjectStore, IoxObjectStoreError> {
-        IoxObjectStore::restore_database(Arc::clone(&object_store), uuid).await
-    }
-
-    #[tokio::test]
-    async fn restore_deleted_database() {
-        let object_store = make_object_store();
-
-        // Create a database
-        let db = Uuid::new_v4();
-        let db_iox_store = create_database(Arc::clone(&object_store), db).await;
-
-        // Delete the database
-        delete_database(&db_iox_store).await;
-
-        assert!(
-            IoxObjectStore::check_deleted(&object_store, &db_iox_store.root_path)
-                .await
-                .unwrap()
-                .is_some()
-        );
-
-        // Restore the database
-        restore_database(Arc::clone(&object_store), db)
-            .await
-            .unwrap();
-
-        assert!(
-            IoxObjectStore::check_deleted(&object_store, &db_iox_store.root_path)
-                .await
-                .unwrap()
-                .is_none()
-        );
-    }
-
-    #[tokio::test]
-    async fn read_db_rules_of_deleted_database() {
-        let object_store = make_object_store();
-
-        // Create a database
-        let db = Uuid::new_v4();
-        let db_iox_store = IoxObjectStore::create(Arc::clone(&object_store), db)
-            .await
-            .unwrap();
-
-        let original_file_content = Bytes::from("hello world");
-        db_iox_store
-            .put_database_rules_file(original_file_content.clone())
-            .await
-            .unwrap();
-
-        // Delete the database
-        delete_database(&db_iox_store).await;
-
-        // We can still read the rules file even though `load` would fail
-        let rules_content = IoxObjectStore::load_database_rules(object_store, db)
-            .await
-            .unwrap();
-        assert_eq!(rules_content, original_file_content);
     }
 
     #[tokio::test]
@@ -972,7 +785,7 @@ mod tests {
 
         // Create a database
         let db = Uuid::new_v4();
-        let db_iox_store = create_database(Arc::clone(&object_store), db).await;
+        create_database(Arc::clone(&object_store), db).await;
 
         // Load should return that database
         let returned = IoxObjectStore::load(Arc::clone(&object_store), db)
@@ -981,15 +794,6 @@ mod tests {
         assert_eq!(
             returned.root_path(),
             format!("{}/{}/", ALL_DATABASES_DIRECTORY, db)
-        );
-
-        // Delete a database
-        delete_database(&db_iox_store).await;
-
-        // Load can't find deleted database
-        assert_error!(
-            IoxObjectStore::load(Arc::clone(&object_store), db).await,
-            IoxObjectStoreError::DatabaseDeleted { .. },
         );
     }
 
