@@ -1,10 +1,10 @@
 use bytes::{Bytes, BytesMut};
 use futures::StreamExt;
 use http::header::CONTENT_ENCODING;
-use hyper::{Body, Response};
+use hyper::Body;
 use snafu::{ResultExt, Snafu};
 
-use crate::influxdb_ioxd::server_type::RouteError;
+use super::error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource};
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Snafu)]
@@ -28,14 +28,14 @@ pub enum ParseBodyError {
     ClientHangup { source: hyper::Error },
 }
 
-impl RouteError for ParseBodyError {
-    fn response(&self) -> Response<Body> {
+impl HttpApiErrorSource for ParseBodyError {
+    fn to_http_api_error(&self) -> HttpApiError {
         match self {
-            Self::RequestSizeExceeded { .. } => self.bad_request(),
-            Self::InvalidContentEncoding { .. } => self.bad_request(),
-            Self::ReadingHeaderAsUtf8 { .. } => self.bad_request(),
-            Self::ReadingBodyAsGzip { .. } => self.bad_request(),
-            Self::ClientHangup { .. } => self.bad_request(),
+            e @ Self::RequestSizeExceeded { .. } => e.invalid(),
+            e @ Self::InvalidContentEncoding { .. } => e.invalid(),
+            e @ Self::ReadingHeaderAsUtf8 { .. } => e.invalid(),
+            e @ Self::ReadingBodyAsGzip { .. } => e.invalid(),
+            e @ Self::ClientHangup { .. } => e.invalid(),
         }
     }
 }

@@ -4,15 +4,12 @@ use crate::{
     scenarios::{util::all_scenarios_for_one_chunk, *},
 };
 
-use data_types::timestamp::TimestampRange;
+use data_types::{delete_predicate::DeletePredicate, timestamp::TimestampRange};
 use server::{db::test_helpers::write_lp, utils::make_db};
 
 use async_trait::async_trait;
 use datafusion::prelude::*;
-use predicate::{
-    delete_predicate::DeletePredicate,
-    predicate::{Predicate, PredicateBuilder},
-};
+use predicate::predicate::{Predicate, PredicateBuilder};
 use query::{
     frontend::influxrpc::InfluxRpcPlanner,
     group_by::{Aggregate, WindowDuration},

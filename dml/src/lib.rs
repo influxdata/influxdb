@@ -90,6 +90,15 @@ pub enum DmlOperation {
     Write(DmlWrite),
 }
 
+impl DmlOperation {
+    /// Gets the metadata associated with this operation
+    pub fn meta(&self) -> &DmlMeta {
+        match &self {
+            DmlOperation::Write(w) => w.meta(),
+        }
+    }
+}
+
 /// A collection of writes to potentially multiple tables within the same database
 #[derive(Debug, Clone)]
 pub struct DmlWrite {
@@ -201,6 +210,13 @@ pub mod test_util {
     use schema::selection::Selection;
 
     use super::*;
+
+    /// Asserts `a` contains a WriteOperation equal to `b`
+    pub fn assert_write_op_eq(a: &DmlOperation, b: &DmlWrite) {
+        match a {
+            DmlOperation::Write(a) => assert_writes_eq(a, b),
+        }
+    }
 
     /// Asserts two writes are equal
     pub fn assert_writes_eq(a: &DmlWrite, b: &DmlWrite) {

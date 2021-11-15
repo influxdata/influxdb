@@ -16,7 +16,7 @@ use data_types::{
     DatabaseName,
 };
 use influxdb_iox_client::format::QueryOutputFormat;
-use predicate::delete_predicate::{parse_delete, DeletePredicate};
+use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use query::exec::ExecutionContextProvider;
 use server::{connection::ConnectionManager, Error};
 
@@ -30,12 +30,12 @@ use snafu::{OptionExt, ResultExt, Snafu};
 
 use crate::influxdb_ioxd::{
     http::{
+        error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
         metrics::LineProtocolMetrics,
         utils::parse_body,
         write::{HttpDrivenWrite, InnerWriteError, RequestOrResponse, WriteInfo},
     },
     planner::Planner,
-    server_type::{ApiErrorCode, RouteError},
 };
 use dml::DmlWrite;
 use std::{
@@ -152,42 +152,30 @@ pub enum ApplicationError {
 
 type Result<T, E = ApplicationError> = std::result::Result<T, E>;
 
-impl RouteError for ApplicationError {
-    fn response(&self) -> Response<Body> {
+impl HttpApiErrorSource for ApplicationError {
+    fn to_http_api_error(&self) -> HttpApiError {
         match self {
-            Self::BucketMappingError { .. } => self.internal_error(),
-            Self::Query { .. } => self.internal_error(),
-            Self::ExpectedQueryString { .. } => self.bad_request(),
-            Self::InvalidQueryString { .. } => self.bad_request(),
-            Self::ReadingBodyAsUtf8 { .. } => self.bad_request(),
-            Self::ParsingDelete { .. } => self.bad_request(),
-            Self::BuildingDeletePredicate { .. } => self.bad_request(),
-            Self::ExecutingDelete { .. } => self.bad_request(),
-            Self::RouteNotFound { .. } => self.not_found(),
-            Self::DatabaseNameError { .. } => self.bad_request(),
-            Self::DatabaseNotFound { .. } => self.not_found(),
-            Self::CreatingResponse { .. } => self.internal_error(),
-            Self::FormattingResult { .. } => self.internal_error(),
-            Self::ParsingFormat { .. } => self.bad_request(),
-            Self::Planning { .. } => self.bad_request(),
-            Self::ServerIdNotSet => self.bad_request(),
-            Self::ServerNotInitialized => self.bad_request(),
-            Self::DatabaseNotInitialized { .. } => self.bad_request(),
-            Self::InternalServerError => self.internal_error(),
-            Self::ParseBody { source } => source.response(),
-            Self::WriteError { source } => source.response(),
-        }
-    }
-
-    /// Map the error type into an API error code.
-    fn api_error_code(&self) -> u32 {
-        match self {
-            Self::DatabaseNameError { .. } => ApiErrorCode::DB_INVALID_NAME.into(),
-            Self::DatabaseNotFound { .. } => ApiErrorCode::DB_NOT_FOUND.into(),
-            Self::ParseBody { source } => source.api_error_code(),
-            Self::WriteError { source } => source.api_error_code(),
-            // A "catch all" error code
-            _ => ApiErrorCode::UNKNOWN.into(),
+            e @ Self::BucketMappingError { .. } => e.internal_error(),
+            e @ Self::Query { .. } => e.internal_error(),
+            e @ Self::ExpectedQueryString { .. } => e.invalid(),
+            e @ Self::InvalidQueryString { .. } => e.invalid(),
+            e @ Self::ReadingBodyAsUtf8 { .. } => e.invalid(),
+            e @ Self::ParsingDelete { .. } => e.invalid(),
+            e @ Self::BuildingDeletePredicate { .. } => e.invalid(),
+            e @ Self::ExecutingDelete { .. } => e.invalid(),
+            e @ Self::RouteNotFound { .. } => e.not_found(),
+            e @ Self::DatabaseNameError { .. } => e.invalid(),
+            e @ Self::DatabaseNotFound { .. } => e.not_found(),
+            e @ Self::CreatingResponse { .. } => e.internal_error(),
+            e @ Self::FormattingResult { .. } => e.internal_error(),
+            e @ Self::ParsingFormat { .. } => e.invalid(),
+            e @ Self::Planning { .. } => e.invalid(),
+            e @ Self::ServerIdNotSet => e.invalid(),
+            e @ Self::ServerNotInitialized => e.invalid(),
+            e @ Self::DatabaseNotInitialized { .. } => e.invalid(),
+            e @ Self::InternalServerError => e.internal_error(),
+            Self::ParseBody { source } => source.to_http_api_error(),
+            Self::WriteError { source } => source.to_http_api_error(),
         }
     }
 }
@@ -300,7 +288,7 @@ where
     let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
 
     // Parse and extract table name (which can be empty), start, stop, and predicate
-    let parsed_delete = parse_delete(body).context(ParsingDelete { input: body })?;
+    let parsed_delete = parse_http_delete_request(body).context(ParsingDelete { input: body })?;
 
     let table_name = parsed_delete.table_name;
     let predicate = parsed_delete.predicate;
@@ -312,7 +300,7 @@ where
     let db = server.db(&db_name)?;
 
     // Build delete predicate
-    let del_predicate = DeletePredicate::try_new(&start, &stop, &predicate)
+    let del_predicate = parse_delete_predicate(&start, &stop, &predicate)
         .context(BuildingDeletePredicate { input: body })?;
 
     // Tables data will be deleted from
@@ -767,6 +755,29 @@ mod tests {
         // Note two json records: one record on each line
         let res = r#"[{"location":"Boston","state":"MA","surface_degrees":50.2,"time":"2021-04-01 14:10:24"},{"bottom_degrees":50.4,"location":"santa_monica","state":"CA","surface_degrees":65.2,"time":"2021-04-01 14:10:24"}]"#;
         check_response("query", response, StatusCode::OK, Some(res)).await;
+    }
+
+    #[tokio::test]
+    async fn test_query_invalid_name() {
+        let (client, test_server) = setup_test_data().await;
+
+        // send query data
+        let response = client
+            .get(&format!(
+                "{}/api/v3/query?d=&q={}",
+                test_server.url(),
+                "select%20*%20from%20h2o_temperature%20order%20by%20surface_degrees"
+            ))
+            .send()
+            .await;
+
+        check_response(
+            "query",
+            response,
+            StatusCode::BAD_REQUEST,
+            Some(r#"{"code":"invalid","message":"Invalid database name: Database name  length must be between 1 and 64 characters"}"#),
+        )
+        .await;
     }
 
     /// Run the specified SQL query and return formatted results as a string

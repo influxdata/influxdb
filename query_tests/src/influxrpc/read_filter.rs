@@ -6,13 +6,12 @@ use crate::scenarios::{
     TwoMeasurementsManyFields, TwoMeasurementsWithDelete, TwoMeasurementsWithDeleteAll,
 };
 use async_trait::async_trait;
-use data_types::timestamp::TimestampRange;
-use datafusion::logical_plan::{col, lit};
-use predicate::{
-    delete_expr::DeleteExpr,
-    delete_predicate::DeletePredicate,
-    predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
+use data_types::{
+    delete_predicate::{DeleteExpr, DeletePredicate},
+    timestamp::TimestampRange,
 };
+use datafusion::logical_plan::{col, lit};
+use predicate::predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE};
 use query::frontend::influxrpc::InfluxRpcPlanner;
 
 #[derive(Debug)]
@@ -597,8 +596,8 @@ impl DbSetup for MeasurementsSortableTagsWithDelete {
             },
             exprs: vec![DeleteExpr::new(
                 "state".to_string(),
-                predicate::delete_expr::Op::Eq,
-                predicate::delete_expr::Scalar::String(("CA").to_string()),
+                data_types::delete_predicate::Op::Eq,
+                data_types::delete_predicate::Scalar::String(("CA").to_string()),
             )],
         };
 

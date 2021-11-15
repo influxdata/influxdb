@@ -24,7 +24,8 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         )),
         Error::DatabaseNotFound { db_name } => NotFound {
             resource_type: "database".to_string(),
-            resource_name: db_name,
+            resource_name: db_name.clone(),
+            description: format!("Could not find database {}", db_name),
             ..Default::default()
         }
         .into(),
@@ -67,12 +68,14 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         Error::DatabaseInit { source } => {
             tonic::Status::invalid_argument(format!("Cannot initialize database: {}", source))
         }
-        e @ Error::StoreWriteErrors { .. } => tonic::Status::invalid_argument(e.to_string()),
+        Error::StoreWriteErrors { .. } => tonic::Status::invalid_argument(error.to_string()),
         Error::CannotRestoreDatabase {
             source: e @ server::database::InitError::AlreadyActive { .. },
         } => tonic::Status::already_exists(e.to_string()),
-        e @ Error::DatabaseAlreadyActive { .. } => tonic::Status::already_exists(e.to_string()),
-        e @ Error::DatabaseAlreadyExists { .. } => tonic::Status::already_exists(e.to_string()),
+        Error::DatabaseAlreadyActive { .. } | Error::DatabaseAlreadyExists { .. } => {
+            tonic::Status::already_exists(error.to_string())
+        }
+        Error::UuidMismatch { .. } => tonic::Status::invalid_argument(error.to_string()),
         Error::CouldNotGetDatabaseNameFromRules {
             source: DatabaseNameFromRulesError::DatabaseRulesNotFound { uuid, .. },
         } => tonic::Status::not_found(format!("Could not find a database with UUID `{}`", uuid)),
@@ -136,8 +139,12 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
             error!(%source, "Unexpected error deleting database");
             InternalError {}.into()
         }
-        Error::CannotDeleteInactiveDatabase { .. } => {
+        Error::CannotDeleteInactiveDatabase { .. } | Error::CannotDisownUnowned { .. } => {
             tonic::Status::failed_precondition(error.to_string())
+        }
+        Error::CannotDisown { source, .. } => {
+            error!(%source, "Unexpected error disowning database");
+            InternalError {}.into()
         }
     }
 }

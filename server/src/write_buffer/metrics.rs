@@ -1,4 +1,4 @@
-use dml::DmlWrite;
+use dml::DmlOperation;
 use metric::{Attributes, DurationHistogram, Metric, ResultMetric, U64Counter, U64Gauge};
 use std::time::Instant;
 
@@ -122,7 +122,7 @@ impl SequencerMetrics {
     /// Get a recorder that automatically records an error on drop
     pub fn recorder(&mut self, watermark: u64) -> IngestRecorder<'_> {
         IngestRecorder {
-            write: None,
+            operation: None,
             metrics: Some(self),
             watermark,
             start_time: Instant::now(),
@@ -139,8 +139,8 @@ pub struct IngestRecorder<'a> {
     watermark: u64,
     start_time: Instant,
 
-    /// The `IngestRecorder` is initially created without a write in case of decode error
-    write: Option<&'a DmlWrite>,
+    /// The `IngestRecorder` is initially created without an operation in case of decode error
+    operation: Option<&'a DmlOperation>,
 
     /// The SequencerMetrics are taken out of this on record to both avoid duplicate
     /// recording and also work around lifetime shenanigans
@@ -148,10 +148,10 @@ pub struct IngestRecorder<'a> {
 }
 
 impl<'a> IngestRecorder<'a> {
-    pub fn write(mut self, write: &'a DmlWrite) -> IngestRecorder<'a> {
-        assert!(self.write.is_none());
+    pub fn operation(mut self, operation: &'a DmlOperation) -> IngestRecorder<'a> {
+        assert!(self.operation.is_none());
         Self {
-            write: Some(write),
+            operation: Some(operation),
             metrics: self.metrics.take(),
             watermark: self.watermark,
             start_time: self.start_time,
@@ -166,8 +166,8 @@ impl<'a> IngestRecorder<'a> {
         let duration = self.start_time.elapsed();
         let metrics = self.metrics.take().expect("record called twice");
 
-        if let Some(db_write) = self.write.as_ref() {
-            let meta = db_write.meta();
+        if let Some(operation) = self.operation.as_ref() {
+            let meta = operation.meta();
             let producer_ts = meta
                 .producer_ts()
                 .expect("entry from write buffer must have a producer wallclock time");
@@ -188,15 +188,19 @@ impl<'a> IngestRecorder<'a> {
                     .saturating_sub(1),
             );
 
-            metrics.last_min_ts.set(db_write.min_timestamp() as u64);
-            metrics.last_max_ts.set(db_write.max_timestamp() as u64);
+            match operation {
+                DmlOperation::Write(write) => {
+                    metrics.last_min_ts.set(write.min_timestamp() as u64);
+                    metrics.last_max_ts.set(write.max_timestamp() as u64);
+                }
+            }
 
             metrics
                 .last_ingest_ts
                 .set(producer_ts.timestamp_nanos() as u64);
         }
 
-        match (success, self.write.is_some()) {
+        match (success, self.operation.is_some()) {
             (true, true) => {
                 // Successfully ingested entry
                 metrics.ingest_duration.ok.record(duration);

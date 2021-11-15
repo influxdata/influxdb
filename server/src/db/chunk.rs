@@ -4,6 +4,7 @@ use super::{
 use data_types::chunk_metadata::ChunkAddr;
 use data_types::{
     chunk_metadata::{ChunkId, ChunkOrder},
+    delete_predicate::DeletePredicate,
     partition_metadata,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -14,10 +15,7 @@ use mutable_buffer::snapshot::ChunkSnapshot;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use partition_metadata::TableSummary;
-use predicate::{
-    delete_predicate::DeletePredicate,
-    predicate::{Predicate, PredicateMatch},
-};
+use predicate::predicate::{Predicate, PredicateMatch};
 use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
 use read_buffer::RBChunk;
 use schema::InfluxColumnType;

@@ -1,66 +1,21 @@
-use std::{
-    convert::{TryFrom, TryInto},
-    ops::Deref,
-};
+use std::ops::Deref;
 
+use data_types::delete_predicate::{DeleteExpr, Op, Scalar};
 use generated_types::influxdata::iox::predicate::v1 as proto;
-use ordered_float::OrderedFloat;
 use snafu::{OptionExt, ResultExt, Snafu};
 
-/// Single expression to be used as parts of a predicate.
-///
-/// Only very simple expression of the type `<column> <op> <scalar>` are supported.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeleteExpr {
-    /// Column (w/o table name).
-    column: String,
+pub(crate) fn expr_to_df(expr: DeleteExpr) -> datafusion::logical_plan::Expr {
+    use datafusion::logical_plan::Expr;
 
-    /// Operator.
-    op: Op,
+    let column = datafusion::logical_plan::Column {
+        relation: None,
+        name: expr.column,
+    };
 
-    /// Scalar value.
-    scalar: Scalar,
-}
-
-impl DeleteExpr {
-    pub fn new(column: String, op: Op, scalar: Scalar) -> Self {
-        Self { column, op, scalar }
-    }
-
-    /// Column (w/o table name).
-    pub fn column(&self) -> &str {
-        &self.column
-    }
-
-    /// Operator.
-    pub fn op(&self) -> Op {
-        self.op
-    }
-
-    /// Scalar value.
-    pub fn scalar(&self) -> &Scalar {
-        &self.scalar
-    }
-}
-
-impl std::fmt::Display for DeleteExpr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}{}", self.column(), self.op(), self.scalar())
-    }
-}
-
-impl From<DeleteExpr> for datafusion::logical_plan::Expr {
-    fn from(expr: DeleteExpr) -> Self {
-        let column = datafusion::logical_plan::Column {
-            relation: None,
-            name: expr.column,
-        };
-
-        Self::BinaryExpr {
-            left: Box::new(Self::Column(column)),
-            op: expr.op.into(),
-            right: Box::new(Self::Literal(expr.scalar.into())),
-        }
+    Expr::BinaryExpr {
+        left: Box::new(Expr::Column(column)),
+        op: op_to_df(expr.op),
+        right: Box::new(Expr::Literal(scalar_to_df(expr.scalar))),
     }
 }
 
@@ -83,28 +38,20 @@ pub enum ProtoToExprError {
     },
 }
 
-impl TryFrom<proto::Expr> for DeleteExpr {
-    type Error = ProtoToExprError;
+pub(crate) fn proto_to_expr(expr: proto::Expr) -> Result<DeleteExpr, ProtoToExprError> {
+    let op = proto_to_op(
+        proto::Op::from_i32(expr.op).context(IllegalOperatorEnumValue { value: expr.op })?,
+    )
+    .context(CannotDeserializeOperator)?;
 
-    fn try_from(expr: proto::Expr) -> Result<Self, Self::Error> {
-        let op = proto::Op::from_i32(expr.op)
-            .context(IllegalOperatorEnumValue { value: expr.op })?
-            .try_into()
-            .context(CannotDeserializeOperator)?;
+    let scalar = proto_to_scalar(expr.scalar.clone().context(MissingScalar)?)
+        .context(CannotDeserializeScalar)?;
 
-        let scalar = expr
-            .clone()
-            .scalar
-            .context(MissingScalar)?
-            .try_into()
-            .context(CannotDeserializeScalar)?;
-
-        Ok(Self {
-            column: expr.column,
-            op,
-            scalar,
-        })
-    }
+    Ok(DeleteExpr {
+        column: expr.column,
+        op,
+        scalar,
+    })
 }
 
 #[derive(Debug, Snafu)]
@@ -131,82 +78,55 @@ pub enum DataFusionToExprError {
     },
 }
 
-impl TryFrom<datafusion::logical_plan::Expr> for DeleteExpr {
-    type Error = DataFusionToExprError;
+pub(crate) fn df_to_expr(
+    expr: datafusion::logical_plan::Expr,
+) -> Result<DeleteExpr, DataFusionToExprError> {
+    match expr {
+        datafusion::logical_plan::Expr::BinaryExpr { left, op, right } => {
+            let (column, scalar) = match (left.deref(), right.deref()) {
+                // The delete predicate parser currently only supports `<column><op><value>`, not `<value><op><column>`,
+                // however this could can easily be extended to support the latter case as well.
+                (
+                    datafusion::logical_plan::Expr::Column(column),
+                    datafusion::logical_plan::Expr::Literal(value),
+                ) => {
+                    let column = column.name.clone();
 
-    fn try_from(expr: datafusion::logical_plan::Expr) -> Result<Self, Self::Error> {
-        match expr {
-            datafusion::logical_plan::Expr::BinaryExpr { left, op, right } => {
-                let (column, scalar) = match (left.deref(), right.deref()) {
-                    // The delete predicate parser currently only supports `<column><op><value>`, not `<value><op><column>`,
-                    // however this could can easily be extended to support the latter case as well.
-                    (
-                        datafusion::logical_plan::Expr::Column(column),
-                        datafusion::logical_plan::Expr::Literal(value),
-                    ) => {
-                        let column = column.name.clone();
+                    let scalar =
+                        df_to_scalar(value.clone()).context(CannotConvertDataFusionScalarValue)?;
 
-                        let scalar: Scalar = value
-                            .clone()
-                            .try_into()
-                            .context(CannotConvertDataFusionScalarValue)?;
+                    (column, scalar)
+                }
+                (other_left, other_right) => {
+                    return Err(DataFusionToExprError::UnsupportedOperants {
+                        left: other_left.clone(),
+                        right: other_right.clone(),
+                    });
+                }
+            };
 
-                        (column, scalar)
-                    }
-                    (other_left, other_right) => {
-                        return Err(DataFusionToExprError::UnsupportedOperants {
-                            left: other_left.clone(),
-                            right: other_right.clone(),
-                        });
-                    }
-                };
+            let op = df_to_op(op).context(CannotConvertDataFusionOperator)?;
 
-                let op: Op = op.try_into().context(CannotConvertDataFusionOperator)?;
-
-                Ok(Self { column, op, scalar })
-            }
-            other => Err(DataFusionToExprError::UnsupportedExpression { expr: other }),
+            Ok(DeleteExpr { column, op, scalar })
         }
+        other => Err(DataFusionToExprError::UnsupportedExpression { expr: other }),
     }
 }
 
-impl From<DeleteExpr> for proto::Expr {
-    fn from(expr: DeleteExpr) -> Self {
-        let op: proto::Op = expr.op.into();
+pub(crate) fn expr_to_proto(expr: DeleteExpr) -> proto::Expr {
+    let op = op_to_proto(expr.op);
 
-        Self {
-            column: expr.column,
-            op: op.into(),
-            scalar: Some(expr.scalar.into()),
-        }
+    proto::Expr {
+        column: expr.column,
+        op: op.into(),
+        scalar: Some(scalar_to_proto(expr.scalar)),
     }
 }
 
-/// Binary operator that can be evaluated on a column and a scalar value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Op {
-    /// Strict equality (`=`).
-    Eq,
-
-    /// Inequality (`!=`).
-    Ne,
-}
-
-impl std::fmt::Display for Op {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Op::Eq => write!(f, "="),
-            Op::Ne => write!(f, "!="),
-        }
-    }
-}
-
-impl From<Op> for datafusion::logical_plan::Operator {
-    fn from(op: Op) -> Self {
-        match op {
-            Op::Eq => Self::Eq,
-            Op::Ne => Self::NotEq,
-        }
+pub(crate) fn op_to_df(op: Op) -> datafusion::logical_plan::Operator {
+    match op {
+        Op::Eq => datafusion::logical_plan::Operator::Eq,
+        Op::Ne => datafusion::logical_plan::Operator::NotEq,
     }
 }
 
@@ -219,24 +139,18 @@ pub enum DataFusionToOpError {
     },
 }
 
-impl TryFrom<datafusion::logical_plan::Operator> for Op {
-    type Error = DataFusionToOpError;
-
-    fn try_from(op: datafusion::logical_plan::Operator) -> Result<Self, Self::Error> {
-        match op {
-            datafusion::logical_plan::Operator::Eq => Ok(Self::Eq),
-            datafusion::logical_plan::Operator::NotEq => Ok(Self::Ne),
-            other => Err(DataFusionToOpError::UnsupportedOperator { op: other }),
-        }
+pub(crate) fn df_to_op(op: datafusion::logical_plan::Operator) -> Result<Op, DataFusionToOpError> {
+    match op {
+        datafusion::logical_plan::Operator::Eq => Ok(Op::Eq),
+        datafusion::logical_plan::Operator::NotEq => Ok(Op::Ne),
+        other => Err(DataFusionToOpError::UnsupportedOperator { op: other }),
     }
 }
 
-impl From<Op> for proto::Op {
-    fn from(op: Op) -> Self {
-        match op {
-            Op::Eq => Self::Eq,
-            Op::Ne => Self::Ne,
-        }
+pub(crate) fn op_to_proto(op: Op) -> proto::Op {
+    match op {
+        Op::Eq => proto::Op::Eq,
+        Op::Ne => proto::Op::Ne,
     }
 }
 
@@ -247,46 +161,21 @@ pub enum ProtoToOpError {
     UnspecifiedOperator,
 }
 
-impl TryFrom<proto::Op> for Op {
-    type Error = ProtoToOpError;
-
-    fn try_from(op: proto::Op) -> Result<Self, Self::Error> {
-        match op {
-            proto::Op::Unspecified => Err(ProtoToOpError::UnspecifiedOperator),
-            proto::Op::Eq => Ok(Self::Eq),
-            proto::Op::Ne => Ok(Self::Ne),
-        }
+pub(crate) fn proto_to_op(op: proto::Op) -> Result<Op, ProtoToOpError> {
+    match op {
+        proto::Op::Unspecified => Err(ProtoToOpError::UnspecifiedOperator),
+        proto::Op::Eq => Ok(Op::Eq),
+        proto::Op::Ne => Ok(Op::Ne),
     }
 }
 
-/// Scalar value of a certain type.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Scalar {
-    Bool(bool),
-    I64(i64),
-    F64(OrderedFloat<f64>),
-    String(String),
-}
-
-impl std::fmt::Display for Scalar {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Scalar::Bool(value) => value.fmt(f),
-            Scalar::I64(value) => value.fmt(f),
-            Scalar::F64(value) => value.fmt(f),
-            Scalar::String(value) => write!(f, "'{}'", value),
-        }
-    }
-}
-
-impl From<Scalar> for datafusion::scalar::ScalarValue {
-    fn from(scalar: Scalar) -> Self {
-        match scalar {
-            Scalar::Bool(value) => Self::Boolean(Some(value)),
-            Scalar::I64(value) => Self::Int64(Some(value)),
-            Scalar::F64(value) => Self::Float64(Some(value.into())),
-            Scalar::String(value) => Self::Utf8(Some(value)),
-        }
+pub(crate) fn scalar_to_df(scalar: Scalar) -> datafusion::scalar::ScalarValue {
+    use datafusion::scalar::ScalarValue;
+    match scalar {
+        Scalar::Bool(value) => ScalarValue::Boolean(Some(value)),
+        Scalar::I64(value) => ScalarValue::Int64(Some(value)),
+        Scalar::F64(value) => ScalarValue::Float64(Some(value.into())),
+        Scalar::String(value) => ScalarValue::Utf8(Some(value)),
     }
 }
 
@@ -297,16 +186,12 @@ pub enum ProtoToScalarError {
     MissingScalarValue,
 }
 
-impl TryFrom<proto::Scalar> for Scalar {
-    type Error = ProtoToScalarError;
-
-    fn try_from(scalar: proto::Scalar) -> Result<Self, Self::Error> {
-        match scalar.value.context(MissingScalarValue)? {
-            proto::scalar::Value::ValueBool(value) => Ok(Self::Bool(value)),
-            proto::scalar::Value::ValueI64(value) => Ok(Self::I64(value)),
-            proto::scalar::Value::ValueF64(value) => Ok(Self::F64(value.into())),
-            proto::scalar::Value::ValueString(value) => Ok(Self::String(value)),
-        }
+pub(crate) fn proto_to_scalar(scalar: proto::Scalar) -> Result<Scalar, ProtoToScalarError> {
+    match scalar.value.context(MissingScalarValue)? {
+        proto::scalar::Value::ValueBool(value) => Ok(Scalar::Bool(value)),
+        proto::scalar::Value::ValueI64(value) => Ok(Scalar::I64(value)),
+        proto::scalar::Value::ValueF64(value) => Ok(Scalar::F64(value.into())),
+        proto::scalar::Value::ValueString(value) => Ok(Scalar::String(value)),
     }
 }
 
@@ -318,36 +203,33 @@ pub enum DataFusionToScalarError {
     },
 }
 
-impl TryFrom<datafusion::scalar::ScalarValue> for Scalar {
-    type Error = DataFusionToScalarError;
-
-    fn try_from(scalar: datafusion::scalar::ScalarValue) -> Result<Self, Self::Error> {
-        match scalar {
-            datafusion::scalar::ScalarValue::Utf8(Some(value)) => Ok(Self::String(value)),
-            datafusion::scalar::ScalarValue::Int64(Some(value)) => Ok(Self::I64(value)),
-            datafusion::scalar::ScalarValue::Float64(Some(value)) => Ok(Self::F64(value.into())),
-            datafusion::scalar::ScalarValue::Boolean(Some(value)) => Ok(Self::Bool(value)),
-            other => Err(DataFusionToScalarError::UnsupportedScalarValue { value: other }),
-        }
+pub(crate) fn df_to_scalar(
+    scalar: datafusion::scalar::ScalarValue,
+) -> Result<Scalar, DataFusionToScalarError> {
+    use datafusion::scalar::ScalarValue;
+    match scalar {
+        ScalarValue::Utf8(Some(value)) => Ok(Scalar::String(value)),
+        ScalarValue::Int64(Some(value)) => Ok(Scalar::I64(value)),
+        ScalarValue::Float64(Some(value)) => Ok(Scalar::F64(value.into())),
+        ScalarValue::Boolean(Some(value)) => Ok(Scalar::Bool(value)),
+        other => Err(DataFusionToScalarError::UnsupportedScalarValue { value: other }),
     }
 }
 
-impl From<Scalar> for proto::Scalar {
-    fn from(scalar: Scalar) -> Self {
-        match scalar {
-            Scalar::Bool(value) => Self {
-                value: Some(proto::scalar::Value::ValueBool(value)),
-            },
-            Scalar::I64(value) => Self {
-                value: Some(proto::scalar::Value::ValueI64(value)),
-            },
-            Scalar::F64(value) => Self {
-                value: Some(proto::scalar::Value::ValueF64(value.into())),
-            },
-            Scalar::String(value) => Self {
-                value: Some(proto::scalar::Value::ValueString(value)),
-            },
-        }
+pub(crate) fn scalar_to_proto(scalar: Scalar) -> proto::Scalar {
+    match scalar {
+        Scalar::Bool(value) => proto::Scalar {
+            value: Some(proto::scalar::Value::ValueBool(value)),
+        },
+        Scalar::I64(value) => proto::Scalar {
+            value: Some(proto::scalar::Value::ValueI64(value)),
+        },
+        Scalar::F64(value) => proto::Scalar {
+            value: Some(proto::scalar::Value::ValueF64(value.into())),
+        },
+        Scalar::String(value) => proto::Scalar {
+            value: Some(proto::scalar::Value::ValueString(value)),
+        },
     }
 }
 
@@ -394,12 +276,12 @@ mod tests {
     }
 
     fn assert_expr_works(expr: DeleteExpr, display: &str) {
-        let df_expr: datafusion::logical_plan::Expr = expr.clone().into();
-        let expr2: DeleteExpr = df_expr.try_into().unwrap();
+        let df_expr = expr_to_df(expr.clone());
+        let expr2 = df_to_expr(df_expr).unwrap();
         assert_eq!(expr2, expr);
 
-        let proto_expr: proto::Expr = expr.clone().into();
-        let expr3: DeleteExpr = proto_expr.try_into().unwrap();
+        let proto_expr: proto::Expr = expr_to_proto(expr.clone());
+        let expr3 = proto_to_expr(proto_expr).unwrap();
         assert_eq!(expr3, expr);
 
         assert_eq!(expr.to_string(), display);
@@ -421,7 +303,7 @@ mod tests {
                 )),
             },
         ));
-        let res: Result<DeleteExpr, _> = expr.try_into();
+        let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported expression:");
     }
 
@@ -442,7 +324,7 @@ mod tests {
                 },
             )),
         };
-        let res: Result<DeleteExpr, _> = expr.try_into();
+        let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported operants:");
     }
 
@@ -452,7 +334,7 @@ mod tests {
             Some(Box::new(vec![])),
             Box::new(arrow::datatypes::DataType::Float64),
         );
-        let res: Result<Scalar, _> = scalar.try_into();
+        let res = df_to_scalar(scalar);
         assert_contains!(res.unwrap_err().to_string(), "unsupported scalar value:");
     }
 
@@ -473,14 +355,13 @@ mod tests {
                 ),
             )),
         };
-        let res: Result<DeleteExpr, _> = expr.try_into();
+        let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported scalar value:");
     }
 
     #[test]
     fn test_unsupported_operator() {
-        let op = datafusion::logical_plan::Operator::Like;
-        let res: Result<Op, _> = op.try_into();
+        let res = df_to_op(datafusion::logical_plan::Operator::Like);
         assert_contains!(res.unwrap_err().to_string(), "unsupported operator:");
     }
 
@@ -498,7 +379,7 @@ mod tests {
                 datafusion::scalar::ScalarValue::Utf8(Some("x".to_string())),
             )),
         };
-        let res: Result<DeleteExpr, _> = expr.try_into();
+        let res = df_to_expr(expr);
         assert_contains!(res.unwrap_err().to_string(), "unsupported operator:");
     }
 }

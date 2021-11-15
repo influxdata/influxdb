@@ -159,6 +159,9 @@ pub enum Error {
     CannotMarkDatabaseDeleted { source: crate::database::Error },
 
     #[snafu(display("{}", source))]
+    CannotDisownDatabase { source: crate::database::Error },
+
+    #[snafu(display("{}", source))]
     CannotRestoreDatabase { source: crate::database::InitError },
 
     #[snafu(display("A database with the name `{}` already exists", db_name))]
@@ -166,6 +169,18 @@ pub enum Error {
 
     #[snafu(display("The database with UUID `{}` named `{}` is already active", uuid, name))]
     DatabaseAlreadyActive { name: String, uuid: Uuid },
+
+    #[snafu(display(
+        "Could not disown {}: the UUID specified ({}) does not match the current UUID ({})",
+        db_name,
+        specified,
+        current
+    ))]
+    UuidMismatch {
+        db_name: String,
+        specified: Uuid,
+        current: Uuid,
+    },
 
     #[snafu(display("Server error: {}", source))]
     ServerError { source: std::io::Error },
@@ -725,6 +740,11 @@ where
 
         let database = self.database(db_name)?;
         let uuid = database.delete().await.context(CannotMarkDatabaseDeleted)?;
+        database.shutdown();
+        let _ = database
+            .join()
+            .await
+            .log_if_error("database background worker while deleting database");
 
         {
             let mut state = self.shared.state.write();
@@ -743,6 +763,59 @@ where
         self.persist_server_config().await?;
 
         Ok(uuid)
+    }
+
+    /// Disown an existing, active database with this name from this server. Return an error if no
+    /// active database with this name can be found.
+    pub async fn disown_database(
+        &self,
+        db_name: &DatabaseName<'static>,
+        uuid: Option<Uuid>,
+    ) -> Result<Uuid> {
+        // Wait for exclusive access to mutate server state
+        let handle_fut = self.shared.state.read().freeze();
+        let handle = handle_fut.await;
+
+        let database = self.database(db_name)?;
+        let current = database
+            .uuid()
+            .expect("Previous line should return not found if the database is inactive");
+
+        // If a UUID has been specified, it has to match this database's UUID
+        // Should this check be here or in database.disown?
+        if matches!(uuid, Some(specified) if specified != current) {
+            return UuidMismatch {
+                db_name: db_name.to_string(),
+                specified: uuid.unwrap(),
+                current,
+            }
+            .fail();
+        }
+
+        let returned_uuid = database.disown().await.context(CannotDisownDatabase)?;
+        database.shutdown();
+        let _ = database
+            .join()
+            .await
+            .log_if_error("database background worker while disowning database");
+
+        {
+            let mut state = self.shared.state.write();
+
+            // Exchange FreezeHandle for mutable access via WriteGuard
+            let mut state = state.unfreeze(handle);
+
+            match &mut *state {
+                ServerState::Initialized(initialized) => {
+                    initialized.databases.remove(db_name);
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        self.persist_server_config().await?;
+
+        Ok(returned_uuid)
     }
 
     /// Restore a database that has been marked as deleted. Return an error if no database with
@@ -1734,6 +1807,7 @@ mod tests {
         let owner_info = management::v1::OwnerInfo {
             id: server_id.get_u32(),
             location: IoxObjectStore::server_config_path(object_store, server_id).to_string(),
+            transactions: vec![],
         };
         let mut encoded_owner_info = bytes::BytesMut::new();
         generated_types::server_config::encode_database_owner_info(
@@ -2192,6 +2266,7 @@ mod tests {
         let owner_info = management::v1::OwnerInfo {
             id: 2,
             location: "2/config.pb".to_string(),
+            transactions: vec![],
         };
         let mut encoded = bytes::BytesMut::new();
         generated_types::server_config::encode_database_owner_info(&owner_info, &mut encoded)
@@ -2364,6 +2439,72 @@ mod tests {
         let provided_rules = make_provided_rules(rules);
 
         server.update_db_rules(provided_rules).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn disown_database_removes_from_memory_and_persisted_config() {
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let foo_db_name = DatabaseName::new("foo").unwrap();
+
+        // start server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        // create database
+        let foo = create_simple_database(&server, &foo_db_name).await.unwrap();
+        let first_foo_uuid = foo.uuid().unwrap();
+
+        // disown database by name
+        let disowned_uuid = server.disown_database(&foo_db_name, None).await.unwrap();
+        assert_eq!(first_foo_uuid, disowned_uuid);
+
+        assert_error!(
+            server.database(&foo_db_name),
+            Error::DatabaseNotFound { .. },
+        );
+
+        let config = server_config(application.object_store(), server_id).await;
+        assert_config_contents(&config, &[]);
+
+        // create another database
+        let foo = create_simple_database(&server, &foo_db_name).await.unwrap();
+        let second_foo_uuid = foo.uuid().unwrap();
+
+        // disown database specifying UUID; error if UUID doesn't match
+        let incorrect_uuid = Uuid::new_v4();
+        assert_error!(
+            server
+                .disown_database(&foo_db_name, Some(incorrect_uuid))
+                .await,
+            Error::UuidMismatch { .. }
+        );
+
+        // disown database specifying UUID works if UUID *does* match
+        server
+            .disown_database(&foo_db_name, Some(second_foo_uuid))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn cant_disown_nonexistent_database() {
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let foo_db_name = DatabaseName::new("foo").unwrap();
+
+        // start server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        assert_error!(
+            server.disown_database(&foo_db_name, None).await,
+            Error::DatabaseNotFound { .. },
+        );
     }
 
     #[tokio::test]

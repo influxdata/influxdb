@@ -1,7 +1,7 @@
 use super::scenario::{create_readable_database, create_router_to_write_buffer, rand_name};
 use crate::common::server_fixture::{ServerFixture, ServerType};
 use arrow_util::assert_batches_sorted_eq;
-use dml::{test_util::assert_writes_eq, DmlWrite};
+use dml::{test_util::assert_write_op_eq, DmlWrite};
 use futures::StreamExt;
 use generated_types::influxdata::pbdata::v1 as pb;
 use mutable_batch_lp::lines_to_batches;
@@ -60,7 +60,7 @@ pub async fn test_write_pb_router() {
         // We don't care about the metadata here, timestamps and sequence numbers are hard to guess
         write_actual.meta().clone(),
     );
-    assert_writes_eq(&write_actual, &write_expected);
+    assert_write_op_eq(&write_actual, &write_expected);
 }
 
 fn write_request(db_name: &str) -> pb::WriteRequest {

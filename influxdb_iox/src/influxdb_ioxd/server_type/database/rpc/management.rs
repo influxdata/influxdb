@@ -3,7 +3,7 @@ use generated_types::{
     google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound},
     influxdata::iox::management::v1::{Error as ProtobufError, *},
 };
-use predicate::delete_predicate::DeletePredicate;
+use predicate::delete_predicate::parse_delete_predicate;
 use query::QueryDatabase;
 use server::{
     connection::ConnectionManager, rules::ProvidedDatabaseRules, ApplicationState, Error, Server,
@@ -183,6 +183,30 @@ where
 
         Ok(Response::new(DeleteDatabaseResponse {
             uuid: uuid.as_bytes().to_vec(),
+        }))
+    }
+
+    async fn disown_database(
+        &self,
+        request: Request<DisownDatabaseRequest>,
+    ) -> Result<Response<DisownDatabaseResponse>, Status> {
+        let DisownDatabaseRequest { db_name, uuid } = request.into_inner();
+
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let uuid = if uuid.is_empty() {
+            None
+        } else {
+            Some(Uuid::from_slice(&uuid).field("uuid")?)
+        };
+
+        let returned_uuid = self
+            .server
+            .disown_database(&db_name, uuid)
+            .await
+            .map_err(default_server_error_handler)?;
+
+        Ok(Response::new(DisownDatabaseResponse {
+            uuid: returned_uuid.as_bytes().to_vec(),
         }))
     }
 
@@ -610,7 +634,7 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        let del_predicate_result = DeletePredicate::try_new(&start_time, &stop_time, &predicate);
+        let del_predicate_result = parse_delete_predicate(&start_time, &stop_time, &predicate);
         match del_predicate_result {
             Err(_) => {
                 return Err(default_server_error_handler(Error::DeleteExpression {

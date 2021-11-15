@@ -1,9 +1,4 @@
-use std::{collections::BTreeSet, convert::TryInto};
-
 use chrono::DateTime;
-use data_types::timestamp::TimestampRange;
-use datafusion::logical_plan::{lit, Column, Expr, Operator};
-use schema::TIME_COLUMN_NAME;
 use snafu::{ResultExt, Snafu};
 use sqlparser::{
     ast::{BinaryOperator, Expr as SqlParserExpr, Ident, Statement, Value},
@@ -11,7 +6,13 @@ use sqlparser::{
     parser::Parser,
 };
 
-use crate::delete_expr::DeleteExpr;
+use data_types::{
+    delete_predicate::{DeleteExpr, DeletePredicate},
+    timestamp::TimestampRange,
+};
+use datafusion::logical_plan::{lit, Column, Expr, Operator};
+
+use crate::delete_expr::{df_to_expr, expr_to_df};
 
 const FLUX_TABLE: &str = "_measurement";
 
@@ -67,51 +68,6 @@ pub enum Error {
 /// Result type for Parser Cient
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Represents a parsed delete predicate for evaluation by the InfluxDB IOx
-/// query engine.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeletePredicate {
-    /// Only rows within this range are included in
-    /// results. Other rows are excluded.
-    pub range: TimestampRange,
-
-    /// Optional arbitrary predicates, represented as list of
-    /// expressions applied a logical conjunction (aka they
-    /// are 'AND'ed together). Only rows that evaluate to TRUE for all
-    /// these expressions should be returned. Other rows are excluded
-    /// from the results.
-    pub exprs: Vec<DeleteExpr>,
-}
-
-impl DeletePredicate {
-    /// Parse and convert the delete grpc API into ParseDeletePredicate to send to server
-    pub fn try_new(start: &str, stop: &str, predicate: &str) -> Result<Self> {
-        // parse and check time range
-        let (start_time, stop_time) = parse_time_range(start, stop)?;
-
-        // Parse the predicate
-        let delete_exprs = parse_predicate(predicate)?;
-
-        Ok(Self {
-            range: TimestampRange {
-                start: start_time,
-                end: stop_time,
-            },
-            exprs: delete_exprs,
-        })
-    }
-
-    /// Return all columns participating in the expressions of delete predicate minus the time column if any
-    pub fn all_column_names_but_time<'a>(&'a self, cols: &mut BTreeSet<&'a str>) {
-        for expr in &self.exprs {
-            let col = expr.column();
-            if col != TIME_COLUMN_NAME {
-                cols.insert(col);
-            }
-        }
-    }
-}
-
 impl From<DeletePredicate> for crate::predicate::Predicate {
     fn from(pred: DeletePredicate) -> Self {
         Self {
@@ -119,10 +75,31 @@ impl From<DeletePredicate> for crate::predicate::Predicate {
             field_columns: None,
             partition_key: None,
             range: Some(pred.range),
-            exprs: pred.exprs.into_iter().map(|expr| expr.into()).collect(),
+            exprs: pred.exprs.into_iter().map(expr_to_df).collect(),
             value_expr: vec![],
         }
     }
+}
+
+/// Parse and convert the delete grpc API into ParseDeletePredicate to send to server
+pub fn parse_delete_predicate(
+    start_time: &str,
+    stop_time: &str,
+    predicate: &str,
+) -> Result<DeletePredicate> {
+    // parse and check time range
+    let (start_time, stop_time) = parse_time_range(start_time, stop_time)?;
+
+    // Parse the predicate
+    let delete_exprs = parse_predicate(predicate)?;
+
+    Ok(DeletePredicate {
+        range: TimestampRange {
+            start: start_time,
+            end: stop_time,
+        },
+        exprs: delete_exprs,
+    })
 }
 
 /// Parse the predicate and convert it into datafusion expression
@@ -244,7 +221,7 @@ fn split_members(predicate: &SqlParserExpr, predicates: &mut Vec<DeleteExpr>) ->
                 op,
                 right: Box::new(value),
             };
-            let expr: Result<DeleteExpr, _> = expr.try_into();
+            let expr: Result<DeleteExpr, _> = df_to_expr(expr);
             match expr {
                 Ok(expr) => {
                     predicates.push(expr);
@@ -297,14 +274,17 @@ fn parse_time_range(start: &str, stop: &str) -> Result<(i64, i64)> {
     Ok((start_time, stop_time))
 }
 
-// Note that this struct and its functions are used to parse FLUX DELETE,
-// https://docs.influxdata.com/influxdb/v2.0/write-data/delete-data/, which happens before
-// the parsing of timestamps and sql predicate. The examples below will show FLUX DELETE's syntax which is
-// different from SQL syntax so we need this extra parsing step before invoking sqlparser to parse the
-// sql-format predicates and timestamps
+/// Data of a parsed delete
+///
+/// Note that this struct and its functions are used to parse FLUX DELETE,
+/// <https://docs.influxdata.com/influxdb/v2.0/write-data/delete-data/>, which happens before
+/// the parsing of timestamps and sql predicate. The examples below will show FLUX DELETE's syntax which is
+/// different from SQL syntax so we need this extra parsing step before invoking sqlparser to parse the
+/// sql-format predicates and timestamps
+///
+/// TODO: Move alongside HTTP code
 #[derive(Debug, Default, PartialEq, Clone)]
-/// data of a parsed delete
-pub struct ParsedDelete {
+pub struct HttpDeleteRequest {
     /// Empty string, "", if no table specified
     pub table_name: String,
     pub start_time: String,
@@ -318,10 +298,12 @@ pub struct ParsedDelete {
 ///    => table_name="mytable", start_time="1970-01-01T00:00:00Z", end_time="2070-01-02T00:00:00Z", predicate="host=\"Orient.local\"""
 ///   {"predicate":"host=Orient.local and val != 50","start":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z"}
 ///    => start_time="1970-01-01T00:00:00Z", end_time="2070-01-02T00:00:00Z", predicate="host=Orient.local and val != 50"
-pub fn parse_delete(input: &str) -> Result<ParsedDelete> {
+///
+/// TODO: Move alongside HTTP code
+pub fn parse_http_delete_request(input: &str) -> Result<HttpDeleteRequest> {
     let parsed_obj: serde_json::Value =
         serde_json::from_str(input).context(DeleteInvalid { value: input })?;
-    let mut parsed_delete = ParsedDelete::default();
+    let mut parsed_delete = HttpDeleteRequest::default();
 
     if let serde_json::Value::Object(items) = parsed_obj {
         for item in items {
@@ -401,7 +383,7 @@ pub fn parse_delete(input: &str) -> Result<ParsedDelete> {
 
 #[cfg(test)]
 mod tests {
-    use crate::delete_expr::{Op, Scalar};
+    use data_types::delete_predicate::{Op, Scalar};
 
     use super::*;
 
@@ -568,7 +550,7 @@ mod tests {
         let stop = r#"200"#;
         let pred = r#"cost != 100"#;
 
-        let result = DeletePredicate::try_new(start, stop, pred).unwrap();
+        let result = parse_delete_predicate(start, stop, pred).unwrap();
         assert_eq!(result.range.start, 0);
         assert_eq!(result.range.end, 200);
 
@@ -586,7 +568,7 @@ mod tests {
         let stop = r#"50"#;
         let pred = r#"cost != 100"#;
 
-        let result = DeletePredicate::try_new(start, stop, pred);
+        let result = parse_delete_predicate(start, stop, pred);
         assert!(result.is_err());
     }
 
@@ -596,76 +578,76 @@ mod tests {
         let stop = r#"200"#;
         let pred = r#"cost > 100"#;
 
-        let result = DeletePredicate::try_new(start, stop, pred);
+        let result = parse_delete_predicate(start, stop, pred);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_parse_delete_full() {
+    fn test_parse_http_delete_full() {
         let delete_str = r#"{"predicate":"_measurement=mytable AND host=\"Orient.local\"","start":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z"}"#;
 
-        let expected = ParsedDelete {
+        let expected = HttpDeleteRequest {
             table_name: "mytable".to_string(),
             predicate: "host=\"Orient.local\"".to_string(),
             start_time: "1970-01-01T00:00:00Z".to_string(),
             stop_time: "2070-01-02T00:00:00Z".to_string(),
         };
 
-        let result = parse_delete(delete_str).unwrap();
+        let result = parse_http_delete_request(delete_str).unwrap();
         assert_eq!(expected, result);
     }
 
     #[test]
-    fn test_parse_delete_no_table() {
+    fn test_parse_http_delete_no_table() {
         let delete_str = r#"{"start":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z", "predicate":"host=\"Orient.local\""}"#;
 
-        let expected = ParsedDelete {
+        let expected = HttpDeleteRequest {
             table_name: "".to_string(),
             predicate: "host=\"Orient.local\"".to_string(),
             start_time: "1970-01-01T00:00:00Z".to_string(),
             stop_time: "2070-01-02T00:00:00Z".to_string(),
         };
 
-        let result = parse_delete(delete_str).unwrap();
+        let result = parse_http_delete_request(delete_str).unwrap();
         assert_eq!(expected, result);
     }
 
     #[test]
-    fn test_parse_delete_empty_predicate() {
+    fn test_parse_http_delete_empty_predicate() {
         let delete_str =
             r#"{"start":"1970-01-01T00:00:00Z","predicate":"","stop":"2070-01-02T00:00:00Z"}"#;
 
-        let expected = ParsedDelete {
+        let expected = HttpDeleteRequest {
             table_name: "".to_string(),
             predicate: "".to_string(),
             start_time: "1970-01-01T00:00:00Z".to_string(),
             stop_time: "2070-01-02T00:00:00Z".to_string(),
         };
 
-        let result = parse_delete(delete_str).unwrap();
+        let result = parse_http_delete_request(delete_str).unwrap();
         assert_eq!(expected, result);
     }
 
     #[test]
-    fn test_parse_delete_no_predicate() {
+    fn test_parse_http_delete_no_predicate() {
         let delete_str = r#"{"start":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z"}"#;
 
-        let expected = ParsedDelete {
+        let expected = HttpDeleteRequest {
             table_name: "".to_string(),
             predicate: "".to_string(),
             start_time: "1970-01-01T00:00:00Z".to_string(),
             stop_time: "2070-01-02T00:00:00Z".to_string(),
         };
 
-        let result = parse_delete(delete_str).unwrap();
+        let result = parse_http_delete_request(delete_str).unwrap();
         assert_eq!(expected, result);
     }
 
     #[test]
-    fn test_parse_delete_negative() {
+    fn test_parse_http_delete_negative() {
         // invalid key
         let delete_str = r#"{"invalid":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z"}"#;
-        let result = parse_delete(delete_str);
+        let result = parse_http_delete_request(delete_str);
         let err = result.unwrap_err();
         assert!(err
             .to_string()
@@ -673,7 +655,7 @@ mod tests {
 
         // invalid timestamp value
         let delete_str = r#"{"start":123,"stop":"2070-01-02T00:00:00Z"}"#;
-        let result = parse_delete(delete_str);
+        let result = parse_http_delete_request(delete_str);
         let err = result.unwrap_err();
         assert!(err
             .to_string()
@@ -681,7 +663,7 @@ mod tests {
 
         // invalid JSON
         let delete_str = r#"{"start":"1970-01-01T00:00:00Z",;"stop":"2070-01-02T00:00:00Z"}"#;
-        let result = parse_delete(delete_str);
+        let result = parse_http_delete_request(delete_str);
         let err = result.unwrap_err();
         assert!(err.to_string().contains("Unable to parse delete string"));
     }

@@ -4,6 +4,7 @@ option go_package = "github.com/influxdata/iox/management/v1";
 
 import "google/longrunning/operations.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
 import "influxdata/iox/management/v1/database_rules.proto";
 import "influxdata/iox/management/v1/chunk.proto";
 import "influxdata/iox/management/v1/partition.proto";
@@ -48,8 +49,13 @@ service ManagementService {
   // Roughly follows the <https://google.aip.dev/134> pattern, except we wrap the response
   rpc UpdateDatabase(UpdateDatabaseRequest) returns (UpdateDatabaseResponse);
 
+  // Delete a database.
   rpc DeleteDatabase(DeleteDatabaseRequest) returns (DeleteDatabaseResponse);
 
+  // Disown a database from its current server.
+  rpc DisownDatabase(DisownDatabaseRequest) returns (DisownDatabaseResponse);
+
+  // Restore a deleted database.
   rpc RestoreDatabase(RestoreDatabaseRequest) returns (RestoreDatabaseResponse);
 
   // List databases with their metadata.
@@ -206,6 +212,18 @@ message DeleteDatabaseRequest {
 }
 
 message DeleteDatabaseResponse {
+  bytes uuid = 1;
+}
+
+message DisownDatabaseRequest {
+  // the name of the database
+  string db_name = 1;
+
+  // the optional UUID of the database that must match
+  bytes uuid = 2;
+}
+
+message DisownDatabaseResponse {
   bytes uuid = 1;
 }
 
