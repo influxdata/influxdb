@@ -2,6 +2,7 @@
 //! [`PreservedCatalog`](parquet_catalog::core::PreservedCatalog).
 
 use super::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle, Catalog};
+use data_types::delete_predicate::DeletePredicate;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use observability_deps::tracing::{error, info};
 use parquet_catalog::{
@@ -13,7 +14,6 @@ use parquet_catalog::{
 };
 use parquet_file::chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk};
 use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
-use predicate::delete_predicate::DeletePredicate;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 use time::TimeProvider;

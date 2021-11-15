@@ -14,6 +14,7 @@ pub mod chunk_metadata;
 pub mod consistent_hasher;
 mod database_name;
 pub mod database_rules;
+pub mod delete_predicate;
 pub mod detailed_database;
 pub mod error;
 pub mod job;

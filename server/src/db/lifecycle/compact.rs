@@ -6,10 +6,9 @@ use crate::db::{
     lifecycle::collect_rub,
     DbChunk,
 };
-use data_types::{chunk_metadata::ChunkOrder, job::Job};
+use data_types::{chunk_metadata::ChunkOrder, delete_predicate::DeletePredicate, job::Job};
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
-use predicate::delete_predicate::DeletePredicate;
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use std::{collections::HashSet, future::Future, sync::Arc};
 use time::Time;
@@ -170,9 +169,9 @@ mod tests {
     use crate::db::test_helpers::write_lp;
     use crate::utils::{make_db, make_db_time};
     use data_types::chunk_metadata::ChunkStorage;
+    use data_types::delete_predicate::{DeleteExpr, Op, Scalar};
     use data_types::timestamp::TimestampRange;
     use lifecycle::{LockableChunk, LockablePartition};
-    use predicate::delete_expr::{DeleteExpr, Op, Scalar};
     use query::QueryDatabase;
     use std::time::Duration;
 

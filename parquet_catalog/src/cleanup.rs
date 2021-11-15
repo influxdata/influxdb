@@ -1,12 +1,12 @@
 //! Methods to cleanup the object store.
 use std::{collections::HashSet, sync::Arc};
 
+use data_types::delete_predicate::DeletePredicate;
 use futures::TryStreamExt;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::info;
 use parking_lot::Mutex;
-use predicate::delete_predicate::DeletePredicate;
 use snafu::{ResultExt, Snafu};
 
 use crate::{

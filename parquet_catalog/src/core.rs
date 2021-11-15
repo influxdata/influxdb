@@ -1,6 +1,7 @@
 //! Catalog preservation and transaction handling.
 
 use bytes::Bytes;
+use data_types::delete_predicate::DeletePredicate;
 use futures::{StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
@@ -8,7 +9,6 @@ use object_store::{ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::{info, warn};
 use parking_lot::RwLock;
 use parquet_file::metadata::IoxParquetMetaData;
-use predicate::delete_predicate::DeletePredicate;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{

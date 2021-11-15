@@ -9,6 +9,7 @@ arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
 hashbrown = "0.11"
 mutable_batch = { path = "../mutable_batch" }
+ordered-float = "2"
 schema = { path = "../schema" }
 time = { path = "../time" }
 trace = { path = "../trace" }

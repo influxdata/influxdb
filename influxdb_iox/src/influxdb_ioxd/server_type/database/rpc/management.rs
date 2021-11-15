@@ -3,7 +3,7 @@ use generated_types::{
     google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound},
     influxdata::iox::management::v1::{Error as ProtobufError, *},
 };
-use predicate::delete_predicate::DeletePredicate;
+use predicate::delete_predicate::parse_delete_predicate;
 use query::QueryDatabase;
 use server::{
     connection::ConnectionManager, rules::ProvidedDatabaseRules, ApplicationState, Error, Server,
@@ -634,7 +634,7 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        let del_predicate_result = DeletePredicate::try_new(&start_time, &stop_time, &predicate);
+        let del_predicate_result = parse_delete_predicate(&start_time, &stop_time, &predicate);
         match del_predicate_result {
             Err(_) => {
                 return Err(default_server_error_handler(Error::DeleteExpression {

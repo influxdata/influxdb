@@ -22,6 +22,7 @@ use data_types::partition_metadata::PartitionAddr;
 use data_types::{
     chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
     database_rules::DatabaseRules,
+    delete_predicate::DeletePredicate,
     partition_metadata::{PartitionSummary, TableSummary},
     server_id::ServerId,
 };
@@ -38,7 +39,7 @@ use parquet_catalog::{
     prune::prune_history as prune_catalog_transaction_history,
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
-use predicate::{delete_predicate::DeletePredicate, predicate::Predicate};
+use predicate::predicate::Predicate;
 use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
     QueryDatabase,
