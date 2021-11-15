@@ -87,7 +87,7 @@ where
         self::rpc::server_grpc(self, builder_input).await
     }
 
-    async fn background_worker(self: Arc<Self>) {
+    async fn join(self: Arc<Self>) {
         let server_worker = self.server.join().fuse();
         futures::pin_mut!(server_worker);
 
@@ -111,7 +111,7 @@ where
         info!("shared application state completed shutting down");
     }
 
-    fn shutdown_background_worker(&self) {
+    fn shutdown(&self) {
         self.shutdown.cancel();
     }
 }

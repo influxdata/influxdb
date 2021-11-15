@@ -39,8 +39,10 @@ impl From<tonic::transport::Error> for RpcError {
 pub trait ServerType: std::fmt::Debug + Send + Sync + 'static {
     type RouteError: HttpApiErrorSource;
 
+    /// Metric registry associated with the server.
     fn metric_registry(&self) -> Arc<Registry>;
 
+    /// Trace collector associated with the server, if any.
     fn trace_collector(&self) -> Option<Arc<dyn TraceCollector>>;
 
     /// Route given HTTP request.
@@ -51,9 +53,14 @@ pub trait ServerType: std::fmt::Debug + Send + Sync + 'static {
         req: Request<Body>,
     ) -> Result<Response<Body>, Self::RouteError>;
 
+    /// Construct and serve gRPC subsystem.
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError>;
 
-    async fn background_worker(self: Arc<Self>);
+    /// Join shutdown worker.
+    ///
+    /// This MUST NOT exit before `shutdown` is called, otherwise the server is deemed to be dead and the process will exit.
+    async fn join(self: Arc<Self>);
 
-    fn shutdown_background_worker(&self);
+    /// Shutdown background worker.
+    fn shutdown(&self);
 }
