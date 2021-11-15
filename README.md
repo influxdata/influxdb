@@ -20,11 +20,24 @@ For more details on the motivation behind the project and some of our goals, rea
 If you prefer a video that covers a little bit of InfluxDB history and high level goals for [InfluxDB IOx you can watch Paul Dix's announcement talk from InfluxDays NA 2020](https://www.youtube.com/watch?v=pnwkAAyMp18).
 For more details on the motivation behind the selection of [Apache Arrow, Flight and Parquet, read this](https://www.influxdata.com/blog/apache-arrow-parquet-flight-and-their-ecosystem-are-a-game-changer-for-olap/).
 
+## Supported Platforms
+
+As we commit to support platforms they will be added here.
+Our current goal is that the following platforms will be able to run InfluxDB IOx.
+
+* Linux x86 (`x86_64-unknown-linux-gnu`)
+* Darwin x86 (`x86_64-apple-darwin`)
+* Darwin arm (`aarch64-apple-darwin`)
+
+This list is very unlikely to be complete; we will add more platforms based on
+our ability to support them effectively.
+
 ## Project Status
 
 This project is very early and in active development. It isn't yet ready for testing, which is why we're not producing builds or documentation yet. If you're interested in following along with the project, drop into our community Slack channel #influxdb_iox. You can find [links to join here](https://community.influxdata.com/).
 
 We're also hosting monthly tech talks and community office hours on the project on the 2nd Wednesday of the month at 8:30 AM Pacific Time.
+
 * [Signup for upcoming IOx tech talks](https://www.influxdata.com/community-showcase/influxdb-tech-talks)
 * [Watch past IOx tech talks](https://www.youtube.com/playlist?list=PLYt2jfZorkDp-PKBS05kf2Yx2NrRyPAAz)
 
@@ -45,9 +58,10 @@ We're also hosting monthly tech talks and community office hours on the project 
 
 To compile and run InfluxDB IOx from source, you'll need the following:
 
-- [Rust](#rust)
-- [Clang](#clang)
-- [lld (on Linux)](#lld)
+* [Rust](#rust)
+* [Clang](#clang)
+* [lld (on Linux)](#lld)
+* [protoc (on Apple Silicon)](#protoc)
 
 #### Rust
 
@@ -85,6 +99,39 @@ Invoke ld.lld (Unix), ld64.lld (macOS), lld-link (Windows), wasm-ld (WebAssembly
 ```
 
 If `lld` is not already present, it can typically be installed with the system package manager.
+
+#### protoc
+
+If you are building InfluxDB IOx on Apple Silicon you may find that the build fails with an error containing:
+
+```shell
+failed to invoke protoc (hint: https://docs.rs/prost-build/#sourcing-protoc): Bad CPU type in executable (os error 86)
+```
+
+Prost bundles a `protoc` binary, which it uses if it cannot find a system alternative.
+Prior to version 0.9, the binary it chooses with the above error is an `x86` one, which won't work if you do not have Rosetta installed on your system.
+
+You can install Rosetta by running:
+
+```shell
+softwareupdate --install-rosetta
+```
+
+An alternative to installing Rosetta is to point Prost at an `arm` build of `protoc`.
+First, install `protoc`, e.g., via Homebrew:
+
+```shell
+brew update && brew install protobuf
+```
+
+Then set the following environment variables to point Prost at your system install:
+
+```shell
+PROTOC=/opt/homebrew/bin/protoc 
+PROTOC_INCLUDE=/opt/homebrew/include
+```
+
+IOx should then build correctly.
 
 ### Clone the repository
 
@@ -163,31 +210,35 @@ To run all available tests in debug mode, you may want to set min stack size to 
 ```shell
 RUST_MIN_STACK=10485760 cargo test --all
 ```
+
 ### Build a Docker image (optional)
 
 Building the Docker image requires:
 
-- Docker 18.09+
-- BuildKit
+* Docker 18.09+
+* BuildKit
 
 To [enable BuildKit] by default, set `{ "features": { "buildkit": true } }` in the Docker engine configuration,
 or run `docker build` with`DOCKER_BUILDKIT=1`
 
 To build the Docker image:
 
-```
+```shell
 DOCKER_BUILDKIT=1 docker build .
 ```
 
 [Enable BuildKit]: https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds
+
 ### Write and read data
 
 Each IOx instance requires a writer ID.
 This can be set one of 4 ways:
-- set an environment variable `INFLUXDB_IOX_ID=42`
-- set a flag `--writer-id 42`
-- use the API (not convered here)
-- use the CLI
+
+* set an environment variable `INFLUXDB_IOX_ID=42`
+* set a flag `--writer-id 42`
+* use the API (not convered here)
+* use the CLI
+
   ```shell
   influxdb_iox writer set 42
   ```

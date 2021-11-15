@@ -8,7 +8,7 @@ use query::QueryDatabase;
 use server::{
     connection::ConnectionManager, rules::ProvidedDatabaseRules, ApplicationState, Error, Server,
 };
-use std::{convert::TryFrom, fmt::Debug, str::FromStr, sync::Arc};
+use std::{convert::TryFrom, fmt::Debug, sync::Arc};
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
@@ -186,12 +186,36 @@ where
         }))
     }
 
+    async fn disown_database(
+        &self,
+        request: Request<DisownDatabaseRequest>,
+    ) -> Result<Response<DisownDatabaseResponse>, Status> {
+        let DisownDatabaseRequest { db_name, uuid } = request.into_inner();
+
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let uuid = if uuid.is_empty() {
+            None
+        } else {
+            Some(Uuid::from_slice(&uuid).field("uuid")?)
+        };
+
+        let returned_uuid = self
+            .server
+            .disown_database(&db_name, uuid)
+            .await
+            .map_err(default_server_error_handler)?;
+
+        Ok(Response::new(DisownDatabaseResponse {
+            uuid: returned_uuid.as_bytes().to_vec(),
+        }))
+    }
+
     async fn restore_database(
         &self,
         request: Request<RestoreDatabaseRequest>,
     ) -> Result<Response<RestoreDatabaseResponse>, Status> {
         let request = request.into_inner();
-        let uuid = Uuid::from_str(&request.uuid).field("uuid")?;
+        let uuid = Uuid::from_slice(&request.uuid).field("uuid")?;
 
         self.server
             .restore_database(uuid)

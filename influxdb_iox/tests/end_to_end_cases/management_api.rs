@@ -384,8 +384,6 @@ async fn test_create_get_update_delete_restore_database() {
         .expect("delete database failed");
     assert_eq!(created_uuid, deleted_uuid);
 
-    let deleted_uuid = deleted_uuid.to_string();
-
     let err = client
         .get_database(&db_name, false)
         .await
@@ -393,7 +391,7 @@ async fn test_create_get_update_delete_restore_database() {
     assert_contains!(err.to_string(), "Database not found");
 
     client
-        .restore_database(&deleted_uuid)
+        .restore_database(deleted_uuid)
         .await
         .expect("restore database failed");
 
@@ -403,7 +401,7 @@ async fn test_create_get_update_delete_restore_database() {
         .expect("get database failed");
 
     let err = client
-        .restore_database(&deleted_uuid)
+        .restore_database(deleted_uuid)
         .await
         .expect_err("restore database should have failed but didn't");
     assert_contains!(
@@ -414,9 +412,9 @@ async fn test_create_get_update_delete_restore_database() {
         )
     );
 
-    let unknown_uuid = Uuid::new_v4().to_string();
+    let unknown_uuid = Uuid::new_v4();
     let err = client
-        .restore_database(&unknown_uuid)
+        .restore_database(unknown_uuid)
         .await
         .expect_err("restore database should have failed but didn't");
     assert_contains!(
@@ -433,18 +431,78 @@ async fn test_create_get_update_delete_restore_database() {
         .create_database(rules.clone())
         .await
         .expect("create database failed");
-    let newly_created_uuid = newly_created_uuid.to_string();
 
     assert_ne!(deleted_uuid, newly_created_uuid);
 
     let err = client
-        .restore_database(&deleted_uuid)
+        .restore_database(deleted_uuid)
         .await
         .expect_err("restore database should have failed but didn't");
     assert_contains!(
         err.to_string(),
         format!("A database with the name `{}` already exists", db_name)
     );
+}
+
+#[tokio::test]
+async fn disown_database() {
+    test_helpers::maybe_start_logging();
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let mut client = server_fixture.management_client();
+
+    let db_name = rand_name();
+    let rules = DatabaseRules {
+        name: db_name.clone(),
+        ..Default::default()
+    };
+
+    // Create a database on one server
+    let created_uuid = client.create_database(rules.clone()).await.unwrap();
+
+    // Disown database returns the UUID
+    let disowned_uuid = client.disown_database(&db_name, None).await.unwrap();
+    assert_eq!(created_uuid, disowned_uuid);
+
+    // Disowned database is no longer in this server's database list
+    assert!(!client
+        .list_detailed_databases()
+        .await
+        .unwrap()
+        .into_iter()
+        // names may contain the names of other databases created by
+        // concurrent tests as well
+        .any(|db| db.db_name == db_name));
+
+    // Disowning the same database again is an error
+    let err = client.disown_database(&db_name, None).await.unwrap_err();
+    assert_contains!(
+        err.to_string(),
+        format!("Could not find database {}", db_name)
+    );
+
+    // Create another database
+    let created_uuid = client.create_database(rules.clone()).await.unwrap();
+
+    // If an optional UUID is specified, don't disown the database if the UUID doesn't match
+    let incorrect_uuid = Uuid::new_v4();
+    let err = client
+        .disown_database(&db_name, Some(incorrect_uuid))
+        .await
+        .unwrap_err();
+    assert_contains!(
+        err.to_string(),
+        format!(
+            "Could not disown {}: the UUID specified ({}) does not match the current UUID ({})",
+            db_name, incorrect_uuid, created_uuid,
+        )
+    );
+
+    // If an optional UUID is specified, disown the database if the UUID does match
+    let disowned_uuid = client
+        .disown_database(&db_name, Some(created_uuid))
+        .await
+        .unwrap();
+    assert_eq!(created_uuid, disowned_uuid);
 }
 
 /// gets configuration both with and without defaults, and verifies
@@ -1227,6 +1285,7 @@ async fn test_get_server_status_db_error() {
     let owner_info = OwnerInfo {
         id: 42,
         location: "arbitrary".to_string(),
+        transactions: vec![],
     };
     let mut owner_info_bytes = bytes::BytesMut::new();
     generated_types::server_config::encode_database_owner_info(&owner_info, &mut owner_info_bytes)

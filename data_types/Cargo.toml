@@ -8,8 +8,6 @@ readme = "README.md"
 
 [dependencies] # In alphabetical order
 bytes = "1.0"
-chrono = "0.4"
-influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 num_cpus = "1.13.0"
 observability_deps = { path = "../observability_deps" }
 percent-encoding = "2.1.0"

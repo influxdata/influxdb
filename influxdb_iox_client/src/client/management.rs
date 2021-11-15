@@ -146,14 +146,41 @@ pub enum DeleteDatabaseError {
     ServerError(tonic::Status),
 }
 
-/// Errors returned by Client::delete_database
+/// Errors returned by Client::disown_database
+#[derive(Debug, Error)]
+pub enum DisownDatabaseError {
+    /// The UUID specified was not in a valid format
+    #[error("Invalid UUID: {0}")]
+    InvalidUuid(#[from] uuid::Error),
+
+    /// Database not found
+    #[error("Could not find database {}", .name)]
+    DatabaseNotFound {
+        /// The name specified
+        name: String,
+    },
+
+    /// Server returned an invalid argument error
+    #[error("Invalid argument {}: {}", .0.code(), .0.message())]
+    InvalidArgument(tonic::Status),
+
+    /// Server ID is not set
+    #[error("Server ID not set")]
+    NoServerId,
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
+/// Errors returned by Client::restore_database
 #[derive(Debug, Error)]
 pub enum RestoreDatabaseError {
     /// Database not found
     #[error("Could not find a database with UUID `{}`", .uuid)]
     DatabaseNotFound {
         /// The UUID requested
-        uuid: String,
+        uuid: Uuid,
     },
 
     /// Server indicated that it is not (yet) available
@@ -697,14 +724,46 @@ impl Client {
         Ok(uuid)
     }
 
-    /// Restore database
-    pub async fn restore_database(
+    /// Disown database
+    pub async fn disown_database(
         &mut self,
-        uuid: impl Into<String> + Send,
-    ) -> Result<(), RestoreDatabaseError> {
-        let uuid = uuid.into();
+        db_name: impl Into<String> + Send,
+        uuid: Option<Uuid>,
+    ) -> Result<Uuid, DisownDatabaseError> {
+        let db_name = db_name.into();
+        let response = self
+            .inner
+            .disown_database(DisownDatabaseRequest {
+                db_name: db_name.clone(),
+                uuid: uuid.map(|u| u.as_bytes().to_vec()).unwrap_or_default(),
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => DisownDatabaseError::DatabaseNotFound { name: db_name },
+                tonic::Code::FailedPrecondition => DisownDatabaseError::NoServerId,
+                tonic::Code::InvalidArgument => DisownDatabaseError::InvalidArgument(status),
+                _ => DisownDatabaseError::ServerError(status),
+            })?;
+
+        let server_uuid = response.into_inner().uuid;
+        let uuid = Uuid::from_slice(&server_uuid)
+            .map_err(|e| {
+                format!(
+                    "Could not create UUID from server value {:?}: {}",
+                    server_uuid, e
+                )
+            })
+            .unwrap();
+
+        Ok(uuid)
+    }
+
+    /// Restore database
+    pub async fn restore_database(&mut self, uuid: Uuid) -> Result<(), RestoreDatabaseError> {
         self.inner
-            .restore_database(RestoreDatabaseRequest { uuid: uuid.clone() })
+            .restore_database(RestoreDatabaseRequest {
+                uuid: uuid.as_bytes().to_vec(),
+            })
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::NotFound => RestoreDatabaseError::DatabaseNotFound { uuid },

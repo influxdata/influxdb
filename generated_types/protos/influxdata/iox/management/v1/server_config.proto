@@ -1,6 +1,8 @@
 syntax = "proto3";
 package influxdata.iox.management.v1;
 option go_package = "github.com/influxdata/iox/management/v1";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
 
 // Stores a server's map of the databases it owns. The keys are the database names and the values
 // are the database's location in object storage.
@@ -14,10 +16,29 @@ message ServerConfig {
 
 // Stores information about a server that owns a database. To be stored in a database's object
 // store directory as verification of ownership.
+//
+// Like the rules.pb file, this is a configuration file about a database. Unlike the rules.pb file,
+// this file cannot be directly updated by the user and contains more low level information about
+// the database that must be manipulated through specific IOx API calls.
 message OwnerInfo {
   // The ID of the server that owns this database
   uint32 id = 1;
 
   // The path to this server's config file in object storage
   string location = 2;
+
+  // Recent history of disown/adopt transactions (truncated at 100 transactions)
+  repeated OwnershipTransaction transactions = 3;
+}
+
+message OwnershipTransaction {
+  // Copy of the ID field at the time of the transaction.
+  uint32 id = 1;
+
+  // Copy of the path to this server's config file in object storage at the time of the
+  // transaction.
+  string location = 2;
+
+  // When the transaction took place
+  google.protobuf.Timestamp timestamp = 3;
 }
