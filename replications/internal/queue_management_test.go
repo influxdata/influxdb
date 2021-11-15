@@ -1,8 +1,6 @@
 package internal
 
 import (
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,7 +9,9 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 var (
@@ -351,7 +351,7 @@ func TestEnqueueData(t *testing.T) {
 	rq, ok := qm.replicationQueues[id1]
 	require.True(t, ok)
 	close(rq.done)
-	go func () { <-rq.receive }() // absorb the receive to avoid testcase deadlock
+	go func() { <-rq.receive }() // absorb the receive to avoid testcase deadlock
 
 	require.NoError(t, qm.EnqueueData(id1, []byte(data)))
 	sizes, err = qm.CurrentQueueSizes([]platform.ID{id1})
