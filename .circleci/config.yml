@@ -30,28 +30,9 @@ executors:
       resource_class: windows.medium
     shell: bash.exe -eo pipefail
 
-parameters:
-  aws_teardown:
-    default: false
-    type: boolean
-  aws_teardown_branch:
-    default: "n/a"
-    type: string
-  aws_teardown_sha:
-    default: "n/a"
-    type: string
-  aws_teardown_datestring:
-    default: "n/a"
-    type: string
-  aws_teardown_query_format:
-    default: "n/a"
-    type: string
-
 workflows:
   version: 2
   build:
-    when:
-      not: << pipeline.parameters.aws_teardown >>
     jobs:
       - godeps
       - test-race:
@@ -117,19 +98,7 @@ workflows:
           requires:
             - cross_build
       - perf_test:
-          name: perf-test-flux
-          format: flux-http
-          record_ingest_results: true
-          requires:
-            - cross_build
-          filters:
-            branches:
-              only:
-                - "master"
-      - perf_test:
-          name: perf-test-influxql
-          format: http
-          record_ingest_results: false
+          record_results: true
           requires:
             - cross_build
           filters:
@@ -167,10 +136,6 @@ workflows:
                 - "master"
     jobs:
       - aws_destroy_by_date
-  aws_destroy_callback:
-    when: << pipeline.parameters.aws_teardown >>
-    jobs:
-      - aws_destroy_by_name
 
   nightly:
     triggers:
@@ -694,28 +659,48 @@ jobs:
 
 
   perf_test:
-    executor: linux-amd64
+    docker:
+      - image: cimg/base:2021.04
+    resource_class: small
     parameters:
-      format:
-        type: string
-      record_ingest_results:
+      record_results:
         type: boolean
     steps:
       - attach_workspace:
           at: /tmp/workspace
       - checkout
+      # To ssh into aws without failing host key checks
       - add_ssh_keys:
           fingerprints:
             - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
       - run:
-          name: Run test in AWS instance
-          no_output_timeout: 20m
-          command: >
-            AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID}
-            AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY}
-            TEST_FORMAT=<< parameters.format >>
-            TEST_RECORD_INGEST_RESULTS=<< parameters.record_ingest_results >>
+          name: Set up AWS CLI
+          command: |
+            ./scripts/ci/install-aws-cli.sh
+            echo "export AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID}" >> vars.sh
+            echo "export AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY}" >> vars.sh
+            echo "export TEST_RECORD_RESULTS=<< parameters.record_results >>" >> vars.sh
+            echo 'export DATA_I_TYPE="r5.2xlarge"' >>  vars.sh
+      - run:
+          name: Set up AWS instance
+          command: |
             scripts/ci/perf_test.sh
+      - run:
+          name: Run perf test
+          no_output_timeout: 20m
+          command: |
+            source vars.sh
+            set -x
+            ssh "ubuntu@$EC2_IP" "sudo ./run_perftest.sh"
+      - run:
+          name: Tear down AWS instance
+          when: always
+          command: |
+            source vars.sh
+            set -x
+            if [[ -n "$EC2_INSTANCE_ID" ]] ; then
+              aws --region us-west-2 ec2 terminate-instances --instance-ids "$EC2_INSTANCE_ID"
+            fi
 
   aws_destroy_by_date:
     executor: linux-amd64
@@ -747,24 +732,6 @@ jobs:
                 AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
               fi
             done
-  aws_destroy_by_name:
-    executor: linux-amd64
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - add_ssh_keys:
-          fingerprints:
-            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
-      - run:
-          name: Destroy AWS instances by constructing name from arguments
-          no_output_timeout: 20m
-          command: |
-            set -x
-            name=oss-perftest-<< pipeline.parameters.aws_teardown_datestring >>-<< pipeline.parameters.aws_teardown_branch >>-<< pipeline.parameters.aws_teardown_sha >>-<< pipeline.parameters.aws_teardown_query_format >>
-            instance_id=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 describe-instances --filters "Name=tag:Name,Values=$name" --query 'Reservations[].Instances[].InstanceId' --output text)
-            AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
-
   deploy_nightly:
     executor: linux-amd64
     environment:

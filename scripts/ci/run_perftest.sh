@@ -2,6 +2,27 @@
 
 echo "Running as user: $(whoami)"
 
+# Source env variables
+. /home/ubuntu/vars.sh
+
+# Install influxdb
+DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes /home/ubuntu/influxdb2*amd64.deb
+systemctl start influxdb
+DATASET_DIR=/mnt/ramdisk
+mkdir -p "$DATASET_DIR"
+mount -t tmpfs -o size=32G tmpfs "$DATASET_DIR"
+
+# set up influxdb
+export INFLUXDB2=true
+export TEST_ORG=example_org
+export TEST_TOKEN=token
+result="$(curl -s -o /dev/null -H "Content-Type: application/json" -XPOST -d '{"username": "default", "password": "thisisnotused", "retentionPeriodSeconds": 0, "org": "'"$TEST_ORG"'", "bucket": "unused_bucket", "token": "'"$TEST_TOKEN"'"}' http://localhost:8086/api/v2/setup -w %{http_code})"
+if [ "$result" != "201" ] ; then
+  echo "Influxdb2 failed to setup correctly"
+  exit 1
+fi
+
+
 # Install Telegraf
 wget -qO- https://repos.influxdata.com/influxdb.key | apt-key add -
 echo "deb https://repos.influxdata.com/ubuntu focal stable" | tee /etc/apt/sources.list.d/influxdb.list
@@ -9,25 +30,13 @@ echo "deb https://repos.influxdata.com/ubuntu focal stable" | tee /etc/apt/sourc
 DEBIAN_FRONTEND=noninteractive apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y git jq telegraf awscli
 
-# we need libc6 version 2.32 (released in ubuntu for 20.10 and later) for influx_tools
-cp /etc/apt/sources.list /etc/apt/sources.list.d/groovy.list
-sed -i 's/focal/groovy/g' /etc/apt/sources.list.d/groovy.list
-DEBIAN_FRONTEND=noninteractive apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y libc6 -t groovy
+# Install influx_tools
+aws --region us-west-2 s3 cp s3://perftest-binaries-influxdb/influx_tools/influx_tools-d3be25b251256755d622792ec91826c5670c6106 ./influx_tools
+mv ./influx_tools /usr/bin/influx_tools
+chmod 755 /usr/bin/influx_tools
 
 root_branch="$(echo "${INFLUXDB_VERSION}" | rev | cut -d '-' -f1 | rev)"
 log_date=$(date +%Y%m%d%H%M%S)
-cleanup() {
-  aws s3 cp /home/ubuntu/perftest_log.txt s3://perftest-logs-influxdb/oss/$root_branch/${TEST_COMMIT}-${log_date}.log
-  if [ "${CIRCLE_TEARDOWN}" = true ]; then
-    curl --request POST \
-      --url https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline \
-      --header "Circle-Token: ${CIRCLE_TOKEN}" \
-      --header 'content-type: application/json' \
-      --data "{\"branch\":\"${INFLUXDB_VERSION}\", \"parameters\":{\"aws_teardown\": true, \"aws_teardown_branch\":\"${INFLUXDB_VERSION}\", \"aws_teardown_sha\":\"${TEST_COMMIT}\", \"aws_teardown_datestring\":\"${CIRCLE_TEARDOWN_DATESTRING}\", \"aws_teardown_query_format\":\"${TEST_FORMAT}\"}}"
-  fi
-}
-trap "cleanup" EXIT KILL
 
 working_dir=$(mktemp -d)
 mkdir -p /etc/telegraf
@@ -105,24 +114,12 @@ if [ `whoami` = root ]; then
 fi
 go version
 
-# clone influxdb comparisons
-git clone https://github.com/influxdata/influxdb-comparisons.git $working_dir/influxdb-comparisons
-cd $working_dir/influxdb-comparisons
-
-# install cmds
+# install influxdb-comparisons cmds
 go get \
   github.com/influxdata/influxdb-comparisons/cmd/bulk_data_gen \
   github.com/influxdata/influxdb-comparisons/cmd/bulk_load_influx \
   github.com/influxdata/influxdb-comparisons/cmd/bulk_query_gen \
   github.com/influxdata/influxdb-comparisons/cmd/query_benchmarker_influxdb
-
-# hack to get the daemon to start up again until https://github.com/influxdata/influxdb/issues/21757 is resolved
-systemctl stop influxdb
-sed -i 's/User=influxdb/User=root/g' /lib/systemd/system/influxdb.service
-sed -i 's/Group=influxdb/Group=root/g' /lib/systemd/system/influxdb.service
-systemctl daemon-reload
-systemctl unmask influxdb.service
-systemctl start influxdb
 
 # Common variables used across all tests
 datestring=${TEST_COMMIT_TIME}
@@ -163,12 +160,12 @@ force_compaction() {
   set -e
   for shard in $shards; do
     if [ -n "$(find $shard -name *.tsm)" ]; then
-      /home/ubuntu/influx_tools compact-shard -force -verbose -path $shard
+      # compact as the influxdb user in order to keep file permissions correct
+      sudo -u influxdb influx_tools compact-shard -force -verbose -path $shard
     fi
   done
 
   # restart daemon
-  systemctl unmask influxdb.service
   systemctl start influxdb
 }
 
@@ -222,13 +219,13 @@ query_types() {
 # clear. This function will translate the aliased query use cases to their
 # dataset use cases. Effectively this means "for this query use case, run the
 # queries against this dataset use case".
-query_usecase_alias() {
+queries_for_dataset() {
   case $1 in
-    window-agg|group-agg|bare-agg|ungrouped-agg|group-window-transpose|iot|group-window-transpose-low-card)
-      echo iot
+    iot)
+      echo window-agg group-agg bare-agg ungrouped-agg iot group-window-transpose-low-card
       ;;
-    metaquery|group-window-transpose-high-card|cardinality)
-      echo metaquery
+    metaquery)
+      echo metaquery group-window-transpose-high-card
       ;;
     multi-measurement)
       echo multi-measurement
@@ -265,27 +262,11 @@ curl -XPOST -H "Authorization: Token ${TEST_TOKEN}" \
 ## Run and record tests ##
 ##########################
 
-# Generate queries to test.
-query_files=""
-for usecase in window-agg group-agg bare-agg ungrouped-agg group-window-transpose-low-card group-window-transpose-high-card iot metaquery multi-measurement; do
-  for type in $(query_types $usecase); do
-    query_fname="${TEST_FORMAT}_${usecase}_${type}"
-    $GOPATH/bin/bulk_query_gen \
-        -use-case=$usecase \
-        -query-type=$type \
-        -format=influx-${TEST_FORMAT} \
-        -timestamp-start=$(start_time $usecase) \
-        -timestamp-end=$(end_time $usecase) \
-        -queries=$queries \
-        -scale-var=$scale_var > \
-      ${DATASET_DIR}/$query_fname
-    query_files="$query_files $query_fname"
-  done
-done
-
 # Generate and ingest bulk data. Record the time spent as an ingest test if
 # specified, and run the query performance tests for each dataset.
 for usecase in iot metaquery multi-measurement; do
+  USECASE_DIR="${DATASET_DIR}/$usecase"
+  mkdir "$USECASE_DIR"
   data_fname="influx-bulk-records-usecase-$usecase"
   $GOPATH/bin/bulk_data_gen \
       -seed=$seed \
@@ -293,41 +274,51 @@ for usecase in iot metaquery multi-measurement; do
       -scale-var=$scale_var \
       -timestamp-start=$(start_time $usecase) \
       -timestamp-end=$(end_time $usecase) > \
-    ${DATASET_DIR}/$data_fname
+    ${USECASE_DIR}/$data_fname
 
-  load_opts="-file=${DATASET_DIR}/$data_fname -batch-size=$batch -workers=$workers -urls=http://${NGINX_HOST}:8086 -do-abort-on-exist=false -do-db-create=true -backoff=1s -backoff-timeout=300m0s"
+  load_opts="-file=${USECASE_DIR}/$data_fname -batch-size=$batch -workers=$workers -urls=http://${NGINX_HOST}:8086 -do-abort-on-exist=false -do-db-create=true -backoff=1s -backoff-timeout=300m0s"
   if [ -z $INFLUXDB2 ] || [ $INFLUXDB2 = true ]; then
     load_opts="$load_opts -organization=$TEST_ORG -token=$TEST_TOKEN"
   fi
 
-  # Run ingest tests. Only write the results to disk if this run should contribute to ingest-test results.
-  out=/dev/null
-  if [ "${TEST_RECORD_INGEST_RESULTS}" = true ]; then
-    out=$working_dir/test-ingest-$usecase.json
-  fi
   $GOPATH/bin/bulk_load_influx $load_opts | \
-    jq ". += {branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", use_case: \"$usecase\"}" > ${out}
+    jq ". += {branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", use_case: \"$usecase\"}" > "$working_dir/test-ingest-$usecase.json"
 
   # Cleanup from the data generation and loading.
   force_compaction
-  rm ${DATASET_DIR}/$data_fname
+  rm ${USECASE_DIR}/$data_fname
 
   # Generate a DBRP mapping for use by InfluxQL queries.
   create_dbrp
- 
+
+  # Generate queries to test.
+  query_files=""
+  for TEST_FORMAT in http flux-http ; do
+    for query_usecase in $(queries_for_dataset $usecase) ; do
+      for type in $(query_types $query_usecase) ; do
+        query_fname="${TEST_FORMAT}_${query_usecase}_${type}"
+        $GOPATH/bin/bulk_query_gen \
+            -use-case=$query_usecase \
+            -query-type=$type \
+            -format=influx-${TEST_FORMAT} \
+            -timestamp-start=$(start_time $query_usecase) \
+            -timestamp-end=$(end_time $query_usecase) \
+            -queries=$queries \
+            -scale-var=$scale_var > \
+          ${USECASE_DIR}/$query_fname
+        query_files="$query_files $query_fname"
+      done
+    done
+  done
+
   # Run the query tests applicable to this dataset.
-  for query_file in $query_files; do 
+  for query_file in $query_files; do
     format=$(echo $query_file | cut -d '_' -f1)
     query_usecase=$(echo $query_file | cut -d '_' -f2)
     type=$(echo $query_file | cut -d '_' -f3)
 
-    # Only run the query tests for queries applicable to this dataset.
-    if [ "$usecase" != "$(query_usecase_alias $query_usecase)" ]; then
-      continue
-    fi
-
     ${GOPATH}/bin/query_benchmarker_influxdb \
-        -file=${DATASET_DIR}/$query_file \
+        -file=${USECASE_DIR}/$query_file \
         -urls=http://${NGINX_HOST}:8086 \
         -debug=0 \
         -print-interval=0 \
@@ -342,16 +333,18 @@ for usecase in iot metaquery multi-measurement; do
         $working_dir/test-query-$format-$query_usecase-$type.json
 
       # Restart daemon between query tests.
-      systemctl stop influxdb
-      systemctl unmask influxdb.service
-      systemctl start influxdb
+      systemctl restart influxdb
   done
 
   # Delete DB to start anew.
   curl -X DELETE -H "Authorization: Token ${TEST_TOKEN}" http://${NGINX_HOST}:8086/api/v2/buckets/$(bucket_id)
+  rm -rf "$USECASE_DIR"
 done
 
 echo "Using Telegraph to report results from the following files:"
 ls $working_dir
-
-telegraf --debug --once
+if [ "${TEST_RECORD_RESULTS}" = "true" ] ; then
+  telegraf --debug --once
+else
+  telegraf --debug --test
+fi
