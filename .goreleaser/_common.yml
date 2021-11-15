@@ -1,6 +1,9 @@
 project_name: influxdb2
+
 builds:
   - id: influxd
+    binary: influxd{{ if eq .Os "windows" }}.exe{{ end }}
+    builder: prebuilt
     goos:
       - linux
       - darwin
@@ -13,21 +16,8 @@ builds:
         goarch: arm64
       - goos: windows
         goarch: arm64
-    main: ./cmd/influxd/
-    flags:
-      - -tags=assets,sqlite_foreign_keys,sqlite_json{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}{{if eq .Os "windows"}},timetzdata{{end}}
-      - -buildmode={{if eq .Os "windows"}}exe{{else}}pie{{end}}
-    env:
-      - GO111MODULE=on
-      - CGO_ENABLED=1
-      - CC=xcc
-      - PKG_CONFIG=$GOPATH/bin/pkg-config
-      - MACOSX_DEPLOYMENT_TARGET=10.11
-    ldflags:
-      - -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
-    binary: influxd
-    hooks:
-      pre: make generate-web-assets
+    prebuilt:
+      path: bin/influxd_{{ .Os }}_{{ .Arch }}/influxd{{ if eq .Os "windows" }}.exe{{ end }}
 
 nfpms:
   - id: influxdb-server
@@ -63,9 +53,9 @@ nfpms:
           amd64: x86_64
           arm64: aarch64
           armhf: armv7hl
-        file_name_template: "influxdb2-nightly.{{ .Arch }}"
+        file_name_template: "influxdb2-{{ .filenameVersion }}.{{ .Arch }}"
       deb:
-        file_name_template: "influxdb2-nightly-{{ .Arch }}"
+        file_name_template: "influxdb2-{{ .filenameVersion }}-{{ .Arch }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -79,30 +69,13 @@ archives:
       - goos: windows
         format: zip
     wrap_in_directory: true
-    name_template: "influxdb2-nightly-{{ .Os }}-{{ .Arch }}"
+    name_template: "influxdb2-{{ .filenameVersion }}-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
 
-blobs:
-  - provider: "s3"
-    bucket: "dl.influxdata.com"
-    region: "us-east-1"
-    folder: "platform/nightlies/"
-    extra_files:
-      - glob: ./changelog_artifacts/CHANGELOG.md
-  # Duplicating the contents to another folder in the bucket ensures
-  # scheme parity with release branches; eventually the artifacts should
-  # __only__ appear in the branch-specific folder
-  - provider: "s3"
-    bucket: "dl.influxdata.com"
-    region: "us-east-1"
-    folder: "platform/nightlies/master/"
-    extra_files:
-      - glob: ./changelog_artifacts/CHANGELOG.md
-
 checksum:
-  name_template: "influxdb2-nightly.sha256"
+  name_template: "influxdb2-{{ .filenameVersion }}.sha256"
   algorithm: sha256
 
 signs:
