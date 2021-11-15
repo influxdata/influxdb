@@ -341,8 +341,10 @@ for usecase in iot metaquery multi-measurement; do
   rm -rf "$USECASE_DIR"
 done
 
+echo "Using Telegraph to report results from the following files:"
+ls $working_dir
 if [ "${TEST_RECORD_RESULTS}" = "true" ] ; then
-  echo "Using Telegraph to report results from the following files:"
-  ls $working_dir
   telegraf --debug --once
+else
+  telegraf --debug --test
 fi

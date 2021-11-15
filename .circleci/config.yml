@@ -98,18 +98,13 @@ workflows:
           requires:
             - cross_build
       - perf_test:
-          #FIXME: replaced config to do dry run on pr
-          record_results: false
+          record_results: true
           requires:
             - cross_build
-          # FIXME: should be:
-          #record_results: true
-          #requires:
-          #  - cross_build
-          #filters:
-          #  branches:
-          #    only:
-          #      - "master"
+          filters:
+            branches:
+              only:
+                - "master"
       - grace_daily:
           requires:
             - build
