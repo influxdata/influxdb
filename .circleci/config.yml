@@ -33,6 +33,7 @@ workflows:
     jobs:
       - test-race
       - test-build:
+          name: test-build-<< matrix.os >>-<< matrix.arch >>
           matrix:
             parameters:
               os: [ linux, darwin, windows ]
@@ -50,21 +51,22 @@ workflows:
           name: test-linux-arm64
           executor: linux-arm64
           requires:
-            - test-build-arm64-linux
+            - test-build-linux-arm64
       - test-prebuilt:
           name: test-darwin
           executor: darwin
           requires:
-            - test-build-amd64-darwin
+            - test-build-darwin-amd64
       - test-prebuilt:
           name: test-windows
           executor: windows
           requires:
-            - test-build-amd64-windows
+            - test-build-windows-amd64
       - fluxtest
       - tlstest
       - lint
       - build:
+          name: build-snapshot-<< matrix.os >>-<< matrix.arch >>
           build-type: snapshot
           matrix:
             parameters:
@@ -76,6 +78,7 @@ workflows:
               - os: windows
                 arch: arm64
       - package-and-release:
+          name: package-snapshot
           build-type: snapshot
           filters:
             branches:
@@ -84,36 +87,36 @@ workflows:
             - build
       - test-downgrade:
           requires:
-            - build-amd64-linux
+            - build-snapshot-linux-amd64
       - e2e-monitor-ci:
           filters:
             branches:
               ignore: /pull\/[0-9]+/
           requires:
-            - build-amd64-linux
+            - build-snapshot-linux-amd64
       - pkg_run_test:
           filters:
             branches:
               ignore: /pull\/[0-9]+/
           requires:
-            - package-and-release
+            - package-snapshot
       - perf_test:
           record_results: true
           requires:
-            - package-and-release
+            - package-snapshot
           filters:
             branches:
               only:
                 - master
       - grace_daily:
           requires:
-            - build-amd64-linux
+            - build-snapshot-linux-amd64
       - litmus_daily:
           requires:
-            - build-amd64-linux
+            - build-snapshot-linux-amd64
       - litmus_integration:
           requires:
-            - build-amd64-linux
+            - build-snapshot-linux-amd64
           filters:
             branches:
               only: master
@@ -149,6 +152,7 @@ workflows:
       - changelog
       - test-race
       - test-build:
+          name: test-build-<< matrix.os >>-<< matrix.arch >>
           matrix:
             parameters:
               os: [ linux, darwin, windows ]
@@ -166,21 +170,22 @@ workflows:
           name: test-linux-arm64
           executor: linux-arm64
           requires:
-            - test-build-arm64-linux
+            - test-build-linux-arm64
       - test-prebuilt:
           name: test-darwin
           executor: darwin
           requires:
-            - test-build-amd64-darwin
+            - test-build-darwin-amd64
       - test-prebuilt:
           name: test-windows
           executor: windows
           requires:
-            - test-build-amd64-windows
+            - test-build-windows-amd64
       - lint
       - fluxtest
       - tlstest
       - build:
+          name: build-nightly-<< matrix.os >>-<< matrix.arch >>
           build-type: nightly
           matrix:
             parameters:
@@ -192,15 +197,16 @@ workflows:
               - os: windows
                 arch: arm64
       - package-and-release:
+          name: package-and-upload-nightly
           build-type: nightly
           requires:
             - build
       - litmus_integration:
           requires:
-            - build-amd64-linux
+            - build-nightly-linux-amd64
       - grace_daily:
           requires:
-            - build-amd64-linux
+            - build-nightly-linux-amd64
 
 commands:
   quay_login:
