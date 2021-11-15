@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,6 +30,81 @@ func TestCreateNewQueueDirExists(t *testing.T) {
 
 	require.NoError(t, err)
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
+}
+
+func TestEnqueueScanLog(t *testing.T) {
+	t.Parallel()
+
+	// Initialize queue manager with zap observer (to allow assertions on log messages)
+	enginePath, err := os.MkdirTemp("", "engine")
+	require.NoError(t, err)
+	queuePath := filepath.Join(enginePath, "replicationq")
+
+	observedZapCore, observedLogs := observer.New(zap.InfoLevel)
+	observedLogger := zap.New(observedZapCore)
+
+	qm := NewDurableQueueManager(observedLogger, queuePath)
+	defer os.RemoveAll(filepath.Dir(queuePath))
+
+	// Create new queue
+	err = qm.InitializeQueue(id1, maxQueueSizeBytes)
+	require.NoError(t, err)
+
+	// Enqueue some data
+	testData := "weather,location=us-midwest temperature=82 1465839830100400200"
+	err = qm.EnqueueData(id1, []byte(testData))
+	require.NoError(t, err)
+
+	// Give it a second to scan the queue
+	time.Sleep(time.Second)
+
+	// Check that data the scanner logs is the same as what was enqueued
+	require.Equal(t, 1, observedLogs.Len())
+	allLogs := observedLogs.All()
+	firstLog := allLogs[0]
+	require.Equal(t, firstLog.Message, "written bytes")
+	require.Equal(t, "weather,location=us-midwest temperature=82 1465839830100400200", firstLog.ContextMap()["bytes"])
+}
+
+func TestEnqueueScanLogMultiple(t *testing.T) {
+	t.Parallel()
+
+	// Initialize queue manager with zap observer (to allow assertions on log messages)
+	enginePath, err := os.MkdirTemp("", "engine")
+	require.NoError(t, err)
+	queuePath := filepath.Join(enginePath, "replicationq")
+
+	observedZapCore, observedLogs := observer.New(zap.InfoLevel)
+	observedLogger := zap.New(observedZapCore)
+
+	qm := NewDurableQueueManager(observedLogger, queuePath)
+	defer os.RemoveAll(filepath.Dir(queuePath))
+
+	// Create new queue
+	err = qm.InitializeQueue(id1, maxQueueSizeBytes)
+	require.NoError(t, err)
+
+	// Enqueue some data
+	testData1 := "weather,location=us-midwest temperature=82 1465839830100400200"
+	err = qm.EnqueueData(id1, []byte(testData1))
+	require.NoError(t, err)
+
+	testData2 := "weather,location=us-midwest temperature=83 1465839830100400201"
+	err = qm.EnqueueData(id1, []byte(testData2))
+	require.NoError(t, err)
+
+	// Give it a second to scan the queue
+	time.Sleep(time.Second)
+
+	// Check that data the scanner logs is the same as what was enqueued
+	require.Equal(t, 2, observedLogs.Len())
+	allLogs := observedLogs.All()
+
+	require.Equal(t, allLogs[0].Message, "written bytes")
+	require.Equal(t, "weather,location=us-midwest temperature=82 1465839830100400200", allLogs[0].ContextMap()["bytes"])
+
+	require.Equal(t, allLogs[1].Message, "written bytes")
+	require.Equal(t, "weather,location=us-midwest temperature=83 1465839830100400201", allLogs[1].ContextMap()["bytes"])
 }
 
 func TestCreateNewQueueDuplicateID(t *testing.T) {
