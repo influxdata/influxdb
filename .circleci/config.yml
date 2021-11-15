@@ -201,6 +201,7 @@ workflows:
           build-type: nightly
           requires:
             - build
+            - changelog
       - litmus_integration:
           requires:
             - build-nightly-linux-amd64
