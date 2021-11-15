@@ -1,4 +1,8 @@
-use influxdb_iox_client::router::generated_types::{QuerySinks, Router};
+use influxdb_iox_client::router::{
+    generated_types::{Matcher, MatcherToShard, QuerySinks, Router, ShardConfig},
+    UpdateRouterError,
+};
+use test_helpers::assert_error;
 
 use crate::{
     common::server_fixture::{ServerFixture, ServerType},
@@ -7,7 +11,7 @@ use crate::{
 
 #[tokio::test]
 async fn test_router_crud() {
-    let server_fixture = ServerFixture::create_shared(ServerType::Router).await;
+    let server_fixture = ServerFixture::create_single_use(ServerType::Router).await;
     let mut client = server_fixture.router_client();
 
     let router_name_a = rand_name();
@@ -64,4 +68,45 @@ async fn test_router_crud() {
     assert_eq!(routers.len(), 1);
     assert_eq!(&routers[0], &cfg_bar);
     client.delete_router(&router_name_b).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_router_update_invalid_argument() {
+    let server_fixture = ServerFixture::create_single_use(ServerType::Router).await;
+    let mut client = server_fixture.router_client();
+
+    let router_name = rand_name();
+
+    let cfg_valid = Router {
+        name: router_name.clone(),
+        write_sharder: Default::default(),
+        write_sinks: Default::default(),
+        query_sinks: Default::default(),
+    };
+    let cfg_invalid = Router {
+        write_sharder: Some(ShardConfig {
+            specific_targets: vec![MatcherToShard {
+                matcher: Some(Matcher {
+                    table_name_regex: "*".to_owned(),
+                }),
+                shard: 1,
+            }],
+            hash_ring: None,
+        }),
+        ..cfg_valid.clone()
+    };
+
+    // invalid args don't create routers
+    let res = client.update_router(cfg_invalid.clone()).await;
+    assert_error!(res, UpdateRouterError::InvalidArgument(_));
+    let routers = client.list_routers().await.unwrap();
+    assert_eq!(routers.len(), 0);
+
+    // invalid args don't update routesr
+    client.update_router(cfg_valid.clone()).await.unwrap();
+    let res = client.update_router(cfg_invalid).await;
+    assert_error!(res, UpdateRouterError::InvalidArgument(_));
+    let routers = client.list_routers().await.unwrap();
+    assert_eq!(routers.len(), 1);
+    assert_eq!(&routers[0], &cfg_valid);
 }

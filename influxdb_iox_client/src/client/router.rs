@@ -13,6 +13,10 @@ pub mod generated_types {
 /// Errors returned by Client::list_routers
 #[derive(Debug, Error)]
 pub enum ListRoutersError {
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -21,6 +25,14 @@ pub enum ListRoutersError {
 /// Errors returned by Client::update_router
 #[derive(Debug, Error)]
 pub enum UpdateRouterError {
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
+    /// Server returned an invalid argument error
+    #[error("Invalid argument: {}", .0.message())]
+    InvalidArgument(tonic::Status),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -29,6 +41,10 @@ pub enum UpdateRouterError {
 /// Errors returned by Client::delete_router
 #[derive(Debug, Error)]
 pub enum DeleteRouterError {
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -80,7 +96,11 @@ impl Client {
             .inner
             .list_routers(ListRoutersRequest {})
             .await
-            .map_err(ListRoutersError::ServerError)?;
+            .map_err(|status| match status.code() {
+                tonic::Code::Unavailable => ListRoutersError::Unavailable(status),
+                _ => ListRoutersError::ServerError(status),
+            })?;
+
         Ok(response.into_inner().routers)
     }
 
@@ -94,18 +114,27 @@ impl Client {
                 router: Some(config),
             })
             .await
-            .map_err(UpdateRouterError::ServerError)?;
+            .map_err(|status| match status.code() {
+                tonic::Code::Unavailable => UpdateRouterError::Unavailable(status),
+                tonic::Code::InvalidArgument => UpdateRouterError::InvalidArgument(status),
+                _ => UpdateRouterError::ServerError(status),
+            })?;
+
         Ok(())
     }
 
     /// Delete router
-    pub async fn delete_router(&mut self, router_name: &str) -> Result<(), UpdateRouterError> {
+    pub async fn delete_router(&mut self, router_name: &str) -> Result<(), DeleteRouterError> {
         self.inner
             .delete_router(DeleteRouterRequest {
                 router_name: router_name.to_string(),
             })
             .await
-            .map_err(UpdateRouterError::ServerError)?;
+            .map_err(|status| match status.code() {
+                tonic::Code::Unavailable => DeleteRouterError::Unavailable(status),
+                _ => DeleteRouterError::ServerError(status),
+            })?;
+
         Ok(())
     }
 }
