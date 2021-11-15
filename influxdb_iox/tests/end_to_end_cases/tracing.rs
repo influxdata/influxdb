@@ -1,6 +1,6 @@
 use super::scenario::{collect_query, Scenario};
 use crate::common::{
-    server_fixture::{ServerFixture, TestConfig},
+    server_fixture::{ServerFixture, ServerType, TestConfig},
     udp_listener::UdpCapture,
 };
 use futures::TryStreamExt;
@@ -9,7 +9,7 @@ use generated_types::{storage_client::StorageClient, ReadFilterRequest};
 async fn setup() -> (UdpCapture, ServerFixture) {
     let udp_capture = UdpCapture::new().await;
 
-    let test_config = TestConfig::new()
+    let test_config = TestConfig::new(ServerType::Database)
         .with_env("TRACES_EXPORTER", "jaeger")
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_HOST", udp_capture.ip())
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())
@@ -116,7 +116,7 @@ pub async fn test_tracing_storage_api() {
 pub async fn test_tracing_create_trace() {
     let udp_capture = UdpCapture::new().await;
 
-    let test_config = TestConfig::new()
+    let test_config = TestConfig::new(ServerType::Database)
         .with_env("TRACES_EXPORTER", "jaeger")
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_HOST", udp_capture.ip())
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())

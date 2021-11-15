@@ -4,7 +4,8 @@ use test_helpers::assert_contains;
 
 #[tokio::test]
 pub async fn test_row_timestamp() {
-    let test_config = TestConfig::new().with_env("INFLUXDB_IOX_ROW_TIMESTAMP_METRICS", "system");
+    let test_config = TestConfig::new(ServerType::Database)
+        .with_env("INFLUXDB_IOX_ROW_TIMESTAMP_METRICS", "system");
     let server_fixture = ServerFixture::create_single_use_with_config(test_config).await;
     let mut management_client = server_fixture.management_client();
 

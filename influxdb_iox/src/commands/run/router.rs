@@ -12,6 +12,7 @@ use crate::{
     },
     structopt_blocks::run_config::RunConfig,
 };
+use observability_deps::tracing::warn;
 use router::{resolver::RemoteTemplate, server::RouterServer};
 use structopt::StructOpt;
 use thiserror::Error;
@@ -73,6 +74,13 @@ pub async fn command(config: Config) -> Result<()> {
         )
         .await,
     );
+    if let Some(id) = config.run_config.server_id_config.server_id {
+        router_server
+            .set_server_id(id)
+            .expect("server id already set");
+    } else {
+        warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
+    }
     let server_type = Arc::new(RouterServerType::new(router_server, &common_state));
 
     Ok(influxdb_ioxd::main(common_state, server_type).await?)

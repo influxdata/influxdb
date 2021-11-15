@@ -39,7 +39,7 @@ use time::SystemProvider;
 use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
 use write_buffer::file::{FileBufferConsumer, FileBufferProducer};
 
-use crate::common::server_fixture::{ServerFixture, TestConfig, DEFAULT_SERVER_ID};
+use crate::common::server_fixture::{ServerFixture, ServerType, TestConfig, DEFAULT_SERVER_ID};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -592,7 +592,8 @@ pub async fn list_chunks(fixture: &ServerFixture, db_name: &str) -> Vec<ChunkSum
 pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
     let server_id = DEFAULT_SERVER_ID;
 
-    let test_config = TestConfig::new().with_env("INFLUXDB_IOX_WIPE_CATALOG_ON_ERROR", "no");
+    let test_config =
+        TestConfig::new(ServerType::Database).with_env("INFLUXDB_IOX_WIPE_CATALOG_ON_ERROR", "no");
 
     let fixture = ServerFixture::create_single_use_with_config(test_config).await;
     fixture
@@ -648,7 +649,8 @@ pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
 pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> ServerFixture {
     let server_id = DEFAULT_SERVER_ID;
 
-    let test_config = TestConfig::new().with_env("INFLUXDB_IOX_SKIP_REPLAY", "no");
+    let test_config =
+        TestConfig::new(ServerType::Database).with_env("INFLUXDB_IOX_SKIP_REPLAY", "no");
 
     let fixture = ServerFixture::create_single_use_with_config(test_config).await;
     fixture
