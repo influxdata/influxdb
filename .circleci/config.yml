@@ -141,13 +141,13 @@ workflows:
       - aws_destroy_by_date
 
   nightly:
-    triggers:
-      - schedule:
-          cron: "0 5 * * *"
-          filters:
-            branches:
-              only:
-                - master
+#    triggers:
+#      - schedule:
+#          cron: "0 5 * * *"
+#          filters:
+#            branches:
+#              only:
+#                - master
     jobs:
       - changelog
       - test-race
