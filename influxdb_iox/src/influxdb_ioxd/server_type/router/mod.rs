@@ -65,11 +65,11 @@ impl ServerType for RouterServerType {
         self::rpc::server_grpc(self, builder_input).await
     }
 
-    async fn background_worker(self: Arc<Self>) {
+    async fn join(self: Arc<Self>) {
         self.shutdown.cancelled().await;
     }
 
-    fn shutdown_background_worker(&self) {
+    fn shutdown(&self) {
         self.shutdown.cancel();
     }
 }

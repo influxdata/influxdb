@@ -188,7 +188,7 @@ impl operations_server::Operations for OperationsService {
 
         let tracker = get_tracker(self.jobs.as_ref(), request.name)?;
         if let Some(timeout) = request.timeout {
-            let timeout = timeout.try_into().field("timeout")?;
+            let timeout = timeout.try_into().scope("timeout")?;
 
             // Timeout is not an error so suppress it
             let _ = tokio::time::timeout(timeout, tracker.join()).await;

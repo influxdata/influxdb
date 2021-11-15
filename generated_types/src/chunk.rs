@@ -1,5 +1,6 @@
+use crate::google::OptionalField;
 use crate::{
-    google::{FieldViolation, FieldViolationExt, FromFieldOpt},
+    google::{FieldViolation, FieldViolationExt, FromOptionalField},
     influxdata::iox::management::v1 as management,
 };
 use data_types::chunk_metadata::{
@@ -87,11 +88,8 @@ impl TryFrom<management::Chunk> for ChunkSummary {
         };
 
         let required_timestamp = |t: Option<pbjson_types::Timestamp>, field: &'static str| {
-            t.ok_or_else(|| FieldViolation {
-                field: field.to_string(),
-                description: "Timestamp is required".to_string(),
-            })
-            .and_then(|t| convert_timestamp(t, field))
+            t.unwrap_field(field)
+                .and_then(|t| convert_timestamp(t, field))
         };
 
         let management::Chunk {
@@ -112,7 +110,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
         Ok(Self {
             partition_key: Arc::from(partition_key.as_str()),
             table_name: Arc::from(table_name.as_str()),
-            id: ChunkId::try_from(id).field("id")?,
+            id: ChunkId::try_from(id).scope("id")?,
             storage: management::ChunkStorage::from_i32(storage).required("storage")?,
             lifecycle_action: management::ChunkLifecycleAction::from_i32(lifecycle_action)
                 .required("lifecycle_action")?,
@@ -122,10 +120,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             time_of_last_access: timestamp(time_of_last_access, "time_of_last_access")?,
             time_of_first_write: required_timestamp(time_of_first_write, "time_of_first_write")?,
             time_of_last_write: required_timestamp(time_of_last_write, "time_of_last_write")?,
-            order: ChunkOrder::new(order).ok_or_else(|| FieldViolation {
-                field: "order".to_string(),
-                description: "Order must be non-zero".to_string(),
-            })?,
+            order: ChunkOrder::new(order).unwrap_field("order")?,
         })
     }
 }

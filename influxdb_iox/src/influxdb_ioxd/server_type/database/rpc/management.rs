@@ -85,7 +85,7 @@ where
             omit_defaults,
         } = request.into_inner();
 
-        let name = DatabaseName::new(name).field("name")?;
+        let name = DatabaseName::new(name).scope("name")?;
         let database = self
             .server
             .database(&name)
@@ -173,7 +173,7 @@ where
         &self,
         request: Request<DeleteDatabaseRequest>,
     ) -> Result<Response<DeleteDatabaseResponse>, Status> {
-        let db_name = DatabaseName::new(request.into_inner().db_name).field("db_name")?;
+        let db_name = DatabaseName::new(request.into_inner().db_name).scope("db_name")?;
 
         let uuid = self
             .server
@@ -192,11 +192,11 @@ where
     ) -> Result<Response<DisownDatabaseResponse>, Status> {
         let DisownDatabaseRequest { db_name, uuid } = request.into_inner();
 
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
         let uuid = if uuid.is_empty() {
             None
         } else {
-            Some(Uuid::from_slice(&uuid).field("uuid")?)
+            Some(Uuid::from_slice(&uuid).scope("uuid")?)
         };
 
         let returned_uuid = self
@@ -215,7 +215,7 @@ where
         request: Request<RestoreDatabaseRequest>,
     ) -> Result<Response<RestoreDatabaseResponse>, Status> {
         let request = request.into_inner();
-        let uuid = Uuid::from_slice(&request.uuid).field("uuid")?;
+        let uuid = Uuid::from_slice(&request.uuid).scope("uuid")?;
 
         self.server
             .restore_database(uuid)
@@ -264,7 +264,7 @@ where
         &self,
         request: Request<ListChunksRequest>,
     ) -> Result<Response<ListChunksResponse>, Status> {
-        let db_name = DatabaseName::new(request.into_inner().db_name).field("db_name")?;
+        let db_name = DatabaseName::new(request.into_inner().db_name).scope("db_name")?;
         let db = self
             .server
             .db(&db_name)
@@ -351,7 +351,7 @@ where
         request: Request<ListPartitionsRequest>,
     ) -> Result<Response<ListPartitionsResponse>, Status> {
         let ListPartitionsRequest { db_name } = request.into_inner();
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
 
         let db = self
             .server
@@ -375,7 +375,7 @@ where
             db_name,
             partition_key,
         } = request.into_inner();
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
         let db = self
             .server
             .db(&db_name)
@@ -401,7 +401,7 @@ where
             db_name,
             partition_key,
         } = request.into_inner();
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
         let db = self
             .server
             .db(&db_name)
@@ -425,7 +425,7 @@ where
             partition_key,
             table_name,
         } = request.into_inner();
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
         let db = self
             .server
             .db(&db_name)
@@ -450,9 +450,9 @@ where
         } = request.into_inner();
 
         // Validate that the database name is legit
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
 
-        let chunk_id = ChunkId::try_from(chunk_id).field("chunk_id")?;
+        let chunk_id = ChunkId::try_from(chunk_id).scope("chunk_id")?;
 
         let tracker = self
             .server
@@ -476,13 +476,13 @@ where
         } = request.into_inner();
 
         // Validate that the database name is legit
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
         let db = self
             .server
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        let chunk_id = ChunkId::try_from(chunk_id).field("chunk_id")?;
+        let chunk_id = ChunkId::try_from(chunk_id).scope("chunk_id")?;
 
         db.unload_read_buffer(&table_name, &partition_key, chunk_id)
             .map_err(default_db_error_handler)?;
@@ -545,7 +545,7 @@ where
         let WipePreservedCatalogRequest { db_name } = request.into_inner();
 
         // Validate that the database name is legit
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
 
         let tracker = self
             .server
@@ -571,7 +571,7 @@ where
         let SkipReplayRequest { db_name } = request.into_inner();
 
         // Validate that the database name is legit
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
 
         let database = self
             .server
@@ -597,7 +597,7 @@ where
         } = request.into_inner();
 
         // Validate that the database name is legit
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
         let db = self
             .server
             .db(&db_name)
@@ -621,7 +621,7 @@ where
         } = request.into_inner();
 
         // Validate that the database name is legit
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
         let db = self
             .server
             .db(&db_name)
@@ -647,7 +647,7 @@ where
         } = request.into_inner();
 
         // Validate that the database name is legit
-        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
         let db = self
             .server
             .db(&db_name)

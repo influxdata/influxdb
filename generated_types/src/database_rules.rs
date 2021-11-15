@@ -1,5 +1,5 @@
 use crate::{
-    google::{FieldViolation, FieldViolationExt, FromFieldOpt},
+    google::{FieldViolation, FieldViolationExt, FromOptionalField},
     influxdata::iox::management::v1 as management,
     DecodeError, EncodeError,
 };
@@ -34,7 +34,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
     type Error = FieldViolation;
 
     fn try_from(proto: management::DatabaseRules) -> Result<Self, Self::Error> {
-        let name = DatabaseName::new(proto.name.clone()).field("name")?;
+        let name = DatabaseName::new(proto.name.clone()).scope("name")?;
 
         let lifecycle_rules = proto
             .lifecycle_rules
@@ -52,12 +52,12 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             .unwrap_or_default();
 
         let worker_cleanup_avg_sleep = match proto.worker_cleanup_avg_sleep {
-            Some(d) => d.try_into().field("worker_cleanup_avg_sleep")?,
+            Some(d) => d.try_into().scope("worker_cleanup_avg_sleep")?,
             None => Duration::from_secs(500),
         };
 
         let write_buffer_connection = match proto.write_buffer_connection {
-            Some(c) => Some(c.try_into().field("write_buffer_connection")?),
+            Some(c) => Some(c.try_into().scope("write_buffer_connection")?),
             None => None,
         };
 

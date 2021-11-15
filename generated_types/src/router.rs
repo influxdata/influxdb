@@ -4,7 +4,7 @@ use data_types::router::{
 };
 use regex::Regex;
 
-use crate::google::{FieldViolation, FieldViolationExt, FromField, FromFieldOpt};
+use crate::google::{FieldViolation, FieldViolationExt, FromField, FromOptionalField};
 use crate::influxdata::iox::router::v1 as router;
 
 impl From<ShardConfig> for router::ShardConfig {
@@ -30,12 +30,12 @@ impl TryFrom<router::ShardConfig> for ShardConfig {
                 .into_iter()
                 .map(|i| i.try_into())
                 .collect::<Result<_, FieldViolation>>()
-                .field("specific_targets")?,
+                .scope("specific_targets")?,
             hash_ring: proto
                 .hash_ring
                 .map(|i| i.try_into())
                 .map_or(Ok(None), |r| r.map(Some))
-                .field("hash_ring")?,
+                .scope("hash_ring")?,
         })
     }
 }
@@ -54,7 +54,7 @@ impl TryFrom<router::MatcherToShard> for MatcherToShard {
 
     fn try_from(proto: router::MatcherToShard) -> Result<Self, Self::Error> {
         Ok(Self {
-            matcher: proto.matcher.unwrap_or_default().scope("matcher")?,
+            matcher: proto.matcher.unwrap_or_default().field("matcher")?,
             shard: ShardId::new(proto.shard),
         })
     }
@@ -133,7 +133,7 @@ impl TryFrom<router::QuerySinks> for QuerySinks {
                 .into_iter()
                 .map(|i| i.try_into())
                 .collect::<Result<_, data_types::server_id::Error>>()
-                .field("grpc_remotes")?,
+                .scope("grpc_remotes")?,
         })
     }
 }
@@ -157,13 +157,13 @@ impl TryFrom<router::write_sink::Sink> for WriteSinkVariant {
     fn try_from(proto: router::write_sink::Sink) -> Result<Self, Self::Error> {
         match proto {
             router::write_sink::Sink::GrpcRemote(server_id) => Ok(WriteSinkVariant::GrpcRemote(
-                server_id.try_into().field("server_id")?,
+                server_id.try_into().scope("server_id")?,
             )),
             router::write_sink::Sink::WriteBuffer(write_buffer_conn) => {
                 Ok(WriteSinkVariant::WriteBuffer(
                     write_buffer_conn
                         .try_into()
-                        .field("write_buffer_connection")?,
+                        .scope("write_buffer_connection")?,
                 ))
             }
         }

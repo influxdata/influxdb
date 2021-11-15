@@ -37,19 +37,19 @@ impl TryFrom<management::ShardConfig> for ShardConfig {
                 .into_iter()
                 .map(|i| i.try_into())
                 .collect::<Result<_, FieldViolation>>()
-                .field("specific_targets")?,
+                .scope("specific_targets")?,
             hash_ring: proto
                 .hash_ring
                 .map(|i| i.try_into())
                 .map_or(Ok(None), |r| r.map(Some))
-                .field("hash_ring")?,
+                .scope("hash_ring")?,
             ignore_errors: proto.ignore_errors,
             shards: proto
                 .shards
                 .into_iter()
                 .map(|(k, v)| Ok((k, v.try_into()?)))
                 .collect::<Result<_, FieldViolation>>()
-                .field("shards")?,
+                .scope("shards")?,
         })
     }
 }
@@ -77,7 +77,7 @@ impl TryFrom<management::MatcherToShard> for MatcherToShard {
 
     fn try_from(proto: management::MatcherToShard) -> Result<Self, Self::Error> {
         Ok(Self {
-            matcher: proto.matcher.unwrap_or_default().scope("matcher")?,
+            matcher: proto.matcher.unwrap_or_default().field("matcher")?,
             shard: proto.shard,
         })
     }

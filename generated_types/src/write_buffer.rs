@@ -1,5 +1,5 @@
 use crate::{
-    google::{FieldViolation, FromFieldOpt},
+    google::{FieldViolation, FromOptionalField},
     influxdata::iox::write_buffer::v1 as write_buffer,
 };
 use data_types::write_buffer::{
