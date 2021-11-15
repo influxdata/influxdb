@@ -356,6 +356,48 @@ impl Database {
         Ok(database_location)
     }
 
+    /// Create an adopted database without any state. Returns its location in object storage
+    /// for saving in the server config file.
+    pub async fn adopt(
+        application: Arc<ApplicationState>,
+        db_name: &DatabaseName<'static>,
+        uuid: Uuid,
+        server_id: ServerId,
+    ) -> Result<String, InitError> {
+        info!(%db_name, %uuid, "adopting database");
+
+        let iox_object_store = IoxObjectStore::load(Arc::clone(application.object_store()), uuid)
+            .await
+            .context(IoxObjectStoreError)?;
+
+        let owner_info = fetch_owner_info(&iox_object_store)
+            .await
+            .context(FetchingOwnerInfo)?;
+
+        ensure!(
+            owner_info.id == 0,
+            CantAdoptDatabaseCurrentlyOwned {
+                uuid,
+                server_id: owner_info.id
+            }
+        );
+
+        let database_location = iox_object_store.root_path();
+        let server_location =
+            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
+
+        update_owner_info(
+            Some(server_id),
+            Some(server_location),
+            application.time_provider().now(),
+            &iox_object_store,
+        )
+        .await
+        .context(UpdatingOwnerInfo)?;
+
+        Ok(database_location)
+    }
+
     /// Triggers shutdown of this `Database`
     pub fn shutdown(&self) {
         info!(db_name=%self.shared.config.name, "database shutting down");
@@ -982,6 +1024,13 @@ pub enum InitError {
         expected
     ))]
     DatabaseOwnerMismatch { actual: u32, expected: u32 },
+
+    #[snafu(display(
+        "The database with UUID `{}` is already owned by the server with ID {}",
+        uuid,
+        server_id
+    ))]
+    CantAdoptDatabaseCurrentlyOwned { uuid: Uuid, server_id: u32 },
 
     #[snafu(display("error saving database rules: {}", source))]
     SavingRules { source: crate::rules::Error },
@@ -1711,6 +1760,44 @@ mod tests {
         let transaction = &owner_info.transactions[0];
         assert_eq!(transaction.id, server_id.get_u32());
         assert_eq!(transaction.location, server_location);
+    }
+
+    #[tokio::test]
+    async fn database_adopt() {
+        let (application, database) = initialized_database().await;
+        let db_name = &database.shared.config.name;
+        let server_id = database.shared.config.server_id;
+        let server_location =
+            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
+        let iox_object_store = database.iox_object_store().unwrap();
+        let new_server_id = ServerId::try_from(2).unwrap();
+        let new_server_location =
+            IoxObjectStore::server_config_path(application.object_store(), new_server_id)
+                .to_string();
+        let uuid = database.disown().await.unwrap();
+
+        Database::adopt(application, db_name, uuid, new_server_id)
+            .await
+            .unwrap();
+
+        assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
+        assert!(matches!(
+            database.init_error().unwrap().as_ref(),
+            InitError::NoActiveDatabase
+        ));
+
+        let owner_info = fetch_owner_info(&iox_object_store).await.unwrap();
+        assert_eq!(owner_info.id, new_server_id.get_u32());
+        assert_eq!(owner_info.location, new_server_location);
+        assert_eq!(owner_info.transactions.len(), 2);
+
+        let disown_transaction = &owner_info.transactions[0];
+        assert_eq!(disown_transaction.id, server_id.get_u32());
+        assert_eq!(disown_transaction.location, server_location);
+
+        let adopt_transaction = &owner_info.transactions[1];
+        assert_eq!(adopt_transaction.id, 0);
+        assert_eq!(adopt_transaction.location, "");
     }
 
     #[tokio::test]

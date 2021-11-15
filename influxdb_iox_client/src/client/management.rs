@@ -196,6 +196,29 @@ pub enum RestoreDatabaseError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by Client::adopt_database
+#[derive(Debug, Error)]
+pub enum AdoptDatabaseError {
+    /// Database not found
+    #[error("Could not find a database with UUID `{}`", .uuid)]
+    DatabaseNotFound {
+        /// The UUID requested
+        uuid: Uuid,
+    },
+
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
+    /// Server ID is not set
+    #[error("Server ID not set")]
+    NoServerId,
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// Errors returned by Client::list_chunks
 #[derive(Debug, Error)]
 pub enum ListChunksError {
@@ -773,6 +796,22 @@ impl Client {
             })?;
 
         Ok(())
+    }
+
+    /// Adopt database
+    pub async fn adopt_database(&mut self, uuid: Uuid) -> Result<String, AdoptDatabaseError> {
+        let uuid_bytes = uuid.as_bytes().to_vec();
+
+        self.inner
+            .adopt_database(AdoptDatabaseRequest { uuid: uuid_bytes })
+            .await
+            .map(|response| response.into_inner().db_name)
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => AdoptDatabaseError::DatabaseNotFound { uuid },
+                tonic::Code::FailedPrecondition => AdoptDatabaseError::NoServerId,
+                tonic::Code::Unavailable => AdoptDatabaseError::Unavailable(status),
+                _ => AdoptDatabaseError::ServerError(status),
+            })
     }
 
     /// List chunks in a database.
