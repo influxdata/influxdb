@@ -84,7 +84,9 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         | Error::DatabaseAlreadyOwnedByThisServer { .. } => {
             tonic::Status::already_exists(error.to_string())
         }
-        Error::UuidMismatch { .. } => tonic::Status::invalid_argument(error.to_string()),
+        Error::UuidMismatch { .. } | Error::CannotAdoptDatabase { .. } => {
+            tonic::Status::invalid_argument(error.to_string())
+        }
         Error::CouldNotGetDatabaseNameFromRules {
             source: DatabaseNameFromRulesError::DatabaseRulesNotFound { uuid, .. },
         } => tonic::Status::not_found(format!("Could not find a database with UUID `{}`", uuid)),
