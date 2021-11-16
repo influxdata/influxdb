@@ -222,7 +222,8 @@ mod tests {
         resolver.update_remote(server_id, String::from("1.2.3.4"));
 
         let time_provider = Arc::new(SystemProvider::new());
-        let wb_factory = WriteBufferConfigFactory::new(time_provider);
+        let metric_registry = Arc::new(metric::Registry::new());
+        let wb_factory = WriteBufferConfigFactory::new(time_provider, metric_registry);
         wb_factory.register_always_fail_mock(String::from("failing_wb"));
         let connection_pool = Arc::new(ConnectionPool::new(true, wb_factory).await);
 

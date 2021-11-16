@@ -56,6 +56,13 @@ impl RouterServer {
         use_mock_grpc: bool,
     ) -> Self {
         let metric_registry = Arc::new(metric::Registry::new());
+        let connection_pool = Arc::new(
+            ConnectionPool::new(
+                use_mock_grpc,
+                WriteBufferConfigFactory::new(time_provider, Arc::clone(&metric_registry)),
+            )
+            .await,
+        );
 
         Self {
             server_id: RwLock::new(None),
@@ -63,10 +70,7 @@ impl RouterServer {
             trace_collector,
             routers: Default::default(),
             resolver: Arc::new(Resolver::new(remote_template)),
-            connection_pool: Arc::new(
-                ConnectionPool::new(use_mock_grpc, WriteBufferConfigFactory::new(time_provider))
-                    .await,
-            ),
+            connection_pool,
         }
     }
 
