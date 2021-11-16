@@ -152,6 +152,9 @@ pub enum Error {
     #[snafu(display("database not found: {}", db_name))]
     DatabaseNotFound { db_name: String },
 
+    #[snafu(display("database uuid not found: {}", uuid))]
+    DatabaseUuidNotFound { uuid: Uuid },
+
     #[snafu(display("cannot get database name from rules: {}", source))]
     CouldNotGetDatabaseNameFromRules { source: DatabaseNameFromRulesError },
 
@@ -159,10 +162,13 @@ pub enum Error {
     CannotMarkDatabaseDeleted { source: crate::database::Error },
 
     #[snafu(display("{}", source))]
-    CannotDisownDatabase { source: crate::database::Error },
+    CannotReleaseDatabase { source: crate::database::Error },
 
     #[snafu(display("{}", source))]
     CannotRestoreDatabase { source: crate::database::InitError },
+
+    #[snafu(display("{}", source))]
+    CannotClaimDatabase { source: crate::database::InitError },
 
     #[snafu(display("A database with the name `{}` already exists", db_name))]
     DatabaseAlreadyExists { db_name: String },
@@ -170,8 +176,11 @@ pub enum Error {
     #[snafu(display("The database with UUID `{}` named `{}` is already active", uuid, name))]
     DatabaseAlreadyActive { name: String, uuid: Uuid },
 
+    #[snafu(display("The database with UUID `{}` is already owned by this server", uuid))]
+    DatabaseAlreadyOwnedByThisServer { uuid: Uuid },
+
     #[snafu(display(
-        "Could not disown {}: the UUID specified ({}) does not match the current UUID ({})",
+        "Could not release {}: the UUID specified ({}) does not match the current UUID ({})",
         db_name,
         specified,
         current
@@ -765,9 +774,9 @@ where
         Ok(uuid)
     }
 
-    /// Disown an existing, active database with this name from this server. Return an error if no
+    /// Release an existing, active database with this name from this server. Return an error if no
     /// active database with this name can be found.
-    pub async fn disown_database(
+    pub async fn release_database(
         &self,
         db_name: &DatabaseName<'static>,
         uuid: Option<Uuid>,
@@ -782,7 +791,7 @@ where
             .expect("Previous line should return not found if the database is inactive");
 
         // If a UUID has been specified, it has to match this database's UUID
-        // Should this check be here or in database.disown?
+        // Should this check be here or in database.release?
         if matches!(uuid, Some(specified) if specified != current) {
             return UuidMismatch {
                 db_name: db_name.to_string(),
@@ -792,12 +801,12 @@ where
             .fail();
         }
 
-        let returned_uuid = database.disown().await.context(CannotDisownDatabase)?;
+        let returned_uuid = database.release().await.context(CannotReleaseDatabase)?;
         database.shutdown();
         let _ = database
             .join()
             .await
-            .log_if_error("database background worker while disowning database");
+            .log_if_error("database background worker while releasing database");
 
         {
             let mut state = self.shared.state.write();
@@ -903,6 +912,90 @@ where
         database.wait_for_init().await.context(DatabaseInit)?;
 
         Ok(())
+    }
+
+    /// Claim a database that has been released. Return an error if:
+    ///
+    /// * No database with this UUID can be found
+    /// * There's already an active database with this name
+    /// * This database is already owned by this server
+    /// * This database is already owned by a different server
+    pub async fn claim_database(&self, uuid: Uuid) -> Result<DatabaseName<'static>> {
+        // Wait for exclusive access to mutate server state
+        let handle_fut = self.shared.state.read().freeze();
+        let handle = handle_fut.await;
+
+        // Don't proceed without a server ID
+        let server_id = {
+            let state = self.shared.state.read();
+            let initialized = state.initialized()?;
+
+            initialized.server_id
+        };
+
+        // Read the database's rules from object storage to get the database name
+        let db_name =
+            database_name_from_rules_file(Arc::clone(self.shared.application.object_store()), uuid)
+                .await
+                .map_err(|e| match e {
+                    DatabaseNameFromRulesError::DatabaseRulesNotFound { .. } => {
+                        Error::DatabaseUuidNotFound { uuid }
+                    }
+                    _ => Error::CouldNotGetDatabaseNameFromRules { source: e },
+                })?;
+
+        info!(%db_name, %uuid, "start restoring database");
+
+        // Check that this name is unique among currently active databases
+        if let Ok(existing_db) = self.database(&db_name) {
+            if matches!(existing_db.uuid(), Some(existing_uuid) if existing_uuid == uuid) {
+                return DatabaseAlreadyOwnedByThisServer { uuid }.fail();
+            } else {
+                return DatabaseAlreadyExists { db_name }.fail();
+            }
+        }
+
+        // Mark the database as claimed in object storage and get its location for the server
+        // config file
+        let location = Database::claim(
+            Arc::clone(&self.shared.application),
+            &db_name,
+            uuid,
+            server_id,
+        )
+        .await
+        .context(CannotClaimDatabase)?;
+
+        let database = {
+            let mut state = self.shared.state.write();
+
+            // Exchange FreezeHandle for mutable access via WriteGuard
+            let mut state = state.unfreeze(handle);
+
+            let database = match &mut *state {
+                ServerState::Initialized(initialized) => initialized
+                    .new_database(
+                        &self.shared,
+                        DatabaseConfig {
+                            name: db_name.clone(),
+                            location,
+                            server_id,
+                            wipe_catalog_on_error: false,
+                            skip_replay: false,
+                        },
+                    )
+                    .expect("database unique"),
+                _ => unreachable!(),
+            };
+            Arc::clone(database)
+        };
+
+        // Save the database to the server config as soon as it's added to the `ServerState`
+        self.persist_server_config().await?;
+
+        database.wait_for_init().await.context(DatabaseInit)?;
+
+        Ok(db_name)
     }
 
     /// List active databases owned by this server, including their UUIDs.
@@ -2442,7 +2535,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn disown_database_removes_from_memory_and_persisted_config() {
+    async fn release_database_removes_from_memory_and_persisted_config() {
         let application = make_application();
         let server_id = ServerId::try_from(1).unwrap();
 
@@ -2457,9 +2550,9 @@ mod tests {
         let foo = create_simple_database(&server, &foo_db_name).await.unwrap();
         let first_foo_uuid = foo.uuid().unwrap();
 
-        // disown database by name
-        let disowned_uuid = server.disown_database(&foo_db_name, None).await.unwrap();
-        assert_eq!(first_foo_uuid, disowned_uuid);
+        // release database by name
+        let released_uuid = server.release_database(&foo_db_name, None).await.unwrap();
+        assert_eq!(first_foo_uuid, released_uuid);
 
         assert_error!(
             server.database(&foo_db_name),
@@ -2473,24 +2566,24 @@ mod tests {
         let foo = create_simple_database(&server, &foo_db_name).await.unwrap();
         let second_foo_uuid = foo.uuid().unwrap();
 
-        // disown database specifying UUID; error if UUID doesn't match
+        // release database specifying UUID; error if UUID doesn't match
         let incorrect_uuid = Uuid::new_v4();
         assert_error!(
             server
-                .disown_database(&foo_db_name, Some(incorrect_uuid))
+                .release_database(&foo_db_name, Some(incorrect_uuid))
                 .await,
             Error::UuidMismatch { .. }
         );
 
-        // disown database specifying UUID works if UUID *does* match
+        // release database specifying UUID works if UUID *does* match
         server
-            .disown_database(&foo_db_name, Some(second_foo_uuid))
+            .release_database(&foo_db_name, Some(second_foo_uuid))
             .await
             .unwrap();
     }
 
     #[tokio::test]
-    async fn cant_disown_nonexistent_database() {
+    async fn cant_release_nonexistent_database() {
         let application = make_application();
         let server_id = ServerId::try_from(1).unwrap();
 
@@ -2502,9 +2595,96 @@ mod tests {
         server.wait_for_init().await.unwrap();
 
         assert_error!(
-            server.disown_database(&foo_db_name, None).await,
+            server.release_database(&foo_db_name, None).await,
             Error::DatabaseNotFound { .. },
         );
+    }
+
+    #[tokio::test]
+    async fn claim_database_adds_to_memory_and_persisted_config() {
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let foo_db_name = DatabaseName::new("foo").unwrap();
+
+        // start server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        // create database
+        create_simple_database(&server, &foo_db_name).await.unwrap();
+
+        // release database by name
+        let released_uuid = server.release_database(&foo_db_name, None).await.unwrap();
+
+        // claim database by UUID
+        server.claim_database(released_uuid).await.unwrap();
+
+        let claimed = server.database(&foo_db_name).unwrap();
+        claimed.wait_for_init().await.unwrap();
+
+        let config = server_config(application.object_store(), server_id).await;
+        assert_config_contents(
+            &config,
+            &[(&foo_db_name, format!("dbs/{}/", released_uuid))],
+        );
+    }
+
+    #[tokio::test]
+    async fn cant_claim_nonexistent_database() {
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let invalid_uuid = Uuid::new_v4();
+
+        // start server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        assert_error!(
+            server.claim_database(invalid_uuid).await,
+            Error::DatabaseUuidNotFound { .. },
+        );
+    }
+
+    #[tokio::test]
+    async fn cant_claim_database_owned_by_another_server() {
+        let application = make_application();
+        let server_id1 = ServerId::try_from(1).unwrap();
+        let server_id2 = ServerId::try_from(2).unwrap();
+        let foo_db_name = DatabaseName::new("foo").unwrap();
+
+        // start server 1
+        let server1 = make_server(Arc::clone(&application));
+        server1.set_id(server_id1).unwrap();
+        server1.wait_for_init().await.unwrap();
+
+        // create database owned by server 1
+        let database = create_simple_database(&server1, &foo_db_name)
+            .await
+            .unwrap();
+        let uuid = database.uuid().unwrap();
+
+        // start server 2
+        let server2 = make_server(Arc::clone(&application));
+        server2.set_id(server_id2).unwrap();
+        server2.wait_for_init().await.unwrap();
+
+        // Attempting to claim on server 2 will fail
+        assert_error!(
+            server2.claim_database(uuid).await,
+            Error::CannotClaimDatabase {
+                source: database::InitError::CantClaimDatabaseCurrentlyOwned { server_id, .. }
+            } if server_id == server_id1.get_u32()
+        );
+
+        // Have to release from server 1 first
+        server1.release_database(&foo_db_name, None).await.unwrap();
+
+        // Then claiming on server 2 will work
+        server2.claim_database(uuid).await.unwrap();
     }
 
     #[tokio::test]

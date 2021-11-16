@@ -389,7 +389,7 @@ async fn delete_restore_database() {
 }
 
 #[tokio::test]
-async fn disown_database() {
+async fn release_database() {
     let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
@@ -414,19 +414,19 @@ async fn disown_database() {
     .unwrap();
     let created_uuid = stdout.lines().last().unwrap().trim();
 
-    // Disown database returns the UUID
+    // Release database returns the UUID
     let stdout = String::from_utf8(
         Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("database")
-            .arg("disown")
+            .arg("release")
             .arg(db)
             .arg("--host")
             .arg(addr)
             .assert()
             .success()
             .stdout(predicate::str::contains(format!(
-                "Disowned database {}",
+                "Released database {}",
                 db
             )))
             .get_output()
@@ -437,7 +437,7 @@ async fn disown_database() {
     let deleted_uuid = stdout.lines().last().unwrap().trim();
     assert_eq!(created_uuid, deleted_uuid);
 
-    // Disowned database is no longer in this server's database list
+    // Released database is no longer in this server's database list
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
@@ -448,11 +448,11 @@ async fn disown_database() {
         .success()
         .stdout(predicate::str::contains(db).not());
 
-    // Disowning the same database again is an error
+    // Releasing the same database again is an error
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
-        .arg("disown")
+        .arg("release")
         .arg(db)
         .arg("--host")
         .arg(addr)
@@ -482,12 +482,12 @@ async fn disown_database() {
     .unwrap();
     let created_uuid = stdout.lines().last().unwrap().trim();
 
-    // If an optional UUID is specified, don't disown the database if the UUID doesn't match
+    // If an optional UUID is specified, don't release the database if the UUID doesn't match
     let incorrect_uuid = Uuid::new_v4();
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
-        .arg("disown")
+        .arg("release")
         .arg(db)
         .arg("--uuid")
         .arg(incorrect_uuid.to_string())
@@ -496,7 +496,7 @@ async fn disown_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "Could not disown {}: the UUID specified ({}) does not match the current UUID ({})",
+            "Could not release {}: the UUID specified ({}) does not match the current UUID ({})",
             db, incorrect_uuid, created_uuid,
         )));
 
@@ -504,7 +504,7 @@ async fn disown_database() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
-        .arg("disown")
+        .arg("release")
         .arg(db)
         .arg("--uuid")
         .arg("foo")
@@ -516,12 +516,12 @@ async fn disown_database() {
             "Invalid value for '--uuid <uuid>'",
         ));
 
-    // If an optional UUID is specified, disown the database if the UUID does match
+    // If an optional UUID is specified, release the database if the UUID does match
     let stdout = String::from_utf8(
         Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("database")
-            .arg("disown")
+            .arg("release")
             .arg(db)
             .arg("--uuid")
             .arg(created_uuid)
@@ -530,7 +530,7 @@ async fn disown_database() {
             .assert()
             .success()
             .stdout(predicate::str::contains(format!(
-                "Disowned database {}",
+                "Released database {}",
                 db
             )))
             .get_output()
@@ -540,6 +540,163 @@ async fn disown_database() {
     .unwrap();
     let deleted_uuid = stdout.lines().last().unwrap().trim();
     assert_eq!(created_uuid, deleted_uuid);
+}
+
+#[tokio::test]
+async fn claim_database() {
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+    let db = &db_name;
+
+    // Create a database on one server
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created"));
+
+    // Release database returns the UUID
+    let stdout = String::from_utf8(
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("release")
+            .arg(db)
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(format!(
+                "Released database {}",
+                db
+            )))
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let deleted_uuid = stdout.lines().last().unwrap().trim();
+
+    // Create another database with the same name
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created"));
+
+    // Release the other database too
+    let stdout = String::from_utf8(
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("release")
+            .arg(db)
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(format!(
+                "Released database {}",
+                db
+            )))
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let second_deleted_uuid = stdout.lines().last().unwrap().trim();
+
+    // Claim using the first UUID
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("claim")
+        .arg(deleted_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(format!("Claimed database {}", db)));
+
+    // Claimed database is now in this server's database list
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(db));
+
+    // Claiming again is an error
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("claim")
+        .arg(deleted_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "The database with UUID `{}` is already owned by this server",
+            deleted_uuid
+        )));
+
+    // Error if the UUID specified is not in a valid UUID format
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("claim")
+        .arg("foo")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Invalid value for '<uuid>'"));
+
+    // Claiming a valid but unknown UUID is an error
+    let unknown_uuid = Uuid::new_v4();
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("claim")
+        .arg(unknown_uuid.to_string())
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "Could not find a database with UUID `{}`",
+            unknown_uuid
+        )));
+
+    // Claiming the second db that has the same name as the existing database is an error
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("claim")
+        .arg(second_deleted_uuid)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "A database with the name `{}` already exists",
+            db
+        )));
 }
 
 #[tokio::test]

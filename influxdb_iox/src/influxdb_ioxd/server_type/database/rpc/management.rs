@@ -186,11 +186,11 @@ where
         }))
     }
 
-    async fn disown_database(
+    async fn release_database(
         &self,
-        request: Request<DisownDatabaseRequest>,
-    ) -> Result<Response<DisownDatabaseResponse>, Status> {
-        let DisownDatabaseRequest { db_name, uuid } = request.into_inner();
+        request: Request<ReleaseDatabaseRequest>,
+    ) -> Result<Response<ReleaseDatabaseResponse>, Status> {
+        let ReleaseDatabaseRequest { db_name, uuid } = request.into_inner();
 
         let db_name = DatabaseName::new(db_name).scope("db_name")?;
         let uuid = if uuid.is_empty() {
@@ -201,11 +201,11 @@ where
 
         let returned_uuid = self
             .server
-            .disown_database(&db_name, uuid)
+            .release_database(&db_name, uuid)
             .await
             .map_err(default_server_error_handler)?;
 
-        Ok(Response::new(DisownDatabaseResponse {
+        Ok(Response::new(ReleaseDatabaseResponse {
             uuid: returned_uuid.as_bytes().to_vec(),
         }))
     }
@@ -223,6 +223,25 @@ where
             .map_err(default_server_error_handler)?;
 
         Ok(Response::new(RestoreDatabaseResponse {}))
+    }
+
+    async fn claim_database(
+        &self,
+        request: Request<ClaimDatabaseRequest>,
+    ) -> Result<Response<ClaimDatabaseResponse>, Status> {
+        let ClaimDatabaseRequest { uuid } = request.into_inner();
+
+        let uuid = Uuid::from_slice(&uuid).scope("uuid")?;
+
+        let db_name = self
+            .server
+            .claim_database(uuid)
+            .await
+            .map_err(default_server_error_handler)?;
+
+        Ok(Response::new(ClaimDatabaseResponse {
+            db_name: db_name.to_string(),
+        }))
     }
 
     async fn list_detailed_databases(
