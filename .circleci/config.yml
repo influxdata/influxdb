@@ -479,7 +479,7 @@ jobs:
       - run:
           name: Set up AWS instance
           command: |
-            scripts/ci/perf-test.sh
+            scripts/ci/perf_test.sh
       - run:
           name: Run perf test
           no_output_timeout: 20m
