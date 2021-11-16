@@ -741,7 +741,12 @@ mod tests {
         }
 
         fn connection_config(&self) -> BTreeMap<String, String> {
-            BTreeMap::from([("statistics.interval.ms".to_owned(), "100".to_owned())])
+            BTreeMap::from([
+                // WARNING: Don't set `statistics.interval.ms` to a too lower value, otherwise rdkafka will become
+                // overloaded and will not keep up delivering the statistics, leading to very long or infinite thread
+                // blocking during process shutdown.
+                ("statistics.interval.ms".to_owned(), "1000".to_owned()),
+            ])
         }
     }
 
