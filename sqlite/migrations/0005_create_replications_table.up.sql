@@ -10,6 +10,7 @@ CREATE TABLE replications
     max_queue_size_bytes     INTEGER     NOT NULL,
     latest_response_code     INTEGER,
     latest_error_message     TEXT,
+    drop_non_retryable_data  BOOLEAN     NOT NULL,
     created_at               TIMESTAMP   NOT NULL,
     updated_at               TIMESTAMP   NOT NULL,
 

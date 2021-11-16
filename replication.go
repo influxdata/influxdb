@@ -30,6 +30,7 @@ type Replication struct {
 	CurrentQueueSizeBytes int64       `json:"currentQueueSizeBytes" db:"current_queue_size_bytes"`
 	LatestResponseCode    *int32      `json:"latestResponseCode,omitempty" db:"latest_response_code"`
 	LatestErrorMessage    *string     `json:"latestErrorMessage,omitempty" db:"latest_error_message"`
+	DropNonRetryableData  bool        `json:"dropNonRetryableData" db:"drop_non_retryable_data"`
 }
 
 // ReplicationListFilter is a selection filter for listing replications.
@@ -48,13 +49,14 @@ type Replications struct {
 // CreateReplicationRequest contains all info needed to establish a new replication
 // to a remote InfluxDB bucket.
 type CreateReplicationRequest struct {
-	OrgID             platform.ID `json:"orgID"`
-	Name              string      `json:"name"`
-	Description       *string     `json:"description,omitempty"`
-	RemoteID          platform.ID `json:"remoteID"`
-	LocalBucketID     platform.ID `json:"localBucketID"`
-	RemoteBucketID    platform.ID `json:"remoteBucketID"`
-	MaxQueueSizeBytes int64       `json:"maxQueueSizeBytes,omitempty"`
+	OrgID                platform.ID `json:"orgID"`
+	Name                 string      `json:"name"`
+	Description          *string     `json:"description,omitempty"`
+	RemoteID             platform.ID `json:"remoteID"`
+	LocalBucketID        platform.ID `json:"localBucketID"`
+	RemoteBucketID       platform.ID `json:"remoteBucketID"`
+	MaxQueueSizeBytes    int64       `json:"maxQueueSizeBytes,omitempty"`
+	DropNonRetryableData bool        `json:"dropNonRetryableData,omitempty"`
 }
 
 func (r *CreateReplicationRequest) OK() error {
@@ -67,11 +69,12 @@ func (r *CreateReplicationRequest) OK() error {
 
 // UpdateReplicationRequest contains a partial update to existing info about a replication.
 type UpdateReplicationRequest struct {
-	Name              *string      `json:"name,omitempty"`
-	Description       *string      `json:"description,omitempty"`
-	RemoteID          *platform.ID `json:"remoteID,omitempty"`
-	RemoteBucketID    *platform.ID `json:"remoteBucketID,omitempty"`
-	MaxQueueSizeBytes *int64       `json:"maxQueueSizeBytes,omitempty"`
+	Name                 *string      `json:"name,omitempty"`
+	Description          *string      `json:"description,omitempty"`
+	RemoteID             *platform.ID `json:"remoteID,omitempty"`
+	RemoteBucketID       *platform.ID `json:"remoteBucketID,omitempty"`
+	MaxQueueSizeBytes    *int64       `json:"maxQueueSizeBytes,omitempty"`
+	DropNonRetryableData *bool        `json:"dropNonRetryableData,omitempty"`
 }
 
 func (r *UpdateReplicationRequest) OK() error {

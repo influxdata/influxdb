@@ -93,7 +93,7 @@ type service struct {
 func (s service) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
 	q := sq.Select(
 		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id",
-		"max_queue_size_bytes", "latest_response_code", "latest_error_message").
+		"max_queue_size_bytes", "latest_response_code", "latest_error_message", "drop_non_retryable_data").
 		From("replications").
 		Where(sq.Eq{"org_id": filter.OrgID})
 
@@ -154,18 +154,19 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 
 	q := sq.Insert("replications").
 		SetMap(sq.Eq{
-			"id":                   newID,
-			"org_id":               request.OrgID,
-			"name":                 request.Name,
-			"description":          request.Description,
-			"remote_id":            request.RemoteID,
-			"local_bucket_id":      request.LocalBucketID,
-			"remote_bucket_id":     request.RemoteBucketID,
-			"max_queue_size_bytes": request.MaxQueueSizeBytes,
-			"created_at":           "datetime('now')",
-			"updated_at":           "datetime('now')",
+			"id":                      newID,
+			"org_id":                  request.OrgID,
+			"name":                    request.Name,
+			"description":             request.Description,
+			"remote_id":               request.RemoteID,
+			"local_bucket_id":         request.LocalBucketID,
+			"remote_bucket_id":        request.RemoteBucketID,
+			"max_queue_size_bytes":    request.MaxQueueSizeBytes,
+			"drop_non_retryable_data": request.DropNonRetryableData,
+			"created_at":              "datetime('now')",
+			"updated_at":              "datetime('now')",
 		}).
-		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes")
+		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes, drop_non_retryable_data")
 
 	cleanupQueue := func() {
 		if cleanupErr := s.durableQueueManager.DeleteQueue(newID); cleanupErr != nil {
@@ -215,9 +216,8 @@ func (s service) ValidateNewReplication(ctx context.Context, request influxdb.Cr
 
 func (s service) GetReplication(ctx context.Context, id platform.ID) (*influxdb.Replication, error) {
 	q := sq.Select(
-		"id", "org_id", "name", "description",
-		"remote_id", "local_bucket_id", "remote_bucket_id",
-		"max_queue_size_bytes", "latest_response_code", "latest_error_message").
+		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id",
+		"max_queue_size_bytes", "latest_response_code", "latest_error_message", "drop_non_retryable_data").
 		From("replications").
 		Where(sq.Eq{"id": id})
 
@@ -263,9 +263,12 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 	if request.MaxQueueSizeBytes != nil {
 		updates["max_queue_size_bytes"] = *request.MaxQueueSizeBytes
 	}
+	if request.DropNonRetryableData != nil {
+		updates["drop_non_retryable_data"] = *request.DropNonRetryableData
+	}
 
 	q := sq.Update("replications").SetMap(updates).Where(sq.Eq{"id": id}).
-		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes")
+		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes, drop_non_retryable_data")
 
 	query, args, err := q.ToSql()
 	if err != nil {
