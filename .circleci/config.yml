@@ -479,7 +479,7 @@ jobs:
       - run:
           name: Set up AWS instance
           command: |
-            scripts/ci/perf-test.sh
+            scripts/ci/perf_test.sh
       - run:
           name: Run perf test
           no_output_timeout: 20m
@@ -623,6 +623,7 @@ jobs:
     docker:
       - image: cimg/base:stable
     steps:
+      - setup_remote_docker
       - quay_login
       - run:
           name: Push the image to Quay
