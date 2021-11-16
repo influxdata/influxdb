@@ -19,7 +19,9 @@ type replicationQueue struct {
 	wg      sync.WaitGroup
 	done    chan struct{}
 	receive chan struct{}
-	logger  *zap.Logger
+
+	// Hold reference to QueueManager for the shared Logger, Write Function, etc.
+	qm *durableQueueManager
 }
 
 type durableQueueManager struct {
@@ -27,6 +29,8 @@ type durableQueueManager struct {
 	logger            *zap.Logger
 	queuePath         string
 	mutex             sync.RWMutex
+
+	writeFunc func([]byte) error
 }
 
 var errStartup = errors.New("startup tasks for replications durable queue management failed, see server logs for details")
@@ -34,7 +38,7 @@ var errShutdown = errors.New("shutdown tasks for replications durable queues fai
 
 // NewDurableQueueManager creates a new durableQueueManager struct, for managing durable queues associated with
 //replication streams.
-func NewDurableQueueManager(log *zap.Logger, queuePath string) *durableQueueManager {
+func NewDurableQueueManager(log *zap.Logger, queuePath string, writeFunc func([]byte) error) *durableQueueManager {
 	replicationQueues := make(map[platform.ID]*replicationQueue)
 
 	os.MkdirAll(queuePath, 0777)
@@ -43,6 +47,7 @@ func NewDurableQueueManager(log *zap.Logger, queuePath string) *durableQueueMana
 		replicationQueues: replicationQueues,
 		logger:            log,
 		queuePath:         queuePath,
+		writeFunc:         writeFunc,
 	}
 }
 
@@ -89,9 +94,9 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 	// Map new durable queue and scanner to its corresponding replication stream via replication ID
 	rq := replicationQueue{
 		queue:   newQueue,
-		logger:  qm.logger,
 		done:    make(chan struct{}),
 		receive: make(chan struct{}),
+		qm:      qm,
 	}
 	qm.replicationQueues[replicationID] = &rq
 	rq.Open()
@@ -114,6 +119,12 @@ func (rq *replicationQueue) Close() error {
 	return rq.queue.Close()
 }
 
+// WriteFunc is currently a placeholder for the "default" behavior
+// of the queue scanner sending data from the durable queue to a remote host.
+func WriteFunc(b []byte) error {
+	return nil
+}
+
 func (rq *replicationQueue) run() {
 	defer rq.wg.Done()
 
@@ -123,10 +134,7 @@ func (rq *replicationQueue) run() {
 
 	writer := func() {
 		for {
-			_, err := rq.SendWrite(func(b []byte) error {
-				rq.logger.Info("written bytes", zap.Int("len", len(b)))
-				return nil
-			})
+			_, err := rq.SendWrite(rq.qm.writeFunc)
 			if err != nil {
 				if err == io.EOF {
 					// No more data
@@ -173,7 +181,7 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
 	}
 
 	if err != nil { // todo handle "skippable" errors
-		rq.logger.Info("Segment read error.", zap.Error(scan.Err()))
+		rq.qm.logger.Info("Segment read error.", zap.Error(scan.Err()))
 	}
 
 	if _, err := scan.Advance(); err != nil {
@@ -280,9 +288,9 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 		} else {
 			qm.replicationQueues[id] = &replicationQueue{
 				queue:   queue,
-				logger:  qm.logger,
 				done:    make(chan struct{}),
 				receive: make(chan struct{}),
+				qm:      qm,
 			}
 			qm.replicationQueues[id].Open()
 			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))

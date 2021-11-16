@@ -56,6 +56,7 @@ func NewService(store *sqlite.SqlStore, bktSvc BucketService, localWriter storag
 		durableQueueManager: internal.NewDurableQueueManager(
 			log,
 			filepath.Join(enginePath, "replicationq"),
+			internal.WriteFunc,
 		),
 	}
 }
