@@ -792,6 +792,7 @@ dependencies = [
  "ordered-float 2.8.0",
  "percent-encoding",
  "regex",
+ "siphasher",
  "snafu",
  "test_helpers",
  "time 0.1.0",
@@ -3973,6 +3974,12 @@ dependencies = [
  "num-bigint 0.2.6",
  "num-traits",
 ]
+
+[[package]]
+name = "siphasher"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "533494a8f9b724d33625ab53c6c4800f7cc445895924a8ef649222dcb76e938b"
 
 [[package]]
 name = "slab"
