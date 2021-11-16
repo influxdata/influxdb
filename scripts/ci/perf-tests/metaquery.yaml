@@ -1,0 +1,30 @@
+---
+name: metaquery
+start_time: "2018-01-01T00:00:00Z"
+end_time: "2019-01-01T00:00:00Z"
+data:
+  type: bulk_data_file_loader
+query_tests:
+  - {"type": "build_query_file", "format": "http", "use_case": "metaquery", "query_type": "field-keys"}
+  - {"type": "build_query_file", "format": "http", "use_case": "metaquery", "query_type": "tag-values"}
+  - {"type": "build_query_file", "format": "http", "use_case": "metaquery", "query_type": "cardinality"}
+
+  - {"type": "build_query_file", "format": "http", "use_case": "group-window-transpose-high-card", "query_type": "min"}
+  - {"type": "build_query_file", "format": "http", "use_case": "group-window-transpose-high-card", "query_type": "mean"}
+  - {"type": "build_query_file", "format": "http", "use_case": "group-window-transpose-high-card", "query_type": "max"}
+  - {"type": "build_query_file", "format": "http", "use_case": "group-window-transpose-high-card", "query_type": "first"}
+  - {"type": "build_query_file", "format": "http", "use_case": "group-window-transpose-high-card", "query_type": "last"}
+  - {"type": "build_query_file", "format": "http", "use_case": "group-window-transpose-high-card", "query_type": "count"}
+  - {"type": "build_query_file", "format": "http", "use_case": "group-window-transpose-high-card", "query_type": "sum"}
+
+  - {"type": "build_query_file", "format": "flux-http", "use_case": "metaquery", "query_type": "field-keys"}
+  - {"type": "build_query_file", "format": "flux-http", "use_case": "metaquery", "query_type": "tag-values"}
+  - {"type": "build_query_file", "format": "flux-http", "use_case": "metaquery", "query_type": "cardinality"}
+
+  - {"type": "build_query_file", "format": "flux-http", "use_case": "group-window-transpose-high-card", "query_type": "min"}
+  - {"type": "build_query_file", "format": "flux-http", "use_case": "group-window-transpose-high-card", "query_type": "mean"}
+  - {"type": "build_query_file", "format": "flux-http", "use_case": "group-window-transpose-high-card", "query_type": "max"}
+  - {"type": "build_query_file", "format": "flux-http", "use_case": "group-window-transpose-high-card", "query_type": "first"}
+  - {"type": "build_query_file", "format": "flux-http", "use_case": "group-window-transpose-high-card", "query_type": "last"}
+  - {"type": "build_query_file", "format": "flux-http", "use_case": "group-window-transpose-high-card", "query_type": "count"}
+  - {"type": "build_query_file", "format": "flux-http", "use_case": "group-window-transpose-high-card", "query_type": "sum"}

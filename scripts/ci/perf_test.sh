@@ -45,6 +45,7 @@ done
 
 scp $debname ubuntu@$ec2_ip:/home/ubuntu/$base_debname
 scp ${source_dir}/run_perftest.sh ubuntu@$ec2_ip:/home/ubuntu/run_perftest.sh
+scp -r ${source_dir}/perf-tests ubuntu@$ec2_ip:/home/ubuntu/perf-tests
 
 echo "export TEST_COMMIT_TIME=$(git show -s --format=%ct)" >> vars.sh
 echo "export CIRCLE_TEARDOWN=true" >> vars.sh
