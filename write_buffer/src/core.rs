@@ -21,15 +21,15 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     /// This set  not empty.
     fn sequencer_ids(&self) -> BTreeSet<u32>;
 
-    /// Send a [`DmlWrite`] to the write buffer using the specified sequencer ID.
+    /// Send a [`DmlOperation`] to the write buffer using the specified sequencer ID.
     ///
     /// The [`dml::DmlMeta`] will be propagated where applicable
     ///
     /// Returns the metadata that was written
-    async fn store_write(
+    async fn store_operation(
         &self,
         sequencer_id: u32,
-        write: &DmlWrite,
+        operation: &DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError>;
 
     /// Sends line protocol to the write buffer - primarily intended for testing
@@ -40,8 +40,11 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
         default_time: i64,
     ) -> Result<DmlMeta, WriteBufferError> {
         let tables = mutable_batch_lp::lines_to_batches(lp, default_time).map_err(Box::new)?;
-        self.store_write(sequencer_id, &DmlWrite::new(tables, Default::default()))
-            .await
+        self.store_operation(
+            sequencer_id,
+            &DmlOperation::Write(DmlWrite::new(tables, Default::default())),
+        )
+        .await
     }
 
     /// Return type (like `"mock"` or `"kafka"`) of this writer.
@@ -105,7 +108,7 @@ pub mod test_utils {
     };
 
     use async_trait::async_trait;
-    use dml::{test_util::assert_write_op_eq, DmlMeta, DmlWrite};
+    use dml::{test_util::assert_write_op_eq, DmlMeta, DmlOperation, DmlWrite};
     use futures::{StreamExt, TryStreamExt};
     use time::{Time, TimeProvider};
     use trace::{ctx::SpanContext, RingBufferTraceCollector, TraceCollector};
@@ -183,9 +186,16 @@ pub mod test_utils {
         span_context: Option<&SpanContext>,
     ) -> DmlWrite {
         let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
-        let mut write = DmlWrite::new(tables, DmlMeta::unsequenced(span_context.cloned()));
+        let write = DmlWrite::new(tables, DmlMeta::unsequenced(span_context.cloned()));
+        let operation = DmlOperation::Write(write);
 
-        let meta = writer.store_write(sequencer_id, &write).await.unwrap();
+        let meta = writer
+            .store_operation(sequencer_id, &operation)
+            .await
+            .unwrap();
+
+        let DmlOperation::Write(mut write) = operation;
+
         write.set_meta(meta);
         write
     }
@@ -637,12 +647,16 @@ pub mod test_utils {
 
         let tables = mutable_batch_lp::lines_to_batches("upc user=1 100", 0).unwrap();
         let write = DmlWrite::new(tables, Default::default());
+        let operation = DmlOperation::Write(write);
 
         let writer = context.writing(true).await.unwrap();
 
         // flip bits to get an unknown sequencer
         let sequencer_id = !set_pop_first(&mut writer.sequencer_ids()).unwrap();
-        writer.store_write(sequencer_id, &write).await.unwrap_err();
+        writer
+            .store_operation(sequencer_id, &operation)
+            .await
+            .unwrap_err();
     }
 
     /// Assert that the content of the reader is as expected.

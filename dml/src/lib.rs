@@ -97,6 +97,13 @@ impl DmlOperation {
             DmlOperation::Write(w) => w.meta(),
         }
     }
+
+    /// Sets the metadata for this operation
+    pub fn set_meta(&mut self, meta: DmlMeta) {
+        match self {
+            DmlOperation::Write(w) => w.set_meta(meta),
+        }
+    }
 }
 
 /// A collection of writes to potentially multiple tables within the same database
@@ -210,6 +217,13 @@ pub mod test_util {
     use schema::selection::Selection;
 
     use super::*;
+
+    /// Asserts two operations are equal
+    pub fn assert_op_eq(a: &DmlOperation, b: &DmlOperation) {
+        match (a, b) {
+            (DmlOperation::Write(a), DmlOperation::Write(b)) => assert_writes_eq(a, b),
+        }
+    }
 
     /// Asserts `a` contains a WriteOperation equal to `b`
     pub fn assert_write_op_eq(a: &DmlOperation, b: &DmlWrite) {

@@ -8,7 +8,7 @@ use data_types::{
     server_id::ServerId,
     write_buffer::WriteBufferConnection,
 };
-use dml::DmlWrite;
+use dml::DmlOperation;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use crate::{
@@ -53,7 +53,7 @@ impl VariantGrpcRemote {
         }
     }
 
-    async fn write(&self, write: &DmlWrite) -> Result<(), Error> {
+    async fn write(&self, write: &DmlOperation) -> Result<(), Error> {
         let connection_string = self
             .resolver
             .resolve_remote(self.server_id)
@@ -65,6 +65,7 @@ impl VariantGrpcRemote {
             .grpc_client(&connection_string)
             .await
             .context(ConnectionFailure)?;
+
         client
             .write(&self.db_name, write)
             .await
@@ -92,7 +93,7 @@ impl VariantWriteBuffer {
         }
     }
 
-    async fn write(&self, write: &DmlWrite) -> Result<(), Error> {
+    async fn write(&self, operation: &DmlOperation) -> Result<(), Error> {
         let write_buffer = self
             .connection_pool
             .write_buffer_producer(&self.db_name, &self.write_buffer_cfg)
@@ -101,7 +102,7 @@ impl VariantWriteBuffer {
 
         // TODO(marco): use multiple sequencers
         write_buffer
-            .store_write(0, write)
+            .store_operation(0, operation)
             .await
             .context(WriteFailure)?;
 
@@ -147,7 +148,7 @@ impl WriteSink {
         }
     }
 
-    pub async fn write(&self, write: &DmlWrite) -> Result<(), Error> {
+    pub async fn write(&self, write: &DmlOperation) -> Result<(), Error> {
         let res = match &self.variant {
             WriteSinkVariant::GrpcRemote(v) => v.write(write).await,
             WriteSinkVariant::WriteBuffer(v) => v.write(write).await,
@@ -192,9 +193,9 @@ impl WriteSinkSet {
     }
 
     /// Write to sinks. Fails on first error.
-    pub async fn write(&self, write: &DmlWrite) -> Result<(), Error> {
+    pub async fn write(&self, operation: &DmlOperation) -> Result<(), Error> {
         for sink in &self.sinks {
-            sink.write(write).await?;
+            sink.write(operation).await?;
         }
 
         Ok(())
@@ -204,6 +205,7 @@ impl WriteSinkSet {
 #[cfg(test)]
 mod tests {
     use data_types::write_buffer::WriteBufferDirection;
+    use dml::DmlWrite;
     use mutable_batch_lp::lines_to_batches;
     use time::SystemProvider;
     use write_buffer::config::WriteBufferConfigFactory;
@@ -228,10 +230,10 @@ mod tests {
         let client_grpc = client_grpc.as_any().downcast_ref::<MockClient>().unwrap();
         client_grpc.poison();
 
-        let write = DmlWrite::new(
+        let write = DmlOperation::Write(DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
-        );
+        ));
 
         // gRPC, do NOT ignore errors
         let config = WriteSinkConfig {
@@ -334,10 +336,10 @@ mod tests {
             connection_pool,
         );
 
-        let write_1 = DmlWrite::new(
+        let write_1 = DmlOperation::Write(DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
-        );
+        ));
         sink_set.write(&write_1).await.unwrap();
 
         let writes_1 = [(String::from("my_db"), write_1.clone())];
@@ -347,10 +349,10 @@ mod tests {
 
         client_2.poison();
 
-        let write_2 = DmlWrite::new(
+        let write_2 = DmlOperation::Write(DmlWrite::new(
             lines_to_batches("foo x=2 2", 0).unwrap(),
             Default::default(),
-        );
+        ));
         sink_set.write(&write_2).await.unwrap_err();
 
         // The sink set stops on first non-ignored error. So

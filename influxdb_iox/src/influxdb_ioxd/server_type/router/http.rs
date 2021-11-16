@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use data_types::DatabaseName;
-use dml::DmlWrite;
+use dml::{DmlOperation, DmlWrite};
 use hyper::{Body, Method, Request, Response};
 use snafu::{ResultExt, Snafu};
 
@@ -50,12 +50,11 @@ impl HttpDrivenWrite for RouterServerType {
         write: DmlWrite,
     ) -> Result<(), InnerWriteError> {
         match self.server.router(db_name) {
-            Some(router) => router
-                .write(write)
-                .await
-                .map_err(|e| InnerWriteError::OtherError {
+            Some(router) => router.write(DmlOperation::Write(write)).await.map_err(|e| {
+                InnerWriteError::OtherError {
                     source: Box::new(e),
-                }),
+                }
+            }),
             None => Err(InnerWriteError::NotFound {
                 db_name: db_name.to_string(),
             }),
@@ -86,6 +85,7 @@ mod tests {
     use std::{collections::BTreeMap, sync::Arc};
 
     use data_types::server_id::ServerId;
+    use dml::DmlOperation;
     use router::{grpc_client::MockClient, resolver::RemoteTemplate, server::RouterServer};
     use time::SystemProvider;
     use trace::RingBufferTraceCollector;
@@ -122,14 +122,14 @@ mod tests {
     async fn test_write() {
         let test_server = test_server().await;
         let write = assert_write(&test_server).await;
-        assert_dbwrite(test_server, write).await;
+        assert_dbwrite(test_server, DmlOperation::Write(write)).await;
     }
 
     #[tokio::test]
     async fn test_gzip_write() {
         let test_server = test_server().await;
         let write = assert_gzip_write(&test_server).await;
-        assert_dbwrite(test_server, write).await;
+        assert_dbwrite(test_server, DmlOperation::Write(write)).await;
     }
 
     #[tokio::test]
@@ -189,7 +189,7 @@ mod tests {
         TestServer::new(server_type)
     }
 
-    async fn assert_dbwrite(test_server: TestServer<RouterServerType>, write: DmlWrite) {
+    async fn assert_dbwrite(test_server: TestServer<RouterServerType>, write: DmlOperation) {
         let grpc_client = test_server
             .server_type()
             .server

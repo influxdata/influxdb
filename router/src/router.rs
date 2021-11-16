@@ -5,11 +5,11 @@ use std::{
 };
 
 use data_types::router::{Router as RouterConfig, ShardId};
-use dml::DmlWrite;
+use dml::DmlOperation;
 use snafu::{ResultExt, Snafu};
 
 use crate::{
-    connection_pool::ConnectionPool, resolver::Resolver, sharder::shard_write,
+    connection_pool::ConnectionPool, resolver::Resolver, sharder::shard_operation,
     write_sink::WriteSinkSet,
 };
 
@@ -101,13 +101,12 @@ impl Router {
     }
 
     /// Shard and write data.
-    pub async fn write(&self, write: DmlWrite) -> Result<(), WriteError> {
+    pub async fn write(&self, operation: DmlOperation) -> Result<(), WriteError> {
         let mut errors: BTreeMap<ShardId, WriteErrorShard> = Default::default();
 
-        // The iteration order is stable here due to the [`BTreeMap`], so we ensure deterministic behavior and error order.
-        let sharded: BTreeMap<_, _> = shard_write(&write, &self.config.write_sharder);
-        for (shard_id, write) in sharded {
-            if let Err(e) = self.write_shard(shard_id, &write).await {
+        // The iteration order is stable here, so we ensure deterministic behavior and error order.
+        for (shard_id, operation) in shard_operation(operation, &self.config.write_sharder) {
+            if let Err(e) = self.write_shard(shard_id, &operation).await {
                 errors.insert(shard_id, e);
             }
         }
@@ -122,10 +121,10 @@ impl Router {
     async fn write_shard(
         &self,
         shard_id: ShardId,
-        write: &DmlWrite,
+        operation: &DmlOperation,
     ) -> Result<(), WriteErrorShard> {
         match self.write_sink_sets.get(&shard_id) {
-            Some(sink_set) => sink_set.write(write).await.context(SinkSetFailure),
+            Some(sink_set) => sink_set.write(operation).await.context(SinkSetFailure),
             None => Err(WriteErrorShard::NoSinkSetFound { shard_id }),
         }
     }
@@ -145,7 +144,7 @@ mod tests {
         sequence::Sequence,
         server_id::ServerId,
     };
-    use dml::DmlMeta;
+    use dml::{DmlMeta, DmlWrite};
     use mutable_batch_lp::lines_to_batches;
     use regex::Regex;
     use time::Time;
@@ -345,10 +344,10 @@ mod tests {
         )]);
     }
 
-    fn db_write(lines: &[&str], meta: &DmlMeta) -> DmlWrite {
-        DmlWrite::new(
+    fn db_write(lines: &[&str], meta: &DmlMeta) -> DmlOperation {
+        DmlOperation::Write(DmlWrite::new(
             lines_to_batches(&lines.join("\n"), 0).unwrap(),
             meta.clone(),
-        )
+        ))
     }
 }

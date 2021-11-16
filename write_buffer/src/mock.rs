@@ -239,10 +239,10 @@ impl WriteBufferWriting for MockBufferForWriting {
         entries.keys().copied().collect()
     }
 
-    async fn store_write(
+    async fn store_operation(
         &self,
         sequencer_id: u32,
-        write: &DmlWrite,
+        operation: &DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
         let mut guard = self.state.writes.lock();
         let writes = guard.as_mut().unwrap();
@@ -259,17 +259,22 @@ impl WriteBufferWriting for MockBufferForWriting {
             number: sequence_number,
         };
 
-        let timestamp = write
+        let timestamp = operation
             .meta()
             .producer_ts()
             .unwrap_or_else(|| self.time_provider.now());
 
-        let meta = DmlMeta::sequenced(sequence, timestamp, write.meta().span_context().cloned(), 0);
+        let meta = DmlMeta::sequenced(
+            sequence,
+            timestamp,
+            operation.meta().span_context().cloned(),
+            0,
+        );
 
-        let mut write = write.clone();
-        write.set_meta(meta.clone());
+        let mut operation = operation.clone();
+        operation.set_meta(meta.clone());
 
-        writes_vec.push(Ok(DmlOperation::Write(write)));
+        writes_vec.push(Ok(operation));
 
         Ok(meta)
     }
@@ -289,10 +294,10 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
         IntoIterator::into_iter([0]).collect()
     }
 
-    async fn store_write(
+    async fn store_operation(
         &self,
         _sequencer_id: u32,
-        _write: &DmlWrite,
+        _operation: &DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
         Err(String::from(
             "Something bad happened on the way to writing an entry in the write buffer",
@@ -720,10 +725,14 @@ mod tests {
         let writer = MockBufferForWritingThatAlwaysErrors {};
 
         let tables = lines_to_batches("upc user=1 100", 0).unwrap();
-        let write = DmlWrite::new(tables, Default::default());
+        let operation = DmlOperation::Write(DmlWrite::new(tables, Default::default()));
 
         assert_eq!(
-            writer.store_write(0, &write).await.unwrap_err().to_string(),
+            writer
+                .store_operation(0, &operation)
+                .await
+                .unwrap_err()
+                .to_string(),
             "Something bad happened on the way to writing an entry in the write buffer"
         );
     }

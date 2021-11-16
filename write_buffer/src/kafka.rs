@@ -23,7 +23,7 @@ use rdkafka::{
 use data_types::{
     sequence::Sequence, server_id::ServerId, write_buffer::WriteBufferCreationConfig,
 };
-use dml::{DmlMeta, DmlWrite};
+use dml::{DmlMeta, DmlOperation};
 use observability_deps::tracing::{debug, info};
 use time::{Time, TimeProvider};
 use trace::TraceCollector;
@@ -73,15 +73,15 @@ impl WriteBufferWriting for KafkaBufferProducer {
     }
 
     /// Send an `Entry` to Kafka using the sequencer ID as a partition.
-    async fn store_write(
+    async fn store_operation(
         &self,
         sequencer_id: u32,
-        write: &DmlWrite,
+        operation: &DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
         let partition = i32::try_from(sequencer_id)?;
 
         // truncate milliseconds from timestamps because that's what Kafka supports
-        let now = write
+        let now = operation
             .meta()
             .producer_ts()
             .unwrap_or_else(|| self.time_provider.now());
@@ -89,10 +89,13 @@ impl WriteBufferWriting for KafkaBufferProducer {
         let timestamp_millis = now.date_time().timestamp_millis();
         let timestamp = Time::from_timestamp_millis(timestamp_millis);
 
-        let headers = IoxHeaders::new(ContentType::Protobuf, write.meta().span_context().cloned());
+        let headers = IoxHeaders::new(
+            ContentType::Protobuf,
+            operation.meta().span_context().cloned(),
+        );
 
         let mut buf = Vec::new();
-        crate::codec::encode_write(&self.database_name, write, &mut buf)?;
+        crate::codec::encode_operation(&self.database_name, operation, &mut buf)?;
 
         // This type annotation is necessary because `FutureRecord` is generic over key type, but
         // key is optional and we're not setting a key. `String` is arbitrary.
@@ -115,7 +118,7 @@ impl WriteBufferWriting for KafkaBufferProducer {
         Ok(DmlMeta::sequenced(
             Sequence::new(partition.try_into()?, offset.try_into()?),
             timestamp,
-            write.meta().span_context().cloned(),
+            operation.meta().span_context().cloned(),
             buf.len(),
         ))
     }

@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use dml::DmlWrite;
+use dml::DmlOperation;
 use parking_lot::RwLock;
 
 /// Generic write error.
@@ -16,8 +16,8 @@ pub type WriteError = Box<dyn std::error::Error + Send + Sync>;
 /// An abstract IOx gRPC client.
 #[async_trait]
 pub trait GrpcClient: Sync + Send + std::fmt::Debug + 'static {
-    /// Write data to the given database.
-    async fn write(&self, db_name: &str, write: &DmlWrite) -> Result<(), WriteError>;
+    /// Send DML operation to the given database.
+    async fn write(&self, db_name: &str, write: &DmlOperation) -> Result<(), WriteError>;
 
     /// Cast client to [`Any`], useful for downcasting.
     fn as_any(&self) -> &dyn Any;
@@ -41,21 +41,25 @@ impl RealClient {
 
 #[async_trait]
 impl GrpcClient for RealClient {
-    async fn write(&self, db_name: &str, write: &DmlWrite) -> Result<(), WriteError> {
+    async fn write(&self, db_name: &str, write: &DmlOperation) -> Result<(), WriteError> {
         use influxdb_iox_client::write::generated_types::WriteRequest;
         use mutable_batch_pb::encode::encode_write;
 
-        let write_request = WriteRequest {
-            database_batch: Some(encode_write(db_name, write)),
-        };
+        match write {
+            DmlOperation::Write(write) => {
+                let write_request = WriteRequest {
+                    database_batch: Some(encode_write(db_name, write)),
+                };
 
-        // cheap, see https://docs.rs/tonic/0.4.2/tonic/client/index.html#concurrent-usage
-        let mut client = self.write_client.clone();
+                // cheap, see https://docs.rs/tonic/0.4.2/tonic/client/index.html#concurrent-usage
+                let mut client = self.write_client.clone();
 
-        client
-            .write_pb(write_request)
-            .await
-            .map_err(|e| Box::new(e) as _)
+                client
+                    .write_pb(write_request)
+                    .await
+                    .map_err(|e| Box::new(e) as _)
+            }
+        }
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -67,7 +71,7 @@ impl GrpcClient for RealClient {
 #[derive(Debug, Default)]
 pub struct MockClient {
     /// All writes recorded by this client.
-    writes: RwLock<Vec<(String, DmlWrite)>>,
+    writes: RwLock<Vec<(String, DmlOperation)>>,
 
     /// Poisen pill.
     ///
@@ -84,13 +88,13 @@ impl MockClient {
     }
 
     /// Get a copy of all recorded writes.
-    pub fn writes(&self) -> Vec<(String, DmlWrite)> {
+    pub fn writes(&self) -> Vec<(String, DmlOperation)> {
         self.writes.read().clone()
     }
 
     /// Assert that writes are as expected.
-    pub fn assert_writes(&self, expected: &[(String, DmlWrite)]) {
-        use dml::test_util::assert_writes_eq;
+    pub fn assert_writes(&self, expected: &[(String, DmlOperation)]) {
+        use dml::test_util::assert_op_eq;
 
         let actual = self.writes();
 
@@ -110,14 +114,14 @@ impl MockClient {
                 "database names differ (\"{}\" VS \"{}\")",
                 actual_db, expected_db
             );
-            assert_writes_eq(actual_write, expected_write);
+            assert_op_eq(actual_write, expected_write);
         }
     }
 }
 
 #[async_trait]
 impl GrpcClient for MockClient {
-    async fn write(&self, db_name: &str, write: &DmlWrite) -> Result<(), WriteError> {
+    async fn write(&self, db_name: &str, write: &DmlOperation) -> Result<(), WriteError> {
         if self.poisoned.load(Ordering::SeqCst) {
             return Err("poisened".to_string().into());
         }
@@ -135,6 +139,7 @@ impl GrpcClient for MockClient {
 
 #[cfg(test)]
 mod tests {
+    use dml::DmlWrite;
     use mutable_batch_lp::lines_to_batches;
 
     use super::*;
@@ -143,18 +148,18 @@ mod tests {
     async fn test_mock() {
         let client = MockClient::default();
 
-        let write1 = DmlWrite::new(
+        let write1 = DmlOperation::Write(DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
-        );
-        let write2 = DmlWrite::new(
+        ));
+        let write2 = DmlOperation::Write(DmlWrite::new(
             lines_to_batches("foo x=2 2", 0).unwrap(),
             Default::default(),
-        );
-        let write3 = DmlWrite::new(
+        ));
+        let write3 = DmlOperation::Write(DmlWrite::new(
             lines_to_batches("foo x=3 3", 0).unwrap(),
             Default::default(),
-        );
+        ));
 
         client.write("db1", &write1).await.unwrap();
         client.write("db2", &write1).await.unwrap();
@@ -177,10 +182,10 @@ mod tests {
     async fn test_assert_writes_fail_count() {
         let client = MockClient::default();
 
-        let write1 = DmlWrite::new(
+        let write1 = DmlOperation::Write(DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
-        );
+        ));
 
         client.write("db1", &write1).await.unwrap();
 
@@ -193,10 +198,10 @@ mod tests {
     async fn test_assert_writes_fail_db_name() {
         let client = MockClient::default();
 
-        let write = DmlWrite::new(
+        let write = DmlOperation::Write(DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
-        );
+        ));
 
         client.write("db1", &write).await.unwrap();
 
@@ -209,14 +214,14 @@ mod tests {
     async fn test_assert_writes_fail_batch() {
         let client = MockClient::default();
 
-        let write1 = DmlWrite::new(
+        let write1 = DmlOperation::Write(DmlWrite::new(
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
-        );
-        let write2 = DmlWrite::new(
+        ));
+        let write2 = DmlOperation::Write(DmlWrite::new(
             lines_to_batches("foo x=2 2", 0).unwrap(),
             Default::default(),
-        );
+        ));
 
         client.write("db1", &write1).await.unwrap();
 

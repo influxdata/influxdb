@@ -155,15 +155,21 @@ pub fn decode(
     }
 }
 
-/// Encodes a [`DmlWrite`] as a protobuf [`WriteBufferPayload`]
-pub fn encode_write(
+/// Encodes a [`DmlOperation`] as a protobuf [`WriteBufferPayload`]
+pub fn encode_operation(
     db_name: &str,
-    write: &DmlWrite,
+    operation: &DmlOperation,
     buf: &mut Vec<u8>,
 ) -> Result<(), WriteBufferError> {
-    let batch = mutable_batch_pb::encode::encode_write(db_name, write);
+    let payload = match operation {
+        DmlOperation::Write(write) => {
+            let batch = mutable_batch_pb::encode::encode_write(db_name, write);
+            Payload::Write(batch)
+        }
+    };
+
     let payload = WriteBufferPayload {
-        payload: Some(Payload::Write(batch)),
+        payload: Some(payload),
     };
     Ok(payload.encode(buf).map_err(Box::new)?)
 }

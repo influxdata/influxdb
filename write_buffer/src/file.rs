@@ -122,7 +122,7 @@ use std::{
 use crate::codec::{ContentType, IoxHeaders};
 use async_trait::async_trait;
 use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
-use dml::{DmlMeta, DmlOperation, DmlWrite};
+use dml::{DmlMeta, DmlOperation};
 use futures::{channel::mpsc::Receiver, FutureExt, SinkExt, Stream, StreamExt};
 use pin_project::{pin_project, pinned_drop};
 use time::{Time, TimeProvider};
@@ -170,10 +170,10 @@ impl WriteBufferWriting for FileBufferProducer {
         self.dirs.keys().cloned().collect()
     }
 
-    async fn store_write(
+    async fn store_operation(
         &self,
         sequencer_id: u32,
-        write: &DmlWrite,
+        operation: &DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
         let sequencer_path = self
             .dirs
@@ -184,15 +184,17 @@ impl WriteBufferWriting for FileBufferProducer {
 
         // measure time
 
-        let now = write
+        let now = operation
             .meta()
             .producer_ts()
             .unwrap_or_else(|| self.time_provider.now());
 
         // assemble message
         let mut message: Vec<u8> = format!("{}: {}\n", HEADER_TIME, now.to_rfc3339()).into_bytes();
-        let iox_headers =
-            IoxHeaders::new(ContentType::Protobuf, write.meta().span_context().cloned());
+        let iox_headers = IoxHeaders::new(
+            ContentType::Protobuf,
+            operation.meta().span_context().cloned(),
+        );
 
         for (name, value) in iox_headers.headers() {
             message.extend(format!("{}: {}\n", name, value).into_bytes())
@@ -200,7 +202,7 @@ impl WriteBufferWriting for FileBufferProducer {
 
         message.extend(b"\n");
 
-        crate::codec::encode_write(&self.db_name, write, &mut message)?;
+        crate::codec::encode_operation(&self.db_name, operation, &mut message)?;
 
         // write data to scratchpad file in temp directory
         let temp_file = sequencer_path.join("temp").join(Uuid::new_v4().to_string());
@@ -243,7 +245,7 @@ impl WriteBufferWriting for FileBufferProducer {
         Ok(DmlMeta::sequenced(
             Sequence::new(sequencer_id, sequence_number),
             now,
-            write.meta().span_context().cloned(),
+            operation.meta().span_context().cloned(),
             message.len(),
         ))
     }

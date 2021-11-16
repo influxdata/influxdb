@@ -9,7 +9,7 @@ use crate::{
     ApplicationState, Db,
 };
 use data_types::{server_id::ServerId, write_buffer::WriteBufferDirection, DatabaseName};
-use dml::DmlWrite;
+use dml::DmlOperation;
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
@@ -661,12 +661,12 @@ impl Database {
         Ok(())
     }
 
-    /// Writes a [`DmlWrite`] to this `Database` this will either:
+    /// Writes a [`DmlOperation`] to this `Database` this will either:
     ///
     /// - write it to a write buffer
     /// - write it to a local `Db`
     ///
-    pub async fn route_write(&self, write: &DmlWrite) -> Result<(), WriteError> {
+    pub async fn route_operation(&self, operation: &DmlOperation) -> Result<(), WriteError> {
         let db = {
             let state = self.shared.state.read();
             match &**state {
@@ -683,7 +683,7 @@ impl Database {
             }
         };
 
-        db.route_write(write).await.map_err(|e| {
+        db.route_operation(operation).await.map_err(|e| {
             use super::db::Error;
             match e {
                 // TODO: Pull write buffer producer out of Db

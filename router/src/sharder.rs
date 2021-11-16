@@ -1,9 +1,21 @@
 use std::collections::BTreeMap;
 
 use data_types::router::{ShardConfig, ShardId};
-use dml::DmlWrite;
+use dml::{DmlOperation, DmlWrite};
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
+
+/// Shard a given operation, returns an iterator sorted by ShardId
+pub fn shard_operation(
+    operation: DmlOperation,
+    config: &ShardConfig,
+) -> impl Iterator<Item = (ShardId, DmlOperation)> {
+    match operation {
+        DmlOperation::Write(write) => shard_write(&write, config)
+            .into_iter()
+            .map(|(shard, write)| (shard, DmlOperation::Write(write))),
+    }
+}
 
 /// Shard given write according to config.
 pub fn shard_write(write: &DmlWrite, config: &ShardConfig) -> BTreeMap<ShardId, DmlWrite> {

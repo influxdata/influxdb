@@ -1,4 +1,4 @@
-use dml::{DmlMeta, DmlWrite};
+use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::google::{FieldViolation, NotFound};
 use generated_types::influxdata::pbdata::v1::*;
 use router::server::RouterServer;
@@ -28,7 +28,7 @@ impl write_service_server::WriteService for PBWriteService {
                 }
             })?;
 
-        let write = DmlWrite::new(tables, DmlMeta::unsequenced(span_ctx));
+        let write = DmlOperation::Write(DmlWrite::new(tables, DmlMeta::unsequenced(span_ctx)));
 
         let router = self
             .server

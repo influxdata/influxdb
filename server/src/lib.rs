@@ -99,7 +99,7 @@ use uuid::Uuid;
 
 pub use application::ApplicationState;
 pub use db::Db;
-use dml::DmlWrite;
+use dml::{DmlOperation, DmlWrite};
 pub use job::JobRegistry;
 pub use resolver::{GrpcConnectionString, RemoteTemplate};
 
@@ -1066,8 +1066,8 @@ where
 
             async move {
                 match sink {
-                    Some(sink) => self.write_sink(db_name, sink, &write).await,
-                    None => self.write_local(db_name, &write).await,
+                    Some(sink) => self.write_sink(db_name, sink, write).await,
+                    None => self.write_local(db_name, &DmlOperation::Write(write)).await,
                 }
             }
         }))
@@ -1079,15 +1079,15 @@ where
         &self,
         db_name: &DatabaseName<'_>,
         sink: &Sink,
-        write: &DmlWrite,
+        write: DmlWrite,
     ) -> Result<()> {
         match sink {
-            Sink::Iox(node_group) => self.write_downstream(db_name, node_group, write).await,
+            Sink::Iox(node_group) => self.write_downstream(db_name, node_group, &write).await,
             Sink::Kafka(_) => {
                 // The write buffer write path is currently implemented in "db", so confusingly we
                 // need to invoke write_entry_local.
                 // TODO(mkm): tracked in #2134
-                self.write_local(db_name, write).await
+                self.write_local(db_name, &DmlOperation::Write(write)).await
             }
             Sink::DevNull => {
                 // write is silently ignored, as requested by the configuration.
@@ -1136,11 +1136,15 @@ where
     /// Write an entry to the local `Db`
     ///
     /// TODO: Remove this and migrate callers to `Database::route_write`
-    async fn write_local(&self, db_name: &DatabaseName<'_>, write: &DmlWrite) -> Result<()> {
+    async fn write_local(
+        &self,
+        db_name: &DatabaseName<'_>,
+        operation: &DmlOperation,
+    ) -> Result<()> {
         use database::WriteError;
 
         self.active_database(db_name)?
-            .route_write(write)
+            .route_operation(operation)
             .await
             .map_err(|e| match e {
                 WriteError::NotInitialized { .. } => Error::DatabaseNotInitialized {
