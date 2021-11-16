@@ -92,7 +92,12 @@ impl ConnectionPool {
         use time::SystemProvider;
 
         let time_provider = Arc::new(SystemProvider::new());
-        Self::new(true, WriteBufferConfigFactory::new(time_provider)).await
+        let metric_registry = Arc::new(metric::Registry::new());
+        Self::new(
+            true,
+            WriteBufferConfigFactory::new(time_provider, metric_registry),
+        )
+        .await
     }
 
     /// Get gRPC client given a connection string.
@@ -136,16 +141,21 @@ mod tests {
     #[tokio::test]
     async fn test_grpc_mocking() {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::new());
+        let metric_registry = Arc::new(metric::Registry::new());
 
         let pool1 = ConnectionPool::new(
             false,
-            WriteBufferConfigFactory::new(Arc::clone(&time_provider)),
+            WriteBufferConfigFactory::new(Arc::clone(&time_provider), Arc::clone(&metric_registry)),
         )
         .await;
         // connection will fail
         pool1.grpc_client("foo").await.unwrap_err();
 
-        let pool2 = ConnectionPool::new(true, WriteBufferConfigFactory::new(time_provider)).await;
+        let pool2 = ConnectionPool::new(
+            true,
+            WriteBufferConfigFactory::new(time_provider, metric_registry),
+        )
+        .await;
         let client2 = pool2.grpc_client("foo").await.unwrap();
         client2.as_any().downcast_ref::<MockClient>().unwrap();
     }

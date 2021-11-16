@@ -40,14 +40,19 @@ enum Mock {
 pub struct WriteBufferConfigFactory {
     mocks: RwLock<BTreeMap<String, Mock>>,
     time_provider: Arc<dyn TimeProvider>,
+    metric_registry: Arc<metric::Registry>,
 }
 
 impl WriteBufferConfigFactory {
     /// Create new factory w/o any mocks.
-    pub fn new(time_provider: Arc<dyn TimeProvider>) -> Self {
+    pub fn new(
+        time_provider: Arc<dyn TimeProvider>,
+        metric_registry: Arc<metric::Registry>,
+    ) -> Self {
         Self {
             mocks: Default::default(),
             time_provider,
+            metric_registry,
         }
     }
 
@@ -118,6 +123,7 @@ impl WriteBufferConfigFactory {
                     &cfg.connection_config,
                     cfg.creation_config.as_ref(),
                     Arc::clone(&self.time_provider),
+                    &self.metric_registry,
                 )
                 .await?;
                 Arc::new(kafka_buffer) as _
@@ -177,6 +183,7 @@ impl WriteBufferConfigFactory {
                     &cfg.connection_config,
                     cfg.creation_config.as_ref(),
                     trace_collector,
+                    &self.metric_registry,
                 )
                 .await?;
                 Box::new(kafka_buffer) as _
@@ -218,8 +225,7 @@ mod tests {
     #[tokio::test]
     async fn test_writing_file() {
         let root = TempDir::new().unwrap();
-        let time = Arc::new(time::SystemProvider::new());
-        let factory = WriteBufferConfigFactory::new(time);
+        let factory = factory();
         let db_name = DatabaseName::try_from("foo").unwrap();
         let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Write,
@@ -239,8 +245,7 @@ mod tests {
     #[tokio::test]
     async fn test_reading_file() {
         let root = TempDir::new().unwrap();
-        let time = Arc::new(time::SystemProvider::new());
-        let factory = WriteBufferConfigFactory::new(time);
+        let factory = factory();
         let db_name = DatabaseName::try_from("foo").unwrap();
         let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Read,
@@ -261,8 +266,7 @@ mod tests {
     #[tokio::test]
     async fn test_writing_kafka() {
         let conn = maybe_skip_kafka_integration!();
-        let time = Arc::new(time::SystemProvider::new());
-        let factory = WriteBufferConfigFactory::new(time);
+        let factory = factory();
         let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
         let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Write,
@@ -282,8 +286,7 @@ mod tests {
     #[tokio::test]
     async fn test_reading_kafka() {
         let conn = maybe_skip_kafka_integration!();
-        let time = Arc::new(time::SystemProvider::new());
-        let factory = WriteBufferConfigFactory::new(time);
+        let factory = factory();
         let server_id = ServerId::try_from(1).unwrap();
 
         let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
@@ -304,8 +307,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_writing_mock() {
-        let time = Arc::new(time::SystemProvider::new());
-        let factory = WriteBufferConfigFactory::new(time);
+        let factory = factory();
 
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
@@ -342,8 +344,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reading_mock() {
-        let time = Arc::new(time::SystemProvider::new());
-        let factory = WriteBufferConfigFactory::new(time);
+        let factory = factory();
 
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
@@ -381,8 +382,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_writing_mock_failing() {
-        let time = Arc::new(time::SystemProvider::new());
-        let factory = WriteBufferConfigFactory::new(time);
+        let factory = factory();
 
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
@@ -417,8 +417,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reading_mock_failing() {
-        let time = Arc::new(time::SystemProvider::new());
-        let factory = WriteBufferConfigFactory::new(time);
+        let factory = factory();
 
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
@@ -456,13 +455,18 @@ mod tests {
     #[test]
     #[should_panic(expected = "Mock with the name 'some_mock' already registered")]
     fn test_register_mock_twice_panics() {
-        let time = Arc::new(time::SystemProvider::new());
-        let factory = WriteBufferConfigFactory::new(time);
+        let factory = factory();
 
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
         factory.register_mock(mock_name.to_string(), state);
+    }
+
+    fn factory() -> WriteBufferConfigFactory {
+        let time = Arc::new(time::SystemProvider::new());
+        let registry = Arc::new(metric::Registry::new());
+        WriteBufferConfigFactory::new(time, registry)
     }
 }

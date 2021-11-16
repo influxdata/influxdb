@@ -5028,6 +5028,7 @@ dependencies = [
  "generated_types",
  "http",
  "httparse",
+ "metric",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "observability_deps",

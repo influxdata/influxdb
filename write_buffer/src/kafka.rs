@@ -8,16 +8,17 @@ use std::{
 
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
+use metric::{Metric, U64Gauge};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
-    consumer::{BaseConsumer, Consumer, StreamConsumer},
+    consumer::{BaseConsumer, Consumer, ConsumerContext, StreamConsumer},
     error::KafkaError,
     message::{Headers, OwnedHeaders},
     producer::{FutureProducer, FutureRecord},
     types::RDKafkaErrorCode,
     util::Timeout,
-    ClientConfig, Message, Offset, TopicPartitionList,
+    ClientConfig, ClientContext, Message, Offset, TopicPartitionList,
 };
 
 use data_types::{
@@ -52,7 +53,7 @@ pub struct KafkaBufferProducer {
     conn: String,
     database_name: String,
     time_provider: Arc<dyn TimeProvider>,
-    producer: FutureProducer,
+    producer: FutureProducer<ClientContextImpl>,
     partitions: BTreeSet<u32>,
 }
 
@@ -135,6 +136,7 @@ impl KafkaBufferProducer {
         connection_config: &BTreeMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: &metric::Registry,
     ) -> Result<Self, WriteBufferError> {
         let conn = conn.into();
         let database_name = database_name.into();
@@ -162,7 +164,8 @@ impl KafkaBufferProducer {
         let partitions =
             maybe_auto_create_topics(&conn, &database_name, creation_config, &cfg).await?;
 
-        let producer: FutureProducer = cfg.create()?;
+        let context = ClientContextImpl::new(database_name.clone(), metric_registry);
+        let producer: FutureProducer<ClientContextImpl> = cfg.create_with_context(context)?;
 
         Ok(Self {
             conn,
@@ -177,7 +180,7 @@ impl KafkaBufferProducer {
 pub struct KafkaBufferConsumer {
     conn: String,
     database_name: String,
-    consumers: BTreeMap<u32, Arc<StreamConsumer>>,
+    consumers: BTreeMap<u32, Arc<StreamConsumer<ClientContextImpl>>>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
@@ -320,6 +323,7 @@ impl KafkaBufferConsumer {
         creation_config: Option<&WriteBufferCreationConfig>,
         // `trace_collector` has to be a reference due to https://github.com/rust-lang/rust/issues/63033
         trace_collector: Option<&Arc<dyn TraceCollector>>,
+        metric_registry: &metric::Registry,
     ) -> Result<Self, WriteBufferError> {
         let conn = conn.into();
         let database_name = database_name.into();
@@ -358,7 +362,9 @@ impl KafkaBufferConsumer {
         let consumers = partitions
             .into_iter()
             .map(|partition| {
-                let consumer: StreamConsumer = cfg.create()?;
+                let context = ClientContextImpl::new(database_name.clone(), metric_registry);
+                let consumer: StreamConsumer<ClientContextImpl> =
+                    cfg.create_with_context(context)?;
 
                 let mut assignment = TopicPartitionList::new();
                 assignment.add_partition(&database_name, partition as i32);
@@ -376,7 +382,8 @@ impl KafkaBufferConsumer {
                 consumer.assign(&assignment)?;
                 Ok((partition, Arc::new(consumer)))
             })
-            .collect::<Result<BTreeMap<u32, Arc<StreamConsumer>>, KafkaError>>()?;
+            .collect::<Result<BTreeMap<u32, Arc<StreamConsumer<ClientContextImpl>>>, KafkaError>>(
+            )?;
 
         Ok(Self {
             conn,
@@ -490,6 +497,106 @@ async fn maybe_auto_create_topics(
 
     Ok(partitions)
 }
+
+/// Our own implementation of [`ClientContext`] to overwrite certain logging behavior.
+struct ClientContextImpl {
+    database_name: String,
+    producer_queue_msg_count: Metric<U64Gauge>,
+    producer_queue_msg_bytes: Metric<U64Gauge>,
+    producer_queue_max_msg_count: Metric<U64Gauge>,
+    producer_queue_max_msg_bytes: Metric<U64Gauge>,
+    tx_bytes: Metric<U64Gauge>,
+    rx_bytes: Metric<U64Gauge>,
+    consumer_lag: Metric<U64Gauge>,
+}
+
+impl ClientContextImpl {
+    fn new(database_name: String, metric_registry: &metric::Registry) -> Self {
+        Self {
+            database_name,
+            producer_queue_msg_count: metric_registry.register_metric(
+                "kafka_producer_queue_msg_count",
+                "The current number of messages in producer queues.",
+            ),
+            producer_queue_msg_bytes: metric_registry.register_metric(
+                "kafka_producer_queue_msg_bytes",
+                "The current total size of messages in producer queues",
+            ),
+            producer_queue_max_msg_count: metric_registry.register_metric(
+                "kafka_producer_queue_max_msg_count",
+                "The maximum number of messages allowed in the producer queues.",
+            ),
+            producer_queue_max_msg_bytes: metric_registry.register_metric(
+                "kafka_producer_queue_max_msg_bytes",
+                "The maximum total size of messages allowed in the producer queues.",
+            ),
+            tx_bytes: metric_registry.register_metric(
+                "kafka_tx_bytes",
+                "The total number of bytes transmitted to brokers.",
+            ),
+            rx_bytes: metric_registry.register_metric(
+                "kafka_rx_bytes",
+                "The total number of bytes received from brokers.",
+            ),
+            consumer_lag: metric_registry.register_metric(
+                "kafka_consumer_lag",
+                "The difference between `hi_offset` and `max(app_offset,committed_offset)`.",
+            ),
+        }
+    }
+}
+
+impl ClientContext for ClientContextImpl {
+    fn stats(&self, statistics: rdkafka::Statistics) {
+        let attributes = metric::Attributes::from([
+            ("database", self.database_name.clone().into()),
+            ("client_type", statistics.client_type.into()),
+        ]);
+
+        self.producer_queue_msg_count
+            .recorder(attributes.clone())
+            .set(statistics.msg_cnt as u64);
+        self.producer_queue_max_msg_count
+            .recorder(attributes.clone())
+            .set(statistics.msg_max as u64);
+
+        self.producer_queue_msg_bytes
+            .recorder(attributes.clone())
+            .set(statistics.msg_size as u64);
+        self.producer_queue_max_msg_bytes
+            .recorder(attributes.clone())
+            .set(statistics.msg_size_max as u64);
+
+        self.tx_bytes
+            .recorder(attributes.clone())
+            .set(statistics.tx_bytes as u64);
+        self.rx_bytes
+            .recorder(attributes.clone())
+            .set(statistics.rx_bytes as u64);
+
+        for topic in statistics.topics.into_values() {
+            let attributes = {
+                let mut tmp = attributes.clone();
+                tmp.insert("topic", topic.topic);
+                tmp
+            };
+
+            for partition in topic.partitions.values() {
+                let attributes = {
+                    let mut tmp = attributes.clone();
+                    tmp.insert("partition", partition.partition.to_string());
+                    tmp
+                };
+
+                self.consumer_lag
+                    .recorder(attributes)
+                    .set(partition.consumer_lag as u64);
+            }
+        }
+    }
+}
+
+impl ConsumerContext for ClientContextImpl {}
 
 pub mod test_utils {
     use std::{collections::BTreeMap, time::Duration};
@@ -629,6 +736,7 @@ mod tests {
                 server_id_counter: AtomicU32::new(1),
                 n_sequencers,
                 time_provider,
+                metric_registry: metric::Registry::new(),
             }
         }
     }
@@ -639,6 +747,7 @@ mod tests {
         server_id_counter: AtomicU32,
         n_sequencers: NonZeroU32,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: metric::Registry,
     }
 
     impl KafkaTestContext {
@@ -647,6 +756,15 @@ mod tests {
                 n_sequencers: self.n_sequencers,
                 options: kafka_sequencer_options(),
             })
+        }
+
+        fn connection_config(&self) -> BTreeMap<String, String> {
+            BTreeMap::from([
+                // WARNING: Don't set `statistics.interval.ms` to a too lower value, otherwise rdkafka will become
+                // overloaded and will not keep up delivering the statistics, leading to very long or infinite thread
+                // blocking during process shutdown.
+                ("statistics.interval.ms".to_owned(), "1000".to_owned()),
+            ])
         }
     }
 
@@ -660,9 +778,10 @@ mod tests {
             KafkaBufferProducer::new(
                 &self.conn,
                 &self.database_name,
-                &Default::default(),
+                &self.connection_config(),
                 self.creation_config(creation_config).as_ref(),
                 Arc::clone(&self.time_provider),
+                &self.metric_registry,
             )
             .await
         }
@@ -677,9 +796,10 @@ mod tests {
                 &self.conn,
                 server_id,
                 &self.database_name,
-                &Default::default(),
+                &self.connection_config(),
                 self.creation_config(creation_config).as_ref(),
                 Some(&collector),
+                &self.metric_registry,
             )
             .await
         }
@@ -785,5 +905,47 @@ mod tests {
         let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
         let err = stream.stream.next().await.unwrap().unwrap_err();
         assert_eq!(err.to_string(), "Unknown message format: foo");
+    }
+
+    #[tokio::test]
+    async fn metrics() {
+        let conn = maybe_skip_kafka_integration!();
+        let adapter = KafkaTestAdapter::new(conn);
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let reader = ctx.reading(true).await.unwrap();
+
+        // It seems that th reader must be used for rdkafka / rdkafka-rs to do anything at all =/
+        let background_task = tokio::spawn(async move {
+            let mut reader = reader;
+            let mut streams = reader.streams();
+            assert_eq!(streams.len(), 1);
+            let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+            stream.stream.next().await;
+        });
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(instrument) = ctx
+                    .metric_registry
+                    .get_instrument::<Metric<U64Gauge>>("kafka_rx_bytes")
+                {
+                    if let Some(observer) = instrument.get_observer(&metric::Attributes::from([
+                        ("database", ctx.database_name.clone().into()),
+                        ("client_type", "consumer".into()),
+                    ])) {
+                        let observation = observer.fetch();
+                        assert_ne!(observation, 0);
+                        break;
+                    }
+                }
+
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        })
+        .await
+        .unwrap();
+
+        background_task.abort();
     }
 }

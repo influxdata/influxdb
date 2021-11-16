@@ -41,8 +41,10 @@ impl ApplicationState {
             Arc::clone(&time_provider),
         ));
 
-        let write_buffer_factory =
-            Arc::new(WriteBufferConfigFactory::new(Arc::clone(&time_provider)));
+        let write_buffer_factory = Arc::new(WriteBufferConfigFactory::new(
+            Arc::clone(&time_provider),
+            Arc::clone(&metric_registry),
+        ));
 
         Self {
             object_store,
