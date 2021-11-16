@@ -91,35 +91,7 @@ impl Drop for SendPanicsToTracing {
 
 fn tracing_panic_hook(other_hook: &PanicFunctionPtr, panic_info: &PanicInfo<'_>) {
     // Attempt to replicate the standard format:
-    // thread 'main' panicked at 'foo', src/libstd/panicking.rs:106:9
-    let log_panic = |s: &str| {
-        let location_string = match panic_info.location() {
-            Some(location) => format!(
-                "{}:{}:{}",
-                location.file(),
-                location.line(),
-                location.column()
-            ),
-            None => "<NO LOCATION>".into(),
-        };
-
-        let thread_name: String = match std::thread::current().name() {
-            Some(name) => name.into(),
-            None => "unnamed".into(),
-        };
-        error!(
-            "thread '{}' panicked at '{}', {}",
-            thread_name, s, location_string
-        );
-    };
-
-    if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
-        log_panic(s);
-    } else if let Some(s) = panic_info.payload().downcast_ref::<&String>() {
-        log_panic(s);
-    } else {
-        log_panic("UNKNOWN");
-    }
+    error!(panic_info=%panic_info, "Thread panic");
 
     // Call into the previous panic function (typically the standard
     // panic function)

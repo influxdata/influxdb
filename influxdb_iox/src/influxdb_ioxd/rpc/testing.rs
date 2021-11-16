@@ -12,7 +12,10 @@ impl IOxTesting for IOxTestingService {
         _req: tonic::Request<TestErrorRequest>,
     ) -> Result<tonic::Response<TestErrorResponse>, tonic::Status> {
         warn!("Got a test_error request. About to panic");
-        panic!("This is a test panic");
+        // Purposely do not use a static string (so that the panic
+        // code has to deal with aribtrary payloads). See
+        // https://github.com/influxdata/influxdb_iox/issues/1953
+        panic!("This {}", "is a test panic");
     }
 }
 
