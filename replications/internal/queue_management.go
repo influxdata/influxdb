@@ -3,17 +3,27 @@ package internal
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
 	"go.uber.org/zap"
 )
 
+type replicationQueue struct {
+	queue   *durablequeue.Queue
+	wg      sync.WaitGroup
+	done    chan struct{}
+	receive chan struct{}
+	logger  *zap.Logger
+}
+
 type durableQueueManager struct {
-	replicationQueues map[platform.ID]*durablequeue.Queue
+	replicationQueues map[platform.ID]*replicationQueue
 	logger            *zap.Logger
 	queuePath         string
 	mutex             sync.RWMutex
@@ -25,7 +35,7 @@ var errShutdown = errors.New("shutdown tasks for replications durable queues fai
 // NewDurableQueueManager creates a new durableQueueManager struct, for managing durable queues associated with
 //replication streams.
 func NewDurableQueueManager(log *zap.Logger, queuePath string) *durableQueueManager {
-	replicationQueues := make(map[platform.ID]*durablequeue.Queue)
+	replicationQueues := make(map[platform.ID]*replicationQueue)
 
 	os.MkdirAll(queuePath, 0777)
 
@@ -71,13 +81,20 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 		return err
 	}
 
-	// Map new durable queue to its corresponding replication stream via replication ID
-	qm.replicationQueues[replicationID] = newQueue
-
 	// Open the new queue
 	if err := newQueue.Open(); err != nil {
 		return err
 	}
+
+	// Map new durable queue and scanner to its corresponding replication stream via replication ID
+	rq := replicationQueue{
+		queue:   newQueue,
+		logger:  qm.logger,
+		done:    make(chan struct{}),
+		receive: make(chan struct{}),
+	}
+	qm.replicationQueues[replicationID] = &rq
+	rq.Open()
 
 	qm.logger.Debug("Created new durable queue for replication stream",
 		zap.String("id", replicationID.String()), zap.String("path", dir))
@@ -85,30 +102,112 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 	return nil
 }
 
+func (rq *replicationQueue) Open() {
+	rq.wg.Add(1)
+	go rq.run()
+}
+
+func (rq *replicationQueue) Close() error {
+	close(rq.receive)
+	close(rq.done)
+	rq.wg.Wait() // wait for goroutine to finish processing all messages
+	return rq.queue.Close()
+}
+
+func (rq *replicationQueue) run() {
+	defer rq.wg.Done()
+
+	retryInterval := time.Second
+	retryTimer := time.NewTicker(retryInterval)
+	defer retryTimer.Stop()
+
+	writer := func() {
+		for {
+			_, err := rq.SendWrite(func(b []byte) error {
+				rq.logger.Info("written bytes", zap.Int("len", len(b)))
+				return nil
+			})
+			if err != nil {
+				if err == io.EOF {
+					// No more data
+					// Handle this gracefully, as it is an expected error to receive
+				} else {
+					// todo more error handling
+					panic(1)
+				}
+				break
+			}
+		}
+	}
+
+	for {
+		select {
+		case <-rq.done: // end the goroutine when done is messaged
+			return
+		case <-retryTimer.C: // run the scanner every 1s
+			writer()
+		case <-rq.receive: // run the scanner on data append
+			writer()
+		}
+	}
+}
+
+func (rq *replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
+	// err here can be io.EOF, indicating nothing to write
+	scan, err := rq.queue.NewScanner()
+	if err != nil {
+		return 0, err
+	}
+
+	var count int
+	for scan.Next() {
+		// This may return io.EOF to indicate an empty queue
+		if scan.Err() != nil {
+			err = scan.Err()
+			break
+		}
+		if err = dp(scan.Bytes()); err != nil {
+			break
+		}
+		count += len(scan.Bytes())
+	}
+
+	if err != nil { // todo handle "skippable" errors
+		rq.logger.Info("Segment read error.", zap.Error(scan.Err()))
+	}
+
+	if _, err := scan.Advance(); err != nil {
+		return count, err
+	}
+	return count, nil
+}
+
 // DeleteQueue deletes a durable queue and its associated data on disk.
 func (qm *durableQueueManager) DeleteQueue(replicationID platform.ID) error {
 	qm.mutex.Lock()
 	defer qm.mutex.Unlock()
 
-	if qm.replicationQueues[replicationID] == nil {
+	if _, exist := qm.replicationQueues[replicationID]; !exist {
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}
 
+	rq := qm.replicationQueues[replicationID]
+
 	// Close the queue
-	if err := qm.replicationQueues[replicationID].Close(); err != nil {
+	if err := rq.Close(); err != nil {
 		return err
 	}
 
 	qm.logger.Debug("Closed replication stream durable queue",
-		zap.String("id", replicationID.String()), zap.String("path", qm.replicationQueues[replicationID].Dir()))
+		zap.String("id", replicationID.String()), zap.String("path", rq.queue.Dir()))
 
 	// Delete any enqueued, un-flushed data on disk for this queue
-	if err := qm.replicationQueues[replicationID].Remove(); err != nil {
+	if err := rq.queue.Remove(); err != nil {
 		return err
 	}
 
 	qm.logger.Debug("Deleted data associated with replication stream durable queue",
-		zap.String("id", replicationID.String()), zap.String("path", qm.replicationQueues[replicationID].Dir()))
+		zap.String("id", replicationID.String()), zap.String("path", rq.queue.Dir()))
 
 	// Remove entry from replicationQueues map
 	delete(qm.replicationQueues, replicationID)
@@ -121,11 +220,11 @@ func (qm *durableQueueManager) UpdateMaxQueueSize(replicationID platform.ID, max
 	qm.mutex.RLock()
 	defer qm.mutex.RUnlock()
 
-	if qm.replicationQueues[replicationID] == nil {
+	if _, exist := qm.replicationQueues[replicationID]; !exist {
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}
 
-	if err := qm.replicationQueues[replicationID].SetMaxSize(maxQueueSizeBytes); err != nil {
+	if err := qm.replicationQueues[replicationID].queue.SetMaxSize(maxQueueSizeBytes); err != nil {
 		return err
 	}
 
@@ -140,10 +239,10 @@ func (qm *durableQueueManager) CurrentQueueSizes(ids []platform.ID) (map[platfor
 	sizes := make(map[platform.ID]int64, len(ids))
 
 	for _, id := range ids {
-		if qm.replicationQueues[id] == nil {
+		if _, exist := qm.replicationQueues[id]; !exist {
 			return nil, fmt.Errorf("durable queue not found for replication ID %q", id)
 		}
-		sizes[id] = qm.replicationQueues[id].DiskUsage()
+		sizes[id] = qm.replicationQueues[id].queue.DiskUsage()
 	}
 
 	return sizes, nil
@@ -179,7 +278,13 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 			errOccurred = true
 			continue
 		} else {
-			qm.replicationQueues[id] = queue
+			qm.replicationQueues[id] = &replicationQueue{
+				queue:   queue,
+				logger:  qm.logger,
+				done:    make(chan struct{}),
+				receive: make(chan struct{}),
+			}
+			qm.replicationQueues[id].Open()
 			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
 		}
 	}
@@ -206,7 +311,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 		}
 
 		// Partial delete found, needs to be fully removed
-		if qm.replicationQueues[*id] == nil {
+		if _, exist := qm.replicationQueues[*id]; !exist {
 			if err := os.RemoveAll(filepath.Join(qm.queuePath, id.String())); err != nil {
 				qm.logger.Error("failed to remove durable queue during partial delete cleanup", zap.Error(err), zap.String("id", id.String()))
 				errOccurred = true
@@ -225,8 +330,8 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 func (qm *durableQueueManager) CloseAll() error {
 	errOccurred := false
 
-	for id, queue := range qm.replicationQueues {
-		if err := queue.Close(); err != nil {
+	for id, replicationQueue := range qm.replicationQueues {
+		if err := replicationQueue.Close(); err != nil {
 			qm.logger.Error("failed to close durable queue", zap.Error(err), zap.String("id", id.String()))
 			errOccurred = true
 		}
@@ -244,13 +349,14 @@ func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byt
 	qm.mutex.RLock()
 	defer qm.mutex.RUnlock()
 
-	if qm.replicationQueues[replicationID] == nil {
+	if _, exist := qm.replicationQueues[replicationID]; !exist {
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}
 
-	if err := qm.replicationQueues[replicationID].Append(data); err != nil {
+	if err := qm.replicationQueues[replicationID].queue.Append(data); err != nil {
 		return err
 	}
+	qm.replicationQueues[replicationID].receive <- struct{}{}
 
 	return nil
 }
