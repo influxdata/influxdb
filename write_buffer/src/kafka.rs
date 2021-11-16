@@ -503,6 +503,8 @@ struct ClientContextImpl {
     database_name: String,
     producer_queue_msg_count: Metric<U64Gauge>,
     producer_queue_msg_bytes: Metric<U64Gauge>,
+    producer_queue_max_msg_count: Metric<U64Gauge>,
+    producer_queue_max_msg_bytes: Metric<U64Gauge>,
     tx_bytes: Metric<U64Gauge>,
     rx_bytes: Metric<U64Gauge>,
     consumer_lag: Metric<U64Gauge>,
@@ -519,6 +521,14 @@ impl ClientContextImpl {
             producer_queue_msg_bytes: metric_registry.register_metric(
                 "kafka_producer_queue_msg_bytes",
                 "The current total size of messages in producer queues",
+            ),
+            producer_queue_max_msg_count: metric_registry.register_metric(
+                "kafka_producer_queue_max_msg_count",
+                "The maximum number of messages allowed in the producer queues.",
+            ),
+            producer_queue_max_msg_bytes: metric_registry.register_metric(
+                "kafka_producer_queue_max_msg_bytes",
+                "The maximum total size of messages allowed in the producer queues.",
             ),
             tx_bytes: metric_registry.register_metric(
                 "kafka_tx_bytes",
@@ -546,9 +556,17 @@ impl ClientContext for ClientContextImpl {
         self.producer_queue_msg_count
             .recorder(attributes.clone())
             .set(statistics.msg_cnt as u64);
+        self.producer_queue_max_msg_count
+            .recorder(attributes.clone())
+            .set(statistics.msg_max as u64);
+
         self.producer_queue_msg_bytes
             .recorder(attributes.clone())
             .set(statistics.msg_size as u64);
+        self.producer_queue_max_msg_bytes
+            .recorder(attributes.clone())
+            .set(statistics.msg_size_max as u64);
+
         self.tx_bytes
             .recorder(attributes.clone())
             .set(statistics.tx_bytes as u64);
