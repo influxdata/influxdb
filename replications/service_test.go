@@ -60,18 +60,20 @@ var (
 	newRemoteID  = platform.ID(200)
 	newQueueSize = influxdb.MinReplicationMaxQueueSizeBytes
 	updateReq    = influxdb.UpdateReplicationRequest{
-		RemoteID:          &newRemoteID,
-		MaxQueueSizeBytes: &newQueueSize,
+		RemoteID:             &newRemoteID,
+		MaxQueueSizeBytes:    &newQueueSize,
+		DropNonRetryableData: boolPointer(true),
 	}
 	updatedReplication = influxdb.Replication{
-		ID:                replication.ID,
-		OrgID:             replication.OrgID,
-		Name:              replication.Name,
-		Description:       replication.Description,
-		RemoteID:          *updateReq.RemoteID,
-		LocalBucketID:     replication.LocalBucketID,
-		RemoteBucketID:    replication.RemoteBucketID,
-		MaxQueueSizeBytes: *updateReq.MaxQueueSizeBytes,
+		ID:                   replication.ID,
+		OrgID:                replication.OrgID,
+		Name:                 replication.Name,
+		Description:          replication.Description,
+		RemoteID:             *updateReq.RemoteID,
+		LocalBucketID:        replication.LocalBucketID,
+		RemoteBucketID:       replication.RemoteBucketID,
+		MaxQueueSizeBytes:    *updateReq.MaxQueueSizeBytes,
+		DropNonRetryableData: true,
 	}
 	updatedHttpConfig = internal.ReplicationHTTPConfig{
 		RemoteURL:        fmt.Sprintf("http://%s.cloud", updatedReplication.RemoteID),
@@ -764,4 +766,8 @@ func insertRemote(t *testing.T, store *sqlite.SqlStore, id platform.ID) {
 
 	_, err = store.DB.Exec(query, args...)
 	require.NoError(t, err)
+}
+
+func boolPointer(b bool) *bool {
+	return &b
 }
