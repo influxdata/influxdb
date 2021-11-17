@@ -26,7 +26,6 @@ import (
 	"github.com/influxdata/influxdb/v2/dashboards"
 	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/dbrp"
-	"github.com/influxdata/influxdb/v2/gather"
 	"github.com/influxdata/influxdb/v2/http"
 	iqlcontrol "github.com/influxdata/influxdb/v2/influxql/control"
 	iqlquery "github.com/influxdata/influxdb/v2/influxql/query"
@@ -43,7 +42,6 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
-	"github.com/influxdata/influxdb/v2/nats"
 	"github.com/influxdata/influxdb/v2/notebooks"
 	notebookTransport "github.com/influxdata/influxdb/v2/notebooks/transport"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
@@ -549,54 +547,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	{
 		telegrafSvc = telegrafservice.New(m.kvStore)
 	}
-
-	// NATS streaming server
-	natsOpts := nats.NewDefaultServerOptions()
-	natsOpts.Port = opts.NatsPort
-	natsOpts.MaxPayload = opts.NatsMaxPayloadBytes
-	natsServer := nats.NewServer(&natsOpts, m.log.With(zap.String("service", "nats")))
-	if err := natsServer.Open(); err != nil {
-		m.log.Error("Failed to start nats streaming server", zap.Error(err))
-		return err
-	}
-	m.closers = append(m.closers, labeledCloser{
-		label: "nats",
-		closer: func(context.Context) error {
-			natsServer.Close()
-			return nil
-		},
-	})
-	// If a random port was used, the opts will be updated to include the selected value.
-	natsURL := fmt.Sprintf("http://127.0.0.1:%d", natsOpts.Port)
-	publisher := nats.NewAsyncPublisher(m.log, fmt.Sprintf("nats-publisher-%d", natsOpts.Port), natsURL)
-	if err := publisher.Open(); err != nil {
-		m.log.Error("Failed to connect to streaming server", zap.Error(err))
-		return err
-	}
-
-	// TODO(jm): this is an example of using a subscriber to consume from the channel. It should be removed.
-	subscriber := nats.NewQueueSubscriber(fmt.Sprintf("nats-subscriber-%d", natsOpts.Port), natsURL)
-	if err := subscriber.Open(); err != nil {
-		m.log.Error("Failed to connect to streaming server", zap.Error(err))
-		return err
-	}
-
-	subscriber.Subscribe(gather.MetricsSubject, "metrics", gather.NewRecorderHandler(m.log, gather.PointWriter{Writer: pointsWriter}))
-	scraperScheduler, err := gather.NewScheduler(m.log, 10, scraperTargetSvc, publisher, subscriber, 10*time.Second, 30*time.Second)
-	if err != nil {
-		m.log.Error("Failed to create scraper subscriber", zap.Error(err))
-		return err
-	}
-
-	m.wg.Add(1)
-	go func(log *zap.Logger) {
-		defer m.wg.Done()
-		log = log.With(zap.String("service", "scraper"))
-		if err := scraperScheduler.Run(ctx); err != nil {
-			log.Error("Failed scraper service", zap.Error(err))
-		}
-		log.Info("Stopping")
-	}(m.log)
 
 	var sessionSvc platform.SessionService
 	{
