@@ -123,10 +123,10 @@ workflows:
             branches:
               only: master
       - share-testing-image:
-#          filters:
-#            branches:
-#              only:
-#                - master
+          filters:
+            branches:
+              only:
+                - master
           requires:
             - e2e-monitor-ci
 
