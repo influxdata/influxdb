@@ -14,7 +14,11 @@ use persistence_windows::{
 };
 use schema::Schema;
 use snafu::{OptionExt, Snafu};
-use std::{collections::BTreeMap, fmt::Display, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Display,
+    sync::Arc,
+};
 use time::{Time, TimeProvider};
 use tracker::RwLock;
 
@@ -366,6 +370,23 @@ impl Partition {
         &self,
     ) -> impl Iterator<Item = (ChunkId, ChunkOrder, &Arc<RwLock<CatalogChunk>>)> + '_ {
         self.chunks.iter()
+    }
+
+    /// Return true if there are no other persisted chunks that are in the middle of
+    /// the provided chunk orders
+    pub fn contiguous_object_store_chunks(&self, chunk_orders: &BTreeSet<ChunkOrder>) -> bool {
+        let chunks = self.chunks();
+        for chunk in chunks {
+            let chunk = chunk.read();
+            if chunk.is_persisted() {
+                let order = chunk.order();
+                // this chunk does not belong to chunk_orders but in the middle of them
+                if !chunk_orders.contains(&order) && chunk_orders.range(order..).count() > 0 {
+                    return false;
+                }
+            }
+        }
+        true
     }
 
     /// Return a PartitionSummary for this partition. If the partition

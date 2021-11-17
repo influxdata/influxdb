@@ -706,6 +706,7 @@ mod tests {
         Drop(ChunkId),
         Unload(ChunkId),
         Compact(Vec<ChunkId>),
+        CompactOS(Vec<ChunkId>),
         Persist(Vec<ChunkId>),
     }
 
@@ -902,6 +903,20 @@ mod tests {
 
             let event = MoverEvents::Compact(chunks.iter().map(|x| x.addr.chunk_id).collect());
 
+            let db = partition.data().db;
+            db.events.write().push(event);
+
+            Ok(db.registry.lock().complete(()))
+        }
+
+        fn compact_object_store_chunks(
+            partition: LifecycleWriteGuard<'_, TestPartition, Self>,
+            chunks: Vec<LifecycleWriteGuard<'_, TestChunk, Self::Chunk>>,
+        ) -> Result<TaskTracker<()>, Self::Error> {
+            // This is just a trait function that this test may not need
+            // Nothing is compacted in this function yet
+            // If you want this functionality, import and invoke compact_object_store_chunks
+            let event = MoverEvents::CompactOS(chunks.iter().map(|x| x.addr.chunk_id).collect());
             let db = partition.data().db;
             db.events.write().push(event);
 

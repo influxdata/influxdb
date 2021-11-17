@@ -79,6 +79,12 @@ pub trait LockablePartition: Sized + std::fmt::Display {
         chunks: Vec<LifecycleWriteGuard<'_, <Self::Chunk as LockableChunk>::Chunk, Self::Chunk>>,
     ) -> Result<TaskTracker<<Self::Chunk as LockableChunk>::Job>, Self::Error>;
 
+    /// Compact object store chunks into a single object store chunk
+    fn compact_object_store_chunks(
+        partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
+        chunks: Vec<LifecycleWriteGuard<'_, <Self::Chunk as LockableChunk>::Chunk, Self::Chunk>>,
+    ) -> Result<TaskTracker<<Self::Chunk as LockableChunk>::Job>, Self::Error>;
+
     /// Returns a PersistHandle for the provided partition, and the
     /// timestamp up to which to to flush
     ///
