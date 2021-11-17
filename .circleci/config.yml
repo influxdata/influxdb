@@ -371,7 +371,8 @@ jobs:
   #
   # To modify the contents of the CI image, update docker/Dockerfile.ci
   ci_image:
-    machine: true
+    machine:
+      image: ubuntu-2004:202107-02
     resource_class: xlarge
     steps:
       - checkout
@@ -380,11 +381,9 @@ jobs:
       - run: |
           COMMIT_SHA=$(git rev-parse --short HEAD)
           RUST_VERSION=$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)
-          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -f docker/Dockerfile.ci --build-arg RUST_VERSION=$RUST_VERSION .
-          docker tag quay.io/influxdb/rust:$COMMIT_SHA quay.io/influxdb/rust:ci
-          docker push quay.io/influxdb/rust:$COMMIT_SHA
-          docker push quay.io/influxdb/rust:ci
-
+          docker --version
+          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -t quay.io/influxdb/rust:ci -f docker/Dockerfile.ci --build-arg RUST_VERSION=$RUST_VERSION .
+          docker push --all-tags quay.io/influxdb/rust
 
 
 parameters:
