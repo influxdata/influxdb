@@ -57,9 +57,7 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         }
         .into(),
         Error::RemoteError { source } => tonic::Status::unavailable(source.to_string()),
-        Error::WipePreservedCatalog { source } | Error::CannotMarkDatabaseDeleted { source } => {
-            default_database_error_handler(source)
-        }
+        Error::WipePreservedCatalog { source } => default_database_error_handler(source),
         Error::DeleteExpression {
             start_time,
             stop_time,
@@ -76,12 +74,7 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             tonic::Status::invalid_argument(format!("Cannot initialize database: {}", source))
         }
         Error::StoreWriteErrors { .. } => tonic::Status::invalid_argument(error.to_string()),
-        Error::CannotRestoreDatabase {
-            source: e @ server::database::InitError::AlreadyActive { .. },
-        } => tonic::Status::already_exists(e.to_string()),
-        Error::DatabaseAlreadyActive { .. }
-        | Error::DatabaseAlreadyExists { .. }
-        | Error::DatabaseAlreadyOwnedByThisServer { .. } => {
+        Error::DatabaseAlreadyExists { .. } | Error::DatabaseAlreadyOwnedByThisServer { .. } => {
             tonic::Status::already_exists(error.to_string())
         }
         Error::UuidMismatch { .. } | Error::CannotClaimDatabase { .. } => {
@@ -146,13 +139,7 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
             error!(%source, "Unexpected error skipping replay");
             InternalError {}.into()
         }
-        Error::CannotMarkDatabaseDeleted { source, .. } => {
-            error!(%source, "Unexpected error deleting database");
-            InternalError {}.into()
-        }
-        Error::CannotDeleteInactiveDatabase { .. } | Error::CannotReleaseUnowned { .. } => {
-            tonic::Status::failed_precondition(error.to_string())
-        }
+        Error::CannotReleaseUnowned { .. } => tonic::Status::failed_precondition(error.to_string()),
         Error::CannotRelease { source, .. } => {
             error!(%source, "Unexpected error releasing database");
             InternalError {}.into()

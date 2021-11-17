@@ -41,20 +41,8 @@ pub enum IoxObjectStoreError {
     #[snafu(display("Cannot create database with UUID `{}`; it already exists", uuid))]
     DatabaseAlreadyExists { uuid: Uuid },
 
-    #[snafu(display(
-        "Cannot restore; there is already an active database with UUID `{}`",
-        uuid
-    ))]
-    DatabaseAlreadyActive { uuid: Uuid },
-
     #[snafu(display("No rules found to load at {}", root_path))]
     NoRulesFound { root_path: RootPath },
-
-    #[snafu(display("Could not restore database with UUID `{}`: {}", uuid, source))]
-    RestoreFailed {
-        uuid: Uuid,
-        source: object_store::Error,
-    },
 }
 
 /// Handles persistence of data for a particular database. Writes within its directory/prefix.

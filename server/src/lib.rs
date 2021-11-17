@@ -159,22 +159,13 @@ pub enum Error {
     CouldNotGetDatabaseNameFromRules { source: DatabaseNameFromRulesError },
 
     #[snafu(display("{}", source))]
-    CannotMarkDatabaseDeleted { source: crate::database::Error },
-
-    #[snafu(display("{}", source))]
     CannotReleaseDatabase { source: crate::database::Error },
-
-    #[snafu(display("{}", source))]
-    CannotRestoreDatabase { source: crate::database::InitError },
 
     #[snafu(display("{}", source))]
     CannotClaimDatabase { source: crate::database::InitError },
 
     #[snafu(display("A database with the name `{}` already exists", db_name))]
     DatabaseAlreadyExists { db_name: String },
-
-    #[snafu(display("The database with UUID `{}` named `{}` is already active", uuid, name))]
-    DatabaseAlreadyActive { name: String, uuid: Uuid },
 
     #[snafu(display("The database with UUID `{}` is already owned by this server", uuid))]
     DatabaseAlreadyOwnedByThisServer { uuid: Uuid },

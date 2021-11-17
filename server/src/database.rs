@@ -81,18 +81,6 @@ pub enum Error {
     #[snafu(display("cannot persisted updated rules: {}", source))]
     CannotPersistUpdatedRules { source: crate::rules::Error },
 
-    #[snafu(display("cannot mark database {} deleted: {}", db_name, source))]
-    CannotMarkDatabaseDeleted {
-        db_name: String,
-        source: object_store::Error,
-    },
-
-    #[snafu(display(
-        "cannot delete database named {} that has already been marked as deleted",
-        db_name
-    ))]
-    CannotDeleteInactiveDatabase { db_name: String },
-
     #[snafu(display(
         "cannot release database named {} that has already been released",
         db_name

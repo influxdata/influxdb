@@ -169,23 +169,6 @@ where
         }))
     }
 
-    async fn delete_database(
-        &self,
-        request: Request<DeleteDatabaseRequest>,
-    ) -> Result<Response<DeleteDatabaseResponse>, Status> {
-        let db_name = DatabaseName::new(request.into_inner().db_name).scope("db_name")?;
-
-        let uuid = self
-            .server
-            .release_database(&db_name, None)
-            .await
-            .map_err(default_server_error_handler)?;
-
-        Ok(Response::new(DeleteDatabaseResponse {
-            uuid: uuid.as_bytes().to_vec(),
-        }))
-    }
-
     async fn release_database(
         &self,
         request: Request<ReleaseDatabaseRequest>,
@@ -208,21 +191,6 @@ where
         Ok(Response::new(ReleaseDatabaseResponse {
             uuid: returned_uuid.as_bytes().to_vec(),
         }))
-    }
-
-    async fn restore_database(
-        &self,
-        request: Request<RestoreDatabaseRequest>,
-    ) -> Result<Response<RestoreDatabaseResponse>, Status> {
-        let request = request.into_inner();
-        let uuid = Uuid::from_slice(&request.uuid).scope("uuid")?;
-
-        self.server
-            .claim_database(uuid)
-            .await
-            .map_err(default_server_error_handler)?;
-
-        Ok(Response::new(RestoreDatabaseResponse {}))
     }
 
     async fn claim_database(
