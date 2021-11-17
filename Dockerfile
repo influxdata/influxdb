@@ -17,7 +17,7 @@ RUN \
   cp /influxdb_iox/target/release/influxdb_iox /root/influxdb_iox && \
   du -cshx /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target
 
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 
 RUN apt-get update \
     && apt-get install -y libssl1.1 libgcc1 libc6 ca-certificates --no-install-recommends \

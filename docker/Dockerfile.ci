@@ -12,7 +12,7 @@
 
 ARG RUST_VERSION
 # Build actual image used for CI pipeline
-FROM rust:${RUST_VERSION}-slim-buster
+FROM rust:${RUST_VERSION}-slim-bullseye
 
 # When https://github.com/rust-lang/rustup/issues/2686 is fixed, run the command added that
 # will install everything in rust-toolchain.toml here so that components are in the container
@@ -42,7 +42,7 @@ COPY docker/redpanda.gpg /tmp/redpanda.gpg
 # Generated from https://packages.vectorized.io/nzc4ZYQK3WRGd9sy/redpanda/cfg/setup/bash.deb.sh
 RUN apt-key add /tmp/redpanda.gpg \
     && rm /tmp/redpanda.gpg \
-    && curl ${CURL_FLAGS} "https://packages.vectorized.io/nzc4ZYQK3WRGd9sy/redpanda/config.deb.txt?distro=debian&codename=buster&version=10&arch=x86_64" \
+    && curl ${CURL_FLAGS} "https://packages.vectorized.io/nzc4ZYQK3WRGd9sy/redpanda/config.deb.txt?distro=debian&codename=bullseye&version=10&arch=x86_64" \
       > /etc/apt/sources.list.d/vectorized-redpanda.list \
     && apt-get update \
     && apt-get install -y redpanda \

@@ -1,7 +1,7 @@
 ###
 # Dockerfile used for deploying IOx
 ##
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 
 RUN apt-get update \
   && apt-get install -y libssl1.1 libgcc1 libc6 ca-certificates gettext-base --no-install-recommends \
