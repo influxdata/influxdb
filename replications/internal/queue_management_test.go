@@ -19,6 +19,8 @@ var (
 )
 
 func TestCreateNewQueueDirExists(t *testing.T) {
+	t.Parallel()
+
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -29,6 +31,8 @@ func TestCreateNewQueueDirExists(t *testing.T) {
 }
 
 func TestEnqueueScan(t *testing.T) {
+	t.Parallel()
+
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -44,6 +48,8 @@ func TestEnqueueScan(t *testing.T) {
 }
 
 func TestEnqueueScanMultiple(t *testing.T) {
+	t.Parallel()
+
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -62,6 +68,8 @@ func TestEnqueueScanMultiple(t *testing.T) {
 }
 
 func TestCreateNewQueueDuplicateID(t *testing.T) {
+	t.Parallel()
+
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -75,6 +83,8 @@ func TestCreateNewQueueDuplicateID(t *testing.T) {
 }
 
 func TestDeleteQueueDirRemoved(t *testing.T) {
+	t.Parallel()
+
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -90,6 +100,8 @@ func TestDeleteQueueDirRemoved(t *testing.T) {
 }
 
 func TestDeleteQueueNonexistentID(t *testing.T) {
+	t.Parallel()
+
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -99,6 +111,8 @@ func TestDeleteQueueNonexistentID(t *testing.T) {
 }
 
 func TestUpdateMaxQueueSizeNonexistentID(t *testing.T) {
+	t.Parallel()
+
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -108,6 +122,8 @@ func TestUpdateMaxQueueSizeNonexistentID(t *testing.T) {
 }
 
 func TestStartReplicationQueue(t *testing.T) {
+	t.Parallel()
+
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -136,6 +152,8 @@ func TestStartReplicationQueue(t *testing.T) {
 }
 
 func TestStartReplicationQueuePartialDelete(t *testing.T) {
+	t.Parallel()
+
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -162,6 +180,8 @@ func TestStartReplicationQueuePartialDelete(t *testing.T) {
 }
 
 func TestStartReplicationQueuesMultiple(t *testing.T) {
+	t.Parallel()
+
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -203,6 +223,8 @@ func TestStartReplicationQueuesMultiple(t *testing.T) {
 }
 
 func TestStartReplicationQueuesMultipleWithPartialDelete(t *testing.T) {
+	t.Parallel()
+
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -274,6 +296,8 @@ func getTestWriteFunc(t *testing.T, expected string) func([]byte) error {
 }
 
 func TestEnqueueData(t *testing.T) {
+	t.Parallel()
+
 	queuePath, err := os.MkdirTemp("", "testqueue")
 	require.NoError(t, err)
 	defer os.RemoveAll(queuePath)
@@ -309,6 +333,8 @@ func TestEnqueueData(t *testing.T) {
 }
 
 func TestGoroutineReceives(t *testing.T) {
+	t.Parallel()
+
 	path, qm := initQueueManager(t)
 	defer os.RemoveAll(path)
 	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
@@ -330,6 +356,8 @@ func TestGoroutineReceives(t *testing.T) {
 }
 
 func TestGoroutineCloses(t *testing.T) {
+	t.Parallel()
+
 	path, qm := initQueueManager(t)
 	defer os.RemoveAll(path)
 	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
