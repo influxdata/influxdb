@@ -3,15 +3,13 @@ package internal
 import (
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
+	"go.uber.org/zap"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
-
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
-	"go.uber.org/zap"
 )
 
 type replicationQueue struct {
@@ -21,7 +19,7 @@ type replicationQueue struct {
 	receive chan struct{}
 	logger  *zap.Logger
 
-	writeFunc *func([]byte) error
+	writeFunc func([]byte) error
 }
 
 type durableQueueManager struct {
@@ -97,7 +95,7 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 		done:      make(chan struct{}),
 		receive:   make(chan struct{}),
 		logger:    qm.logger.With(zap.String("replication_id", replicationID.String())),
-		writeFunc: &qm.writeFunc,
+		writeFunc: qm.writeFunc,
 	}
 	qm.replicationQueues[replicationID] = &rq
 	rq.Open()
@@ -129,38 +127,34 @@ func WriteFunc(b []byte) error {
 func (rq *replicationQueue) run() {
 	defer rq.wg.Done()
 
-	retryInterval := time.Second
-	retryTimer := time.NewTicker(retryInterval)
-	defer retryTimer.Stop()
-
-	writer := func() {
-		for {
-			_, err := rq.SendWrite(*rq.writeFunc)
-			if err != nil {
-				if err == io.EOF {
-					// No more data
-					// Handle this gracefully, as it is an expected error to receive
-				} else {
-					// todo more error handling
-					panic(1)
-				}
-				break
-			}
-		}
-	}
-
 	for {
 		select {
 		case <-rq.done: // end the goroutine when done is messaged
 			return
-		case <-retryTimer.C: // run the scanner every 1s
-			writer()
 		case <-rq.receive: // run the scanner on data append
-			writer()
+			for {
+				_, err := rq.SendWrite(rq.writeFunc)
+
+				if err != nil {
+					if err == io.EOF {
+						// No more data
+						// Handle this gracefully, as it is an expected error to receive
+					} else {
+						// Crash out the server if an unhandleable error occurs in SendWrite()
+						panic(1)
+					}
+					break
+				}
+			}
 		}
 	}
 }
 
+// SendWrite processes data enqueued into the durablequeue.Queue.
+// SendWrite is responsible for processing all data in the queue at the time of calling.
+// Retryable errors should be handled and retried in the dp function.
+// Unprocessable data should be dropped in the dp function.
+// An error from this function (other than io.EOF) will crash the InfluxDB server instance.
 func (rq *replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
 	// err here can be io.EOF, indicating nothing to write
 	scan, err := rq.queue.NewScanner()
@@ -170,21 +164,39 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
 
 	var count int
 	for scan.Next() {
-		// This may return io.EOF to indicate an empty queue
+
+		// An io.EOF error here indicates that there is no data left to process.
+		// This is an expected error, so we do not set the "err" variable here.
+		if scan.Err() == io.EOF {
+			break
+		}
+
+		// Any unexpected error from the Scanner is gathered here (anything other than io.EOF)
 		if scan.Err() != nil {
 			err = scan.Err()
 			break
 		}
+
+		// An error here indicates an unhandlable error. Data is not corrupt, and
+		// the remote write is not retryable. This error should most likely
+		// crash out the server instance. A potential example of an error here
+		// is an authentication error with the remote host.
 		if err = dp(scan.Bytes()); err != nil {
-			break
+			return count, err
 		}
+
 		count += len(scan.Bytes())
 	}
 
-	if err != nil { // todo handle "skippable" errors
+	// Indicates an error in the Scanner itself. Data which caused this error will be dropped.
+	// TODO Do we need to handle this more gracefully? Are there situations where this
+	// TODO data should not be simply dropped?
+	if err != nil {
 		rq.logger.Info("Segment read error.", zap.Error(scan.Err()))
 	}
 
+	// Advance the queue pointer forward, dropping data that has already been processed.
+	// TODO Are there errors from calling Advance() that can be more gracefully handled?
 	if _, err := scan.Advance(); err != nil {
 		return count, err
 	}
@@ -292,7 +304,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 				done:      make(chan struct{}),
 				receive:   make(chan struct{}),
 				logger:    qm.logger.With(zap.String("replication_id", id.String())),
-				writeFunc: &qm.writeFunc,
+				writeFunc: qm.writeFunc,
 			}
 			qm.replicationQueues[id].Open()
 			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
