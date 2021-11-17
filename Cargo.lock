@@ -1208,7 +1208,6 @@ dependencies = [
  "pbjson",
  "pbjson-build",
  "pbjson-types",
- "proc-macro2",
  "prost",
  "prost-build",
  "regex",
