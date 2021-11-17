@@ -194,7 +194,10 @@ pub mod test_utils {
             .await
             .unwrap();
 
-        let DmlOperation::Write(mut write) = operation;
+        let mut write = match operation {
+            DmlOperation::Write(write) => write,
+            _ => unreachable!(),
+        };
 
         write.set_meta(meta);
         write

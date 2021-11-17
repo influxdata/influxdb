@@ -259,7 +259,7 @@ mod tests {
         });
 
         // Delete everything
-        db.delete("cpu", predicate).await.unwrap();
+        db.delete("cpu", predicate).unwrap();
         let chunk = db
             .compact_partition("cpu", partition_keys[0].as_str())
             .await
@@ -300,8 +300,8 @@ mod tests {
             range,
             exprs: vec![DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::I64(3))],
         });
-        db.delete("cpu", Arc::clone(&pred1)).await.unwrap();
-        db.delete("cpu", Arc::clone(&pred2)).await.unwrap();
+        db.delete("cpu", Arc::clone(&pred1)).unwrap();
+        db.delete("cpu", Arc::clone(&pred2)).unwrap();
 
         // start compaction job (but don't poll the future yet)
         let partition_keys = db.partition_keys().unwrap();
@@ -320,8 +320,8 @@ mod tests {
         let (_, fut) = compact_chunks(partition.upgrade(), vec![chunk.upgrade()]).unwrap();
 
         // add more delete predicates
-        db.delete("cpu", Arc::clone(&pred2)).await.unwrap();
-        db.delete("cpu", Arc::clone(&pred3)).await.unwrap();
+        db.delete("cpu", Arc::clone(&pred2)).unwrap();
+        db.delete("cpu", Arc::clone(&pred3)).unwrap();
 
         // finish future
         tokio::spawn(fut).await.unwrap().unwrap().unwrap();

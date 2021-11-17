@@ -317,7 +317,6 @@ where
     // Execute delete
     for table in tables {
         db.delete(&table, Arc::new(del_predicate.clone()))
-            .await
             .context(ExecutingDelete { input: body })?;
     }
 

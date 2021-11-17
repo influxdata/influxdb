@@ -14,6 +14,7 @@ pub fn shard_operation(
         DmlOperation::Write(write) => shard_write(&write, config)
             .into_iter()
             .map(|(shard, write)| (shard, DmlOperation::Write(write))),
+        DmlOperation::Delete(_) => unimplemented!(),
     }
 }
 

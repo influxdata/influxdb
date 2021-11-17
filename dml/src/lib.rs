@@ -14,6 +14,8 @@
 use hashbrown::HashMap;
 
 use data_types::database_rules::{ShardConfig, ShardId, Sharder};
+use data_types::delete_predicate::DeletePredicate;
+use data_types::non_empty::NonEmptyString;
 use data_types::partition_metadata::{StatValues, Statistics};
 use data_types::sequence::Sequence;
 use mutable_batch::MutableBatch;
@@ -88,6 +90,9 @@ impl DmlMeta {
 pub enum DmlOperation {
     /// A write operation
     Write(DmlWrite),
+
+    /// A delete operation
+    Delete(DmlDelete),
 }
 
 impl DmlOperation {
@@ -95,6 +100,7 @@ impl DmlOperation {
     pub fn meta(&self) -> &DmlMeta {
         match &self {
             DmlOperation::Write(w) => w.meta(),
+            DmlOperation::Delete(d) => d.meta(),
         }
     }
 
@@ -102,6 +108,7 @@ impl DmlOperation {
     pub fn set_meta(&mut self, meta: DmlMeta) {
         match self {
             DmlOperation::Write(w) => w.set_meta(meta),
+            DmlOperation::Delete(d) => d.set_meta(meta),
         }
     }
 }
@@ -211,6 +218,49 @@ impl DmlWrite {
     }
 }
 
+/// A delete operation
+#[derive(Debug, Clone)]
+pub struct DmlDelete {
+    predicate: DeletePredicate,
+    table_name: Option<NonEmptyString>,
+    meta: DmlMeta,
+}
+
+impl DmlDelete {
+    /// Create a new [`DmlDelete`]
+    pub fn new(
+        predicate: DeletePredicate,
+        table_name: Option<NonEmptyString>,
+        meta: DmlMeta,
+    ) -> Self {
+        Self {
+            predicate,
+            table_name,
+            meta,
+        }
+    }
+
+    /// Returns the table_name for this delete
+    pub fn table_name(&self) -> Option<&str> {
+        self.table_name.as_deref()
+    }
+
+    /// Returns the [`DeletePredicate`]
+    pub fn predicate(&self) -> &DeletePredicate {
+        &self.predicate
+    }
+
+    /// Returns the [`DmlMeta`]
+    pub fn meta(&self) -> &DmlMeta {
+        &self.meta
+    }
+
+    /// Sets the [`DmlMeta`] for this [`DmlDelete`]
+    pub fn set_meta(&mut self, meta: DmlMeta) {
+        self.meta = meta
+    }
+}
+
 /// Test utilities
 pub mod test_util {
     use arrow_util::display::pretty_format_batches;
@@ -222,6 +272,8 @@ pub mod test_util {
     pub fn assert_op_eq(a: &DmlOperation, b: &DmlOperation) {
         match (a, b) {
             (DmlOperation::Write(a), DmlOperation::Write(b)) => assert_writes_eq(a, b),
+            (DmlOperation::Delete(_), DmlOperation::Delete(_)) => unimplemented!(),
+            (a, b) => panic!("a != b, {:?} vs {:?}", a, b),
         }
     }
 
@@ -229,6 +281,7 @@ pub mod test_util {
     pub fn assert_write_op_eq(a: &DmlOperation, b: &DmlWrite) {
         match a {
             DmlOperation::Write(a) => assert_writes_eq(a, b),
+            _ => panic!("unexpected operation: {:?}", a),
         }
     }
 

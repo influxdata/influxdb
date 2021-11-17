@@ -27,7 +27,7 @@ use data_types::{
     server_id::ServerId,
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
-use dml::{DmlOperation, DmlWrite};
+use dml::{DmlDelete, DmlOperation, DmlWrite};
 use iox_object_store::IoxObjectStore;
 use mutable_batch::payload::PartitionWrite;
 use mutable_buffer::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
@@ -519,12 +519,27 @@ impl Db {
         fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
+    /// Store a delete
+    pub fn store_delete(&self, delete: &DmlDelete) -> Result<()> {
+        let predicate = Arc::new(delete.predicate().clone());
+        match delete.table_name() {
+            None => {
+                // Note: This assumes tables cannot be removed from the catalog and therefore
+                // this lock gap is not problematic
+                for table_name in self.catalog.table_names() {
+                    self.delete(&table_name, Arc::clone(&predicate))
+                        .expect("table exists")
+                }
+                Ok(())
+            }
+            Some(table_name) => self.delete(table_name, predicate),
+        }
+    }
+
     /// Delete data from  a table on a specified predicate
-    pub async fn delete(
-        self: &Arc<Self>,
-        table_name: &str,
-        delete_predicate: Arc<DeletePredicate>,
-    ) -> Result<()> {
+    ///
+    /// Returns an error if the table cannot be found in the catalog
+    pub fn delete(&self, table_name: &str, delete_predicate: Arc<DeletePredicate>) -> Result<()> {
         // collect delete predicates on preserved partitions for a catalog transaction
         let mut affected_persisted_chunks = vec![];
 
@@ -956,6 +971,7 @@ impl Db {
 
         match operation {
             DmlOperation::Write(write) => self.store_write(write),
+            DmlOperation::Delete(delete) => self.store_delete(delete),
         }
     }
 

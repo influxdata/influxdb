@@ -70,6 +70,7 @@ async fn writes_go_to_write_buffer() {
     let (_, mut stream) = consumer.streams().into_iter().next().unwrap();
     match stream.stream.next().await.unwrap().unwrap() {
         DmlOperation::Write(write) => assert_eq!(write.table_count(), 2),
+        a => panic!("unexpected operation: {:?}", a),
     }
 }
 
@@ -121,6 +122,7 @@ async fn writes_go_to_write_buffer_whitelist() {
     let (_, mut stream) = consumer.streams().into_iter().next().unwrap();
     match stream.stream.next().await.unwrap().unwrap() {
         DmlOperation::Write(write) => assert_eq!(write.table_count(), 1),
+        a => panic!("unexpected operation: {:?}", a),
     }
 }
 

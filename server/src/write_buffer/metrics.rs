@@ -193,6 +193,7 @@ impl<'a> IngestRecorder<'a> {
                     metrics.last_min_ts.set(write.min_timestamp() as u64);
                     metrics.last_max_ts.set(write.max_timestamp() as u64);
                 }
+                DmlOperation::Delete(_) => {}
             }
 
             metrics

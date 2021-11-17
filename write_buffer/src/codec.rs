@@ -3,11 +3,14 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
+use data_types::non_empty::NonEmptyString;
 use http::{HeaderMap, HeaderValue};
 use prost::Message;
 
 use data_types::sequence::Sequence;
-use dml::{DmlMeta, DmlOperation, DmlWrite};
+use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
+use generated_types::google::FromOptionalField;
+use generated_types::influxdata::iox::delete::v1::DeletePayload;
 use generated_types::influxdata::iox::write_buffer::v1::write_buffer_payload::Payload;
 use generated_types::influxdata::iox::write_buffer::v1::WriteBufferPayload;
 use mutable_batch_pb::decode::decode_database_batch;
@@ -135,19 +138,26 @@ pub fn decode(
 ) -> Result<DmlOperation, WriteBufferError> {
     match headers.content_type {
         ContentType::Protobuf => {
+            let meta = DmlMeta::sequenced(sequence, producer_ts, headers.span_context, data.len());
+
             let payload: WriteBufferPayload = prost::Message::decode(data)
                 .map_err(|e| format!("failed to decode WriteBufferPayload: {}", e))?;
 
             let payload = payload.payload.ok_or_else(|| "no payload".to_string())?;
 
-            match &payload {
+            match payload {
                 Payload::Write(write) => {
-                    let tables = decode_database_batch(write)
+                    let tables = decode_database_batch(&write)
                         .map_err(|e| format!("failed to decode database batch: {}", e))?;
 
-                    Ok(DmlOperation::Write(DmlWrite::new(
-                        tables,
-                        DmlMeta::sequenced(sequence, producer_ts, headers.span_context, data.len()),
+                    Ok(DmlOperation::Write(DmlWrite::new(tables, meta)))
+                }
+                Payload::Delete(delete) => {
+                    let predicate = delete.predicate.required("predicate")?;
+                    Ok(DmlOperation::Delete(DmlDelete::new(
+                        predicate,
+                        NonEmptyString::new(delete.table_name),
+                        meta,
                     )))
                 }
             }
@@ -166,6 +176,14 @@ pub fn encode_operation(
             let batch = mutable_batch_pb::encode::encode_write(db_name, write);
             Payload::Write(batch)
         }
+        DmlOperation::Delete(delete) => Payload::Delete(DeletePayload {
+            db_name: db_name.to_string(),
+            table_name: delete
+                .table_name()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+            predicate: Some(delete.predicate().clone().into()),
+        }),
     };
 
     let payload = WriteBufferPayload {

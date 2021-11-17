@@ -2,6 +2,7 @@ syntax = "proto3";
 package influxdata.iox.write_buffer.v1;
 option go_package = "github.com/influxdata/iox/write_buffer/v1";
 
+import "influxdata/iox/delete/v1/service.proto";
 import "influxdata/pbdata/v1/influxdb_pb_data_protocol.proto";
 
 // Configures the use of a write buffer.
@@ -63,5 +64,6 @@ message WriteBufferCreationConfig {
 message WriteBufferPayload {
   oneof payload {
     influxdata.pbdata.v1.DatabaseBatch write = 1;
+    influxdata.iox.delete.v1.DeletePayload delete = 2;
   }
 }
