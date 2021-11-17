@@ -3,13 +3,14 @@ package internal
 import (
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
-	"go.uber.org/zap"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
+	"go.uber.org/zap"
 )
 
 type replicationQueue struct {
@@ -141,6 +142,7 @@ func (rq *replicationQueue) run() {
 						// Handle this gracefully, as it is an expected error to receive
 					} else {
 						// Crash out the server if an unhandleable error occurs in SendWrite()
+						// Should ideally never be hit
 						panic(1)
 					}
 					break
