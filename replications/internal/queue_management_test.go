@@ -28,7 +28,7 @@ func TestCreateNewQueueDirExists(t *testing.T) {
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 }
 
-func TestEnqueueScanLog(t *testing.T) {
+func TestEnqueueScan(t *testing.T) {
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -43,7 +43,7 @@ func TestEnqueueScanLog(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestEnqueueScanLogMultiple(t *testing.T) {
+func TestEnqueueScanMultiple(t *testing.T) {
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 

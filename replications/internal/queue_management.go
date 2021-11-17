@@ -19,9 +19,9 @@ type replicationQueue struct {
 	wg      sync.WaitGroup
 	done    chan struct{}
 	receive chan struct{}
+	logger  *zap.Logger
 
-	// Hold reference to QueueManager for the shared Logger, Write Function, etc.
-	qm *durableQueueManager
+	writeFunc *func([]byte) error
 }
 
 type durableQueueManager struct {
@@ -93,10 +93,11 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 
 	// Map new durable queue and scanner to its corresponding replication stream via replication ID
 	rq := replicationQueue{
-		queue:   newQueue,
-		done:    make(chan struct{}),
-		receive: make(chan struct{}),
-		qm:      qm,
+		queue:     newQueue,
+		done:      make(chan struct{}),
+		receive:   make(chan struct{}),
+		logger:    qm.logger.With(zap.String("replication_id", replicationID.String())),
+		writeFunc: &qm.writeFunc,
 	}
 	qm.replicationQueues[replicationID] = &rq
 	rq.Open()
@@ -134,7 +135,7 @@ func (rq *replicationQueue) run() {
 
 	writer := func() {
 		for {
-			_, err := rq.SendWrite(rq.qm.writeFunc)
+			_, err := rq.SendWrite(*rq.writeFunc)
 			if err != nil {
 				if err == io.EOF {
 					// No more data
@@ -181,7 +182,7 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
 	}
 
 	if err != nil { // todo handle "skippable" errors
-		rq.qm.logger.Info("Segment read error.", zap.Error(scan.Err()))
+		rq.logger.Info("Segment read error.", zap.Error(scan.Err()))
 	}
 
 	if _, err := scan.Advance(); err != nil {
@@ -287,10 +288,11 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 			continue
 		} else {
 			qm.replicationQueues[id] = &replicationQueue{
-				queue:   queue,
-				done:    make(chan struct{}),
-				receive: make(chan struct{}),
-				qm:      qm,
+				queue:     queue,
+				done:      make(chan struct{}),
+				receive:   make(chan struct{}),
+				logger:    qm.logger.With(zap.String("replication_id", id.String())),
+				writeFunc: &qm.writeFunc,
 			}
 			qm.replicationQueues[id].Open()
 			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
