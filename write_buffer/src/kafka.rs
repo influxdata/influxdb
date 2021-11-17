@@ -37,6 +37,16 @@ use crate::{
     },
 };
 
+/// Default timeout supplied to rdkafka client for kafka operations.
+///
+/// Chosen to be a value less than the default gRPC timeout (30
+/// seconds) so we can detect kafka errors and return them prior to
+/// the gRPC requests to IOx timing out.
+///
+/// More context in
+/// <https://github.com/influxdata/influxdb_iox/issues/3029>
+const KAFKA_OPERATION_TIMEOUT_MS: u64 = 10000;
+
 impl From<&IoxHeaders> for OwnedHeaders {
     fn from(iox_headers: &IoxHeaders) -> Self {
         let mut res = Self::new();
@@ -252,7 +262,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
                         consumer_cloned.fetch_watermarks(
                             &database_name,
                             sequencer_id as i32,
-                            Duration::from_secs(60),
+                            Duration::from_millis(KAFKA_OPERATION_TIMEOUT_MS),
                         )
                     })
                     .await
@@ -299,7 +309,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
                     &database_name,
                     sequencer_id as i32,
                     offset,
-                    Duration::from_secs(60),
+                    Duration::from_millis(KAFKA_OPERATION_TIMEOUT_MS),
                 )
             })
             .await
@@ -404,7 +414,10 @@ async fn get_partitions(
     let metadata = tokio::task::spawn_blocking(move || {
         let probe_consumer: BaseConsumer = cfg.create()?;
 
-        probe_consumer.fetch_metadata(Some(&database_name), Duration::from_secs(60))
+        probe_consumer.fetch_metadata(
+            Some(&database_name),
+            Duration::from_millis(KAFKA_OPERATION_TIMEOUT_MS),
+        )
     })
     .await
     .expect("subtask failed")?;

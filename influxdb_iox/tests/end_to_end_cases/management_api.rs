@@ -8,6 +8,7 @@ use generated_types::{
 };
 use influxdb_iox_client::{
     management::{Client, CreateDatabaseError},
+    router::generated_types::{write_buffer_connection, WriteBufferConnection},
     write::WriteError,
 };
 use std::{fs::set_permissions, os::unix::fs::PermissionsExt};
@@ -182,6 +183,37 @@ async fn test_create_database_invalid_name() {
         .expect_err("expected request to fail");
 
     assert!(matches!(dbg!(err), CreateDatabaseError::InvalidArgument(_)));
+}
+
+#[tokio::test]
+async fn test_create_database_invalid_kafka() {
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let mut client = server_fixture.management_client();
+
+    let rules = DatabaseRules {
+        name: "db_with_bad_kafka_address".into(),
+        write_buffer_connection: Some(WriteBufferConnection {
+            direction: write_buffer_connection::Direction::Read.into(),
+            r#type: "kafka".into(),
+            connection: "i_am_not_a_kafka_server:1234".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    let start = Instant::now();
+    let err = client
+        .create_database(rules)
+        .await
+        .expect_err("expected request to fail");
+
+    println!("Failed after {:?}", Instant::now() - start);
+
+    // expect that this error has a useful error related to kafka (not "timeout")
+    assert_contains!(
+        err.to_string(),
+        "error creating write buffer: Meta data fetch error: BrokerTransportFailure"
+    );
 }
 
 #[tokio::test]
