@@ -628,6 +628,7 @@ jobs:
       - run:
           name: Push the image to Quay
           command: |
+            docker pull quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
             docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:latest
             docker push quay.io/influxdb/oss-acceptance:latest
 
