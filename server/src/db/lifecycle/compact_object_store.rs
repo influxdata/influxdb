@@ -1,9 +1,13 @@
 //! This module compact object store chunks (aka persisted chunks)
 
 use super::{
-    error::{ChunksNotContiguous, ChunksNotInPartition, EmptyChunks},
+    error::{
+        ChunksNotContiguous, ChunksNotInPartition, EmptyChunks, ParquetChunkError,
+        WritingToObjectStore,
+    },
     LockableCatalogChunk, LockableCatalogPartition, Result,
 };
+
 use crate::{
     db::{
         catalog::{chunk::CatalogChunk, partition::Partition},
@@ -12,13 +16,25 @@ use crate::{
     },
     Db,
 };
-use data_types::{chunk_metadata::ChunkOrder, delete_predicate::DeletePredicate, job::Job};
+use data_types::{
+    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
+    delete_predicate::DeletePredicate,
+    job::Job,
+    partition_metadata::PartitionAddr,
+};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::Future;
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
+use parquet_file::{
+    chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
+    metadata::IoxMetadata,
+    storage::Storage,
+};
+use persistence_windows::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint};
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use schema::Schema;
+use snafu::ResultExt;
 use std::{
     collections::{BTreeSet, HashSet},
     sync::Arc,
@@ -60,12 +76,14 @@ pub(crate) fn compact_object_store_chunks(
 
     // Step 1: Verify input while marking and snapshoting the chunks for compacting
     let (
-        _time_of_first_write,
-        _time_of_last_write,
+        time_of_first_write,
+        time_of_last_write,
         input_rows,
         _delete_predicates_before,
-        _os_chunks,
-        _min_order,
+        os_chunks,
+        min_order,
+        database_checkpoint,
+        partition_checkpoint,
     ) = mark_chunks_to_compact(partition, chunks, &registration)?;
 
     let fut = async move {
@@ -73,15 +91,18 @@ pub(crate) fn compact_object_store_chunks(
         let fut_now = std::time::Instant::now();
 
         // Step 2: Compact & Persistent the os_chunks in one os_chunk
-        // Todo: This will be done in a  sub-function that:
-        //   . Build a compact plan that scan all os_chunks
-        //   . Execute it the get the compacted output
-        //   . The compacted output will be written to OS directly without going thru RUB
-        //     and return a chunk named os_chunk
-        //     - Extra note: since each os chunk includes 2 checkpoints: chunk and DB,
-        //       these 2 checkpoints of the newly created os_chunk will be MAX of
-        //       the corresponding checkpoints in each chunk of the os_chunks
-        let compacted_rows = 0; // todo: will be the number of rows in the output os_chunk
+        let parquet_chunk = compact_persist_os_chunks(
+            &db,
+            &partition_addr,
+            &os_chunks,
+            partition_checkpoint,
+            database_checkpoint,
+            time_of_first_write,
+            time_of_last_write,
+            min_order,
+        )
+        .await?;
+        let compacted_rows = parquet_chunk.rows();
 
         // Step 3: Update the preserved & in-memory catalogs to use the newly created os_chunk
         // Todo: This will be done in a sub-function that creates a single transaction that:
@@ -128,6 +149,8 @@ pub(crate) fn compact_object_store_chunks(
 ///    . all delete predicates of the provided chunks
 ///    . snapshot of the provided chunks
 ///    . min(order) of the provided chunks
+///    . max(database_checkpoint) of the provided chunks
+///    . max(partition_checkpoint) of the provided chunks
 #[allow(clippy::type_complexity)]
 fn mark_chunks_to_compact(
     partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
@@ -140,6 +163,8 @@ fn mark_chunks_to_compact(
     HashSet<Arc<DeletePredicate>>,
     Vec<Arc<DbChunk>>,
     ChunkOrder,
+    DatabaseCheckpoint,
+    PartitionCheckpoint,
 )> {
     // no chunks provided
     if chunks.is_empty() {
@@ -156,6 +181,15 @@ fn mark_chunks_to_compact(
     let mut input_rows = 0;
     let mut delete_predicates: HashSet<Arc<DeletePredicate>> = HashSet::new();
     let mut min_order = ChunkOrder::MAX;
+
+    // Todo: find a better way to initialize these
+    let database_checkpoint = DatabaseCheckpoint::new(Default::default());
+    let partition_checkpoint = PartitionCheckpoint::new(
+        Arc::from("table"),
+        Arc::from("part"),
+        Default::default(),
+        Time::from_timestamp_nanos(0),
+    );
 
     let query_chunks = chunks
         .into_iter()
@@ -189,6 +223,8 @@ fn mark_chunks_to_compact(
             min_order = min_order.min(chunk.order());
             chunk_orders.insert(chunk.order());
 
+            // Todo:get chunk's datatbase_checkpoint and partition_checkpoint of the chunk and keep max
+
             // Set chunk in the right action which is compacting object store
             // This function will also error out if the chunk is not yet persisted
             chunk.set_compacting_object_store(registration)?;
@@ -214,7 +250,43 @@ fn mark_chunks_to_compact(
         delete_predicates,
         query_chunks,
         min_order,
+        database_checkpoint,
+        partition_checkpoint,
     ))
+}
+
+// Compact & Persistent the os_chunks in one os_chunk
+//   . Build a compact plan that scan all os_chunks
+//   . Execute it the get the compacted output
+//   . The compacted output will be written to OS directly without going thru RUB
+//     and return a chunk named os_chunk
+//     - Extra note: since each os chunk includes 2 checkpoints: chunk and DB,
+//       these 2 checkpoints of the newly created os_chunk will be MAX of
+//       the corresponding checkpoints in each chunk of the os_chunks
+#[allow(clippy::too_many_arguments)]
+async fn compact_persist_os_chunks<'a>(
+    db: &'a Db,
+    partition_addr: &'a PartitionAddr,
+    os_chunks: &'a [Arc<DbChunk>],
+    partition_checkpoint: PartitionCheckpoint,
+    database_checkpoint: DatabaseCheckpoint,
+    time_of_first_write: Time,
+    time_of_last_write: Time,
+    chunk_order: ChunkOrder,
+) -> Result<Arc<ParquetChunk>> {
+    let (stream, _schema, _sort_key) = compact_chunks(db, os_chunks).await.unwrap(); // Todo: use context(ReadingObjectStore)?;
+
+    persist_stream_to_chunk(
+        db,
+        partition_addr,
+        stream,
+        partition_checkpoint,
+        database_checkpoint,
+        time_of_first_write,
+        time_of_last_write,
+        chunk_order,
+    )
+    .await
 }
 
 /// Create query plan to compact the given DbChunks and return its output stream
@@ -223,7 +295,6 @@ fn mark_chunks_to_compact(
 ///        Deleted and duplicated data will be eliminated during the scan
 ///    . Output schema of the compact plan
 ///    . Sort Key of the output data
-#[allow(dead_code)]
 async fn compact_chunks(
     db: &Db,
     query_chunks: &[Arc<DbChunk>],
@@ -250,6 +321,69 @@ async fn compact_chunks(
     let stream = ctx.execute_stream(physical_plan).await?;
 
     Ok((stream, plan_schema, sort_key_str))
+}
+
+/// Persist a provided stream to a new OS chunk
+#[allow(clippy::too_many_arguments)]
+async fn persist_stream_to_chunk<'a>(
+    db: &'a Db,
+    partition_addr: &'a PartitionAddr,
+    stream: SendableRecordBatchStream,
+    partition_checkpoint: PartitionCheckpoint,
+    database_checkpoint: DatabaseCheckpoint,
+    time_of_first_write: Time,
+    time_of_last_write: Time,
+    chunk_order: ChunkOrder,
+) -> Result<Arc<ParquetChunk>> {
+    // Todo: ask Marco if this cleanup_lock is needed
+    // fetch shared (= read) guard preventing the cleanup job from deleting our files
+    let _guard = db.cleanup_lock.read().await;
+
+    // Create a new chunk for this stream data
+    //let table_name = Arc::from("cpu");
+    let table_name = Arc::from(partition_addr.table_name.to_string());
+    let partition_key = Arc::from(partition_addr.partition_key.to_string());
+
+    let chunk_id = ChunkId::new();
+    let metadata = IoxMetadata {
+        creation_timestamp: db.time_provider.now(),
+        table_name,
+        partition_key,
+        chunk_id,
+        partition_checkpoint: partition_checkpoint.clone(),
+        database_checkpoint: database_checkpoint.clone(),
+        time_of_first_write,
+        time_of_last_write,
+        chunk_order,
+    };
+
+    // Create a storage to save data of this chunk
+    let storage = Storage::new(Arc::clone(&db.iox_object_store));
+
+    // Write the chunk stream data into a parquet file in the storage
+    let chunk_addr = ChunkAddr::new(partition_addr, chunk_id);
+    let (path, file_size_bytes, parquet_metadata) = storage
+        .write_to_object_store(chunk_addr, stream, metadata)
+        .await
+        .context(WritingToObjectStore)?;
+
+    // Create parquet chunk for the parquet file
+    let parquet_metadata = Arc::new(parquet_metadata);
+    let metrics = ParquetChunkMetrics::new(db.metric_registry.as_ref());
+    let parquet_chunk = Arc::new(
+        ParquetChunk::new(
+            &path,
+            Arc::clone(&db.iox_object_store),
+            file_size_bytes,
+            Arc::clone(&parquet_metadata),
+            Arc::clone(&partition_addr.table_name),
+            Arc::clone(&partition_addr.partition_key),
+            metrics,
+        )
+        .context(ParquetChunkError)?,
+    );
+
+    Ok(parquet_chunk)
 }
 
 ////////////////////////////////////////////////////////////

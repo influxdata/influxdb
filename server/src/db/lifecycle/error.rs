@@ -39,6 +39,11 @@ pub enum Error {
         chunk_id: u32,
     },
 
+    #[snafu(display("Error reading from object store: {}", source))]
+    ReadingObjectStore {
+        source: parquet_file::storage::Error,
+    },
+
     #[snafu(display("Error writing to object store: {}", source))]
     WritingToObjectStore {
         source: parquet_file::storage::Error,
