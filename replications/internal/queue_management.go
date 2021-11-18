@@ -133,20 +133,10 @@ func (rq *replicationQueue) run() {
 		case <-rq.done: // end the goroutine when done is messaged
 			return
 		case <-rq.receive: // run the scanner on data append
-			for {
-				_, err := rq.SendWrite(rq.writeFunc)
-
-				if err != nil {
-					if err == io.EOF {
-						// No more data
-						// Handle this gracefully, as it is an expected error to receive
-					} else {
-						// Crash out the server if an unhandleable error occurs in SendWrite()
-						// Should ideally never be hit
-						panic(1)
-					}
-					break
-				}
+			if rq.SendWrite(rq.writeFunc) {
+				// Crash out the server if an unhandleable error occurs in SendWrite()
+				// Should ideally never be hit
+				panic(1)
 			}
 		}
 	}
@@ -157,11 +147,11 @@ func (rq *replicationQueue) run() {
 // Retryable errors should be handled and retried in the dp function.
 // Unprocessable data should be dropped in the dp function.
 // An error from this function (other than io.EOF) will crash the InfluxDB server instance.
-func (rq *replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
+func (rq *replicationQueue) SendWrite(dp func([]byte) error) bool {
 	// err here can be io.EOF, indicating nothing to write
 	scan, err := rq.queue.NewScanner()
 	if err != nil {
-		return 0, err
+		return err != io.EOF
 	}
 
 	var count int
@@ -184,7 +174,8 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
 		// crash out the server instance. A potential example of an error here
 		// is an authentication error with the remote host.
 		if err = dp(scan.Bytes()); err != nil {
-			return count, err
+			rq.logger.Error("Error in replication stream", zap.Error(err))
+			return true
 		}
 
 		count += len(scan.Bytes())
@@ -199,10 +190,8 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) (int, error) {
 
 	// Advance the queue pointer forward, dropping data that has already been processed.
 	// TODO Are there errors from calling Advance() that can be more gracefully handled?
-	if _, err := scan.Advance(); err != nil {
-		return count, err
-	}
-	return count, nil
+	_, err = scan.Advance()
+	return err != nil && err != io.EOF
 }
 
 // DeleteQueue deletes a durable queue and its associated data on disk.
