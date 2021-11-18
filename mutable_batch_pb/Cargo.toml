@@ -15,4 +15,3 @@ snafu = "0.6"
 
 [dev-dependencies]
 mutable_batch_lp = { path = "../mutable_batch_lp" }
-schema = { path = "../schema" }

@@ -54,6 +54,8 @@ members = [
 ]
 default-members = ["influxdb_iox"]
 
+resolver = "2"
+
 exclude = [
     "*.md",
     "*.txt",
