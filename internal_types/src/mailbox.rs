@@ -10,6 +10,17 @@ use std::sync::Arc;
 /// * Allows data to continue to arrive whilst data is being consumed
 /// * Allows multiple consumers to coordinate preventing concurrent consumption
 ///
+/// This is different than a tokio channel in the following ways:
+///
+/// 1. The contents can be inspected prior to remval from the mailbox
+/// (important as catalog transactions are fallible)
+///
+/// 2. Potentially multiple consumers can acquire exclusive access for
+/// the duration of a catalog transaction
+///
+/// 3. Users can ensure that everything in the mailbox is
+/// consumed
+///
 #[derive(Debug)]
 pub struct Mailbox<T> {
     outbox: Arc<tokio::sync::Mutex<Vec<T>>>,
