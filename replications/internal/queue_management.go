@@ -133,11 +133,7 @@ func (rq *replicationQueue) run() {
 		case <-rq.done: // end the goroutine when done is messaged
 			return
 		case <-rq.receive: // run the scanner on data append
-			if rq.SendWrite(rq.writeFunc) {
-				// Crash out the server if an unhandleable error occurs in SendWrite()
-				// Should ideally never be hit
-				panic(1)
-			}
+			for rq.SendWrite(rq.writeFunc) {}
 		}
 	}
 }
@@ -148,24 +144,30 @@ func (rq *replicationQueue) run() {
 // Unprocessable data should be dropped in the dp function.
 // An error from this function (other than io.EOF) will crash the InfluxDB server instance.
 func (rq *replicationQueue) SendWrite(dp func([]byte) error) bool {
-	// err here can be io.EOF, indicating nothing to write
+
+	// Any error in creating the scanner should exit the loop in run()
+	// Either it is io.EOF indicating no data, or some other failure in making
+	// the Scanner object that we don't know how to handle.
 	scan, err := rq.queue.NewScanner()
 	if err != nil {
-		return err != io.EOF
+		if err != io.EOF {
+			rq.logger.Error("Error creating replications queue scanner", zap.Error(err))
+		}
+		return false
 	}
 
-	var count int
 	for scan.Next() {
 
-		// An io.EOF error here indicates that there is no data left to process.
-		// This is an expected error, so we do not set the "err" variable here.
+		// An io.EOF error here indicates that there is no more data
+		// left to process, and is an expected error.
 		if scan.Err() == io.EOF {
 			break
 		}
 
-		// Any unexpected error from the Scanner is gathered here (anything other than io.EOF)
+		// Any other here indicates a problem, so we log the error and
+		// drop the data with a call to scan.Advance() later.
 		if scan.Err() != nil {
-			err = scan.Err()
+			rq.logger.Info("Segment read error.", zap.Error(scan.Err()))
 			break
 		}
 
@@ -175,23 +177,14 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) bool {
 		// is an authentication error with the remote host.
 		if err = dp(scan.Bytes()); err != nil {
 			rq.logger.Error("Error in replication stream", zap.Error(err))
-			return true
+			return false
 		}
-
-		count += len(scan.Bytes())
 	}
 
-	// Indicates an error in the Scanner itself. Data which caused this error will be dropped.
-	// TODO Do we need to handle this more gracefully? Are there situations where this
-	// TODO data should not be simply dropped?
-	if err != nil {
-		rq.logger.Info("Segment read error.", zap.Error(scan.Err()))
+	if _, err = scan.Advance(); err != nil && err != io.EOF {
+		return false
 	}
-
-	// Advance the queue pointer forward, dropping data that has already been processed.
-	// TODO Are there errors from calling Advance() that can be more gracefully handled?
-	_, err = scan.Advance()
-	return err != nil && err != io.EOF
+	return true
 }
 
 // DeleteQueue deletes a durable queue and its associated data on disk.
