@@ -371,7 +371,13 @@ jobs:
   #
   # To modify the contents of the CI image, update docker/Dockerfile.ci
   ci_image:
-    machine: true
+    # Use a `machine` executor instead of a docker-based because:
+    # - we bootstrap our CI images somehow (we could use a docker-hub image as well)
+    # - the machine executor also supports multi-arch builds
+    # - we only run this job once a day, so the additional startup delay of 30-60s doesn't really matter
+    machine:
+      # https://circleci.com/docs/2.0/configuration-reference/#available-machine-images
+      image: ubuntu-2004:202107-02
     resource_class: xlarge
     steps:
       - checkout
@@ -380,11 +386,9 @@ jobs:
       - run: |
           COMMIT_SHA=$(git rev-parse --short HEAD)
           RUST_VERSION=$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)
-          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -f docker/Dockerfile.ci --build-arg RUST_VERSION=$RUST_VERSION .
-          docker tag quay.io/influxdb/rust:$COMMIT_SHA quay.io/influxdb/rust:ci
-          docker push quay.io/influxdb/rust:$COMMIT_SHA
-          docker push quay.io/influxdb/rust:ci
-
+          docker --version
+          docker build -t quay.io/influxdb/rust:$COMMIT_SHA -t quay.io/influxdb/rust:ci -f docker/Dockerfile.ci --build-arg RUST_VERSION=$RUST_VERSION .
+          docker push --all-tags quay.io/influxdb/rust
 
 
 parameters:
