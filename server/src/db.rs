@@ -676,7 +676,9 @@ impl Db {
             let partition = partition.upgrade();
 
             // invoke compact
-            let (_, fut) = lifecycle::compact_object_store::compact_object_store_chunks(partition, chunks).context(LifecycleError)?;
+            let (_, fut) =
+                lifecycle::compact_object_store::compact_object_store_chunks(partition, chunks)
+                    .context(LifecycleError)?;
             fut
         };
 
