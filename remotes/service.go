@@ -9,7 +9,6 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"github.com/influxdata/influxdb/v2/remotes/internal"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/sqlite"
 )
@@ -21,22 +20,16 @@ var (
 	}
 )
 
-type RemoteConnectionValidator interface {
-	ValidateRemoteConnectionHTTPConfig(context.Context, *internal.RemoteConnectionHTTPConfig) error
-}
-
 func NewService(store *sqlite.SqlStore) *service {
 	return &service{
 		store:       store,
 		idGenerator: snowflake.NewIDGenerator(),
-		validator:   internal.NewValidator(),
 	}
 }
 
 type service struct {
 	store       *sqlite.SqlStore
 	idGenerator platform.IDGenerator
-	validator   RemoteConnectionValidator
 }
 
 func (s service) ListRemoteConnections(ctx context.Context, filter influxdb.RemoteConnectionListFilter) (*influxdb.RemoteConnections, error) {
@@ -93,24 +86,6 @@ func (s service) CreateRemoteConnection(ctx context.Context, request influxdb.Cr
 		return nil, err
 	}
 	return &rc, nil
-}
-
-func (s service) ValidateNewRemoteConnection(ctx context.Context, request influxdb.CreateRemoteConnectionRequest) error {
-	config := internal.RemoteConnectionHTTPConfig{
-		RemoteURL:        request.RemoteURL,
-		RemoteToken:      request.RemoteToken,
-		RemoteOrgID:      request.RemoteOrgID,
-		AllowInsecureTLS: request.AllowInsecureTLS,
-	}
-
-	if err := s.validator.ValidateRemoteConnectionHTTPConfig(ctx, &config); err != nil {
-		return &ierrors.Error{
-			Code: ierrors.EInvalid,
-			Msg:  "remote parameters fail validation",
-			Err:  err,
-		}
-	}
-	return nil
 }
 
 func (s service) GetRemoteConnection(ctx context.Context, id platform.ID) (*influxdb.RemoteConnection, error) {
@@ -175,34 +150,6 @@ func (s service) UpdateRemoteConnection(ctx context.Context, id platform.ID, req
 	return &rc, nil
 }
 
-func (s service) ValidateUpdatedRemoteConnection(ctx context.Context, id platform.ID, request influxdb.UpdateRemoteConnectionRequest) error {
-	config, err := s.getConnectionHTTPConfig(ctx, id)
-	if err != nil {
-		return err
-	}
-	if request.AllowInsecureTLS != nil {
-		config.AllowInsecureTLS = *request.AllowInsecureTLS
-	}
-	if request.RemoteOrgID != nil {
-		config.RemoteOrgID = *request.RemoteOrgID
-	}
-	if request.RemoteToken != nil {
-		config.RemoteToken = *request.RemoteToken
-	}
-	if request.RemoteURL != nil {
-		config.RemoteURL = *request.RemoteURL
-	}
-
-	if err := s.validator.ValidateRemoteConnectionHTTPConfig(ctx, config); err != nil {
-		return &ierrors.Error{
-			Code: ierrors.EInvalid,
-			Msg:  "validation fails after applying update",
-			Err:  err,
-		}
-	}
-	return nil
-}
-
 func (s service) DeleteRemoteConnection(ctx context.Context, id platform.ID) error {
 	s.store.Mu.Lock()
 	defer s.store.Mu.Unlock()
@@ -221,39 +168,4 @@ func (s service) DeleteRemoteConnection(ctx context.Context, id platform.ID) err
 		return err
 	}
 	return nil
-}
-
-func (s service) ValidateRemoteConnection(ctx context.Context, id platform.ID) error {
-	config, err := s.getConnectionHTTPConfig(ctx, id)
-	if err != nil {
-		return err
-	}
-	if err := s.validator.ValidateRemoteConnectionHTTPConfig(ctx, config); err != nil {
-		return &ierrors.Error{
-			Code: ierrors.EInvalid,
-			Msg:  "remote failed validation",
-			Err:  err,
-		}
-	}
-	return nil
-}
-
-func (s service) getConnectionHTTPConfig(ctx context.Context, id platform.ID) (*internal.RemoteConnectionHTTPConfig, error) {
-	q := sq.Select("remote_url", "remote_api_token", "remote_org_id", "allow_insecure_tls").
-		From("remotes").
-		Where(sq.Eq{"id": id})
-
-	query, args, err := q.ToSql()
-	if err != nil {
-		return nil, err
-	}
-
-	var rc internal.RemoteConnectionHTTPConfig
-	if err := s.store.DB.GetContext(ctx, &rc, query, args...); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errRemoteNotFound
-		}
-		return nil, err
-	}
-	return &rc, nil
 }

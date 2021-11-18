@@ -2,15 +2,11 @@ package remotes
 
 import (
 	"context"
-	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
-	"github.com/influxdata/influxdb/v2/remotes/internal"
-	remotesMock "github.com/influxdata/influxdb/v2/remotes/mock"
 	"github.com/influxdata/influxdb/v2/sqlite"
 	"github.com/influxdata/influxdb/v2/sqlite/migrations"
 	"github.com/stretchr/testify/require"
@@ -40,12 +36,6 @@ var (
 		RemoteOrgID:      connection.RemoteOrgID,
 		AllowInsecureTLS: connection.AllowInsecureTLS,
 	}
-	httpConfig = internal.RemoteConnectionHTTPConfig{
-		RemoteURL:        connection.RemoteURL,
-		RemoteToken:      fakeToken,
-		RemoteOrgID:      connection.RemoteOrgID,
-		AllowInsecureTLS: connection.AllowInsecureTLS,
-	}
 	fakeToken2 = "qrstuvwxyz"
 	fals       = false
 	updateReq  = influxdb.UpdateRemoteConnectionRequest{
@@ -61,25 +51,18 @@ var (
 		RemoteOrgID:      connection.RemoteOrgID,
 		AllowInsecureTLS: *updateReq.AllowInsecureTLS,
 	}
-	updatedHttpConfig = internal.RemoteConnectionHTTPConfig{
-		RemoteURL:        updatedConnection.RemoteURL,
-		RemoteToken:      fakeToken2,
-		RemoteOrgID:      updatedConnection.RemoteOrgID,
-		AllowInsecureTLS: updatedConnection.AllowInsecureTLS,
-	}
 )
 
 func TestCreateAndGetConnection(t *testing.T) {
 	t.Parallel()
 
-	svc, mockValidator, clean := newTestService(t)
+	svc, clean := newTestService(t)
 	defer clean(t)
 
-	// Getting or validating an invalid ID should return an error.
+	// Getting an invalid ID should return an error.
 	got, err := svc.GetRemoteConnection(ctx, initID)
 	require.Equal(t, errRemoteNotFound, err)
 	require.Nil(t, got)
-	require.Equal(t, errRemoteNotFound, svc.ValidateRemoteConnection(ctx, initID))
 
 	// Create a connection, check the results.
 	created, err := svc.CreateRemoteConnection(ctx, createReq)
@@ -90,51 +73,12 @@ func TestCreateAndGetConnection(t *testing.T) {
 	got, err = svc.GetRemoteConnection(ctx, initID)
 	require.NoError(t, err)
 	require.Equal(t, connection, *got)
-
-	// Validate the connection; this is mostly a no-op, for this test, but it allows
-	// us to assert that the auth token was properly persisted.
-	fakeErr := errors.New("O NO")
-	mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &httpConfig).Return(fakeErr)
-	require.Contains(t, svc.ValidateRemoteConnection(ctx, initID).Error(), fakeErr.Error())
-}
-
-func TestValidateConnectionWithoutPersisting(t *testing.T) {
-	t.Parallel()
-
-	t.Run("error", func(t *testing.T) {
-		t.Parallel()
-
-		svc, mockValidator, clean := newTestService(t)
-		defer clean(t)
-
-		fakeErr := errors.New("O NO")
-		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &httpConfig).Return(fakeErr)
-		require.Contains(t, svc.ValidateNewRemoteConnection(ctx, createReq).Error(), fakeErr.Error())
-
-		got, err := svc.GetRemoteConnection(ctx, initID)
-		require.Equal(t, errRemoteNotFound, err)
-		require.Nil(t, got)
-	})
-
-	t.Run("no error", func(t *testing.T) {
-		t.Parallel()
-
-		svc, mockValidator, clean := newTestService(t)
-		defer clean(t)
-
-		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &httpConfig).Return(nil)
-		require.NoError(t, svc.ValidateNewRemoteConnection(ctx, createReq))
-
-		got, err := svc.GetRemoteConnection(ctx, initID)
-		require.Equal(t, errRemoteNotFound, err)
-		require.Nil(t, got)
-	})
 }
 
 func TestUpdateAndGetConnection(t *testing.T) {
 	t.Parallel()
 
-	svc, mockValidator, clean := newTestService(t)
+	svc, clean := newTestService(t)
 	defer clean(t)
 
 	// Updating a nonexistent ID fails.
@@ -152,15 +96,16 @@ func TestUpdateAndGetConnection(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, updatedConnection, *updated)
 
-	// Validate the updated connection to check that the new auth token persisted.
-	mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &updatedHttpConfig).Return(nil)
-	require.NoError(t, svc.ValidateRemoteConnection(ctx, initID))
+	// Read the updated connection and assert it matches the updated response.
+	got, err := svc.GetRemoteConnection(ctx, initID)
+	require.NoError(t, err)
+	require.Equal(t, updated, got)
 }
 
 func TestUpdateNoop(t *testing.T) {
 	t.Parallel()
 
-	svc, _, clean := newTestService(t)
+	svc, clean := newTestService(t)
 	defer clean(t)
 
 	// Create a connection.
@@ -172,67 +117,17 @@ func TestUpdateNoop(t *testing.T) {
 	updated, err := svc.UpdateRemoteConnection(ctx, initID, influxdb.UpdateRemoteConnectionRequest{})
 	require.NoError(t, err)
 	require.Equal(t, connection, *updated)
-}
 
-func TestValidateUpdatedConnectionWithoutPersisting(t *testing.T) {
-	t.Parallel()
-
-	setup := func(t *testing.T, svc *service) {
-		// Validating an update to a nonexistent ID fails.
-		updated, err := svc.UpdateRemoteConnection(ctx, initID, updateReq)
-		require.Equal(t, errRemoteNotFound, err)
-		require.Nil(t, updated)
-
-		// Create a connection.
-		created, err := svc.CreateRemoteConnection(ctx, createReq)
-		require.NoError(t, err)
-		require.Equal(t, connection, *created)
-	}
-	fakeErr := errors.New("O NO")
-
-	t.Run("update causes error", func(t *testing.T) {
-		t.Parallel()
-
-		svc, mockValidator, clean := newTestService(t)
-		defer clean(t)
-		setup(t, svc)
-
-		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &updatedHttpConfig).Return(fakeErr)
-		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &httpConfig).Return(nil)
-
-		require.Contains(t, svc.ValidateUpdatedRemoteConnection(ctx, initID, updateReq).Error(), fakeErr.Error())
-
-		// Ensure the update wasn't applied.
-		got, err := svc.GetRemoteConnection(ctx, initID)
-		require.NoError(t, err)
-		require.Equal(t, connection, *got)
-		require.NoError(t, svc.ValidateRemoteConnection(ctx, initID))
-	})
-
-	t.Run("update fixes error", func(t *testing.T) {
-		t.Parallel()
-
-		svc, mockValidator, clean := newTestService(t)
-		defer clean(t)
-		setup(t, svc)
-
-		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &updatedHttpConfig).Return(nil)
-		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &httpConfig).Return(fakeErr)
-
-		require.NoError(t, svc.ValidateUpdatedRemoteConnection(ctx, initID, updateReq))
-
-		// Ensure the update wasn't applied.
-		got, err := svc.GetRemoteConnection(ctx, initID)
-		require.NoError(t, err)
-		require.Equal(t, connection, *got)
-		require.Contains(t, svc.ValidateRemoteConnection(ctx, initID).Error(), fakeErr.Error())
-	})
+	// Read the updated connection and assert it matches the updated response.
+	got, err := svc.GetRemoteConnection(ctx, initID)
+	require.NoError(t, err)
+	require.Equal(t, updated, got)
 }
 
 func TestDeleteConnection(t *testing.T) {
 	t.Parallel()
 
-	svc, _, clean := newTestService(t)
+	svc, clean := newTestService(t)
 	defer clean(t)
 
 	// Deleting a nonexistent ID should return an error.
@@ -271,7 +166,7 @@ func TestListConnections(t *testing.T) {
 	t.Run("list all", func(t *testing.T) {
 		t.Parallel()
 
-		svc, _, clean := newTestService(t)
+		svc, clean := newTestService(t)
 		defer clean(t)
 		allConns := setup(t, svc)
 
@@ -283,7 +178,7 @@ func TestListConnections(t *testing.T) {
 	t.Run("list by name", func(t *testing.T) {
 		t.Parallel()
 
-		svc, _, clean := newTestService(t)
+		svc, clean := newTestService(t)
 		defer clean(t)
 		allConns := setup(t, svc)
 
@@ -298,7 +193,7 @@ func TestListConnections(t *testing.T) {
 	t.Run("list by URL", func(t *testing.T) {
 		t.Parallel()
 
-		svc, _, clean := newTestService(t)
+		svc, clean := newTestService(t)
 		defer clean(t)
 		allConns := setup(t, svc)
 
@@ -313,7 +208,7 @@ func TestListConnections(t *testing.T) {
 	t.Run("list by other org ID", func(t *testing.T) {
 		t.Parallel()
 
-		svc, _, clean := newTestService(t)
+		svc, clean := newTestService(t)
 		defer clean(t)
 		setup(t, svc)
 
@@ -323,18 +218,16 @@ func TestListConnections(t *testing.T) {
 	})
 }
 
-func newTestService(t *testing.T) (*service, *remotesMock.MockRemoteConnectionValidator, func(t *testing.T)) {
+func newTestService(t *testing.T) (*service, func(t *testing.T)) {
 	store, clean := sqlite.NewTestStore(t)
 	logger := zaptest.NewLogger(t)
 	sqliteMigrator := sqlite.NewMigrator(store, logger)
 	require.NoError(t, sqliteMigrator.Up(ctx, migrations.AllUp))
 
-	mockValidator := remotesMock.NewMockRemoteConnectionValidator(gomock.NewController(t))
 	svc := service{
 		store:       store,
 		idGenerator: mock.NewIncrementingIDGenerator(initID),
-		validator:   mockValidator,
 	}
 
-	return &svc, mockValidator, clean
+	return &svc, clean
 }

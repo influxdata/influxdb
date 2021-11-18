@@ -37,11 +37,6 @@ func (m metricsService) CreateRemoteConnection(ctx context.Context, request infl
 	return rc, rec(err)
 }
 
-func (m metricsService) ValidateNewRemoteConnection(ctx context.Context, request influxdb.CreateRemoteConnectionRequest) error {
-	rec := m.rec.Record("validate_create_remote")
-	return rec(m.underlying.ValidateNewRemoteConnection(ctx, request))
-}
-
 func (m metricsService) GetRemoteConnection(ctx context.Context, id platform.ID) (*influxdb.RemoteConnection, error) {
 	rec := m.rec.Record("find_remote_by_id")
 	rc, err := m.underlying.GetRemoteConnection(ctx, id)
@@ -54,17 +49,7 @@ func (m metricsService) UpdateRemoteConnection(ctx context.Context, id platform.
 	return rc, rec(err)
 }
 
-func (m metricsService) ValidateUpdatedRemoteConnection(ctx context.Context, id platform.ID, request influxdb.UpdateRemoteConnectionRequest) error {
-	rec := m.rec.Record("validate_update_remote")
-	return rec(m.underlying.ValidateUpdatedRemoteConnection(ctx, id, request))
-}
-
 func (m metricsService) DeleteRemoteConnection(ctx context.Context, id platform.ID) error {
 	rec := m.rec.Record("delete_remote")
 	return rec(m.underlying.DeleteRemoteConnection(ctx, id))
-}
-
-func (m metricsService) ValidateRemoteConnection(ctx context.Context, id platform.ID) error {
-	rec := m.rec.Record("validate_remote")
-	return rec(m.underlying.ValidateRemoteConnection(ctx, id))
 }

@@ -47,18 +47,6 @@ func (l loggingService) CreateRemoteConnection(ctx context.Context, request infl
 	return l.underlying.CreateRemoteConnection(ctx, request)
 }
 
-func (l loggingService) ValidateNewRemoteConnection(ctx context.Context, request influxdb.CreateRemoteConnectionRequest) (err error) {
-	defer func(start time.Time) {
-		dur := zap.Duration("took", time.Since(start))
-		if err != nil {
-			l.logger.Debug("failed to validate remote create", zap.Error(err), dur)
-			return
-		}
-		l.logger.Debug("remote validate create", dur)
-	}(time.Now())
-	return l.underlying.ValidateNewRemoteConnection(ctx, request)
-}
-
 func (l loggingService) GetRemoteConnection(ctx context.Context, id platform.ID) (r *influxdb.RemoteConnection, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
@@ -83,18 +71,6 @@ func (l loggingService) UpdateRemoteConnection(ctx context.Context, id platform.
 	return l.underlying.UpdateRemoteConnection(ctx, id, request)
 }
 
-func (l loggingService) ValidateUpdatedRemoteConnection(ctx context.Context, id platform.ID, request influxdb.UpdateRemoteConnectionRequest) (err error) {
-	defer func(start time.Time) {
-		dur := zap.Duration("took", time.Since(start))
-		if err != nil {
-			l.logger.Debug("failed to validate remote update", zap.Error(err), dur)
-			return
-		}
-		l.logger.Debug("remote validate update", dur)
-	}(time.Now())
-	return l.underlying.ValidateUpdatedRemoteConnection(ctx, id, request)
-}
-
 func (l loggingService) DeleteRemoteConnection(ctx context.Context, id platform.ID) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
@@ -105,16 +81,4 @@ func (l loggingService) DeleteRemoteConnection(ctx context.Context, id platform.
 		l.logger.Debug("remote delete", dur)
 	}(time.Now())
 	return l.underlying.DeleteRemoteConnection(ctx, id)
-}
-
-func (l loggingService) ValidateRemoteConnection(ctx context.Context, id platform.ID) (err error) {
-	defer func(start time.Time) {
-		dur := zap.Duration("took", time.Since(start))
-		if err != nil {
-			l.logger.Debug("failed to validate remote", zap.Error(err), dur)
-			return
-		}
-		l.logger.Debug("remote validate", dur)
-	}(time.Now())
-	return l.underlying.ValidateRemoteConnection(ctx, id)
 }

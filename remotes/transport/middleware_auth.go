@@ -47,14 +47,6 @@ func (a authCheckingService) CreateRemoteConnection(ctx context.Context, request
 	return a.underlying.CreateRemoteConnection(ctx, request)
 }
 
-func (a authCheckingService) ValidateNewRemoteConnection(ctx context.Context, request influxdb.CreateRemoteConnectionRequest) error {
-	if _, _, err := authorizer.AuthorizeCreate(ctx, influxdb.RemotesResourceType, request.OrgID); err != nil {
-		return err
-	}
-
-	return a.underlying.ValidateNewRemoteConnection(ctx, request)
-}
-
 func (a authCheckingService) GetRemoteConnection(ctx context.Context, id platform.ID) (*influxdb.RemoteConnection, error) {
 	r, err := a.underlying.GetRemoteConnection(ctx, id)
 	if err != nil {
@@ -77,17 +69,6 @@ func (a authCheckingService) UpdateRemoteConnection(ctx context.Context, id plat
 	return a.underlying.UpdateRemoteConnection(ctx, id, request)
 }
 
-func (a authCheckingService) ValidateUpdatedRemoteConnection(ctx context.Context, id platform.ID, request influxdb.UpdateRemoteConnectionRequest) error {
-	r, err := a.underlying.GetRemoteConnection(ctx, id)
-	if err != nil {
-		return err
-	}
-	if _, _, err := authorizer.AuthorizeWrite(ctx, influxdb.RemotesResourceType, id, r.OrgID); err != nil {
-		return err
-	}
-	return a.underlying.ValidateUpdatedRemoteConnection(ctx, id, request)
-}
-
 func (a authCheckingService) DeleteRemoteConnection(ctx context.Context, id platform.ID) error {
 	r, err := a.underlying.GetRemoteConnection(ctx, id)
 	if err != nil {
@@ -97,15 +78,4 @@ func (a authCheckingService) DeleteRemoteConnection(ctx context.Context, id plat
 		return err
 	}
 	return a.underlying.DeleteRemoteConnection(ctx, id)
-}
-
-func (a authCheckingService) ValidateRemoteConnection(ctx context.Context, id platform.ID) error {
-	r, err := a.underlying.GetRemoteConnection(ctx, id)
-	if err != nil {
-		return err
-	}
-	if _, _, err := authorizer.AuthorizeRead(ctx, influxdb.RemotesResourceType, id, r.OrgID); err != nil {
-		return err
-	}
-	return a.underlying.ValidateRemoteConnection(ctx, id)
 }
