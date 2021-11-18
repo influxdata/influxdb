@@ -49,14 +49,8 @@ service ManagementService {
   // Roughly follows the <https://google.aip.dev/134> pattern, except we wrap the response
   rpc UpdateDatabase(UpdateDatabaseRequest) returns (UpdateDatabaseResponse);
 
-  // Delete a database.
-  rpc DeleteDatabase(DeleteDatabaseRequest) returns (DeleteDatabaseResponse);
-
   // Release a database from its current server.
   rpc ReleaseDatabase(ReleaseDatabaseRequest) returns (ReleaseDatabaseResponse);
-
-  // Restore a deleted database.
-  rpc RestoreDatabase(RestoreDatabaseRequest) returns (RestoreDatabaseResponse);
 
   // Claim a released database.
   rpc ClaimDatabase(ClaimDatabaseRequest) returns (ClaimDatabaseResponse);
@@ -209,15 +203,6 @@ message UpdateDatabaseResponse {
   DatabaseRules rules = 1;
 }
 
-message DeleteDatabaseRequest {
-  // the name of the database
-  string db_name = 1;
-}
-
-message DeleteDatabaseResponse {
-  bytes uuid = 1;
-}
-
 message ReleaseDatabaseRequest {
   // the name of the database
   string db_name = 1;
@@ -229,24 +214,6 @@ message ReleaseDatabaseRequest {
 message ReleaseDatabaseResponse {
   bytes uuid = 1;
 }
-
-message RestoreDatabaseRequest {
-  // Was the generation ID of the deleted database.
-  reserved 1;
-  reserved "generation_id";
-
-  // Was the name of the database
-  reserved 2;
-  reserved "db_name";
-
-  // Was the string-formatted UUID of the deleted database.
-  reserved 3;
-
-  // The UUID of the deleted database.
-  bytes uuid = 4;
-}
-
-message RestoreDatabaseResponse {}
 
 message ClaimDatabaseRequest {
   bytes uuid = 1;

@@ -7,8 +7,8 @@ use influxdb_iox_client::{
     flight,
     format::QueryOutputFormat,
     management::{
-        self, generated_types::*, ClaimDatabaseError, CreateDatabaseError, DeleteDatabaseError,
-        GetDatabaseError, ListDatabaseError, ReleaseDatabaseError, RestoreDatabaseError,
+        self, generated_types::*, ClaimDatabaseError, CreateDatabaseError, GetDatabaseError,
+        ListDatabaseError, ReleaseDatabaseError,
     },
     write::{self, WriteError},
 };
@@ -34,14 +34,8 @@ pub enum Error {
     #[error("Error listing databases: {0}")]
     ListDatabaseError(#[from] ListDatabaseError),
 
-    #[error("Error deleting database: {0}")]
-    DeleteDatabaseError(#[from] DeleteDatabaseError),
-
     #[error("Error releasing database: {0}")]
     ReleaseDatabaseError(#[from] ReleaseDatabaseError),
-
-    #[error("Error restoring database: {0}")]
-    RestoreDatabaseError(#[from] RestoreDatabaseError),
 
     #[error("Error claiming database: {0}")]
     ClaimDatabaseError(#[from] ClaimDatabaseError),
@@ -186,13 +180,6 @@ struct Query {
     format: String,
 }
 
-/// Delete a database
-#[derive(Debug, StructOpt)]
-struct Delete {
-    /// The name of the database to delete
-    name: String,
-}
-
 /// Release a database from its current server owner
 #[derive(Debug, StructOpt)]
 struct Release {
@@ -203,13 +190,6 @@ struct Release {
     /// database with the given name, or the release operation will result in an error.
     #[structopt(short, long)]
     uuid: Option<Uuid>,
-}
-
-/// Restore a deleted database
-#[derive(Debug, StructOpt)]
-struct Restore {
-    /// The UUID of the database to restore
-    uuid: Uuid,
 }
 
 /// Claim an unowned database
@@ -230,9 +210,7 @@ enum Command {
     Chunk(chunk::Config),
     Partition(partition::Config),
     Recover(recover::Config),
-    Delete(Delete),
     Release(Release),
-    Restore(Restore),
     Claim(Claim),
 }
 
@@ -369,22 +347,11 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         Command::Recover(config) => {
             recover::command(connection, config).await?;
         }
-        Command::Delete(command) => {
-            let mut client = management::Client::new(connection);
-            let uuid = client.delete_database(&command.name).await?;
-            println!("Deleted database {}", command.name);
-            println!("{}", uuid);
-        }
         Command::Release(command) => {
             let mut client = management::Client::new(connection);
             let uuid = client.release_database(&command.name, command.uuid).await?;
             println!("Released database {}", command.name);
             println!("{}", uuid);
-        }
-        Command::Restore(command) => {
-            let mut client = management::Client::new(connection);
-            client.restore_database(command.uuid).await?;
-            println!("Restored database {}", command.uuid);
         }
         Command::Claim(command) => {
             let mut client = management::Client::new(connection);
