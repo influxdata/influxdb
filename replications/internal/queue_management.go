@@ -133,7 +133,8 @@ func (rq *replicationQueue) run() {
 		case <-rq.done: // end the goroutine when done is messaged
 			return
 		case <-rq.receive: // run the scanner on data append
-			for rq.SendWrite(rq.writeFunc) {}
+			for rq.SendWrite(rq.writeFunc) {
+			}
 		}
 	}
 }
