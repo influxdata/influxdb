@@ -1,0 +1,9 @@
+---
+name: multi-measurement
+start_time: "2018-01-01T00:00:00Z"
+end_time: "2019-01-01T00:00:00Z"
+data:
+  type: bulk_data_file_loader
+query_tests:
+  - {"type": "build_query_file", "format": "http", "use_case": "multi-measurement", "query_type": "multi-measurement-or"}
+  - {"type": "build_query_file", "format": "flux-http", "use_case": "multi-measurement", "query_type": "multi-measurement-or"}
