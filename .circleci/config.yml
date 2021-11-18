@@ -371,7 +371,12 @@ jobs:
   #
   # To modify the contents of the CI image, update docker/Dockerfile.ci
   ci_image:
+    # Use a `machine` executor instead of a docker-based because:
+    # - we bootstrap our CI images somehow (we could use a docker-hub image as well)
+    # - the machine executor also supports multi-arch builds
+    # - we only run this job once a day, so the additional startup delay of 30-60s doesn't really matter
     machine:
+      # https://circleci.com/docs/2.0/configuration-reference/#available-machine-images
       image: ubuntu-2004:202107-02
     resource_class: xlarge
     steps:
