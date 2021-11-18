@@ -38,26 +38,14 @@ type RemoteConnectionService interface {
 	// CreateRemoteConnection registers a new remote InfluxDB connection.
 	CreateRemoteConnection(context.Context, influxdb.CreateRemoteConnectionRequest) (*influxdb.RemoteConnection, error)
 
-	// ValidateNewRemoteConnection validates that the given settings for a remote InfluxDB connection are usable,
-	// without persisting the connection info.
-	ValidateNewRemoteConnection(context.Context, influxdb.CreateRemoteConnectionRequest) error
-
 	// GetRemoteConnection returns metadata about the remote InfluxDB connection with the given ID.
 	GetRemoteConnection(context.Context, platform.ID) (*influxdb.RemoteConnection, error)
 
 	// UpdateRemoteConnection updates the settings for the remote InfluxDB connection with the given ID.
 	UpdateRemoteConnection(context.Context, platform.ID, influxdb.UpdateRemoteConnectionRequest) (*influxdb.RemoteConnection, error)
 
-	// ValidateUpdatedRemoteConnection validates that a remote InfluxDB connection is still usable after applying the
-	// given update, without persisting the new info.
-	ValidateUpdatedRemoteConnection(context.Context, platform.ID, influxdb.UpdateRemoteConnectionRequest) error
-
 	// DeleteRemoteConnection deletes all info for the remote InfluxDB connection with the given ID.
 	DeleteRemoteConnection(context.Context, platform.ID) error
-
-	// ValidateRemoteConnection checks that the remote InfluxDB connection with the given ID is still usable
-	// with its persisted settings.
-	ValidateRemoteConnection(context.Context, platform.ID) error
 }
 
 type RemoteConnectionHandler struct {
@@ -103,7 +91,6 @@ func newRemoteConnectionHandler(log *zap.Logger, svc RemoteConnectionService) *R
 			r.Get("/", h.handleGetRemote)
 			r.Patch("/", h.handlePatchRemote)
 			r.Delete("/", h.handleDeleteRemote)
-			r.Post("/validate", h.handleValidateRemote)
 		})
 	})
 
@@ -161,21 +148,10 @@ func (h *RemoteConnectionHandler) handleGetRemotes(w http.ResponseWriter, r *htt
 
 func (h *RemoteConnectionHandler) handlePostRemote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	q := r.URL.Query()
 
-	validate := q.Get("validate") == "true"
 	var req influxdb.CreateRemoteConnectionRequest
 	if err := h.api.DecodeJSON(r.Body, &req); err != nil {
 		h.api.Err(w, r, err)
-		return
-	}
-
-	if validate {
-		if err := h.remotesService.ValidateNewRemoteConnection(ctx, req); err != nil {
-			h.api.Err(w, r, err)
-			return
-		}
-		h.api.Respond(w, r, http.StatusNoContent, nil)
 		return
 	}
 
@@ -210,21 +186,10 @@ func (h *RemoteConnectionHandler) handlePatchRemote(w http.ResponseWriter, r *ht
 	}
 
 	ctx := r.Context()
-	q := r.URL.Query()
 
-	validate := q.Get("validate") == "true"
 	var req influxdb.UpdateRemoteConnectionRequest
 	if err := h.api.DecodeJSON(r.Body, &req); err != nil {
 		h.api.Err(w, r, err)
-		return
-	}
-
-	if validate {
-		if err := h.remotesService.ValidateUpdatedRemoteConnection(ctx, *id, req); err != nil {
-			h.api.Err(w, r, err)
-			return
-		}
-		h.api.Respond(w, r, http.StatusNoContent, nil)
 		return
 	}
 
@@ -244,20 +209,6 @@ func (h *RemoteConnectionHandler) handleDeleteRemote(w http.ResponseWriter, r *h
 	}
 
 	if err := h.remotesService.DeleteRemoteConnection(r.Context(), *id); err != nil {
-		h.api.Err(w, r, err)
-		return
-	}
-	h.api.Respond(w, r, http.StatusNoContent, nil)
-}
-
-func (h *RemoteConnectionHandler) handleValidateRemote(w http.ResponseWriter, r *http.Request) {
-	id, err := platform.IDFromString(chi.URLParam(r, "id"))
-	if err != nil {
-		h.api.Err(w, r, errBadId)
-		return
-	}
-
-	if err := h.remotesService.ValidateRemoteConnection(r.Context(), *id); err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
