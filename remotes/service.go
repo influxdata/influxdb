@@ -9,7 +9,6 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"github.com/influxdata/influxdb/v2/remotes/internal"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/sqlite"
 )
@@ -169,24 +168,4 @@ func (s service) DeleteRemoteConnection(ctx context.Context, id platform.ID) err
 		return err
 	}
 	return nil
-}
-
-func (s service) getConnectionHTTPConfig(ctx context.Context, id platform.ID) (*internal.RemoteConnectionHTTPConfig, error) {
-	q := sq.Select("remote_url", "remote_api_token", "remote_org_id", "allow_insecure_tls").
-		From("remotes").
-		Where(sq.Eq{"id": id})
-
-	query, args, err := q.ToSql()
-	if err != nil {
-		return nil, err
-	}
-
-	var rc internal.RemoteConnectionHTTPConfig
-	if err := s.store.DB.GetContext(ctx, &rc, query, args...); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errRemoteNotFound
-		}
-		return nil, err
-	}
-	return &rc, nil
 }
