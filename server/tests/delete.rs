@@ -110,7 +110,7 @@ async fn delete_predicate_preservation() {
             data_types::delete_predicate::Scalar::I64(1),
         )],
     });
-    db.delete("cpu", Arc::clone(&pred)).await.unwrap();
+    db.delete("cpu", Arc::clone(&pred)).unwrap();
 
     // ==================== do: preserve another partition ====================
     let partition_key = "part_b";

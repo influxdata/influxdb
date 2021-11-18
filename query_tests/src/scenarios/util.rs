@@ -202,7 +202,6 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     for pred in &preds {
         if pred.delete_time == DeleteTime::Mubo {
             db.delete(delete_table_name, Arc::new(pred.predicate.clone()))
-                .await
                 .unwrap();
             deleted = true;
             count += 1;
@@ -249,7 +248,6 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     for pred in &preds {
         if pred.delete_time == DeleteTime::Mubf {
             db.delete(delete_table_name, Arc::new(pred.predicate.clone()))
-                .await
                 .unwrap();
             count += 1;
         }
@@ -303,7 +301,6 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     for pred in &preds {
         if pred.delete_time == DeleteTime::Rub {
             db.delete(delete_table_name, Arc::new(pred.predicate.clone()))
-                .await
                 .unwrap();
             count += 1;
         }
@@ -365,7 +362,6 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     for pred in &preds {
         if pred.delete_time == DeleteTime::RubOs {
             db.delete(delete_table_name, Arc::new(pred.predicate.clone()))
-                .await
                 .unwrap();
             count = 1;
         }
@@ -398,7 +394,6 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     for pred in &preds {
         if pred.delete_time == DeleteTime::Os || pred.delete_time == DeleteTime::End {
             db.delete(delete_table_name, Arc::new(pred.predicate.clone()))
-                .await
                 .unwrap();
             count += 1;
         }
@@ -496,9 +491,7 @@ pub async fn make_different_stage_chunks_with_deletes_scenario(
     // ----------
     // Apply all delete predicates
     for pred in &preds {
-        db.delete(table_name, Arc::new((*pred).clone()))
-            .await
-            .unwrap();
+        db.delete(table_name, Arc::new((*pred).clone())).unwrap();
     }
 
     // Scenario of the input chunks and delete predicates

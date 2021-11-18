@@ -304,4 +304,8 @@ impl SchemaProvider for DbSchemaProvider {
             Err(e) => panic!("unexpected error: {:?}", e),
         }
     }
+
+    fn table_exist(&self, name: &str) -> bool {
+        self.catalog.table(name).is_ok()
+    }
 }

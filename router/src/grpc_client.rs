@@ -59,6 +59,7 @@ impl GrpcClient for RealClient {
                     .await
                     .map_err(|e| Box::new(e) as _)
             }
+            DmlOperation::Delete(_) => unimplemented!(),
         }
     }
 

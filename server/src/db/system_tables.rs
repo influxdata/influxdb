@@ -81,19 +81,24 @@ impl SystemSchemaProvider {
     }
 }
 
+const ALL_SYSTEM_TABLES: [&str; 5] = [
+    CHUNKS,
+    COLUMNS,
+    CHUNK_COLUMNS,
+    OPERATIONS,
+    PERSISTENCE_WINDOWS,
+];
+
 impl SchemaProvider for SystemSchemaProvider {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
 
     fn table_names(&self) -> Vec<String> {
-        vec![
-            CHUNKS.to_string(),
-            COLUMNS.to_string(),
-            CHUNK_COLUMNS.to_string(),
-            OPERATIONS.to_string(),
-            PERSISTENCE_WINDOWS.to_string(),
-        ]
+        ALL_SYSTEM_TABLES
+            .iter()
+            .map(|name| name.to_string())
+            .collect()
     }
 
     fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
@@ -105,6 +110,12 @@ impl SchemaProvider for SystemSchemaProvider {
             PERSISTENCE_WINDOWS => Some(Arc::clone(&self.persistence_windows)),
             _ => None,
         }
+    }
+
+    fn table_exist(&self, name: &str) -> bool {
+        ALL_SYSTEM_TABLES
+            .iter()
+            .any(|&system_table| system_table == name)
     }
 }
 

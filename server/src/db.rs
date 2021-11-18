@@ -27,7 +27,8 @@ use data_types::{
     server_id::ServerId,
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
-use dml::{DmlOperation, DmlWrite};
+use dml::{DmlDelete, DmlOperation, DmlWrite};
+use internal_types::mailbox::Mailbox;
 use iox_object_store::IoxObjectStore;
 use mutable_batch::payload::PartitionWrite;
 use mutable_buffer::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
@@ -279,7 +280,7 @@ pub struct Db {
     time_provider: Arc<dyn TimeProvider>,
 
     /// To-be-written delete predicates.
-    delete_predicates_mailbox: Mutex<Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)>>,
+    delete_predicates_mailbox: Mailbox<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)>,
 
     /// TESTING ONLY: Override of IDs for persisted chunks.
     persisted_chunk_id_override: Mutex<Option<ChunkId>>,
@@ -519,12 +520,27 @@ impl Db {
         fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
+    /// Store a delete
+    pub fn store_delete(&self, delete: &DmlDelete) -> Result<()> {
+        let predicate = Arc::new(delete.predicate().clone());
+        match delete.table_name() {
+            None => {
+                // Note: This assumes tables cannot be removed from the catalog and therefore
+                // this lock gap is not problematic
+                for table_name in self.catalog.table_names() {
+                    self.delete(&table_name, Arc::clone(&predicate))
+                        .expect("table exists")
+                }
+                Ok(())
+            }
+            Some(table_name) => self.delete(table_name, predicate),
+        }
+    }
+
     /// Delete data from  a table on a specified predicate
-    pub async fn delete(
-        self: &Arc<Self>,
-        table_name: &str,
-        delete_predicate: Arc<DeletePredicate>,
-    ) -> Result<()> {
+    ///
+    /// Returns an error if the table cannot be found in the catalog
+    pub fn delete(&self, table_name: &str, delete_predicate: Arc<DeletePredicate>) -> Result<()> {
         // collect delete predicates on preserved partitions for a catalog transaction
         let mut affected_persisted_chunks = vec![];
 
@@ -560,8 +576,8 @@ impl Db {
         }
 
         if !affected_persisted_chunks.is_empty() {
-            let mut guard = self.delete_predicates_mailbox.lock();
-            guard.push((delete_predicate, affected_persisted_chunks));
+            self.delete_predicates_mailbox
+                .push((delete_predicate, affected_persisted_chunks));
         }
 
         Ok(())
@@ -824,27 +840,15 @@ impl Db {
         // worker loop to persist delete predicates
         let delete_predicate_persistence_loop = async {
             loop {
-                let todo: Vec<_> = {
-                    let guard = self.delete_predicates_mailbox.lock();
-                    guard.clone()
-                };
-
-                if !todo.is_empty() {
-                    match self.preserve_delete_predicates(&todo).await {
-                        Ok(()) => {
-                            let mut guard = self.delete_predicates_mailbox.lock();
-                            // TODO: we could also run a de-duplication here once
-                            // https://github.com/influxdata/influxdb_iox/issues/2626 is implemented
-                            guard.drain(0..todo.len());
-                        }
-                        Err(e) => {
-                            error!(%e, "cannot preserve delete predicates");
-                        }
-                    }
+                let handle = self.delete_predicates_mailbox.consume().await;
+                match self.preserve_delete_predicates(handle.outbox()).await {
+                    Ok(()) => handle.flush(),
+                    Err(e) => error!(%e, "cannot preserve delete predicates"),
                 }
 
                 self.worker_iterations_delete_predicate_preservation
                     .fetch_add(1, Ordering::Relaxed);
+
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         };
@@ -871,9 +875,13 @@ impl Db {
     }
 
     async fn preserve_delete_predicates(
-        self: &Arc<Self>,
+        &self,
         predicates: &[(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)],
     ) -> Result<(), parquet_catalog::core::Error> {
+        if predicates.is_empty() {
+            return Ok(());
+        }
+
         let mut transaction = self.preserved_catalog.open_transaction().await;
         for (predicate, chunks) in predicates {
             transaction.delete_predicate(predicate, chunks);
@@ -956,6 +964,7 @@ impl Db {
 
         match operation {
             DmlOperation::Write(write) => self.store_write(write),
+            DmlOperation::Delete(delete) => self.store_delete(delete),
         }
     }
 

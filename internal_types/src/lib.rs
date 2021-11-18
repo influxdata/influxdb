@@ -8,3 +8,4 @@
 
 pub mod access;
 pub mod freezable;
+pub mod mailbox;

@@ -93,9 +93,9 @@ dependencies = [
 
 [[package]]
 name = "arrow"
-version = "6.1.0"
+version = "6.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a900a6164aa0abf26d7a6dfea727116a3619456decfbf573e60c7615bf49e84c"
+checksum = "e51260693135be6ab1e4f5684ec8426e9155894671489617558584c45fc26ecd"
 dependencies = [
  "bitflags",
  "chrono",
@@ -117,9 +117,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-flight"
-version = "6.1.0"
+version = "6.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8ae887f6a362a6b04591064d2909e9e4fea09706afac8e812f15088ccd1285e"
+checksum = "b335312554797488999120dd03165ac88285d6d24ee2b9e28dfe151cface5a02"
 dependencies = [
  "arrow",
  "base64 0.13.0",
@@ -803,13 +803,13 @@ dependencies = [
 name = "datafusion"
 version = "0.1.0"
 dependencies = [
- "datafusion 5.1.0",
+ "datafusion 6.0.0",
 ]
 
 [[package]]
 name = "datafusion"
-version = "5.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=bae8562c74ff5e29d8f33e7f471316f13f1cd4dd#bae8562c74ff5e29d8f33e7f471316f13f1cd4dd"
+version = "6.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=79f129d048667a4552e44ef740e1b1cf9de306a1#79f129d048667a4552e44ef740e1b1cf9de306a1"
 dependencies = [
  "ahash",
  "arrow",
@@ -1208,7 +1208,6 @@ dependencies = [
  "pbjson",
  "pbjson-build",
  "pbjson-types",
- "proc-macro2",
  "prost",
  "prost-build",
  "regex",
@@ -2672,9 +2671,9 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "6.1.0"
+version = "6.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a30c6117ed7e42e115887483c0b81277f4c2e3c17cc10c6c4244c1113e6e611"
+checksum = "4db6880da64837ea4511fd4b7783c4248b5b6e9227bd1a2672150b305300b2ed"
 dependencies = [
  "arrow",
  "base64 0.13.0",

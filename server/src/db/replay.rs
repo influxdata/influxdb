@@ -243,6 +243,8 @@ pub async fn perform_replay(
                 for n_try in 1..=n_tries {
                     let result = match &dml_operation {
                         DmlOperation::Write(write) => db.store_filtered_write(write, filter),
+                        // TODO: Only apply delete to unpersisted chunks (#3125)
+                        DmlOperation::Delete(delete) => db.store_delete(delete),
                     };
 
                     match result {

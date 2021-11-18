@@ -331,7 +331,7 @@ mod tests {
             exprs: vec![],
         });
 
-        db.delete("cpu", predicate).await.unwrap();
+        db.delete("cpu", predicate).unwrap();
 
         // Try to persist first write but it has been deleted
         let maybe_chunk = db
@@ -398,7 +398,7 @@ mod tests {
             exprs: vec![],
         });
 
-        db.delete("cpu", predicate).await.unwrap();
+        db.delete("cpu", predicate).unwrap();
 
         // Try to persist third set of writes
         time.inc(late_arrival);
@@ -441,7 +441,7 @@ mod tests {
         });
 
         // Delete everything
-        db.delete("cpu", predicate).await.unwrap();
+        db.delete("cpu", predicate).unwrap();
 
         // Compact deletes away
         let chunk = db
@@ -513,8 +513,8 @@ mod tests {
             range,
             exprs: vec![DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::I64(3))],
         });
-        db.delete("cpu", Arc::clone(&pred1)).await.unwrap();
-        db.delete("cpu", Arc::clone(&pred2)).await.unwrap();
+        db.delete("cpu", Arc::clone(&pred1)).unwrap();
+        db.delete("cpu", Arc::clone(&pred2)).unwrap();
 
         // start persistence job (but don't poll the future yet)
         let partition_keys = db.partition_keys().unwrap();
@@ -540,8 +540,8 @@ mod tests {
         let (_, fut) = persist_chunks(partition, chunks, handle).unwrap();
 
         // add more delete predicates
-        db.delete("cpu", Arc::clone(&pred2)).await.unwrap();
-        db.delete("cpu", Arc::clone(&pred3)).await.unwrap();
+        db.delete("cpu", Arc::clone(&pred2)).unwrap();
+        db.delete("cpu", Arc::clone(&pred3)).unwrap();
 
         // finish future
         tokio::spawn(fut).await.unwrap().unwrap().unwrap();

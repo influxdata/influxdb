@@ -19,6 +19,7 @@ pub mod detailed_database;
 pub mod error;
 pub mod job;
 pub mod names;
+pub mod non_empty;
 pub mod partition_metadata;
 pub mod router;
 pub mod sequence;

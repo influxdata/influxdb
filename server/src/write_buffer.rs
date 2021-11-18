@@ -165,7 +165,8 @@ async fn stream_in_sequenced_entries<'a>(
             );
 
             let result = match &dml_operation {
-                DmlOperation::Write(db_write) => db.store_write(db_write),
+                DmlOperation::Write(write) => db.store_write(write),
+                DmlOperation::Delete(delete) => db.store_delete(delete),
             };
 
             match result {
