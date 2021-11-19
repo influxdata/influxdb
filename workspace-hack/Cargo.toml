@@ -46,7 +46,6 @@ reqwest = { version = "0.11", features = ["__rustls", "__tls", "blocking", "defa
 serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
 serde_json = { version = "1", features = ["indexmap", "preserve_order", "std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
-tikv-jemalloc-sys = { version = "0.4", features = ["background_threads_runtime_support", "stats", "unprefixed_malloc_on_supported_platforms"] }
 tokio = { version = "1", features = ["bytes", "fs", "full", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "process", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "sync", "time", "tokio-macros", "winapi"] }
 tokio-stream = { version = "0.1", features = ["net", "time"] }
 tokio-util = { version = "0.6", features = ["codec", "io"] }

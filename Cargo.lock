@@ -5097,7 +5097,6 @@ dependencies = [
  "serde_json",
  "smallvec",
  "syn",
- "tikv-jemalloc-sys",
  "tokio",
  "tokio-stream",
  "tokio-util",
