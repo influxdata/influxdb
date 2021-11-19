@@ -126,26 +126,6 @@ pub enum GetDatabaseError {
     ServerError(tonic::Status),
 }
 
-/// Errors returned by Client::delete_database
-#[derive(Debug, Error)]
-pub enum DeleteDatabaseError {
-    /// Database not found
-    #[error("Database not found")]
-    DatabaseNotFound,
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Server ID is not set
-    #[error("Server ID not set")]
-    NoServerId,
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
 /// Errors returned by Client::release_database
 #[derive(Debug, Error)]
 pub enum ReleaseDatabaseError {
@@ -163,29 +143,6 @@ pub enum ReleaseDatabaseError {
     /// Server returned an invalid argument error
     #[error("Invalid argument {}: {}", .0.code(), .0.message())]
     InvalidArgument(tonic::Status),
-
-    /// Server ID is not set
-    #[error("Server ID not set")]
-    NoServerId,
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::restore_database
-#[derive(Debug, Error)]
-pub enum RestoreDatabaseError {
-    /// Database not found
-    #[error("Could not find a database with UUID `{}`", .uuid)]
-    DatabaseNotFound {
-        /// The UUID requested
-        uuid: Uuid,
-    },
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
 
     /// Server ID is not set
     #[error("Server ID not set")]
@@ -716,37 +673,6 @@ impl Client {
         Ok(rules)
     }
 
-    /// Delete database
-    pub async fn delete_database(
-        &mut self,
-        db_name: impl Into<String> + Send,
-    ) -> Result<Uuid, DeleteDatabaseError> {
-        let response = self
-            .inner
-            .delete_database(DeleteDatabaseRequest {
-                db_name: db_name.into(),
-            })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => DeleteDatabaseError::DatabaseNotFound,
-                tonic::Code::FailedPrecondition => DeleteDatabaseError::NoServerId,
-                tonic::Code::Unavailable => DeleteDatabaseError::Unavailable(status),
-                _ => DeleteDatabaseError::ServerError(status),
-            })?;
-
-        let server_uuid = response.into_inner().uuid;
-        let uuid = Uuid::from_slice(&server_uuid)
-            .map_err(|e| {
-                format!(
-                    "Could not create UUID from server value {:?}: {}",
-                    server_uuid, e
-                )
-            })
-            .unwrap();
-
-        Ok(uuid)
-    }
-
     /// Release database
     pub async fn release_database(
         &mut self,
@@ -779,23 +705,6 @@ impl Client {
             .unwrap();
 
         Ok(uuid)
-    }
-
-    /// Restore database
-    pub async fn restore_database(&mut self, uuid: Uuid) -> Result<(), RestoreDatabaseError> {
-        self.inner
-            .restore_database(RestoreDatabaseRequest {
-                uuid: uuid.as_bytes().to_vec(),
-            })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => RestoreDatabaseError::DatabaseNotFound { uuid },
-                tonic::Code::FailedPrecondition => RestoreDatabaseError::NoServerId,
-                tonic::Code::Unavailable => RestoreDatabaseError::Unavailable(status),
-                _ => RestoreDatabaseError::ServerError(status),
-            })?;
-
-        Ok(())
     }
 
     /// Claim database

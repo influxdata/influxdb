@@ -15,13 +15,15 @@ pub mod transaction_file;
 use transaction_file::TransactionFilePath;
 
 pub(crate) const ALL_DATABASES_DIRECTORY: &str = "dbs";
-const SERVER_CONFIG_FILE_NAME: &str = "config.pb";
+const ALL_SERVERS_DIRECTORY: &str = "nodes";
+pub(crate) const SERVER_CONFIG_FILE_NAME: &str = "config.pb";
 const DATABASE_OWNER_FILE_NAME: &str = "owner.pb";
 
 /// The path to the server file containing the list of databases this server owns.
 // TODO: this is in the process of replacing all_databases_path for the floating databases design
 pub(crate) fn server_config_path(object_store: &ObjectStore, server_id: ServerId) -> Path {
     let mut path = object_store.new_path();
+    path.push_dir(ALL_SERVERS_DIRECTORY);
     path.push_dir(server_id.to_string());
     path.set_file_name(SERVER_CONFIG_FILE_NAME);
     path
@@ -73,10 +75,6 @@ impl RootPath {
     pub(crate) fn transactions_path(&self) -> TransactionsPath {
         TransactionsPath::new(self)
     }
-
-    pub(crate) fn tombstone_path(&self) -> TombstonePath {
-        TombstonePath::new(self)
-    }
 }
 
 impl fmt::Display for RootPath {
@@ -104,29 +102,6 @@ impl RulesPath {
     pub(crate) fn new_from_object_store_path(path: &Path) -> Self {
         let mut inner = path.clone();
         inner.set_file_name(Self::DB_RULES_FILE_NAME);
-        Self { inner }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct TombstonePath {
-    pub(crate) inner: Path,
-}
-
-impl TombstonePath {
-    const TOMBSTONE_FILE_NAME: &'static str = "DELETED";
-
-    /// How the tombstone path of a database is defined in object storage in terms of the
-    /// root path.
-    pub(crate) fn new(root_path: &RootPath) -> Self {
-        Self::new_from_object_store_path(&root_path.inner)
-    }
-
-    /// Creating a potential tombstone file location given an object storage path received from
-    /// an object storage list operation.
-    pub(crate) fn new_from_object_store_path(path: &Path) -> Self {
-        let mut inner = path.clone();
-        inner.set_file_name(Self::TOMBSTONE_FILE_NAME);
         Self { inner }
     }
 }

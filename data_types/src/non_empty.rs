@@ -11,7 +11,8 @@ impl NonEmptyString {
     /// Create a new `NonEmptyString` from the provided `String`
     ///
     /// Returns None if empty
-    pub fn new(s: String) -> Option<Self> {
+    pub fn new(s: impl Into<String>) -> Option<Self> {
+        let s = s.into();
         match s.is_empty() {
             true => None,
             false => Some(Self(s.into_boxed_str())),

@@ -870,26 +870,15 @@ mod tests {
 
     use schema::TIME_COLUMN_NAME;
 
-    use crate::test_utils::{
-        chunk_addr, create_partition_and_database_checkpoint, load_parquet_from_store, make_chunk,
-        make_chunk_no_row_group, make_iox_object_store, TestSize,
-    };
+    use crate::test_utils::create_partition_and_database_checkpoint;
+    use crate::test_utils::generator::{ChunkGenerator, GeneratorConfig};
 
     #[tokio::test]
     async fn test_restore_from_file() {
         // setup: preserve chunk to object store
-        let iox_object_store = make_iox_object_store().await;
-        let chunk = make_chunk(
-            Arc::clone(&iox_object_store),
-            "foo",
-            chunk_addr(1),
-            TestSize::Full,
-        )
-        .await;
-        let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
-            .await
-            .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
+        let mut generator = ChunkGenerator::new().await;
+        let (chunk, _) = generator.generate().await;
+        let parquet_metadata = chunk.parquet_metadata();
         let decoded = parquet_metadata.decode().unwrap();
 
         // step 1: read back schema
@@ -911,18 +900,9 @@ mod tests {
     #[tokio::test]
     async fn test_restore_from_thrift() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
-        let iox_object_store = make_iox_object_store().await;
-        let chunk = make_chunk(
-            Arc::clone(&iox_object_store),
-            "foo",
-            chunk_addr(1),
-            TestSize::Full,
-        )
-        .await;
-        let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
-            .await
-            .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
+        let mut generator = ChunkGenerator::new().await;
+        let (chunk, _) = generator.generate().await;
+        let parquet_metadata = chunk.parquet_metadata();
         let data = parquet_metadata.thrift_bytes().to_vec();
         let parquet_metadata = IoxParquetMetaData::from_thrift_bytes(data);
         let decoded = parquet_metadata.decode().unwrap();
@@ -941,18 +921,10 @@ mod tests {
     #[tokio::test]
     async fn test_restore_from_file_no_row_group() {
         // setup: preserve chunk to object store
-        let iox_object_store = make_iox_object_store().await;
-        let chunk = make_chunk_no_row_group(
-            Arc::clone(&iox_object_store),
-            "foo",
-            chunk_addr(1),
-            TestSize::Full,
-        )
-        .await;
-        let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
-            .await
-            .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
+        let mut generator = ChunkGenerator::new().await;
+        generator.set_config(GeneratorConfig::NoData);
+        let (chunk, _) = generator.generate().await;
+        let parquet_metadata = chunk.parquet_metadata();
         let decoded = parquet_metadata.decode().unwrap();
 
         // step 1: read back schema
@@ -971,18 +943,11 @@ mod tests {
     #[tokio::test]
     async fn test_restore_from_thrift_no_row_group() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
-        let iox_object_store = make_iox_object_store().await;
-        let chunk = make_chunk_no_row_group(
-            Arc::clone(&iox_object_store),
-            "foo",
-            chunk_addr(1),
-            TestSize::Full,
-        )
-        .await;
-        let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
-            .await
-            .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
+        let mut generator = ChunkGenerator::new().await;
+        generator.set_config(GeneratorConfig::NoData);
+        let (chunk, _) = generator.generate().await;
+        let parquet_metadata = chunk.parquet_metadata();
+
         let data = parquet_metadata.thrift_bytes().to_vec();
         let parquet_metadata = IoxParquetMetaData::from_thrift_bytes(data);
         let decoded = parquet_metadata.decode().unwrap();
@@ -1002,18 +967,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_make_chunk() {
-        let iox_object_store = make_iox_object_store().await;
-        let chunk = make_chunk(
-            Arc::clone(&iox_object_store),
-            "foo",
-            chunk_addr(1),
-            TestSize::Full,
-        )
-        .await;
-        let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
-            .await
-            .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
+        let mut generator = ChunkGenerator::new().await;
+        let (chunk, _) = generator.generate().await;
+        let parquet_metadata = chunk.parquet_metadata();
         let decoded = parquet_metadata.decode().unwrap();
 
         assert!(decoded.md.num_row_groups() > 1);
@@ -1040,18 +996,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_make_chunk_no_row_group() {
-        let iox_object_store = make_iox_object_store().await;
-        let chunk = make_chunk_no_row_group(
-            Arc::clone(&iox_object_store),
-            "foo",
-            chunk_addr(1),
-            TestSize::Full,
-        )
-        .await;
-        let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
-            .await
-            .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
+        let mut generator = ChunkGenerator::new().await;
+        generator.set_config(GeneratorConfig::NoData);
+        let (chunk, _) = generator.generate().await;
+        let parquet_metadata = chunk.parquet_metadata();
         let decoded = parquet_metadata.decode().unwrap();
 
         assert_eq!(decoded.md.num_row_groups(), 0);
@@ -1113,18 +1061,9 @@ mod tests {
     #[tokio::test]
     async fn test_parquet_metadata_size() {
         // setup: preserve chunk to object store
-        let iox_object_store = make_iox_object_store().await;
-        let chunk = make_chunk(
-            Arc::clone(&iox_object_store),
-            "foo",
-            chunk_addr(1),
-            TestSize::Full,
-        )
-        .await;
-        let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
-            .await
-            .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
-        assert_eq!(parquet_metadata.size(), 3730);
+        let mut generator = ChunkGenerator::new().await;
+        let (chunk, _) = generator.generate().await;
+        let parquet_metadata = chunk.parquet_metadata();
+        assert_eq!(parquet_metadata.size(), 3729);
     }
 }

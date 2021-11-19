@@ -44,9 +44,12 @@ async fn test_querying_deleted_database() {
     ];
     assert_batches_sorted_eq!(&expected, &batches);
 
-    // Ensure we get an error after deleting the database
+    // Ensure we get an error after releasing the database
 
-    management_client.delete_database(&db_name).await.unwrap();
+    management_client
+        .release_database(&db_name, None)
+        .await
+        .unwrap();
 
     assert!(query_cpu_to_batches(&mut flight_client, &db_name)
         .await

@@ -11,7 +11,7 @@ use parking_lot::Mutex;
 
 use data_types::sequence::Sequence;
 use data_types::write_buffer::WriteBufferCreationConfig;
-use dml::{DmlMeta, DmlOperation, DmlWrite};
+use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use time::TimeProvider;
 
 use crate::core::{
@@ -108,14 +108,36 @@ impl MockBufferSharedState {
             .collect()
     }
 
+    /// Push a new delete to the specified sequencer
+    ///
+    /// # Panics
+    /// - when delete is not sequenced
+    /// - when no sequencer was initialized
+    /// - when specified sequencer does not exist
+    /// - when sequence number in entry is not larger the current maximum
+    pub fn push_delete(&self, delete: DmlDelete) {
+        self.push_operation(DmlOperation::Delete(delete))
+    }
+
     /// Push a new entry to the specified sequencer.
     ///
     /// # Panics
-    /// - when given entry is not sequenced
+    /// - when write is not sequenced
     /// - when no sequencer was initialized
     /// - when specified sequencer does not exist
     /// - when sequence number in entry is not larger the current maximum
     pub fn push_write(&self, write: DmlWrite) {
+        self.push_operation(DmlOperation::Write(write))
+    }
+
+    /// Push a new operation to the specified sequencer
+    ///
+    /// # Panics
+    /// - when operation is not sequenced
+    /// - when no sequencer was initialized
+    /// - when specified sequencer does not exist
+    /// - when sequence number in entry is not larger the current maximum
+    pub fn push_operation(&self, write: DmlOperation) {
         let sequence = write.meta().sequence().expect("write must be sequenced");
         assert!(
             write.meta().producer_ts().is_some(),
@@ -135,7 +157,7 @@ impl MockBufferSharedState {
             );
         }
 
-        writes_vec.push(Ok(DmlOperation::Write(write)));
+        writes_vec.push(Ok(write));
     }
 
     /// Push line protocol data with placeholder values used for write metadata

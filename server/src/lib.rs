@@ -159,22 +159,13 @@ pub enum Error {
     CouldNotGetDatabaseNameFromRules { source: DatabaseNameFromRulesError },
 
     #[snafu(display("{}", source))]
-    CannotMarkDatabaseDeleted { source: crate::database::Error },
-
-    #[snafu(display("{}", source))]
     CannotReleaseDatabase { source: crate::database::Error },
-
-    #[snafu(display("{}", source))]
-    CannotRestoreDatabase { source: crate::database::InitError },
 
     #[snafu(display("{}", source))]
     CannotClaimDatabase { source: crate::database::InitError },
 
     #[snafu(display("A database with the name `{}` already exists", db_name))]
     DatabaseAlreadyExists { db_name: String },
-
-    #[snafu(display("The database with UUID `{}` named `{}` is already active", uuid, name))]
-    DatabaseAlreadyActive { name: String, uuid: Uuid },
 
     #[snafu(display("The database with UUID `{}` is already owned by this server", uuid))]
     DatabaseAlreadyOwnedByThisServer { uuid: Uuid },
@@ -740,40 +731,6 @@ where
         Ok(database)
     }
 
-    /// Delete an existing, active database with this name. Return an error if no active database
-    /// with this name can be found.
-    pub async fn delete_database(&self, db_name: &DatabaseName<'static>) -> Result<Uuid> {
-        // Wait for exclusive access to mutate server state
-        let handle_fut = self.shared.state.read().freeze();
-        let handle = handle_fut.await;
-
-        let database = self.database(db_name)?;
-        let uuid = database.delete().await.context(CannotMarkDatabaseDeleted)?;
-        database.shutdown();
-        let _ = database
-            .join()
-            .await
-            .log_if_error("database background worker while deleting database");
-
-        {
-            let mut state = self.shared.state.write();
-
-            // Exchange FreezeHandle for mutable access via WriteGuard
-            let mut state = state.unfreeze(handle);
-
-            match &mut *state {
-                ServerState::Initialized(initialized) => {
-                    initialized.databases.remove(db_name);
-                }
-                _ => unreachable!(),
-            }
-        }
-
-        self.persist_server_config().await?;
-
-        Ok(uuid)
-    }
-
     /// Release an existing, active database with this name from this server. Return an error if no
     /// active database with this name can be found.
     pub async fn release_database(
@@ -825,93 +782,6 @@ where
         self.persist_server_config().await?;
 
         Ok(returned_uuid)
-    }
-
-    /// Restore a database that has been marked as deleted. Return an error if no database with
-    /// this UUID can be found, or if there's already an active database with this name.
-    pub async fn restore_database(&self, uuid: Uuid) -> Result<()> {
-        // Wait for exclusive access to mutate server state
-        let handle_fut = self.shared.state.read().freeze();
-        let handle = handle_fut.await;
-
-        // Don't proceed without a server ID
-        let server_id = {
-            let state = self.shared.state.read();
-            let initialized = state.initialized()?;
-
-            initialized.server_id
-        };
-
-        // Read the database's rules from object storage to get the database name
-        let db_name =
-            database_name_from_rules_file(Arc::clone(self.shared.application.object_store()), uuid)
-                .await
-                .context(CouldNotGetDatabaseNameFromRules)?;
-
-        info!(%db_name, %uuid, "start restoring database");
-
-        // Check that this name is unique among currently active databases
-        if let Ok(existing_db) = self.database(&db_name) {
-            if matches!(dbg!(existing_db.uuid()),
-                    Some(existing_uuid) if existing_uuid == dbg!(uuid))
-            {
-                return DatabaseAlreadyActive {
-                    name: db_name,
-                    uuid,
-                }
-                .fail();
-            } else {
-                return DatabaseAlreadyExists { db_name }.fail();
-            }
-        }
-
-        // Mark the database as restored in object storage and get its location for the server
-        // config file
-        let location = Database::restore(
-            Arc::clone(&self.shared.application),
-            &db_name,
-            uuid,
-            server_id,
-        )
-        .await
-        .context(CannotRestoreDatabase)?;
-
-        let database = {
-            let mut state = self.shared.state.write();
-
-            // Exchange FreezeHandle for mutable access via WriteGuard
-            let mut state = state.unfreeze(handle);
-
-            let database = match &mut *state {
-                ServerState::Initialized(initialized) => {
-                    if initialized.databases.contains_key(&db_name) {
-                        return DatabaseAlreadyExists { db_name }.fail();
-                    }
-
-                    initialized
-                        .new_database(
-                            &self.shared,
-                            DatabaseConfig {
-                                name: db_name.clone(),
-                                location,
-                                server_id,
-                                wipe_catalog_on_error: false,
-                                skip_replay: false,
-                            },
-                        )
-                        .expect("database unique")
-                }
-                _ => unreachable!(),
-            };
-            Arc::clone(database)
-        };
-
-        // Save the database to the server config as soon as it's added to the `ServerState`
-        self.persist_server_config().await?;
-
-        database.wait_for_init().await.context(DatabaseInit)?;
-
-        Ok(())
     }
 
     /// Claim a database that has been released. Return an error if:
@@ -2006,6 +1876,95 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn old_server_config_object_store_path() {
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+        let object_store = application.object_store();
+
+        // Server config used to be stored under /[server id]/config.pb. Construct a config in that
+        // old location that points to a database
+        let mut old_server_config_path = object_store.new_path();
+        old_server_config_path.push_dir(&server_id.to_string());
+        old_server_config_path.set_file_name("config.pb");
+
+        // Create database rules and database owner info for a database in object storage
+        let db_uuid = Uuid::new_v4();
+        let db_name = DatabaseName::new("mydb").unwrap();
+        let db_rules = DatabaseRules::new(db_name.clone());
+
+        let mut db_path = object_store.new_path();
+        db_path.push_dir("dbs");
+        db_path.push_dir(db_uuid.to_string());
+        let mut db_rules_path = db_path.clone();
+        db_rules_path.set_file_name("rules.pb");
+
+        let persisted_database_rules = management::v1::PersistedDatabaseRules {
+            uuid: db_uuid.as_bytes().to_vec(),
+            rules: Some(db_rules.into()),
+        };
+        let mut encoded_rules = bytes::BytesMut::new();
+        generated_types::database_rules::encode_persisted_database_rules(
+            &persisted_database_rules,
+            &mut encoded_rules,
+        )
+        .unwrap();
+        let encoded_rules = encoded_rules.freeze();
+        object_store
+            .put(&db_rules_path, encoded_rules)
+            .await
+            .unwrap();
+
+        let mut db_owner_info_path = db_path.clone();
+        db_owner_info_path.set_file_name("owner.pb");
+        let owner_info = management::v1::OwnerInfo {
+            id: server_id.get_u32(),
+            location: old_server_config_path.to_string(),
+            transactions: vec![],
+        };
+        let mut encoded_owner_info = bytes::BytesMut::new();
+        generated_types::server_config::encode_database_owner_info(
+            &owner_info,
+            &mut encoded_owner_info,
+        )
+        .unwrap();
+        let encoded_owner_info = encoded_owner_info.freeze();
+        object_store
+            .put(&db_owner_info_path, encoded_owner_info)
+            .await
+            .unwrap();
+
+        let config = management::v1::ServerConfig {
+            databases: [(db_name.to_string(), db_path.to_raw())]
+                .into_iter()
+                .collect(),
+        };
+        let mut encoded_server_config = bytes::BytesMut::new();
+        generated_types::server_config::encode_persisted_server_config(
+            &config,
+            &mut encoded_server_config,
+        )
+        .unwrap();
+        let encoded_server_config = encoded_server_config.freeze();
+        object_store
+            .put(&old_server_config_path, encoded_server_config)
+            .await
+            .unwrap();
+
+        // Start up server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        // Database should init
+        let database = server.database(&db_name).unwrap();
+        database.wait_for_init().await.unwrap();
+
+        // Server config should be transitioned to the new location
+        let config = server_config(application.object_store(), server_id).await;
+        assert_config_contents(&config, &[(&db_name, format!("dbs/{}/", db_uuid))]);
+    }
+
+    #[tokio::test]
     async fn db_names_sorted() {
         let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
@@ -2362,7 +2321,7 @@ mod tests {
         let baz_iox_object_store = baz.iox_object_store().unwrap();
         let owner_info = management::v1::OwnerInfo {
             id: 2,
-            location: "2/config.pb".to_string(),
+            location: "nodes/2/config.pb".to_string(),
             transactions: vec![],
         };
         let mut encoded = bytes::BytesMut::new();
@@ -2421,72 +2380,6 @@ mod tests {
         // creating failed DBs does not work
         let err = create_simple_database(&server, "bar").await.unwrap_err();
         assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
-    }
-
-    #[tokio::test]
-    async fn init_deleted_database() {
-        test_helpers::maybe_start_logging();
-        let application = make_application();
-        let server_id = ServerId::try_from(1).unwrap();
-
-        let foo_db_name = DatabaseName::new("foo").unwrap();
-
-        // start server
-        let server = make_server(Arc::clone(&application));
-        server.set_id(server_id).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        // create database
-        let foo = create_simple_database(&server, &foo_db_name)
-            .await
-            .expect("failed to create database");
-        let foo_uuid = foo.uuid().unwrap();
-
-        // delete database
-        server
-            .delete_database(&foo_db_name)
-            .await
-            .expect("failed to delete database");
-
-        // restart server
-        let server = make_server(Arc::clone(&application));
-        server.set_id(server_id).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        // generic error MUST NOT be set
-        assert!(server.server_init_error().is_none());
-
-        // server is initialized
-        assert!(server.initialized());
-
-        // DB names is empty
-        assert!(server.db_names_sorted().is_empty());
-
-        // can't delete an inactive database
-        let err = server.delete_database(&foo_db_name).await;
-        assert!(
-            matches!(&err, Err(Error::DatabaseNotFound { .. })),
-            "got {:?}",
-            err
-        );
-
-        // creating a new DB with the deleted db's name works
-        let new_foo = create_simple_database(&server, &foo_db_name)
-            .await
-            .expect("failed to create database");
-        let new_foo_uuid = new_foo.uuid().unwrap();
-        assert_ne!(foo_uuid, new_foo_uuid);
-
-        // DB names contains foo
-        assert_eq!(server.db_names_sorted().len(), 1);
-        assert!(server.db_names_sorted().contains(&String::from("foo")));
-
-        // server config contains foo
-        let config = server_config(application.object_store(), server_id).await;
-        assert_config_contents(&config, &[(&foo_db_name, format!("dbs/{}/", new_foo_uuid))]);
-
-        // calling delete database works
-        server.delete_database(&foo_db_name).await.unwrap();
     }
 
     #[tokio::test]
@@ -2689,97 +2582,6 @@ mod tests {
 
         // Then claiming on server 2 will work
         server2.claim_database(uuid).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn cant_restore_nonexistent_database() {
-        let application = make_application();
-        let server_id = ServerId::try_from(1).unwrap();
-
-        let server = make_server(Arc::clone(&application));
-        server.set_id(server_id).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        let nonexistent_uuid = Uuid::new_v4();
-
-        assert_error!(
-            server.restore_database(nonexistent_uuid).await,
-            Error::CouldNotGetDatabaseNameFromRules {
-                source: DatabaseNameFromRulesError::DatabaseRulesNotFound { .. },
-            }
-        );
-    }
-
-    #[tokio::test]
-    async fn cant_restore_database_with_same_name_as_existing_database() {
-        test_helpers::maybe_start_logging();
-        let application = make_application();
-        let server_id = ServerId::try_from(1).unwrap();
-
-        let foo_db_name = DatabaseName::new("foo").unwrap();
-
-        // start server
-        let server = make_server(Arc::clone(&application));
-        server.set_id(server_id).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        // create database
-        let foo = create_simple_database(&server, &foo_db_name)
-            .await
-            .expect("failed to create database");
-        let first_foo_uuid = foo.uuid().unwrap();
-
-        // delete database
-        server
-            .delete_database(&foo_db_name)
-            .await
-            .expect("failed to delete database");
-
-        // create another database named foo
-        create_simple_database(&server, &foo_db_name)
-            .await
-            .expect("failed to create database");
-
-        // trying to restore the first foo fails
-        assert_error!(
-            server.restore_database(first_foo_uuid).await,
-            Error::DatabaseAlreadyExists { .. },
-        );
-    }
-
-    #[tokio::test]
-    async fn cant_restore_database_twice() {
-        test_helpers::maybe_start_logging();
-        let application = make_application();
-        let server_id = ServerId::try_from(1).unwrap();
-
-        let foo_db_name = DatabaseName::new("foo").unwrap();
-
-        // start server
-        let server = make_server(Arc::clone(&application));
-        server.set_id(server_id).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        // create database
-        let foo = create_simple_database(&server, &foo_db_name)
-            .await
-            .expect("failed to create database");
-        let foo_uuid = foo.uuid().unwrap();
-
-        // delete database
-        server
-            .delete_database(&foo_db_name)
-            .await
-            .expect("failed to delete database");
-
-        // restore database
-        server.restore_database(foo_uuid).await.unwrap();
-
-        // restoring again fails
-        assert_error!(
-            server.restore_database(foo_uuid).await,
-            Error::DatabaseAlreadyActive { .. },
-        );
     }
 
     #[tokio::test]
