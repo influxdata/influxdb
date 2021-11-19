@@ -706,7 +706,6 @@ mod tests {
         Drop(ChunkId),
         Unload(ChunkId),
         Compact(Vec<ChunkId>),
-        CompactOS(Vec<ChunkId>),
         Persist(Vec<ChunkId>),
     }
 
@@ -913,8 +912,7 @@ mod tests {
             _partition: LifecycleWriteGuard<'_, TestPartition, Self>,
             _chunks: Vec<LifecycleWriteGuard<'_, TestChunk, Self::Chunk>>,
         ) -> Result<TaskTracker<()>, Self::Error> {
-            // This is just a trait function that this test may not need
-            unimplemented!();
+            unimplemented!("The test does not need compact os chunks");
         }
 
         fn prepare_persist(
