@@ -1,0 +1,21 @@
+# This file contains settings for `cargo hakari`.
+# See https://docs.rs/cargo-hakari/*/cargo_hakari/config for a full list of options.
+
+hakari-package = "workspace-hack"
+
+# Setting workspace.resolver = "2" in the root Cargo.toml is HIGHLY recommended.
+# Hakari works much better with the new feature resolver.
+# For more about the new feature resolver, see:
+# https://blog.rust-lang.org/2021/03/25/Rust-1.51.0.html#cargos-new-feature-resolver
+resolver = "2"
+
+# Add triples corresponding to platforms commonly used by developers here.
+# https://doc.rust-lang.org/rustc/platform-support.html
+platforms = [
+    # "x86_64-unknown-linux-gnu",
+    # "x86_64-apple-darwin",
+    # "x86_64-pc-windows-msvc",
+]
+
+# Write out exact versions rather than a semver range. (Defaults to false.)
+# exact-versions = true
