@@ -139,7 +139,7 @@ type Engine struct {
 
 	stats *compactionMetrics
 
-	activeCompactions compactionCounter
+	activeCompactions *compactionCounter
 
 	// Limiter for concurrent compactions.
 	compactionLimiter limiter.Fixed
@@ -191,6 +191,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		bucket:        filepath.Base(filepath.Dir(filepath.Dir(path))), // discard shard & rp, take db
 		engineVersion: opt.EngineVersion,
 	})
+	activeCompactions := &compactionCounter{}
 	e := &Engine{
 		id:           id,
 		path:         path,
@@ -207,6 +208,9 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		Compactor:      c,
 		CompactionPlan: planner,
 
+		activeCompactions: activeCompactions,
+		scheduler:         newScheduler(activeCompactions, opt.CompactionLimiter.Capacity()),
+
 		CacheFlushMemorySizeThreshold: uint64(opt.Config.CacheSnapshotMemorySize),
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
 		enableCompactionsOnOpen:       true,
@@ -216,7 +220,6 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		compactionLimiter:             opt.CompactionLimiter,
 		seriesIDSets:                  opt.SeriesIDSets,
 	}
-	e.scheduler = newScheduler(&e.activeCompactions, opt.CompactionLimiter.Capacity())
 
 	// Feature flag to enable per-series type checking, by default this is off and
 	// e.seriesTypeMap will be nil.
