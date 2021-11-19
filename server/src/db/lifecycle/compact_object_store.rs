@@ -75,39 +75,33 @@ pub(crate) fn compact_object_store_chunks(
     });
 
     // Step 1: Verify input while marking and snapshoting the chunks for compacting
-    let (
-        time_of_first_write,
-        time_of_last_write,
-        input_rows,
-        _delete_predicates_before,
-        os_chunks,
-        min_order,
-        database_checkpoint,
-        partition_checkpoint,
-    ) = mark_chunks_to_compact(partition, chunks, &registration)?;
+    let compacting_os_chunks = mark_chunks_to_compact(partition, chunks, &registration)?;
+    let _delete_predicates_before = compacting_os_chunks.delete_predicates;
 
     let fut = async move {
         // track future runtime
         let fut_now = std::time::Instant::now();
 
         // Step 2: Compact & Persistent the os_chunks in one os_chunk
-        let parquet_chunk = compact_persist_os_chunks(
+        let compacted_and_persisted_chunk = compact_persist_os_chunks(
             &db,
             &partition_addr,
-            &os_chunks,
-            partition_checkpoint,
-            database_checkpoint,
-            time_of_first_write,
-            time_of_last_write,
-            min_order,
+            &compacting_os_chunks.os_chunks,
+            compacting_os_chunks.partition_checkpoint,
+            compacting_os_chunks.database_checkpoint,
+            compacting_os_chunks.time_of_first_write,
+            compacting_os_chunks.time_of_last_write,
+            compacting_os_chunks.min_order,
         )
         .await?;
-        let compacted_rows = parquet_chunk.rows();
+        let compacted_rows = compacted_and_persisted_chunk.parquet_chunk.rows();
+        let _schema = compacted_and_persisted_chunk.schema;
 
         // Step 3: Update the preserved & in-memory catalogs to use the newly created os_chunk
         // Todo: This will be done in a sub-function that creates a single transaction that:
-        //   . Drop all os_chunks fro the preserved catalog
+        //   . Drop all os_chunks from the preserved catalog
         //   . Add the newly created os_chunk into the preserved catalog
+        //   Extra: delete_predicates_after must be included here or below (detail will be figured out)
 
         // Step 4: Update the in-memory catalogs to use the newly created os_chunk
         //   . Drop all os_chunks from the in-memory catalog
@@ -122,10 +116,11 @@ pub(crate) fn compact_object_store_chunks(
         // Log the summary
         let elapsed = now.elapsed();
         // input rows per second
-        let throughput = (input_rows as u128 * 1_000_000_000) / elapsed.as_nanos();
+        let throughput =
+            (compacting_os_chunks.input_rows as u128 * 1_000_000_000) / elapsed.as_nanos();
         info!(input_chunks=chunk_ids.len(),
-            %input_rows, %compacted_rows,
-            //%sort_key, 
+            %compacting_os_chunks.input_rows, %compacted_rows,
+            %compacted_and_persisted_chunk.sort_key, 
             compaction_took = ?elapsed,
             fut_execution_duration= ?fut_now.elapsed(),
             rows_per_sec=?throughput,
@@ -156,16 +151,7 @@ fn mark_chunks_to_compact(
     partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
     chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>>,
     registration: &TaskRegistration,
-) -> Result<(
-    Time,
-    Time,
-    u64,
-    HashSet<Arc<DeletePredicate>>,
-    Vec<Arc<DbChunk>>,
-    ChunkOrder,
-    DatabaseCheckpoint,
-    PartitionCheckpoint,
-)> {
+) -> Result<CompactingOsChunks> {
     // no chunks provided
     if chunks.is_empty() {
         return EmptyChunks {}.fail();
@@ -191,7 +177,7 @@ fn mark_chunks_to_compact(
         Time::from_timestamp_nanos(0),
     );
 
-    let query_chunks = chunks
+    let os_chunks = chunks
         .into_iter()
         .map(|mut chunk| {
             // Sanity-check
@@ -243,16 +229,30 @@ fn mark_chunks_to_compact(
     // drop partition lock
     let _partition = partition.into_data().partition;
 
-    Ok((
+    Ok(CompactingOsChunks {
         time_of_first_write,
         time_of_last_write,
         input_rows,
         delete_predicates,
-        query_chunks,
+        os_chunks,
         min_order,
         database_checkpoint,
         partition_checkpoint,
-    ))
+    })
+}
+
+/// This struct is used as return data of compacting os chunks
+
+#[derive(Debug, Clone)]
+struct CompactingOsChunks {
+    time_of_first_write: Time,
+    time_of_last_write: Time,
+    input_rows: u64,
+    delete_predicates: HashSet<Arc<DeletePredicate>>,
+    os_chunks: Vec<Arc<DbChunk>>,
+    min_order: ChunkOrder,
+    database_checkpoint: DatabaseCheckpoint,
+    partition_checkpoint: PartitionCheckpoint,
 }
 
 // Compact & Persistent the os_chunks in one os_chunk
@@ -273,20 +273,34 @@ async fn compact_persist_os_chunks<'a>(
     time_of_first_write: Time,
     time_of_last_write: Time,
     chunk_order: ChunkOrder,
-) -> Result<Arc<ParquetChunk>> {
-    let (stream, _schema, _sort_key) = compact_chunks(db, os_chunks).await.unwrap(); // Todo: use context(ReadingObjectStore)?;
+) -> Result<PersistedOutput> {
+    let compacted_stream = compact_chunks(db, os_chunks).await?;
 
-    persist_stream_to_chunk(
+    let parquet_chunk = persist_stream_to_chunk(
         db,
         partition_addr,
-        stream,
+        compacted_stream.stream,
         partition_checkpoint,
         database_checkpoint,
         time_of_first_write,
         time_of_last_write,
         chunk_order,
     )
-    .await
+    .await?;
+
+    Ok(PersistedOutput {
+        parquet_chunk,
+        schema: compacted_stream.schema,
+        sort_key: compacted_stream.sort_key,
+    })
+}
+
+/// Struct holding the output of a persisted chunk
+#[derive(Debug, Clone)]
+struct PersistedOutput {
+    parquet_chunk: Arc<ParquetChunk>,
+    schema: Arc<Schema>,
+    sort_key: String,
 }
 
 /// Create query plan to compact the given DbChunks and return its output stream
@@ -295,10 +309,7 @@ async fn compact_persist_os_chunks<'a>(
 ///        Deleted and duplicated data will be eliminated during the scan
 ///    . Output schema of the compact plan
 ///    . Sort Key of the output data
-async fn compact_chunks(
-    db: &Db,
-    query_chunks: &[Arc<DbChunk>],
-) -> Result<(SendableRecordBatchStream, Arc<Schema>, String)> {
+async fn compact_chunks(db: &Db, query_chunks: &[Arc<DbChunk>]) -> Result<CompactedStream> {
     // Tracking metric
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
@@ -320,7 +331,18 @@ async fn compact_chunks(
     // run the plan
     let stream = ctx.execute_stream(physical_plan).await?;
 
-    Ok((stream, plan_schema, sort_key_str))
+    Ok(CompactedStream {
+        stream,
+        schema: plan_schema,
+        sort_key: sort_key_str,
+    })
+}
+
+/// Struct holding output of a compacted stream
+struct CompactedStream {
+    stream: SendableRecordBatchStream,
+    schema: Arc<Schema>,
+    sort_key: String,
 }
 
 /// Persist a provided stream to a new OS chunk
@@ -418,9 +440,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compact_os_negative() {
-        // Tests that nothing will get compacted
-
+    async fn test_compact_os_no_chunks() {
         test_helpers::maybe_start_logging();
 
         let (db, time) = test_db().await;
@@ -432,24 +452,66 @@ mod tests {
         assert_eq!(partition_keys.len(), 1);
         let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
 
-        // Test 1: no chunks provided
         let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
-        let partition = partition.read().upgrade();
-        let compact_no_chunks = compact_object_store_chunks(partition, vec![]);
-        assert!(compact_no_chunks.is_err());
+        let partition = partition.write();
 
-        // test 2: persisted non persisted chunks
+        let (_, registration) = db.jobs.register(Job::CompactObjectStoreChunks {
+            partition: partition.addr().clone(),
+            chunks: vec![],
+        });
+        let compact_no_chunks = mark_chunks_to_compact(partition, vec![], &registration);
+
+        let err = compact_no_chunks.unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("No object store chunks provided for compacting"));
+    }
+
+    #[tokio::test]
+    async fn test_compact_os_non_os_chunks() {
+        test_helpers::maybe_start_logging();
+
+        let (db, time) = test_db().await;
+        let late_arrival = Duration::from_secs(1);
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
+        time.inc(late_arrival);
+
+        let partition_keys = db.partition_keys().unwrap();
+        assert_eq!(partition_keys.len(), 1);
+        let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
+
+        // persisted non persisted chunks
         let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
         let partition = partition.read();
         let chunks = LockablePartition::chunks(&partition);
         assert_eq!(chunks.len(), 1);
         let partition = partition.upgrade();
-        let chunk = chunks[0].read();
-        let compact_non_persisted_chunks =
-            compact_object_store_chunks(partition, vec![chunk.upgrade()]);
-        assert!(compact_non_persisted_chunks.is_err());
+        let chunk = chunks[0].write();
 
-        // test 3: persisted non-contiguous chunks
+        let (_, registration) = db.jobs.register(Job::CompactObjectStoreChunks {
+            partition: partition.addr().clone(),
+            chunks: vec![chunk.id()],
+        });
+
+        let compact_non_persisted_chunks =
+            mark_chunks_to_compact(partition, vec![chunk], &registration);
+        let err = compact_non_persisted_chunks.unwrap_err();
+        assert!(err.to_string().contains("Expected Persisted, got Open"));
+    }
+
+    #[tokio::test]
+    async fn test_compact_os_non_contiguous_chunks() {
+        test_helpers::maybe_start_logging();
+
+        let (db, time) = test_db().await;
+        let late_arrival = Duration::from_secs(1);
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
+        time.inc(late_arrival);
+
+        let partition_keys = db.partition_keys().unwrap();
+        assert_eq!(partition_keys.len(), 1);
+        let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
+
         // persist chunk 1
         db.persist_partition("cpu", partition_keys[0].as_str(), true)
             .await
@@ -477,18 +539,27 @@ mod tests {
         write_lp(db.as_ref(), "cpu,tag1=chunk4,tag2=a bar=2 40").await;
         // todo: Need to ask Marco why there is no handle created here
         time.inc(Duration::from_secs(40));
-        //
+
         // let compact 2 non contiguous chunk 1 and chunk 3
         let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
         let partition = partition.read();
         let chunks = LockablePartition::chunks(&partition);
         assert_eq!(chunks.len(), 4);
         let partition = partition.upgrade();
-        let chunk1 = chunks[0].read();
-        let chunk3 = chunks[2].read();
-        let compact_non_persisted_chunks =
-            compact_object_store_chunks(partition, vec![chunk1.upgrade(), chunk3.upgrade()]);
-        assert!(compact_non_persisted_chunks.is_err());
+        let chunk1 = chunks[0].write();
+        let chunk3 = chunks[2].write();
+
+        let (_, registration) = db.jobs.register(Job::CompactObjectStoreChunks {
+            partition: partition.addr().clone(),
+            chunks: vec![chunk1.id(), chunk3.id()],
+        });
+
+        let compact_non_contiguous_persisted_chunks =
+            mark_chunks_to_compact(partition, vec![chunk1, chunk3], &registration);
+        let err = compact_non_contiguous_persisted_chunks.unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Cannot compact the provided persisted chunks. They are not contiguous"));
     }
 
     // todo: add tests
@@ -496,5 +567,6 @@ mod tests {
     //   . compact 3 chunks with duplicated data
     //  . compact with deletes before compacting
     //  . compact with deletes happening during compaction
+    //  . verify checkpoints
     //   . replay
 }

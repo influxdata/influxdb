@@ -374,14 +374,26 @@ impl Partition {
 
     /// Return true if there are no other persisted chunks that are in the middle of
     /// the provided chunk orders
+    // NGA todo: There is test_compact_os_non_contiguous_chunks in
+    // compact_object_store.rs to test this but I will add more unit tests right here
+    // when PR #3167 ChunkGenerator is merged
     pub fn contiguous_object_store_chunks(&self, chunk_orders: &BTreeSet<ChunkOrder>) -> bool {
+        // Last order in the chunk_orders for comparison
+        let last_order_element = chunk_orders.iter().rev().next();
+        let last_order = match last_order_element {
+            Some(last_order) => last_order,
+            None => {
+                return true;
+            } // provided chunk_orders is empty
+        };
+
         let chunks = self.chunks();
         for chunk in chunks {
             let chunk = chunk.read();
             if chunk.is_persisted() {
                 let order = chunk.order();
                 // this chunk does not belong to chunk_orders but in the middle of them
-                if !chunk_orders.contains(&order) && chunk_orders.range(order..).count() > 0 {
+                if !chunk_orders.contains(&order) && order < *last_order {
                     return false;
                 }
             }
