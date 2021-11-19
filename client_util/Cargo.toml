@@ -11,6 +11,7 @@ prost = "0.8"
 thiserror = "1.0.30"
 tonic = { version = "0.5.0" }
 tower = "0.4"
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 tokio = { version = "1.13", features = ["macros", "rt-multi-thread"] }

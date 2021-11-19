@@ -13,3 +13,4 @@ ordered-float = "2"
 schema = { path = "../schema" }
 time = { path = "../time" }
 trace = { path = "../trace" }
+workspace-hack = { path = "../workspace-hack"}

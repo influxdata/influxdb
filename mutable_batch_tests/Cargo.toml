@@ -12,6 +12,7 @@ mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
 prost = "0.8"
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 bytes = "1.0"

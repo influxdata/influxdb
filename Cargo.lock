@@ -144,6 +144,7 @@ dependencies = [
  "num-traits",
  "rand",
  "snafu",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -535,6 +536,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tower",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -797,6 +799,7 @@ dependencies = [
  "test_helpers",
  "time 0.1.0",
  "uuid",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -804,6 +807,7 @@ name = "datafusion"
 version = "0.1.0"
 dependencies = [
  "datafusion 6.0.0",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -839,6 +843,7 @@ dependencies = [
  "futures",
  "tokio",
  "tokio-stream",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -924,6 +929,7 @@ dependencies = [
  "schema",
  "time 0.1.0",
  "trace",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1215,6 +1221,7 @@ dependencies = [
  "time 0.1.0",
  "tonic",
  "tonic-build",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1281,6 +1288,7 @@ dependencies = [
  "tonic",
  "tonic-build",
  "tonic-reflection",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1292,6 +1300,7 @@ dependencies = [
  "prost-types",
  "tonic",
  "tonic-build",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1551,6 +1560,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "url",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1644,6 +1654,7 @@ dependencies = [
  "tracker",
  "trogging",
  "uuid",
+ "workspace-hack",
  "write_buffer",
 ]
 
@@ -1670,6 +1681,7 @@ dependencies = [
  "tokio",
  "tonic",
  "uuid",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1681,6 +1693,7 @@ dependencies = [
  "smallvec",
  "snafu",
  "test_helpers",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1692,6 +1705,7 @@ dependencies = [
  "generated_types",
  "prost",
  "tonic",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1706,6 +1720,7 @@ dependencies = [
  "snafu",
  "snap",
  "test_helpers",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1737,6 +1752,7 @@ dependencies = [
  "parking_lot",
  "time 0.1.0",
  "tokio",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1765,6 +1781,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1781,6 +1798,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "uuid",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1959,6 +1977,7 @@ dependencies = [
  "time 0.1.0",
  "tokio",
  "tracker",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1988,6 +2007,7 @@ dependencies = [
  "parking_lot",
  "regex",
  "tracing-subscriber",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2078,6 +2098,7 @@ name = "metric"
 version = "0.1.0"
 dependencies = [
  "parking_lot",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2088,6 +2109,7 @@ dependencies = [
  "observability_deps",
  "prometheus",
  "test_helpers",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2191,6 +2213,7 @@ dependencies = [
  "rand",
  "schema",
  "snafu",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2203,6 +2226,7 @@ dependencies = [
  "mutable_batch",
  "schema",
  "snafu",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2217,6 +2241,7 @@ dependencies = [
  "mutable_batch_lp",
  "schema",
  "snafu",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2232,6 +2257,7 @@ dependencies = [
  "mutable_batch_lp",
  "mutable_batch_pb",
  "prost",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2250,6 +2276,7 @@ dependencies = [
  "snafu",
  "test_helpers",
  "tokio",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2534,6 +2561,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "walkdir",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2541,6 +2569,7 @@ name = "observability_deps"
 version = "0.1.0"
 dependencies = [
  "tracing",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2634,6 +2663,7 @@ dependencies = [
  "schema",
  "snafu",
  "test_helpers",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2641,6 +2671,7 @@ name = "panic_logging"
 version = "0.1.0"
 dependencies = [
  "observability_deps",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2730,6 +2761,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "uuid",
+ "workspace-hack",
  "zstd",
 ]
 
@@ -2766,6 +2798,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "uuid",
+ "workspace-hack",
  "zstd",
 ]
 
@@ -2851,6 +2884,7 @@ dependencies = [
  "snafu",
  "test_helpers",
  "time 0.1.0",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3017,6 +3051,7 @@ dependencies = [
  "sqlparser",
  "test_helpers",
  "tokio",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3197,6 +3232,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "trace",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3219,6 +3255,7 @@ dependencies = [
  "tempfile",
  "test_helpers",
  "tokio",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3388,6 +3425,7 @@ dependencies = [
  "schema",
  "snafu",
  "test_helpers",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3528,6 +3566,7 @@ dependencies = [
  "time 0.1.0",
  "tokio",
  "trace",
+ "workspace-hack",
  "write_buffer",
 ]
 
@@ -3710,6 +3749,7 @@ dependencies = [
  "indexmap",
  "itertools",
  "snafu",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3887,6 +3927,7 @@ dependencies = [
  "trace",
  "tracker",
  "uuid",
+ "workspace-hack",
  "write_buffer",
 ]
 
@@ -3911,6 +3952,7 @@ dependencies = [
  "server",
  "test_helpers",
  "tokio",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4232,6 +4274,7 @@ dependencies = [
  "parking_lot",
  "tempfile",
  "tracing-subscriber",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4322,6 +4365,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "parking_lot",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4569,6 +4613,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "rand",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4584,6 +4629,7 @@ dependencies = [
  "thrift",
  "tokio",
  "trace",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4602,6 +4648,7 @@ dependencies = [
  "snafu",
  "tower",
  "trace",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4703,6 +4750,7 @@ dependencies = [
  "time 0.1.0",
  "tokio",
  "tokio-util",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4717,6 +4765,7 @@ dependencies = [
  "thiserror",
  "tracing-log",
  "tracing-subscriber",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -5095,6 +5144,7 @@ dependencies = [
  "trace",
  "trace_http",
  "uuid",
+ "workspace-hack",
 ]
 
 [[package]]

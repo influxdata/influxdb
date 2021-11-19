@@ -14,6 +14,7 @@ comfy-table = { version = "5.0", default-features = false }
 hashbrown = "0.11"
 num-traits = "0.2"
 snafu = "0.6"
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 rand = "0.8.3"
