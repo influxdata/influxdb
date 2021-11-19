@@ -78,17 +78,17 @@ func (mr *MockDurableQueueManagerMockRecorder) DeleteQueue(arg0 interface{}) *go
 }
 
 // EnqueueData mocks base method.
-func (m *MockDurableQueueManager) EnqueueData(arg0 platform.ID, arg1 []byte) error {
+func (m *MockDurableQueueManager) EnqueueData(arg0 platform.ID, arg1 []byte, arg2 int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnqueueData", arg0, arg1)
+	ret := m.ctrl.Call(m, "EnqueueData", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // EnqueueData indicates an expected call of EnqueueData.
-func (mr *MockDurableQueueManagerMockRecorder) EnqueueData(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDurableQueueManagerMockRecorder) EnqueueData(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueData", reflect.TypeOf((*MockDurableQueueManager)(nil).EnqueueData), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueData", reflect.TypeOf((*MockDurableQueueManager)(nil).EnqueueData), arg0, arg1, arg2)
 }
 
 // InitializeQueue mocks base method.
