@@ -36,6 +36,8 @@ use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
 use time::Time;
 use uuid::Uuid;
 
+pub mod generator;
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Error getting data from object store: {}", source))]
@@ -114,6 +116,8 @@ pub fn chunk_addr(id: u128) -> ChunkAddr {
 }
 
 /// Same as [`make_chunk`] but parquet file does not contain any row group.
+///
+/// TODO(raphael): Replace with ChunkGenerator
 pub async fn make_chunk(
     iox_object_store: Arc<IoxObjectStore>,
     column_prefix: &str,
@@ -132,21 +136,12 @@ pub async fn make_chunk(
     .await
 }
 
-/// Same as [`make_chunk`] but parquet file does not contain any row group.
-pub async fn make_chunk_no_row_group(
-    store: Arc<IoxObjectStore>,
-    column_prefix: &str,
-    addr: ChunkAddr,
-    test_size: TestSize,
-) -> ParquetChunk {
-    let (_, schema, column_summaries, _num_rows) = make_record_batch(column_prefix, test_size);
-    make_chunk_given_record_batch(store, vec![], schema, addr, column_summaries).await
-}
-
 /// Create a test chunk by writing data to object store.
 ///
 /// TODO: This code creates a chunk that isn't hooked up with metrics
-pub async fn make_chunk_given_record_batch(
+///
+/// TODO(raphael): Replace with ChunkGenerator
+async fn make_chunk_given_record_batch(
     iox_object_store: Arc<IoxObjectStore>,
     record_batches: Vec<RecordBatch>,
     schema: Schema,
@@ -895,7 +890,7 @@ pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> 
 
 /// Create test metadata by creating a parquet file and reading it back into memory.
 ///
-/// See [`make_chunk`] for details.
+/// TODO(raphael): Replace with ChunkGenerator
 pub async fn make_metadata(
     iox_object_store: &Arc<IoxObjectStore>,
     column_prefix: &str,
