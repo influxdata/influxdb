@@ -9,9 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 var (
@@ -32,79 +30,41 @@ func TestCreateNewQueueDirExists(t *testing.T) {
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 }
 
-func TestEnqueueScanLog(t *testing.T) {
+func TestEnqueueScan(t *testing.T) {
 	t.Parallel()
 
-	// Initialize queue manager with zap observer (to allow assertions on log messages)
-	enginePath, err := os.MkdirTemp("", "engine")
-	require.NoError(t, err)
-	queuePath := filepath.Join(enginePath, "replicationq")
-
-	observedZapCore, observedLogs := observer.New(zap.InfoLevel)
-	observedLogger := zap.New(observedZapCore)
-
-	qm := NewDurableQueueManager(observedLogger, queuePath)
+	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create new queue
-	err = qm.InitializeQueue(id1, maxQueueSizeBytes)
+	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
 	require.NoError(t, err)
 
 	// Enqueue some data
 	testData := "weather,location=us-midwest temperature=82 1465839830100400200"
+	qm.writeFunc = getTestWriteFunc(t, testData)
 	err = qm.EnqueueData(id1, []byte(testData))
 	require.NoError(t, err)
-
-	// Give it a second to scan the queue
-	time.Sleep(time.Second)
-
-	// Check that data the scanner logs is the same as what was enqueued
-	require.Equal(t, 1, observedLogs.Len())
-	allLogs := observedLogs.All()
-	firstLog := allLogs[0]
-	require.Equal(t, firstLog.Message, "written bytes")
-	require.Equal(t, int64(62), firstLog.ContextMap()["len"])
 }
 
-func TestEnqueueScanLogMultiple(t *testing.T) {
+func TestEnqueueScanMultiple(t *testing.T) {
 	t.Parallel()
 
-	// Initialize queue manager with zap observer (to allow assertions on log messages)
-	enginePath, err := os.MkdirTemp("", "engine")
-	require.NoError(t, err)
-	queuePath := filepath.Join(enginePath, "replicationq")
-
-	observedZapCore, observedLogs := observer.New(zap.InfoLevel)
-	observedLogger := zap.New(observedZapCore)
-
-	qm := NewDurableQueueManager(observedLogger, queuePath)
+	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create new queue
-	err = qm.InitializeQueue(id1, maxQueueSizeBytes)
+	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
 	require.NoError(t, err)
 
 	// Enqueue some data
-	testData1 := "weather,location=us-midwest temperature=82 1465839830100400200"
-	err = qm.EnqueueData(id1, []byte(testData1))
+	testData := "weather,location=us-midwest temperature=82 1465839830100400200"
+	qm.writeFunc = getTestWriteFunc(t, testData)
+	err = qm.EnqueueData(id1, []byte(testData))
 	require.NoError(t, err)
 
-	testData2 := "weather,location=us-midwest temperature=83 1465839830100400201"
-	err = qm.EnqueueData(id1, []byte(testData2))
+	err = qm.EnqueueData(id1, []byte(testData))
 	require.NoError(t, err)
-
-	// Give it a second to scan the queue
-	time.Sleep(time.Second)
-
-	// Check that data the scanner logs is the same as what was enqueued
-	require.Equal(t, 2, observedLogs.Len())
-	allLogs := observedLogs.All()
-
-	require.Equal(t, allLogs[0].Message, "written bytes")
-	require.Equal(t, int64(62), allLogs[0].ContextMap()["len"])
-
-	require.Equal(t, allLogs[1].Message, "written bytes")
-	require.Equal(t, int64(62), allLogs[1].ContextMap()["len"])
 }
 
 func TestCreateNewQueueDuplicateID(t *testing.T) {
@@ -310,7 +270,7 @@ func initQueueManager(t *testing.T) (string, *durableQueueManager) {
 	queuePath := filepath.Join(enginePath, "replicationq")
 
 	logger := zaptest.NewLogger(t)
-	qm := NewDurableQueueManager(logger, queuePath)
+	qm := NewDurableQueueManager(logger, queuePath, WriteFunc)
 
 	return queuePath, qm
 }
@@ -327,6 +287,14 @@ func shutdown(t *testing.T, qm *durableQueueManager) {
 	qm.replicationQueues = emptyMap
 }
 
+func getTestWriteFunc(t *testing.T, expected string) func([]byte) error {
+	t.Helper()
+	return func(b []byte) error {
+		require.Equal(t, expected, string(b))
+		return nil
+	}
+}
+
 func TestEnqueueData(t *testing.T) {
 	t.Parallel()
 
@@ -335,7 +303,7 @@ func TestEnqueueData(t *testing.T) {
 	defer os.RemoveAll(queuePath)
 
 	logger := zaptest.NewLogger(t)
-	qm := NewDurableQueueManager(logger, queuePath)
+	qm := NewDurableQueueManager(logger, queuePath, WriteFunc)
 
 	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
@@ -365,6 +333,8 @@ func TestEnqueueData(t *testing.T) {
 }
 
 func TestGoroutineReceives(t *testing.T) {
+	t.Parallel()
+
 	path, qm := initQueueManager(t)
 	defer os.RemoveAll(path)
 	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
@@ -386,6 +356,8 @@ func TestGoroutineReceives(t *testing.T) {
 }
 
 func TestGoroutineCloses(t *testing.T) {
+	t.Parallel()
+
 	path, qm := initQueueManager(t)
 	defer os.RemoveAll(path)
 	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
