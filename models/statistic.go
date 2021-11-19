@@ -7,15 +7,6 @@ type Statistic struct {
 	Values map[string]interface{} `json:"values"`
 }
 
-// NewStatistic returns an initialized Statistic.
-func NewStatistic(name string) Statistic {
-	return Statistic{
-		Name:   name,
-		Tags:   make(map[string]string),
-		Values: make(map[string]interface{}),
-	}
-}
-
 // StatisticTags is a map that can be merged with others without causing
 // mutations to either map.
 type StatisticTags map[string]string

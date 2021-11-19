@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
+	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
@@ -163,7 +164,9 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 // PrometheusCollectors returns all the prometheus collectors associated with
 // the engine and its components.
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
-	return nil
+	var metrics []prometheus.Collector
+	metrics = append(metrics, tsm1.PrometheusCollectors()...)
+	return metrics
 }
 
 // Open opens the store and all underlying resources. It returns an error if

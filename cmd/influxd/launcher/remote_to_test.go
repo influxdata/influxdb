@@ -35,7 +35,6 @@ array.from(rows) |> to(bucket: "%s", host: "%s", token: "%s", org: "%s")
 `, l2.Bucket.Name, l2.URL().String(), l2.Auth.Token, l2.Org.Name)
 	_ = l1.FluxQueryOrFail(t, l1.Org, l1.Auth.Token, q1)
 
-
 	// Query the 2nd server and check that the points landed.
 	q2 := fmt.Sprintf(`from(bucket:"%s")
 	|> range(start: 2030-01-01T00:00:00Z, stop: 2030-01-02T00:00:00Z)
@@ -87,7 +86,6 @@ union(tables: [testTable, test2Table]) |> group(columns: ["_measurement"])
 	|> experimental.to(bucket: "%s", host: "%s", token: "%s", org: "%s")
 `, l2.Bucket.Name, l2.URL().String(), l2.Auth.Token, l2.Org.Name)
 	_ = l1.FluxQueryOrFail(t, l1.Org, l1.Auth.Token, q1)
-
 
 	// Query the 2nd server and check that the points landed.
 	q2 := fmt.Sprintf(`from(bucket:"%s")
