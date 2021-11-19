@@ -299,6 +299,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 				done:      make(chan struct{}),
 				receive:   make(chan struct{}),
 				logger:    qm.logger.With(zap.String("replication_id", id.String())),
+				metrics:   qm.metrics,
 				writeFunc: qm.writeFunc,
 			}
 			qm.replicationQueues[id].Open()
