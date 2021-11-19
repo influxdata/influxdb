@@ -97,7 +97,6 @@ arrow_util = { path = "../arrow_util" }
 influxdb2_client = { path = "../influxdb2_client" }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 test_helpers = { path = "../test_helpers" }
-parking_lot = "0.11.2"
 regex = "1.4"
 schema = { path = "../schema" }
 write_buffer = { path = "../write_buffer" }
