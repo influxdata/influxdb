@@ -85,6 +85,7 @@ pub async fn test_tracing_storage_api() {
         read_source,
         range,
         predicate,
+        ..Default::default()
     });
     let mut storage_client = StorageClient::new(server_fixture.grpc_channel());
     let read_response = storage_client
