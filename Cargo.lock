@@ -5015,6 +5015,61 @@ dependencies = [
 ]
 
 [[package]]
+name = "workspace-hack"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "bytes",
+ "cache_loader_async",
+ "cc",
+ "chrono",
+ "clap",
+ "criterion",
+ "either",
+ "futures",
+ "futures-channel",
+ "futures-core",
+ "futures-io",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+ "getrandom",
+ "hashbrown",
+ "hyper",
+ "indexmap",
+ "itoa",
+ "libc",
+ "log",
+ "memchr",
+ "num-bigint 0.4.3",
+ "num-integer",
+ "num-traits",
+ "once_cell",
+ "prost",
+ "prost-types",
+ "rand",
+ "regex",
+ "regex-automata",
+ "regex-syntax",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "syn",
+ "tikv-jemalloc-sys",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tower",
+ "tracing",
+ "tracing-core",
+ "tracing-log",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "write_buffer"
 version = "0.1.0"
 dependencies = [
