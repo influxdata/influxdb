@@ -18,7 +18,6 @@ fn main() -> Result<()> {
 ///
 /// Creates:
 ///
-/// - `com.github.influxdata.idpe.storage.read.rs`
 /// - `influxdata.iox.delete.v1.rs`
 /// - `influxdata.iox.deployment.v1.rs`
 /// - `influxdata.iox.management.v1.rs`
@@ -31,7 +30,6 @@ fn main() -> Result<()> {
 fn generate_grpc_types(root: &Path) -> Result<()> {
     let delete_path = root.join("influxdata/iox/delete/v1");
     let deployment_path = root.join("influxdata/iox/deployment/v1");
-    let idpe_path = root.join("com/github/influxdata/idpe/storage/read");
     let management_path = root.join("influxdata/iox/management/v1");
     let predicate_path = root.join("influxdata/iox/predicate/v1");
     let preserved_catalog_path = root.join("influxdata/iox/preserved_catalog/v1");
@@ -43,7 +41,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let proto_files = vec![
         delete_path.join("service.proto"),
         deployment_path.join("service.proto"),
-        idpe_path.join("source.proto"),
         management_path.join("chunk.proto"),
         management_path.join("database_rules.proto"),
         management_path.join("jobs.proto"),
@@ -68,7 +65,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         storage_path.join("predicate.proto"),
         storage_path.join("service.proto"),
         storage_path.join("storage_common.proto"),
-        storage_path.join("storage_common_idpe.proto"),
         storage_path.join("test.proto"),
         write_buffer_path.join("write_buffer.proto"),
     ];

@@ -11,18 +11,66 @@ import "google/protobuf/any.proto";
 import "influxdata/platform/storage/predicate.proto";
 
 
+message OffsetsResponse {
+    message PartitionOffsetResponse {
+        int64 id = 1;
+        int64 offset = 2;
+    }
+    repeated PartitionOffsetResponse partitions = 1;
+}
+
+// TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
+// the variants can use camel case again.
+enum TagKeyMetaNames {
+  // option (gogoproto.goproto_enum_prefix) = false;
+
+  // TagKeyMetaNamesText means the tag keys for measurement and field will
+  // be returned as _measurement and _field respectively.
+  TAG_KEY_META_NAMES_TEXT = 0;
+
+  // TAGKEYMETANAMES MEANS THE TAG KEYS FOR MEASUREMENT AND FIELD WILL
+  // BE RETURNED AS \X00 AND \XFF RESPECTIVELY.
+  TAG_KEY_META_NAMES_BINARY = 1;
+}
+
 message ReadFilterRequest {
-  google.protobuf.Any read_source = 1;
-  TimestampRange range = 2;
+  google.protobuf.Any ReadSource = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
   Predicate predicate = 3;
+  // KeySort determines the ordering of series keys from the server.
+  KeySort key_sort = 4;
+
+  // TagKeyMetaNames determines the key format used for the measurement and field
+  // tags.
+  TagKeyMetaNames tag_key_meta_names = 5;
+
+  // TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
+  // the variants can use camel case again.
+  enum KeySort {
+    // option (gogoproto.goproto_enum_prefix) = false;
+
+    // KeySortUnspecified means the key order is unspecified.
+    KEY_SORT_UNSPECIFIED = 0;
+
+    // KeySortAscending means the key order should be lexicographically ascending.
+    //
+    // NOTE: In order to preserve sort order, canonical tag keys are not
+    // transformed from 0x00 → _measurement and 0xff → _field.
+    KEY_SORT_ASCENDING = 1;
+  }
 }
 
 message ReadGroupRequest {
-  google.protobuf.Any read_source = 1;
-  TimestampRange range = 2;
+  google.protobuf.Any ReadSource = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
   Predicate predicate = 3;
 
   enum Group {
+    // option (gogoproto.goproto_enum_prefix) = false;
+
+    // TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
+    // the variants can use camel case again.
+    
     // GroupNone returns all series as a single group.
     // The single GroupFrame.TagKeys will be the union of all tag keys.
     GROUP_NONE = 0;
@@ -33,35 +81,27 @@ message ReadGroupRequest {
 
   // GroupKeys specifies a list of tag keys used to order the data.
   // It is dependent on the Group property to determine its behavior.
-  repeated string group_keys = 4;
+  repeated string GroupKeys = 4;
 
   Group group = 5;
   Aggregate aggregate = 6;
 
-  // TODO(jlapacik): This field is only used in unit tests.
-  // Specifically the two tests in group_resultset_test.go.
-  // This field should be removed and the tests that depend
-  // on it refactored.
-  enum HintFlags {
-    HINT_NONE      = 0x00;
-    HINT_NO_POINTS = 0x01;
-    HINT_NO_SERIES = 0x02;
-    // HintSchemaAllTime performs schema queries without using time ranges
-    HINT_SCHEMA_ALL_TIME = 0x04;
-  }
-  fixed32 hints = 7;
+  // Deprecated field only used in TSM storage-related tests.
+  reserved "Hints"; 
 }
 
+// TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
+// the variants can use camel case again.
 message Aggregate {
   enum AggregateType {
-    NONE = 0;
-    SUM = 1;
-    COUNT = 2;
-    MIN = 3;
-    MAX = 4;
-    FIRST = 5;
-    LAST = 6;
-    MEAN = 7;
+    AGGREGATE_TYPE_NONE = 0;
+    AGGREGATE_TYPE_SUM = 1;
+    AGGREGATE_TYPE_COUNT = 2;
+    AGGREGATE_TYPE_MIN = 3;
+    AGGREGATE_TYPE_MAX = 4;
+    AGGREGATE_TYPE_FIRST = 5;
+    AGGREGATE_TYPE_LAST = 6;
+    AGGREGATE_TYPE_MEAN = 7;
   }
 
   AggregateType type = 1;
@@ -74,42 +114,46 @@ message Tag {
   bytes value = 2;
 }
 
+// TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
+// the variants can use camel case again.
 // Response message for ReadFilter and ReadGroup
 message ReadResponse {
   enum FrameType {
-    SERIES = 0;
-    POINTS = 1;
+    FRAME_TYPE_SERIES = 0;
+    FRAME_TYPE_POINTS = 1;
   }
 
+  // TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
+  // the variants can use camel case again.
   enum DataType {
-    FLOAT = 0;
-    INTEGER = 1;
-    UNSIGNED = 2;
-    BOOLEAN = 3;
-    STRING = 4;
+    DATA_TYPE_FLOAT = 0;
+    DATA_TYPE_INTEGER = 1;
+    DATA_TYPE_UNSIGNED = 2;
+    DATA_TYPE_BOOLEAN = 3;
+    DATA_TYPE_STRING = 4;
   }
 
   message Frame {
     oneof data {
       GroupFrame group = 7;
       SeriesFrame series = 1;
-      FloatPointsFrame float_points = 2;
-      IntegerPointsFrame integer_points = 3;
-      UnsignedPointsFrame unsigned_points = 4;
-      BooleanPointsFrame boolean_points = 5;
-      StringPointsFrame string_points = 6;
+      FloatPointsFrame FloatPoints = 2;
+      IntegerPointsFrame IntegerPoints = 3;
+      UnsignedPointsFrame UnsignedPoints = 4;
+      BooleanPointsFrame BooleanPoints = 5;
+      StringPointsFrame StringPoints = 6;
     }
   }
 
   message GroupFrame {
     // TagKeys
-    repeated bytes tag_keys = 1;
+    repeated bytes TagKeys = 1;
     // PartitionKeyVals is the values of the partition key for this group, order matching ReadGroupRequest.GroupKeys
-    repeated bytes partition_key_vals = 2;
+    repeated bytes PartitionKeyVals = 2;
   }
 
   message SeriesFrame {
-    repeated Tag tags = 1;
+    repeated Tag tags = 1; // [(gogoproto.nullable) = false];
     DataType data_type = 2;
   }
 
@@ -138,7 +182,7 @@ message ReadResponse {
     repeated string values = 2;
   }
 
-  repeated Frame frames = 1;
+  repeated Frame frames = 1; // [(gogoproto.nullable) = false];
 }
 
 message Capability {
@@ -165,20 +209,23 @@ message TimestampRange {
 
 // TagKeysRequest is the request message for Storage.TagKeys.
 message TagKeysRequest {
-  google.protobuf.Any tags_source = 1;
-  TimestampRange range = 2;
+  google.protobuf.Any TagsSource = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
   Predicate predicate = 3;
 }
 
 // TagValuesRequest is the request message for Storage.TagValues.
 message TagValuesRequest {
-  google.protobuf.Any tags_source = 1 ;
+  google.protobuf.Any TagsSource = 1; 
   TimestampRange range = 2; // [(gogoproto.nullable) = false];
   Predicate predicate = 3;
-
-  // string tag_key = 4;
-  // AAL changed from string --> bytes to handle \xff literals in Rust which are not valid UTF-8
   bytes tag_key = 4;
+}
+
+message ReadSeriesCardinalityRequest {
+  google.protobuf.Any ReadSeriesCardinalitySource = 1;
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
 }
 
 // Response message for Storage.TagKeys, Storage.TagValues Storage.MeasurementNames,
@@ -187,10 +234,22 @@ message StringValuesResponse {
   repeated bytes values = 1;
 }
 
+// Response message for Storage.TagValuesGroupedByMeasurementAndTagKey.
+message TagValuesResponse {
+  string measurement = 1;
+  string key = 2;
+  repeated string values = 3;
+}
+
+// Response message for Storage.SeriesCardinality
+message Int64ValuesResponse {
+  repeated int64 values = 1;
+}
+
 // MeasurementNamesRequest is the request message for Storage.MeasurementNames.
 message MeasurementNamesRequest {
   google.protobuf.Any source = 1;
-  TimestampRange range = 2; // [(gogoproto.nullable) = false]
+  TimestampRange range = 2; // [(gogoproto.nullable) = false];
   Predicate predicate = 3;
 }
 
@@ -198,7 +257,7 @@ message MeasurementNamesRequest {
 message MeasurementTagKeysRequest {
   google.protobuf.Any source = 1;
   string measurement = 2;
-  TimestampRange range = 3; // [(gogoproto.nullable) = false]
+  TimestampRange range = 3; // [(gogoproto.nullable) = false];
   Predicate predicate = 4;
 }
 
@@ -219,15 +278,18 @@ message MeasurementFieldsRequest {
   Predicate predicate = 4;
 }
 
+
+// TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
+// the variants can use camel case again.
 // MeasurementFieldsResponse is the response message for Storage.MeasurementFields.
 message MeasurementFieldsResponse {
   enum FieldType {
-    FLOAT = 0;
-    INTEGER = 1;
-    UNSIGNED = 2;
-    STRING = 3;
-    BOOLEAN = 4;
-    UNDEFINED = 5;
+    FIELD_TYPE_FLOAT = 0;
+    FIELD_TYPE_INTEGER = 1;
+    FIELD_TYPE_UNSIGNED = 2;
+    FIELD_TYPE_STRING = 3;
+    FIELD_TYPE_BOOLEAN = 4;
+    FIELD_TYPE_UNDEFINED = 5;
   }
 
   message MessageField {
@@ -236,17 +298,59 @@ message MeasurementFieldsResponse {
     sfixed64 timestamp = 3;
   }
 
-  repeated MessageField fields = 1;// [(gogoproto.nullable) = false];
+  repeated MessageField fields = 1; // [(gogoproto.nullable) = false];
 }
 
 message ReadWindowAggregateRequest {
-  google.protobuf.Any read_source = 1;
+  google.protobuf.Any ReadSource = 1;
   TimestampRange range = 2; // [(gogoproto.nullable) = false];
   Predicate predicate = 3;
   int64 WindowEvery = 4;
   int64 Offset = 6;
   repeated Aggregate aggregate = 5;
   Window window = 7;
+}
+
+message TagValuesGroupedByMeasurementAndTagKeyRequest {
+	google.protobuf.Any source = 1;
+
+	// MeasurementPatterns holds the patterns to match the measurements
+	// against (the "FROM" part of the SHOW TAG VALUES statement).
+	repeated LiteralOrRegex MeasurementPatterns = 2;
+
+	// TagKeyPredicate holds a predicate for the tags to find values on.
+	// (the "WITH KEY" part of the SHOW TAG VALUES statement.
+	// It's in one of the forms:
+	//	OR(IDENT, OR(IDENT, ...))
+	//	EQ(IDENT)
+	//	NEQ(IDENT)
+	//	EQREGEX(REGEX)
+	//	NEQREGEX(REGEX)
+	TagKeyPredicate TagKeyPredicate = 3;
+
+	// Condition holds any additional condition to evaluate on the results.
+	Predicate Condition = 4;
+}
+
+message TagKeyPredicate {
+	oneof value {
+		string Eq = 1;
+		string Neq = 2;
+		string EqRegex = 3;
+		string NeqRegex = 4;
+		StringList In = 5;
+	}
+}
+
+message StringList {
+	repeated string Vals = 1;
+}
+
+message LiteralOrRegex {
+	oneof value {
+		string literal_value = 1;
+		string regex_value = 2;
+	}
 }
 
 message Window {
