@@ -5064,7 +5064,6 @@ version = "0.1.0"
 dependencies = [
  "ahash",
  "bytes",
- "cache_loader_async",
  "cc",
  "chrono",
  "clap",
