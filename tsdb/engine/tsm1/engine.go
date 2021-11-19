@@ -674,12 +674,11 @@ func (c *compactionCounter) countForLevel(l int) *int64 {
 
 // engineMetrics holds statistics across all instantiated engines
 type compactionMetrics struct {
-	Duration       prometheus.ObserverVec
-	Active          *prometheus.GaugeVec
-	Queued          *prometheus.GaugeVec
-	Failed          *prometheus.CounterVec
+	Duration prometheus.ObserverVec
+	Active   *prometheus.GaugeVec
+	Queued   *prometheus.GaugeVec
+	Failed   *prometheus.CounterVec
 }
-
 
 type engineTags struct {
 	path, walPath, id, bucket, engineVersion string
@@ -2270,7 +2269,7 @@ func (e *Engine) fullCompactionStrategy(group CompactionGroup, optimize bool) *c
 	}
 
 	plabel := prometheus.Labels{levelKey: levelFull}
-	if optimize{
+	if optimize {
 		plabel = prometheus.Labels{levelKey: levelOpt}
 	}
 	s.errorStat = e.stats.Failed.With(plabel)
