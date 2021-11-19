@@ -11,8 +11,6 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/runtime"
-	"go.uber.org/zap"
-
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/feature"
@@ -22,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
+	"go.uber.org/zap"
 )
 
 const (

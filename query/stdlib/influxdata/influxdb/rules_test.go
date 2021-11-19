@@ -492,7 +492,7 @@ func TestPushDownFilterRule(t *testing.T) {
 }
 
 func TestPushDownGroupRule(t *testing.T) {
-	createRangeSpec := func() *influxdb.ReadRangePhysSpec{
+	createRangeSpec := func() *influxdb.ReadRangePhysSpec {
 		return &influxdb.ReadRangePhysSpec{
 			Bucket: "my-bucket",
 			Bounds: flux.Bounds{
@@ -2363,9 +2363,9 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 				plan.CreateLogicalNode("group", group(flux.GroupModeBy, "host")),
 				plan.CreateLogicalNode("window", &universe.WindowProcedureSpec{
 					Window: plan.WindowSpec{
-						Every:    dur2m,
-						Period:   dur2m,
-						Offset:   dur1m,
+						Every:  dur2m,
+						Period: dur2m,
+						Offset: dur1m,
 						Location: plan.Location{
 							Name: "UTC",
 						},

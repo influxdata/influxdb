@@ -159,7 +159,7 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 		})
 	}
 
-	// Gather all statistics for all shards.
+	// Gather all statistics for all shards.
 	for _, shard := range shards {
 		statistics = append(statistics, shard.Statistics(tags)...)
 	}
