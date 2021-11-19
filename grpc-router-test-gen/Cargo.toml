@@ -9,7 +9,6 @@ description = "Protobuf used in test for the grpc-router crate; need to be in a 
 tonic = "0.5"
 prost = "0.8"
 prost-types = "0.8"
-workspace-hack = { path = "../workspace-hack"}
 
 [build-dependencies]
 tonic-build = "0.5"

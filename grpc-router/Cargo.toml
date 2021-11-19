@@ -18,7 +18,6 @@ tokio-stream = { version = "0.1.8", features = ["net"] }
 tokio-util = { version = "0.6.9" }
 tonic = "0.5"
 tonic-reflection = "0.2.0"
-workspace-hack = { path = "../workspace-hack"}
 
 [build-dependencies]
 paste = "1.0.6"

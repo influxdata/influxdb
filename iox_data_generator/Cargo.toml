@@ -26,7 +26,6 @@ toml = "0.5.6"
 tracing = "0.1"
 tracing-subscriber = "0.3.1"
 uuid = { version = "0.8.1", default_features = false }
-workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 criterion = "0.3.3"

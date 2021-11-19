@@ -8,7 +8,6 @@ description = "Server related bechmarks, grouped into their own crate to minimiz
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-workspace-hack = { path = "../workspace-hack"}
 
 
 [dev-dependencies] # In alphabetical order

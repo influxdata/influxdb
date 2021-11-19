@@ -1288,7 +1288,6 @@ dependencies = [
  "tonic",
  "tonic-build",
  "tonic-reflection",
- "workspace-hack",
 ]
 
 [[package]]
@@ -1300,7 +1299,6 @@ dependencies = [
  "prost-types",
  "tonic",
  "tonic-build",
- "workspace-hack",
 ]
 
 [[package]]
@@ -1781,7 +1779,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
- "workspace-hack",
 ]
 
 [[package]]
@@ -2257,7 +2254,6 @@ dependencies = [
  "mutable_batch_lp",
  "mutable_batch_pb",
  "prost",
- "workspace-hack",
 ]
 
 [[package]]
@@ -3952,7 +3948,6 @@ dependencies = [
  "server",
  "test_helpers",
  "tokio",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5073,7 +5068,6 @@ dependencies = [
  "cc",
  "chrono",
  "clap",
- "criterion",
  "either",
  "futures",
  "futures-channel",
@@ -5094,8 +5088,6 @@ dependencies = [
  "num-integer",
  "num-traits",
  "once_cell",
- "prost",
- "prost-types",
  "rand",
  "regex",
  "regex-automata",
