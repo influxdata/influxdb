@@ -59,9 +59,23 @@ pub struct IoxObjectStore {
 impl IoxObjectStore {
     /// Get the data for the server config to determine the names and locations of the databases
     /// that this server owns.
+    ///
+    /// TEMPORARY: Server config used to be at the top level instead of beneath `/nodes/`. Until
+    /// all deployments have transitioned, check both locations before reporting that the server
+    /// config is not found.
     pub async fn get_server_config_file(inner: &ObjectStore, server_id: ServerId) -> Result<Bytes> {
         let path = paths::server_config_path(inner, server_id);
-        let mut stream = inner.get(&path).await?;
+        let mut stream = match inner.get(&path).await {
+            Err(object_store::Error::NotFound { .. }) => {
+                use object_store::path::ObjectStorePath;
+                let mut legacy_path = inner.new_path();
+                legacy_path.push_dir(server_id.to_string());
+                legacy_path.set_file_name(paths::SERVER_CONFIG_FILE_NAME);
+
+                inner.get(&legacy_path).await
+            }
+            other => other,
+        }?;
         let mut bytes = BytesMut::new();
 
         while let Some(buf) = stream.next().await {

@@ -1876,6 +1876,95 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn old_server_config_object_store_path() {
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+        let object_store = application.object_store();
+
+        // Server config used to be stored under /[server id]/config.pb. Construct a config in that
+        // old location that points to a database
+        let mut old_server_config_path = object_store.new_path();
+        old_server_config_path.push_dir(&server_id.to_string());
+        old_server_config_path.set_file_name("config.pb");
+
+        // Create database rules and database owner info for a database in object storage
+        let db_uuid = Uuid::new_v4();
+        let db_name = DatabaseName::new("mydb").unwrap();
+        let db_rules = DatabaseRules::new(db_name.clone());
+
+        let mut db_path = object_store.new_path();
+        db_path.push_dir("dbs");
+        db_path.push_dir(db_uuid.to_string());
+        let mut db_rules_path = db_path.clone();
+        db_rules_path.set_file_name("rules.pb");
+
+        let persisted_database_rules = management::v1::PersistedDatabaseRules {
+            uuid: db_uuid.as_bytes().to_vec(),
+            rules: Some(db_rules.into()),
+        };
+        let mut encoded_rules = bytes::BytesMut::new();
+        generated_types::database_rules::encode_persisted_database_rules(
+            &persisted_database_rules,
+            &mut encoded_rules,
+        )
+        .unwrap();
+        let encoded_rules = encoded_rules.freeze();
+        object_store
+            .put(&db_rules_path, encoded_rules)
+            .await
+            .unwrap();
+
+        let mut db_owner_info_path = db_path.clone();
+        db_owner_info_path.set_file_name("owner.pb");
+        let owner_info = management::v1::OwnerInfo {
+            id: server_id.get_u32(),
+            location: old_server_config_path.to_string(),
+            transactions: vec![],
+        };
+        let mut encoded_owner_info = bytes::BytesMut::new();
+        generated_types::server_config::encode_database_owner_info(
+            &owner_info,
+            &mut encoded_owner_info,
+        )
+        .unwrap();
+        let encoded_owner_info = encoded_owner_info.freeze();
+        object_store
+            .put(&db_owner_info_path, encoded_owner_info)
+            .await
+            .unwrap();
+
+        let config = management::v1::ServerConfig {
+            databases: [(db_name.to_string(), db_path.to_raw())]
+                .into_iter()
+                .collect(),
+        };
+        let mut encoded_server_config = bytes::BytesMut::new();
+        generated_types::server_config::encode_persisted_server_config(
+            &config,
+            &mut encoded_server_config,
+        )
+        .unwrap();
+        let encoded_server_config = encoded_server_config.freeze();
+        object_store
+            .put(&old_server_config_path, encoded_server_config)
+            .await
+            .unwrap();
+
+        // Start up server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        // Database should init
+        let database = server.database(&db_name).unwrap();
+        database.wait_for_init().await.unwrap();
+
+        // Server config should be transitioned to the new location
+        let config = server_config(application.object_store(), server_id).await;
+        assert_config_contents(&config, &[(&db_name, format!("dbs/{}/", db_uuid))]);
+    }
+
+    #[tokio::test]
     async fn db_names_sorted() {
         let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
@@ -2232,7 +2321,7 @@ mod tests {
         let baz_iox_object_store = baz.iox_object_store().unwrap();
         let owner_info = management::v1::OwnerInfo {
             id: 2,
-            location: "2/config.pb".to_string(),
+            location: "nodes/2/config.pb".to_string(),
             transactions: vec![],
         };
         let mut encoded = bytes::BytesMut::new();

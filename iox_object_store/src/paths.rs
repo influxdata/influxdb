@@ -15,13 +15,15 @@ pub mod transaction_file;
 use transaction_file::TransactionFilePath;
 
 pub(crate) const ALL_DATABASES_DIRECTORY: &str = "dbs";
-const SERVER_CONFIG_FILE_NAME: &str = "config.pb";
+const ALL_SERVERS_DIRECTORY: &str = "nodes";
+pub(crate) const SERVER_CONFIG_FILE_NAME: &str = "config.pb";
 const DATABASE_OWNER_FILE_NAME: &str = "owner.pb";
 
 /// The path to the server file containing the list of databases this server owns.
 // TODO: this is in the process of replacing all_databases_path for the floating databases design
 pub(crate) fn server_config_path(object_store: &ObjectStore, server_id: ServerId) -> Path {
     let mut path = object_store.new_path();
+    path.push_dir(ALL_SERVERS_DIRECTORY);
     path.push_dir(server_id.to_string());
     path.set_file_name(SERVER_CONFIG_FILE_NAME);
     path

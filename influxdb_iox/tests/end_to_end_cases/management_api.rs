@@ -1349,7 +1349,7 @@ async fn test_get_server_status_db_error() {
     // create valid owner info but malformed DB rules that will put DB in an error state
     let my_db_uuid = Uuid::new_v4();
     let mut path = server_fixture.dir().to_path_buf();
-    path.push("42");
+    path.push("dbs");
     path.push(my_db_uuid.to_string());
     std::fs::create_dir_all(path.clone()).unwrap();
     let mut owner_info_path = path.clone();
@@ -1360,11 +1360,13 @@ async fn test_get_server_status_db_error() {
 
     // create the server config listing the ownership of this database
     let mut path = server_fixture.dir().to_path_buf();
+    path.push("nodes");
     path.push("42");
+    std::fs::create_dir_all(path.clone()).unwrap();
     path.push("config.pb");
 
     let data = ServerConfig {
-        databases: vec![(String::from("my_db"), format!("42/{}", my_db_uuid))]
+        databases: vec![(String::from("my_db"), format!("dbs/{}", my_db_uuid))]
             .into_iter()
             .collect(),
     };
