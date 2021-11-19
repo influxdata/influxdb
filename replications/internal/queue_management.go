@@ -295,6 +295,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 			continue
 		} else {
 			qm.replicationQueues[id] = &replicationQueue{
+				id:        id,
 				queue:     queue,
 				done:      make(chan struct{}),
 				receive:   make(chan struct{}),
