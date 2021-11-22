@@ -451,6 +451,6 @@ func TestGetBatch(t *testing.T) {
 	require.Equal(t, []byte("1465839830100400200weather,location=us-midwest temperature=82 1465839830100400200\n"), batch)
 
 	// Try getting another batch, should return nil
-	batch, testData = getBatch(testData, batchSize)
+	batch, _ = getBatch(testData, batchSize)
 	require.Nil(t, batch)
 }
