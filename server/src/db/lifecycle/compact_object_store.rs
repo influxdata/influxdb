@@ -374,9 +374,11 @@ mod tests {
         let compact_no_chunks = mark_chunks_to_compact(partition, vec![], &registration);
 
         let err = compact_no_chunks.unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("No object store chunks provided for compacting"));
+        assert!(
+            err.to_string()
+                .contains("No object store chunks provided for compacting"),
+            "No object store chunks provided for compacting"
+        );
     }
 
     #[tokio::test]
@@ -405,7 +407,10 @@ mod tests {
         let compact_non_persisted_chunks =
             mark_chunks_to_compact(partition, vec![chunk], &registration);
         let err = compact_non_persisted_chunks.unwrap_err();
-        assert!(err.to_string().contains("Expected Persisted, got Open"));
+        assert!(
+            err.to_string().contains("Expected Persisted, got Open"),
+            "Expected Persisted, got Open"
+        );
     }
 
     #[tokio::test]
@@ -461,9 +466,11 @@ mod tests {
         let compact_non_contiguous_persisted_chunks =
             mark_chunks_to_compact(partition, vec![chunk1, chunk3], &registration);
         let err = compact_non_contiguous_persisted_chunks.unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("Cannot compact the provided persisted chunks. They are not contiguous"));
+        assert!(
+            err.to_string()
+                .contains("Cannot compact the provided persisted chunks. They are not contiguous"),
+            "Cannot compact the provided persisted chunks. They are not contiguous"
+        );
     }
 
     // todo: add tests
