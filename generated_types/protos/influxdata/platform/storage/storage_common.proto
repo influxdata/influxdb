@@ -313,45 +313,45 @@ message ReadWindowAggregateRequest {
 }
 
 message TagValuesGroupedByMeasurementAndTagKeyRequest {
-	google.protobuf.Any source = 1;
+  google.protobuf.Any source = 1;
 
-	// MeasurementPatterns holds the patterns to match the measurements
-	// against (the "FROM" part of the SHOW TAG VALUES statement).
-	repeated LiteralOrRegex MeasurementPatterns = 2;
+  // MeasurementPatterns holds the patterns to match the measurements
+  // against (the "FROM" part of the SHOW TAG VALUES statement).
+  repeated LiteralOrRegex MeasurementPatterns = 2;
 
-	// TagKeyPredicate holds a predicate for the tags to find values on.
-	// (the "WITH KEY" part of the SHOW TAG VALUES statement.
-	// It's in one of the forms:
-	//	OR(IDENT, OR(IDENT, ...))
-	//	EQ(IDENT)
-	//	NEQ(IDENT)
-	//	EQREGEX(REGEX)
-	//	NEQREGEX(REGEX)
-	TagKeyPredicate TagKeyPredicate = 3;
+  // TagKeyPredicate holds a predicate for the tags to find values on.
+  // (the "WITH KEY" part of the SHOW TAG VALUES statement.
+  // It's in one of the forms:
+  //  OR(IDENT, OR(IDENT, ...))
+  //  EQ(IDENT)
+  //  NEQ(IDENT)
+  //  EQREGEX(REGEX)
+  //  NEQREGEX(REGEX)
+  TagKeyPredicate TagKeyPredicate = 3;
 
-	// Condition holds any additional condition to evaluate on the results.
-	Predicate Condition = 4;
+  // Condition holds any additional condition to evaluate on the results.
+  Predicate Condition = 4;
 }
 
 message TagKeyPredicate {
-	oneof value {
-		string Eq = 1;
-		string Neq = 2;
-		string EqRegex = 3;
-		string NeqRegex = 4;
-		StringList In = 5;
-	}
+  oneof value {
+    string Eq = 1;
+    string Neq = 2;
+    string EqRegex = 3;
+    string NeqRegex = 4;
+    StringList In = 5;
+  }
 }
 
 message StringList {
-	repeated string Vals = 1;
+  repeated string Vals = 1;
 }
 
 message LiteralOrRegex {
-	oneof value {
-		string literal_value = 1;
-		string regex_value = 2;
-	}
+  oneof value {
+    string literal_value = 1;
+    string regex_value = 2;
+  }
 }
 
 message Window {
