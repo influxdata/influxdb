@@ -10,11 +10,14 @@ use crate::{
     },
 };
 use data_types::delete_predicate::{DeleteExpr, DeletePredicate, Op, Scalar};
-use data_types::{chunk_metadata::ChunkId, timestamp::TimestampRange};
+use data_types::{
+    chunk_metadata::{ChunkAddr, ChunkId},
+    timestamp::TimestampRange,
+};
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
 use parquet_file::{
-    metadata::IoxParquetMetaData,
-    test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
+    chunk::ParquetChunk,
+    test_utils::{generator::ChunkGenerator, make_iox_object_store},
 };
 use snafu::ResultExt;
 use std::{
@@ -259,158 +262,107 @@ where
     F: Fn(&S) -> CheckpointData + Send,
 {
     let config = make_config().await;
+    let iox_object_store = &config.iox_object_store;
+    let mut generator = ChunkGenerator::new_with_store(Arc::clone(iox_object_store));
 
     // The expected state of the catalog
-    let mut expected_files: HashMap<ChunkId, (ParquetFilePath, Arc<IoxParquetMetaData>)> =
-        HashMap::new();
+    let mut expected_chunks: HashMap<u32, ParquetChunk> = HashMap::new();
     let mut expected_predicates: HashMap<Arc<DeletePredicate>, HashSet<ChunkAddrWithoutDatabase>> =
         HashMap::new();
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 
     // add files
     {
-        for chunk_id in 0..5 {
-            let (path, metadata) = make_metadata(
-                &config.iox_object_store,
-                "ok",
-                chunk_addr(chunk_id),
-                TestSize::Full,
-            )
-            .await;
+        for chunk_id in 1..5 {
+            let (chunk, _) = generator.generate_id(chunk_id).await;
             state
                 .add(
-                    Arc::clone(&config.iox_object_store),
-                    CatalogParquetInfo {
-                        path: path.clone(),
-                        file_size_bytes: 33,
-                        metadata: Arc::new(metadata.clone()),
-                    },
+                    Arc::clone(iox_object_store),
+                    CatalogParquetInfo::from_chunk(&chunk),
                 )
                 .unwrap();
-            expected_files.insert(ChunkId::new_test(chunk_id), (path, Arc::new(metadata)));
+            expected_chunks.insert(chunk_id, chunk);
         }
     }
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 
     // remove files
     {
-        let (path, _) = expected_files.remove(&ChunkId::new_test(1)).unwrap();
-        state.remove(&path).unwrap();
+        let chunk = expected_chunks.remove(&1).unwrap();
+        state.remove(chunk.path()).unwrap();
     }
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 
     // add and remove in the same transaction
     {
-        let (path, metadata) = make_metadata(
-            &config.iox_object_store,
-            "ok",
-            chunk_addr(5),
-            TestSize::Full,
-        )
-        .await;
+        let (chunk, _) = generator.generate_id(5).await;
         state
             .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    path: path.clone(),
-                    file_size_bytes: 33,
-                    metadata: Arc::new(metadata),
-                },
+                Arc::clone(iox_object_store),
+                CatalogParquetInfo::from_chunk(&chunk),
             )
             .unwrap();
-        state.remove(&path).unwrap();
+        state.remove(chunk.path()).unwrap();
     }
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 
     // remove and add in the same transaction
     {
-        let (path, metadata) = expected_files.get(&ChunkId::new_test(3)).unwrap();
-        state.remove(path).unwrap();
+        let chunk = expected_chunks.get(&3).unwrap();
+        state.remove(chunk.path()).unwrap();
         state
             .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    path: path.clone(),
-                    file_size_bytes: 33,
-                    metadata: Arc::clone(metadata),
-                },
+                Arc::clone(iox_object_store),
+                CatalogParquetInfo::from_chunk(chunk),
             )
             .unwrap();
     }
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 
     // add, remove, add in the same transaction
     {
-        let (path, metadata) = make_metadata(
-            &config.iox_object_store,
-            "ok",
-            chunk_addr(6),
-            TestSize::Full,
-        )
-        .await;
+        let (chunk, _) = generator.generate_id(6).await;
         state
             .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    path: path.clone(),
-                    file_size_bytes: 33,
-                    metadata: Arc::new(metadata.clone()),
-                },
+                Arc::clone(iox_object_store),
+                CatalogParquetInfo::from_chunk(&chunk),
             )
             .unwrap();
-        state.remove(&path).unwrap();
+        state.remove(chunk.path()).unwrap();
         state
             .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    path: path.clone(),
-                    file_size_bytes: 33,
-                    metadata: Arc::new(metadata.clone()),
-                },
+                Arc::clone(iox_object_store),
+                CatalogParquetInfo::from_chunk(&chunk),
             )
             .unwrap();
-        expected_files.insert(ChunkId::new_test(6), (path, Arc::new(metadata)));
+        expected_chunks.insert(6, chunk);
     }
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 
     // remove, add, remove in same transaction
     {
-        let (path, metadata) = expected_files.remove(&ChunkId::new_test(4)).unwrap();
-        state.remove(&path).unwrap();
+        let chunk = expected_chunks.remove(&4).unwrap();
+        state.remove(chunk.path()).unwrap();
         state
             .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    path: path.clone(),
-                    file_size_bytes: 33,
-                    metadata: Arc::clone(&metadata),
-                },
+                Arc::clone(iox_object_store),
+                CatalogParquetInfo::from_chunk(&chunk),
             )
             .unwrap();
-        state.remove(&path).unwrap();
+        state.remove(chunk.path()).unwrap();
     }
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 
     // error handling, no real opt
     {
         // TODO: Error handling should disambiguate between chunk collision and filename collision
 
         // chunk with same ID already exists (should also not change the metadata)
-        let (path, metadata) = make_metadata(
-            &config.iox_object_store,
-            "fail",
-            chunk_addr(0),
-            TestSize::Full,
-        )
-        .await;
+        let (chunk, _) = generator.generate_id(2).await;
         let err = state
             .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    path,
-                    file_size_bytes: 33,
-                    metadata: Arc::new(metadata),
-                },
+                Arc::clone(iox_object_store),
+                CatalogParquetInfo::from_chunk(&chunk),
             )
             .unwrap_err();
         assert!(matches!(
@@ -418,21 +370,16 @@ where
             CatalogStateAddError::ParquetFileAlreadyExists { .. }
         ));
     }
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 
     // error handling, still something works
     {
         // already exists (should also not change the metadata)
-        let (_, metadata) = expected_files.get(&ChunkId::new_test(0)).unwrap();
+        let (chunk, _) = generator.generate_id(2).await;
         let err = state
             .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    // Intentionally "incorrect" path
-                    path: ParquetFilePath::new(&chunk_addr(10)),
-                    file_size_bytes: 33,
-                    metadata: Arc::clone(metadata),
-                },
+                Arc::clone(iox_object_store),
+                CatalogParquetInfo::from_chunk(&chunk),
             )
             .unwrap_err();
         assert!(matches!(
@@ -441,97 +388,57 @@ where
         ));
 
         // this transaction will still work
-        let (path, metadata) = make_metadata(
-            &config.iox_object_store,
-            "ok",
-            chunk_addr(7),
-            TestSize::Full,
-        )
-        .await;
-        let metadata = Arc::new(metadata);
+        let (chunk, _) = generator.generate_id(7).await;
+        let info = CatalogParquetInfo::from_chunk(&chunk);
         state
-            .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    path: path.clone(),
-                    file_size_bytes: 33,
-                    metadata: Arc::clone(&metadata),
-                },
-            )
+            .add(Arc::clone(iox_object_store), info.clone())
             .unwrap();
-        expected_files.insert(ChunkId::new_test(7), (path.clone(), Arc::clone(&metadata)));
+        expected_chunks.insert(7, chunk);
 
         // recently added
-        let err = state
-            .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    path,
-                    file_size_bytes: 33,
-                    metadata: Arc::clone(&metadata),
-                },
-            )
-            .unwrap_err();
+        let err = state.add(Arc::clone(iox_object_store), info).unwrap_err();
         assert!(matches!(
             err,
             CatalogStateAddError::ParquetFileAlreadyExists { .. }
         ));
 
         // this still works
-        let (path, _) = expected_files.remove(&ChunkId::new_test(7)).unwrap();
-        state.remove(&path).unwrap();
+        let chunk = expected_chunks.remove(&7).unwrap();
+        state.remove(chunk.path()).unwrap();
 
         // recently removed
-        let err = state.remove(&path).unwrap_err();
+        let err = state.remove(chunk.path()).unwrap_err();
         assert!(matches!(
             err,
             CatalogStateRemoveError::ParquetFileDoesNotExist { .. }
         ));
     }
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 
     // add predicates
     {
         // create two chunks that we can use for delete predicate
-        let chunk_addr_1 = chunk_addr(8);
-        let (path, metadata) = make_metadata(
-            &config.iox_object_store,
-            "ok",
-            chunk_addr_1.clone(),
-            TestSize::Full,
-        )
-        .await;
-        state
-            .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    path: path.clone(),
-                    file_size_bytes: 33,
-                    metadata: Arc::new(metadata.clone()),
-                },
-            )
-            .unwrap();
-        expected_files.insert(chunk_addr_1.chunk_id, (path, Arc::new(metadata)));
+        let (chunk, metadata) = generator.generate_id(8).await;
+        let chunk_addr_1 = ChunkAddr::new(generator.partition(), metadata.chunk_id);
 
-        let chunk_addr_2 = chunk_addr(9);
-        let (path, metadata) = make_metadata(
-            &config.iox_object_store,
-            "ok",
-            chunk_addr_2.clone(),
-            TestSize::Full,
-        )
-        .await;
         state
             .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    path: path.clone(),
-                    file_size_bytes: 33,
-                    metadata: Arc::new(metadata.clone()),
-                },
+                Arc::clone(iox_object_store),
+                CatalogParquetInfo::from_chunk(&chunk),
             )
             .unwrap();
-        expected_files.insert(chunk_addr_2.chunk_id, (path, Arc::new(metadata)));
+        expected_chunks.insert(8, chunk);
+
+        let (chunk, metadata) = generator.generate_id(9).await;
+        let chunk_addr_2 = ChunkAddr::new(generator.partition(), metadata.chunk_id);
+
+        state
+            .add(
+                Arc::clone(iox_object_store),
+                CatalogParquetInfo::from_chunk(&chunk),
+            )
+            .unwrap();
+        expected_chunks.insert(9, chunk);
 
         // first predicate used only a single chunk
         let predicate_1 = create_delete_predicate(1);
@@ -546,32 +453,21 @@ where
         expected_predicates.insert(predicate_2, chunks_2.into_iter().collect());
 
         // chunks created afterwards are unaffected
-        let chunk_addr_3 = chunk_addr(10);
-        let (path, metadata) = make_metadata(
-            &config.iox_object_store,
-            "ok",
-            chunk_addr_3.clone(),
-            TestSize::Full,
-        )
-        .await;
+        let (chunk, _) = generator.generate_id(10).await;
         state
             .add(
-                Arc::clone(&config.iox_object_store),
-                CatalogParquetInfo {
-                    path: path.clone(),
-                    file_size_bytes: 33,
-                    metadata: Arc::new(metadata.clone()),
-                },
+                Arc::clone(iox_object_store),
+                CatalogParquetInfo::from_chunk(&chunk),
             )
             .unwrap();
-        expected_files.insert(chunk_addr_3.chunk_id, (path, Arc::new(metadata)));
+        expected_chunks.insert(10, chunk);
     }
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 
     // removing a chunk will also remove its predicates
     {
-        let (path, _) = expected_files.remove(&ChunkId::new_test(8)).unwrap();
-        state.remove(&path).unwrap();
+        let chunk = expected_chunks.remove(&8).unwrap();
+        state.remove(chunk.path()).unwrap();
         expected_predicates = expected_predicates
             .into_iter()
             .filter_map(|(predicate, chunks)| {
@@ -583,7 +479,7 @@ where
             })
             .collect();
     }
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 
     // Registering predicates for unknown chunks is just ignored because chunks might been in "persisting" intermediate
     // state while the predicate was reported.
@@ -596,30 +492,30 @@ where
         }];
         state.delete_predicate(Arc::clone(&predicate), chunks);
     }
-    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+    assert_checkpoint(&state, &f, &expected_chunks, &expected_predicates);
 }
 
 /// Assert that tracked files and their linked metadata are equal.
 fn assert_checkpoint<S, F>(
     state: &S,
     f: &F,
-    expected_files: &HashMap<ChunkId, (ParquetFilePath, Arc<IoxParquetMetaData>)>,
+    expected_chunks: &HashMap<u32, ParquetChunk>,
     expected_predicates: &HashMap<Arc<DeletePredicate>, HashSet<ChunkAddrWithoutDatabase>>,
 ) where
     F: Fn(&S) -> CheckpointData,
 {
-    let data = f(state);
+    let data: CheckpointData = f(state);
     let actual_files = data.files;
 
     let sorted_keys_actual = get_sorted_keys(actual_files.keys());
-    let sorted_keys_expected = get_sorted_keys(expected_files.values().map(|(path, _)| path));
+    let sorted_keys_expected = get_sorted_keys(expected_chunks.values().map(|chunk| chunk.path()));
     assert_eq!(sorted_keys_actual, sorted_keys_expected);
 
-    for (path, md_expected) in expected_files.values() {
-        let md_actual = &actual_files[path].metadata;
+    for chunk in expected_chunks.values() {
+        let md_actual = &actual_files[chunk.path()].metadata;
 
         let md_actual = md_actual.decode().unwrap();
-        let md_expected = md_expected.decode().unwrap();
+        let md_expected = chunk.parquet_metadata().decode().unwrap();
 
         let iox_md_actual = md_actual.read_iox_metadata().unwrap();
         let iox_md_expected = md_expected.read_iox_metadata().unwrap();

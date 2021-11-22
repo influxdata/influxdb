@@ -908,6 +908,13 @@ mod tests {
             Ok(db.registry.lock().complete(()))
         }
 
+        fn compact_object_store_chunks(
+            _partition: LifecycleWriteGuard<'_, TestPartition, Self>,
+            _chunks: Vec<LifecycleWriteGuard<'_, TestChunk, Self::Chunk>>,
+        ) -> Result<TaskTracker<()>, Self::Error> {
+            unimplemented!("The test does not need compact os chunks");
+        }
+
         fn prepare_persist(
             partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
             _force: bool,

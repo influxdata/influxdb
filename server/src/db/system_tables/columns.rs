@@ -1,6 +1,6 @@
 use crate::db::{catalog::Catalog, system_tables::IoxSystemTable};
 use arrow::{
-    array::{ArrayRef, StringBuilder, UInt64Builder},
+    array::{ArrayRef, StringArray, StringBuilder, UInt64Array},
     datatypes::{DataType, Field, Schema, SchemaRef},
     error::Result,
     record_batch::RecordBatch,
@@ -8,7 +8,7 @@ use arrow::{
 use data_types::{
     chunk_metadata::DetailedChunkSummary,
     error::ErrorLogger,
-    partition_metadata::{PartitionSummary, TableSummary},
+    partition_metadata::{ColumnSummary, PartitionSummary, TableSummary},
 };
 use std::{collections::HashMap, sync::Arc};
 
@@ -91,7 +91,7 @@ fn from_partition_summaries(
     )
 }
 
-/// Implementation of system.column_chunks table
+/// Implementation of `system.chunk_columns` table
 #[derive(Debug)]
 pub(super) struct ChunkColumnsTable {
     schema: SchemaRef,
@@ -137,79 +137,118 @@ fn assemble_chunk_columns(
     schema: SchemaRef,
     chunk_summaries: Vec<(Arc<TableSummary>, DetailedChunkSummary)>,
 ) -> Result<RecordBatch> {
-    /// Builds an index from column_name -> size
-    fn make_column_index(summary: &DetailedChunkSummary) -> HashMap<&str, u64> {
-        summary
-            .columns
-            .iter()
-            .map(|column_summary| {
-                (
-                    column_summary.name.as_ref(),
-                    column_summary.memory_bytes as u64,
-                )
-            })
-            .collect()
+    // Create an iterator over each column in each table in each chunk
+    // so we can build  `chunk_columns` column by column
+    struct EachColumn<'a> {
+        chunk_summary: &'a DetailedChunkSummary,
+        column_summary: &'a ColumnSummary,
     }
 
-    // Assume each chunk has roughly 5 columns
-    let row_estimate = chunk_summaries.len() * 5;
+    let rows = chunk_summaries
+        .iter()
+        .map(|(table_summary, chunk_summary)| {
+            table_summary
+                .columns
+                .iter()
+                .map(move |column_summary| EachColumn {
+                    chunk_summary,
+                    column_summary,
+                })
+        })
+        .flatten()
+        .collect::<Vec<_>>();
 
-    let mut partition_key = StringBuilder::new(row_estimate);
-    let mut chunk_id = StringBuilder::new(row_estimate);
-    let mut table_name = StringBuilder::new(row_estimate);
-    let mut column_name = StringBuilder::new(row_estimate);
-    let mut storage = StringBuilder::new(row_estimate);
-    let mut row_count = UInt64Builder::new(row_estimate);
-    let mut null_count = UInt64Builder::new(row_estimate);
-    let mut min_values = StringBuilder::new(row_estimate);
-    let mut max_values = StringBuilder::new(row_estimate);
-    let mut memory_bytes = UInt64Builder::new(row_estimate);
+    let partition_key = rows
+        .iter()
+        .map(|each| each.chunk_summary.inner.partition_key.as_ref())
+        .map(Some)
+        .collect::<StringArray>();
 
-    // Note no rows are produced for partitions with no chunks, or
-    // tables with no partitions: There are other tables to list tables
-    // and columns
-    for (table_summary, chunk_summary) in chunk_summaries {
-        let mut column_index = make_column_index(&chunk_summary);
-        let storage_value = chunk_summary.inner.storage.as_str();
+    let chunk_id = rows
+        .iter()
+        .map(|each| each.chunk_summary.inner.id.get().to_string())
+        .map(Some)
+        .collect::<StringArray>();
 
-        for column in &table_summary.columns {
-            partition_key.append_value(chunk_summary.inner.partition_key.as_ref())?;
-            chunk_id.append_value(chunk_summary.inner.id.get().to_string())?;
-            table_name.append_value(&chunk_summary.inner.table_name)?;
-            column_name.append_value(&column.name)?;
-            storage.append_value(storage_value)?;
-            row_count.append_value(column.total_count())?;
-            null_count.append_value(column.null_count())?;
-            if let Some(v) = column.stats.min_as_str() {
-                min_values.append_value(v)?;
-            } else {
-                min_values.append(false)?;
-            }
-            if let Some(v) = column.stats.max_as_str() {
-                max_values.append_value(v)?;
-            } else {
-                max_values.append(false)?;
-            }
+    let table_name = rows
+        .iter()
+        .map(|each| each.chunk_summary.inner.table_name.as_ref())
+        .map(Some)
+        .collect::<StringArray>();
 
-            let size = column_index.remove(column.name.as_str());
+    let column_name = rows
+        .iter()
+        .map(|each| each.column_summary.name.as_str())
+        .map(Some)
+        .collect::<StringArray>();
 
-            memory_bytes.append_option(size)?;
-        }
-    }
+    let storage = rows
+        .iter()
+        .map(|each| each.chunk_summary.inner.storage.as_str())
+        .map(Some)
+        .collect::<StringArray>();
+
+    let row_count = rows
+        .iter()
+        .map(|each| each.column_summary.total_count())
+        .map(Some)
+        .collect::<UInt64Array>();
+
+    let null_count = rows
+        .iter()
+        .map(|each| each.column_summary.null_count())
+        .map(Some)
+        .collect::<UInt64Array>();
+
+    let min_values = rows
+        .iter()
+        .map(|each| each.column_summary.stats.min_as_str())
+        .collect::<StringArray>();
+
+    let max_values = rows
+        .iter()
+        .map(|each| each.column_summary.stats.max_as_str())
+        .collect::<StringArray>();
+
+    // handle memory bytes specially to avoid having to search for
+    // each column in ColumnSummary
+    let memory_bytes = chunk_summaries
+        .iter()
+        .map(|(table_summary, chunk_summary)| {
+            // Don't assume column order in DetailedColumnSummary are
+            // consistent with ColumnSummary
+            let mut column_sizes = chunk_summary
+                .columns
+                .iter()
+                .map(|column_summary| {
+                    (
+                        column_summary.name.as_ref(),
+                        column_summary.memory_bytes as u64,
+                    )
+                })
+                .collect::<HashMap<_, _>>();
+
+            table_summary
+                .columns
+                .iter()
+                .map(move |column_summary| column_sizes.remove(column_summary.name.as_str()))
+        })
+        .flatten()
+        .collect::<UInt64Array>();
 
     RecordBatch::try_new(
         schema,
         vec![
-            Arc::new(partition_key.finish()) as ArrayRef,
-            Arc::new(chunk_id.finish()),
-            Arc::new(table_name.finish()),
-            Arc::new(column_name.finish()),
-            Arc::new(storage.finish()),
-            Arc::new(row_count.finish()),
-            Arc::new(null_count.finish()),
-            Arc::new(min_values.finish()),
-            Arc::new(max_values.finish()),
-            Arc::new(memory_bytes.finish()),
+            Arc::new(partition_key) as ArrayRef,
+            Arc::new(chunk_id),
+            Arc::new(table_name),
+            Arc::new(column_name),
+            Arc::new(storage),
+            Arc::new(row_count),
+            Arc::new(null_count),
+            Arc::new(min_values),
+            Arc::new(max_values),
+            Arc::new(memory_bytes),
         ],
     )
 }

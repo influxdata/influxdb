@@ -39,6 +39,11 @@ pub enum Error {
         chunk_id: u32,
     },
 
+    #[snafu(display("Error reading from object store: {}", source))]
+    ReadingObjectStore {
+        source: parquet_file::storage::Error,
+    },
+
     #[snafu(display("Error writing to object store: {}", source))]
     WritingToObjectStore {
         source: parquet_file::storage::Error,
@@ -57,6 +62,17 @@ pub enum Error {
 
     #[snafu(display("Cannot drop unpersisted chunk: {}", addr))]
     CannotDropUnpersistedChunk { addr: ChunkAddr },
+
+    #[snafu(display("No object store chunks provided for compacting"))]
+    EmptyChunks {},
+
+    #[snafu(display(
+        "Cannot compact chunks because at least one does not belong to the given partition"
+    ))]
+    ChunksNotInPartition {},
+
+    #[snafu(display("Cannot compact the provided persisted chunks. They are not contiguous"))]
+    ChunksNotContiguous {},
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

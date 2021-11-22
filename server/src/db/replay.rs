@@ -18,7 +18,8 @@ use snafu::{ResultExt, Snafu};
 use time::Time;
 use write_buffer::core::WriteBufferReading;
 
-use crate::db::write::WriteFilter;
+use crate::db::catalog::chunk::{CatalogChunk, ChunkStage};
+use crate::db::write::{DeleteFilter, WriteFilter};
 use crate::Db;
 
 #[allow(clippy::enum_variant_names)]
@@ -243,8 +244,7 @@ pub async fn perform_replay(
                 for n_try in 1..=n_tries {
                     let result = match &dml_operation {
                         DmlOperation::Write(write) => db.store_filtered_write(write, filter),
-                        // TODO: Only apply delete to unpersisted chunks (#3125)
-                        DmlOperation::Delete(delete) => db.store_delete(delete),
+                        DmlOperation::Delete(delete) => db.store_filtered_delete(delete, filter),
                     };
 
                     match result {
@@ -367,6 +367,19 @@ impl<'a> WriteFilter for ReplayFilter<'a> {
                 Some(write)
             }
         }
+    }
+}
+
+impl<'a> DeleteFilter for ReplayFilter<'a> {
+    fn filter_chunk(&self, chunk: &CatalogChunk) -> bool {
+        // The persist lifecycle action MUST persist any outstanding delete predicates
+        //
+        // As such deletes should only be applied to unpersisted chunks - i.e.
+        // those containing data from the in-progress replay operation
+        //
+        // This avoids a situation where a delete could be applied to a chunk containing
+        // data from writes sequenced after the delete being replayed
+        !matches!(chunk.stage(), ChunkStage::Persisted { .. })
     }
 }
 
@@ -2654,6 +2667,60 @@ mod tests {
                         "| bar | tag_partition_by | time                           |",
                         "+-----+------------------+--------------------------------+",
                         "| 15  | b                | 1970-01-01T00:00:00.000000015Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
+    }
+
+    #[tokio::test]
+    async fn replay_delete_persisted_chunks() {
+        ReplayTest {
+            steps: vec![
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 0,
+                    lp: "table_1,tag_partition_by=a bar=10 10",
+                }]),
+                Step::Delete(vec![TestDelete {
+                    sequencer_id: 0,
+                    sequence_number: 1,
+                    table_name: None,
+                    predicate: DeletePredicate {
+                        range: TimestampRange { start: 0, end: 11 },
+                        exprs: vec![],
+                    },
+                }]),
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 2,
+                    lp: "table_1,tag_partition_by=b bar=20 10",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 20  | b                | 1970-01-01T00:00:00.000000010Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![("table_1", "tag_partition_by_b")]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 20  | b                | 1970-01-01T00:00:00.000000010Z |",
                         "+-----+------------------+--------------------------------+",
                     ],
                 )]),

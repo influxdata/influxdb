@@ -1064,7 +1064,10 @@ mod tests {
     use std::vec;
 
     use bytes::Bytes;
-    use parquet_file::test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize};
+    use data_types::chunk_metadata::ChunkAddr;
+    use parquet_file::chunk::ParquetChunk;
+    use parquet_file::test_utils::generator::ChunkGenerator;
+    use parquet_file::test_utils::make_iox_object_store;
 
     use super::*;
     use crate::test_helpers::{
@@ -1642,6 +1645,7 @@ mod tests {
     async fn test_checkpoint() {
         let config = make_config().await;
         let mut trace = assert_single_catalog_inmem_works(config.clone()).await;
+        let mut generator = ChunkGenerator::new_with_store(Arc::clone(&config.iox_object_store));
 
         // re-open catalog
         let (catalog, mut state) = load_ok(config.clone()).await.unwrap();
@@ -1659,21 +1663,10 @@ mod tests {
 
         // create another transaction on-top that adds a file (this transaction will be required to load the full state)
         {
-            let addr = chunk_addr(1337);
-            let (path, metadata) = make_metadata(
-                &config.iox_object_store,
-                "foo",
-                addr.clone(),
-                TestSize::Full,
-            )
-            .await;
+            let (chunk, _) = generator.generate_id(1337).await;
 
             let mut transaction = catalog.open_transaction().await;
-            let info = CatalogParquetInfo {
-                path,
-                file_size_bytes: 33,
-                metadata: Arc::new(metadata),
-            };
+            let info = CatalogParquetInfo::from_chunk(&chunk);
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
             let ckpt_handle = transaction.commit().await.unwrap();
@@ -1713,6 +1706,7 @@ mod tests {
     async fn test_delete_predicates() {
         let config = make_config().await;
         let iox_object_store = &config.iox_object_store;
+        let mut generator = ChunkGenerator::new_with_store(Arc::clone(iox_object_store));
 
         let catalog = new_empty(config.clone()).await;
         let mut state = TestCatalogState::default();
@@ -1722,16 +1716,11 @@ mod tests {
 
             // create 3 chunks
             let mut chunk_addrs = vec![];
-            for id in 0..3 {
-                let chunk_addr = chunk_addr(id);
-                let (path, metadata) =
-                    make_metadata(iox_object_store, "foo", chunk_addr.clone(), TestSize::Full)
-                        .await;
-                let info = CatalogParquetInfo {
-                    path,
-                    file_size_bytes: 33,
-                    metadata: Arc::new(metadata),
-                };
+            for _ in 0..3 {
+                let (chunk, metadata) = generator.generate().await;
+                let chunk_addr = ChunkAddr::new(generator.partition(), metadata.chunk_id);
+
+                let info = CatalogParquetInfo::from_chunk(&chunk);
                 state.insert(info.clone()).unwrap();
                 t.add_parquet(&info);
 
@@ -1819,6 +1808,29 @@ mod tests {
         }
     }
 
+    /// Assert that set of parquet files tracked by a catalog are identical to the given sorted list.
+    fn assert_catalog_chunks(state: &TestCatalogState, expected: &[ParquetChunk]) {
+        let actual = get_catalog_parquet_files(state);
+        let mut expected: Vec<_> = expected.iter().collect();
+        expected.sort_by(|a, b| a.path().cmp(b.path()));
+
+        for ((actual_path, actual_md), chunk) in actual.iter().zip(expected.iter()) {
+            assert_eq!(actual_path, chunk.path());
+
+            let actual_md = actual_md.decode().unwrap();
+
+            let actual_schema = actual_md.read_schema().unwrap();
+            let expected_schema = chunk.schema();
+            assert_eq!(actual_schema, expected_schema);
+
+            // NOTE: the actual table name is not important here as long as it is the same for both calls, since it is
+            // only used to generate out statistics struct (not to read / dispatch anything).
+            let actual_stats = actual_md.read_statistics(&actual_schema).unwrap();
+            let expected_stats = &chunk.table_summary().columns;
+            assert_eq!(&actual_stats, expected_stats);
+        }
+    }
+
     async fn checked_delete(iox_object_store: &IoxObjectStore, path: &TransactionFilePath) {
         // issue full GET operation to check if object is preset
         iox_object_store
@@ -1872,6 +1884,7 @@ mod tests {
 
     async fn assert_single_catalog_inmem_works(config: PreservedCatalogConfig) -> TestTrace {
         let iox_object_store = &config.iox_object_store;
+        let mut generator = ChunkGenerator::new_with_store(Arc::clone(iox_object_store));
         let catalog = new_empty(config.clone()).await;
         let mut state = TestCatalogState::default();
 
@@ -1889,102 +1902,56 @@ mod tests {
         {
             let mut t = catalog.open_transaction().await;
 
-            let (path, metadata) =
-                make_metadata(iox_object_store, "foo", chunk_addr(0), TestSize::Full).await;
-            expected.push((path.clone(), metadata.clone()));
-            let info = CatalogParquetInfo {
-                path,
-                file_size_bytes: 33,
-                metadata: Arc::new(metadata),
-            };
-            state.insert(info.clone()).unwrap();
-            t.add_parquet(&info);
-
-            let (path, metadata) =
-                make_metadata(iox_object_store, "bar", chunk_addr(1), TestSize::Full).await;
-            expected.push((path.clone(), metadata.clone()));
-            let info = CatalogParquetInfo {
-                path,
-                file_size_bytes: 33,
-                metadata: Arc::new(metadata),
-            };
-            state.insert(info.clone()).unwrap();
-            t.add_parquet(&info);
-
-            let (path, metadata) =
-                make_metadata(iox_object_store, "bar", chunk_addr(2), TestSize::Full).await;
-            expected.push((path.clone(), metadata.clone()));
-            let info = CatalogParquetInfo {
-                path,
-                file_size_bytes: 33,
-                metadata: Arc::new(metadata),
-            };
-            state.insert(info.clone()).unwrap();
-            t.add_parquet(&info);
-
-            let (path, metadata) =
-                make_metadata(iox_object_store, "foo", chunk_addr(3), TestSize::Full).await;
-            expected.push((path.clone(), metadata.clone()));
-            let info = CatalogParquetInfo {
-                path,
-                file_size_bytes: 33,
-                metadata: Arc::new(metadata),
-            };
-            state.insert(info.clone()).unwrap();
-            t.add_parquet(&info);
+            for _ in 0..4 {
+                let (chunk, _) = generator.generate().await;
+                let info = CatalogParquetInfo::from_chunk(&chunk);
+                expected.push(chunk);
+                state.insert(info.clone()).unwrap();
+                t.add_parquet(&info);
+            }
 
             t.commit().await.unwrap();
         }
         assert_eq!(catalog.revision_counter(), 1);
-        assert_catalog_parquet_files(&state, &expected);
+        assert_catalog_chunks(&state, &expected);
         trace.record(&catalog, &state, false);
 
         // modify catalog with examples
         {
-            let (path, metadata) =
-                make_metadata(iox_object_store, "foo", chunk_addr(4), TestSize::Full).await;
-            expected.push((path.clone(), metadata.clone()));
+            let (chunk, _) = generator.generate().await;
+            let info = CatalogParquetInfo::from_chunk(&chunk);
+            expected.push(chunk);
 
             let mut t = catalog.open_transaction().await;
 
             // "real" modifications
-            let info = CatalogParquetInfo {
-                path,
-                file_size_bytes: 33,
-                metadata: Arc::new(metadata),
-            };
             state.insert(info.clone()).unwrap();
             t.add_parquet(&info);
 
-            let (path, _) = expected.remove(0);
-            state.remove(&path).unwrap();
-            t.remove_parquet(&path);
+            let chunk = expected.remove(0);
+            state.remove(chunk.path()).unwrap();
+            t.remove_parquet(chunk.path());
 
             t.commit().await.unwrap();
         }
         assert_eq!(catalog.revision_counter(), 2);
-        assert_catalog_parquet_files(&state, &expected);
+        assert_catalog_chunks(&state, &expected);
         trace.record(&catalog, &state, false);
 
         // uncommitted modifications have no effect
         {
             let mut t = catalog.open_transaction().await;
 
-            let (path, metadata) =
-                make_metadata(iox_object_store, "foo", chunk_addr(1), TestSize::Full).await;
-            let info = CatalogParquetInfo {
-                path,
-                file_size_bytes: 33,
-                metadata: Arc::new(metadata),
-            };
+            let (chunk, _) = generator.generate().await;
+            let info = CatalogParquetInfo::from_chunk(&chunk);
 
             t.add_parquet(&info);
-            t.remove_parquet(&expected[0].0);
+            t.remove_parquet(expected[0].path());
 
             // NO commit here!
         }
         assert_eq!(catalog.revision_counter(), 2);
-        assert_catalog_parquet_files(&state, &expected);
+        assert_catalog_chunks(&state, &expected);
         trace.record(&catalog, &state, true);
 
         trace

@@ -10,7 +10,7 @@ chrono = "0.4.13"
 chrono-english = "0.1.4"
 clap = "2.33.1"
 futures = "0.3.5"
-handlebars = "4.1.4"
+handlebars = "4.1.5"
 humantime = "2.1.0"
 data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
@@ -19,12 +19,12 @@ influxdb_iox_client = { path = "../influxdb_iox_client" }
 itertools = "0.10.0"
 rand = { version = "0.8.3", features = ["small_rng"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.70"
+serde_json = "1.0.71"
 snafu = "0.6.8"
 tokio = { version = "1.13", features = ["macros", "rt-multi-thread"] }
 toml = "0.5.6"
 tracing = "0.1"
-tracing-subscriber = "0.3.1"
+tracing-subscriber = "0.3.2"
 uuid = { version = "0.8.1", default_features = false }
 
 [dev-dependencies]
