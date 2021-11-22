@@ -13,6 +13,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// This is the same batch size limit used by the influx write command
+// https://github.com/influxdata/influx-cli/blob/a408c02bd462946ac6ebdedf6f62f5e3d81c1f6f/clients/write/buffer_batcher.go#L14
+// Max batch size must not be smaller than bufio.MaxScanTokenSize, to avoid splitting one line into two different batches
+const maxRemoteWriteBatchSize = 500000
+
 type replicationQueue struct {
 	queue   *durablequeue.Queue
 	wg      sync.WaitGroup
@@ -157,7 +162,6 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) bool {
 	}
 
 	for scan.Next() {
-
 		// An io.EOF error here indicates that there is no more data
 		// left to process, and is an expected error.
 		if scan.Err() == io.EOF {
@@ -171,12 +175,32 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) bool {
 			break
 		}
 
-		// An error here indicates an unhandlable error. Data is not corrupt, and
-		// the remote write is not retryable. A potential example of an error here
-		// is an authentication error with the remote host.
-		if err = dp(scan.Bytes()); err != nil {
-			rq.logger.Error("Error in replication stream", zap.Error(err))
-			return false
+		// Check if data needs batching before being sent to the remote write function
+		data := scan.Bytes()
+
+		// No batching needed
+		if len(data) <= maxRemoteWriteBatchSize {
+			// An error here indicates an unhandlable error. Data is not corrupt, and
+			// the remote write is not retryable. A potential example of an error here
+			// is an authentication error with the remote host.
+			if err = dp(data); err != nil {
+				rq.logger.Error("Error in replication stream", zap.Error(err))
+				return false
+			}
+		} else { // Batch data and send batches to write function
+			var batch []byte
+
+			for len(data) > maxRemoteWriteBatchSize {
+				batch, data = getBatch(data, maxRemoteWriteBatchSize)
+
+				if batch != nil {
+					// Unhandlable error could occur here as well
+					if err = dp(batch); err != nil {
+						rq.logger.Error("Error in replication stream", zap.Error(err))
+						return false
+					}
+				}
+			}
 		}
 	}
 
@@ -367,4 +391,28 @@ func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byt
 	qm.replicationQueues[replicationID].receive <- struct{}{}
 
 	return nil
+}
+
+func getBatch(data []byte, batchSize int) ([]byte, []byte) {
+	if len(data) <= batchSize {
+		return data, nil
+	}
+
+	// Find index of last newline before batch max size is reached, to avoid splitting up line protocol
+	cutoffByte := batchSize - 1
+
+	for data[cutoffByte] != byte('\n') {
+		if cutoffByte == 0 {
+			cutoffByte = batchSize - 1
+			break
+		}
+
+		cutoffByte--
+	}
+
+	// Split data into a batch and remaining data
+	batch := data[0:(cutoffByte + 1)]
+	remainingData := data[(cutoffByte + 1):]
+
+	return batch, remainingData
 }

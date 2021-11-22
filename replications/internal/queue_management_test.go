@@ -372,3 +372,25 @@ func TestGoroutineCloses(t *testing.T) {
 	// if this does not panic, then the routine is still active
 	require.Panics(t, func() { rq.wg.Add(-1) })
 }
+
+func TestGetBatch(t *testing.T) {
+	t.Parallel()
+
+	var batch, testData []byte
+
+	// Data is larger than batch size
+	testData = []byte("weather,location=us-midwest temperature=82\n1465839830100400200weather,location=us-midwest temperature=82 1465839830100400200\n")
+	batchSize := 100
+
+	// Get first batch and check that it is correct
+	batch, testData = getBatch(testData, batchSize)
+	require.Equal(t, []byte("weather,location=us-midwest temperature=82\n"), batch)
+
+	// Get second batch and check that it is correct
+	batch, testData = getBatch(testData, batchSize)
+	require.Equal(t, []byte("1465839830100400200weather,location=us-midwest temperature=82 1465839830100400200\n"), batch)
+
+	// Try getting another batch, should return nil
+	batch, testData = getBatch(testData, batchSize)
+	require.Nil(t, batch)
+}
