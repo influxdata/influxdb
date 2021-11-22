@@ -6,7 +6,7 @@ edition = "2021"
 description = "Apache Arrow utilities"
 
 [dependencies]
-ahash = "0.7.5"
+ahash = { version = "0.7.5", default-features = false }
 arrow = { version = "6.0", features = ["prettyprint"] }
 # used by arrow anyway (needed for printing workaround)
 chrono = "0.4"
