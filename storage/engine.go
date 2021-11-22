@@ -128,7 +128,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e.tsdbStore.EngineOptions.EngineVersion = c.Data.Engine
 	e.tsdbStore.EngineOptions.IndexVersion = c.Data.Index
 
-	pw := coordinator.NewPointsWriter(c.WriteTimeout)
+	pw := coordinator.NewPointsWriter(c.WriteTimeout, path)
 	pw.TSDBStore = e.tsdbStore
 	pw.MetaClient = e.metaClient
 	e.pointsWriter = pw
@@ -166,6 +166,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
 	metrics = append(metrics, tsm1.PrometheusCollectors()...)
+	metrics = append(metrics, coordinator.PrometheusCollectors()...)
 	return metrics
 }
 
