@@ -25,8 +25,6 @@ const (
 	statWriteDrop          = "writeDrop"
 	statWriteTimeout       = "writeTimeout"
 	statWriteErr           = "writeError"
-	statSubWriteOK         = "subWriteOk"
-	statSubWriteDrop       = "subWriteDrop"
 )
 
 var (
@@ -60,8 +58,6 @@ type PointsWriter struct {
 		CreateShard(ctx context.Context, database, retentionPolicy string, shardID uint64, enabled bool) error
 		WriteToShard(ctx context.Context, shardID uint64, points []models.Point) error
 	}
-
-	subPoints []chan<- *WritePointsRequest
 
 	stats *WriteStatistics
 }
@@ -135,17 +131,7 @@ func (w *PointsWriter) Close() error {
 	if w.closing != nil {
 		close(w.closing)
 	}
-	if w.subPoints != nil {
-		// 'nil' channels always block so this makes the
-		// select statement in WritePoints hit its default case
-		// dropping any in-flight writes.
-		w.subPoints = nil
-	}
 	return nil
-}
-
-func (w *PointsWriter) AddWriteSubscriber(c chan<- *WritePointsRequest) {
-	w.subPoints = append(w.subPoints, c)
 }
 
 // WithLogger sets the Logger on w.
@@ -162,8 +148,6 @@ type WriteStatistics struct {
 	WriteDropped       int64
 	WriteTimeout       int64
 	WriteErr           int64
-	SubWriteOK         int64
-	SubWriteDrop       int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -179,8 +163,6 @@ func (w *PointsWriter) Statistics(tags map[string]string) []models.Statistic {
 			statWriteDrop:          atomic.LoadInt64(&w.stats.WriteDropped),
 			statWriteTimeout:       atomic.LoadInt64(&w.stats.WriteTimeout),
 			statWriteErr:           atomic.LoadInt64(&w.stats.WriteErr),
-			statSubWriteOK:         atomic.LoadInt64(&w.stats.SubWriteOK),
-			statSubWriteDrop:       atomic.LoadInt64(&w.stats.SubWriteDrop),
 		},
 	}}
 }
@@ -373,29 +355,6 @@ func (w *PointsWriter) WritePointsPrivileged(
 			}
 			ch <- err
 		}(shardMappings.Shards[shardID], database, retentionPolicy, points)
-	}
-
-	// Send points to subscriptions if possible.
-	var ok, dropped int64
-	pts := &WritePointsRequest{Database: database, RetentionPolicy: retentionPolicy, Points: points}
-	// We need to lock just in case the channel is about to be nil'ed
-	w.mu.RLock()
-	for _, ch := range w.subPoints {
-		select {
-		case ch <- pts:
-			ok++
-		default:
-			dropped++
-		}
-	}
-	w.mu.RUnlock()
-
-	if ok > 0 {
-		atomic.AddInt64(&w.stats.SubWriteOK, ok)
-	}
-
-	if dropped > 0 {
-		atomic.AddInt64(&w.stats.SubWriteDrop, dropped)
 	}
 
 	if err == nil && len(shardMappings.Dropped) > 0 {
