@@ -112,7 +112,12 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
 
     pbjson_build::Builder::new()
         .register_descriptors(&descriptor_set)?
-        .build(&[".influxdata", ".google.longrunning", ".google.rpc"])?;
+        .build(&[
+            ".influxdata.iox",
+            ".influxdata.pbdata",
+            ".google.longrunning",
+            ".google.rpc",
+        ])?;
 
     Ok(())
 }

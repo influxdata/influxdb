@@ -20,18 +20,16 @@ message OffsetsResponse {
     repeated PartitionOffsetResponse partitions = 1;
 }
 
-// TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
-// the variants can use camel case again.
 enum TagKeyMetaNames {
   // option (gogoproto.goproto_enum_prefix) = false;
 
   // TagKeyMetaNamesText means the tag keys for measurement and field will
   // be returned as _measurement and _field respectively.
-  TAG_KEY_META_NAMES_TEXT = 0;
+  TagKeyMetaNamesText = 0;
 
-  // TAGKEYMETANAMES MEANS THE TAG KEYS FOR MEASUREMENT AND FIELD WILL
-  // BE RETURNED AS \X00 AND \XFF RESPECTIVELY.
-  TAG_KEY_META_NAMES_BINARY = 1;
+  // TagKeyMetaNames means the tag keys for measurement and field will
+  // be returned as \x00 and \xff respectively.
+  TagKeyMetaNamesBinary = 1;
 }
 
 message ReadFilterRequest {
@@ -45,19 +43,17 @@ message ReadFilterRequest {
   // tags.
   TagKeyMetaNames tag_key_meta_names = 5;
 
-  // TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
-  // the variants can use camel case again.
   enum KeySort {
     // option (gogoproto.goproto_enum_prefix) = false;
 
     // KeySortUnspecified means the key order is unspecified.
-    KEY_SORT_UNSPECIFIED = 0;
+    KeySortUnspecified = 0;
 
     // KeySortAscending means the key order should be lexicographically ascending.
     //
     // NOTE: In order to preserve sort order, canonical tag keys are not
     // transformed from 0x00 → _measurement and 0xff → _field.
-    KEY_SORT_ASCENDING = 1;
+    KeySortAscending = 1;
   }
 }
 
@@ -68,16 +64,13 @@ message ReadGroupRequest {
 
   enum Group {
     // option (gogoproto.goproto_enum_prefix) = false;
-
-    // TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
-    // the variants can use camel case again.
     
     // GroupNone returns all series as a single group.
     // The single GroupFrame.TagKeys will be the union of all tag keys.
-    GROUP_NONE = 0;
+    GroupNone = 0;
 
     // GroupBy returns a group for each unique value of the specified GroupKeys.
-    GROUP_BY = 2;
+    GroupBy = 2;
   }
 
   // GroupKeys specifies a list of tag keys used to order the data.
@@ -91,18 +84,16 @@ message ReadGroupRequest {
   reserved "Hints"; 
 }
 
-// TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
-// the variants can use camel case again.
 message Aggregate {
   enum AggregateType {
-    AGGREGATE_TYPE_NONE = 0;
-    AGGREGATE_TYPE_SUM = 1;
-    AGGREGATE_TYPE_COUNT = 2;
-    AGGREGATE_TYPE_MIN = 3;
-    AGGREGATE_TYPE_MAX = 4;
-    AGGREGATE_TYPE_FIRST = 5;
-    AGGREGATE_TYPE_LAST = 6;
-    AGGREGATE_TYPE_MEAN = 7;
+    AggregateTypeNone = 0;
+    AggregateTypeSum = 1;
+    AggregateTypeCount = 2;
+    AggregateTypeMin = 3;
+    AggregateTypeMax = 4;
+    AggregateTypeFirst = 5;
+    AggregateTypeLast = 6;
+    AggregateTypeMean = 7;
   }
 
   AggregateType type = 1;
@@ -115,23 +106,19 @@ message Tag {
   bytes value = 2;
 }
 
-// TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
-// the variants can use camel case again.
 // Response message for ReadFilter and ReadGroup
 message ReadResponse {
   enum FrameType {
-    FRAME_TYPE_SERIES = 0;
-    FRAME_TYPE_POINTS = 1;
+    FrameTypeSeries = 0;
+    FrameTypePoints = 1;
   }
 
-  // TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
-  // the variants can use camel case again.
   enum DataType {
-    DATA_TYPE_FLOAT = 0;
-    DATA_TYPE_INTEGER = 1;
-    DATA_TYPE_UNSIGNED = 2;
-    DATA_TYPE_BOOLEAN = 3;
-    DATA_TYPE_STRING = 4;
+    DataTypeFloat = 0;
+    DataTypeInteger = 1;
+    DataTypeUnsigned = 2;
+    DataTypeBoolean = 3;
+    DataTypeString = 4;
   }
 
   message Frame {
@@ -279,18 +266,15 @@ message MeasurementFieldsRequest {
   Predicate predicate = 4;
 }
 
-
-// TODO(edd): when https://github.com/influxdata/pbjson/issues/15 is fixed
-// the variants can use camel case again.
 // MeasurementFieldsResponse is the response message for Storage.MeasurementFields.
 message MeasurementFieldsResponse {
   enum FieldType {
-    FIELD_TYPE_FLOAT = 0;
-    FIELD_TYPE_INTEGER = 1;
-    FIELD_TYPE_UNSIGNED = 2;
-    FIELD_TYPE_STRING = 3;
-    FIELD_TYPE_BOOLEAN = 4;
-    FIELD_TYPE_UNDEFINED = 5;
+    FieldTypeFloat = 0;
+    FieldTypeInteger = 1;
+    FieldTypeUnsigned = 2;
+    FieldTypeString = 3;
+    FieldTypeBoolean = 4;
+    FieldTypeUndefined = 5;
   }
 
   message MessageField {
