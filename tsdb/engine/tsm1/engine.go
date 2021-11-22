@@ -1841,8 +1841,10 @@ func (e *Engine) WriteSnapshot() (err error) {
 	log, logEnd := logger.NewOperation(context.TODO(), e.logger, "Cache snapshot", "tsm1_cache_snapshot")
 	defer func() {
 		elapsed := time.Since(started)
-		e.Cache.UpdateCompactTime(elapsed)
-
+		if err != nil && err != errCompactionsDisabled {
+			e.stats.Failed.With(prometheus.Labels{levelKey: levelCache}).Inc()
+		}
+		e.stats.Duration.With(prometheus.Labels{levelKey: levelCache}).Observe(elapsed.Seconds())
 		if err == nil {
 			log.Info("Snapshot for path written", zap.String("path", e.path), zap.Duration("duration", elapsed))
 		}
@@ -1980,14 +1982,11 @@ func (e *Engine) compactCache() {
 		case <-t.C:
 			e.Cache.UpdateAge()
 			if e.ShouldCompactCache(time.Now()) {
-				start := time.Now()
 				e.traceLogger.Info("Compacting cache", zap.String("path", e.path))
 				err := e.WriteSnapshot()
 				if err != nil && err != errCompactionsDisabled {
 					e.logger.Info("Error writing snapshot", zap.Error(err))
-					e.stats.Failed.With(prometheus.Labels{levelKey: levelCache}).Inc()
 				}
-				e.stats.Duration.With(prometheus.Labels{levelKey: levelCache}).Observe(time.Since(start).Seconds())
 			}
 		}
 	}

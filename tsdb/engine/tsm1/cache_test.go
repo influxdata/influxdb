@@ -452,11 +452,6 @@ func TestCache_Snapshot_Stats(t *testing.T) {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
-	// Cached bytes should have been increased.
-	if got, exp := c.stats.CachedBytes, int64(16)+3; got != exp {
-		t.Fatalf("got %v, expected %v", got, exp)
-	}
-
 	if got, exp := c.stats.MemSizeBytes, int64(16)+3; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}

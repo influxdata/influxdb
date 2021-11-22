@@ -149,13 +149,11 @@ const (
 
 	statCacheMemoryBytes = "memBytes"      // level: Size of in-memory cache in bytes
 	statCacheDiskBytes   = "diskBytes"     // level: Size of on-disk snapshots in bytes
-	statSnapshots        = "snapshotCount" // level: Number of active snapshots.
 	statCacheAgeMs       = "cacheAgeMs"    // level: Number of milliseconds since cache was last snapshoted at sample time
 
 	// counters - accumulative measures
 
 	statCachedBytes         = "cachedBytes"         // counter: Total number of bytes written into snapshots.
-	statWALCompactionTimeMs = "WALCompactionTimeMs" // counter: Total number of milliseconds spent compacting snapshots
 
 	statCacheWriteOK      = "writeOk"
 	statCacheWriteErr     = "writeErr"
@@ -217,24 +215,17 @@ func NewCache(maxSize uint64) *Cache {
 	}
 	c.initialize.Store(&sync.Once{})
 	c.UpdateAge()
-	c.UpdateCompactTime(0)
-	c.updateCachedBytes(0)
-	c.updateMemSize(0)
-	c.updateSnapshots()
 	return c
 }
 
 // CacheStatistics hold statistics related to the cache.
 type CacheStatistics struct {
-	MemSizeBytes        int64
-	DiskSizeBytes       int64
-	SnapshotCount       int64
-	CacheAgeMs          int64
-	CachedBytes         int64
-	WALCompactionTimeMs int64
-	WriteOK             int64
-	WriteErr            int64
-	WriteDropped        int64
+	MemSizeBytes        int64 // Gauge, current size in memory
+	DiskSizeBytes       int64 // Gauge, size of last snapshot
+	CacheAgeMs          int64 // counter, LastSnapshotTimestamp
+	WriteOK             int64 // total writes counter
+	WriteErr            int64 // error counter
+	WriteDropped        int64 // dropped counter
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -245,10 +236,7 @@ func (c *Cache) Statistics(tags map[string]string) []models.Statistic {
 		Values: map[string]interface{}{
 			statCacheMemoryBytes:    atomic.LoadInt64(&c.stats.MemSizeBytes),
 			statCacheDiskBytes:      atomic.LoadInt64(&c.stats.DiskSizeBytes),
-			statSnapshots:           atomic.LoadInt64(&c.stats.SnapshotCount),
 			statCacheAgeMs:          atomic.LoadInt64(&c.stats.CacheAgeMs),
-			statCachedBytes:         atomic.LoadInt64(&c.stats.CachedBytes),
-			statWALCompactionTimeMs: atomic.LoadInt64(&c.stats.WALCompactionTimeMs),
 			statCacheWriteOK:        atomic.LoadInt64(&c.stats.WriteOK),
 			statCacheWriteErr:       atomic.LoadInt64(&c.stats.WriteErr),
 			statCacheWriteDropped:   atomic.LoadInt64(&c.stats.WriteDropped),
@@ -328,7 +316,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	}
 
 	// Update the memory size stat
-	c.updateMemSize(int64(addedSize))
+	atomic.StoreInt64(&c.stats.MemSizeBytes, int64(c.Size()))
 	atomic.AddInt64(&c.stats.WriteOK, 1)
 
 	c.mu.Lock()
@@ -384,9 +372,6 @@ func (c *Cache) Snapshot() (*Cache, error) {
 	atomic.StoreUint64(&c.size, 0)
 	c.lastSnapshot = time.Now()
 
-	c.updateCachedBytes(snapshotSize) // increment the number of bytes added to the snapshot
-	c.updateSnapshots()
-
 	return c.snapshot, nil
 }
 
@@ -423,16 +408,15 @@ func (c *Cache) ClearSnapshot(success bool) {
 
 	if success {
 		c.snapshotAttempts = 0
-		c.updateMemSize(-int64(atomic.LoadUint64(&c.snapshotSize))) // decrement the number of bytes in cache
 
 		// Reset the snapshot to a fresh Cache.
 		c.snapshot = &Cache{
 			store: c.snapshot.store,
 		}
-
+		atomic.StoreInt64(&c.stats.DiskSizeBytes, int64(atomic.LoadUint64(&c.snapshotSize)))
 		atomic.StoreUint64(&c.snapshotSize, 0)
-		c.updateSnapshots()
 	}
+	atomic.StoreInt64(&c.stats.MemSizeBytes, int64(c.Size()))
 }
 
 // Size returns the number of point-calcuated bytes the cache currently uses.
@@ -748,21 +732,6 @@ func (c *Cache) UpdateAge() {
 	atomic.StoreInt64(&c.stats.CacheAgeMs, ageStat)
 }
 
-// UpdateCompactTime updates WAL compaction time statistic based on d.
-func (c *Cache) UpdateCompactTime(d time.Duration) {
-	atomic.AddInt64(&c.stats.WALCompactionTimeMs, int64(d/time.Millisecond))
-}
-
-// updateCachedBytes increases the cachedBytes counter by b.
-func (c *Cache) updateCachedBytes(b uint64) {
-	atomic.AddInt64(&c.stats.CachedBytes, int64(b))
-}
-
-// updateMemSize updates the memSize level by b.
-func (c *Cache) updateMemSize(b int64) {
-	atomic.AddInt64(&c.stats.MemSizeBytes, b)
-}
-
 const (
 	valueTypeUndefined = 0
 	valueTypeFloat64   = 1
@@ -787,13 +756,6 @@ func valueType(v Value) byte {
 	default:
 		return valueTypeUndefined
 	}
-}
-
-// updateSnapshots updates the snapshotsCount and the diskSize levels.
-func (c *Cache) updateSnapshots() {
-	// Update disk stats
-	atomic.StoreInt64(&c.stats.DiskSizeBytes, int64(atomic.LoadUint64(&c.snapshotSize)))
-	atomic.StoreInt64(&c.stats.SnapshotCount, int64(c.snapshotAttempts))
 }
 
 type emptyStore struct{}
