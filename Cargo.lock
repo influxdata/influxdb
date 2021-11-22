@@ -1679,7 +1679,6 @@ dependencies = [
  "tokio",
  "tonic",
  "uuid",
- "workspace-hack",
 ]
 
 [[package]]
@@ -4760,7 +4759,6 @@ dependencies = [
  "thiserror",
  "tracing-log",
  "tracing-subscriber",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5102,7 +5100,6 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-core",
- "tracing-log",
  "tracing-subscriber",
  "url",
  "uuid",

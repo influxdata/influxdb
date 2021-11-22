@@ -31,7 +31,6 @@ serde_json = { version = "1.0.70", optional = true }
 thiserror = "1.0.30"
 tonic = { version = "0.5.0" }
 uuid = { version = "0.8", features = ["v4"] }
-workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
 serde_json = "1.0"

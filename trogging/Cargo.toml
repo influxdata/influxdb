@@ -14,7 +14,6 @@ thiserror = "1.0.30"
 tracing-log = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 structopt = { version = "0.3.25", optional = true }
-workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 synchronized-writer = "1"

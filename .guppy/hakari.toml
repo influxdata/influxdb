@@ -29,9 +29,11 @@ platforms = [
 workspace-members = [
     "grpc-router",
     "grpc-router-test-gen",
+    "influxdb_iox_client",
     "iox_data_generator",
     "mutable_batch_tests",
     "server_benchmarks",
+    "trogging",
 ]
 third-party = [
     { name = "tikv-jemalloc-sys" },
