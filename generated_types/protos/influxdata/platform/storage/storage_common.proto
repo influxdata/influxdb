@@ -9,6 +9,7 @@ package influxdata.platform.storage;
 
 import "google/protobuf/any.proto";
 import "influxdata/platform/storage/predicate.proto";
+import "influxdata/platform/storage/source.proto";
 
 
 message OffsetsResponse {
