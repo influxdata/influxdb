@@ -43,7 +43,6 @@ type TSDBStoreMock struct {
 	ShardNFn                  func() int
 	ShardRelativePathFn       func(id uint64) (string, error)
 	ShardsFn                  func(ids []uint64) []*tsdb.Shard
-	StatisticsFn              func(tags map[string]string) []models.Statistic
 	TagKeysFn                 func(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValuesFn               func(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 	WithLoggerFn              func(log *zap.Logger)
@@ -134,9 +133,6 @@ func (s *TSDBStoreMock) ShardRelativePath(id uint64) (string, error) {
 }
 func (s *TSDBStoreMock) Shards(ids []uint64) []*tsdb.Shard {
 	return s.ShardsFn(ids)
-}
-func (s *TSDBStoreMock) Statistics(tags map[string]string) []models.Statistic {
-	return s.StatisticsFn(tags)
 }
 func (s *TSDBStoreMock) TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error) {
 	return s.TagKeysFn(ctx, auth, shardIDs, cond)

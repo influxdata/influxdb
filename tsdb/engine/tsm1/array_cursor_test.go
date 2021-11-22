@@ -73,7 +73,7 @@ func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 	t.Run("cache", func(t *testing.T) {
 		dir := MustTempDir()
 		defer os.RemoveAll(dir)
-		fs := NewFileStore(dir)
+		fs := NewFileStore(dir, EngineTags{})
 
 		const START, END = 10, 1
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
@@ -96,7 +96,7 @@ func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 	t.Run("tsm", func(t *testing.T) {
 		dir := MustTempDir()
 		defer os.RemoveAll(dir)
-		fs := NewFileStore(dir)
+		fs := NewFileStore(dir, EngineTags{})
 
 		const START, END = 10, 1
 
@@ -133,7 +133,7 @@ func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 func TestFileStore_DuplicatePoints(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
-	fs := NewFileStore(dir)
+	fs := NewFileStore(dir, EngineTags{})
 
 	makeVals := func(ts ...int64) []Value {
 		vals := make([]Value, len(ts))
@@ -218,7 +218,7 @@ func (p Int64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 func TestFileStore_MergeBlocksLargerThat1000_SecondEntirelyContained(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
-	fs := NewFileStore(dir)
+	fs := NewFileStore(dir, EngineTags{})
 
 	// makeVals creates count points starting at ts and incrementing by step
 	makeVals := func(ts, count, step int64) []Value {
@@ -320,7 +320,7 @@ func (a *FloatArray) Swap(i, j int) {
 func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
-	fs := NewFileStore(dir)
+	fs := NewFileStore(dir, EngineTags{})
 
 	// makeVals creates count points starting at ts and incrementing by step
 	makeVals := func(ts, count, step int64, v float64) []Value {
@@ -414,7 +414,7 @@ func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing
 func TestFileStore_SeekBoundaries(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
-	fs := NewFileStore(dir)
+	fs := NewFileStore(dir, EngineTags{})
 
 	// makeVals creates count points starting at ts and incrementing by step
 	makeVals := func(ts, count, step int64, v float64) []Value {
