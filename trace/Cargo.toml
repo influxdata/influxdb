@@ -6,8 +6,7 @@ edition = "2021"
 description = "Distributed tracing support within IOx"
 
 [dependencies]
-
-chrono = "0.4"
+chrono = { version = "0.4", default-features = false }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11"
 rand = "0.8"

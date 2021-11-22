@@ -11,7 +11,7 @@ async-trait = "0.1.42"
 azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "cb5aba657fe378009c38e979434b2bc93ac0a3d5", optional = true }
 azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "cb5aba657fe378009c38e979434b2bc93ac0a3d5", optional = true, default-features = false, features = ["table", "blob", "queue"] }
 bytes = "1.0"
-chrono = "0.4"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # Google Cloud Storage integration
 cloud-storage = {version = "0.10.3", optional = true}
 futures = "0.3"
