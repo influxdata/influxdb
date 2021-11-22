@@ -10,3 +10,4 @@ datafusion = { path = "../datafusion" }
 futures = "0.3"
 tokio = { version = "1.13", features = ["macros"] }
 tokio-stream = "0.1.8"
+workspace-hack = { path = "../workspace-hack"}

@@ -9,6 +9,7 @@ edition = "2021"
 observability_deps = { path = "../observability_deps" }
 metric = { path = "../metric" }
 prometheus = { version = "0.13", default-features = false }
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

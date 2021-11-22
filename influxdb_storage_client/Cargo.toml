@@ -10,5 +10,6 @@ generated_types = { path = "../generated_types" }
 prost = "0.8"
 tonic = { version = "0.5.0" }
 futures-util = { version = "0.3.1" }
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

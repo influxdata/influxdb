@@ -9,6 +9,7 @@ internal_types = { path = "../internal_types" }
 observability_deps = { path = "../observability_deps" }
 snafu = "0.6.2"
 time = { path = "../time" }
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 test_helpers = { path = "../test_helpers" }

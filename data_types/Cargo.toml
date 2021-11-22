@@ -17,6 +17,7 @@ siphasher = "0.3"
 snafu = "0.6"
 time = { path = "../time" }
 uuid = { version = "0.8", features = ["v4"] }
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
