@@ -10,16 +10,18 @@ import (
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
+	"github.com/influxdata/influxdb/v2/replications/metrics"
 	"go.uber.org/zap"
 )
 
 type replicationQueue struct {
-	queue   *durablequeue.Queue
-	wg      sync.WaitGroup
-	done    chan struct{}
-	receive chan struct{}
-	logger  *zap.Logger
-
+	id        platform.ID
+	queue     *durablequeue.Queue
+	wg        sync.WaitGroup
+	done      chan struct{}
+	receive   chan struct{}
+	logger    *zap.Logger
+	metrics   *metrics.ReplicationsMetrics
 	writeFunc func([]byte) error
 }
 
@@ -28,16 +30,16 @@ type durableQueueManager struct {
 	logger            *zap.Logger
 	queuePath         string
 	mutex             sync.RWMutex
-
-	writeFunc func([]byte) error
+	metrics           *metrics.ReplicationsMetrics
+	writeFunc         func([]byte) error
 }
 
 var errStartup = errors.New("startup tasks for replications durable queue management failed, see server logs for details")
 var errShutdown = errors.New("shutdown tasks for replications durable queues failed, see server logs for details")
 
 // NewDurableQueueManager creates a new durableQueueManager struct, for managing durable queues associated with
-//replication streams.
-func NewDurableQueueManager(log *zap.Logger, queuePath string, writeFunc func([]byte) error) *durableQueueManager {
+// replication streams.
+func NewDurableQueueManager(log *zap.Logger, queuePath string, metrics *metrics.ReplicationsMetrics, writeFunc func([]byte) error) *durableQueueManager {
 	replicationQueues := make(map[platform.ID]*replicationQueue)
 
 	os.MkdirAll(queuePath, 0777)
@@ -46,6 +48,7 @@ func NewDurableQueueManager(log *zap.Logger, queuePath string, writeFunc func([]
 		replicationQueues: replicationQueues,
 		logger:            log,
 		queuePath:         queuePath,
+		metrics:           metrics,
 		writeFunc:         writeFunc,
 	}
 }
@@ -91,14 +94,8 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 	}
 
 	// Map new durable queue and scanner to its corresponding replication stream via replication ID
-	rq := replicationQueue{
-		queue:     newQueue,
-		done:      make(chan struct{}),
-		receive:   make(chan struct{}),
-		logger:    qm.logger.With(zap.String("replication_id", replicationID.String())),
-		writeFunc: qm.writeFunc,
-	}
-	qm.replicationQueues[replicationID] = &rq
+	rq := qm.newReplicationQueue(replicationID, newQueue)
+	qm.replicationQueues[replicationID] = rq
 	rq.Open()
 
 	qm.logger.Debug("Created new durable queue for replication stream",
@@ -122,6 +119,7 @@ func (rq *replicationQueue) Close() error {
 // WriteFunc is currently a placeholder for the "default" behavior
 // of the queue scanner sending data from the durable queue to a remote host.
 func WriteFunc(b []byte) error {
+	// TODO: Add metrics updates for BytesSent, BytesDropped, and ErrorCodes
 	return nil
 }
 
@@ -144,7 +142,6 @@ func (rq *replicationQueue) run() {
 // Retryable errors should be handled and retried in the dp function.
 // Unprocessable data should be dropped in the dp function.
 func (rq *replicationQueue) SendWrite(dp func([]byte) error) bool {
-
 	// Any error in creating the scanner should exit the loop in run()
 	// Either it is io.EOF indicating no data, or some other failure in making
 	// the Scanner object that we don't know how to handle.
@@ -157,7 +154,6 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) bool {
 	}
 
 	for scan.Next() {
-
 		// An io.EOF error here indicates that there is no more data
 		// left to process, and is an expected error.
 		if scan.Err() == io.EOF {
@@ -179,6 +175,11 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) bool {
 			return false
 		}
 	}
+
+	// Update metrics after the call to scan.Advance()
+	defer func() {
+		rq.metrics.Dequeue(rq.id, rq.queue.DiskUsage())
+	}()
 
 	if _, err = scan.Advance(); err != nil {
 		if err != io.EOF {
@@ -285,13 +286,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 			errOccurred = true
 			continue
 		} else {
-			qm.replicationQueues[id] = &replicationQueue{
-				queue:     queue,
-				done:      make(chan struct{}),
-				receive:   make(chan struct{}),
-				logger:    qm.logger.With(zap.String("replication_id", id.String())),
-				writeFunc: qm.writeFunc,
-			}
+			qm.replicationQueues[id] = qm.newReplicationQueue(id, queue)
 			qm.replicationQueues[id].Open()
 			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
 		}
@@ -353,18 +348,34 @@ func (qm *durableQueueManager) CloseAll() error {
 }
 
 // EnqueueData persists a set of bytes to a replication's durable queue.
-func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byte) error {
+func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byte, numPoints int) error {
 	qm.mutex.RLock()
 	defer qm.mutex.RUnlock()
 
-	if _, exist := qm.replicationQueues[replicationID]; !exist {
+	rq, ok := qm.replicationQueues[replicationID]
+	if !ok {
 		return fmt.Errorf("durable queue not found for replication ID %q", replicationID)
 	}
 
-	if err := qm.replicationQueues[replicationID].queue.Append(data); err != nil {
+	if err := rq.queue.Append(data); err != nil {
 		return err
 	}
+	// Update metrics for this replication queue when adding data to the queue.
+	qm.metrics.EnqueueData(replicationID, len(data), numPoints, rq.queue.DiskUsage())
+
 	qm.replicationQueues[replicationID].receive <- struct{}{}
 
 	return nil
+}
+
+func (qm *durableQueueManager) newReplicationQueue(id platform.ID, queue *durablequeue.Queue) *replicationQueue {
+	return &replicationQueue{
+		id:        id,
+		queue:     queue,
+		done:      make(chan struct{}),
+		receive:   make(chan struct{}),
+		logger:    qm.logger.With(zap.String("replication_id", id.String())),
+		metrics:   qm.metrics,
+		writeFunc: qm.writeFunc,
+	}
 }
