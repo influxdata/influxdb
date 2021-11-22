@@ -37,4 +37,5 @@ workspace-members = [
 ]
 third-party = [
     { name = "tikv-jemalloc-sys" },
+    { name = "pprof" },
 ]

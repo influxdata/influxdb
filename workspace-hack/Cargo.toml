@@ -29,8 +29,6 @@ getrandom = { version = "0.2", default-features = false, features = ["js", "js-s
 hashbrown = { version = "0.11", features = ["ahash", "inline-more", "raw"] }
 hyper = { version = "0.14", features = ["client", "full", "h2", "http1", "http2", "runtime", "server", "socket2", "stream", "tcp"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
-itoa = { version = "0.4", features = ["i128", "std"] }
-libc = { version = "0.2", features = ["extra_traits", "std"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
 memchr = { version = "2", features = ["std", "use_std"] }
 num-bigint = { version = "0.4", features = ["std"] }
@@ -64,7 +62,6 @@ either = { version = "1", features = ["use_std"] }
 getrandom = { version = "0.2", default-features = false, features = ["js", "js-sys", "std", "wasm-bindgen"] }
 hashbrown = { version = "0.11", features = ["ahash", "inline-more", "raw"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
-libc = { version = "0.2", features = ["extra_traits", "std"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
 memchr = { version = "2", features = ["std", "use_std"] }
 rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "rand_hc", "small_rng", "std", "std_rng"] }

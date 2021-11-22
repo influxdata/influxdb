@@ -5062,8 +5062,6 @@ dependencies = [
  "hashbrown",
  "hyper",
  "indexmap",
- "itoa",
- "libc",
  "log",
  "memchr",
  "num-bigint 0.4.3",
