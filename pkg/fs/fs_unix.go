@@ -4,7 +4,6 @@
 package fs
 
 import (
-	"io"
 	"os"
 	"syscall"
 
@@ -32,40 +31,6 @@ func SyncDir(dirName string) error {
 	}
 
 	return dir.Close()
-}
-
-// MoveFileWithReplacement copies the file contents at `src` to `dst`.
-//
-// If the file at `dst` already exists, it will be truncated and its contents
-// overwritten.
-func MoveFileWithReplacement(src, dst string) error {
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-
-	defer in.Close()
-
-	if _, err = io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-
-	if err := out.Sync(); err != nil {
-		out.Close()
-		return err
-	}
-
-	if err := out.Close(); err != nil {
-		return err
-	}
-
-	return os.Remove(src)
 }
 
 // RenameFileWithReplacement will replace any existing file at newpath with the contents
