@@ -158,13 +158,21 @@ type Engine struct {
 
 // NewEngine returns a new instance of Engine.
 func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
+	etags := EngineTags{
+		path:          path,
+		walPath:       walPath,
+		id:            fmt.Sprintf("%d", id),
+		bucket:        filepath.Base(filepath.Dir(filepath.Dir(path))), // discard shard & rp, take db
+		engineVersion: opt.EngineVersion,
+	}
+
 	var wal *WAL
 	if opt.WALEnabled {
 		wal = NewWAL(walPath, opt.Config.WALMaxConcurrentWrites, opt.Config.WALMaxWriteDelay)
 		wal.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
 	}
 
-	fs := NewFileStore(path)
+	fs := NewFileStore(path, etags)
 	fs.openLimiter = opt.OpenLimiter
 	if opt.FileStoreObserver != nil {
 		fs.WithObserver(opt.FileStoreObserver)
@@ -184,13 +192,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		planner.SetFileStore(fs)
 	}
 
-	stats := newEngineMetrics(engineTags{
-		path:          path,
-		walPath:       walPath,
-		id:            fmt.Sprintf("%d", id),
-		bucket:        filepath.Base(filepath.Dir(filepath.Dir(path))), // discard shard & rp, take db
-		engineVersion: opt.EngineVersion,
-	})
+	stats := newEngineMetrics(etags)
 	activeCompactions := &compactionCounter{}
 	e := &Engine{
 		id:           id,
@@ -597,6 +599,8 @@ func PrometheusCollectors() []prometheus.Collector {
 		globalCompactionMetrics.Active,
 		globalCompactionMetrics.Failed,
 		globalCompactionMetrics.Queued,
+		globalFileStoreMetrics.files,
+		globalFileStoreMetrics.size,
 	}
 }
 
@@ -683,11 +687,11 @@ type compactionMetrics struct {
 	Failed   *prometheus.CounterVec
 }
 
-type engineTags struct {
+type EngineTags struct {
 	path, walPath, id, bucket, engineVersion string
 }
 
-func (et *engineTags) getLabels() prometheus.Labels {
+func (et *EngineTags) getLabels() prometheus.Labels {
 	return prometheus.Labels{
 		"path":    et.path,
 		"walPath": et.walPath,
@@ -698,7 +702,7 @@ func (et *engineTags) getLabels() prometheus.Labels {
 }
 
 func engineLabelNames() []string {
-	emptyLabels := (&engineTags{}).getLabels()
+	emptyLabels := (&EngineTags{}).getLabels()
 	val := make([]string, 0, len(emptyLabels))
 	for k := range emptyLabels {
 		val = append(val, k)
@@ -706,7 +710,7 @@ func engineLabelNames() []string {
 	return val
 }
 
-func newEngineMetrics(tags engineTags) *compactionMetrics {
+func newEngineMetrics(tags EngineTags) *compactionMetrics {
 	engineLabels := tags.getLabels()
 	return &compactionMetrics{
 		Duration: globalCompactionMetrics.Duration.MustCurryWith(engineLabels),
