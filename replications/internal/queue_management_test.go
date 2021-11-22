@@ -339,14 +339,10 @@ func TestEnqueueData(t *testing.T) {
 func TestEnqueueData_WithMetrics(t *testing.T) {
 	t.Parallel()
 
-	queuePath, err := os.MkdirTemp("", "testqueue")
-	require.NoError(t, err)
-	defer os.RemoveAll(queuePath)
-
-	logger := zaptest.NewLogger(t)
-
-	qm := NewDurableQueueManager(logger, queuePath, metrics.NewReplicationsMetrics(), WriteFunc)
+	path, qm := initQueueManager(t)
+	defer os.RemoveAll(path)
 	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.DirExists(t, filepath.Join(path, id1.String()))
 
 	// close the scanner goroutine to specifically test EnqueueData()
 	rq, ok := qm.replicationQueues[id1]
