@@ -1,6 +1,5 @@
 use crate::{
-    chunk::{self, ChunkMetrics, ParquetChunk},
-    metadata::{IoxMetadata, IoxParquetMetaData},
+    chunk::{self, ParquetChunk},
     storage::Storage,
 };
 use arrow::{
@@ -12,12 +11,9 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
-    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
+    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
     server_id::ServerId,
 };
-use datafusion::physical_plan::SendableRecordBatchStream;
-use datafusion_util::MemoryStream;
 use futures::TryStreamExt;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::ObjectStore;
@@ -98,102 +94,6 @@ pub async fn load_parquet_from_store_for_path(
         .context(GettingDataFromObjectStore)?;
 
     Ok(parquet_data)
-}
-
-/// The db name to use for testing
-pub fn db_name() -> &'static str {
-    "db1"
-}
-
-/// Creates a test chunk address for a given chunk id
-pub fn chunk_addr(id: u128) -> ChunkAddr {
-    ChunkAddr {
-        db_name: Arc::from(db_name()),
-        table_name: Arc::from("table1"),
-        partition_key: Arc::from("part1"),
-        chunk_id: ChunkId::new_test(id),
-    }
-}
-
-/// Same as [`make_chunk`] but parquet file does not contain any row group.
-///
-/// TODO(raphael): Replace with ChunkGenerator
-pub async fn make_chunk(
-    iox_object_store: Arc<IoxObjectStore>,
-    column_prefix: &str,
-    addr: ChunkAddr,
-    test_size: TestSize,
-) -> ParquetChunk {
-    let (record_batches, schema, column_summaries, _num_rows) =
-        make_record_batch(column_prefix, test_size);
-    make_chunk_given_record_batch(
-        iox_object_store,
-        record_batches,
-        schema,
-        addr,
-        column_summaries,
-    )
-    .await
-}
-
-/// Create a test chunk by writing data to object store.
-///
-/// TODO: This code creates a chunk that isn't hooked up with metrics
-///
-/// TODO(raphael): Replace with ChunkGenerator
-async fn make_chunk_given_record_batch(
-    iox_object_store: Arc<IoxObjectStore>,
-    record_batches: Vec<RecordBatch>,
-    schema: Schema,
-    addr: ChunkAddr,
-    column_summaries: Vec<ColumnSummary>,
-) -> ParquetChunk {
-    let storage = Storage::new(Arc::clone(&iox_object_store));
-
-    let table_summary = TableSummary {
-        name: addr.table_name.to_string(),
-        columns: column_summaries,
-    };
-    let stream: SendableRecordBatchStream = if record_batches.is_empty() {
-        Box::pin(MemoryStream::new_with_schema(
-            record_batches,
-            Arc::clone(schema.inner()),
-        ))
-    } else {
-        Box::pin(MemoryStream::new(record_batches))
-    };
-    let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
-        Arc::clone(&addr.table_name),
-        Arc::clone(&addr.partition_key),
-    );
-    let metadata = IoxMetadata {
-        creation_timestamp: Time::from_timestamp(10, 20),
-        table_name: Arc::clone(&addr.table_name),
-        partition_key: Arc::clone(&addr.partition_key),
-        chunk_id: addr.chunk_id,
-        partition_checkpoint,
-        database_checkpoint,
-        time_of_first_write: Time::from_timestamp(30, 40),
-        time_of_last_write: Time::from_timestamp(50, 60),
-        chunk_order: ChunkOrder::new(5).unwrap(),
-    };
-    let (path, file_size_bytes, parquet_metadata) = storage
-        .write_to_object_store(addr.clone(), stream, metadata)
-        .await
-        .unwrap();
-    let rows = parquet_metadata.decode().unwrap().row_count();
-
-    ParquetChunk::new_from_parts(
-        addr.partition_key,
-        Arc::new(table_summary),
-        Arc::new(schema),
-        &path,
-        Arc::clone(&iox_object_store),
-        file_size_bytes,
-        Arc::new(parquet_metadata),
-        rows,
-        ChunkMetrics::new_unregistered(),
-    )
 }
 
 fn create_column_tag(
@@ -886,25 +786,6 @@ pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> 
     }
 
     record_batches
-}
-
-/// Create test metadata by creating a parquet file and reading it back into memory.
-///
-/// TODO(raphael): Replace with ChunkGenerator
-pub async fn make_metadata(
-    iox_object_store: &Arc<IoxObjectStore>,
-    column_prefix: &str,
-    addr: ChunkAddr,
-    test_size: TestSize,
-) -> (ParquetFilePath, IoxParquetMetaData) {
-    let chunk = make_chunk(Arc::clone(iox_object_store), column_prefix, addr, test_size).await;
-    let parquet_data = load_parquet_from_store(&chunk, Arc::clone(iox_object_store))
-        .await
-        .unwrap();
-    (
-        chunk.path().clone(),
-        IoxParquetMetaData::from_file_bytes(parquet_data).unwrap(),
-    )
 }
 
 /// Create [`PartitionCheckpoint`] and [`DatabaseCheckpoint`] for testing.

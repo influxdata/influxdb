@@ -7,6 +7,7 @@ use std::{
 use data_types::chunk_metadata::{ChunkAddr, ChunkId};
 use data_types::delete_predicate::DeletePredicate;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use parquet_file::chunk::ParquetChunk;
 use snafu::Snafu;
 
 use parquet_file::metadata::IoxParquetMetaData;
@@ -22,6 +23,17 @@ pub struct CatalogParquetInfo {
 
     /// Associated parquet metadata.
     pub metadata: Arc<IoxParquetMetaData>,
+}
+
+impl CatalogParquetInfo {
+    /// Creates a [`CatalogParquetInfo`] from a [`ParquetChunk`]
+    pub fn from_chunk(chunk: &ParquetChunk) -> Self {
+        Self {
+            path: chunk.path().clone(),
+            file_size_bytes: chunk.file_size_bytes(),
+            metadata: chunk.parquet_metadata(),
+        }
+    }
 }
 
 /// Same as [ChunkAddr] but w/o the database part.

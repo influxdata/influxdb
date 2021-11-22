@@ -62,19 +62,24 @@ impl ChunkGenerator {
         self.config = config;
     }
 
-    fn next_chunk(&mut self) -> (ChunkId, ChunkOrder) {
-        let t = self.next_chunk;
-        self.next_chunk += 1;
-        (ChunkId::new_test(t as _), ChunkOrder::new(t).unwrap())
+    pub fn partition(&self) -> &PartitionAddr {
+        &self.partition
     }
 
     pub async fn generate(&mut self) -> (ParquetChunk, IoxMetadata) {
+        let id = self.next_chunk;
+        self.next_chunk += 1;
+        self.generate_id(id).await
+    }
+
+    pub async fn generate_id(&mut self, id: u32) -> (ParquetChunk, IoxMetadata) {
         let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
             Arc::clone(&self.partition.table_name),
             Arc::clone(&self.partition.partition_key),
         );
 
-        let (chunk_id, chunk_order) = self.next_chunk();
+        let chunk_id = ChunkId::new_test(id as _);
+        let chunk_order = ChunkOrder::new(id).unwrap();
         let chunk_addr = ChunkAddr::new(&self.partition, chunk_id);
 
         let metadata = IoxMetadata {

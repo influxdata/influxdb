@@ -155,7 +155,7 @@ impl CatalogState for TracerCatalogState {
 mod tests {
     use super::*;
     use crate::test_helpers::{make_config, new_empty};
-    use parquet_file::test_utils::{chunk_addr, make_metadata, TestSize};
+    use parquet_file::test_utils::generator::ChunkGenerator;
     use std::{collections::HashSet, sync::Arc};
     use tokio::sync::RwLock;
 
@@ -176,6 +176,7 @@ mod tests {
     async fn test_cleanup_rules() {
         let config = make_config().await;
         let iox_object_store = &config.iox_object_store;
+        let mut generator = ChunkGenerator::new_with_store(Arc::clone(iox_object_store));
 
         let catalog = new_empty(config.clone()).await;
 
@@ -186,36 +187,20 @@ mod tests {
             let mut transaction = catalog.open_transaction().await;
 
             // an ordinary tracked parquet file => keep
-            let (path, metadata) =
-                make_metadata(iox_object_store, "foo", chunk_addr(1), TestSize::Full).await;
-            let metadata = Arc::new(metadata);
-            let info = CatalogParquetInfo {
-                path,
-                file_size_bytes: 33,
-                metadata,
-            };
-
-            transaction.add_parquet(&info);
-            paths_keep.push(info.path);
+            let (chunk, _) = generator.generate().await;
+            transaction.add_parquet(&CatalogParquetInfo::from_chunk(&chunk));
+            paths_keep.push(chunk.path().clone());
 
             // another ordinary tracked parquet file that was added and removed => keep (for time
             // travel)
-            let (path, metadata) =
-                make_metadata(iox_object_store, "foo", chunk_addr(2), TestSize::Full).await;
-            let metadata = Arc::new(metadata);
-            let info = CatalogParquetInfo {
-                path,
-                file_size_bytes: 33,
-                metadata,
-            };
-            transaction.add_parquet(&info);
-            transaction.remove_parquet(&info.path);
-            paths_keep.push(info.path);
+            let (chunk, _) = generator.generate().await;
+            transaction.add_parquet(&CatalogParquetInfo::from_chunk(&chunk));
+            transaction.remove_parquet(chunk.path());
+            paths_keep.push(chunk.path().clone());
 
             // an untracked parquet file => delete
-            let (path, _md) =
-                make_metadata(iox_object_store, "foo", chunk_addr(3), TestSize::Full).await;
-            paths_delete.push(path);
+            let (chunk, _) = generator.generate().await;
+            paths_delete.push(chunk.path().clone());
 
             transaction.commit().await.unwrap();
         }
@@ -224,6 +209,7 @@ mod tests {
         let files = get_unreferenced_parquet_files(&catalog, 1_000)
             .await
             .unwrap();
+
         delete_files(&catalog, &files).await.unwrap();
 
         // deleting a second time should just work
@@ -243,39 +229,33 @@ mod tests {
     async fn test_cleanup_with_parallel_transaction() {
         let config = make_config().await;
         let iox_object_store = &config.iox_object_store;
+        let mut generator = ChunkGenerator::new_with_store(Arc::clone(iox_object_store));
         let lock: RwLock<()> = Default::default();
 
         let catalog = new_empty(config.clone()).await;
 
         // try multiple times to provoke a conflict
-        for i in 0..100 {
+        for i in 1..100 {
             // Every so often try to create a file with the same ChunkAddr beforehand. This should
             // not trick the cleanup logic to remove the actual file because file paths contains a
             // UUIDv4 part.
             if i % 2 == 0 {
-                make_metadata(iox_object_store, "foo", chunk_addr(i), TestSize::Full).await;
+                generator.generate_id(i).await;
             }
 
-            let (path, _) = tokio::join!(
+            let (chunk, _) = tokio::join!(
                 async {
                     let guard = lock.read().await;
-                    let (path, md) =
-                        make_metadata(iox_object_store, "foo", chunk_addr(i), TestSize::Full).await;
 
-                    let metadata = Arc::new(md);
-                    let info = CatalogParquetInfo {
-                        path,
-                        file_size_bytes: 33,
-                        metadata,
-                    };
+                    let (chunk, _) = generator.generate_id(i).await;
 
                     let mut transaction = catalog.open_transaction().await;
-                    transaction.add_parquet(&info);
+                    transaction.add_parquet(&CatalogParquetInfo::from_chunk(&chunk));
                     transaction.commit().await.unwrap();
 
                     drop(guard);
 
-                    info.path
+                    chunk
                 },
                 async {
                     let guard = lock.write().await;
@@ -289,7 +269,7 @@ mod tests {
             );
 
             let all_files = list_all_files(iox_object_store).await;
-            assert!(dbg!(all_files).contains(dbg!(&path)));
+            assert!(dbg!(all_files).contains(dbg!(chunk.path())));
         }
     }
 
@@ -297,20 +277,15 @@ mod tests {
     async fn test_cleanup_max_files() {
         let config = make_config().await;
         let iox_object_store = &config.iox_object_store;
+        let mut generator = ChunkGenerator::new_with_store(Arc::clone(iox_object_store));
 
         let catalog = new_empty(config.clone()).await;
 
         // create some files
         let mut to_remove = HashSet::default();
-        for chunk_id in 0..3 {
-            let (path, _md) = make_metadata(
-                iox_object_store,
-                "foo",
-                chunk_addr(chunk_id),
-                TestSize::Full,
-            )
-            .await;
-            to_remove.insert(path);
+        for _ in 0..3 {
+            let (chunk, _) = generator.generate().await;
+            to_remove.insert(chunk.path().clone());
         }
 
         // run clean-up
