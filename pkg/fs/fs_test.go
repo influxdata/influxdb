@@ -10,6 +10,14 @@ import (
 )
 
 func TestRenameFileWithReplacement(t *testing.T) {
+	testFileCopyOrRename(t, "rename", fs.RenameFileWithReplacement)
+}
+
+func TestCopyFileWithReplacement(t *testing.T) {
+	testFileCopyOrRename(t, "move", fs.MoveFileWithReplacement)
+}
+
+func testFileCopyOrRename(t *testing.T, name string, testFunc func(src string, dst string) error) {
 	// sample data for loading into files
 	sampleData1 := "this is some data"
 	sampleData2 := "we got some more data"
@@ -29,8 +37,8 @@ func TestRenameFileWithReplacement(t *testing.T) {
 			t.Fatalf("got contents %q, expected %q", got, exp)
 		}
 
-		if err := fs.RenameFileWithReplacement(oldpath, newpath); err != nil {
-			t.Fatalf("ReplaceFileIfExists returned an error: %s", err)
+		if err := testFunc(oldpath, newpath); err != nil {
+			t.Fatalf("%s returned an error: %s", name, err)
 		}
 
 		if err := fs.SyncDir(filepath.Dir(oldpath)); err != nil {
@@ -60,8 +68,8 @@ func TestRenameFileWithReplacement(t *testing.T) {
 
 		root := filepath.Dir(oldpath)
 		newpath := filepath.Join(root, "foo")
-		if err := fs.RenameFileWithReplacement(oldpath, newpath); err != nil {
-			t.Fatalf("ReplaceFileIfExists returned an error: %s", err)
+		if err := testFunc(oldpath, newpath); err != nil {
+			t.Fatalf("%s returned an error: %s", name, err)
 		}
 
 		if err := fs.SyncDir(filepath.Dir(oldpath)); err != nil {

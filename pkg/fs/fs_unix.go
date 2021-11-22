@@ -4,6 +4,7 @@
 package fs
 
 import (
+	"io"
 	"os"
 	"syscall"
 
@@ -33,6 +34,40 @@ func SyncDir(dirName string) error {
 	return dir.Close()
 }
 
+// MoveFileWithReplacement copies the file contents at `src` to `dst`.
+//
+// If the file at `dst` already exists, it will be truncated and its contents
+// overwritten.
+func MoveFileWithReplacement(src, dst string) error {
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+
+	defer in.Close()
+
+	if _, err = io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+
+	if err := out.Sync(); err != nil {
+		out.Close()
+		return err
+	}
+
+	if err := out.Close(); err != nil {
+		return err
+	}
+
+	return os.Remove(src)
+}
+
 // RenameFileWithReplacement will replace any existing file at newpath with the contents
 // of oldpath.
 //
@@ -40,7 +75,11 @@ func SyncDir(dirName string) error {
 // of oldpath. If this function returns successfully, the contents of newpath will
 // be identical to oldpath, and oldpath will be removed.
 func RenameFileWithReplacement(oldpath, newpath string) error {
-	return os.Rename(oldpath, newpath)
+	if err := os.Rename(oldpath, newpath); err == nil {
+		return nil
+	}
+
+	return MoveFileWithReplacement(oldpath, newpath)
 }
 
 // RenameFile renames oldpath to newpath, returning an error if newpath already
@@ -51,7 +90,7 @@ func RenameFile(oldpath, newpath string) error {
 		return newFileExistsError(newpath)
 	}
 
-	return os.Rename(oldpath, newpath)
+	return RenameFileWithReplacement(oldpath, newpath)
 }
 
 // CreateFile creates a new file at newpath, returning an error if newpath already
