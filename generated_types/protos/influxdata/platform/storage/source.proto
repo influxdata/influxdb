@@ -1,5 +1,5 @@
 syntax = "proto3";
-package com.github.influxdata.idpe.storage.read;
+package influxdata.platform.storage.read;
 
 message ReadSource {
   // OrgID specifies the organization identifier for this request.

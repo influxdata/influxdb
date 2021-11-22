@@ -63,6 +63,7 @@ async fn read_filter_endpoint(storage_client: &mut StorageClient<Connection>, sc
         read_source,
         range,
         predicate,
+        ..Default::default()
     });
     let read_response = storage_client
         .read_filter(read_filter_request)
@@ -316,6 +317,7 @@ pub async fn regex_operator_test() {
             end: 2001, // include all data
         }),
         predicate: Some(make_regex_match_predicate("host", "^b.+")),
+        ..Default::default()
     };
 
     let expected_frames = vec![
@@ -391,7 +393,6 @@ async fn test_read_group_none_agg() {
         aggregate: Some(Aggregate {
             r#type: AggregateType::None as i32,
         }),
-        hints: 0,
     };
 
     let expected_group_frames = vec![
@@ -442,7 +443,6 @@ async fn test_read_group_none_agg_with_predicate() {
         aggregate: Some(Aggregate {
             r#type: AggregateType::None as i32,
         }),
-        hints: 0,
     };
 
     let expected_group_frames = vec![
@@ -488,7 +488,6 @@ async fn test_read_group_sum_agg() {
         aggregate: Some(Aggregate {
             r#type: AggregateType::Sum as i32,
         }),
-        hints: 0,
     };
 
     let expected_group_frames = vec![
@@ -541,7 +540,6 @@ async fn test_read_group_count_agg() {
         aggregate: Some(Aggregate {
             r#type: AggregateType::Count as i32,
         }),
-        hints: 0,
     };
 
     let expected_group_frames = vec![
@@ -595,7 +593,6 @@ async fn test_read_group_last_agg() {
         aggregate: Some(Aggregate {
             r#type: AggregateType::Last as i32,
         }),
-        hints: 0,
     };
 
     let expected_group_frames = vec![
