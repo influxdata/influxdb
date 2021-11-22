@@ -97,6 +97,9 @@ pub enum ChunkLifecycleAction {
     /// Chunk is in the process of being compacted
     Compacting,
 
+    /// Object Store Chunk is in the process of being compacted
+    CompactingObjectStore,
+
     /// Chunk is about to be dropped from memory and (if persisted) from object store
     Dropping,
 }
@@ -112,6 +115,7 @@ impl ChunkLifecycleAction {
         match self {
             Self::Persisting => "Persisting to Object Storage",
             Self::Compacting => "Compacting",
+            Self::CompactingObjectStore => "Compacting Object Store",
             Self::Dropping => "Dropping",
         }
     }

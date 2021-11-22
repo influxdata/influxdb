@@ -39,6 +39,7 @@ message OperationMetadata {
     PersistChunks persist_chunks = 11;
     DropChunk drop_chunk = 12;
     DropPartition drop_partition = 17;
+    CompactObjectStoreChunks compact_object_store_chunks = 18;
   }
 }
 
@@ -91,6 +92,23 @@ message CompactChunks {
   repeated bytes chunks = 5;
 }
 
+// Compact chunks into a single chunk
+message CompactObjectStoreChunks {
+    // name of the database
+    string db_name = 1;
+ 
+    // partition key
+    string partition_key = 2;
+ 
+    // table name
+    string table_name = 3;
+ 
+    // chunk_id
+    // UUID is stored as 16 bytes in big-endian order.
+    repeated bytes chunks = 4;
+  }
+
+  
 // Split and write chunks to object store
 message PersistChunks {
   // name of the database

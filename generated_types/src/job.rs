@@ -27,6 +27,14 @@ impl From<Job> for management::operation_metadata::Job {
                     chunks: chunks.into_iter().map(|chunk_id| chunk_id.into()).collect(),
                 })
             }
+            Job::CompactObjectStoreChunks { partition, chunks } => {
+                Self::CompactObjectStoreChunks(management::CompactObjectStoreChunks {
+                    db_name: partition.db_name.to_string(),
+                    partition_key: partition.partition_key.to_string(),
+                    table_name: partition.table_name.to_string(),
+                    chunks: chunks.into_iter().map(|chunk_id| chunk_id.into()).collect(),
+                })
+            }
             Job::PersistChunks { partition, chunks } => {
                 Self::PersistChunks(management::PersistChunks {
                     db_name: partition.db_name.to_string(),

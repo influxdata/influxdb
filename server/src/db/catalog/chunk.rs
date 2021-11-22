@@ -175,6 +175,10 @@ impl ChunkStage {
     pub fn is_open(&self) -> bool {
         matches!(self, ChunkStage::Open { .. })
     }
+
+    pub fn is_persisted(&self) -> bool {
+        matches!(self, ChunkStage::Persisted { .. })
+    }
 }
 
 /// The catalog representation of a Chunk in IOx. Note that a chunk
@@ -396,6 +400,10 @@ impl CatalogChunk {
 
     pub fn stage(&self) -> &ChunkStage {
         &self.stage
+    }
+
+    pub fn is_persisted(&self) -> bool {
+        self.stage.is_persisted()
     }
 
     /// Returns the AccessRecorder used to record access to this chunk's data by queries
@@ -720,6 +728,27 @@ impl CatalogChunk {
             }
             ChunkStage::Persisted { .. } => {
                 unexpected_state!(self, "setting compacting", "Open or Frozen", &self.stage)
+            }
+        }
+    }
+
+    /// Set the persisted chunk to be compacting
+    pub fn set_compacting_object_store(&mut self, registration: &TaskRegistration) -> Result<()> {
+        match &self.stage {
+            ChunkStage::Open { .. } | ChunkStage::Frozen { .. } => {
+                unexpected_state!(
+                    self,
+                    "setting compacting object store",
+                    "Persisted",
+                    &self.stage
+                )
+            }
+            ChunkStage::Persisted { .. } => {
+                self.set_lifecycle_action(
+                    ChunkLifecycleAction::CompactingObjectStore,
+                    registration,
+                )?;
+                Ok(())
             }
         }
     }
