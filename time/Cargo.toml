@@ -8,5 +8,6 @@ description = "Time functionality for IOx"
 
 chrono = "0.4"
 parking_lot = "0.11"
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

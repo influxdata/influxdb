@@ -15,6 +15,7 @@ parking_lot = "0.11"
 time = { path = "../time" }
 tokio = { version = "1.13", features = ["macros", "time"] }
 tracker = { path = "../tracker" }
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 tokio = { version = "1.13", features = ["macros", "time", "rt"] }

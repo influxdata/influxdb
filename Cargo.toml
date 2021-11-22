@@ -50,6 +50,7 @@ members = [
     "trace_http",
     "tracker",
     "trogging",
+    "workspace-hack",
     "write_buffer",
 ]
 default-members = ["influxdb_iox"]

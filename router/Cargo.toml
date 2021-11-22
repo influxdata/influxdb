@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1"
-cache_loader_async = "0.1.2"
+cache_loader_async = { version = "0.1.2", features = ["ttl-cache"] }
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
 hashbrown = "0.11"
@@ -19,6 +19,7 @@ parking_lot = "0.11.2"
 snafu = "0.6"
 time = { path = "../time" }
 write_buffer = { path = "../write_buffer" }
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 mutable_batch_lp = { path = "../mutable_batch_lp" }

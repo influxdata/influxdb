@@ -16,5 +16,6 @@ structopt = { version = "0.3.25" }
 thrift = { version = "0.13.0" }
 tokio = { version = "1.13", features = ["macros", "time", "sync", "rt"] }
 trace = { path = "../trace" }
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

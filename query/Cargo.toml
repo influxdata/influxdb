@@ -35,6 +35,7 @@ tokio-stream = "0.1.8"
 tokio-util = { version = "0.6.9" }
 trace = { path = "../trace" }
 predicate = { path = "../predicate" }
+workspace-hack = { path = "../workspace-hack"}
 
 
 # use libc on unix like platforms to set worker priority in DedicatedExecutor

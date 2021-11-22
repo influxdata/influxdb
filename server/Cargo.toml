@@ -56,6 +56,7 @@ tokio-util = { version = "0.6.9" }
 tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["serde", "v4"] }
 write_buffer = { path = "../write_buffer" }
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

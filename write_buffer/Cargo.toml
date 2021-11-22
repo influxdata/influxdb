@@ -25,6 +25,7 @@ tokio = { version = "1.13", features = ["macros", "fs"] }
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
 uuid = { version = "0.8", features = ["serde", "v4"] }
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 tempfile = "3.1.0"

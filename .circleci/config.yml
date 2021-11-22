@@ -40,6 +40,7 @@ commands:
             rustup show
             cargo fmt --version
             cargo clippy --version
+            cargo install cargo-hakari && cargo hakari --version
 
   cache_restore:
     description: Restore Cargo Cache
@@ -137,6 +138,19 @@ jobs:
           command: tar -cvzf rustdoc.tar.gz target/doc/
       - store_artifacts:
           path: rustdoc.tar.gz
+  workspace_hack_checks:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    steps:
+      - checkout
+      - rust_components
+      - cache_restore
+      - run:
+          name: Check that the workspace hack crate contains all features in use
+          command: cargo hakari generate --diff || echo "If this fails, fix it by running \`cargo hakari generate\` locally and committing the changes"
+      - run:
+          name: Check that all crates in the workspace depend on the workspace hack crate
+          command: cargo hakari manage-deps --dry-run || echo "If this fails, fix it by running \`cargo hakari manage-deps\` locally and committing the changes"
 
   test:
     docker:
@@ -414,6 +428,7 @@ workflows:
       - test_perf
       - build
       - doc
+      - workspace_hack_checks
       - perf_image:
           filters:
             branches:

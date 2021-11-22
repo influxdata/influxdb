@@ -31,6 +31,7 @@ reqwest = { version = "0.11", optional = true }
 # Filesystem integration
 walkdir = "2"
 tempfile = "3.1.0"
+workspace-hack = { path = "../workspace-hack"}
 
 [features]
 azure = ["azure_core", "azure_storage", "indexmap", "reqwest"]
