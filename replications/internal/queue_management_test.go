@@ -364,13 +364,13 @@ func TestEnqueueData_WithMetrics(t *testing.T) {
 		go func() { <-rq.receive }() // absorb the receive to avoid testcase deadlock
 		require.NoError(t, qm.EnqueueData(id1, data, numPointsPerData))
 
-		pointCount := getPromMetric(t, "replications_queue_management_total_points_queued", reg)
+		pointCount := getPromMetric(t, "replications_queue_total_points_queued", reg)
 		require.Equal(t, i*numPointsPerData, int(pointCount.Counter.GetValue()))
 
-		totalBytesQueued := getPromMetric(t, "replications_queue_management_total_bytes_queued", reg)
+		totalBytesQueued := getPromMetric(t, "replications_queue_total_bytes_queued", reg)
 		require.Equal(t, i*len(data), int(totalBytesQueued.Counter.GetValue()))
 
-		currentBytesQueued := getPromMetric(t, "replications_queue_management_current_bytes_queued", reg)
+		currentBytesQueued := getPromMetric(t, "replications_queue_current_bytes_queued", reg)
 		// 8 bytes for an empty queue; 8 extra bytes for each byte slice appended to the queue
 		require.Equal(t, 8+i*(8+len(data)), int(currentBytesQueued.Gauge.GetValue()))
 	}
@@ -385,7 +385,7 @@ func TestEnqueueData_WithMetrics(t *testing.T) {
 	})
 
 	// Ensure that the smaller queue disk size was reflected in the metrics.
-	currentBytesQueued := getPromMetric(t, "replications_queue_management_current_bytes_queued", reg)
+	currentBytesQueued := getPromMetric(t, "replications_queue_current_bytes_queued", reg)
 	require.Less(t, int64(currentBytesQueued.Gauge.GetValue()), queueSizeBefore)
 }
 

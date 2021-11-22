@@ -94,16 +94,8 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 	}
 
 	// Map new durable queue and scanner to its corresponding replication stream via replication ID
-	rq := replicationQueue{
-		id:        replicationID,
-		queue:     newQueue,
-		done:      make(chan struct{}),
-		receive:   make(chan struct{}),
-		logger:    qm.logger.With(zap.String("replication_id", replicationID.String())),
-		metrics:   qm.metrics,
-		writeFunc: qm.writeFunc,
-	}
-	qm.replicationQueues[replicationID] = &rq
+	rq := qm.newReplicationQueue(replicationID, newQueue)
+	qm.replicationQueues[replicationID] = rq
 	rq.Open()
 
 	qm.logger.Debug("Created new durable queue for replication stream",
@@ -294,15 +286,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 			errOccurred = true
 			continue
 		} else {
-			qm.replicationQueues[id] = &replicationQueue{
-				id:        id,
-				queue:     queue,
-				done:      make(chan struct{}),
-				receive:   make(chan struct{}),
-				logger:    qm.logger.With(zap.String("replication_id", id.String())),
-				metrics:   qm.metrics,
-				writeFunc: qm.writeFunc,
-			}
+			qm.replicationQueues[id] = qm.newReplicationQueue(id, queue)
 			qm.replicationQueues[id].Open()
 			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
 		}
@@ -382,4 +366,16 @@ func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byt
 	qm.replicationQueues[replicationID].receive <- struct{}{}
 
 	return nil
+}
+
+func (qm *durableQueueManager) newReplicationQueue(id platform.ID, queue *durablequeue.Queue) *replicationQueue {
+	return &replicationQueue{
+		id:        id,
+		queue:     queue,
+		done:      make(chan struct{}),
+		receive:   make(chan struct{}),
+		logger:    qm.logger.With(zap.String("replication_id", id.String())),
+		metrics:   qm.metrics,
+		writeFunc: qm.writeFunc,
+	}
 }

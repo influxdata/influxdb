@@ -13,7 +13,7 @@ type ReplicationsMetrics struct {
 
 func NewReplicationsMetrics() *ReplicationsMetrics {
 	const namespace = "replications"
-	const subsystem = "queue_management"
+	const subsystem = "queue"
 
 	return &ReplicationsMetrics{
 		TotalPointsQueued: prometheus.NewCounterVec(prometheus.CounterOpts{
