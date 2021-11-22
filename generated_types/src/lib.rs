@@ -9,7 +9,10 @@
 pub mod influxdata {
     pub mod platform {
         pub mod storage {
-            include!(concat!(env!("OUT_DIR"), "/influxdata.platform.read.rs"));
+            include!(concat!(
+                env!("OUT_DIR"),
+                "/influxdata.platform.storage.read.rs"
+            ));
             include!(concat!(env!("OUT_DIR"), "/influxdata.platform.storage.rs"));
             include!(concat!(
                 env!("OUT_DIR"),
