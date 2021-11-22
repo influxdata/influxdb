@@ -326,6 +326,13 @@ func newAllFileStoreMetrics() *allFileStoreMetrics {
 	}
 }
 
+func FileStoreCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		globalFileStoreMetrics.files,
+		globalFileStoreMetrics.size,
+	}
+}
+
 func newFileStoreMetrics(tags EngineTags) *fileStoreMetrics {
 	labels := tags.getLabels()
 	return &fileStoreMetrics{

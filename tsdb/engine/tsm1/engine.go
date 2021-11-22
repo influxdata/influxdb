@@ -179,7 +179,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 	}
 	fs.tsmMMAPWillNeed = opt.Config.TSMWillNeed
 
-	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize))
+	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), etags)
 
 	c := NewCompactor()
 	c.Dir = path
@@ -594,14 +594,15 @@ var globalCompactionMetrics *compactionMetrics = newAllCompactionMetrics(engineL
 
 // PrometheusCollectors returns all prometheus metrics for the tsm1 package.
 func PrometheusCollectors() []prometheus.Collector {
-	return []prometheus.Collector{
+	collectors := []prometheus.Collector{
 		globalCompactionMetrics.Duration,
 		globalCompactionMetrics.Active,
 		globalCompactionMetrics.Failed,
 		globalCompactionMetrics.Queued,
-		globalFileStoreMetrics.files,
-		globalFileStoreMetrics.size,
 	}
+	collectors = append(collectors, FileStoreCollectors()...)
+	collectors = append(collectors, CacheCollectors()...)
+	return collectors
 }
 
 const (
@@ -1980,7 +1981,6 @@ func (e *Engine) compactCache() {
 			return
 
 		case <-t.C:
-			e.Cache.UpdateAge()
 			if e.ShouldCompactCache(time.Now()) {
 				e.traceLogger.Info("Compacting cache", zap.String("path", e.path))
 				err := e.WriteSnapshot()
