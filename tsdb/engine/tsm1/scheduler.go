@@ -7,19 +7,19 @@ import (
 var defaultWeights = [4]float64{0.4, 0.3, 0.2, 0.1}
 
 type scheduler struct {
-	maxConcurrency int
-	stats          *EngineStatistics
+	maxConcurrency    int
+	activeCompactions *compactionCounter
 
 	// queues is the depth of work pending for each compaction level
 	queues  [4]int
 	weights [4]float64
 }
 
-func newScheduler(stats *EngineStatistics, maxConcurrency int) *scheduler {
+func newScheduler(activeCompactions *compactionCounter, maxConcurrency int) *scheduler {
 	return &scheduler{
-		stats:          stats,
-		maxConcurrency: maxConcurrency,
-		weights:        defaultWeights,
+		activeCompactions: activeCompactions,
+		maxConcurrency:    maxConcurrency,
+		weights:           defaultWeights,
 	}
 }
 
@@ -33,10 +33,10 @@ func (s *scheduler) setDepth(level, depth int) {
 }
 
 func (s *scheduler) next() (int, bool) {
-	level1Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[0]))
-	level2Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[1]))
-	level3Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[2]))
-	level4Running := int(atomic.LoadInt64(&s.stats.TSMFullCompactionsActive) + atomic.LoadInt64(&s.stats.TSMOptimizeCompactionsActive))
+	level1Running := int(atomic.LoadInt64(&s.activeCompactions.l1))
+	level2Running := int(atomic.LoadInt64(&s.activeCompactions.l2))
+	level3Running := int(atomic.LoadInt64(&s.activeCompactions.l3))
+	level4Running := int(atomic.LoadInt64(&s.activeCompactions.full) + atomic.LoadInt64(&s.activeCompactions.optimize))
 
 	if level1Running+level2Running+level3Running+level4Running >= s.maxConcurrency {
 		return 0, false

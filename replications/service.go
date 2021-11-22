@@ -16,6 +16,7 @@ import (
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/replications/internal"
+	"github.com/influxdata/influxdb/v2/replications/metrics"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/sqlite"
 	"github.com/influxdata/influxdb/v2/storage"
@@ -45,7 +46,9 @@ func errLocalBucketNotFound(id platform.ID, cause error) error {
 	}
 }
 
-func NewService(store *sqlite.SqlStore, bktSvc BucketService, localWriter storage.PointsWriter, log *zap.Logger, enginePath string) *service {
+func NewService(store *sqlite.SqlStore, bktSvc BucketService, localWriter storage.PointsWriter, log *zap.Logger, enginePath string) (*service, *metrics.ReplicationsMetrics) {
+	metrs := metrics.NewReplicationsMetrics()
+
 	return &service{
 		store:         store,
 		idGenerator:   snowflake.NewIDGenerator(),
@@ -56,9 +59,10 @@ func NewService(store *sqlite.SqlStore, bktSvc BucketService, localWriter storag
 		durableQueueManager: internal.NewDurableQueueManager(
 			log,
 			filepath.Join(enginePath, "replicationq"),
+			metrs,
 			internal.WriteFunc,
 		),
-	}
+	}, metrs
 }
 
 type ReplicationValidator interface {
@@ -78,7 +82,7 @@ type DurableQueueManager interface {
 	CurrentQueueSizes(ids []platform.ID) (map[platform.ID]int64, error)
 	StartReplicationQueues(trackedReplications map[platform.ID]int64) error
 	CloseAll() error
-	EnqueueData(replicationID platform.ID, data []byte) error
+	EnqueueData(replicationID platform.ID, data []byte, numPoints int) error
 }
 
 type service struct {
@@ -459,9 +463,10 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 	for _, id := range ids {
 		go func(id platform.ID) {
 			defer wg.Done()
-			if err := s.durableQueueManager.EnqueueData(id, buf.Bytes()); err != nil {
+			if err := s.durableQueueManager.EnqueueData(id, buf.Bytes(), len(points)); err != nil {
 				s.log.Error("Failed to enqueue points for replication", zap.String("id", id.String()), zap.Error(err))
 			}
+
 		}(id)
 	}
 	wg.Wait()

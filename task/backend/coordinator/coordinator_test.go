@@ -8,11 +8,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"go.uber.org/zap/zaptest"
-
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
+	"go.uber.org/zap/zaptest"
 )
 
 func Test_Coordinator_Executor_Methods(t *testing.T) {

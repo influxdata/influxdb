@@ -20,9 +20,6 @@ import (
 )
 
 var (
-	// ErrFormatNotFound is returned when no format can be determined from a path.
-	ErrFormatNotFound = errors.New("format not found")
-
 	// ErrUnknownEngineFormat is returned when the engine format is
 	// unknown. ErrUnknownEngineFormat is currently returned if a format
 	// other than tsm1 is encountered.
@@ -74,8 +71,6 @@ type Engine interface {
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
 	TagKeyCardinality(name, key []byte) int
 
-	// Statistics will return statistics relevant to this engine.
-	Statistics(tags map[string]string) []models.Statistic
 	LastModified() time.Time
 	DiskSize() int64
 	IsIdle() (bool, string)

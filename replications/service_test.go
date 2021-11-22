@@ -645,8 +645,10 @@ disk,host=C value=1.3 1000000000`)
 	// Points should successfully be enqueued in the 2 replications associated with the local bucket.
 	for _, id := range []platform.ID{initID, initID + 2} {
 		mocks.durableQueueManager.EXPECT().
-			EnqueueData(id, gomock.Any()).
-			DoAndReturn(func(_ platform.ID, data []byte) error {
+			EnqueueData(id, gomock.Any(), len(points)).
+			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
+				require.Equal(t, len(points), numPoints)
+
 				gzBuf := bytes.NewBuffer(data)
 				gzr, err := gzip.NewReader(gzBuf)
 				require.NoError(t, err)

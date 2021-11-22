@@ -286,8 +286,6 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 		},
 	}}
 
-	// Add the index and engine statistics.
-	statistics = append(statistics, engine.Statistics(tags)...)
 	return statistics
 }
 

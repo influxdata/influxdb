@@ -8,6 +8,10 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
+	"github.com/influxdata/influxdb/v2/replications/metrics"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -43,7 +47,7 @@ func TestEnqueueScan(t *testing.T) {
 	// Enqueue some data
 	testData := "weather,location=us-midwest temperature=82 1465839830100400200"
 	qm.writeFunc = getTestWriteFunc(t, testData)
-	err = qm.EnqueueData(id1, []byte(testData))
+	err = qm.EnqueueData(id1, []byte(testData), 1)
 	require.NoError(t, err)
 }
 
@@ -60,10 +64,10 @@ func TestEnqueueScanMultiple(t *testing.T) {
 	// Enqueue some data
 	testData := "weather,location=us-midwest temperature=82 1465839830100400200"
 	qm.writeFunc = getTestWriteFunc(t, testData)
-	err = qm.EnqueueData(id1, []byte(testData))
+	err = qm.EnqueueData(id1, []byte(testData), 1)
 	require.NoError(t, err)
 
-	err = qm.EnqueueData(id1, []byte(testData))
+	err = qm.EnqueueData(id1, []byte(testData), 1)
 	require.NoError(t, err)
 }
 
@@ -270,7 +274,7 @@ func initQueueManager(t *testing.T) (string, *durableQueueManager) {
 	queuePath := filepath.Join(enginePath, "replicationq")
 
 	logger := zaptest.NewLogger(t)
-	qm := NewDurableQueueManager(logger, queuePath, WriteFunc)
+	qm := NewDurableQueueManager(logger, queuePath, metrics.NewReplicationsMetrics(), WriteFunc)
 
 	return queuePath, qm
 }
@@ -303,7 +307,7 @@ func TestEnqueueData(t *testing.T) {
 	defer os.RemoveAll(queuePath)
 
 	logger := zaptest.NewLogger(t)
-	qm := NewDurableQueueManager(logger, queuePath, WriteFunc)
+	qm := NewDurableQueueManager(logger, queuePath, metrics.NewReplicationsMetrics(), WriteFunc)
 
 	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
@@ -321,7 +325,7 @@ func TestEnqueueData(t *testing.T) {
 	close(rq.done)
 	go func() { <-rq.receive }() // absorb the receive to avoid testcase deadlock
 
-	require.NoError(t, qm.EnqueueData(id1, []byte(data)))
+	require.NoError(t, qm.EnqueueData(id1, []byte(data), 1))
 	sizes, err = qm.CurrentQueueSizes([]platform.ID{id1})
 	require.NoError(t, err)
 	require.Greater(t, sizes[id1], int64(8))
@@ -330,6 +334,62 @@ func TestEnqueueData(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, data, string(written))
+}
+
+func TestEnqueueData_WithMetrics(t *testing.T) {
+	t.Parallel()
+
+	path, qm := initQueueManager(t)
+	defer os.RemoveAll(path)
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.DirExists(t, filepath.Join(path, id1.String()))
+
+	// close the scanner goroutine to specifically test EnqueueData()
+	rq, ok := qm.replicationQueues[id1]
+	require.True(t, ok)
+	close(rq.done)
+
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
+	reg.MustRegister(qm.metrics.PrometheusCollectors()...)
+
+	data := []byte("some fake data")
+	numPointsPerData := 3
+	numDataToAdd := 4
+
+	for i := 1; i <= numDataToAdd; i++ {
+		go func() { <-rq.receive }() // absorb the receive to avoid testcase deadlock
+		require.NoError(t, qm.EnqueueData(id1, data, numPointsPerData))
+
+		pointCount := getPromMetric(t, "replications_queue_total_points_queued", reg)
+		require.Equal(t, i*numPointsPerData, int(pointCount.Counter.GetValue()))
+
+		totalBytesQueued := getPromMetric(t, "replications_queue_total_bytes_queued", reg)
+		require.Equal(t, i*len(data), int(totalBytesQueued.Counter.GetValue()))
+
+		currentBytesQueued := getPromMetric(t, "replications_queue_current_bytes_queued", reg)
+		// 8 bytes for an empty queue; 8 extra bytes for each byte slice appended to the queue
+		require.Equal(t, 8+i*(8+len(data)), int(currentBytesQueued.Gauge.GetValue()))
+	}
+
+	// Reduce the max segment size so that a new segment is created & the next call to SendWrite causes the first
+	// segment to be dropped and the queue size on disk to be lower than before when the queue head is advanced.
+	require.NoError(t, rq.queue.SetMaxSegmentSize(8))
+
+	queueSizeBefore := rq.queue.DiskUsage()
+	rq.SendWrite(func(bytes []byte) error {
+		return nil
+	})
+
+	// Ensure that the smaller queue disk size was reflected in the metrics.
+	currentBytesQueued := getPromMetric(t, "replications_queue_current_bytes_queued", reg)
+	require.Less(t, int64(currentBytesQueued.Gauge.GetValue()), queueSizeBefore)
+}
+
+func getPromMetric(t *testing.T, name string, reg *prom.Registry) *dto.Metric {
+	mfs := promtest.MustGather(t, reg)
+	return promtest.FindMetric(mfs, name, map[string]string{
+		"replicationID": id1.String(),
+	})
 }
 
 func TestGoroutineReceives(t *testing.T) {
@@ -345,7 +405,7 @@ func TestGoroutineReceives(t *testing.T) {
 	require.NotNil(t, rq)
 	close(rq.done) // atypical from normal behavior, but lets us receive channels to test
 
-	go func() { require.NoError(t, qm.EnqueueData(id1, []byte("1234"))) }()
+	go func() { require.NoError(t, qm.EnqueueData(id1, []byte("1234"), 1)) }()
 	select {
 	case <-rq.receive:
 		return

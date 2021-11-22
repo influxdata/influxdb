@@ -5,13 +5,12 @@ import (
 	"errors"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/middleware"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
+	"go.uber.org/zap"
 )
 
 var _ middleware.Coordinator = (*Coordinator)(nil)
