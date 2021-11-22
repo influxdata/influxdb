@@ -426,5 +426,5 @@ func (qm *durableQueueManager) newReplicationQueue(id platform.ID, queue *durabl
 		logger:    qm.logger.With(zap.String("replication_id", id.String())),
 		metrics:   qm.metrics,
 		writeFunc: qm.writeFunc,
-  }
+	}
 }
