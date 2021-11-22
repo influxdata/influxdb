@@ -82,7 +82,7 @@ func TestPointsWriter_MapShards_AlterShardDuration(t *testing.T) {
 		return &sg, nil
 	}
 
-	c := coordinator.NewPointsWriter(time.Second)
+	c := coordinator.NewPointsWriter(time.Second, "")
 	c.MetaClient = ms
 
 	pr := &coordinator.WritePointsRequest{
@@ -160,7 +160,7 @@ func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 		panic("should not get here")
 	}
 
-	c := coordinator.NewPointsWriter(time.Second)
+	c := coordinator.NewPointsWriter(time.Second, "")
 	c.MetaClient = ms
 	defer c.Close()
 	pr := &coordinator.WritePointsRequest{
@@ -216,7 +216,7 @@ func TestPointsWriter_MapShards_Invalid(t *testing.T) {
 		return &rp.ShardGroups[0], nil
 	}
 
-	c := coordinator.NewPointsWriter(time.Second)
+	c := coordinator.NewPointsWriter(time.Second, "")
 	c.MetaClient = ms
 	defer c.Close()
 	pr := &coordinator.WritePointsRequest{
@@ -328,7 +328,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		}
 		ms.NodeIDFn = func() uint64 { return 1 }
 
-		c := coordinator.NewPointsWriter(time.Second)
+		c := coordinator.NewPointsWriter(time.Second, "")
 		c.MetaClient = ms
 		c.TSDBStore = store
 		c.Node = &influxdb.Node{ID: 1}
@@ -387,7 +387,7 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	}
 	ms.NodeIDFn = func() uint64 { return 1 }
 
-	c := coordinator.NewPointsWriter(time.Second)
+	c := coordinator.NewPointsWriter(time.Second, "")
 	c.MetaClient = ms
 	c.TSDBStore = store
 	c.Node = &influxdb.Node{ID: 1}
