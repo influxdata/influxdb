@@ -426,8 +426,8 @@ github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NH
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe h1:7j4SdN/BvQwN6WoUq7mv0kg5U9NhnFBxPGMafYRKym0=
 github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe/go.mod h1:XabtPPW2qsCg0tl+kjaPU+cFS+CjQXEXbT1VJvHT4og=
-github.com/influxdata/flux v0.140.0 h1:0iwqUeJLGPN18URgpPRYSoygqJ+iXQJeMyqNXPtWIII=
-github.com/influxdata/flux v0.140.0/go.mod h1:Q1kyXp+qkeAkX0T8wiNKCU7lqtEep1aK7QqrXntPPD4=
+github.com/influxdata/flux v0.143.0 h1:GVIqZKPbiPsob2nXo3GYZCCG/OUCZkbqlaHNabAtPms=
+github.com/influxdata/flux v0.143.0/go.mod h1:Q1kyXp+qkeAkX0T8wiNKCU7lqtEep1aK7QqrXntPPD4=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69 h1:WQsmW0fXO4ZE/lFGIE84G6rIV5SJN3P3sjIXAP1a8eU=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69/go.mod h1:pwymjR6SrP3gD3pRj9RJwdl1j5s3doEEV8gS4X9qSzA=
 github.com/influxdata/influx-cli/v2 v2.1.1-0.20211007122339-c4a5a13c8ee3 h1:DJFtOP/Gji5K6iut794K1pTKPd9SqM9J+Cb7vXgsnq0=
@@ -440,7 +440,6 @@ github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 h1:W9WBk7
 github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839/go.mod h1:xaLFMmpvUxqXtVkUJfg9QmT88cDaCJ3ZKgdZ78oO8Qo=
 github.com/influxdata/nats-streaming-server v0.11.3-0.20201112040610-c277f7560803 h1:LpaVAM5Www2R7M0GJAxAdL3swBvmna8Pyzw6F7o+j04=
 github.com/influxdata/nats-streaming-server v0.11.3-0.20201112040610-c277f7560803/go.mod h1:qgAMR6M9EokX+R5X7jUQfubwBdS1tBIl4yVJ3shhcWk=
-github.com/influxdata/pkg-config v0.2.9-0.20210928145121-f721f9766b86 h1:GeX1p061dF9UjD5dWa5X4kat8IN1YwkWm7vZ0zVF20Y=
 github.com/influxdata/pkg-config v0.2.9-0.20210928145121-f721f9766b86/go.mod h1:EMS7Ll0S4qkzDk53XS3Z72/egBsPInt+BeRxb0WeSwk=
 github.com/influxdata/pkg-config v0.2.9 h1:OXQkn8rKk+dLibqRRDCqOvwtXZZbkt9KCkwAVikHwcA=
 github.com/influxdata/pkg-config v0.2.9/go.mod h1:EMS7Ll0S4qkzDk53XS3Z72/egBsPInt+BeRxb0WeSwk=
