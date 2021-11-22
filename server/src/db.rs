@@ -53,7 +53,7 @@ use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
 
 pub(crate) use crate::db::chunk::DbChunk;
 pub(crate) use crate::db::lifecycle::ArcDb;
-use crate::db::write::{WriteFilter, WriteFilterNone};
+use crate::db::write::{DeleteFilter, DeleteFilterNone, WriteFilter, WriteFilterNone};
 use crate::{
     db::{
         access::QueryCatalogAccess,
@@ -522,25 +522,43 @@ impl Db {
 
     /// Store a delete
     pub fn store_delete(&self, delete: &DmlDelete) -> Result<()> {
+        self.store_filtered_delete(delete, DeleteFilterNone::default())
+    }
+
+    /// Store a delete with the provided [`DeleteFilter`]
+    pub fn store_filtered_delete(
+        &self,
+        delete: &DmlDelete,
+        filter: impl DeleteFilter,
+    ) -> Result<()> {
         let predicate = Arc::new(delete.predicate().clone());
         match delete.table_name() {
             None => {
                 // Note: This assumes tables cannot be removed from the catalog and therefore
                 // this lock gap is not problematic
                 for table_name in self.catalog.table_names() {
-                    self.delete(&table_name, Arc::clone(&predicate))
+                    self.delete_filtered(&table_name, Arc::clone(&predicate), filter)
                         .expect("table exists")
                 }
                 Ok(())
             }
-            Some(table_name) => self.delete(table_name, predicate),
+            Some(table_name) => self.delete_filtered(table_name, predicate, filter),
         }
     }
 
-    /// Delete data from  a table on a specified predicate
+    /// Delete data from a table on a specified predicate
     ///
     /// Returns an error if the table cannot be found in the catalog
     pub fn delete(&self, table_name: &str, delete_predicate: Arc<DeletePredicate>) -> Result<()> {
+        self.delete_filtered(table_name, delete_predicate, DeleteFilterNone::default())
+    }
+
+    fn delete_filtered(
+        &self,
+        table_name: &str,
+        delete_predicate: Arc<DeletePredicate>,
+        filter: impl DeleteFilter,
+    ) -> Result<()> {
         // collect delete predicates on preserved partitions for a catalog transaction
         let mut affected_persisted_chunks = vec![];
 
@@ -558,6 +576,10 @@ impl Db {
                 for chunk in chunks {
                     // save the delete predicate in the chunk
                     let mut chunk = chunk.write();
+                    if !filter.filter_chunk(&chunk) {
+                        continue;
+                    }
+
                     chunk.add_delete_predicate(Arc::clone(&delete_predicate));
 
                     // We should only report persisted chunks or chunks that are currently being persisted, because the
