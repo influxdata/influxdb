@@ -222,7 +222,7 @@ impl Debug for Metadata {
 mod tests {
     use super::*;
     use crate::{core::PreservedCatalog, interface::CatalogParquetInfo, test_helpers::make_config};
-    use parquet_file::test_utils::{chunk_addr, make_metadata, TestSize};
+    use parquet_file::test_utils::generator::{ChunkGenerator, GeneratorConfig};
     use time::Time;
     use uuid::Uuid;
 
@@ -235,21 +235,15 @@ mod tests {
             .with_time_provider(time_provider);
 
         let iox_object_store = &config.iox_object_store;
+        let mut generator = ChunkGenerator::new_with_store(Arc::clone(iox_object_store));
+        generator.set_config(GeneratorConfig::Simple);
 
         // build catalog with some data
         let catalog = PreservedCatalog::new_empty(config.clone()).await.unwrap();
         {
+            let (chunk, _) = generator.generate().await;
             let mut transaction = catalog.open_transaction().await;
-
-            let (path, metadata) =
-                make_metadata(iox_object_store, "foo", chunk_addr(0), TestSize::Minimal).await;
-            let info = CatalogParquetInfo {
-                path,
-                file_size_bytes: 33,
-                metadata: Arc::new(metadata),
-            };
-            transaction.add_parquet(&info);
-
+            transaction.add_parquet(&CatalogParquetInfo::from_chunk(&chunk));
             transaction.commit().await.unwrap();
         }
 
@@ -304,11 +298,11 @@ File {
                                             "table1",
                                             "part1",
                                         ],
-                                        file_name: "00000000-0000-0000-0000-000000000000.parquet",
+                                        file_name: "00000000-0000-0000-0000-000000000001.parquet",
                                     },
                                 ),
-                                file_size_bytes: 33,
-                                metadata: b"metadata omitted (937 bytes)",
+                                file_size_bytes: 3052,
+                                metadata: b"metadata omitted (935 bytes)",
                             },
                         ),
                     ),
@@ -352,21 +346,15 @@ File {
             .with_fixed_uuid(Uuid::nil())
             .with_time_provider(time_provider);
         let iox_object_store = &config.iox_object_store;
+        let mut generator = ChunkGenerator::new_with_store(Arc::clone(iox_object_store));
+        generator.set_config(GeneratorConfig::Simple);
 
         // build catalog with some data
         let catalog = PreservedCatalog::new_empty(config.clone()).await.unwrap();
         {
+            let (chunk, _) = generator.generate().await;
             let mut transaction = catalog.open_transaction().await;
-
-            let (path, metadata) =
-                make_metadata(iox_object_store, "foo", chunk_addr(0), TestSize::Minimal).await;
-            let info = CatalogParquetInfo {
-                path,
-                file_size_bytes: 33,
-                metadata: Arc::new(metadata),
-            };
-            transaction.add_parquet(&info);
-
+            transaction.add_parquet(&CatalogParquetInfo::from_chunk(&chunk));
             transaction.commit().await.unwrap();
         }
 
@@ -426,11 +414,11 @@ File {
                                             "table1",
                                             "part1",
                                         ],
-                                        file_name: "00000000-0000-0000-0000-000000000000.parquet",
+                                        file_name: "00000000-0000-0000-0000-000000000001.parquet",
                                     },
                                 ),
-                                file_size_bytes: 33,
-                                metadata: b"metadata omitted (937 bytes)",
+                                file_size_bytes: 3052,
+                                metadata: b"metadata omitted (935 bytes)",
                             },
                         ),
                     ),
@@ -460,7 +448,7 @@ File {
                             table_name: "table1",
                             partition_key: "part1",
                             chunk_id: ChunkId(
-                                0,
+                                1,
                             ),
                             partition_checkpoint: PartitionCheckpoint {
                                 table_name: "table1",
@@ -500,7 +488,7 @@ File {
                                 },
                             },
                             chunk_order: ChunkOrder(
-                                5,
+                                1,
                             ),
                         },
                     ),
