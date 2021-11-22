@@ -123,10 +123,9 @@ use crate::codec::{ContentType, IoxHeaders};
 use async_trait::async_trait;
 use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
 use dml::{DmlMeta, DmlOperation};
-use futures::{channel::mpsc::Receiver, FutureExt, SinkExt, Stream, StreamExt};
-use pin_project::{pin_project, pinned_drop};
+use futures::{future::BoxFuture, Future, FutureExt, Stream, StreamExt};
+use pin_project::pin_project;
 use time::{Time, TimeProvider};
-use tokio::task::JoinHandle;
 use trace::TraceCollector;
 use uuid::Uuid;
 
@@ -343,11 +342,15 @@ impl WriteBufferReading for FileBufferConsumer {
     }
 }
 
-#[pin_project(PinnedDrop)]
+#[pin_project]
 struct ConsumerStream {
-    join_handle: JoinHandle<()>,
     #[pin]
-    rx: Receiver<Result<DmlOperation, WriteBufferError>>,
+    fut: Option<BoxFuture<'static, Result<DmlOperation, WriteBufferError>>>,
+    was_ready: bool,
+    sequencer_id: u32,
+    path: PathBuf,
+    next_sequence_number: Arc<AtomicU64>,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
 impl ConsumerStream {
@@ -357,9 +360,23 @@ impl ConsumerStream {
         next_sequence_number: Arc<AtomicU64>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Self {
-        let (mut tx, rx) = futures::channel::mpsc::channel(1);
+        Self {
+            fut: None,
+            was_ready: false,
+            sequencer_id,
+            path,
+            next_sequence_number,
+            trace_collector,
+        }
+    }
 
-        let join_handle = tokio::spawn(async move {
+    fn create_future(
+        sequencer_id: u32,
+        path: PathBuf,
+        next_sequence_number: Arc<AtomicU64>,
+        trace_collector: Option<Arc<dyn TraceCollector>>,
+    ) -> BoxFuture<'static, Result<DmlOperation, WriteBufferError>> {
+        let fut = async move {
             loop {
                 let sequence_number = next_sequence_number.load(Ordering::SeqCst);
 
@@ -426,14 +443,11 @@ impl ConsumerStream {
                     }
                 };
 
-                if tx.send(msg).await.is_err() {
-                    // Receiver is gone
-                    return;
-                }
+                return msg;
             }
-        });
+        };
 
-        Self { join_handle, rx }
+        fut.boxed()
     }
 
     fn decode_file(
@@ -476,13 +490,6 @@ impl ConsumerStream {
     }
 }
 
-#[pinned_drop]
-impl PinnedDrop for ConsumerStream {
-    fn drop(self: Pin<&mut Self>) {
-        self.join_handle.abort();
-    }
-}
-
 impl Stream for ConsumerStream {
     type Item = Result<DmlOperation, WriteBufferError>;
 
@@ -490,8 +497,25 @@ impl Stream for ConsumerStream {
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let this = self.project();
-        this.rx.poll_next(cx)
+        let mut this = self.project();
+        if this.fut.is_none() || *this.was_ready {
+            *this.fut = Some(Self::create_future(
+                *this.sequencer_id,
+                this.path.clone(),
+                Arc::clone(this.next_sequence_number),
+                this.trace_collector.clone(),
+            ));
+        }
+        let fut = this.fut.as_pin_mut();
+        let fut = fut.expect("just assigned");
+
+        match fut.poll(cx) {
+            std::task::Poll::Ready(res) => {
+                *this.was_ready = true;
+                std::task::Poll::Ready(Some(res))
+            }
+            std::task::Poll::Pending => std::task::Poll::Pending,
+        }
     }
 }
 
