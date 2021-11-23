@@ -8,16 +8,14 @@ import (
 	"fmt"
 	"testing"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/replications/internal"
 	replicationsMock "github.com/influxdata/influxdb/v2/replications/mock"
-	"github.com/influxdata/influxdb/v2/sqlite"
-	"github.com/influxdata/influxdb/v2/sqlite/migrations"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -26,14 +24,27 @@ import (
 //go:generate go run github.com/golang/mock/mockgen -package mock -destination ./mock/bucket_service.go github.com/influxdata/influxdb/v2/replications BucketService
 //go:generate go run github.com/golang/mock/mockgen -package mock -destination ./mock/queue_management.go github.com/influxdata/influxdb/v2/replications DurableQueueManager
 //go:generate go run github.com/golang/mock/mockgen -package mock -destination ./mock/points_writer.go github.com/influxdata/influxdb/v2/storage PointsWriter
+//go:generate go run github.com/golang/mock/mockgen -package mock -destination ./mock/service_store.go github.com/influxdata/influxdb/v2/replications ServiceStore
 
 var (
-	ctx         = context.Background()
-	initID      = platform.ID(1)
-	desc        = "testing testing"
-	replication = influxdb.Replication{
-		ID:                initID,
-		OrgID:             platform.ID(10),
+	ctx          = context.Background()
+	orgID        = platform.ID(10)
+	id1          = platform.ID(1)
+	id2          = platform.ID(2)
+	desc         = "testing testing"
+	replication1 = influxdb.Replication{
+		ID:                id1,
+		OrgID:             orgID,
+		Name:              "test",
+		Description:       &desc,
+		RemoteID:          platform.ID(100),
+		LocalBucketID:     platform.ID(1000),
+		RemoteBucketID:    platform.ID(99999),
+		MaxQueueSizeBytes: 3 * influxdb.DefaultReplicationMaxQueueSizeBytes,
+	}
+	replication2 = influxdb.Replication{
+		ID:                id2,
+		OrgID:             orgID,
 		Name:              "test",
 		Description:       &desc,
 		RemoteID:          platform.ID(100),
@@ -42,591 +53,614 @@ var (
 		MaxQueueSizeBytes: 3 * influxdb.DefaultReplicationMaxQueueSizeBytes,
 	}
 	createReq = influxdb.CreateReplicationRequest{
-		OrgID:             replication.OrgID,
-		Name:              replication.Name,
-		Description:       replication.Description,
-		RemoteID:          replication.RemoteID,
-		LocalBucketID:     replication.LocalBucketID,
-		RemoteBucketID:    replication.RemoteBucketID,
-		MaxQueueSizeBytes: replication.MaxQueueSizeBytes,
+		OrgID:             replication1.OrgID,
+		Name:              replication1.Name,
+		Description:       replication1.Description,
+		RemoteID:          replication1.RemoteID,
+		LocalBucketID:     replication1.LocalBucketID,
+		RemoteBucketID:    replication1.RemoteBucketID,
+		MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
+	}
+	newRemoteID          = platform.ID(200)
+	newQueueSize         = influxdb.MinReplicationMaxQueueSizeBytes
+	updateReqWithNewSize = influxdb.UpdateReplicationRequest{
+		RemoteID:          &newRemoteID,
+		MaxQueueSizeBytes: &newQueueSize,
+	}
+	updatedReplicationWithNewSize = influxdb.Replication{
+		ID:                replication1.ID,
+		OrgID:             replication1.OrgID,
+		Name:              replication1.Name,
+		Description:       replication1.Description,
+		RemoteID:          *updateReqWithNewSize.RemoteID,
+		LocalBucketID:     replication1.LocalBucketID,
+		RemoteBucketID:    replication1.RemoteBucketID,
+		MaxQueueSizeBytes: *updateReqWithNewSize.MaxQueueSizeBytes,
+	}
+	updateReqWithNoNewSize = influxdb.UpdateReplicationRequest{
+		RemoteID: &newRemoteID,
+	}
+	updatedReplicationWithNoNewSize = influxdb.Replication{
+		ID:                replication1.ID,
+		OrgID:             replication1.OrgID,
+		Name:              replication1.Name,
+		Description:       replication1.Description,
+		RemoteID:          *updateReqWithNewSize.RemoteID,
+		LocalBucketID:     replication1.LocalBucketID,
+		RemoteBucketID:    replication1.RemoteBucketID,
+		MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
 	}
 	httpConfig = internal.ReplicationHTTPConfig{
-		RemoteURL:        fmt.Sprintf("http://%s.cloud", replication.RemoteID),
-		RemoteToken:      replication.RemoteID.String(),
+		RemoteURL:        fmt.Sprintf("http://%s.cloud", replication1.RemoteID),
+		RemoteToken:      replication1.RemoteID.String(),
 		RemoteOrgID:      platform.ID(888888),
 		AllowInsecureTLS: true,
-		RemoteBucketID:   replication.RemoteBucketID,
-	}
-	newRemoteID  = platform.ID(200)
-	newQueueSize = influxdb.MinReplicationMaxQueueSizeBytes
-	updateReq    = influxdb.UpdateReplicationRequest{
-		RemoteID:             &newRemoteID,
-		MaxQueueSizeBytes:    &newQueueSize,
-		DropNonRetryableData: boolPointer(true),
-	}
-	updatedReplication = influxdb.Replication{
-		ID:                   replication.ID,
-		OrgID:                replication.OrgID,
-		Name:                 replication.Name,
-		Description:          replication.Description,
-		RemoteID:             *updateReq.RemoteID,
-		LocalBucketID:        replication.LocalBucketID,
-		RemoteBucketID:       replication.RemoteBucketID,
-		MaxQueueSizeBytes:    *updateReq.MaxQueueSizeBytes,
-		DropNonRetryableData: true,
-	}
-	updatedHttpConfig = internal.ReplicationHTTPConfig{
-		RemoteURL:        fmt.Sprintf("http://%s.cloud", updatedReplication.RemoteID),
-		RemoteToken:      updatedReplication.RemoteID.String(),
-		RemoteOrgID:      platform.ID(888888),
-		AllowInsecureTLS: true,
-		RemoteBucketID:   updatedReplication.RemoteBucketID,
+		RemoteBucketID:   replication1.RemoteBucketID,
 	}
 )
 
-func TestCreateAndGetReplication(t *testing.T) {
+func TestListReplications(t *testing.T) {
 	t.Parallel()
 
-	svc, mocks, clean := newTestService(t)
-	defer clean(t)
+	filter := influxdb.ReplicationListFilter{}
 
-	insertRemote(t, svc.store, replication.RemoteID)
-	mocks.bucketSvc.EXPECT().RLock()
-	mocks.bucketSvc.EXPECT().RUnlock()
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
-		Return(&influxdb.Bucket{}, nil)
+	tests := []struct {
+		name            string
+		list            *influxdb.Replications
+		ids             []platform.ID
+		sizes           map[platform.ID]int64
+		storeErr        error
+		queueManagerErr error
+	}{
+		{
+			name: "matches multiple",
+			list: &influxdb.Replications{
+				Replications: []influxdb.Replication{replication1, replication2},
+			},
+			ids:   []platform.ID{replication1.ID, replication2.ID},
+			sizes: map[platform.ID]int64{replication1.ID: 1000, replication2.ID: 2000},
+		},
+		{
+			name: "matches one",
+			list: &influxdb.Replications{
+				Replications: []influxdb.Replication{replication1},
+			},
+			ids:   []platform.ID{replication1.ID},
+			sizes: map[platform.ID]int64{replication1.ID: 1000},
+		},
+		{
+			name: "matches none",
+			list: &influxdb.Replications{},
+		},
+		{
+			name:     "store error",
+			storeErr: errors.New("error from store"),
+		},
+		{
+			name: "queue manager error",
+			list: &influxdb.Replications{
+				Replications: []influxdb.Replication{replication1},
+			},
+			ids:             []platform.ID{replication1.ID},
+			queueManagerErr: errors.New("error from queue manager"),
+		},
+	}
 
-	// Getting or validating an invalid ID should return an error.
-	got, err := svc.GetReplication(ctx, initID)
-	require.Equal(t, errReplicationNotFound, err)
-	require.Nil(t, got)
-	require.Equal(t, errReplicationNotFound, svc.ValidateReplication(ctx, initID))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mocks := newTestService(t)
 
-	// Create a replication, check the results.
-	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
-	created, err := svc.CreateReplication(ctx, createReq)
-	require.NoError(t, err)
-	require.Equal(t, replication, *created)
+			mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), filter).Return(tt.list, tt.storeErr)
 
-	// Read the created replication and assert it matches the creation response.
-	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
-		Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
-	got, err = svc.GetReplication(ctx, initID)
-	require.NoError(t, err)
-	require.Equal(t, replication, *got)
+			if tt.storeErr == nil && len(tt.list.Replications) > 0 {
+				mocks.durableQueueManager.EXPECT().CurrentQueueSizes(tt.ids).Return(tt.sizes, tt.queueManagerErr)
+			}
 
-	// Validate the replication; this is mostly a no-op for this test, but it allows
-	// us to check that our sql for extracting the linked remote's parameters is correct.
-	fakeErr := errors.New("O NO")
-	mocks.validator.EXPECT().ValidateReplication(gomock.Any(), &httpConfig).Return(fakeErr)
-	require.Contains(t, svc.ValidateReplication(ctx, initID).Error(), fakeErr.Error())
+			got, err := svc.ListReplications(ctx, filter)
+
+			var wantErr error
+			if tt.storeErr != nil {
+				wantErr = tt.storeErr
+			} else if tt.queueManagerErr != nil {
+				wantErr = tt.queueManagerErr
+			}
+
+			require.Equal(t, wantErr, err)
+
+			if wantErr != nil {
+				require.Nil(t, got)
+				return
+			}
+
+			for _, r := range got.Replications {
+				require.Equal(t, tt.sizes[r.ID], r.CurrentQueueSizeBytes)
+			}
+		})
+	}
 }
 
-func TestCreateMissingBucket(t *testing.T) {
+func TestCreateReplication(t *testing.T) {
 	t.Parallel()
 
-	svc, mocks, clean := newTestService(t)
-	defer clean(t)
+	tests := []struct {
+		name            string
+		create          influxdb.CreateReplicationRequest
+		storeErr        error
+		bucketErr       error
+		queueManagerErr error
+		want            *influxdb.Replication
+		wantErr         error
+	}{
+		{
+			name:   "success",
+			create: createReq,
+			want:   &replication1,
+		},
+		{
+			name:      "bucket service error",
+			create:    createReq,
+			bucketErr: errors.New("bucket service error"),
+			want:      nil,
+			wantErr:   errLocalBucketNotFound(createReq.LocalBucketID, errors.New("bucket service error")),
+		},
+		{
+			name:            "initialize queue error",
+			create:          createReq,
+			queueManagerErr: errors.New("queue manager error"),
+			want:            nil,
+			wantErr:         errors.New("queue manager error"),
+		},
+		{
+			name:     "store create error",
+			create:   createReq,
+			storeErr: errors.New("store create error"),
+			want:     nil,
+			wantErr:  errors.New("store create error"),
+		},
+	}
 
-	insertRemote(t, svc.store, replication.RemoteID)
-	bucketNotFound := errors.New("bucket not found")
-	mocks.bucketSvc.EXPECT().RLock()
-	mocks.bucketSvc.EXPECT().RUnlock()
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
-		Return(nil, bucketNotFound)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mocks := newTestService(t)
 
-	created, err := svc.CreateReplication(ctx, createReq)
-	require.Equal(t, errLocalBucketNotFound(createReq.LocalBucketID, bucketNotFound), err)
-	require.Nil(t, created)
+			mocks.bucketSvc.EXPECT().RLock()
+			mocks.bucketSvc.EXPECT().RUnlock()
+			mocks.serviceStore.EXPECT().Lock()
+			mocks.serviceStore.EXPECT().Unlock()
 
-	// Make sure nothing was persisted.
-	got, err := svc.GetReplication(ctx, initID)
-	require.Equal(t, errReplicationNotFound, err)
-	require.Nil(t, got)
+			mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), tt.create.LocalBucketID).Return(nil, tt.bucketErr)
+
+			if tt.bucketErr == nil {
+				mocks.durableQueueManager.EXPECT().InitializeQueue(id1, tt.create.MaxQueueSizeBytes).Return(tt.queueManagerErr)
+			}
+
+			if tt.queueManagerErr == nil && tt.bucketErr == nil {
+				mocks.serviceStore.EXPECT().CreateReplication(gomock.Any(), id1, tt.create).Return(tt.want, tt.storeErr)
+			}
+
+			if tt.storeErr != nil {
+				mocks.durableQueueManager.EXPECT().DeleteQueue(id1).Return(nil)
+			}
+
+			got, err := svc.CreateReplication(ctx, tt.create)
+			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.wantErr, err)
+		})
+	}
 }
 
-func TestCreateMissingRemote(t *testing.T) {
+func TestValidateNewReplication(t *testing.T) {
 	t.Parallel()
 
-	svc, mocks, clean := newTestService(t)
-	defer clean(t)
+	tests := []struct {
+		name         string
+		req          influxdb.CreateReplicationRequest
+		storeErr     error
+		bucketErr    error
+		validatorErr error
+		wantErr      error
+	}{
+		{
+			name: "valid",
+			req:  createReq,
+		},
+		{
+			name:      "bucket service error",
+			req:       createReq,
+			bucketErr: errors.New("bucket service error"),
+			wantErr:   errLocalBucketNotFound(createReq.LocalBucketID, errors.New("bucket service error")),
+		},
+		{
+			name:     "store populate error",
+			req:      createReq,
+			storeErr: errors.New("store populate error"),
+			wantErr:  errors.New("store populate error"),
+		},
+		{
+			name:         "validation error - invalid replication",
+			req:          createReq,
+			validatorErr: errors.New("validation error"),
+			wantErr: &ierrors.Error{
+				Code: ierrors.EInvalid,
+				Msg:  "replication parameters fail validation",
+				Err:  errors.New("validation error"),
+			},
+		},
+	}
 
-	mocks.bucketSvc.EXPECT().RLock()
-	mocks.bucketSvc.EXPECT().RUnlock()
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
-		Return(&influxdb.Bucket{}, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mocks := newTestService(t)
 
-	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
-	mocks.durableQueueManager.EXPECT().DeleteQueue(initID)
-	created, err := svc.CreateReplication(ctx, createReq)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), fmt.Sprintf("remote %q not found", createReq.RemoteID))
-	require.Nil(t, created)
+			mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), tt.req.LocalBucketID).Return(nil, tt.bucketErr)
 
-	// Make sure nothing was persisted.
-	got, err := svc.GetReplication(ctx, initID)
-	require.Equal(t, errReplicationNotFound, err)
-	require.Nil(t, got)
+			testConfig := &internal.ReplicationHTTPConfig{RemoteBucketID: tt.req.RemoteBucketID}
+			if tt.bucketErr == nil {
+				mocks.serviceStore.EXPECT().PopulateRemoteHTTPConfig(gomock.Any(), tt.req.RemoteID, testConfig).Return(tt.storeErr)
+			}
+
+			if tt.bucketErr == nil && tt.storeErr == nil {
+				mocks.validator.EXPECT().ValidateReplication(gomock.Any(), testConfig).Return(tt.validatorErr)
+			}
+
+			err := svc.ValidateNewReplication(ctx, tt.req)
+			require.Equal(t, tt.wantErr, err)
+		})
+	}
 }
 
-func TestValidateReplicationWithoutPersisting(t *testing.T) {
+func TestGetReplication(t *testing.T) {
 	t.Parallel()
 
-	t.Run("missing bucket", func(t *testing.T) {
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
+	tests := []struct {
+		name            string
+		sizes           map[platform.ID]int64
+		storeErr        error
+		queueManagerErr error
+		storeWant       *influxdb.Replication
+		want            *influxdb.Replication
+	}{
+		{
+			name:      "success",
+			sizes:     map[platform.ID]int64{replication1.ID: 1000},
+			storeWant: &replication1,
+			want:      &replication1,
+		},
+		{
+			name:     "store error",
+			storeErr: errors.New("store error"),
+		},
+		{
+			name:            "queue manager error",
+			storeWant:       &replication1,
+			queueManagerErr: errors.New("queue manager error"),
+		},
+	}
 
-		bucketNotFound := errors.New("bucket not found")
-		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).Return(nil, bucketNotFound)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mocks := newTestService(t)
 
-		require.Equal(t, errLocalBucketNotFound(createReq.LocalBucketID, bucketNotFound),
-			svc.ValidateNewReplication(ctx, createReq))
+			mocks.serviceStore.EXPECT().GetReplication(gomock.Any(), id1).Return(tt.storeWant, tt.storeErr)
 
-		got, err := svc.GetReplication(ctx, initID)
-		require.Equal(t, errReplicationNotFound, err)
-		require.Nil(t, got)
-	})
+			if tt.storeErr == nil {
+				mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{id1}).Return(tt.sizes, tt.queueManagerErr)
+			}
 
-	t.Run("missing remote", func(t *testing.T) {
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
+			got, err := svc.GetReplication(ctx, id1)
 
-		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).Return(&influxdb.Bucket{}, nil)
+			var wantErr error
+			if tt.storeErr != nil {
+				wantErr = tt.storeErr
+			} else if tt.queueManagerErr != nil {
+				wantErr = tt.queueManagerErr
+			}
 
-		require.Contains(t, svc.ValidateNewReplication(ctx, createReq).Error(),
-			fmt.Sprintf("remote %q not found", createReq.RemoteID))
+			require.Equal(t, wantErr, err)
 
-		got, err := svc.GetReplication(ctx, initID)
-		require.Equal(t, errReplicationNotFound, err)
-		require.Nil(t, got)
-	})
+			if wantErr != nil {
+				require.Nil(t, got)
+				return
+			}
 
-	t.Run("validation error", func(t *testing.T) {
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
-
-		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).Return(&influxdb.Bucket{}, nil)
-		insertRemote(t, svc.store, createReq.RemoteID)
-
-		fakeErr := errors.New("O NO")
-		mocks.validator.EXPECT().ValidateReplication(gomock.Any(), &httpConfig).Return(fakeErr)
-
-		require.Contains(t, svc.ValidateNewReplication(ctx, createReq).Error(), fakeErr.Error())
-
-		got, err := svc.GetReplication(ctx, initID)
-		require.Equal(t, errReplicationNotFound, err)
-		require.Nil(t, got)
-	})
-
-	t.Run("no error", func(t *testing.T) {
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
-
-		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).Return(&influxdb.Bucket{}, nil)
-		insertRemote(t, svc.store, createReq.RemoteID)
-
-		mocks.validator.EXPECT().ValidateReplication(gomock.Any(), &httpConfig).Return(nil)
-
-		require.NoError(t, svc.ValidateNewReplication(ctx, createReq))
-
-		got, err := svc.GetReplication(ctx, initID)
-		require.Equal(t, errReplicationNotFound, err)
-		require.Nil(t, got)
-	})
+			require.Equal(t, tt.sizes[got.ID], got.CurrentQueueSizeBytes)
+		})
+	}
 }
 
-func TestUpdateAndGetReplication(t *testing.T) {
+func TestUpdateReplication(t *testing.T) {
 	t.Parallel()
 
-	svc, mocks, clean := newTestService(t)
-	defer clean(t)
+	tests := []struct {
+		name                        string
+		request                     influxdb.UpdateReplicationRequest
+		sizes                       map[platform.ID]int64
+		storeErr                    error
+		queueManagerUpdateSizeErr   error
+		queueManagerCurrentSizesErr error
+		storeUpdate                 *influxdb.Replication
+		want                        *influxdb.Replication
+		wantErr                     error
+	}{
+		{
+			name:        "success with new max queue size",
+			request:     updateReqWithNewSize,
+			sizes:       map[platform.ID]int64{replication1.ID: *updateReqWithNewSize.MaxQueueSizeBytes},
+			storeUpdate: &updatedReplicationWithNewSize,
+			want:        &updatedReplicationWithNewSize,
+		},
+		{
+			name:        "success with no new max queue size",
+			request:     updateReqWithNoNewSize,
+			sizes:       map[platform.ID]int64{replication1.ID: updatedReplicationWithNoNewSize.MaxQueueSizeBytes},
+			storeUpdate: &updatedReplicationWithNoNewSize,
+			want:        &updatedReplicationWithNoNewSize,
+		},
+		{
+			name:     "store error",
+			request:  updateReqWithNoNewSize,
+			storeErr: errors.New("store error"),
+			wantErr:  errors.New("store error"),
+		},
+		{
+			name:                      "queue manager error - update max queue size",
+			request:                   updateReqWithNewSize,
+			queueManagerUpdateSizeErr: errors.New("update max size err"),
+			wantErr:                   errors.New("update max size err"),
+		},
+		{
+			name:                        "queue manager error - current queue size",
+			request:                     updateReqWithNoNewSize,
+			queueManagerCurrentSizesErr: errors.New("current size err"),
+			storeUpdate:                 &updatedReplicationWithNoNewSize,
+			wantErr:                     errors.New("current size err"),
+		},
+	}
 
-	insertRemote(t, svc.store, replication.RemoteID)
-	insertRemote(t, svc.store, updatedReplication.RemoteID)
-	mocks.bucketSvc.EXPECT().RLock()
-	mocks.bucketSvc.EXPECT().RUnlock()
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
-		Return(&influxdb.Bucket{}, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mocks := newTestService(t)
 
-	// Updating a nonexistent ID fails.
-	updated, err := svc.UpdateReplication(ctx, initID, updateReq)
-	require.Equal(t, errReplicationNotFound, err)
-	require.Nil(t, updated)
+			mocks.serviceStore.EXPECT().Lock()
+			mocks.serviceStore.EXPECT().Unlock()
 
-	// Create a replication.
-	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
-	created, err := svc.CreateReplication(ctx, createReq)
-	require.NoError(t, err)
-	require.Equal(t, replication, *created)
+			mocks.serviceStore.EXPECT().UpdateReplication(gomock.Any(), id1, tt.request).Return(tt.storeUpdate, tt.storeErr)
 
-	// Update the replication.
-	mocks.durableQueueManager.EXPECT().UpdateMaxQueueSize(initID, *updateReq.MaxQueueSizeBytes)
-	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
-		Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
-	updated, err = svc.UpdateReplication(ctx, initID, updateReq)
-	require.NoError(t, err)
-	require.Equal(t, updatedReplication, *updated)
+			if tt.storeErr == nil && tt.request.MaxQueueSizeBytes != nil {
+				mocks.durableQueueManager.EXPECT().UpdateMaxQueueSize(id1, *tt.request.MaxQueueSizeBytes).Return(tt.queueManagerUpdateSizeErr)
+			}
+
+			if tt.storeErr == nil && tt.queueManagerUpdateSizeErr == nil {
+				mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{id1}).Return(tt.sizes, tt.queueManagerCurrentSizesErr)
+			}
+
+			got, err := svc.UpdateReplication(ctx, id1, tt.request)
+			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.wantErr, err)
+		})
+	}
 }
 
-func TestUpdateMissingRemote(t *testing.T) {
+func TestValidateUpdatedReplication(t *testing.T) {
 	t.Parallel()
 
-	svc, mocks, clean := newTestService(t)
-	defer clean(t)
+	tests := []struct {
+		name                   string
+		request                influxdb.UpdateReplicationRequest
+		baseConfig             *internal.ReplicationHTTPConfig
+		storeGetConfigErr      error
+		storePopulateConfigErr error
+		validatorErr           error
+		want                   error
+	}{
+		{
+			name:       "success",
+			request:    updateReqWithNoNewSize,
+			baseConfig: &httpConfig,
+		},
+		{
+			name:              "store get full http config error",
+			storeGetConfigErr: errors.New("store get full http config error"),
+			want:              errors.New("store get full http config error"),
+		},
+		{
+			name:                   "store get populate remote config error",
+			request:                updateReqWithNoNewSize,
+			storePopulateConfigErr: errors.New("store populate http config error"),
+			want:                   errors.New("store populate http config error"),
+		},
+		{
+			name:         "invalid update",
+			request:      updateReqWithNoNewSize,
+			validatorErr: errors.New("invalid"),
+			want: &ierrors.Error{
+				Code: ierrors.EInvalid,
+				Msg:  "validation fails after applying update",
+				Err:  errors.New("invalid"),
+			},
+		},
+	}
 
-	insertRemote(t, svc.store, replication.RemoteID)
-	mocks.bucketSvc.EXPECT().RLock()
-	mocks.bucketSvc.EXPECT().RUnlock()
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
-		Return(&influxdb.Bucket{}, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mocks := newTestService(t)
 
-	// Create a replication.
-	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
-	created, err := svc.CreateReplication(ctx, createReq)
-	require.NoError(t, err)
-	require.Equal(t, replication, *created)
+			mocks.serviceStore.EXPECT().GetFullHTTPConfig(gomock.Any(), id1).Return(tt.baseConfig, tt.storeGetConfigErr)
 
-	// Attempt to update the replication to point at a nonexistent remote.
-	updated, err := svc.UpdateReplication(ctx, initID, updateReq)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), fmt.Sprintf("remote %q not found", *updateReq.RemoteID))
-	require.Nil(t, updated)
+			if tt.storeGetConfigErr == nil {
+				mocks.serviceStore.EXPECT().PopulateRemoteHTTPConfig(gomock.Any(), *tt.request.RemoteID, tt.baseConfig).Return(tt.storePopulateConfigErr)
+			}
 
-	// Make sure nothing changed in the DB.
-	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
-		Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
-	got, err := svc.GetReplication(ctx, initID)
-	require.NoError(t, err)
-	require.Equal(t, replication, *got)
-}
+			if tt.storeGetConfigErr == nil && tt.storePopulateConfigErr == nil {
+				mocks.validator.EXPECT().ValidateReplication(gomock.Any(), tt.baseConfig).Return(tt.validatorErr)
+			}
 
-func TestUpdateNoop(t *testing.T) {
-	t.Parallel()
-
-	svc, mocks, clean := newTestService(t)
-	defer clean(t)
-
-	insertRemote(t, svc.store, replication.RemoteID)
-	mocks.bucketSvc.EXPECT().RLock()
-	mocks.bucketSvc.EXPECT().RUnlock()
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
-		Return(&influxdb.Bucket{}, nil)
-
-	// Create a replication.
-	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
-	created, err := svc.CreateReplication(ctx, createReq)
-	require.NoError(t, err)
-	require.Equal(t, replication, *created)
-
-	// Send a no-op update, assert nothing changed.
-	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
-		Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
-	updated, err := svc.UpdateReplication(ctx, initID, influxdb.UpdateReplicationRequest{})
-	require.NoError(t, err)
-	require.Equal(t, replication, *updated)
-}
-
-func TestValidateUpdatedReplicationWithoutPersisting(t *testing.T) {
-	t.Parallel()
-
-	t.Run("bad remote", func(t *testing.T) {
-		t.Parallel()
-
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
-
-		insertRemote(t, svc.store, replication.RemoteID)
-		mocks.bucketSvc.EXPECT().RLock()
-		mocks.bucketSvc.EXPECT().RUnlock()
-		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
-			Return(&influxdb.Bucket{}, nil)
-
-		// Create a replication.
-		mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
-		created, err := svc.CreateReplication(ctx, createReq)
-		require.NoError(t, err)
-		require.Equal(t, replication, *created)
-
-		// Attempt to update the replication to point at a nonexistent remote.
-		require.Contains(t, svc.ValidateUpdatedReplication(ctx, initID, updateReq).Error(),
-			fmt.Sprintf("remote %q not found", *updateReq.RemoteID))
-
-		// Make sure nothing changed in the DB.
-		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
-			Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
-		got, err := svc.GetReplication(ctx, initID)
-		require.NoError(t, err)
-		require.Equal(t, replication, *got)
-	})
-
-	t.Run("validation error", func(t *testing.T) {
-		t.Parallel()
-
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
-
-		insertRemote(t, svc.store, replication.RemoteID)
-		insertRemote(t, svc.store, updatedReplication.RemoteID)
-		mocks.bucketSvc.EXPECT().RLock()
-		mocks.bucketSvc.EXPECT().RUnlock()
-		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
-			Return(&influxdb.Bucket{}, nil)
-
-		// Create a replication.
-		mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
-		created, err := svc.CreateReplication(ctx, createReq)
-		require.NoError(t, err)
-		require.Equal(t, replication, *created)
-
-		// Check updating to a failing remote, assert error is returned.
-		fakeErr := errors.New("O NO")
-		mocks.validator.EXPECT().ValidateReplication(gomock.Any(), &updatedHttpConfig).Return(fakeErr)
-
-		require.Contains(t, svc.ValidateUpdatedReplication(ctx, initID, updateReq).Error(), fakeErr.Error())
-
-		// Make sure nothing changed in the DB.
-		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
-			Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
-		got, err := svc.GetReplication(ctx, initID)
-		require.NoError(t, err)
-		require.Equal(t, replication, *got)
-	})
-
-	t.Run("no error", func(t *testing.T) {
-		t.Parallel()
-
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
-
-		insertRemote(t, svc.store, replication.RemoteID)
-		insertRemote(t, svc.store, updatedReplication.RemoteID)
-		mocks.bucketSvc.EXPECT().RLock()
-		mocks.bucketSvc.EXPECT().RUnlock()
-		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
-			Return(&influxdb.Bucket{}, nil)
-
-		// Create a replication.
-		mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
-		created, err := svc.CreateReplication(ctx, createReq)
-		require.NoError(t, err)
-		require.Equal(t, replication, *created)
-
-		// Check updating to a remote that passes validation, assert no error.
-		mocks.validator.EXPECT().ValidateReplication(gomock.Any(), &updatedHttpConfig).Return(nil)
-
-		require.NoError(t, svc.ValidateUpdatedReplication(ctx, initID, updateReq))
-
-		// Make sure nothing changed in the DB.
-		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID}).
-			Return(map[platform.ID]int64{initID: replication.CurrentQueueSizeBytes}, nil)
-		got, err := svc.GetReplication(ctx, initID)
-		require.NoError(t, err)
-		require.Equal(t, replication, *got)
-	})
+			err := svc.ValidateUpdatedReplication(ctx, id1, tt.request)
+			require.Equal(t, tt.want, err)
+		})
+	}
 }
 
 func TestDeleteReplication(t *testing.T) {
 	t.Parallel()
 
-	svc, mocks, clean := newTestService(t)
-	defer clean(t)
-
-	insertRemote(t, svc.store, replication.RemoteID)
-	mocks.bucketSvc.EXPECT().RLock()
-	mocks.bucketSvc.EXPECT().RUnlock()
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
-		Return(&influxdb.Bucket{}, nil)
-
-	// Deleting a nonexistent ID should return an error.
-	require.Equal(t, errReplicationNotFound, svc.DeleteReplication(ctx, initID))
-
-	// Create a replication, then delete it.
-	mocks.durableQueueManager.EXPECT().InitializeQueue(initID, createReq.MaxQueueSizeBytes)
-	created, err := svc.CreateReplication(ctx, createReq)
-	require.NoError(t, err)
-	require.Equal(t, replication, *created)
-	mocks.durableQueueManager.EXPECT().DeleteQueue(initID)
-	require.NoError(t, svc.DeleteReplication(ctx, initID))
-
-	// Looking up the ID should again produce an error.
-	got, err := svc.GetReplication(ctx, initID)
-	require.Equal(t, errReplicationNotFound, err)
-	require.Nil(t, got)
-}
-
-func TestDeleteReplications(t *testing.T) {
-	t.Parallel()
-
-	svc, mocks, clean := newTestService(t)
-	defer clean(t)
-
-	// Deleting when there is no bucket is OK.
-	require.NoError(t, svc.DeleteBucketReplications(ctx, replication.LocalBucketID))
-
-	// Register a handful of replications.
-	createReq2, createReq3 := createReq, createReq
-	createReq2.Name, createReq3.Name = "test2", "test3"
-	createReq2.LocalBucketID = platform.ID(77777)
-	createReq3.RemoteID = updatedReplication.RemoteID
-	mocks.bucketSvc.EXPECT().RLock().Times(3)
-	mocks.bucketSvc.EXPECT().RUnlock().Times(3)
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).Return(&influxdb.Bucket{}, nil).Times(2)
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq2.LocalBucketID).Return(&influxdb.Bucket{}, nil)
-	insertRemote(t, svc.store, createReq.RemoteID)
-	insertRemote(t, svc.store, createReq3.RemoteID)
-
-	for _, req := range []influxdb.CreateReplicationRequest{createReq, createReq2, createReq3} {
-		mocks.durableQueueManager.EXPECT().InitializeQueue(gomock.Any(), req.MaxQueueSizeBytes)
-		_, err := svc.CreateReplication(ctx, req)
-		require.NoError(t, err)
+	tests := []struct {
+		name            string
+		storeErr        error
+		queueManagerErr error
+	}{
+		{
+			name: "success",
+		},
+		{
+			name:     "store error",
+			storeErr: errors.New("store error"),
+		},
+		{
+			name:            "queue manager error",
+			queueManagerErr: errors.New("queue manager error"),
+		},
 	}
 
-	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID, initID + 1, initID + 2}).
-		Return(map[platform.ID]int64{initID: 0, initID + 1: 0, initID + 2: 0}, nil)
-	listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: replication.OrgID})
-	require.NoError(t, err)
-	require.Len(t, listed.Replications, 3)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mocks := newTestService(t)
 
-	// Delete 2/3 by bucket ID.
-	mocks.durableQueueManager.EXPECT().DeleteQueue(gomock.Any()).Times(2)
-	require.NoError(t, svc.DeleteBucketReplications(ctx, createReq.LocalBucketID))
+			mocks.serviceStore.EXPECT().Lock()
+			mocks.serviceStore.EXPECT().Unlock()
 
-	// Ensure they were deleted.
-	mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID + 1}).
-		Return(map[platform.ID]int64{initID + 1: 0}, nil)
-	listed, err = svc.ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: replication.OrgID})
-	require.NoError(t, err)
-	require.Len(t, listed.Replications, 1)
-	require.Equal(t, createReq2.LocalBucketID, listed.Replications[0].LocalBucketID)
+			mocks.serviceStore.EXPECT().DeleteReplication(gomock.Any(), id1).Return(tt.storeErr)
+
+			if tt.storeErr == nil {
+				mocks.durableQueueManager.EXPECT().DeleteQueue(id1).Return(tt.queueManagerErr)
+			}
+
+			err := svc.DeleteReplication(ctx, id1)
+
+			var wantErr error
+			if tt.storeErr != nil {
+				wantErr = tt.storeErr
+			} else if tt.queueManagerErr != nil {
+				wantErr = tt.queueManagerErr
+			}
+
+			require.Equal(t, wantErr, err)
+		})
+	}
 }
 
-func TestListReplications(t *testing.T) {
+func TestDeleteBucketReplications(t *testing.T) {
 	t.Parallel()
 
-	createReq2, createReq3 := createReq, createReq
-	createReq2.Name, createReq3.Name = "test2", "test3"
-	createReq2.LocalBucketID = platform.ID(77777)
-	createReq3.RemoteID = updatedReplication.RemoteID
-
-	setup := func(t *testing.T, svc *service, mocks mocks) []influxdb.Replication {
-		mocks.bucketSvc.EXPECT().RLock().Times(3)
-		mocks.bucketSvc.EXPECT().RUnlock().Times(3)
-		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).Return(&influxdb.Bucket{}, nil).Times(2)
-		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq2.LocalBucketID).Return(&influxdb.Bucket{}, nil)
-		insertRemote(t, svc.store, createReq.RemoteID)
-		insertRemote(t, svc.store, createReq3.RemoteID)
-
-		var allReplications []influxdb.Replication
-		for _, req := range []influxdb.CreateReplicationRequest{createReq, createReq2, createReq3} {
-			mocks.durableQueueManager.EXPECT().InitializeQueue(gomock.Any(), createReq.MaxQueueSizeBytes)
-			created, err := svc.CreateReplication(ctx, req)
-			require.NoError(t, err)
-			allReplications = append(allReplications, *created)
-		}
-		return allReplications
+	tests := []struct {
+		name            string
+		storeErr        error
+		storeIDs        []platform.ID
+		queueManagerErr error
+		wantErr         error
+	}{
+		{
+			name:     "success - single replication IDs match bucket ID",
+			storeIDs: []platform.ID{id1},
+		},
+		{
+			name:     "success - multiple replication IDs match bucket ID",
+			storeIDs: []platform.ID{id1, id2},
+		},
+		{
+			name:     "zero replication IDs match bucket ID",
+			storeIDs: []platform.ID{},
+		},
+		{
+			name:     "store error",
+			storeErr: errors.New("store error"),
+			wantErr:  errors.New("store error"),
+		},
+		{
+			name:            "queue manager delete queue error",
+			storeIDs:        []platform.ID{id1},
+			queueManagerErr: errors.New("queue manager error"),
+			wantErr:         fmt.Errorf("deleting replications for bucket %q failed, see server logs for details", id1),
+		},
 	}
 
-	t.Run("list all", func(t *testing.T) {
-		t.Parallel()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mocks := newTestService(t)
 
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
-		allRepls := setup(t, svc, mocks)
+			mocks.serviceStore.EXPECT().Lock()
+			mocks.serviceStore.EXPECT().Unlock()
 
-		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID, initID + 1, initID + 2}).
-			Return(map[platform.ID]int64{initID: 0, initID + 1: 0, initID + 2: 0}, nil)
-		listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: createReq.OrgID})
-		require.NoError(t, err)
-		require.Equal(t, influxdb.Replications{Replications: allRepls}, *listed)
-	})
+			mocks.serviceStore.EXPECT().DeleteBucketReplications(gomock.Any(), id1).Return(tt.storeIDs, tt.storeErr)
 
-	t.Run("list by name", func(t *testing.T) {
-		t.Parallel()
+			if tt.storeErr == nil {
+				for _, id := range tt.storeIDs {
+					mocks.durableQueueManager.EXPECT().DeleteQueue(id).Return(tt.queueManagerErr)
+				}
+			}
 
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
-		allRepls := setup(t, svc, mocks)
-
-		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID + 1}).
-			Return(map[platform.ID]int64{initID + 1: 0}, nil)
-		listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{
-			OrgID: createReq.OrgID,
-			Name:  &createReq2.Name,
+			err := svc.DeleteBucketReplications(ctx, id1)
+			require.Equal(t, tt.wantErr, err)
 		})
-		require.NoError(t, err)
-		require.Equal(t, influxdb.Replications{Replications: allRepls[1:2]}, *listed)
-	})
+	}
+}
 
-	t.Run("list by remote ID", func(t *testing.T) {
-		t.Parallel()
+func TestValidateReplication(t *testing.T) {
+	t.Parallel()
 
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
-		allRepls := setup(t, svc, mocks)
+	tests := []struct {
+		name         string
+		storeErr     error
+		validatorErr error
+		wantErr      error
+	}{
+		{
+			name: "valid",
+		},
+		{
+			name:     "store error",
+			storeErr: errors.New("store error"),
+			wantErr:  errors.New("store error"),
+		},
+		{
+			name:         "validation error - invalid replication",
+			validatorErr: errors.New("validation error"),
+			wantErr: &ierrors.Error{
+				Code: ierrors.EInvalid,
+				Msg:  "replication failed validation",
+				Err:  errors.New("validation error"),
+			},
+		},
+	}
 
-		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID, initID + 1}).
-			Return(map[platform.ID]int64{initID: 0, initID + 1: 0}, nil)
-		listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{
-			OrgID:    createReq.OrgID,
-			RemoteID: &createReq.RemoteID,
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mocks := newTestService(t)
+
+			mocks.serviceStore.EXPECT().GetFullHTTPConfig(gomock.Any(), id1).Return(&httpConfig, tt.storeErr)
+			if tt.storeErr == nil {
+				mocks.validator.EXPECT().ValidateReplication(gomock.Any(), &httpConfig).Return(tt.validatorErr)
+			}
+
+			err := svc.ValidateReplication(ctx, id1)
+			require.Equal(t, tt.wantErr, err)
 		})
-		require.NoError(t, err)
-		require.Equal(t, influxdb.Replications{Replications: allRepls[0:2]}, *listed)
-	})
-
-	t.Run("list by bucket ID", func(t *testing.T) {
-		t.Parallel()
-
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
-		allRepls := setup(t, svc, mocks)
-
-		mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{initID, initID + 2}).
-			Return(map[platform.ID]int64{initID: 0, initID + 2: 0}, nil)
-		listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{
-			OrgID:         createReq.OrgID,
-			LocalBucketID: &createReq.LocalBucketID,
-		})
-		require.NoError(t, err)
-		require.Equal(t, influxdb.Replications{Replications: append(allRepls[0:1], allRepls[2:]...)}, *listed)
-	})
-
-	t.Run("list by other org ID", func(t *testing.T) {
-		t.Parallel()
-
-		svc, mocks, clean := newTestService(t)
-		defer clean(t)
-		setup(t, svc, mocks)
-
-		listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: platform.ID(2)})
-		require.NoError(t, err)
-		require.Equal(t, influxdb.Replications{}, *listed)
-	})
+	}
 }
 
 func TestWritePoints(t *testing.T) {
 	t.Parallel()
 
-	svc, mocks, clean := newTestService(t)
-	defer clean(t)
+	svc, mocks := newTestService(t)
 
-	// Register a handful of replications.
-	createReq2, createReq3 := createReq, createReq
-	createReq2.Name, createReq3.Name = "test2", "test3"
-	createReq2.LocalBucketID = platform.ID(77777)
-	createReq3.RemoteID = updatedReplication.RemoteID
-	mocks.bucketSvc.EXPECT().RLock().Times(3)
-	mocks.bucketSvc.EXPECT().RUnlock().Times(3)
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).Return(&influxdb.Bucket{}, nil).Times(2)
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq2.LocalBucketID).Return(&influxdb.Bucket{}, nil)
-	insertRemote(t, svc.store, createReq.RemoteID)
-	insertRemote(t, svc.store, createReq3.RemoteID)
-
-	for _, req := range []influxdb.CreateReplicationRequest{createReq, createReq2, createReq3} {
-		mocks.durableQueueManager.EXPECT().InitializeQueue(gomock.Any(), req.MaxQueueSizeBytes)
-		_, err := svc.CreateReplication(ctx, req)
-		require.NoError(t, err)
+	list := &influxdb.Replications{
+		Replications: []influxdb.Replication{replication1, replication2},
 	}
+
+	mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
+		OrgID:         orgID,
+		LocalBucketID: &id1,
+	}).Return(list, nil)
 
 	points, err := models.ParsePointsString(`
 cpu,host=0 value=1.1 6000000000
@@ -640,10 +674,10 @@ disk,host=C value=1.3 1000000000`)
 	require.NoError(t, err)
 
 	// Points should successfully write to local TSM.
-	mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), replication.OrgID, replication.LocalBucketID, points).Return(nil)
+	mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), orgID, id1, points).Return(nil)
 
 	// Points should successfully be enqueued in the 2 replications associated with the local bucket.
-	for _, id := range []platform.ID{initID, initID + 2} {
+	for _, id := range []platform.ID{replication1.ID, replication2.ID} {
 		mocks.durableQueueManager.EXPECT().
 			EnqueueData(id, gomock.Any(), len(points)).
 			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
@@ -666,32 +700,22 @@ disk,host=C value=1.3 1000000000`)
 			})
 	}
 
-	require.NoError(t, svc.WritePoints(ctx, replication.OrgID, replication.LocalBucketID, points))
+	require.NoError(t, svc.WritePoints(ctx, orgID, id1, points))
 }
 
 func TestWritePoints_LocalFailure(t *testing.T) {
 	t.Parallel()
 
-	svc, mocks, clean := newTestService(t)
-	defer clean(t)
+	svc, mocks := newTestService(t)
 
-	// Register a handful of replications.
-	createReq2, createReq3 := createReq, createReq
-	createReq2.Name, createReq3.Name = "test2", "test3"
-	createReq2.LocalBucketID = platform.ID(77777)
-	createReq3.RemoteID = updatedReplication.RemoteID
-	mocks.bucketSvc.EXPECT().RLock().Times(3)
-	mocks.bucketSvc.EXPECT().RUnlock().Times(3)
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).Return(&influxdb.Bucket{}, nil).Times(2)
-	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq2.LocalBucketID).Return(&influxdb.Bucket{}, nil)
-	insertRemote(t, svc.store, createReq.RemoteID)
-	insertRemote(t, svc.store, createReq3.RemoteID)
-
-	for _, req := range []influxdb.CreateReplicationRequest{createReq, createReq2, createReq3} {
-		mocks.durableQueueManager.EXPECT().InitializeQueue(gomock.Any(), req.MaxQueueSizeBytes)
-		_, err := svc.CreateReplication(ctx, req)
-		require.NoError(t, err)
+	list := &influxdb.Replications{
+		Replications: []influxdb.Replication{replication1, replication2},
 	}
+
+	mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
+		OrgID:         orgID,
+		LocalBucketID: &id1,
+	}).Return(list, nil)
 
 	points, err := models.ParsePointsString(`
 cpu,host=0 value=1.1 6000000000
@@ -706,9 +730,78 @@ disk,host=C value=1.3 1000000000`)
 
 	// Points should fail to write to local TSM.
 	writeErr := errors.New("O NO")
-	mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), replication.OrgID, replication.LocalBucketID, points).Return(writeErr)
+	mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), orgID, id1, points).Return(writeErr)
 	// Don't expect any calls to enqueue points.
-	require.Equal(t, writeErr, svc.WritePoints(ctx, replication.OrgID, replication.LocalBucketID, points))
+	require.Equal(t, writeErr, svc.WritePoints(ctx, orgID, id1, points))
+}
+
+func TestOpen(t *testing.T) {
+	t.Parallel()
+
+	filter := influxdb.ReplicationListFilter{}
+
+	tests := []struct {
+		name            string
+		storeErr        error
+		queueManagerErr error
+		replicationsMap map[platform.ID]int64
+		list            *influxdb.Replications
+	}{
+		{
+			name: "no error, multiple replications from storage",
+			replicationsMap: map[platform.ID]int64{
+				replication1.ID: replication1.MaxQueueSizeBytes,
+				replication2.ID: replication2.MaxQueueSizeBytes,
+			},
+			list: &influxdb.Replications{
+				Replications: []influxdb.Replication{replication1, replication2},
+			},
+		},
+		{
+			name: "no error, one stored replication",
+			replicationsMap: map[platform.ID]int64{
+				replication1.ID: replication1.MaxQueueSizeBytes,
+			},
+			list: &influxdb.Replications{
+				Replications: []influxdb.Replication{replication1},
+			},
+		},
+		{
+			name:     "store error",
+			storeErr: errors.New("store error"),
+		},
+		{
+			name: "queue manager error",
+			replicationsMap: map[platform.ID]int64{
+				replication1.ID: replication1.MaxQueueSizeBytes,
+			},
+			list: &influxdb.Replications{
+				Replications: []influxdb.Replication{replication1},
+			},
+			queueManagerErr: errors.New("queue manager error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mocks := newTestService(t)
+
+			mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), filter).Return(tt.list, tt.storeErr)
+			if tt.storeErr == nil {
+				mocks.durableQueueManager.EXPECT().StartReplicationQueues(tt.replicationsMap).Return(tt.queueManagerErr)
+			}
+
+			var wantErr error
+			if tt.storeErr != nil {
+				wantErr = tt.storeErr
+			} else if tt.queueManagerErr != nil {
+				wantErr = tt.queueManagerErr
+			}
+
+			err := svc.Open(ctx)
+			require.Equal(t, wantErr, err)
+		})
+	}
 }
 
 type mocks struct {
@@ -716,17 +809,11 @@ type mocks struct {
 	validator           *replicationsMock.MockReplicationValidator
 	durableQueueManager *replicationsMock.MockDurableQueueManager
 	pointWriter         *replicationsMock.MockPointsWriter
+	serviceStore        *replicationsMock.MockServiceStore
 }
 
-func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
-	store, clean := sqlite.NewTestStore(t)
+func newTestService(t *testing.T) (*service, mocks) {
 	logger := zaptest.NewLogger(t)
-	sqliteMigrator := sqlite.NewMigrator(store, logger)
-	require.NoError(t, sqliteMigrator.Up(ctx, migrations.AllUp))
-
-	// Make sure foreign-key checking is enabled.
-	_, err := store.DB.Exec("PRAGMA foreign_keys = ON;")
-	require.NoError(t, err)
 
 	ctrl := gomock.NewController(t)
 	mocks := mocks{
@@ -734,10 +821,11 @@ func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
 		validator:           replicationsMock.NewMockReplicationValidator(ctrl),
 		durableQueueManager: replicationsMock.NewMockDurableQueueManager(ctrl),
 		pointWriter:         replicationsMock.NewMockPointsWriter(ctrl),
+		serviceStore:        replicationsMock.NewMockServiceStore(ctrl),
 	}
 	svc := service{
-		store:               store,
-		idGenerator:         mock.NewIncrementingIDGenerator(initID),
+		store:               mocks.serviceStore,
+		idGenerator:         mock.NewIncrementingIDGenerator(id1),
 		bucketService:       mocks.bucketSvc,
 		validator:           mocks.validator,
 		log:                 logger,
@@ -745,31 +833,5 @@ func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
 		localWriter:         mocks.pointWriter,
 	}
 
-	return &svc, mocks, clean
-}
-
-func insertRemote(t *testing.T, store *sqlite.SqlStore, id platform.ID) {
-	store.Mu.Lock()
-	defer store.Mu.Unlock()
-
-	q := sq.Insert("remotes").SetMap(sq.Eq{
-		"id":                 id,
-		"org_id":             replication.OrgID,
-		"name":               fmt.Sprintf("foo-%s", id),
-		"remote_url":         fmt.Sprintf("http://%s.cloud", id),
-		"remote_api_token":   id.String(),
-		"remote_org_id":      platform.ID(888888),
-		"allow_insecure_tls": true,
-		"created_at":         "datetime('now')",
-		"updated_at":         "datetime('now')",
-	})
-	query, args, err := q.ToSql()
-	require.NoError(t, err)
-
-	_, err = store.DB.Exec(query, args...)
-	require.NoError(t, err)
-}
-
-func boolPointer(b bool) *bool {
-	return &b
+	return &svc, mocks
 }
