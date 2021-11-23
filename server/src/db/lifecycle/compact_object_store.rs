@@ -34,7 +34,7 @@ use parquet_file::{
 use persistence_windows::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint};
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use schema::Schema;
-use snafu::ResultExt;
+use snafu::{OptionExt, ResultExt};
 use std::{
     cmp::Ordering,
     collections::{BTreeSet, HashSet},
@@ -192,7 +192,7 @@ fn mark_chunks_to_compact(
     let mut min_order = ChunkOrder::MAX;
     let mut max_order = ChunkOrder::MIN;
 
-    let mut database_checkpoint: Option<DatabaseCheckpoint> = None;
+    let mut database_checkpoint = DatabaseCheckpoint::new(Default::default());
     let mut partition_checkpoint: Option<PartitionCheckpoint> = None;
 
     let os_chunks = chunks
@@ -235,22 +235,15 @@ fn mark_chunks_to_compact(
                     .context(ParquetMetaRead)?;
 
                 // fold all database_checkpoints into one for the compacting chunk
-                if let Some(db_ckpt) = &mut database_checkpoint {
-                    db_ckpt.fold(&iox_metadata.database_checkpoint);
-                } else {
-                    database_checkpoint = Some(iox_metadata.database_checkpoint);
-                }
+                database_checkpoint.fold(&iox_metadata.database_checkpoint);
 
                 // keep max partition_checkpoint for the compacting chunk
                 if let Some(part_ckpt) = &partition_checkpoint {
-                    match part_ckpt.partial_cmp(&iox_metadata.partition_checkpoint) {
-                        None => {
-                            return ComparePartitionCheckpoint {}.fail();
-                        }
-                        Some(Ordering::Less) => {
-                            partition_checkpoint = Some(iox_metadata.partition_checkpoint);
-                        }
-                        _ => {}
+                    let ordering = part_ckpt
+                        .partial_cmp(&iox_metadata.partition_checkpoint)
+                        .context(ComparePartitionCheckpoint)?;
+                    if ordering == Ordering::Less {
+                        partition_checkpoint = Some(iox_metadata.partition_checkpoint);
                     }
                 } else {
                     partition_checkpoint = Some(iox_metadata.partition_checkpoint);
@@ -266,10 +259,9 @@ fn mark_chunks_to_compact(
         })
         .collect::<Result<Vec<_>>>()?;
 
-    if database_checkpoint.is_none() || partition_checkpoint.is_none() {
+    if partition_checkpoint.is_none() {
         return NoCheckpoint {}.fail();
     }
-    let database_checkpoint = database_checkpoint.unwrap();
     let partition_checkpoint = partition_checkpoint.unwrap();
 
     // Verify if all the provided chunks are contiguous
