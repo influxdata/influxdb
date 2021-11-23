@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use itertools::Itertools;
 
 use arrow_util::assert_batches_eq;
@@ -196,12 +198,13 @@ async fn test_update_late_arrival() {
 async fn test_query_chunk_after_restart() {
     // fixtures
     let fixture = ServerFixture::create_single_use(ServerType::Database).await;
+    let mut deployment_client = fixture.deployment_client();
+    let mut management_client = fixture.management_client();
     let db_name = rand_name();
 
     // set server ID
-    let mut management_client = fixture.management_client();
-    management_client
-        .update_server_id(DEFAULT_SERVER_ID)
+    deployment_client
+        .update_server_id(NonZeroU32::new(DEFAULT_SERVER_ID).unwrap())
         .await
         .expect("set ID failed");
     fixture.wait_server_initialized().await;

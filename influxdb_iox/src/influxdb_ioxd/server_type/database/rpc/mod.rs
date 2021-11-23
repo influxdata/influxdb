@@ -49,7 +49,6 @@ where
         management::make_server(
             Arc::clone(&server_type.application),
             Arc::clone(&server_type.server),
-            server_type.serving_readiness.clone(),
         )
     );
     add_service!(

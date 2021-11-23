@@ -13,7 +13,7 @@ use generated_types::influxdata::iox::management::v1::{
     node_group::Node, sink, HashRing, Matcher, MatcherToShard, NodeGroup, RoutingConfig,
     ShardConfig, Sink,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, num::NonZeroU32};
 
 #[tokio::test]
 async fn test_write() {
@@ -100,11 +100,11 @@ async fn test_write() {
 
 #[tokio::test]
 async fn test_write_routed() {
-    const TEST_ROUTER_ID: u32 = 1;
+    let test_router_id = NonZeroU32::new(1).unwrap();
 
-    const TEST_TARGET_ID_1: u32 = 2;
-    const TEST_TARGET_ID_2: u32 = 3;
-    const TEST_TARGET_ID_3: u32 = 4;
+    let test_target_id_1 = NonZeroU32::new(2).unwrap();
+    let test_target_id_2 = NonZeroU32::new(3).unwrap();
+    let test_target_id_3 = NonZeroU32::new(4).unwrap();
 
     const TEST_REMOTE_ID_1: u32 = 2;
     const TEST_REMOTE_ID_2: u32 = 3;
@@ -115,17 +115,18 @@ async fn test_write_routed() {
     const TEST_SHARD_ID_3: u32 = 44;
 
     let router = ServerFixture::create_single_use(ServerType::Database).await;
+    let mut router_deployment = router.deployment_client();
     let mut router_mgmt = router.management_client();
-    router_mgmt
-        .update_server_id(TEST_ROUTER_ID)
+    router_deployment
+        .update_server_id(test_router_id)
         .await
         .expect("set ID failed");
     router.wait_server_initialized().await;
 
     let target_1 = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut target_1_mgmt = target_1.management_client();
-    target_1_mgmt
-        .update_server_id(TEST_TARGET_ID_1)
+    let mut target_1_deployment = target_1.deployment_client();
+    target_1_deployment
+        .update_server_id(test_target_id_1)
         .await
         .expect("set ID failed");
     target_1.wait_server_initialized().await;
@@ -136,9 +137,9 @@ async fn test_write_routed() {
         .expect("set remote failed");
 
     let target_2 = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut target_2_mgmt = target_2.management_client();
-    target_2_mgmt
-        .update_server_id(TEST_TARGET_ID_2)
+    let mut target_2_deployment = target_2.deployment_client();
+    target_2_deployment
+        .update_server_id(test_target_id_2)
         .await
         .expect("set ID failed");
     target_2.wait_server_initialized().await;
@@ -149,9 +150,9 @@ async fn test_write_routed() {
         .expect("set remote failed");
 
     let target_3 = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut target_3_mgmt = target_3.management_client();
-    target_3_mgmt
-        .update_server_id(TEST_TARGET_ID_3)
+    let mut target_3_deployment = target_3.deployment_client();
+    target_3_deployment
+        .update_server_id(test_target_id_3)
         .await
         .expect("set ID failed");
     target_3.wait_server_initialized().await;
@@ -336,14 +337,15 @@ async fn test_write_routed() {
 
 #[tokio::test]
 async fn test_write_routed_errors() {
-    const TEST_ROUTER_ID: u32 = 1;
+    let test_router_id = NonZeroU32::new(1).unwrap();
     const TEST_REMOTE_ID: u32 = 2;
     const TEST_SHARD_ID: u32 = 42;
 
     let router = ServerFixture::create_single_use(ServerType::Database).await;
+    let mut router_deployment = router.deployment_client();
     let mut router_mgmt = router.management_client();
-    router_mgmt
-        .update_server_id(TEST_ROUTER_ID)
+    router_deployment
+        .update_server_id(test_router_id)
         .await
         .expect("set ID failed");
     router.wait_server_initialized().await;
@@ -405,13 +407,14 @@ async fn test_write_routed_errors() {
 
 #[tokio::test]
 async fn test_write_dev_null() {
-    const TEST_ROUTER_ID: u32 = 1;
+    let test_router_id = NonZeroU32::new(1).unwrap();
     const TEST_SHARD_ID: u32 = 42;
 
     let router = ServerFixture::create_single_use(ServerType::Database).await;
+    let mut router_deployment = router.deployment_client();
     let mut router_mgmt = router.management_client();
-    router_mgmt
-        .update_server_id(TEST_ROUTER_ID)
+    router_deployment
+        .update_server_id(test_router_id)
         .await
         .expect("set ID failed");
     router.wait_server_initialized().await;
@@ -471,28 +474,29 @@ async fn test_write_dev_null() {
 
 #[tokio::test]
 async fn test_write_routed_no_shard() {
-    const TEST_ROUTER_ID: u32 = 1;
+    let test_router_id = NonZeroU32::new(1).unwrap();
 
-    const TEST_TARGET_ID_1: u32 = 2;
-    const TEST_TARGET_ID_2: u32 = 3;
-    const TEST_TARGET_ID_3: u32 = 4;
+    let test_target_id_1 = NonZeroU32::new(2).unwrap();
+    let test_target_id_2 = NonZeroU32::new(3).unwrap();
+    let test_target_id_3 = NonZeroU32::new(4).unwrap();
 
     const TEST_REMOTE_ID_1: u32 = 2;
     const TEST_REMOTE_ID_2: u32 = 3;
     const TEST_REMOTE_ID_3: u32 = 4;
 
     let router = ServerFixture::create_single_use(ServerType::Database).await;
+    let mut router_deployment = router.deployment_client();
     let mut router_mgmt = router.management_client();
-    router_mgmt
-        .update_server_id(TEST_ROUTER_ID)
+    router_deployment
+        .update_server_id(test_router_id)
         .await
         .expect("set ID failed");
     router.wait_server_initialized().await;
 
     let target_1 = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut target_1_mgmt = target_1.management_client();
-    target_1_mgmt
-        .update_server_id(TEST_TARGET_ID_1)
+    let mut target_1_deployment = target_1.deployment_client();
+    target_1_deployment
+        .update_server_id(test_target_id_1)
         .await
         .expect("set ID failed");
     target_1.wait_server_initialized().await;
@@ -503,9 +507,9 @@ async fn test_write_routed_no_shard() {
         .expect("set remote failed");
 
     let target_2 = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut target_2_mgmt = target_2.management_client();
-    target_2_mgmt
-        .update_server_id(TEST_TARGET_ID_2)
+    let mut target_2_deployment = target_2.deployment_client();
+    target_2_deployment
+        .update_server_id(test_target_id_2)
         .await
         .expect("set ID failed");
     target_2.wait_server_initialized().await;
@@ -516,9 +520,9 @@ async fn test_write_routed_no_shard() {
         .expect("set remote failed");
 
     let target_3 = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut target_3_mgmt = target_3.management_client();
-    target_3_mgmt
-        .update_server_id(TEST_TARGET_ID_3)
+    let mut target_3_deployment = target_3.deployment_client();
+    target_3_deployment
+        .update_server_id(test_target_id_3)
         .await
         .expect("set ID failed");
     target_3.wait_server_initialized().await;

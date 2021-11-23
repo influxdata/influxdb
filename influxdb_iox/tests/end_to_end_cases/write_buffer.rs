@@ -15,7 +15,7 @@ use influxdb_iox_client::{
     management::{generated_types::WriteBufferCreationConfig, CreateDatabaseError},
     write::WriteError,
 };
-use std::sync::Arc;
+use std::{num::NonZeroU32, sync::Arc};
 use tempfile::TempDir;
 use test_helpers::assert_contains;
 use time::SystemProvider;
@@ -312,8 +312,8 @@ pub async fn test_cross_write_buffer_tracing() {
     // create producer server
     let server_write = ServerFixture::create_single_use_with_config(test_config.clone()).await;
     server_write
-        .management_client()
-        .update_server_id(1)
+        .deployment_client()
+        .update_server_id(NonZeroU32::new(1).unwrap())
         .await
         .unwrap();
     server_write.wait_server_initialized().await;
@@ -335,8 +335,8 @@ pub async fn test_cross_write_buffer_tracing() {
     // create consumer DB
     let server_read = ServerFixture::create_single_use_with_config(test_config).await;
     server_read
-        .management_client()
-        .update_server_id(2)
+        .deployment_client()
+        .update_server_id(NonZeroU32::new(2).unwrap())
         .await
         .unwrap();
     server_read.wait_server_initialized().await;

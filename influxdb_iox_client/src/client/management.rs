@@ -4,7 +4,7 @@ use crate::{
     google::{longrunning::IoxOperation, FieldViolation},
 };
 use bytes::Bytes;
-use std::{convert::TryInto, num::NonZeroU32};
+use std::convert::TryInto;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -463,35 +463,6 @@ impl Client {
         }
     }
 
-    /// Set the server's ID.
-    pub async fn update_server_id(&mut self, id: u32) -> Result<(), UpdateServerIdError> {
-        self.inner
-            .update_server_id(UpdateServerIdRequest { id })
-            .await
-            .map_err(UpdateServerIdError::ServerError)?;
-        Ok(())
-    }
-
-    /// Get the server's ID.
-    pub async fn get_server_id(&mut self) -> Result<NonZeroU32, GetServerIdError> {
-        let response = self
-            .inner
-            .get_server_id(GetServerIdRequest {})
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => GetServerIdError::NoServerId,
-                _ => GetServerIdError::ServerError(status),
-            })?;
-
-        let id = response
-            .get_ref()
-            .id
-            .try_into()
-            .map_err(|_| GetServerIdError::NoServerId)?;
-
-        Ok(id)
-    }
-
     /// Check if databases are loaded and ready for read and write.
     pub async fn get_server_status(&mut self) -> Result<ServerStatus, GetServerStatusError> {
         let response = self
@@ -505,18 +476,6 @@ impl Client {
             .server_status
             .ok_or(GetServerStatusError::EmptyResponse)?;
         Ok(server_status)
-    }
-
-    /// Set serving readiness.
-    pub async fn set_serving_readiness(
-        &mut self,
-        ready: bool,
-    ) -> Result<(), SetServingReadinessError> {
-        self.inner
-            .set_serving_readiness(SetServingReadinessRequest { ready })
-            .await
-            .map_err(SetServingReadinessError::ServerError)?;
-        Ok(())
     }
 
     /// Creates a new IOx database.
