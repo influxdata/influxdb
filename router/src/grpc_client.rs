@@ -26,6 +26,9 @@ pub trait GrpcClient: Sync + Send + std::fmt::Debug + 'static {
 /// A real, network-driven gRPC client.
 #[derive(Debug)]
 pub struct RealClient {
+    /// Delete client for IOx.
+    delete_client: influxdb_iox_client::delete::Client,
+
     /// Write client for IOx.
     write_client: influxdb_iox_client::write::Client,
 }
@@ -34,6 +37,7 @@ impl RealClient {
     /// Create new client from established connection.
     pub fn new(connection: influxdb_iox_client::connection::Connection) -> Self {
         Self {
+            delete_client: influxdb_iox_client::delete::Client::new(connection.clone()),
             write_client: influxdb_iox_client::write::Client::new(connection),
         }
     }
@@ -59,7 +63,24 @@ impl GrpcClient for RealClient {
                     .await
                     .map_err(|e| Box::new(e) as _)
             }
-            DmlOperation::Delete(_) => unimplemented!(),
+            DmlOperation::Delete(delete) => {
+                // cheap, see https://docs.rs/tonic/0.4.2/tonic/client/index.html#concurrent-usage
+                let mut client = self.delete_client.clone();
+
+                client
+                    .delete(
+                        db_name.to_owned(),
+                        delete
+                            .table_name()
+                            .map(|s| s.to_owned())
+                            .unwrap_or_default(),
+                        delete.predicate().range.start.to_string(),
+                        delete.predicate().range.end.to_string(),
+                        delete.predicate().expr_sql_string(),
+                    )
+                    .await
+                    .map_err(|e| Box::new(e) as _)
+            }
         }
     }
 
