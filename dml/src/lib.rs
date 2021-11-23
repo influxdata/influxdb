@@ -272,12 +272,12 @@ pub mod test_util {
     pub fn assert_op_eq(a: &DmlOperation, b: &DmlOperation) {
         match (a, b) {
             (DmlOperation::Write(a), DmlOperation::Write(b)) => assert_writes_eq(a, b),
-            (DmlOperation::Delete(_), DmlOperation::Delete(_)) => unimplemented!(),
+            (DmlOperation::Delete(a), DmlOperation::Delete(b)) => assert_deletes_eq(a, b),
             (a, b) => panic!("a != b, {:?} vs {:?}", a, b),
         }
     }
 
-    /// Asserts `a` contains a WriteOperation equal to `b`
+    /// Asserts `a` contains a [`DmlWrite`] equal to `b`
     pub fn assert_write_op_eq(a: &DmlOperation, b: &DmlWrite) {
         match a {
             DmlOperation::Write(a) => assert_writes_eq(a, b),
@@ -287,8 +287,7 @@ pub mod test_util {
 
     /// Asserts two writes are equal
     pub fn assert_writes_eq(a: &DmlWrite, b: &DmlWrite) {
-        assert_eq!(a.meta().sequence(), b.meta().sequence());
-        assert_eq!(a.meta().producer_ts(), b.meta().producer_ts());
+        assert_meta_eq(a.meta(), b.meta());
 
         assert_eq!(a.table_count(), b.table_count());
 
@@ -302,5 +301,44 @@ pub mod test_util {
                 table_name
             );
         }
+    }
+
+    /// Asserts `a` contains a [`DmlDelete`] equal to `b`
+    pub fn assert_delete_op_eq(a: &DmlOperation, b: &DmlDelete) {
+        match a {
+            DmlOperation::Delete(a) => assert_deletes_eq(a, b),
+            _ => panic!("unexpected operation: {:?}", a),
+        }
+    }
+
+    /// Asserts two deletes are equal
+    pub fn assert_deletes_eq(a: &DmlDelete, b: &DmlDelete) {
+        assert_meta_eq(a.meta(), b.meta());
+
+        assert_eq!(a.table_name(), b.table_name());
+
+        assert_eq!(a.predicate(), b.predicate());
+    }
+
+    /// Assert that two metadata objects are equal
+    pub fn assert_meta_eq(a: &DmlMeta, b: &DmlMeta) {
+        assert_eq!(a.sequence(), b.sequence());
+
+        assert_eq!(a.producer_ts(), b.producer_ts());
+
+        match (a.span_context(), b.span_context()) {
+            (None, None) => (),
+            (Some(a), Some(b)) => {
+                assert_eq!(a.trace_id, b.trace_id);
+                assert_eq!(a.parent_span_id, b.parent_span_id);
+                assert_eq!(a.span_id, b.span_id);
+                assert_eq!(a.links, b.links);
+                assert_eq!(a.collector.is_some(), b.collector.is_some());
+            }
+            (None, Some(_)) => panic!("rhs has span context but lhs has not"),
+            (Some(_), None) => panic!("lhs has span context but rhs has not"),
+        }
+
+        assert_eq!(a.bytes_read(), b.bytes_read());
     }
 }
