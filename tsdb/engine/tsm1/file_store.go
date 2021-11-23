@@ -280,7 +280,6 @@ func (f *FileStore) WithLogger(log *zap.Logger) {
 
 var globalFileStoreMetrics = newAllFileStoreMetrics()
 
-const namespace = "storage"
 const filesSubsystem = "tsm_files"
 
 type allFileStoreMetrics struct {
@@ -309,16 +308,16 @@ func (f *fileStoreMetrics) SetFiles(n int64) {
 }
 
 func newAllFileStoreMetrics() *allFileStoreMetrics {
-	labels := engineLabelNames()
+	labels := EngineLabelNames()
 	return &allFileStoreMetrics{
 		files: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
+			Namespace: storageNamespace,
 			Subsystem: filesSubsystem,
 			Name:      "total",
 			Help:      "Gauge of number of files per shard",
 		}, labels),
 		size: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
+			Namespace: storageNamespace,
 			Subsystem: filesSubsystem,
 			Name:      "disk_bytes",
 			Help:      "Gauge of data size in bytes for each shard",
@@ -334,7 +333,7 @@ func FileStoreCollectors() []prometheus.Collector {
 }
 
 func newFileStoreMetrics(tags EngineTags) *fileStoreMetrics {
-	labels := tags.getLabels()
+	labels := tags.GetLabels()
 	return &fileStoreMetrics{
 		files: globalFileStoreMetrics.files.With(labels),
 		size:  globalFileStoreMetrics.size.With(labels),

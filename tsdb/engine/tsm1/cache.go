@@ -224,7 +224,7 @@ type cacheMetrics struct {
 }
 
 func newAllCacheMetrics() *allCacheMetrics {
-	labels := engineLabelNames()
+	labels := EngineLabelNames()
 	return &allCacheMetrics{
 		MemBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: storageNamespace,
@@ -277,7 +277,7 @@ func CacheCollectors() []prometheus.Collector {
 }
 
 func newCacheMetrics(tags EngineTags) *cacheMetrics {
-	labels := tags.getLabels()
+	labels := tags.GetLabels()
 	return &cacheMetrics{
 		MemBytes:     globalCacheMetrics.MemBytes.With(labels),
 		DiskBytes:    globalCacheMetrics.DiskBytes.With(labels),

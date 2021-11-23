@@ -168,7 +168,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 
 	var wal *WAL
 	if opt.WALEnabled {
-		wal = NewWAL(walPath, opt.Config.WALMaxConcurrentWrites, opt.Config.WALMaxWriteDelay)
+		wal = NewWAL(walPath, opt.Config.WALMaxConcurrentWrites, opt.Config.WALMaxWriteDelay, etags)
 		wal.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
 	}
 
@@ -590,7 +590,7 @@ func (e *Engine) LastModified() time.Time {
 	return fsTime
 }
 
-var globalCompactionMetrics *compactionMetrics = newAllCompactionMetrics(engineLabelNames())
+var globalCompactionMetrics *compactionMetrics = newAllCompactionMetrics(EngineLabelNames())
 
 // PrometheusCollectors returns all prometheus metrics for the tsm1 package.
 func PrometheusCollectors() []prometheus.Collector {
@@ -602,6 +602,7 @@ func PrometheusCollectors() []prometheus.Collector {
 	}
 	collectors = append(collectors, FileStoreCollectors()...)
 	collectors = append(collectors, CacheCollectors()...)
+	collectors = append(collectors, WALCollectors()...)
 	return collectors
 }
 
@@ -688,11 +689,14 @@ type compactionMetrics struct {
 	Failed   *prometheus.CounterVec
 }
 
+// EngineTags holds tags for prometheus
+//
+// It should not be used for behaviour other than attaching tags to prometheus metrics
 type EngineTags struct {
 	path, walPath, id, bucket, engineVersion string
 }
 
-func (et *EngineTags) getLabels() prometheus.Labels {
+func (et *EngineTags) GetLabels() prometheus.Labels {
 	return prometheus.Labels{
 		"path":    et.path,
 		"walPath": et.walPath,
@@ -702,8 +706,8 @@ func (et *EngineTags) getLabels() prometheus.Labels {
 	}
 }
 
-func engineLabelNames() []string {
-	emptyLabels := (&EngineTags{}).getLabels()
+func EngineLabelNames() []string {
+	emptyLabels := (&EngineTags{}).GetLabels()
 	val := make([]string, 0, len(emptyLabels))
 	for k := range emptyLabels {
 		val = append(val, k)
@@ -712,7 +716,7 @@ func engineLabelNames() []string {
 }
 
 func newEngineMetrics(tags EngineTags) *compactionMetrics {
-	engineLabels := tags.getLabels()
+	engineLabels := tags.GetLabels()
 	return &compactionMetrics{
 		Duration: globalCompactionMetrics.Duration.MustCurryWith(engineLabels),
 		Active:   globalCompactionMetrics.Active.MustCurryWith(engineLabels),
