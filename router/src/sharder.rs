@@ -195,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn test_write_no_mach() {
+    fn test_write_no_match() {
         let config = ShardConfig::default();
 
         let meta = DmlMeta::default();
