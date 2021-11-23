@@ -329,11 +329,7 @@ pub mod test_util {
         match (a.span_context(), b.span_context()) {
             (None, None) => (),
             (Some(a), Some(b)) => {
-                assert_eq!(a.trace_id, b.trace_id);
-                assert_eq!(a.parent_span_id, b.parent_span_id);
-                assert_eq!(a.span_id, b.span_id);
-                assert_eq!(a.links, b.links);
-                assert_eq!(a.collector.is_some(), b.collector.is_some());
+                assert_eq!(a, b);
             }
             (None, Some(_)) => panic!("rhs has span context but lhs has not"),
             (Some(_), None) => panic!("lhs has span context but rhs has not"),
