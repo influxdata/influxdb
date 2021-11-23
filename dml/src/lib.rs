@@ -339,6 +339,7 @@ pub mod test_util {
             (Some(_), None) => panic!("lhs has span context but rhs has not"),
         }
 
-        assert_eq!(a.bytes_read(), b.bytes_read());
+        // TODO: https://github.com/influxdata/influxdb_iox/issues/3186
+        // assert_eq!(a.bytes_read(), b.bytes_read());
     }
 }
