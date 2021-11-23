@@ -97,6 +97,7 @@ use tracker::{RwLock, RwLockUpgradableReadGuard, RwLockWriteGuard};
 ///
 /// Note: The `LifecycleReadGuard` will not block other readers to `RwLock<P>` but
 /// they will block other upgradeable readers, e.g. other `LifecycleReadGuard`
+#[derive(Debug)]
 pub struct LifecycleReadGuard<'a, P, D> {
     data: D,
     guard: RwLockUpgradableReadGuard<'a, P>,
@@ -129,15 +130,9 @@ impl<'a, P, D> LifecycleReadGuard<'a, P, D> {
     }
 }
 
-impl<'a, P, D> Debug for LifecycleReadGuard<'a, P, D> {
+impl<'a, P: Display, D> Display for LifecycleReadGuard<'a, P, D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "LifecycleReadGuard{{..}}")
-    }
-}
-
-impl<'a, P, D: Display> Display for LifecycleReadGuard<'a, P, D> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} locked for read", self.data)
+        self.guard.fmt(f)
     }
 }
 
@@ -156,6 +151,7 @@ impl<'a, P, D> Deref for LifecycleReadGuard<'a, P, D> {
 /// a normal read guard or smart pointer, and also mutably through
 /// `std::ops::DerefMut` akin to a normal write guard
 ///
+#[derive(Debug)]
 pub struct LifecycleWriteGuard<'a, P, D> {
     data: D,
     guard: RwLockWriteGuard<'a, P>,
@@ -179,14 +175,9 @@ impl<'a, P, D> LifecycleWriteGuard<'a, P, D> {
     }
 }
 
-impl<'a, P, D> Debug for LifecycleWriteGuard<'a, P, D> {
+impl<'a, P: Display, D> Display for LifecycleWriteGuard<'a, P, D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "LifecycleWriteGuard{{..}}")
-    }
-}
-impl<'a, P, D: Display> Display for LifecycleWriteGuard<'a, P, D> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} locked for write", self.data)
+        self.guard.fmt(f)
     }
 }
 

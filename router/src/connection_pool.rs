@@ -46,7 +46,7 @@ impl ConnectionPool {
     /// Create new connection pool.
     ///
     /// If `use_mock_grpc` is set only mock gRPC clients are created.
-    pub async fn new(use_mock_grpc: bool, wb_factory: WriteBufferConfigFactory) -> Self {
+    pub async fn new(use_mock_grpc: bool, wb_factory: Arc<WriteBufferConfigFactory>) -> Self {
         // Note: this function is async even though it does not contain any `.await` calls because `LoadingCache::new`
         // requires tokio to be running and even if documented people will forget about this.
 
@@ -69,7 +69,6 @@ impl ConnectionPool {
             })
         };
 
-        let wb_factory = Arc::new(wb_factory);
         let write_buffer_producers = LoadingCache::new(move |key: KeyWriteBufferProducer| {
             let wb_factory = Arc::clone(&wb_factory);
             async move {
@@ -95,7 +94,10 @@ impl ConnectionPool {
         let metric_registry = Arc::new(metric::Registry::new());
         Self::new(
             true,
-            WriteBufferConfigFactory::new(time_provider, metric_registry),
+            Arc::new(WriteBufferConfigFactory::new(
+                time_provider,
+                metric_registry,
+            )),
         )
         .await
     }
@@ -145,7 +147,10 @@ mod tests {
 
         let pool1 = ConnectionPool::new(
             false,
-            WriteBufferConfigFactory::new(Arc::clone(&time_provider), Arc::clone(&metric_registry)),
+            Arc::new(WriteBufferConfigFactory::new(
+                Arc::clone(&time_provider),
+                Arc::clone(&metric_registry),
+            )),
         )
         .await;
         // connection will fail
@@ -153,7 +158,10 @@ mod tests {
 
         let pool2 = ConnectionPool::new(
             true,
-            WriteBufferConfigFactory::new(time_provider, metric_registry),
+            Arc::new(WriteBufferConfigFactory::new(
+                time_provider,
+                metric_registry,
+            )),
         )
         .await;
         let client2 = pool2.grpc_client("foo").await.unwrap();

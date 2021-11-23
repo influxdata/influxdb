@@ -813,7 +813,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "6.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=79f129d048667a4552e44ef740e1b1cf9de306a1#79f129d048667a4552e44ef740e1b1cf9de306a1"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=66f5d1906992dcf4f5b7ab787a39a4105c2f5b42#66f5d1906992dcf4f5b7ab787a39a4105c2f5b42"
 dependencies = [
  "ahash",
  "arrow",
@@ -3910,6 +3910,8 @@ dependencies = [
  "rand",
  "rand_distr",
  "read_buffer",
+ "regex",
+ "router",
  "schema",
  "serde",
  "serde_json",

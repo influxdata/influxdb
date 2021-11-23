@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use datafusion::{
     self,
-    logical_plan::{normalize_col, Expr, LogicalPlan},
+    logical_plan::{normalize_col, plan::ExtensionPlan, Expr, LogicalPlan},
 };
 
 pub use context::{IOxExecutionConfig, IOxExecutionContext};
@@ -140,7 +140,7 @@ impl Drop for Executor {
 pub fn make_schema_pivot(input: LogicalPlan) -> LogicalPlan {
     let node = Arc::new(SchemaPivotNode::new(input));
 
-    LogicalPlan::Extension { node }
+    LogicalPlan::Extension(ExtensionPlan { node })
 }
 
 /// Make a NonNullChecker node takes an arbitrary input array and
@@ -178,7 +178,7 @@ pub fn make_schema_pivot(input: LogicalPlan) -> LogicalPlan {
 pub fn make_non_null_checker(table_name: &str, input: LogicalPlan) -> LogicalPlan {
     let node = Arc::new(NonNullCheckerNode::new(table_name, input));
 
-    LogicalPlan::Extension { node }
+    LogicalPlan::Extension(ExtensionPlan { node })
 }
 
 /// Create a StreamSplit node which takes an input stream of record
@@ -214,7 +214,7 @@ pub fn make_stream_split(input: LogicalPlan, split_expr: Expr) -> LogicalPlan {
     let split_expr = normalize_col(split_expr, &input).expect("normalize is infallable");
 
     let node = Arc::new(StreamSplitNode::new(input, split_expr));
-    LogicalPlan::Extension { node }
+    LogicalPlan::Extension(ExtensionPlan { node })
 }
 
 /// A type that can provide `IOxExecutionContext` for query

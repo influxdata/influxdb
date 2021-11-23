@@ -1,4 +1,3 @@
-use arrow_util::assert_batches_sorted_eq;
 use data_types::chunk_metadata::ChunkId;
 use generated_types::{
     google::protobuf::{Duration, Empty},
@@ -23,8 +22,6 @@ use crate::{
         fixture_broken_catalog, wait_for_exact_chunk_states, DatabaseBuilder,
     },
 };
-use chrono::{DateTime, Utc};
-use std::convert::TryInto;
 use std::time::Instant;
 use tonic::Code;
 use uuid::Uuid;
@@ -1457,74 +1454,6 @@ async fn test_unload_read_buffer() {
 }
 
 #[tokio::test]
-async fn test_chunk_access_time() {
-    let fixture = ServerFixture::create_shared(ServerType::Database).await;
-    let mut write_client = fixture.write_client();
-    let mut management_client = fixture.management_client();
-    let mut flight_client = fixture.flight_client();
-
-    let db_name = rand_name();
-    DatabaseBuilder::new(db_name.clone())
-        .build(fixture.grpc_channel())
-        .await;
-
-    write_client
-        .write_lp(&db_name, "cpu foo=1 10", 0)
-        .await
-        .unwrap();
-
-    let to_datetime = |a: Option<&generated_types::google::protobuf::Timestamp>| -> DateTime<Utc> {
-        a.unwrap().clone().try_into().unwrap()
-    };
-
-    let chunks = management_client.list_chunks(&db_name).await.unwrap();
-    assert_eq!(chunks.len(), 1);
-    let t0 = to_datetime(chunks[0].time_of_last_access.as_ref());
-
-    flight_client
-        .perform_query(&db_name, "select * from cpu;")
-        .await
-        .unwrap();
-
-    let chunks = management_client.list_chunks(&db_name).await.unwrap();
-    assert_eq!(chunks.len(), 1);
-    let t1 = to_datetime(chunks[0].time_of_last_access.as_ref());
-
-    flight_client
-        .perform_query(&db_name, "select * from cpu;")
-        .await
-        .unwrap();
-
-    let chunks = management_client.list_chunks(&db_name).await.unwrap();
-    assert_eq!(chunks.len(), 1);
-    let t2 = to_datetime(chunks[0].time_of_last_access.as_ref());
-
-    write_client
-        .write_lp(&db_name, "cpu foo=1 20", 0)
-        .await
-        .unwrap();
-
-    let chunks = management_client.list_chunks(&db_name).await.unwrap();
-    assert_eq!(chunks.len(), 1);
-    let t3 = to_datetime(chunks[0].time_of_last_access.as_ref());
-
-    // This chunk should be pruned out and therefore not accessed by the query
-    flight_client
-        .perform_query(&db_name, "select * from cpu where foo = 2;")
-        .await
-        .unwrap();
-
-    let chunks = management_client.list_chunks(&db_name).await.unwrap();
-    assert_eq!(chunks.len(), 1);
-    let t4 = to_datetime(chunks[0].time_of_last_access.as_ref());
-
-    assert!(t0 < t1, "{} {}", t0, t1);
-    assert!(t1 < t2, "{} {}", t1, t2);
-    assert!(t2 < t3, "{} {}", t2, t3);
-    assert_eq!(t3, t4)
-}
-
-#[tokio::test]
 async fn test_drop_partition() {
     use data_types::chunk_metadata::ChunkStorage;
 
@@ -1622,151 +1551,6 @@ async fn test_drop_partition_error() {
         .await
         .unwrap_err();
     assert_contains!(err.to_string(), "Cannot drop unpersisted chunk");
-}
-
-#[tokio::test]
-async fn test_delete() {
-    test_helpers::maybe_start_logging();
-    let fixture = ServerFixture::create_shared(ServerType::Database).await;
-    let mut write_client = fixture.write_client();
-    let mut management_client = fixture.management_client();
-    let mut flight_client = fixture.flight_client();
-
-    // DB name and rules
-    let db_name = rand_name();
-    let rules = DatabaseRules {
-        name: db_name.clone(),
-        ..Default::default()
-    };
-
-    // create that db
-    management_client
-        .create_database(rules.clone())
-        .await
-        .expect("create database failed");
-
-    // Load a few rows of data
-    let lp_lines = vec![
-        "cpu,region=west user=23.2 100",
-        "cpu,region=west user=21.0 150",
-        "disk,region=east bytes=99i 200",
-    ];
-
-    let num_lines_written = write_client
-        .write_lp(&db_name, lp_lines.join("\n"), 0)
-        .await
-        .expect("write succeded");
-
-    assert_eq!(num_lines_written, 3);
-
-    // Query cpu
-    let mut query_results = flight_client
-        .perform_query(db_name.clone(), "select * from cpu")
-        .await
-        .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
-    let expected = [
-        "+--------+--------------------------------+------+",
-        "| region | time                           | user |",
-        "+--------+--------------------------------+------+",
-        "| west   | 1970-01-01T00:00:00.000000100Z | 23.2 |",
-        "| west   | 1970-01-01T00:00:00.000000150Z | 21   |",
-        "+--------+--------------------------------+------+",
-    ];
-    assert_batches_sorted_eq!(&expected, &batches);
-
-    // Delete some data
-    let table = "cpu";
-    let start = "100";
-    let stop = "120";
-    let pred = "region = west";
-    let _del = management_client
-        .delete(db_name.clone(), table, start, stop, pred)
-        .await
-        .unwrap();
-
-    // query to verify data deleted
-    let mut query_results = flight_client
-        .perform_query(db_name.clone(), "select * from cpu")
-        .await
-        .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
-    let expected = [
-        "+--------+--------------------------------+------+",
-        "| region | time                           | user |",
-        "+--------+--------------------------------+------+",
-        "| west   | 1970-01-01T00:00:00.000000150Z | 21   |",
-        "+--------+--------------------------------+------+",
-    ];
-    assert_batches_sorted_eq!(&expected, &batches);
-
-    // Query cpu again with a selection predicate
-    let mut query_results = flight_client
-        .perform_query(
-            db_name.clone(),
-            r#"select * from cpu where cpu.region='west';"#,
-        )
-        .await
-        .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
-    // result should be as above
-    assert_batches_sorted_eq!(&expected, &batches);
-
-    // Query cpu again with a differentselection predicate
-    let mut query_results = flight_client
-        .perform_query(db_name.clone(), "select * from cpu where user!=21")
-        .await
-        .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
-    // result should be nothing
-    let expected = ["++", "++"];
-    assert_batches_sorted_eq!(&expected, &batches);
-
-    // ------------------------------------------
-    // Negative Delete test to get error messages
-
-    // Delete from non-existing table
-    let table = "notable";
-    let start = "100";
-    let stop = "120";
-    let pred = "region = west";
-    let del = management_client
-        .delete(db_name.clone(), table, start, stop, pred)
-        .await
-        .unwrap_err()
-        .to_string();
-    assert!(del.contains("Cannot delete data from table"));
-
-    // Verify both existing tables still have the same data
-    // query to verify data deleted
-    // cpu
-    let mut query_results = flight_client
-        .perform_query(db_name.clone(), "select * from cpu")
-        .await
-        .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
-    let cpu_expected = [
-        "+--------+--------------------------------+------+",
-        "| region | time                           | user |",
-        "+--------+--------------------------------+------+",
-        "| west   | 1970-01-01T00:00:00.000000150Z | 21   |",
-        "+--------+--------------------------------+------+",
-    ];
-    assert_batches_sorted_eq!(&cpu_expected, &batches);
-    // disk
-    let mut query_results = flight_client
-        .perform_query(db_name.clone(), "select * from disk")
-        .await
-        .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
-    let disk_expected = [
-        "+-------+--------+--------------------------------+",
-        "| bytes | region | time                           |",
-        "+-------+--------+--------------------------------+",
-        "| 99    | east   | 1970-01-01T00:00:00.000000200Z |",
-        "+-------+--------+--------------------------------+",
-    ];
-    assert_batches_sorted_eq!(&disk_expected, &batches);
 }
 
 #[tokio::test]

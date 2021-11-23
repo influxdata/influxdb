@@ -127,10 +127,10 @@ where
         loop {
             let buffer_size = self.db.buffer_size();
             if buffer_size < soft_limit {
-                info!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
+                trace!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
                 break;
             }
-            info!(%db_name, buffer_size, %soft_limit, "memory use over soft limit");
+            trace!(%db_name, buffer_size, %soft_limit, "memory use over soft limit");
 
             match candidates.next() {
                 Some(candidate) => {
@@ -139,7 +139,7 @@ where
                         Some(chunk) => {
                             let chunk = chunk.read();
                             if chunk.lifecycle_action().is_some() {
-                                info!(
+                                debug!(
                                     %db_name,
                                     chunk_id=%candidate.chunk_id.get(),
                                     %partition,
@@ -183,7 +183,7 @@ where
                                 },
                             }
                         }
-                        None => info!(
+                        None => debug!(
                             %db_name,
                             chunk_id=%candidate.chunk_id.get(),
                             %partition,
@@ -192,7 +192,7 @@ where
                     }
                 }
                 None => {
-                    warn!(%db_name, soft_limit, buffer_size,
+                    debug!(%db_name, soft_limit, buffer_size,
                           "soft limited exceeded, but no chunks found that can be evicted. Check lifecycle rules");
                     break;
                 }
@@ -363,9 +363,9 @@ where
                "considering for persistence");
 
         if persistable_row_count >= rules.persist_row_threshold.get() {
-            info!(%db_name, %partition, persistable_row_count, "persisting partition as exceeds row threshold");
+            debug!(%db_name, %partition, persistable_row_count, "persisting partition as exceeds row threshold");
         } else if persistable_age_seconds >= rules.persist_age_threshold_seconds.get() as u64 {
-            info!(%db_name, %partition, persistable_age_seconds, "persisting partition as exceeds age threshold");
+            debug!(%db_name, %partition, persistable_age_seconds, "persisting partition as exceeds age threshold");
         } else {
             trace!(%db_name, %partition, persistable_row_count, "partition not eligible for persist");
             return false;
@@ -459,7 +459,7 @@ where
             let stall_compaction_persisting = if rules.persist && !self.suppress_persistence {
                 let persisting = self.maybe_persist_chunks(&db_name, partition, &rules, now);
                 if persisting {
-                    debug!(%db_name, %partition, reason="persisting", "stalling compaction");
+                    debug!(%db_name, partition=%partition.read(), reason="persisting", "stalling compaction");
                 }
                 persisting
             } else {
@@ -476,7 +476,7 @@ where
                 let max_compactions = self.db.rules().max_active_compactions.get();
                 let slots_full = self.active_compactions >= max_compactions as usize;
                 if slots_full {
-                    debug!(%db_name, %partition, ?max_compactions, reason="slots_full", "stalling compaction");
+                    debug!(%db_name, partition=%partition.read(), ?max_compactions, reason="slots_full", "stalling compaction");
                 }
                 slots_full
             };
@@ -659,7 +659,7 @@ where
             // see if we should stall subsequent pull it is
             // preventing us from persisting
             let stall = action.metadata() == &ChunkLifecycleAction::Compacting;
-            info!(?action, chunk=%chunk.addr(), "Chunk to persist has outstanding action");
+            debug!(?action, chunk=%chunk.addr(), "Chunk to persist has outstanding action");
 
             // NOTE: This early exit also ensures that we are not "jumping" over chunks sorted by `order`.
             return Err(stall);
@@ -735,6 +735,12 @@ mod tests {
         }
     }
 
+    impl std::fmt::Display for TestPartition {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{:?}", self)
+        }
+    }
+
     #[derive(Debug)]
     struct TestChunk {
         addr: ChunkAddr,
@@ -801,12 +807,6 @@ mod tests {
     struct TestLockablePartition<'a> {
         db: &'a TestDb,
         partition: Arc<RwLock<TestPartition>>,
-    }
-
-    impl<'a> std::fmt::Display for TestLockablePartition<'a> {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self)
-        }
     }
 
     #[derive(Clone)]

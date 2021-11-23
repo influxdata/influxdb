@@ -63,6 +63,7 @@ async fn read_filter_endpoint(storage_client: &mut StorageClient<Connection>, sc
         read_source,
         range,
         predicate,
+        ..Default::default()
     });
     let read_response = storage_client
         .read_filter(read_filter_request)
@@ -77,15 +78,15 @@ async fn read_filter_endpoint(storage_client: &mut StorageClient<Connection>, sc
         .collect();
 
     let expected_frames = substitute_nanos(scenario.ns_since_epoch(), &[
-        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01, type: 0",
+        "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,_field=value, type: 0",
         "FloatPointsFrame, timestamps: [ns1], values: \"27.99\"",
-        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=us-east, type: 0",
+        "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,region=us-east,_field=value, type: 0",
         "FloatPointsFrame, timestamps: [ns3], values: \"1234567.891011\"",
-        "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=us-west, type: 0",
+        "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,region=us-west,_field=value, type: 0",
         "FloatPointsFrame, timestamps: [ns0, ns4], values: \"0.64,0.000003\"",
-        "SeriesFrame, tags: _field=in,_measurement=swap,host=server01,name=disk0, type: 1",
+        "SeriesFrame, tags: _measurement=swap,host=server01,name=disk0,_field=in, type: 1",
         "IntegerPointsFrame, timestamps: [ns6], values: \"3\"",
-        "SeriesFrame, tags: _field=out,_measurement=swap,host=server01,name=disk0, type: 1",
+        "SeriesFrame, tags: _measurement=swap,host=server01,name=disk0,_field=out, type: 1",
         "IntegerPointsFrame, timestamps: [ns6], values: \"4\""
     ]);
 
@@ -316,16 +317,17 @@ pub async fn regex_operator_test() {
             end: 2001, // include all data
         }),
         predicate: Some(make_regex_match_predicate("host", "^b.+")),
+        ..Default::default()
     };
 
     let expected_frames = vec![
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"20,21\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"81,82\"",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"40,41\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"51,52\"",
     ];
 
@@ -391,27 +393,26 @@ async fn test_read_group_none_agg() {
         aggregate: Some(Aggregate {
             r#type: AggregateType::None as i32,
         }),
-        hints: 0,
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu1",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "GroupFrame, tag_keys: _measurement,cpu,host,_field, partition_key_vals: cpu1",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"20,21\"",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
-        "FloatPointsFrame, timestamps: [1000, 2000], values: \"10,11\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"81,82\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=foo,_field=usage_system, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"10,11\"",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=foo,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"71,72\"",
-        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu2",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "GroupFrame, tag_keys: _measurement,cpu,host,_field, partition_key_vals: cpu2",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"40,41\"",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
-        "FloatPointsFrame, timestamps: [1000, 2000], values: \"30,31\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"51,52\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=foo,_field=usage_system, type: 0",
+        "FloatPointsFrame, timestamps: [1000, 2000], values: \"30,31\"",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=foo,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"61,62\"",
     ];
 
@@ -442,19 +443,18 @@ async fn test_read_group_none_agg_with_predicate() {
         aggregate: Some(Aggregate {
             r#type: AggregateType::None as i32,
         }),
-        hints: 0,
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu1",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "GroupFrame, tag_keys: _measurement,cpu,host,_field, partition_key_vals: cpu1",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [1000], values: \"20\"",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=foo,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [1000], values: \"10\"",
-        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu2",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "GroupFrame, tag_keys: _measurement,cpu,host,_field, partition_key_vals: cpu2",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [1000], values: \"40\"",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=foo,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [1000], values: \"30\"",
     ];
 
@@ -488,27 +488,26 @@ async fn test_read_group_sum_agg() {
         aggregate: Some(Aggregate {
             r#type: AggregateType::Sum as i32,
         }),
-        hints: 0,
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu1",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "GroupFrame, tag_keys: _measurement,cpu,host,_field, partition_key_vals: cpu1",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"41\"",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
-        "FloatPointsFrame, timestamps: [2000], values: \"21\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"163\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=foo,_field=usage_system, type: 0",
+        "FloatPointsFrame, timestamps: [2000], values: \"21\"",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=foo,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"143\"",
-        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu2",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "GroupFrame, tag_keys: _measurement,cpu,host,_field, partition_key_vals: cpu2",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"81\"",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
-        "FloatPointsFrame, timestamps: [2000], values: \"61\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"103\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=foo,_field=usage_system, type: 0",
+        "FloatPointsFrame, timestamps: [2000], values: \"61\"",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=foo,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"123\"",
     ];
 
@@ -541,27 +540,26 @@ async fn test_read_group_count_agg() {
         aggregate: Some(Aggregate {
             r#type: AggregateType::Count as i32,
         }),
-        hints: 0,
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu1",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 1",
+        "GroupFrame, tag_keys: _measurement,cpu,host,_field, partition_key_vals: cpu1",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_system, type: 1",
         "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=foo, type: 1",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_user, type: 1",
         "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 1",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=foo,_field=usage_system, type: 1",
         "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 1",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=foo,_field=usage_user, type: 1",
         "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
-        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu2",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 1",
+        "GroupFrame, tag_keys: _measurement,cpu,host,_field, partition_key_vals: cpu2",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_system, type: 1",
         "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=foo, type: 1",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_user, type: 1",
         "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 1",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=foo,_field=usage_system, type: 1",
         "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=foo, type: 1",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=foo,_field=usage_user, type: 1",
         "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
     ];
 
@@ -595,27 +593,26 @@ async fn test_read_group_last_agg() {
         aggregate: Some(Aggregate {
             r#type: AggregateType::Last as i32,
         }),
-        hints: 0,
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu1",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "GroupFrame, tag_keys: _measurement,cpu,host,_field, partition_key_vals: cpu1",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"21\"",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
-        "FloatPointsFrame, timestamps: [2000], values: \"11\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"82\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=foo,_field=usage_system, type: 0",
+        "FloatPointsFrame, timestamps: [2000], values: \"11\"",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=foo,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"72\"",
-        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu2",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "GroupFrame, tag_keys: _measurement,cpu,host,_field, partition_key_vals: cpu2",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_system, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"41\"",
-        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
-        "FloatPointsFrame, timestamps: [2000], values: \"31\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"52\"",
-        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=foo,_field=usage_system, type: 0",
+        "FloatPointsFrame, timestamps: [2000], values: \"31\"",
+        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=foo,_field=usage_user, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"62\"",
     ];
 
@@ -697,9 +694,9 @@ pub async fn read_window_aggregate_test() {
         .collect();
 
     let expected_frames = vec![
-        "SeriesFrame, tags: _field=temp,_measurement=h2o,city=Boston,state=MA, type: 0",
+        "SeriesFrame, tags: _measurement=h2o,city=Boston,state=MA,_field=temp, type: 0",
         "FloatPointsFrame, timestamps: [400, 600], values: \"143,147\"",
-        "SeriesFrame, tags: _field=temp,_measurement=h2o,city=Cambridge,state=MA, type: 0",
+        "SeriesFrame, tags: _measurement=h2o,city=Cambridge,state=MA,_field=temp, type: 0",
         "FloatPointsFrame, timestamps: [400, 600], values: \"163,167\"",
     ];
 
