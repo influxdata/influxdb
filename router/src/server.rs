@@ -38,31 +38,40 @@ impl RouterServer {
         trace_collector: Option<Arc<dyn TraceCollector>>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
-        Self::new_inner(remote_template, trace_collector, time_provider, false).await
+        Self::new_inner(remote_template, trace_collector, time_provider, None, false).await
     }
 
     pub async fn for_testing(
         remote_template: Option<RemoteTemplate>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
         time_provider: Arc<dyn TimeProvider>,
+        wb_factory: Option<Arc<WriteBufferConfigFactory>>,
     ) -> Self {
-        Self::new_inner(remote_template, trace_collector, time_provider, true).await
+        Self::new_inner(
+            remote_template,
+            trace_collector,
+            time_provider,
+            wb_factory,
+            true,
+        )
+        .await
     }
 
     async fn new_inner(
         remote_template: Option<RemoteTemplate>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
         time_provider: Arc<dyn TimeProvider>,
+        wb_factory: Option<Arc<WriteBufferConfigFactory>>,
         use_mock_grpc: bool,
     ) -> Self {
         let metric_registry = Arc::new(metric::Registry::new());
-        let connection_pool = Arc::new(
-            ConnectionPool::new(
-                use_mock_grpc,
-                WriteBufferConfigFactory::new(time_provider, Arc::clone(&metric_registry)),
-            )
-            .await,
-        );
+        let wb_factory = wb_factory.unwrap_or_else(|| {
+            Arc::new(WriteBufferConfigFactory::new(
+                time_provider,
+                Arc::clone(&metric_registry),
+            ))
+        });
+        let connection_pool = Arc::new(ConnectionPool::new(use_mock_grpc, wb_factory).await);
 
         Self {
             server_id: RwLock::new(None),
