@@ -221,7 +221,7 @@ fn mark_chunks_to_compact(
             chunk_orders.insert(chunk.order());
             chunk_ids.insert(chunk.id());
 
-            // Todo:get chunk's datatbase_checkpoint and partition_checkpoint of the chunk and keep max
+            // read IoxMetadata from the parquet chunk's  metadata
             if let Some(parquet_chunk) = chunk.parquet_chunk() {
                 let iox_parquet_metadata = parquet_chunk.parquet_metadata();
                 let iox_metadata = iox_parquet_metadata
@@ -281,6 +281,8 @@ struct CompactingOsChunks {
     partition_checkpoint: PartitionCheckpoint,
 }
 
+/// Check points of this creating chunk will have min range None and max range is the max of all max
+//  Todo: ask Marco and Raphael: How about sequencer_number of there are may of them?
 fn compute_checkpoints(
     partition_addr: &PartitionAddr,
     _db_ckpts: &[DatabaseCheckpoint],
