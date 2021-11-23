@@ -15,8 +15,8 @@ use generated_types::{
     Int64ValuesResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
     MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Predicate,
     ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
-    ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
-    TimestampRange,
+    ReadWindowAggregateRequest, StringValuesResponse, TagKeyMetaNames, TagKeysRequest,
+    TagValuesRequest, TimestampRange,
 };
 use observability_deps::tracing::{error, info};
 use predicate::predicate::PredicateBuilder;
@@ -199,7 +199,7 @@ impl Error {
     }
 }
 
-/// Implementes the protobuf defined Storage service for a DatabaseStore
+/// Implements the protobuf defined Storage service for a DatabaseStore
 #[tonic::async_trait]
 impl<T> Storage for StorageService<T>
 where
@@ -212,24 +212,21 @@ where
         req: tonic::Request<ReadFilterRequest>,
     ) -> Result<tonic::Response<Self::ReadFilterStream>, Status> {
         let span_ctx = req.extensions().get().cloned();
+
         let read_filter_request = req.into_inner();
-
         let db_name = get_database_name(&read_filter_request)?;
+        info!(%db_name, ?read_filter_request.range, predicate=%read_filter_request.predicate.loggable(), "read filter");
 
-        let ReadFilterRequest {
-            read_source: _read_source,
-            range,
-            predicate,
-            ..
-        } = read_filter_request;
-
-        info!(%db_name, ?range, predicate=%predicate.loggable(),"read filter");
-
-        let results = read_filter_impl(self.db_store.as_ref(), db_name, range, predicate, span_ctx)
-            .await?
-            .into_iter()
-            .map(Ok)
-            .collect::<Vec<_>>();
+        let results = read_filter_impl(
+            self.db_store.as_ref(),
+            db_name,
+            read_filter_request,
+            span_ctx,
+        )
+        .await?
+        .into_iter()
+        .map(Ok)
+        .collect::<Vec<_>>();
 
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
@@ -856,28 +853,23 @@ where
 async fn read_filter_impl<T>(
     db_store: &T,
     db_name: DatabaseName<'static>,
-    range: Option<TimestampRange>,
-    rpc_predicate: Option<Predicate>,
+    req: ReadFilterRequest,
     span_ctx: Option<SpanContext>,
 ) -> Result<Vec<ReadResponse>, Error>
 where
     T: DatabaseStore + 'static,
 {
-    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+    let rpc_predicate_string = format!("{:?}", req.predicate);
 
     let predicate = PredicateBuilder::default()
-        .set_range(range)
-        .rpc_predicate(rpc_predicate)
+        .set_range(req.range)
+        .rpc_predicate(req.predicate)
         .context(ConvertingPredicate {
             rpc_predicate_string,
         })?
         .build();
 
-    // keep original name so we can transfer ownership
-    // to closure below
-    let owned_db_name = db_name;
-
-    let db_name = owned_db_name.as_str();
+    let db_name = db_name.as_str();
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let ctx = db.new_query_context(span_ctx);
 
@@ -897,12 +889,11 @@ where
         .to_series_and_groups(series_plan)
         .await
         .map_err(|e| Box::new(e) as _)
-        .context(FilteringSeries {
-            db_name: owned_db_name.as_str(),
-        })
+        .context(FilteringSeries { db_name })
         .log_if_error("Running series set plan")?;
 
-    let response = series_or_groups_to_read_response(series_or_groups);
+    let emit_tag_keys_binary_format = req.tag_key_meta_names == TagKeyMetaNames::Binary as i32;
+    let response = series_or_groups_to_read_response(series_or_groups, emit_tag_keys_binary_format);
 
     Ok(vec![response])
 }
@@ -966,7 +957,9 @@ where
         })
         .log_if_error("Running Grouped SeriesSet Plan")?;
 
-    let response = series_or_groups_to_read_response(series_or_groups);
+    // ReadGroupRequest does not have a field to control the format of
+    // _measurement and _field tag keys, so always request in string format.
+    let response = series_or_groups_to_read_response(series_or_groups, false);
 
     Ok(vec![response])
 }

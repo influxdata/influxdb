@@ -30,7 +30,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A name=value pair used to represent a series's tag
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Tag {
     pub key: Arc<str>,
     pub value: Arc<str>,
@@ -43,7 +43,7 @@ impl fmt::Display for Tag {
 }
 
 /// Represents a single logical TimeSeries
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Series {
     /// key = value pairs that define this series
     /// (including the _measurement and _field that correspond to table name and column name)
@@ -71,7 +71,7 @@ impl fmt::Display for Series {
 }
 
 /// Typed data for a particular timeseries
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Data {
     FloatPoints {
         timestamps: Vec<i64>,
@@ -287,7 +287,7 @@ impl SeriesSet {
 }
 
 /// Represents a group of `Series`
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Group {
     /// Contains *ALL* tag keys (not just those used for grouping)
     pub tag_keys: Vec<Arc<str>>,
@@ -314,7 +314,7 @@ impl fmt::Display for Group {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Either {
     Series(Series),
     Group(Group),
