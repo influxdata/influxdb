@@ -86,7 +86,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Cannot compact chunks because of error during computing max partition checkpoint"
+        "Cannot compact chunks because of error computing max partition checkpoint"
     ))]
     ComparePartitionCheckpoint {},
 
