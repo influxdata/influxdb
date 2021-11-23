@@ -118,6 +118,7 @@ impl Router {
         }
     }
 
+    /// Write operation to the specified shard.
     async fn write_shard(
         &self,
         shard_id: ShardId,
@@ -137,14 +138,17 @@ mod tests {
     use super::*;
 
     use data_types::{
+        delete_predicate::DeletePredicate,
+        non_empty::NonEmptyString,
         router::{
             Matcher, MatcherToShard, ShardConfig, WriteSink as WriteSinkConfig,
             WriteSinkSet as WriteSinkSetConfig, WriteSinkVariant as WriteSinkVariantConfig,
         },
         sequence::Sequence,
         server_id::ServerId,
+        timestamp::TimestampRange,
     };
-    use dml::{DmlMeta, DmlWrite};
+    use dml::{DmlDelete, DmlMeta, DmlWrite};
     use mutable_batch_lp::lines_to_batches;
     use regex::Regex;
     use time::Time;
@@ -342,6 +346,82 @@ mod tests {
                 &meta_2,
             ),
         )]);
+    }
+
+    #[tokio::test]
+    async fn test_delete() {
+        let server_id_1 = ServerId::try_from(1).unwrap();
+        let server_id_2 = ServerId::try_from(2).unwrap();
+
+        let resolver = Arc::new(Resolver::new(Some(RemoteTemplate::new("{id}"))));
+        let connection_pool = Arc::new(ConnectionPool::new_testing().await);
+
+        let client_1 = connection_pool.grpc_client("1").await.unwrap();
+        let client_2 = connection_pool.grpc_client("2").await.unwrap();
+        let client_1 = client_1.as_any().downcast_ref::<MockClient>().unwrap();
+        let client_2 = client_2.as_any().downcast_ref::<MockClient>().unwrap();
+
+        let cfg = RouterConfig {
+            name: String::from("my_router"),
+            write_sharder: ShardConfig {
+                specific_targets: vec![
+                    MatcherToShard {
+                        matcher: Matcher {
+                            table_name_regex: Some(Regex::new("foo_bar").unwrap()),
+                        },
+                        shard: ShardId::new(10),
+                    },
+                    MatcherToShard {
+                        matcher: Matcher {
+                            table_name_regex: Some(Regex::new("foo_.*").unwrap()),
+                        },
+                        shard: ShardId::new(20),
+                    },
+                ],
+                hash_ring: None,
+            },
+            write_sinks: BTreeMap::from([
+                (
+                    ShardId::new(10),
+                    WriteSinkSetConfig {
+                        sinks: vec![WriteSinkConfig {
+                            sink: WriteSinkVariantConfig::GrpcRemote(server_id_1),
+                            ignore_errors: false,
+                        }],
+                    },
+                ),
+                (
+                    ShardId::new(20),
+                    WriteSinkSetConfig {
+                        sinks: vec![WriteSinkConfig {
+                            sink: WriteSinkVariantConfig::GrpcRemote(server_id_2),
+                            ignore_errors: false,
+                        }],
+                    },
+                ),
+            ]),
+            query_sinks: Default::default(),
+        };
+        let router = Router::new(cfg.clone(), resolver, connection_pool);
+
+        // clean write
+        let meta = DmlMeta::sequenced(
+            Sequence::new(1, 2),
+            Time::from_timestamp_nanos(1337),
+            None,
+            10,
+        );
+        let delete = DmlOperation::Delete(DmlDelete::new(
+            DeletePredicate {
+                range: TimestampRange { start: 1, end: 2 },
+                exprs: vec![],
+            },
+            Some(NonEmptyString::new("foo_foo").unwrap()),
+            meta,
+        ));
+        router.write(delete.clone()).await.unwrap();
+        client_1.assert_writes(&[]);
+        client_2.assert_writes(&[(String::from("my_router"), delete)]);
     }
 
     fn db_write(lines: &[&str], meta: &DmlMeta) -> DmlOperation {

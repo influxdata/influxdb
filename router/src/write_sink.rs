@@ -223,7 +223,10 @@ mod tests {
 
         let time_provider = Arc::new(SystemProvider::new());
         let metric_registry = Arc::new(metric::Registry::new());
-        let wb_factory = WriteBufferConfigFactory::new(time_provider, metric_registry);
+        let wb_factory = Arc::new(WriteBufferConfigFactory::new(
+            time_provider,
+            metric_registry,
+        ));
         wb_factory.register_always_fail_mock(String::from("failing_wb"));
         let connection_pool = Arc::new(ConnectionPool::new(true, wb_factory).await);
 
