@@ -430,6 +430,12 @@ github.com/influxdata/flux v0.143.1 h1:foLB3lDV3a3EsMcAz5gj4bVHsVEHMfCm86pQvMzGz
 github.com/influxdata/flux v0.143.1/go.mod h1:Q1kyXp+qkeAkX0T8wiNKCU7lqtEep1aK7QqrXntPPD4=
 github.com/influxdata/flux v0.143.2-0.20211123174719-db4140b045e3 h1:+IKFIWJ6NMz4O/Jte9sqPWoS7ySOG8eLPuujF0msW3I=
 github.com/influxdata/flux v0.143.2-0.20211123174719-db4140b045e3/go.mod h1:Q1kyXp+qkeAkX0T8wiNKCU7lqtEep1aK7QqrXntPPD4=
+github.com/influxdata/flux v0.143.2-0.20211123175803-af949355aef4 h1:W53b0gtoUFe2GOEU3l8owYezEmVaBj3ZhuduZAUARyE=
+github.com/influxdata/flux v0.143.2-0.20211123175803-af949355aef4/go.mod h1:Q1kyXp+qkeAkX0T8wiNKCU7lqtEep1aK7QqrXntPPD4=
+github.com/influxdata/flux v0.143.2-0.20211123175923-afaaf470d556 h1:sm/C7wP+4Z2gFbIJkw4eemkrCdoQPgE+Kcq7pQYoEZU=
+github.com/influxdata/flux v0.143.2-0.20211123175923-afaaf470d556/go.mod h1:Q1kyXp+qkeAkX0T8wiNKCU7lqtEep1aK7QqrXntPPD4=
+github.com/influxdata/flux v0.143.2-0.20211123180101-ae4ebc92daa0 h1:RB0KPS9Lv/e+65JiUmQ0phiGHedKE633xjg7iM25v50=
+github.com/influxdata/flux v0.143.2-0.20211123180101-ae4ebc92daa0/go.mod h1:Q1kyXp+qkeAkX0T8wiNKCU7lqtEep1aK7QqrXntPPD4=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69 h1:WQsmW0fXO4ZE/lFGIE84G6rIV5SJN3P3sjIXAP1a8eU=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69/go.mod h1:pwymjR6SrP3gD3pRj9RJwdl1j5s3doEEV8gS4X9qSzA=
 github.com/influxdata/influx-cli/v2 v2.1.1-0.20211007122339-c4a5a13c8ee3 h1:DJFtOP/Gji5K6iut794K1pTKPd9SqM9J+Cb7vXgsnq0=
