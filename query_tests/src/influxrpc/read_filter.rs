@@ -168,10 +168,10 @@ async fn test_read_filter_no_data_no_pred() {
 async fn test_read_filter_data_no_pred() {
     let predicate = EMPTY_PREDICATE;
     let expected_results = vec![
-    "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [70.4, 72.4]",
-    "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200, 350], values: [90.0, 90.0]",
-    "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
-    "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+    "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100, 250], values: [70.4, 72.4]",
+    "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [200, 350], values: [90.0, 90.0]",
+    "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
+    "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
     ];
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
@@ -181,10 +181,10 @@ async fn test_read_filter_data_no_pred() {
 async fn test_read_filter_data_no_pred_with_delete() {
     let predicate = EMPTY_PREDICATE;
     let expected_results = vec![
-    "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [100], values: [70.4]",
-    "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [350], values: [90.0]",
-    "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
-    "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+    "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100], values: [70.4]",
+    "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [350], values: [90.0]",
+    "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
+    "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
     ];
 
     run_read_filter_test_case(
@@ -200,8 +200,8 @@ async fn test_read_filter_data_no_pred_with_delete_all() {
     let predicate = EMPTY_PREDICATE;
     // nothing from h2o table because all rows were deleted
     let expected_results = vec![
-    "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
-    "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+    "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
+    "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
     ];
 
     run_read_filter_test_case(
@@ -221,7 +221,7 @@ async fn test_read_filter_data_filter() {
         .build();
 
     let expected_results = vec![
-        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200], values: [90.0]",
+        "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [200], values: [90.0]",
     ];
 
     run_read_filter_test_case(
@@ -278,7 +278,7 @@ async fn test_read_filter_data_filter_with_delete() {
         .build();
 
     let expected_results = vec![
-        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [100], values: [70.4]",
+        "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100], values: [70.4]",
     ];
 
     run_read_filter_test_case(
@@ -299,7 +299,7 @@ async fn test_read_filter_data_filter_fields() {
 
     // Only expect other_temp in this location
     let expected_results = vec![
-        "Series tags={_field=other_temp, _measurement=h2o, city=Boston, state=CA}\n  FloatPoints timestamps: [350], values: [72.4]",
+        "Series tags={_measurement=h2o, city=Boston, state=CA, _field=other_temp}\n  FloatPoints timestamps: [350], values: [72.4]",
     ];
 
     run_read_filter_test_case(TwoMeasurementsManyFields {}, predicate, expected_results).await;
@@ -317,7 +317,7 @@ async fn test_read_filter_data_filter_measurement_pred() {
 
     // Only expect other_temp in this location
     let expected_results = vec![
-        "Series tags={_field=temp, _measurement=o2, state=CA}\n  FloatPoints timestamps: [300], values: [79.0]",
+        "Series tags={_measurement=o2, state=CA, _field=temp}\n  FloatPoints timestamps: [300], values: [79.0]",
     ];
 
     run_read_filter_test_case(TwoMeasurementsManyFields {}, predicate, expected_results).await;
@@ -353,8 +353,8 @@ async fn test_read_filter_data_pred_no_columns() {
         .build();
 
     let expected_results = vec![
-        "Series tags={_field=user, _measurement=cpu, region=west}\n  FloatPoints timestamps: [100, 150], values: [23.2, 21.0]",
-        "Series tags={_field=bytes, _measurement=disk, region=east}\n  IntegerPoints timestamps: [200], values: [99]",
+        "Series tags={_measurement=cpu, region=west, _field=user}\n  FloatPoints timestamps: [100, 150], values: [23.2, 21.0]",
+        "Series tags={_measurement=disk, region=east, _field=bytes}\n  IntegerPoints timestamps: [200], values: [99]",
     ];
 
     run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
@@ -368,8 +368,8 @@ async fn test_read_filter_data_pred_no_columns_with_delete() {
         .build();
 
     let expected_results = vec![
-        "Series tags={_field=user, _measurement=cpu, region=west}\n  FloatPoints timestamps: [100], values: [23.2]",
-        "Series tags={_field=bytes, _measurement=disk, region=east}\n  IntegerPoints timestamps: [200], values: [99]",
+        "Series tags={_measurement=cpu, region=west, _field=user}\n  FloatPoints timestamps: [100], values: [23.2]",
+        "Series tags={_measurement=disk, region=east, _field=bytes}\n  IntegerPoints timestamps: [200], values: [99]",
     ];
 
     run_read_filter_test_case(TwoMeasurementsWithDelete {}, predicate, expected_results).await;
@@ -384,7 +384,7 @@ async fn test_read_filter_data_pred_no_columns_with_delete_all() {
 
     // Only table disk has no deleted data
     let expected_results = vec![
-    "Series tags={_field=bytes, _measurement=disk, region=east}\n  IntegerPoints timestamps: [200], values: [99]",
+    "Series tags={_measurement=disk, region=east, _field=bytes}\n  IntegerPoints timestamps: [200], values: [99]",
     ];
 
     run_read_filter_test_case(TwoMeasurementsWithDeleteAll {}, predicate, expected_results).await;
@@ -424,7 +424,7 @@ async fn test_read_filter_data_pred_using_regex_match() {
         .build();
 
     let expected_results = vec![
-    "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200], values: [90.0]",
+    "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [200], values: [90.0]",
     ];
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
@@ -455,7 +455,7 @@ async fn test_read_filter_data_pred_using_regex_match_with_delete() {
         .build();
 
     let expected_results = vec![
-    "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [350], values: [90.0]",
+    "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [350], values: [90.0]",
     ];
     run_read_filter_test_case(
         TwoMeasurementsMultiSeriesWithDelete {},
@@ -483,9 +483,9 @@ async fn test_read_filter_data_pred_using_regex_not_match() {
         .build();
 
     let expected_results = vec![
-    "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [72.4]",
-    "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [51.0]",
-    "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [53.4]",
+    "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [72.4]",
+    "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [250], values: [51.0]",
+    "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [53.4]",
     ];
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
@@ -505,9 +505,9 @@ async fn test_read_filter_data_pred_unsupported_in_scan() {
 
     // Note these results include data from both o2 and h2o
     let expected_results = vec![
-        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200, 350], values: [90.0, 90.0]",
-        "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
-        "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+        "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [200, 350], values: [90.0, 90.0]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
     ];
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
@@ -527,9 +527,9 @@ async fn test_read_filter_data_pred_unsupported_in_scan_with_delete() {
 
     // Note these results include data from both o2 and h2o
     let expected_results = vec![
-        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [350], values: [90.0]",
-        "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
-        "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+        "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [350], values: [90.0]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
     ];
 
     run_read_filter_test_case(
@@ -541,8 +541,8 @@ async fn test_read_filter_data_pred_unsupported_in_scan_with_delete() {
 
     // With delete all from h2o, no rows from h2p should be returned
     let expected_results = vec![
-        "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
-        "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
     ];
     run_read_filter_test_case(
         TwoMeasurementsMultiSeriesWithDeleteAll {},
@@ -617,12 +617,12 @@ async fn test_read_filter_data_plan_order() {
     test_helpers::maybe_start_logging();
     let predicate = Predicate::default();
     let expected_results = vec![
-        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=CA}\n  FloatPoints timestamps: [250], values: [70.3]",
-        "Series tags={_field=other, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [5.0]",
-        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [70.5]",
-        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA, zz_tag=A}\n  FloatPoints timestamps: [1000], values: [70.4]",
-        "Series tags={_field=temp, _measurement=h2o, city=Kingston, state=MA, zz_tag=A}\n  FloatPoints timestamps: [800], values: [70.1]",
-        "Series tags={_field=temp, _measurement=h2o, city=Kingston, state=MA, zz_tag=B}\n  FloatPoints timestamps: [100], values: [70.2]",
+        "Series tags={_measurement=h2o, city=Boston, state=CA, _field=temp}\n  FloatPoints timestamps: [250], values: [70.3]",
+        "Series tags={_measurement=h2o, city=Boston, state=MA, _field=other}\n  FloatPoints timestamps: [250], values: [5.0]",
+        "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [70.5]",
+        "Series tags={_measurement=h2o, city=Boston, state=MA, zz_tag=A, _field=temp}\n  FloatPoints timestamps: [1000], values: [70.4]",
+        "Series tags={_measurement=h2o, city=Kingston, state=MA, zz_tag=A, _field=temp}\n  FloatPoints timestamps: [800], values: [70.1]",
+        "Series tags={_measurement=h2o, city=Kingston, state=MA, zz_tag=B, _field=temp}\n  FloatPoints timestamps: [100], values: [70.2]",
     ];
 
     run_read_filter_test_case(MeasurementsSortableTags {}, predicate, expected_results).await;
@@ -633,11 +633,11 @@ async fn test_read_filter_data_plan_order_with_delete() {
     test_helpers::maybe_start_logging();
     let predicate = Predicate::default();
     let expected_results = vec![
-        "Series tags={_field=other, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [5.0]",
-        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [70.5]",
-        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA, zz_tag=A}\n  FloatPoints timestamps: [1000], values: [70.4]",
-        "Series tags={_field=temp, _measurement=h2o, city=Kingston, state=MA, zz_tag=A}\n  FloatPoints timestamps: [800], values: [70.1]",
-        "Series tags={_field=temp, _measurement=h2o, city=Kingston, state=MA, zz_tag=B}\n  FloatPoints timestamps: [100], values: [70.2]",
+        "Series tags={_measurement=h2o, city=Boston, state=MA, _field=other}\n  FloatPoints timestamps: [250], values: [5.0]",
+        "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [70.5]",
+        "Series tags={_measurement=h2o, city=Boston, state=MA, zz_tag=A, _field=temp}\n  FloatPoints timestamps: [1000], values: [70.4]",
+        "Series tags={_measurement=h2o, city=Kingston, state=MA, zz_tag=A, _field=temp}\n  FloatPoints timestamps: [800], values: [70.1]",
+        "Series tags={_measurement=h2o, city=Kingston, state=MA, zz_tag=B, _field=temp}\n  FloatPoints timestamps: [100], values: [70.2]",
     ];
 
     run_read_filter_test_case(
@@ -679,7 +679,7 @@ async fn test_read_filter_filter_on_value_2845() {
         .build();
 
     let expected_results = vec![
-        "Series tags={_field=load4, _measurement=system, host=host.local}\n  FloatPoints timestamps: [1527018806000000000, 1527018826000000000], values: [1.77, 1.77]",
+        "Series tags={_measurement=system, host=host.local, _field=load4}\n  FloatPoints timestamps: [1527018806000000000, 1527018826000000000], values: [1.77, 1.77]",
     ];
 
     run_read_filter_test_case(MeasurementsForDefect2845 {}, predicate, expected_results).await;
