@@ -185,7 +185,6 @@ fn mark_chunks_to_compact(
     // Mark and snapshot chunks, then drop locks
     let mut time_of_first_write = Time::MAX;
     let mut time_of_last_write = Time::MIN;
-    let mut chunk_orders = BTreeSet::new();
     let mut chunk_ids = BTreeSet::new();
     let mut input_rows = 0;
     let mut delete_predicates: HashSet<Arc<DeletePredicate>> = HashSet::new();
@@ -222,7 +221,6 @@ fn mark_chunks_to_compact(
 
             min_order = min_order.min(chunk.order());
             max_order = max_order.max(chunk.order());
-            chunk_orders.insert(chunk.order());
             chunk_ids.insert(chunk.id());
 
             // read IoxMetadata from the parquet chunk's  metadata
