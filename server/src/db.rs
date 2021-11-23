@@ -647,8 +647,7 @@ impl Db {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
-            let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition::new(Arc::clone(self), partition);
+            let partition = self.lockable_partition(table_name, partition_key)?;
 
             // Do lock dance to get a write lock on the partition as well
             // as on all of the chunks
@@ -688,8 +687,7 @@ impl Db {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
-            let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition::new(Arc::clone(self), partition);
+            let partition = self.lockable_partition(table_name, partition_key)?;
             let partition = partition.read();
 
             // todo: set these chunks

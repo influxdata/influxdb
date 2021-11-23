@@ -22,7 +22,7 @@ use observability_deps::tracing::{info, trace};
 use persistence_windows::persistence_windows::FlushHandle;
 use query::QueryChunkMeta;
 use schema::{merge::SchemaMerger, Schema, TIME_COLUMN_NAME};
-use std::{fmt::Display, sync::Arc};
+use std::sync::Arc;
 use time::{Time, TimeProvider};
 use tracker::{RwLock, TaskTracker};
 
@@ -41,8 +41,6 @@ mod unload;
 mod write;
 
 /// A newtype wrapper around `Arc<Db>` to workaround trait orphan rules
-///
-/// TODO: Pull LifecyclePolicy out of Db to allow strong reference (#2242)
 #[derive(Debug, Clone)]
 pub struct ArcDb(Arc<Db>);
 
@@ -123,30 +121,11 @@ impl lifecycle::PersistHandle for CatalogPersistHandle {
 pub struct LockableCatalogPartition {
     pub db: Arc<Db>,
     pub partition: Arc<RwLock<Partition>>,
-    /// Human readable description of what this CatalogPartiton is
-    pub display_string: String,
 }
 
 impl LockableCatalogPartition {
     pub fn new(db: Arc<Db>, partition: Arc<RwLock<Partition>>) -> Self {
-        let display_string = {
-            partition
-                .try_read()
-                .map(|partition| partition.to_string())
-                .unwrap_or_else(|| "UNKNOWN (could not get lock)".into())
-        };
-
-        Self {
-            db,
-            partition,
-            display_string,
-        }
-    }
-}
-
-impl Display for LockableCatalogPartition {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.display_string)
+        Self { db, partition }
     }
 }
 
