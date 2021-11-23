@@ -40,6 +40,7 @@ func MoveFileWithReplacement(src, dst string) error {
 
 	in, err := os.Open(src)
 	if err != nil {
+		out.Close()
 		return err
 	}
 

@@ -10,14 +10,14 @@ import (
 )
 
 func TestRenameFileWithReplacement(t *testing.T) {
-	testFileCopyOrRename(t, "rename", fs.RenameFileWithReplacement)
+	testFileMoveOrRename(t, "rename", fs.RenameFileWithReplacement)
 }
 
-func TestCopyFileWithReplacement(t *testing.T) {
-	testFileCopyOrRename(t, "move", fs.MoveFileWithReplacement)
+func TestMoveFileWithReplacement(t *testing.T) {
+	testFileMoveOrRename(t, "move", fs.MoveFileWithReplacement)
 }
 
-func testFileCopyOrRename(t *testing.T, name string, testFunc func(src string, dst string) error) {
+func testFileMoveOrRename(t *testing.T, name string, testFunc func(src string, dst string) error) {
 	// sample data for loading into files
 	sampleData1 := "this is some data"
 	sampleData2 := "we got some more data"
