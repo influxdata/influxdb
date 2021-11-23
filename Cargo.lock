@@ -3910,6 +3910,8 @@ dependencies = [
  "rand",
  "rand_distr",
  "read_buffer",
+ "regex",
+ "router",
  "schema",
  "serde",
  "serde_json",
