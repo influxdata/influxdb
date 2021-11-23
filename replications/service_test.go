@@ -106,7 +106,7 @@ func TestListReplications(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		list            *influxdb.Replications
+		list            influxdb.Replications
 		ids             []platform.ID
 		sizes           map[platform.ID]int64
 		storeErr        error
@@ -114,7 +114,7 @@ func TestListReplications(t *testing.T) {
 	}{
 		{
 			name: "matches multiple",
-			list: &influxdb.Replications{
+			list: influxdb.Replications{
 				Replications: []influxdb.Replication{replication1, replication2},
 			},
 			ids:   []platform.ID{replication1.ID, replication2.ID},
@@ -122,7 +122,7 @@ func TestListReplications(t *testing.T) {
 		},
 		{
 			name: "matches one",
-			list: &influxdb.Replications{
+			list: influxdb.Replications{
 				Replications: []influxdb.Replication{replication1},
 			},
 			ids:   []platform.ID{replication1.ID},
@@ -130,7 +130,7 @@ func TestListReplications(t *testing.T) {
 		},
 		{
 			name: "matches none",
-			list: &influxdb.Replications{},
+			list: influxdb.Replications{},
 		},
 		{
 			name:     "store error",
@@ -138,7 +138,7 @@ func TestListReplications(t *testing.T) {
 		},
 		{
 			name: "queue manager error",
-			list: &influxdb.Replications{
+			list: influxdb.Replications{
 				Replications: []influxdb.Replication{replication1},
 			},
 			ids:             []platform.ID{replication1.ID},
@@ -150,7 +150,7 @@ func TestListReplications(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, mocks := newTestService(t)
 
-			mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), filter).Return(tt.list, tt.storeErr)
+			mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), filter).Return(&tt.list, tt.storeErr)
 
 			if tt.storeErr == nil && len(tt.list.Replications) > 0 {
 				mocks.durableQueueManager.EXPECT().CurrentQueueSizes(tt.ids).Return(tt.sizes, tt.queueManagerErr)
@@ -200,21 +200,18 @@ func TestCreateReplication(t *testing.T) {
 			name:      "bucket service error",
 			create:    createReq,
 			bucketErr: errors.New("bucket service error"),
-			want:      nil,
 			wantErr:   errLocalBucketNotFound(createReq.LocalBucketID, errors.New("bucket service error")),
 		},
 		{
 			name:            "initialize queue error",
 			create:          createReq,
 			queueManagerErr: errors.New("queue manager error"),
-			want:            nil,
 			wantErr:         errors.New("queue manager error"),
 		},
 		{
 			name:     "store create error",
 			create:   createReq,
 			storeErr: errors.New("store create error"),
-			want:     nil,
 			wantErr:  errors.New("store create error"),
 		},
 	}
@@ -317,14 +314,14 @@ func TestGetReplication(t *testing.T) {
 		sizes           map[platform.ID]int64
 		storeErr        error
 		queueManagerErr error
-		storeWant       *influxdb.Replication
-		want            *influxdb.Replication
+		storeWant       influxdb.Replication
+		want            influxdb.Replication
 	}{
 		{
 			name:      "success",
 			sizes:     map[platform.ID]int64{replication1.ID: 1000},
-			storeWant: &replication1,
-			want:      &replication1,
+			storeWant: replication1,
+			want:      replication1,
 		},
 		{
 			name:     "store error",
@@ -332,7 +329,7 @@ func TestGetReplication(t *testing.T) {
 		},
 		{
 			name:            "queue manager error",
-			storeWant:       &replication1,
+			storeWant:       replication1,
 			queueManagerErr: errors.New("queue manager error"),
 		},
 	}
@@ -341,7 +338,7 @@ func TestGetReplication(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, mocks := newTestService(t)
 
-			mocks.serviceStore.EXPECT().GetReplication(gomock.Any(), id1).Return(tt.storeWant, tt.storeErr)
+			mocks.serviceStore.EXPECT().GetReplication(gomock.Any(), id1).Return(&tt.storeWant, tt.storeErr)
 
 			if tt.storeErr == nil {
 				mocks.durableQueueManager.EXPECT().CurrentQueueSizes([]platform.ID{id1}).Return(tt.sizes, tt.queueManagerErr)
