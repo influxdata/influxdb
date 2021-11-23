@@ -73,26 +73,21 @@ fn shard_delete(delete: &DmlDelete, config: &ShardConfig) -> BTreeMap<ShardId, D
 
 /// Shard only based on table name
 fn shard_table(table: &str, config: &ShardConfig) -> Option<ShardId> {
-    let mut shard_id = None;
-
     for matcher2shard in &config.specific_targets {
         if let Some(regex) = &matcher2shard.matcher.table_name_regex {
             if regex.is_match(table) {
-                shard_id = Some(matcher2shard.shard);
-                break;
+                return Some(matcher2shard.shard);
             }
         }
     }
 
-    if shard_id.is_none() {
-        if let Some(hash_ring) = &config.hash_ring {
-            if let Some(id) = hash_ring.shards.find(table) {
-                shard_id = Some(id);
-            }
+    if let Some(hash_ring) = &config.hash_ring {
+        if let Some(id) = hash_ring.shards.find(table) {
+            return Some(id);
         }
     }
 
-    shard_id
+    None
 }
 
 #[cfg(test)]
