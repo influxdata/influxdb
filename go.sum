@@ -428,6 +428,8 @@ github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe h1:7j4SdN/BvQwN6Wo
 github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe/go.mod h1:XabtPPW2qsCg0tl+kjaPU+cFS+CjQXEXbT1VJvHT4og=
 github.com/influxdata/flux v0.143.1 h1:foLB3lDV3a3EsMcAz5gj4bVHsVEHMfCm86pQvMzGzzY=
 github.com/influxdata/flux v0.143.1/go.mod h1:Q1kyXp+qkeAkX0T8wiNKCU7lqtEep1aK7QqrXntPPD4=
+github.com/influxdata/flux v0.143.2-0.20211123174719-db4140b045e3 h1:+IKFIWJ6NMz4O/Jte9sqPWoS7ySOG8eLPuujF0msW3I=
+github.com/influxdata/flux v0.143.2-0.20211123174719-db4140b045e3/go.mod h1:Q1kyXp+qkeAkX0T8wiNKCU7lqtEep1aK7QqrXntPPD4=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69 h1:WQsmW0fXO4ZE/lFGIE84G6rIV5SJN3P3sjIXAP1a8eU=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69/go.mod h1:pwymjR6SrP3gD3pRj9RJwdl1j5s3doEEV8gS4X9qSzA=
 github.com/influxdata/influx-cli/v2 v2.1.1-0.20211007122339-c4a5a13c8ee3 h1:DJFtOP/Gji5K6iut794K1pTKPd9SqM9J+Cb7vXgsnq0=
