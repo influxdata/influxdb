@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies] # In alphabetical order
 observability_deps = { path = "../observability_deps" }
 tracing-subscriber = "0.3"
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
 once_cell = { version = "1.4.0", features = ["parking_lot"] }

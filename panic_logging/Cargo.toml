@@ -6,3 +6,4 @@ edition = "2021"
 
 [dependencies] # In alphabetical order
 observability_deps = { path = "../observability_deps" }
+workspace-hack = { path = "../workspace-hack"}

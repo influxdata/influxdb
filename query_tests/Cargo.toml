@@ -15,6 +15,7 @@ once_cell = { version = "1.4.0", features = ["parking_lot"] }
 predicate = { path = "../predicate" }
 query = { path = "../query" }
 server = { path = "../server" }
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 arrow = { version = "6.0", features = ["prettyprint"] }

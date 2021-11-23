@@ -18,7 +18,8 @@ use snafu::{ResultExt, Snafu};
 use time::Time;
 use write_buffer::core::WriteBufferReading;
 
-use crate::db::write::WriteFilter;
+use crate::db::catalog::chunk::{CatalogChunk, ChunkStage};
+use crate::db::write::{DeleteFilter, WriteFilter};
 use crate::Db;
 
 #[allow(clippy::enum_variant_names)]
@@ -243,8 +244,7 @@ pub async fn perform_replay(
                 for n_try in 1..=n_tries {
                     let result = match &dml_operation {
                         DmlOperation::Write(write) => db.store_filtered_write(write, filter),
-                        // TODO: Only apply delete to unpersisted chunks (#3125)
-                        DmlOperation::Delete(delete) => db.store_delete(delete),
+                        DmlOperation::Delete(delete) => db.store_filtered_delete(delete, filter),
                     };
 
                     match result {
@@ -370,6 +370,19 @@ impl<'a> WriteFilter for ReplayFilter<'a> {
     }
 }
 
+impl<'a> DeleteFilter for ReplayFilter<'a> {
+    fn filter_chunk(&self, chunk: &CatalogChunk) -> bool {
+        // The persist lifecycle action MUST persist any outstanding delete predicates
+        //
+        // As such deletes should only be applied to unpersisted chunks - i.e.
+        // those containing data from the in-progress replay operation
+        //
+        // This avoids a situation where a delete could be applied to a chunk containing
+        // data from writes sequenced after the delete being replayed
+        !matches!(chunk.stage(), ChunkStage::Persisted { .. })
+    }
+}
+
 /// Where is a given sequence number and the entire data batch associated with it compared to the range of persisted and
 /// partially persisted sequence numbers (extracted from partition checkpoint).
 #[derive(Debug, PartialEq)]
@@ -431,9 +444,13 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use data_types::{
         database_rules::{PartitionTemplate, TemplatePart},
+        delete_predicate::DeletePredicate,
+        non_empty::NonEmptyString,
         sequence::Sequence,
         server_id::ServerId,
+        timestamp::TimestampRange,
     };
+    use dml::{DmlDelete, DmlMeta};
     use object_store::ObjectStore;
     use persistence_windows::{
         checkpoint::{PartitionCheckpoint, PersistCheckpointBuilder, ReplayPlanner},
@@ -457,6 +474,14 @@ mod tests {
         sequencer_id: u32,
         sequence_number: u64,
         lp: &'static str,
+    }
+
+    #[derive(Debug)]
+    struct TestDelete {
+        sequencer_id: u32,
+        sequence_number: u64,
+        table_name: Option<&'static str>,
+        predicate: DeletePredicate,
     }
 
     /// Different checks for replay tests
@@ -514,6 +539,9 @@ mod tests {
         ///
         /// Persistence and write buffer reads are enabled in preparation to this step.
         Await(Vec<Check>),
+
+        /// Performs a delete to the given table
+        Delete(Vec<TestDelete>),
     }
 
     #[derive(Debug)]
@@ -722,6 +750,21 @@ mod tests {
                                 break;
                             }
                             tokio::time::sleep(Duration::from_millis(100)).await;
+                        }
+                    }
+                    Step::Delete(deletes) => {
+                        for delete in deletes {
+                            let delete = DmlDelete::new(
+                                delete.predicate,
+                                delete.table_name.and_then(NonEmptyString::new),
+                                DmlMeta::sequenced(
+                                    Sequence::new(delete.sequencer_id, delete.sequence_number),
+                                    time::Time::from_timestamp_nanos(0),
+                                    None,
+                                    0,
+                                ),
+                            );
+                            write_buffer_state.push_delete(delete)
                         }
                     }
                 }
@@ -2558,6 +2601,126 @@ mod tests {
                         "+-----+------------------+--------------------------------+",
                         "| 10  | a                | 1970-01-01T00:00:00.000000010Z |",
                         "| 30  | b                | 1970-01-01T00:00:00.000000030Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
+    }
+
+    #[tokio::test]
+    async fn replay_delete() {
+        ReplayTest {
+            steps: vec![
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 0,
+                    lp: "table_1,tag_partition_by=a bar=10 10",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::Delete(vec![TestDelete {
+                    sequencer_id: 0,
+                    sequence_number: 1,
+                    table_name: None,
+                    predicate: DeletePredicate {
+                        range: TimestampRange { start: 0, end: 20 },
+                        exprs: vec![],
+                    },
+                }]),
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 2,
+                    lp: "table_1,tag_partition_by=b bar=15 15",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 15  | b                | 1970-01-01T00:00:00.000000015Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![("table_1", "tag_partition_by_b")]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 15  | b                | 1970-01-01T00:00:00.000000015Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
+    }
+
+    #[tokio::test]
+    async fn replay_delete_persisted_chunks() {
+        ReplayTest {
+            steps: vec![
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 0,
+                    lp: "table_1,tag_partition_by=a bar=10 10",
+                }]),
+                Step::Delete(vec![TestDelete {
+                    sequencer_id: 0,
+                    sequence_number: 1,
+                    table_name: None,
+                    predicate: DeletePredicate {
+                        range: TimestampRange { start: 0, end: 11 },
+                        exprs: vec![],
+                    },
+                }]),
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 2,
+                    lp: "table_1,tag_partition_by=b bar=20 10",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 20  | b                | 1970-01-01T00:00:00.000000010Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![("table_1", "tag_partition_by_b")]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 20  | b                | 1970-01-01T00:00:00.000000010Z |",
                         "+-----+------------------+--------------------------------+",
                     ],
                 )]),

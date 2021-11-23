@@ -24,6 +24,12 @@ pub enum Job {
         chunks: Vec<ChunkId>,
     },
 
+    /// Compact a set of object store chunks
+    CompactObjectStoreChunks {
+        partition: PartitionAddr,
+        chunks: Vec<ChunkId>,
+    },
+
     /// Split and persist a set of chunks
     PersistChunks {
         partition: PartitionAddr,
@@ -47,6 +53,7 @@ impl Job {
             Self::Dummy { db_name, .. } => db_name.as_ref(),
             Self::WriteChunk { chunk, .. } => Some(&chunk.db_name),
             Self::CompactChunks { partition, .. } => Some(&partition.db_name),
+            Self::CompactObjectStoreChunks { partition, .. } => Some(&partition.db_name),
             Self::PersistChunks { partition, .. } => Some(&partition.db_name),
             Self::DropChunk { chunk, .. } => Some(&chunk.db_name),
             Self::DropPartition { partition, .. } => Some(&partition.db_name),
@@ -60,6 +67,7 @@ impl Job {
             Self::Dummy { .. } => None,
             Self::WriteChunk { chunk, .. } => Some(&chunk.partition_key),
             Self::CompactChunks { partition, .. } => Some(&partition.partition_key),
+            Self::CompactObjectStoreChunks { partition, .. } => Some(&partition.partition_key),
             Self::PersistChunks { partition, .. } => Some(&partition.partition_key),
             Self::DropChunk { chunk, .. } => Some(&chunk.partition_key),
             Self::DropPartition { partition, .. } => Some(&partition.partition_key),
@@ -73,6 +81,7 @@ impl Job {
             Self::Dummy { .. } => None,
             Self::WriteChunk { chunk, .. } => Some(&chunk.table_name),
             Self::CompactChunks { partition, .. } => Some(&partition.table_name),
+            Self::CompactObjectStoreChunks { partition, .. } => Some(&partition.table_name),
             Self::PersistChunks { partition, .. } => Some(&partition.table_name),
             Self::DropChunk { chunk, .. } => Some(&chunk.table_name),
             Self::DropPartition { partition, .. } => Some(&partition.table_name),
@@ -86,6 +95,7 @@ impl Job {
             Self::Dummy { .. } => None,
             Self::WriteChunk { chunk, .. } => Some(vec![chunk.chunk_id]),
             Self::CompactChunks { chunks, .. } => Some(chunks.clone()),
+            Self::CompactObjectStoreChunks { chunks, .. } => Some(chunks.clone()),
             Self::PersistChunks { chunks, .. } => Some(chunks.clone()),
             Self::DropChunk { chunk, .. } => Some(vec![chunk.chunk_id]),
             Self::DropPartition { .. } => None,
@@ -99,6 +109,9 @@ impl Job {
             Self::Dummy { .. } => "Dummy Job, for testing",
             Self::WriteChunk { .. } => "Writing chunk to Object Storage",
             Self::CompactChunks { .. } => "Compacting chunks to ReadBuffer",
+            Self::CompactObjectStoreChunks { .. } => {
+                "Compacting Object Store chunks to an Object Store chunk"
+            }
             Self::PersistChunks { .. } => "Persisting chunks to object storage",
             Self::DropChunk { .. } => "Drop chunk from memory and (if persisted) from object store",
             Self::DropPartition { .. } => {
@@ -115,6 +128,9 @@ impl std::fmt::Display for Job {
             Job::Dummy { .. } => write!(f, "Job::Dummy"),
             Job::WriteChunk { chunk } => write!(f, "Job::WriteChunk({}))", chunk),
             Job::CompactChunks { partition, .. } => write!(f, "Job::CompactChunks({})", partition),
+            Job::CompactObjectStoreChunks { partition, .. } => {
+                write!(f, "Job::CompactObjectStoreChunks({})", partition)
+            }
             Job::PersistChunks { partition, .. } => write!(f, "Job::PersistChunks({})", partition),
             Job::DropChunk { chunk } => write!(f, "Job::DropChunk({})", chunk),
             Job::DropPartition { partition } => write!(f, "Job::DropPartition({})", partition),

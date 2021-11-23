@@ -44,6 +44,8 @@ use super::{
 /// Returns a future registered with the tracker registry, and the corresponding tracker
 ///
 /// The caller can either spawn this future to tokio, or block directly on it
+///
+/// NB: This function is tightly coupled with the semantics of persist_chunks
 pub(super) fn write_chunk_to_object_store(
     partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
     mut chunk: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>,
@@ -155,6 +157,13 @@ pub(super) fn write_chunk_to_object_store(
                 .context(ParquetChunkError)?,
             );
 
+            // Collect any pending delete predicate from any partitions and include them in
+            // the transaction. This MUST be done after the DatabaseCheckpoint is computed
+            //
+            // This ensures that any deletes encountered during or prior to the replay window
+            // must have been made durable within the catalog for any persisted chunks
+            let delete_handle = db.delete_predicates_mailbox.consume().await;
+
             // IMPORTANT: Start transaction AFTER writing the actual parquet file so we do not hold
             //            the transaction lock (that is part of the PreservedCatalog) for too long.
             //            By using the cleanup lock (see above) it is ensured that the file that we
@@ -169,7 +178,7 @@ pub(super) fn write_chunk_to_object_store(
             };
             transaction.add_parquet(&info);
 
-            // add delete predicates
+            // add delete predicates for this chunk
             //
             // Delete predicates are handled in the following way
             // 1. Predicates added before this chunk was created (aka before the DataFusion split plan was running):
@@ -182,8 +191,15 @@ pub(super) fn write_chunk_to_object_store(
                 transaction.delete_predicate(&predicate, &[addr.clone().into()]);
             }
 
+            for (predicate, chunks) in delete_handle.outbox() {
+                transaction.delete_predicate(predicate, chunks);
+            }
+
             // preserved commit
             let ckpt_handle = transaction.commit().await.context(CommitError)?;
+
+            // Deletes persisted correctly
+            delete_handle.flush();
 
             // in-mem commit
             {
@@ -195,6 +211,7 @@ pub(super) fn write_chunk_to_object_store(
 
             let create_checkpoint =
                 ckpt_handle.revision_counter() % catalog_transactions_until_checkpoint == 0;
+
             if create_checkpoint {
                 // Commit is already done, so we can just scan the catalog for the state.
                 //

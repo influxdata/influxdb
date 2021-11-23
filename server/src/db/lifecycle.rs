@@ -33,6 +33,7 @@ pub(crate) use persist::persist_chunks;
 pub(crate) use unload::unload_read_buffer_chunk;
 
 mod compact;
+pub(crate) mod compact_object_store;
 mod drop;
 mod error;
 mod persist;
@@ -198,6 +199,17 @@ impl LockablePartition for LockableCatalogPartition {
         info!(table=%partition.table_name(), partition=%partition.partition_key(), "compacting chunks");
         let (tracker, fut) = compact::compact_chunks(partition, chunks)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("compacting chunks") });
+        Ok(tracker)
+    }
+
+    fn compact_object_store_chunks(
+        partition: LifecycleWriteGuard<'_, Partition, Self>,
+        chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, Self::Chunk>>,
+    ) -> Result<TaskTracker<Job>, Self::Error> {
+        info!(table=%partition.table_name(), partition=%partition.partition_key(), "compacting object store chunks");
+        let (tracker, fut) = compact_object_store::compact_object_store_chunks(partition, chunks)?;
+        let _ =
+            tokio::spawn(async move { fut.await.log_if_error("compacting object store chunks") });
         Ok(tracker)
     }
 

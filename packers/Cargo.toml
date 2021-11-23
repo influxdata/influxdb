@@ -11,6 +11,7 @@ schema = { path = "../schema" }
 snafu = "0.6.2"
 observability_deps = { path = "../observability_deps" }
 parquet = "6.0"
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
 criterion = "0.3.3"

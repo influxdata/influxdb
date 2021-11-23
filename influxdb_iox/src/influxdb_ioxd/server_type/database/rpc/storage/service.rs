@@ -220,6 +220,7 @@ where
             read_source: _read_source,
             range,
             predicate,
+            ..
         } = read_filter_request;
 
         info!(%db_name, ?range, predicate=%predicate.loggable(),"read filter");
@@ -251,14 +252,9 @@ where
             group_keys,
             group,
             aggregate,
-            hints,
         } = read_group_request;
 
         info!(%db_name, ?range, ?group_keys, ?group, ?aggregate,predicate=%predicate.loggable(),"read_group");
-
-        if hints != 0 {
-            InternalHintsFieldNotSupported { hints }.fail()?
-        }
 
         let aggregate_string = format!(
             "aggregate: {:?}, group: {:?}, group_keys: {:?}",
@@ -1772,6 +1768,7 @@ mod tests {
             read_source: source.clone(),
             range: Some(make_timestamp_range(0, 10000)),
             predicate: Some(make_state_ma_predicate()),
+            ..Default::default()
         };
 
         let frames = fixture.storage_client.read_filter(request).await.unwrap();
@@ -1812,6 +1809,7 @@ mod tests {
             read_source: source.clone(),
             range: None,
             predicate: None,
+            ..Default::default()
         };
 
         // Note we don't set the response on the test database, so we expect an error
@@ -1855,7 +1853,6 @@ mod tests {
             aggregate: Some(Aggregate {
                 r#type: aggregate::AggregateType::Sum as i32,
             }),
-            hints: 0,
         };
 
         let frames = fixture.storage_client.read_group(request).await.unwrap();
@@ -1891,34 +1888,6 @@ mod tests {
         let group = generated_types::read_group_request::Group::By as i32;
 
         // ---
-        // test error hit in request processing
-        // ---
-        let request = ReadGroupRequest {
-            read_source: source.clone(),
-            range: None,
-            predicate: None,
-            group_keys: vec!["tag1".into()],
-            group,
-            aggregate: Some(Aggregate {
-                r#type: aggregate::AggregateType::Sum as i32,
-            }),
-            hints: 42,
-        };
-
-        let response_string = fixture
-            .storage_client
-            .read_group(request)
-            .await
-            .unwrap_err()
-            .to_string();
-        assert_contains!(
-            response_string,
-            "Unexpected hint value on read_group request. Expected 0, got 42"
-        );
-
-        grpc_request_metric_has_count(&fixture, "ReadGroup", "server_error", 1);
-
-        // ---
         // test error returned in database processing
         // ---
         let request = ReadGroupRequest {
@@ -1930,7 +1899,6 @@ mod tests {
             aggregate: Some(Aggregate {
                 r#type: aggregate::AggregateType::Sum as i32,
             }),
-            hints: 0,
         };
 
         // Note we don't set the response on the test database, so we expect an error

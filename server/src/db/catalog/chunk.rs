@@ -175,6 +175,10 @@ impl ChunkStage {
     pub fn is_open(&self) -> bool {
         matches!(self, ChunkStage::Open { .. })
     }
+
+    pub fn is_persisted(&self) -> bool {
+        matches!(self, ChunkStage::Persisted { .. })
+    }
 }
 
 /// The catalog representation of a Chunk in IOx. Note that a chunk
@@ -396,6 +400,10 @@ impl CatalogChunk {
 
     pub fn stage(&self) -> &ChunkStage {
         &self.stage
+    }
+
+    pub fn is_persisted(&self) -> bool {
+        self.stage.is_persisted()
     }
 
     /// Returns the AccessRecorder used to record access to this chunk's data by queries
@@ -724,6 +732,27 @@ impl CatalogChunk {
         }
     }
 
+    /// Set the persisted chunk to be compacting
+    pub fn set_compacting_object_store(&mut self, registration: &TaskRegistration) -> Result<()> {
+        match &self.stage {
+            ChunkStage::Open { .. } | ChunkStage::Frozen { .. } => {
+                unexpected_state!(
+                    self,
+                    "setting compacting object store",
+                    "Persisted",
+                    &self.stage
+                )
+            }
+            ChunkStage::Persisted { .. } => {
+                self.set_lifecycle_action(
+                    ChunkLifecycleAction::CompactingObjectStore,
+                    registration,
+                )?;
+                Ok(())
+            }
+        }
+    }
+
     /// Start lifecycle action that should move the chunk into the _persisted_ stage.
     pub fn set_writing_to_object_store(&mut self, registration: &TaskRegistration) -> Result<()> {
         // This ensures the closing logic is consistent but doesn't break code that
@@ -888,12 +917,7 @@ mod tests {
     use data_types::{delete_predicate::DeleteExpr, timestamp::TimestampRange};
 
     use mutable_buffer::test_helpers::write_lp_to_new_chunk;
-    use parquet_file::{
-        chunk::ParquetChunk,
-        test_utils::{
-            make_chunk as make_parquet_chunk_with_store, make_iox_object_store, TestSize,
-        },
-    };
+    use parquet_file::test_utils::generator::{ChunkGenerator, GeneratorConfig};
 
     #[test]
     fn test_new_open() {
@@ -917,7 +941,7 @@ mod tests {
         let mut chunk = make_persisted_chunk().await;
         assert_eq!(
             chunk.freeze().unwrap_err().to_string(),
-            "Internal Error: unexpected chunk state for Chunk('db':'table1':'part1':00000000-0000-0000-0000-000000000000) \
+            "Internal Error: unexpected chunk state for Chunk('db1':'table1':'part1':00000000-0000-0000-0000-000000000001) \
             during setting closed. Expected Open or Frozen, got Persisted"
         );
     }
@@ -1103,11 +1127,6 @@ mod tests {
         write_lp_to_new_chunk(&format!("{} bar=1 10", table_name))
     }
 
-    async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {
-        let iox_object_store = make_iox_object_store().await;
-        make_parquet_chunk_with_store(iox_object_store, "foo", addr, TestSize::Full).await
-    }
-
     fn chunk_addr() -> ChunkAddr {
         ChunkAddr {
             db_name: Arc::from("db"),
@@ -1131,11 +1150,12 @@ mod tests {
     }
 
     async fn make_persisted_chunk() -> CatalogChunk {
-        let addr = chunk_addr();
-        let now = Time::from_timestamp_nanos(43564);
+        let mut generator = ChunkGenerator::new().await;
+        generator.set_config(GeneratorConfig::NoData);
+        let (parquet_chunk, metadata) = generator.generate().await;
+        let addr = ChunkAddr::new(generator.partition(), metadata.chunk_id);
 
-        // assemble ParquetChunk
-        let parquet_chunk = make_parquet_chunk(addr.clone()).await;
+        let now = Time::from_timestamp_nanos(43564);
 
         CatalogChunk::new_object_store_only(
             addr,
