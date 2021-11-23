@@ -2,8 +2,8 @@
 
 use super::{
     error::{
-        ChunksNotContiguous, ChunksNotInPartition, EmptyChunks, ParquetChunkError,
-        WritingToObjectStore,
+        ChunksNotContiguous, ChunksNotInPartition, ChunksNotPersisted, EmptyChunks,
+        ParquetChunkError, ParquetMetaRead, WritingToObjectStore,
     },
     LockableCatalogChunk, LockableCatalogPartition, Result,
 };
@@ -184,18 +184,13 @@ fn mark_chunks_to_compact(
     let mut time_of_first_write = Time::MAX;
     let mut time_of_last_write = Time::MIN;
     let mut chunk_orders = BTreeSet::new();
+    let mut chunk_ids = BTreeSet::new();
     let mut input_rows = 0;
     let mut delete_predicates: HashSet<Arc<DeletePredicate>> = HashSet::new();
     let mut min_order = ChunkOrder::MAX;
 
-    // initialize checkpoints
-    let database_checkpoint = DatabaseCheckpoint::new(Default::default());
-    let partition_checkpoint = PartitionCheckpoint::new(
-        Arc::clone(&partition_addr.table_name),
-        Arc::clone(&partition_addr.partition_key),
-        Default::default(),
-        Time::from_timestamp_nanos(0),
-    );
+    let mut db_ckpts = vec![];
+    let mut part_ckpts = vec![];
 
     let os_chunks = chunks
         .into_iter()
@@ -224,20 +219,38 @@ fn mark_chunks_to_compact(
 
             min_order = min_order.min(chunk.order());
             chunk_orders.insert(chunk.order());
+            chunk_ids.insert(chunk.id());
 
             // Todo:get chunk's datatbase_checkpoint and partition_checkpoint of the chunk and keep max
+            if let Some(parquet_chunk) = chunk.parquet_chunk() {
+                let iox_parquet_metadata = parquet_chunk.parquet_metadata();
+                let iox_metadata = iox_parquet_metadata
+                    .decode()
+                    .context(ParquetMetaRead)?
+                    .read_iox_metadata()
+                    .context(ParquetMetaRead)?;
+
+                db_ckpts.push(iox_metadata.database_checkpoint);
+                part_ckpts.push(iox_metadata.partition_checkpoint);
+            } else {
+                return ChunksNotPersisted {}.fail();
+            }
 
             // Set chunk in the right action which is compacting object store
             // This function will also error out if the chunk is not yet persisted
             chunk.set_compacting_object_store(registration)?;
-            Ok(DbChunk::snapshot(&*chunk))
+            Ok(DbChunk::parquet_file_snapshot(&*chunk))
         })
         .collect::<Result<Vec<_>>>()?;
 
     // Verify if all the provided chunks are contiguous
-    if !partition.contiguous_object_store_chunks(&chunk_orders) {
+    if !partition.contiguous_chunks(&chunk_ids, &chunk_orders)? {
         return ChunksNotContiguous {}.fail();
     }
+
+    // Compute checkpoints for the creating chunk
+    let (database_checkpoint, partition_checkpoint) =
+        compute_checkpoints(&partition_addr, &db_ckpts, &part_ckpts);
 
     // drop partition lock
     std::mem::drop(partition);
@@ -266,6 +279,24 @@ struct CompactingOsChunks {
     min_order: ChunkOrder,
     database_checkpoint: DatabaseCheckpoint,
     partition_checkpoint: PartitionCheckpoint,
+}
+
+fn compute_checkpoints(
+    partition_addr: &PartitionAddr,
+    _db_ckpts: &[DatabaseCheckpoint],
+    _part_ckpts: &[PartitionCheckpoint],
+) -> (DatabaseCheckpoint, PartitionCheckpoint) {
+    let database_checkpoint = DatabaseCheckpoint::new(Default::default());
+    let partition_checkpoint = PartitionCheckpoint::new(
+        Arc::clone(&partition_addr.table_name),
+        Arc::clone(&partition_addr.partition_key),
+        Default::default(),
+        Time::from_timestamp_nanos(0),
+    );
+
+    // todo
+
+    (database_checkpoint, partition_checkpoint)
 }
 
 /// Create query plan to compact the given DbChunks and return its output stream
@@ -408,8 +439,9 @@ mod tests {
             mark_chunks_to_compact(partition, vec![chunk], &registration);
         let err = compact_non_persisted_chunks.unwrap_err();
         assert!(
-            err.to_string().contains("Expected Persisted, got Open"),
-            "Expected Persisted, got Open"
+            err.to_string()
+                .contains("Cannot compact chunks because at least one is not yet persisted"),
+            "Cannot compact chunks because at least one is not yet persisted"
         );
     }
 
