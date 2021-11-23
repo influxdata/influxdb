@@ -9,11 +9,11 @@
 pub mod influxdata {
     pub mod platform {
         pub mod storage {
-            include!(concat!(env!("OUT_DIR"), "/influxdata.platform.storage.rs"));
             include!(concat!(
                 env!("OUT_DIR"),
-                "/influxdata.platform.storage.serde.rs"
+                "/influxdata.platform.storage.read.rs"
             ));
+            include!(concat!(env!("OUT_DIR"), "/influxdata.platform.storage.rs"));
 
             // Can't implement `Default` because `prost::Message` implements `Default`
             impl TimestampRange {
@@ -127,23 +127,6 @@ pub mod influxdata {
     }
 }
 
-pub mod com {
-    pub mod github {
-        pub mod influxdata {
-            pub mod idpe {
-                pub mod storage {
-                    pub mod read {
-                        include!(concat!(
-                            env!("OUT_DIR"),
-                            "/com.github.influxdata.idpe.storage.read.rs"
-                        ));
-                    }
-                }
-            }
-        }
-    }
-}
-
 // Needed because of https://github.com/hyperium/tonic/issues/471
 pub mod grpc {
     pub mod health {
@@ -199,7 +182,6 @@ pub fn protobuf_type_url_eq(url: &str, protobuf_type: &str) -> bool {
 }
 
 // TODO: Remove these (#2419)
-pub use com::github::influxdata::idpe::storage::read::*;
 pub use influxdata::platform::storage::*;
 
 pub mod google;

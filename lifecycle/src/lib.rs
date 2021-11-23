@@ -47,7 +47,7 @@ pub trait LifecycleDb {
 
 /// A `LockablePartition` is a wrapper around a `LifecyclePartition` that allows
 /// for planning and executing lifecycle actions on the partition
-pub trait LockablePartition: Sized + std::fmt::Display {
+pub trait LockablePartition: Sized {
     type Partition: LifecyclePartition;
     type Chunk: LockableChunk;
     type PersistHandle: PersistHandle + Send + Sync + 'static;
@@ -156,7 +156,7 @@ pub trait LockableChunk: Sized {
     fn order(&self) -> ChunkOrder;
 }
 
-pub trait LifecyclePartition {
+pub trait LifecyclePartition: std::fmt::Display {
     fn partition_key(&self) -> &str;
 
     /// Returns true if all chunks in the partition are persisted.

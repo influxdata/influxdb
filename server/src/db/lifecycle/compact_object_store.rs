@@ -392,8 +392,7 @@ mod tests {
         let partition_key = "1970-01-01T00";
         write_lp(&db, "cpu,tag1=cupcakes bar=1 10").await;
 
-        let db_partition = db.partition("cpu", partition_key).unwrap();
-        let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
+        let partition = db.lockable_partition("cpu", partition_key).unwrap();
         let partition = partition.write();
 
         let (_, registration) = db.jobs.register(Job::CompactObjectStoreChunks {
@@ -418,10 +417,8 @@ mod tests {
         let partition_key = "1970-01-01T00";
         write_lp(&db, "cpu,tag1=cupcakes bar=1 10").await;
 
-        let db_partition = db.partition("cpu", partition_key).unwrap();
-
         // persisted non persisted chunks
-        let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
+        let partition = db.lockable_partition("cpu", partition_key).unwrap();
         let partition = partition.read();
         let chunks = LockablePartition::chunks(&partition);
         assert_eq!(chunks.len(), 1);
@@ -451,8 +448,6 @@ mod tests {
         let partition_key = "1970-01-01T00";
         write_lp(&db, "cpu,tag1=cupcakes bar=1 10").await;
 
-        let db_partition = db.partition("cpu", partition_key).unwrap();
-
         // persist chunk 1
         db.persist_partition("cpu", partition_key, true)
             .await
@@ -480,7 +475,7 @@ mod tests {
         write_lp(db.as_ref(), "cpu,tag1=chunk4,tag2=a bar=2 40").await;
 
         // let compact 2 non contiguous chunk 1 and chunk 3
-        let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
+        let partition = db.lockable_partition("cpu", partition_key).unwrap();
         let partition = partition.read();
         let chunks = LockablePartition::chunks(&partition);
         assert_eq!(chunks.len(), 4);

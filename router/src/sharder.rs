@@ -1,7 +1,7 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use data_types::router::{ShardConfig, ShardId};
-use dml::{DmlOperation, DmlWrite};
+use dml::{DmlDelete, DmlOperation, DmlWrite};
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 
@@ -9,40 +9,25 @@ use mutable_batch::MutableBatch;
 pub fn shard_operation(
     operation: DmlOperation,
     config: &ShardConfig,
-) -> impl Iterator<Item = (ShardId, DmlOperation)> {
+) -> BTreeMap<ShardId, DmlOperation> {
     match operation {
         DmlOperation::Write(write) => shard_write(&write, config)
             .into_iter()
-            .map(|(shard, write)| (shard, DmlOperation::Write(write))),
-        DmlOperation::Delete(_) => unimplemented!(),
+            .map(|(shard, write)| (shard, DmlOperation::Write(write)))
+            .collect(),
+        DmlOperation::Delete(delete) => shard_delete(&delete, config)
+            .into_iter()
+            .map(|(shard, delete)| (shard, DmlOperation::Delete(delete)))
+            .collect(),
     }
 }
 
 /// Shard given write according to config.
-pub fn shard_write(write: &DmlWrite, config: &ShardConfig) -> BTreeMap<ShardId, DmlWrite> {
+fn shard_write(write: &DmlWrite, config: &ShardConfig) -> BTreeMap<ShardId, DmlWrite> {
     let mut batches: HashMap<ShardId, HashMap<String, MutableBatch>> = HashMap::new();
 
     for (table, batch) in write.tables() {
-        let mut shard_id = None;
-
-        'match_loop: for matcher2shard in &config.specific_targets {
-            if let Some(regex) = &matcher2shard.matcher.table_name_regex {
-                if regex.is_match(table) {
-                    shard_id = Some(matcher2shard.shard);
-                    break 'match_loop;
-                }
-            }
-        }
-
-        if shard_id.is_none() {
-            if let Some(hash_ring) = &config.hash_ring {
-                if let Some(id) = hash_ring.shards.find(table) {
-                    shard_id = Some(id);
-                }
-            }
-        }
-
-        if let Some(shard_id) = shard_id {
+        if let Some(shard_id) = shard_table(table, config) {
             assert!(batches
                 .entry(shard_id)
                 .or_default()
@@ -57,20 +42,74 @@ pub fn shard_write(write: &DmlWrite, config: &ShardConfig) -> BTreeMap<ShardId, 
         .collect()
 }
 
+/// Shard given delete according to config.
+fn shard_delete(delete: &DmlDelete, config: &ShardConfig) -> BTreeMap<ShardId, DmlDelete> {
+    if let Some(table) = delete.table_name() {
+        if let Some(shard_id) = shard_table(table, config) {
+            BTreeMap::from([(shard_id, delete.clone())])
+        } else {
+            BTreeMap::default()
+        }
+    } else {
+        let shards: HashSet<ShardId> = config
+            .specific_targets
+            .iter()
+            .map(|matcher2shard| matcher2shard.shard)
+            .chain(
+                config
+                    .hash_ring
+                    .iter()
+                    .map(|hashring| Vec::<ShardId>::from(hashring.shards.clone()).into_iter())
+                    .flatten(),
+            )
+            .collect();
+
+        shards
+            .into_iter()
+            .map(|shard| (shard, delete.clone()))
+            .collect()
+    }
+}
+
+/// Shard only based on table name
+fn shard_table(table: &str, config: &ShardConfig) -> Option<ShardId> {
+    for matcher2shard in &config.specific_targets {
+        if let Some(regex) = &matcher2shard.matcher.table_name_regex {
+            if regex.is_match(table) {
+                return Some(matcher2shard.shard);
+            }
+        }
+    }
+
+    if let Some(hash_ring) = &config.hash_ring {
+        if let Some(id) = hash_ring.shards.find(table) {
+            return Some(id);
+        }
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use data_types::{
         consistent_hasher::ConsistentHasher,
+        delete_predicate::DeletePredicate,
+        non_empty::NonEmptyString,
         router::{HashRing, Matcher, MatcherToShard},
+        timestamp::TimestampRange,
     };
-    use dml::{test_util::assert_writes_eq, DmlMeta};
+    use dml::{
+        test_util::{assert_deletes_eq, assert_writes_eq},
+        DmlMeta,
+    };
     use mutable_batch_lp::lines_to_batches;
     use regex::Regex;
 
     use super::*;
 
     #[test]
-    fn test_sharding() {
+    fn test_write_sharding() {
         let config = ShardConfig {
             specific_targets: vec![
                 MatcherToShard {
@@ -151,7 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn test_no_mach() {
+    fn test_write_no_match() {
         let config = ShardConfig::default();
 
         let meta = DmlMeta::default();
@@ -161,10 +200,108 @@ mod tests {
         assert!(actual.is_empty());
     }
 
+    #[test]
+    fn test_delete_sharding() {
+        let config = ShardConfig {
+            specific_targets: vec![
+                MatcherToShard {
+                    matcher: Matcher {
+                        table_name_regex: None,
+                    },
+                    shard: ShardId::new(1),
+                },
+                MatcherToShard {
+                    matcher: Matcher {
+                        table_name_regex: Some(Regex::new("some_foo").unwrap()),
+                    },
+                    shard: ShardId::new(2),
+                },
+                MatcherToShard {
+                    matcher: Matcher {
+                        table_name_regex: Some(Regex::new("some_.*").unwrap()),
+                    },
+                    shard: ShardId::new(3),
+                },
+            ],
+            hash_ring: Some(HashRing {
+                shards: ConsistentHasher::new(&[
+                    ShardId::new(11),
+                    ShardId::new(12),
+                    ShardId::new(13),
+                ]),
+            }),
+        };
+
+        // Deletes w/o table name go to all shards
+        let meta = DmlMeta::unsequenced(None);
+        let delete = DmlDelete::new(
+            DeletePredicate {
+                range: TimestampRange { start: 1, end: 2 },
+                exprs: vec![],
+            },
+            None,
+            meta,
+        );
+
+        let actual = shard_delete(&delete, &config);
+        let expected = BTreeMap::from([
+            (ShardId::new(1), delete.clone()),
+            (ShardId::new(2), delete.clone()),
+            (ShardId::new(3), delete.clone()),
+            (ShardId::new(11), delete.clone()),
+            (ShardId::new(12), delete.clone()),
+            (ShardId::new(13), delete),
+        ]);
+        assert_sharded_deletes_eq(&actual, &expected);
+
+        // Deletes are matched by table name regex
+        let meta = DmlMeta::unsequenced(None);
+        let delete = DmlDelete::new(
+            DeletePredicate {
+                range: TimestampRange { start: 3, end: 4 },
+                exprs: vec![],
+            },
+            Some(NonEmptyString::new("some_foo").unwrap()),
+            meta,
+        );
+
+        let actual = shard_delete(&delete, &config);
+        let expected = BTreeMap::from([(ShardId::new(2), delete)]);
+        assert_sharded_deletes_eq(&actual, &expected);
+
+        // Deletes can be matched by hash-ring
+        let meta = DmlMeta::unsequenced(None);
+        let delete = DmlDelete::new(
+            DeletePredicate {
+                range: TimestampRange { start: 5, end: 6 },
+                exprs: vec![],
+            },
+            Some(NonEmptyString::new("bar").unwrap()),
+            meta,
+        );
+
+        let actual = shard_delete(&delete, &config);
+        let expected = BTreeMap::from([(ShardId::new(13), delete)]);
+        assert_sharded_deletes_eq(&actual, &expected);
+    }
+
     fn db_write(lines: &[&str], meta: &DmlMeta) -> DmlWrite {
         DmlWrite::new(
             lines_to_batches(&lines.join("\n"), 0).unwrap(),
             meta.clone(),
         )
+    }
+
+    fn assert_sharded_deletes_eq(
+        actual: &BTreeMap<ShardId, DmlDelete>,
+        expected: &BTreeMap<ShardId, DmlDelete>,
+    ) {
+        let actual_shard_ids: Vec<_> = actual.keys().cloned().collect();
+        let expected_shard_ids: Vec<_> = expected.keys().cloned().collect();
+        assert_eq!(actual_shard_ids, expected_shard_ids);
+
+        for (actual_delete, expected_delete) in actual.values().zip(expected.values()) {
+            assert_deletes_eq(actual_delete, expected_delete);
+        }
     }
 }

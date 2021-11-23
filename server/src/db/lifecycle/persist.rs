@@ -271,36 +271,35 @@ mod tests {
 
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
-        let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
 
         // Close window
         time.inc(Duration::from_secs(2));
 
         write_lp(db.as_ref(), "cpu,tag1=lagged bar=1 10").await;
 
-        let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
-        let partition = partition.read();
+        let partition = db.lockable_partition("cpu", &partition_keys[0]).unwrap();
+        let partition_guard = partition.read();
 
-        let chunks = LockablePartition::chunks(&partition);
+        let chunks = LockablePartition::chunks(&partition_guard);
         let chunks = chunks.iter().map(|x| x.read());
 
-        let mut partition = partition.upgrade();
+        let mut partition_guard = partition_guard.upgrade();
 
-        let handle = LockablePartition::prepare_persist(&mut partition, false)
+        let handle = LockablePartition::prepare_persist(&mut partition_guard, false)
             .unwrap()
             .0;
 
         assert_eq!(handle.timestamp(), Time::from_timestamp_nanos(10));
         let chunks: Vec<_> = chunks.map(|x| x.upgrade()).collect();
 
-        persist_chunks(partition, chunks, handle)
+        persist_chunks(partition_guard, chunks, handle)
             .unwrap()
             .1
             .await
             .unwrap()
             .unwrap();
 
-        assert!(db_partition
+        assert!(partition
             .read()
             .persistence_windows()
             .unwrap()
@@ -519,10 +518,9 @@ mod tests {
         // start persistence job (but don't poll the future yet)
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
-        let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
 
         // Wait for the persistence window to be closed
-        let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
+        let partition = db.lockable_partition("cpu", &partition_keys[0]).unwrap();
         let partition = partition.read();
 
         let chunks = LockablePartition::chunks(&partition);

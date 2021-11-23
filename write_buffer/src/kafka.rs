@@ -156,6 +156,7 @@ impl KafkaBufferProducer {
         // these configs can be overwritten
         cfg.set("message.timeout.ms", "5000");
         cfg.set("message.max.bytes", "31457280");
+        cfg.set("message.send.max.retries", "10");
         cfg.set("queue.buffering.max.kbytes", "31457280");
         cfg.set("request.required.acks", "all"); // equivalent to acks=-1
         cfg.set("compression.type", "snappy");

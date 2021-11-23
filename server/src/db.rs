@@ -647,8 +647,7 @@ impl Db {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
-            let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition::new(Arc::clone(self), partition);
+            let partition = self.lockable_partition(table_name, partition_key)?;
 
             // Do lock dance to get a write lock on the partition as well
             // as on all of the chunks
@@ -688,8 +687,7 @@ impl Db {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
-            let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition::new(Arc::clone(self), partition);
+            let partition = self.lockable_partition(table_name, partition_key)?;
             let partition = partition.read();
 
             // todo: set these chunks
@@ -3697,6 +3695,56 @@ mod tests {
         ];
         let batches = run_query(Arc::clone(&db), "select count(*) from system.columns").await;
         assert_batches_sorted_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn chunk_times() {
+        let t0 = Time::from_timestamp(11, 22);
+        let time = Arc::new(time::MockProvider::new(t0));
+        let db = TestDb::builder()
+            .time_provider(Arc::<time::MockProvider>::clone(&time))
+            .build()
+            .await
+            .db;
+
+        write_lp(db.as_ref(), "cpu foo=1 10").await;
+
+        let chunks = db.chunk_summaries().unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].time_of_first_write, t0);
+        assert_eq!(chunks[0].time_of_last_write, t0);
+        assert_eq!(chunks[0].time_of_last_access.unwrap(), t0);
+
+        let t1 = time.inc(Duration::from_secs(1));
+
+        run_query(Arc::clone(&db), "select * from cpu").await;
+
+        let chunks = db.chunk_summaries().unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].time_of_first_write, t0);
+        assert_eq!(chunks[0].time_of_last_write, t0);
+        assert_eq!(chunks[0].time_of_last_access.unwrap(), t1);
+
+        let t2 = time.inc(Duration::from_secs(1));
+
+        write_lp(db.as_ref(), "cpu foo=1 20").await;
+
+        let chunks = db.chunk_summaries().unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].time_of_first_write, t0);
+        assert_eq!(chunks[0].time_of_last_write, t2);
+        assert_eq!(chunks[0].time_of_last_access.unwrap(), t2);
+
+        time.inc(Duration::from_secs(1));
+
+        // This chunk should be pruned out and therefore not accessed by the query
+        run_query(Arc::clone(&db), "select * from cpu where foo = 2;").await;
+
+        let chunks = db.chunk_summaries().unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].time_of_first_write, t0);
+        assert_eq!(chunks[0].time_of_last_write, t2);
+        assert_eq!(chunks[0].time_of_last_access.unwrap(), t2);
     }
 
     async fn create_parquet_chunk(db: &Arc<Db>) -> (String, String, ChunkId) {

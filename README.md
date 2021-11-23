@@ -34,7 +34,10 @@ our ability to support them effectively.
 
 ## Project Status
 
-This project is very early and in active development. It isn't yet ready for testing, which is why we're not producing builds or documentation yet. If you're interested in following along with the project, drop into our community Slack channel #influxdb_iox. You can find [links to join here](https://community.influxdata.com/).
+This project is very early and in active development. It isn't yet ready for testing, which is why we're not producing builds or documentation yet.
+
+If you would like contact the InfluxDB IOx developers,
+join the [InfluxData Community Slack](https://influxdata.com/slack) and look for the #influxdb_iox channel.
 
 We're also hosting monthly tech talks and community office hours on the project on the 2nd Wednesday of the month at 8:30 AM Pacific Time.
 

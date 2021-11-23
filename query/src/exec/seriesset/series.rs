@@ -12,7 +12,10 @@ use arrow::{
     datatypes::DataType as ArrowDataType,
 };
 
-use crate::exec::{field::FieldIndex, seriesset::SeriesSet};
+use crate::{
+    exec::{field::FieldIndex, seriesset::SeriesSet},
+    frontend::influxrpc::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME},
+};
 use snafu::Snafu;
 
 #[derive(Debug, Snafu)]
@@ -250,19 +253,23 @@ impl SeriesSet {
         // Special case "measurement" name which is modeled as a tag of
         // "_measurement" and "field" which is modeled as a tag of "_field"
         //
-        // Note by placing these tags at the front of the keys, it
-        // means the output will be sorted first by _field and then
-        // _measurement even when there are no groups requested
-        let mut converted_tags = vec![
-            Tag {
-                key: "_field".into(),
-                value: field_name.into(),
-            },
-            Tag {
-                key: "_measurement".into(),
-                value: Arc::clone(&self.table_name),
-            },
-        ];
+        // N.B., in order to emit series sets in the same "tag order" as they
+        // would be in a TSM model we need to emit "_measurement" at the front
+        // and "_field" at the end. Whilst this does not appear to be the
+        // correct lexicographical order, in a TSM data-model these tags are
+        // actually stored as `\x00` and `\xff` respectively. Therefore the
+        // expectation is that "_measurement" is emitted first and "_field"
+        // last.
+        //
+        // This also ensures that the output will be sorted first by
+        // "_measurement" and then "_field" even when there are no groups
+        // requested.
+
+        // Prepend key with "_measurement"
+        let mut converted_tags = vec![Tag {
+            key: MEASUREMENT_COLUMN_NAME.into(),
+            value: Arc::clone(&self.table_name),
+        }];
 
         // convert the rest of the tags
         converted_tags.extend(self.tags.iter().map(|(k, v)| Tag {
@@ -270,6 +277,11 @@ impl SeriesSet {
             value: Arc::clone(v),
         }));
 
+        // Add "_field" to end of key.
+        converted_tags.push(Tag {
+            key: FIELD_COLUMN_NAME.into(),
+            value: field_name.into(),
+        });
         converted_tags
     }
 }
@@ -442,15 +454,15 @@ mod tests {
         let series_strings = series_set_to_series_strings(series_set);
 
         let expected = vec![
-            "Series tags={_field=string_field, _measurement=the_table, tag1=val1}",
+            "Series tags={_measurement=the_table, tag1=val1, _field=string_field}",
             "  StringPoints timestamps: [2000, 3000], values: [\"bar\", \"baz\"]",
-            "Series tags={_field=int_field, _measurement=the_table, tag1=val1}",
+            "Series tags={_measurement=the_table, tag1=val1, _field=int_field}",
             "  IntegerPoints timestamps: [2000, 3000], values: [2, 3]",
-            "Series tags={_field=uint_field, _measurement=the_table, tag1=val1}",
+            "Series tags={_measurement=the_table, tag1=val1, _field=uint_field}",
             "  UnsignedPoints timestamps: [2000, 3000], values: [22, 33]",
-            "Series tags={_field=float_field, _measurement=the_table, tag1=val1}",
+            "Series tags={_measurement=the_table, tag1=val1, _field=float_field}",
             "  FloatPoints timestamps: [2000, 3000], values: [20.1, 30.1]",
-            "Series tags={_field=boolean_field, _measurement=the_table, tag1=val1}",
+            "Series tags={_measurement=the_table, tag1=val1, _field=boolean_field}",
             "  BooleanPoints timestamps: [2000, 3000], values: [false, true]",
         ];
 
@@ -491,9 +503,9 @@ mod tests {
         let series_strings = series_set_to_series_strings(series_set);
 
         let expected = vec![
-            "Series tags={_field=string_field2, _measurement=the_table, tag1=val1}",
+            "Series tags={_measurement=the_table, tag1=val1, _field=string_field2}",
             "  StringPoints timestamps: [4, 5], values: [\"far\", \"faz\"]",
-            "Series tags={_field=string_field1, _measurement=the_table, tag1=val1}",
+            "Series tags={_measurement=the_table, tag1=val1, _field=string_field1}",
             "  StringPoints timestamps: [2, 3], values: [\"bar\", \"baz\"]",
         ];
 
@@ -543,7 +555,7 @@ mod tests {
         let series_strings = series_set_to_series_strings(series_set);
 
         let expected = vec![
-            "Series tags={_field=float_field, _measurement=the_table, state=MA}",
+            "Series tags={_measurement=the_table, state=MA, _field=float_field}",
             "  FloatPoints timestamps: [1000, 2000, 4000], values: [10.1, 20.1, 40.1]",
         ];
 
@@ -568,7 +580,7 @@ mod tests {
 
         let batch = RecordBatch::try_from_iter_with_nullable(vec![
             ("state", Arc::new(tag_array) as ArrayRef, true),
-            ("srting_field", Arc::new(string_array), true),
+            ("string_field", Arc::new(string_array), true),
             ("float_field", Arc::new(float_array), true),
             ("int_field", Arc::new(int_array), true),
             ("uint_field", Arc::new(uint_array), true),
@@ -591,15 +603,15 @@ mod tests {
         let series_strings = series_set_to_series_strings(series_set);
 
         let expected = vec![
-            "Series tags={_field=srting_field, _measurement=the_table, state=MA}",
+            "Series tags={_measurement=the_table, state=MA, _field=string_field}",
             "  StringPoints timestamps: [2000], values: [\"foo\"]",
-            "Series tags={_field=float_field, _measurement=the_table, state=MA}",
+            "Series tags={_measurement=the_table, state=MA, _field=float_field}",
             "  FloatPoints timestamps: [2000], values: [1.0]",
-            "Series tags={_field=int_field, _measurement=the_table, state=MA}",
+            "Series tags={_measurement=the_table, state=MA, _field=int_field}",
             "  IntegerPoints timestamps: [2000], values: [-10]",
-            "Series tags={_field=uint_field, _measurement=the_table, state=MA}",
+            "Series tags={_measurement=the_table, state=MA, _field=uint_field}",
             "  UnsignedPoints timestamps: [2000], values: [100]",
-            "Series tags={_field=bool_field, _measurement=the_table, state=MA}",
+            "Series tags={_measurement=the_table, state=MA, _field=bool_field}",
             "  BooleanPoints timestamps: [2000], values: [true]",
         ];
 

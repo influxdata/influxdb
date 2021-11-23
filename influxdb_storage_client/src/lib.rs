@@ -21,7 +21,6 @@ use std::collections::HashMap;
 
 /// Re-export generated_types
 pub mod generated_types {
-    pub use generated_types::com::github::influxdata::idpe::storage::read::*;
     pub use generated_types::influxdata::platform::storage::*;
 }
 
@@ -97,8 +96,7 @@ impl Client {
             .encode(&mut d)
             .expect("encoded read source appropriately");
         Any {
-            type_url: "type.googleapis.com/com.github.influxdata.idpe.storage.read.ReadSource"
-                .to_string(),
+            type_url: "type.googleapis.com/influxdata.platform.storage.read.ReadSource".to_string(),
             value: d.freeze(),
         }
     }
