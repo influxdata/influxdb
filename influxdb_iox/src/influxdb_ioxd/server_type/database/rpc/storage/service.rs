@@ -869,11 +869,7 @@ where
         })?
         .build();
 
-    // keep original name so we can transfer ownership
-    // to closure below
-    let owned_db_name = db_name;
-
-    let db_name = owned_db_name.as_str();
+    let db_name = db_name.as_str();
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let ctx = db.new_query_context(span_ctx);
 
@@ -893,9 +889,7 @@ where
         .to_series_and_groups(series_plan)
         .await
         .map_err(|e| Box::new(e) as _)
-        .context(FilteringSeries {
-            db_name: owned_db_name.as_str(),
-        })
+        .context(FilteringSeries { db_name })
         .log_if_error("Running series set plan")?;
 
     let response = series_or_groups_to_read_response(series_or_groups);
