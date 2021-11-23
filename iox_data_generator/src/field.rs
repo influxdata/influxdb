@@ -454,7 +454,7 @@ mod test {
         let reset_after = Some(3);
         let mut i64fg = I64FieldGenerator::new(
             "i64fg",
-            &(3..10),
+            &(3..8),
             true,
             reset_after,
             SmallRng::from_entropy(),
