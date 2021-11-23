@@ -15,8 +15,8 @@ use generated_types::{
     Int64ValuesResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
     MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Predicate,
     ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
-    ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
-    TimestampRange,
+    ReadWindowAggregateRequest, StringValuesResponse, TagKeyMetaNames, TagKeysRequest,
+    TagValuesRequest, TimestampRange,
 };
 use observability_deps::tracing::{error, info};
 use predicate::predicate::PredicateBuilder;
@@ -892,7 +892,8 @@ where
         .context(FilteringSeries { db_name })
         .log_if_error("Running series set plan")?;
 
-    let response = series_or_groups_to_read_response(series_or_groups);
+    let emit_tag_keys_binary_format = req.tag_key_meta_names == TagKeyMetaNames::Binary as i32;
+    let response = series_or_groups_to_read_response(series_or_groups, emit_tag_keys_binary_format);
 
     Ok(vec![response])
 }
@@ -956,7 +957,9 @@ where
         })
         .log_if_error("Running Grouped SeriesSet Plan")?;
 
-    let response = series_or_groups_to_read_response(series_or_groups);
+    // ReadGroupRequest does not have a field to control the format of
+    // _measurement and _field tag keys, so always request in string format.
+    let response = series_or_groups_to_read_response(series_or_groups, false);
 
     Ok(vec![response])
 }
