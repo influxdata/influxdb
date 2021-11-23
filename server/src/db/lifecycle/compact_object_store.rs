@@ -2,8 +2,8 @@
 
 use super::{
     error::{
-        ChunksNotContiguous, ChunksNotInPartition, EmptyChunks, ParquetChunkError,
-        WritingToObjectStore,
+        ChunksNotContiguous, ChunksNotInPartition, ChunksNotPersisted, ComparePartitionCheckpoint,
+        EmptyChunks, NoCheckpoint, ParquetChunkError, ParquetMetaRead, WritingToObjectStore,
     },
     LockableCatalogChunk, LockableCatalogPartition, Result,
 };
@@ -34,9 +34,11 @@ use parquet_file::{
 use persistence_windows::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint};
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use schema::Schema;
-use snafu::ResultExt;
+use snafu::{OptionExt, ResultExt};
 use std::{
+    cmp::Ordering,
     collections::{BTreeSet, HashSet},
+    ops::RangeInclusive,
     sync::Arc,
 };
 use time::Time;
@@ -183,19 +185,14 @@ fn mark_chunks_to_compact(
     // Mark and snapshot chunks, then drop locks
     let mut time_of_first_write = Time::MAX;
     let mut time_of_last_write = Time::MIN;
-    let mut chunk_orders = BTreeSet::new();
+    let mut chunk_ids = BTreeSet::new();
     let mut input_rows = 0;
     let mut delete_predicates: HashSet<Arc<DeletePredicate>> = HashSet::new();
     let mut min_order = ChunkOrder::MAX;
+    let mut max_order = ChunkOrder::MIN;
 
-    // initialize checkpoints
-    let database_checkpoint = DatabaseCheckpoint::new(Default::default());
-    let partition_checkpoint = PartitionCheckpoint::new(
-        Arc::clone(&partition_addr.table_name),
-        Arc::clone(&partition_addr.partition_key),
-        Default::default(),
-        Time::from_timestamp_nanos(0),
-    );
+    let mut database_checkpoint = DatabaseCheckpoint::new(Default::default());
+    let mut partition_checkpoint: Option<PartitionCheckpoint> = None;
 
     let os_chunks = chunks
         .into_iter()
@@ -223,19 +220,51 @@ fn mark_chunks_to_compact(
             delete_predicates.extend(chunk.delete_predicates().iter().cloned());
 
             min_order = min_order.min(chunk.order());
-            chunk_orders.insert(chunk.order());
+            max_order = max_order.max(chunk.order());
+            chunk_ids.insert(chunk.id());
 
-            // Todo:get chunk's datatbase_checkpoint and partition_checkpoint of the chunk and keep max
+            // read IoxMetadata from the parquet chunk's  metadata
+            if let Some(parquet_chunk) = chunk.parquet_chunk() {
+                let iox_parquet_metadata = parquet_chunk.parquet_metadata();
+                let iox_metadata = iox_parquet_metadata
+                    .decode()
+                    .context(ParquetMetaRead)?
+                    .read_iox_metadata()
+                    .context(ParquetMetaRead)?;
+
+                // fold all database_checkpoints into one for the compacting chunk
+                database_checkpoint.fold(&iox_metadata.database_checkpoint);
+
+                // keep max partition_checkpoint for the compacting chunk
+                if let Some(part_ckpt) = &partition_checkpoint {
+                    let ordering = part_ckpt
+                        .partial_cmp(&iox_metadata.partition_checkpoint)
+                        .context(ComparePartitionCheckpoint)?;
+                    if ordering == Ordering::Less {
+                        partition_checkpoint = Some(iox_metadata.partition_checkpoint);
+                    }
+                } else {
+                    partition_checkpoint = Some(iox_metadata.partition_checkpoint);
+                }
+            } else {
+                return ChunksNotPersisted {}.fail();
+            }
 
             // Set chunk in the right action which is compacting object store
             // This function will also error out if the chunk is not yet persisted
             chunk.set_compacting_object_store(registration)?;
-            Ok(DbChunk::snapshot(&*chunk))
+            Ok(DbChunk::parquet_file_snapshot(&*chunk))
         })
         .collect::<Result<Vec<_>>>()?;
 
+    if partition_checkpoint.is_none() {
+        return NoCheckpoint {}.fail();
+    }
+    let partition_checkpoint = partition_checkpoint.unwrap();
+
     // Verify if all the provided chunks are contiguous
-    if !partition.contiguous_object_store_chunks(&chunk_orders) {
+    let order_range = RangeInclusive::new(min_order, max_order);
+    if !partition.contiguous_chunks(&chunk_ids, &order_range)? {
         return ChunksNotContiguous {}.fail();
     }
 
@@ -405,8 +434,9 @@ mod tests {
             mark_chunks_to_compact(partition, vec![chunk], &registration);
         let err = compact_non_persisted_chunks.unwrap_err();
         assert!(
-            err.to_string().contains("Expected Persisted, got Open"),
-            "Expected Persisted, got Open"
+            err.to_string()
+                .contains("Cannot compact chunks because at least one is not yet persisted"),
+            "Cannot compact chunks because at least one is not yet persisted"
         );
     }
 

@@ -127,10 +127,10 @@ where
         loop {
             let buffer_size = self.db.buffer_size();
             if buffer_size < soft_limit {
-                info!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
+                trace!(%db_name, buffer_size, %soft_limit, "memory use under soft limit");
                 break;
             }
-            info!(%db_name, buffer_size, %soft_limit, "memory use over soft limit");
+            trace!(%db_name, buffer_size, %soft_limit, "memory use over soft limit");
 
             match candidates.next() {
                 Some(candidate) => {
@@ -139,7 +139,7 @@ where
                         Some(chunk) => {
                             let chunk = chunk.read();
                             if chunk.lifecycle_action().is_some() {
-                                info!(
+                                debug!(
                                     %db_name,
                                     chunk_id=%candidate.chunk_id.get(),
                                     %partition,
@@ -183,7 +183,7 @@ where
                                 },
                             }
                         }
-                        None => info!(
+                        None => debug!(
                             %db_name,
                             chunk_id=%candidate.chunk_id.get(),
                             %partition,
@@ -192,7 +192,7 @@ where
                     }
                 }
                 None => {
-                    warn!(%db_name, soft_limit, buffer_size,
+                    debug!(%db_name, soft_limit, buffer_size,
                           "soft limited exceeded, but no chunks found that can be evicted. Check lifecycle rules");
                     break;
                 }
@@ -363,9 +363,9 @@ where
                "considering for persistence");
 
         if persistable_row_count >= rules.persist_row_threshold.get() {
-            info!(%db_name, %partition, persistable_row_count, "persisting partition as exceeds row threshold");
+            debug!(%db_name, %partition, persistable_row_count, "persisting partition as exceeds row threshold");
         } else if persistable_age_seconds >= rules.persist_age_threshold_seconds.get() as u64 {
-            info!(%db_name, %partition, persistable_age_seconds, "persisting partition as exceeds age threshold");
+            debug!(%db_name, %partition, persistable_age_seconds, "persisting partition as exceeds age threshold");
         } else {
             trace!(%db_name, %partition, persistable_row_count, "partition not eligible for persist");
             return false;
@@ -659,7 +659,7 @@ where
             // see if we should stall subsequent pull it is
             // preventing us from persisting
             let stall = action.metadata() == &ChunkLifecycleAction::Compacting;
-            info!(?action, chunk=%chunk.addr(), "Chunk to persist has outstanding action");
+            debug!(?action, chunk=%chunk.addr(), "Chunk to persist has outstanding action");
 
             // NOTE: This early exit also ensures that we are not "jumping" over chunks sorted by `order`.
             return Err(stall);

@@ -732,6 +732,16 @@ impl CatalogChunk {
         }
     }
 
+    /// Return parquet chunk if it is persisted
+    pub fn parquet_chunk(&self) -> Option<&Arc<ParquetChunk>> {
+        match &self.stage {
+            ChunkStage::Persisted {
+                meta: _, parquet, ..
+            } => Some(parquet),
+            _ => None,
+        }
+    }
+
     /// Set the persisted chunk to be compacting
     pub fn set_compacting_object_store(&mut self, registration: &TaskRegistration) -> Result<()> {
         match &self.stage {
