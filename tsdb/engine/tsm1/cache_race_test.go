@@ -26,7 +26,7 @@ func TestCacheCheckConcurrentReadsAreSafe(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	c := tsm1.NewCache(1000000)
+	c := tsm1.NewCache(1000000, tsm1.EngineTags{})
 
 	ch := make(chan struct{})
 	for _, s := range series {
@@ -71,7 +71,7 @@ func TestCacheRace(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	c := tsm1.NewCache(1000000)
+	c := tsm1.NewCache(1000000, tsm1.EngineTags{})
 
 	ch := make(chan struct{})
 	for _, s := range series {
@@ -136,7 +136,7 @@ func TestCacheRace2Compacters(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	c := tsm1.NewCache(1000000)
+	c := tsm1.NewCache(1000000, tsm1.EngineTags{})
 
 	ch := make(chan struct{})
 	for _, s := range series {

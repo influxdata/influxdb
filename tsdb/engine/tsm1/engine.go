@@ -179,7 +179,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 	}
 	fs.tsmMMAPWillNeed = opt.Config.TSMWillNeed
 
-	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize))
+	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), etags)
 
 	c := NewCompactor()
 	c.Dir = path
@@ -594,14 +594,15 @@ var globalCompactionMetrics *compactionMetrics = newAllCompactionMetrics(engineL
 
 // PrometheusCollectors returns all prometheus metrics for the tsm1 package.
 func PrometheusCollectors() []prometheus.Collector {
-	return []prometheus.Collector{
+	collectors := []prometheus.Collector{
 		globalCompactionMetrics.Duration,
 		globalCompactionMetrics.Active,
 		globalCompactionMetrics.Failed,
 		globalCompactionMetrics.Queued,
-		globalFileStoreMetrics.files,
-		globalFileStoreMetrics.size,
 	}
+	collectors = append(collectors, FileStoreCollectors()...)
+	collectors = append(collectors, CacheCollectors()...)
+	return collectors
 }
 
 const (
@@ -1841,8 +1842,10 @@ func (e *Engine) WriteSnapshot() (err error) {
 	log, logEnd := logger.NewOperation(context.TODO(), e.logger, "Cache snapshot", "tsm1_cache_snapshot")
 	defer func() {
 		elapsed := time.Since(started)
-		e.Cache.UpdateCompactTime(elapsed)
-
+		if err != nil && err != errCompactionsDisabled {
+			e.stats.Failed.With(prometheus.Labels{levelKey: levelCache}).Inc()
+		}
+		e.stats.Duration.With(prometheus.Labels{levelKey: levelCache}).Observe(elapsed.Seconds())
 		if err == nil {
 			log.Info("Snapshot for path written", zap.String("path", e.path), zap.Duration("duration", elapsed))
 		}
@@ -1978,16 +1981,12 @@ func (e *Engine) compactCache() {
 			return
 
 		case <-t.C:
-			e.Cache.UpdateAge()
 			if e.ShouldCompactCache(time.Now()) {
-				start := time.Now()
 				e.traceLogger.Info("Compacting cache", zap.String("path", e.path))
 				err := e.WriteSnapshot()
 				if err != nil && err != errCompactionsDisabled {
 					e.logger.Info("Error writing snapshot", zap.Error(err))
-					e.stats.Failed.With(prometheus.Labels{levelKey: levelCache}).Inc()
 				}
-				e.stats.Duration.With(prometheus.Labels{levelKey: levelCache}).Observe(time.Since(start).Seconds())
 			}
 		}
 	}
