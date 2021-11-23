@@ -46,18 +46,9 @@ const (
 )
 
 var (
-	// ErrFieldOverflow is returned when too many fields are created on a measurement.
-	ErrFieldOverflow = errors.New("field overflow")
 
 	// ErrFieldTypeConflict is returned when a new field already exists with a different type.
 	ErrFieldTypeConflict = errors.New("field type conflict")
-
-	// ErrFieldNotFound is returned when a field cannot be found.
-	ErrFieldNotFound = errors.New("field not found")
-
-	// ErrFieldUnmappedID is returned when the system is presented, during decode, with a field ID
-	// there is no mapping for.
-	ErrFieldUnmappedID = errors.New("field ID not mapped")
 
 	// ErrEngineClosed is returned when a caller attempts indirectly to
 	// access the shard's underlying engine.
@@ -245,7 +236,6 @@ type ShardStatistics struct {
 	WritePointsDropped int64
 	WritePointsOK      int64
 	BytesWritten       int64
-	DiskBytes          int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -256,7 +246,8 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 	}
 
 	// Refresh our disk size stat
-	if _, err := s.DiskSize(); err != nil {
+	diskSize, err := s.DiskSize()
+	if err != nil {
 		return nil
 	}
 	seriesN := engine.SeriesN()
@@ -282,7 +273,7 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 			statWritePointsDropped: atomic.LoadInt64(&s.stats.WritePointsDropped),
 			statWritePointsOK:      atomic.LoadInt64(&s.stats.WritePointsOK),
 			statWriteBytes:         atomic.LoadInt64(&s.stats.BytesWritten),
-			statDiskBytes:          atomic.LoadInt64(&s.stats.DiskBytes),
+			statDiskBytes:          diskSize,
 		},
 	}}
 
@@ -488,7 +479,6 @@ func (s *Shard) DiskSize() (int64, error) {
 		return 0, ErrEngineClosed
 	}
 	size := s._engine.DiskSize()
-	atomic.StoreInt64(&s.stats.DiskBytes, size)
 	return size, nil
 }
 
