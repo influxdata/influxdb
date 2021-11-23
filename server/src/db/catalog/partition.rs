@@ -397,30 +397,25 @@ impl Partition {
 
         // First and last order in the chunk_orders for comparison
         let first_order_element = chunk_orders.iter().next();
-        //println!("first_order_element: {:#?}", first_order_element);
         let first_order = match first_order_element {
             Some(first_order) => first_order,
             _ => {
                 return ContiguousCheck {}.fail();
             }
         };
-        //println!("first_order: first_order ");
         let last_order_element = chunk_orders.iter().rev().next();
-        //println!("last_order_element: {:#?}", first_order_element);
         let last_order = match last_order_element {
             Some(last_order) => last_order,
             _ => {
                 return ContiguousCheck {}.fail();
             }
         };
-        //println!("last_order: {:#?}", last_order);
 
         let chunks = self.chunks();
         for chunk in chunks {
             let chunk = chunk.read();
             let order = chunk.order();
             let id = chunk.id();
-            //println!("order: {}, id: {}", order, id);
             // this chunk's order is in the middle of the given orders but does
             // not belong to their chunks
             if order >= *first_order && order <= *last_order && !chunk_ids.contains(&id) {
