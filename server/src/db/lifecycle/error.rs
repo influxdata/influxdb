@@ -85,9 +85,7 @@ pub enum Error {
         source: parquet_file::metadata::Error,
     },
 
-    #[snafu(display(
-        "Cannot compact chunks because of error computing max partition checkpoint"
-    ))]
+    #[snafu(display("Cannot compact chunks because of error computing max partition checkpoint"))]
     ComparePartitionCheckpoint {},
 
     #[snafu(display("Cannot compact chunks because no checkpoint was computed"))]
