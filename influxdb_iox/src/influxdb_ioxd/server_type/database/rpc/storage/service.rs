@@ -199,7 +199,7 @@ impl Error {
     }
 }
 
-/// Implementes the protobuf defined Storage service for a DatabaseStore
+/// Implements the protobuf defined Storage service for a DatabaseStore
 #[tonic::async_trait]
 impl<T> Storage for StorageService<T>
 where
@@ -212,24 +212,21 @@ where
         req: tonic::Request<ReadFilterRequest>,
     ) -> Result<tonic::Response<Self::ReadFilterStream>, Status> {
         let span_ctx = req.extensions().get().cloned();
+
         let read_filter_request = req.into_inner();
-
         let db_name = get_database_name(&read_filter_request)?;
+        info!(%db_name, ?read_filter_request.range, predicate=%read_filter_request.predicate.loggable(), "read filter");
 
-        let ReadFilterRequest {
-            read_source: _read_source,
-            range,
-            predicate,
-            ..
-        } = read_filter_request;
-
-        info!(%db_name, ?range, predicate=%predicate.loggable(),"read filter");
-
-        let results = read_filter_impl(self.db_store.as_ref(), db_name, range, predicate, span_ctx)
-            .await?
-            .into_iter()
-            .map(Ok)
-            .collect::<Vec<_>>();
+        let results = read_filter_impl(
+            self.db_store.as_ref(),
+            db_name,
+            read_filter_request,
+            span_ctx,
+        )
+        .await?
+        .into_iter()
+        .map(Ok)
+        .collect::<Vec<_>>();
 
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
@@ -856,18 +853,17 @@ where
 async fn read_filter_impl<T>(
     db_store: &T,
     db_name: DatabaseName<'static>,
-    range: Option<TimestampRange>,
-    rpc_predicate: Option<Predicate>,
+    req: ReadFilterRequest,
     span_ctx: Option<SpanContext>,
 ) -> Result<Vec<ReadResponse>, Error>
 where
     T: DatabaseStore + 'static,
 {
-    let rpc_predicate_string = format!("{:?}", rpc_predicate);
+    let rpc_predicate_string = format!("{:?}", req.predicate);
 
     let predicate = PredicateBuilder::default()
-        .set_range(range)
-        .rpc_predicate(rpc_predicate)
+        .set_range(req.range)
+        .rpc_predicate(req.predicate)
         .context(ConvertingPredicate {
             rpc_predicate_string,
         })?
