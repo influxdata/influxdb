@@ -2,8 +2,8 @@
 
 use super::{
     error::{
-        ChunksNotContiguous, ChunksNotInPartition, ChunksNotPersisted, EmptyChunks,
-        ParquetChunkError, ParquetMetaRead, WritingToObjectStore,
+        ChunksNotContiguous, ChunksNotInPartition, ChunksNotPersisted, ComparePartitionCheckpoint,
+        EmptyChunks, NoCheckpoint, ParquetChunkError, ParquetMetaRead, WritingToObjectStore,
     },
     LockableCatalogChunk, LockableCatalogPartition, Result,
 };
@@ -36,7 +36,9 @@ use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner,
 use schema::Schema;
 use snafu::ResultExt;
 use std::{
+    cmp::Ordering,
     collections::{BTreeSet, HashSet},
+    ops::RangeInclusive,
     sync::Arc,
 };
 use time::Time;
@@ -188,9 +190,10 @@ fn mark_chunks_to_compact(
     let mut input_rows = 0;
     let mut delete_predicates: HashSet<Arc<DeletePredicate>> = HashSet::new();
     let mut min_order = ChunkOrder::MAX;
+    let mut max_order = ChunkOrder::MIN;
 
-    let mut db_ckpts = vec![];
-    let mut part_ckpts = vec![];
+    let mut database_checkpoint: Option<DatabaseCheckpoint> = None;
+    let mut partition_checkpoint: Option<PartitionCheckpoint> = None;
 
     let os_chunks = chunks
         .into_iter()
@@ -218,6 +221,7 @@ fn mark_chunks_to_compact(
             delete_predicates.extend(chunk.delete_predicates().iter().cloned());
 
             min_order = min_order.min(chunk.order());
+            max_order = max_order.max(chunk.order());
             chunk_orders.insert(chunk.order());
             chunk_ids.insert(chunk.id());
 
@@ -230,8 +234,27 @@ fn mark_chunks_to_compact(
                     .read_iox_metadata()
                     .context(ParquetMetaRead)?;
 
-                db_ckpts.push(iox_metadata.database_checkpoint);
-                part_ckpts.push(iox_metadata.partition_checkpoint);
+                // fold all database_checkpoints into one for the compacting chunk
+                if let Some(db_ckpt) = &mut database_checkpoint {
+                    db_ckpt.fold(&iox_metadata.database_checkpoint);
+                } else {
+                    database_checkpoint = Some(iox_metadata.database_checkpoint);
+                }
+
+                // keep max partition_checkpoint for the compacting chunk
+                if let Some(part_ckpt) = &partition_checkpoint {
+                    match part_ckpt.partial_cmp(&iox_metadata.partition_checkpoint) {
+                        None => {
+                            return ComparePartitionCheckpoint {}.fail();
+                        }
+                        Some(Ordering::Less) => {
+                            partition_checkpoint = Some(iox_metadata.partition_checkpoint);
+                        }
+                        _ => {}
+                    }
+                } else {
+                    partition_checkpoint = Some(iox_metadata.partition_checkpoint);
+                }
             } else {
                 return ChunksNotPersisted {}.fail();
             }
@@ -243,14 +266,17 @@ fn mark_chunks_to_compact(
         })
         .collect::<Result<Vec<_>>>()?;
 
+    if database_checkpoint.is_none() || partition_checkpoint.is_none() {
+        return NoCheckpoint {}.fail();
+    }
+    let database_checkpoint = database_checkpoint.unwrap();
+    let partition_checkpoint = partition_checkpoint.unwrap();
+
     // Verify if all the provided chunks are contiguous
-    if !partition.contiguous_chunks(&chunk_ids, &chunk_orders)? {
+    let order_range = RangeInclusive::new(min_order, max_order);
+    if !partition.contiguous_chunks(&chunk_ids, &order_range)? {
         return ChunksNotContiguous {}.fail();
     }
-
-    // Compute checkpoints for the creating chunk
-    let (database_checkpoint, partition_checkpoint) =
-        compute_checkpoints(&partition_addr, &db_ckpts, &part_ckpts);
 
     // drop partition lock
     std::mem::drop(partition);
@@ -279,26 +305,6 @@ struct CompactingOsChunks {
     min_order: ChunkOrder,
     database_checkpoint: DatabaseCheckpoint,
     partition_checkpoint: PartitionCheckpoint,
-}
-
-/// Check points of this creating chunk will have min range None and max range is the max of all max
-//  Todo: ask Marco and Raphael: How about sequencer_number of there are may of them?
-fn compute_checkpoints(
-    partition_addr: &PartitionAddr,
-    _db_ckpts: &[DatabaseCheckpoint],
-    _part_ckpts: &[PartitionCheckpoint],
-) -> (DatabaseCheckpoint, PartitionCheckpoint) {
-    let database_checkpoint = DatabaseCheckpoint::new(Default::default());
-    let partition_checkpoint = PartitionCheckpoint::new(
-        Arc::clone(&partition_addr.table_name),
-        Arc::clone(&partition_addr.partition_key),
-        Default::default(),
-        Time::from_timestamp_nanos(0),
-    );
-
-    // todo
-
-    (database_checkpoint, partition_checkpoint)
 }
 
 /// Create query plan to compact the given DbChunks and return its output stream

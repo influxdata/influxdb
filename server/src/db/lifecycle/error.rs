@@ -84,6 +84,14 @@ pub enum Error {
     ParquetMetaRead {
         source: parquet_file::metadata::Error,
     },
+
+    #[snafu(display(
+        "Cannot compact chunks because of error during computing max partition checkpoint"
+    ))]
+    ComparePartitionCheckpoint {},
+
+    #[snafu(display("Cannot compact chunks because no checkpoint was computed"))]
+    NoCheckpoint {},
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

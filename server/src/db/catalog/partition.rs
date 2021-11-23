@@ -17,6 +17,7 @@ use snafu::{OptionExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Display,
+    ops::RangeInclusive,
     sync::Arc,
 };
 use time::{Time, TimeProvider};
@@ -220,7 +221,7 @@ impl Partition {
         self.create_open_chunk_with_specified_id_order(chunk, chunk_id, chunk_order)
     }
 
-    pub fn create_open_chunk_with_specified_id_order(
+    fn create_open_chunk_with_specified_id_order(
         &mut self,
         chunk: mutable_buffer::MBChunk,
         chunk_id: ChunkId,
@@ -389,36 +390,16 @@ impl Partition {
     pub fn contiguous_chunks(
         &self,
         chunk_ids: &BTreeSet<ChunkId>,
-        chunk_orders: &BTreeSet<ChunkOrder>,
+        chunk_orders: &RangeInclusive<ChunkOrder>,
     ) -> Result<bool> {
-        if chunk_orders.is_empty() {
+        if chunk_ids.is_empty() {
             return Ok(true);
         }
-
-        // First and last order in the chunk_orders for comparison
-        let first_order_element = chunk_orders.iter().next();
-        let first_order = match first_order_element {
-            Some(first_order) => first_order,
-            _ => {
-                return ContiguousCheck {}.fail();
-            }
-        };
-        let last_order_element = chunk_orders.iter().rev().next();
-        let last_order = match last_order_element {
-            Some(last_order) => last_order,
-            _ => {
-                return ContiguousCheck {}.fail();
-            }
-        };
-
-        let chunks = self.chunks();
-        for chunk in chunks {
-            let chunk = chunk.read();
-            let order = chunk.order();
-            let id = chunk.id();
+        let chunk_keys = self.keyed_chunks();
+        for (id, order, ..) in chunk_keys {
             // this chunk's order is in the middle of the given orders but does
             // not belong to their chunks
-            if order >= *first_order && order <= *last_order && !chunk_ids.contains(&id) {
+            if chunk_orders.contains(&order) && !chunk_ids.contains(&id) {
                 return Ok(false);
             }
         }
@@ -543,10 +524,10 @@ mod tests {
         let partition = make_partitition_for_chunks_with_ids_orders(&id_orders);
 
         let ids = BTreeSet::new();
-        let orders = BTreeSet::new();
+        let order_range = RangeInclusive::new(ChunkOrder::MIN, ChunkOrder::MIN);
 
         // contiguous
-        assert!(partition.contiguous_chunks(&ids, &orders).unwrap());
+        assert!(partition.contiguous_chunks(&ids, &order_range).unwrap());
     }
 
     #[test]
@@ -556,25 +537,26 @@ mod tests {
         let partition = make_partitition_for_chunks_with_ids_orders(&id_orders);
 
         let mut ids = BTreeSet::new();
-        let mut orders = BTreeSet::new();
+        let order_range = RangeInclusive::new(ChunkOrder::MIN, ChunkOrder::MIN);
 
         // no chunks provided
         // --> contiguous
-        assert!(partition.contiguous_chunks(&ids, &orders).unwrap());
+        assert!(partition.contiguous_chunks(&ids, &order_range).unwrap());
 
         // provide itself
         // --> contiguous
         ids.insert(ChunkId::new_test(1));
-        orders.insert(ChunkOrder::new(1).unwrap());
-        assert!(partition.contiguous_chunks(&ids, &orders).unwrap());
+        let order_range =
+            RangeInclusive::new(ChunkOrder::new(1).unwrap(), ChunkOrder::new(1).unwrap());
+        assert!(partition.contiguous_chunks(&ids, &order_range).unwrap());
 
         // provide same order, different id
-        // --> not contiguos
+        // --> not contiguous
         let mut ids = BTreeSet::new();
         ids.insert(ChunkId::new_test(2));
-        let mut orders = BTreeSet::new();
-        orders.insert(ChunkOrder::new(1).unwrap());
-        assert!(!partition.contiguous_chunks(&ids, &orders).unwrap());
+        let order_range =
+            RangeInclusive::new(ChunkOrder::new(1).unwrap(), ChunkOrder::new(1).unwrap());
+        assert!(!partition.contiguous_chunks(&ids, &order_range).unwrap());
     }
 
     #[test]
@@ -587,28 +569,25 @@ mod tests {
         let mut ids = BTreeSet::new();
         ids.insert(ChunkId::new_test(1));
         ids.insert(ChunkId::new_test(2));
-        let mut orders = BTreeSet::new();
-        orders.insert(ChunkOrder::new(1).unwrap());
-        orders.insert(ChunkOrder::new(2).unwrap());
-        assert!(partition.contiguous_chunks(&ids, &orders).unwrap());
+        let order_range =
+            RangeInclusive::new(ChunkOrder::new(1).unwrap(), ChunkOrder::new(2).unwrap());
+        assert!(partition.contiguous_chunks(&ids, &order_range).unwrap());
 
         // (3,3) and (2,2) are contiguous
         let mut ids = BTreeSet::new();
         ids.insert(ChunkId::new_test(3));
         ids.insert(ChunkId::new_test(2));
-        let mut orders = BTreeSet::new();
-        orders.insert(ChunkOrder::new(3).unwrap());
-        orders.insert(ChunkOrder::new(2).unwrap());
-        assert!(partition.contiguous_chunks(&ids, &orders).unwrap());
+        let order_range =
+            RangeInclusive::new(ChunkOrder::new(2).unwrap(), ChunkOrder::new(3).unwrap());
+        assert!(partition.contiguous_chunks(&ids, &order_range).unwrap());
 
         // (3,3) and (1,1) are NOT contiguous
         let mut ids = BTreeSet::new();
         ids.insert(ChunkId::new_test(3));
         ids.insert(ChunkId::new_test(1));
-        let mut orders = BTreeSet::new();
-        orders.insert(ChunkOrder::new(3).unwrap());
-        orders.insert(ChunkOrder::new(1).unwrap());
-        assert!(!partition.contiguous_chunks(&ids, &orders).unwrap());
+        let order_range =
+            RangeInclusive::new(ChunkOrder::new(1).unwrap(), ChunkOrder::new(3).unwrap());
+        assert!(!partition.contiguous_chunks(&ids, &order_range).unwrap());
     }
 
     #[test]
@@ -620,36 +599,33 @@ mod tests {
         // (1,1) is contiguous
         let mut ids = BTreeSet::new();
         ids.insert(ChunkId::new_test(1));
-        let mut orders = BTreeSet::new();
-        orders.insert(ChunkOrder::new(1).unwrap());
-        assert!(partition.contiguous_chunks(&ids, &orders).unwrap());
+        let order_range =
+            RangeInclusive::new(ChunkOrder::new(1).unwrap(), ChunkOrder::new(1).unwrap());
+        assert!(partition.contiguous_chunks(&ids, &order_range).unwrap());
 
         // (2,2) and (3,2) are contiguous
         let mut ids = BTreeSet::new();
         ids.insert(ChunkId::new_test(2));
         ids.insert(ChunkId::new_test(3));
-        let mut orders = BTreeSet::new();
-        orders.insert(ChunkOrder::new(3).unwrap());
-        orders.insert(ChunkOrder::new(2).unwrap());
-        assert!(partition.contiguous_chunks(&ids, &orders).unwrap());
+        let order_range =
+            RangeInclusive::new(ChunkOrder::new(2).unwrap(), ChunkOrder::new(2).unwrap());
+        assert!(partition.contiguous_chunks(&ids, &order_range).unwrap());
 
         // (1,1) and (2,2) are NOT contiguous because there is chunk (3, 2) with the same order 2
         let mut ids = BTreeSet::new();
         ids.insert(ChunkId::new_test(1));
         ids.insert(ChunkId::new_test(2));
-        let mut orders = BTreeSet::new();
-        orders.insert(ChunkOrder::new(1).unwrap());
-        orders.insert(ChunkOrder::new(2).unwrap());
-        assert!(!partition.contiguous_chunks(&ids, &orders).unwrap());
+        let order_range =
+            RangeInclusive::new(ChunkOrder::new(1).unwrap(), ChunkOrder::new(2).unwrap());
+        assert!(!partition.contiguous_chunks(&ids, &order_range).unwrap());
 
         // (3,2) and (1,1) are NOT contiguous
         let mut ids = BTreeSet::new();
         ids.insert(ChunkId::new_test(3));
         ids.insert(ChunkId::new_test(1));
-        let mut orders = BTreeSet::new();
-        orders.insert(ChunkOrder::new(2).unwrap());
-        orders.insert(ChunkOrder::new(1).unwrap());
-        assert!(!partition.contiguous_chunks(&ids, &orders).unwrap());
+        let order_range =
+            RangeInclusive::new(ChunkOrder::new(1).unwrap(), ChunkOrder::new(2).unwrap());
+        assert!(!partition.contiguous_chunks(&ids, &order_range).unwrap());
     }
 
     fn make_partitition_for_chunks_with_ids_orders(id_orders: &[(u128, u32)]) -> Partition {
