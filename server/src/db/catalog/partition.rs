@@ -551,7 +551,7 @@ mod tests {
 
     #[test]
     fn test_contiguous_chunks_one_chunk() {
-        // create a partition without chunks
+        // create a partition with one chunk
         let id_orders = vec![(1, 1)];
         let partition = make_partitition_for_chunks_with_ids_orders(&id_orders);
 
