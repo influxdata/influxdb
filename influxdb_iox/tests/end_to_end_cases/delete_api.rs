@@ -1,11 +1,18 @@
 use arrow_util::assert_batches_sorted_eq;
+use data_types::{
+    delete_predicate::{DeleteExpr, DeletePredicate},
+    non_empty::NonEmptyString,
+    timestamp::TimestampRange,
+};
+use dml::{test_util::assert_delete_op_eq, DmlDelete};
+use futures::StreamExt;
 use influxdb_iox_client::management::generated_types::DatabaseRules;
 
-use super::scenario::rand_name;
+use super::scenario::{create_router_to_write_buffer, rand_name};
 use crate::common::server_fixture::{ServerFixture, ServerType};
 
 #[tokio::test]
-async fn test_delete() {
+async fn test_delete_on_database() {
     test_helpers::maybe_start_logging();
     let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
@@ -148,4 +155,42 @@ async fn test_delete() {
         "+-------+--------+--------------------------------+",
     ];
     assert_batches_sorted_eq!(&disk_expected, &batches);
+}
+
+#[tokio::test]
+pub async fn test_delete_on_router() {
+    let fixture = ServerFixture::create_shared(ServerType::Router).await;
+
+    let db_name = rand_name();
+    let (_tmpdir, mut write_buffer) = create_router_to_write_buffer(&fixture, &db_name).await;
+
+    let table = "cpu";
+    let start = "100";
+    let stop = "120";
+    let pred = "region = west";
+    let _del = fixture
+        .delete_client()
+        .delete(db_name.clone(), table, start, stop, pred)
+        .await
+        .expect("cannot delete");
+
+    let mut stream = write_buffer.streams().into_values().next().unwrap();
+    let delete_actual = stream.stream.next().await.unwrap().unwrap();
+    let delete_expected = DmlDelete::new(
+        DeletePredicate {
+            range: TimestampRange {
+                start: 100,
+                end: 120,
+            },
+            exprs: vec![DeleteExpr {
+                column: String::from("region"),
+                op: data_types::delete_predicate::Op::Eq,
+                scalar: data_types::delete_predicate::Scalar::String(String::from("west")),
+            }],
+        },
+        NonEmptyString::new(table),
+        // We don't care about the metadata here, timestamps and sequence numbers are hard to guess
+        delete_actual.meta().clone(),
+    );
+    assert_delete_op_eq(&delete_actual, &delete_expected);
 }

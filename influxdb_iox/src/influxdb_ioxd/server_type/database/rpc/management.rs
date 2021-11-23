@@ -3,7 +3,6 @@ use generated_types::{
     google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound},
     influxdata::iox::management::v1::{Error as ProtobufError, *},
 };
-use predicate::delete_predicate::parse_delete_predicate;
 use query::QueryDatabase;
 use server::{
     connection::ConnectionManager, rules::ProvidedDatabaseRules, ApplicationState, Error, Server,
@@ -600,44 +599,6 @@ where
             .map_err(default_db_error_handler)?;
 
         Ok(Response::new(DropPartitionResponse {}))
-    }
-
-    async fn delete(
-        &self,
-        request: tonic::Request<DeleteRequest>,
-    ) -> Result<tonic::Response<DeleteResponse>, tonic::Status> {
-        let DeleteRequest {
-            db_name,
-            table_name,
-            start_time,
-            stop_time,
-            predicate,
-        } = request.into_inner();
-
-        // Validate that the database name is legit
-        let db_name = DatabaseName::new(db_name).scope("db_name")?;
-        let db = self
-            .server
-            .db(&db_name)
-            .map_err(default_server_error_handler)?;
-
-        let del_predicate_result = parse_delete_predicate(&start_time, &stop_time, &predicate);
-        match del_predicate_result {
-            Err(_) => {
-                return Err(default_server_error_handler(Error::DeleteExpression {
-                    start_time,
-                    stop_time,
-                    predicate,
-                }))
-            }
-            Ok(del_predicate) => {
-                // execute delete
-                db.delete(&table_name, Arc::new(del_predicate))
-                    .map_err(default_db_error_handler)?;
-            }
-        }
-
-        Ok(Response::new(DeleteResponse {}))
     }
 }
 

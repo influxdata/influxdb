@@ -400,25 +400,6 @@ pub enum DropPartitionError {
     ServerError(tonic::Status),
 }
 
-/// Errors returned by [`Client::delete`]
-#[derive(Debug, Error)]
-pub enum DeleteError {
-    /// Database not found
-    #[error("Not found: {}", .0)]
-    NotFound(String),
-
-    /// Response contained no payload
-    #[error("Server returned an empty response")]
-    EmptyResponse,
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
 /// Errors returned by [`Client::persist_partition`]
 #[derive(Debug, Error)]
 pub enum PersistPartitionError {
@@ -1037,39 +1018,6 @@ impl Client {
                 tonic::Code::Unavailable => DropPartitionError::Unavailable(status),
                 tonic::Code::FailedPrecondition => DropPartitionError::LifecycleError(status),
                 _ => DropPartitionError::ServerError(status),
-            })?;
-
-        Ok(())
-    }
-
-    /// Delete data from a table on a specified predicate
-    pub async fn delete(
-        &mut self,
-        db_name: impl Into<String> + Send,
-        table_name: impl Into<String> + Send,
-        start_time: impl Into<String> + Send,
-        stop_time: impl Into<String> + Send,
-        predicate: impl Into<String> + Send,
-    ) -> Result<(), DeleteError> {
-        let db_name = db_name.into();
-        let table_name = table_name.into();
-        let start_time = start_time.into();
-        let stop_time = stop_time.into();
-        let predicate = predicate.into();
-
-        self.inner
-            .delete(DeleteRequest {
-                db_name,
-                table_name,
-                start_time,
-                stop_time,
-                predicate,
-            })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => DeleteError::NotFound(status.message().to_string()),
-                tonic::Code::Unavailable => DeleteError::Unavailable(status),
-                _ => DeleteError::ServerError(status),
             })?;
 
         Ok(())

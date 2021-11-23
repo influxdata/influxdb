@@ -191,22 +191,20 @@ mod tests {
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
 
-        let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
+        let partition = db.lockable_partition("cpu", &partition_keys[0]).unwrap();
+        let partition_guard = partition.read();
 
-        let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
-        let partition = partition.read();
-
-        let chunks = LockablePartition::chunks(&partition);
+        let chunks = LockablePartition::chunks(&partition_guard);
         assert_eq!(chunks.len(), 1);
         let chunk = chunks[0].read();
 
-        let (_, fut) = compact_chunks(partition.upgrade(), vec![chunk.upgrade()]).unwrap();
+        let (_, fut) = compact_chunks(partition_guard.upgrade(), vec![chunk.upgrade()]).unwrap();
         // NB: perform the write before spawning the background task that performs the compaction
         let t_later_write = time.inc(Duration::from_secs(1));
         write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 40").await;
         tokio::spawn(fut).await.unwrap().unwrap().unwrap();
 
-        let mut chunk_summaries: Vec<_> = db_partition.read().chunk_summaries().collect();
+        let mut chunk_summaries: Vec<_> = partition.read().chunk_summaries().collect();
 
         chunk_summaries.sort_unstable();
 
@@ -308,9 +306,7 @@ mod tests {
         assert_eq!(partition_keys.len(), 1);
         let partition_key: &str = partition_keys[0].as_ref();
 
-        let db_partition = db.partition("cpu", partition_key).unwrap();
-
-        let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
+        let partition = db.lockable_partition("cpu", partition_key).unwrap();
         let partition = partition.read();
 
         let chunks = LockablePartition::chunks(&partition);

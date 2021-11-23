@@ -159,6 +159,7 @@ mod tests {
                 Some(remote_template),
                 Some(Arc::new(RingBufferTraceCollector::new(1))),
                 time_provider,
+                None,
             )
             .await,
         );

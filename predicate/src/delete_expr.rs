@@ -146,7 +146,7 @@ mod tests {
                 op: Op::Eq,
                 scalar: Scalar::Bool(true),
             },
-            "foo=true",
+            r#""foo"=true"#,
         );
         assert_expr_works(
             DeleteExpr {
@@ -154,7 +154,7 @@ mod tests {
                 op: Op::Ne,
                 scalar: Scalar::I64(-1),
             },
-            "bar!=-1",
+            r#""bar"!=-1"#,
         );
         assert_expr_works(
             DeleteExpr {
@@ -162,7 +162,7 @@ mod tests {
                 op: Op::Eq,
                 scalar: Scalar::F64((-1.1).into()),
             },
-            "baz=-1.1",
+            r#""baz"=-1.1"#,
         );
         assert_expr_works(
             DeleteExpr {
@@ -170,7 +170,7 @@ mod tests {
                 op: Op::Eq,
                 scalar: Scalar::String("foo".to_string()),
             },
-            "col='foo'",
+            r#""col"='foo'"#,
         );
     }
 

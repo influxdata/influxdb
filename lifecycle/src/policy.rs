@@ -459,7 +459,7 @@ where
             let stall_compaction_persisting = if rules.persist && !self.suppress_persistence {
                 let persisting = self.maybe_persist_chunks(&db_name, partition, &rules, now);
                 if persisting {
-                    debug!(%db_name, %partition, reason="persisting", "stalling compaction");
+                    debug!(%db_name, partition=%partition.read(), reason="persisting", "stalling compaction");
                 }
                 persisting
             } else {
@@ -476,7 +476,7 @@ where
                 let max_compactions = self.db.rules().max_active_compactions.get();
                 let slots_full = self.active_compactions >= max_compactions as usize;
                 if slots_full {
-                    debug!(%db_name, %partition, ?max_compactions, reason="slots_full", "stalling compaction");
+                    debug!(%db_name, partition=%partition.read(), ?max_compactions, reason="slots_full", "stalling compaction");
                 }
                 slots_full
             };
@@ -735,6 +735,12 @@ mod tests {
         }
     }
 
+    impl std::fmt::Display for TestPartition {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{:?}", self)
+        }
+    }
+
     #[derive(Debug)]
     struct TestChunk {
         addr: ChunkAddr,
@@ -801,12 +807,6 @@ mod tests {
     struct TestLockablePartition<'a> {
         db: &'a TestDb,
         partition: Arc<RwLock<TestPartition>>,
-    }
-
-    impl<'a> std::fmt::Display for TestLockablePartition<'a> {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self)
-        }
     }
 
     #[derive(Clone)]
