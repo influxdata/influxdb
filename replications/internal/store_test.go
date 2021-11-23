@@ -265,7 +265,7 @@ func TestListReplications(t *testing.T) {
 		return allReplications
 	}
 
-	t.Run("list all", func(t *testing.T) {
+	t.Run("list all for org", func(t *testing.T) {
 		t.Parallel()
 
 		testStore, clean := newTestStore(t)
@@ -276,7 +276,25 @@ func TestListReplications(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, influxdb.Replications{Replications: allRepls}, *listed)
 	})
-	//
+
+	t.Run("list all with empty filter", func(t *testing.T) {
+		t.Parallel()
+
+		testStore, clean := newTestStore(t)
+		defer clean(t)
+		allRepls := setup(t, testStore)
+
+		otherOrgReq := createReq
+		otherOrgReq.OrgID = platform.ID(12345)
+		created, err := testStore.CreateReplication(ctx, snowflake.NewIDGenerator().ID(), otherOrgReq)
+		require.NoError(t, err)
+		allRepls = append(allRepls, *created)
+
+		listed, err := testStore.ListReplications(ctx, influxdb.ReplicationListFilter{})
+		require.NoError(t, err)
+		require.Equal(t, influxdb.Replications{Replications: allRepls}, *listed)
+	})
+
 	t.Run("list by name", func(t *testing.T) {
 		t.Parallel()
 

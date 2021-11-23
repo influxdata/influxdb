@@ -50,9 +50,11 @@ func (s *Store) ListReplications(ctx context.Context, filter influxdb.Replicatio
 	q := sq.Select(
 		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id",
 		"max_queue_size_bytes", "latest_response_code", "latest_error_message", "drop_non_retryable_data").
-		From("replications").
-		Where(sq.Eq{"org_id": filter.OrgID})
+		From("replications")
 
+	if filter.OrgID.Valid() {
+		q = q.Where(sq.Eq{"org_id": filter.OrgID})
+	}
 	if filter.Name != nil {
 		q = q.Where(sq.Eq{"name": *filter.Name})
 	}
