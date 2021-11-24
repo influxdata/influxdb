@@ -27,27 +27,15 @@ pub enum HttpDmlError {
     #[snafu(display("Internal error mapping org & bucket: {}", source))]
     BucketMappingError { source: OrgBucketMappingError },
 
-    #[snafu(display(
-        "User error writing points into org {}, bucket {}:  {}",
-        org,
-        bucket_name,
-        source
-    ))]
+    #[snafu(display("User error writing points into {}:  {}", db_name, source))]
     WritingPointsUser {
-        org: String,
-        bucket_name: String,
+        db_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display(
-        "Internal error writing points into org {}, bucket {}:  {}",
-        org,
-        bucket_name,
-        source
-    ))]
+    #[snafu(display("Internal error writing points into {}:  {}", db_name, source))]
     WritingPointsInternal {
-        org: String,
-        bucket_name: String,
+        db_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
@@ -148,13 +136,44 @@ pub enum InnerDmlError {
 
     #[snafu(display("User-provoked error while processing DML request: {}", source))]
     UserError {
+        db_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
     #[snafu(display("Internal error while processing DML request: {}", source))]
     InternalError {
+        db_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+}
+
+impl From<InnerDmlError> for HttpDmlError {
+    fn from(e: InnerDmlError) -> Self {
+        match e {
+            InnerDmlError::DatabaseNotFound { db_name } => {
+                debug!(%db_name, "database not found");
+                Self::NotFoundDatabase { db_name }
+            }
+            InnerDmlError::TableNotFound {
+                db_name,
+                table_name,
+            } => {
+                debug!(%db_name, %table_name, "table not found");
+                Self::NotFoundTable {
+                    db_name,
+                    table_name,
+                }
+            }
+            InnerDmlError::UserError { db_name, source } => {
+                debug!(e=%source, %db_name, "error writing lines");
+                Self::WritingPointsUser { db_name, source }
+            }
+            InnerDmlError::InternalError { db_name, source } => {
+                debug!(e=%source, %db_name, "error writing lines");
+                Self::WritingPointsInternal { db_name, source }
+            }
+        }
+    }
 }
 
 /// Contains a request or a response.
@@ -247,24 +266,13 @@ pub trait HttpDrivenDml: ServerType {
                         .unwrap(),
                 ))
             }
-            Err(InnerDmlError::DatabaseNotFound { db_name }) => {
-                debug!(%db_name, ?stats, "database not found");
+            Err(
+                e @ (InnerDmlError::DatabaseNotFound { .. } | InnerDmlError::TableNotFound { .. }),
+            ) => {
                 // Purposefully do not record ingest metrics
-                Err(HttpDmlError::NotFoundDatabase { db_name })
+                Err(e.into())
             }
-            Err(InnerDmlError::TableNotFound {
-                db_name,
-                table_name,
-            }) => {
-                debug!(%db_name, %table_name, ?stats, "table not found");
-                // Purposefully do not record ingest metrics
-                Err(HttpDmlError::NotFoundTable {
-                    db_name,
-                    table_name,
-                })
-            }
-            Err(InnerDmlError::UserError { source }) => {
-                debug!(e=%source, %db_name, ?stats, "error writing lines");
+            Err(e @ (InnerDmlError::UserError { .. } | InnerDmlError::InternalError { .. })) => {
                 lp_metrics.record_write(
                     &db_name,
                     stats.num_lines,
@@ -272,26 +280,7 @@ pub trait HttpDrivenDml: ServerType {
                     body.len(),
                     false,
                 );
-                Err(HttpDmlError::WritingPointsUser {
-                    org: write_info.org.clone(),
-                    bucket_name: write_info.bucket.clone(),
-                    source,
-                })
-            }
-            Err(InnerDmlError::InternalError { source }) => {
-                debug!(e=%source, %db_name, ?stats, "error writing lines");
-                lp_metrics.record_write(
-                    &db_name,
-                    stats.num_lines,
-                    stats.num_fields,
-                    body.len(),
-                    false,
-                );
-                Err(HttpDmlError::WritingPointsInternal {
-                    org: write_info.org.clone(),
-                    bucket_name: write_info.bucket.clone(),
-                    source,
-                })
+                Err(e.into())
             }
         }
     }
@@ -353,36 +342,7 @@ pub trait HttpDrivenDml: ServerType {
                     .body(Body::empty())
                     .unwrap(),
             )),
-            Err(InnerDmlError::DatabaseNotFound { db_name }) => {
-                debug!(%db_name, "database not found");
-                Err(HttpDmlError::NotFoundDatabase { db_name })
-            }
-            Err(InnerDmlError::TableNotFound {
-                db_name,
-                table_name,
-            }) => {
-                debug!(%db_name, %table_name, "table not found");
-                Err(HttpDmlError::NotFoundTable {
-                    db_name,
-                    table_name,
-                })
-            }
-            Err(InnerDmlError::UserError { source }) => {
-                debug!(e=%source, %db_name, "error issuing delete request");
-                Err(HttpDmlError::DeletingPointsUser {
-                    org: delete_info.org.clone(),
-                    bucket_name: delete_info.bucket.clone(),
-                    source,
-                })
-            }
-            Err(InnerDmlError::InternalError { source }) => {
-                debug!(e=%source, %db_name, "error issuing delete request");
-                Err(HttpDmlError::DeletingPointsInternal {
-                    org: delete_info.org.clone(),
-                    bucket_name: delete_info.bucket.clone(),
-                    source,
-                })
-            }
+            Err(e) => Err(e.into()),
         }
     }
 
@@ -712,6 +672,7 @@ pub mod test_utils {
         }
     }
 
+    /// Assert that deleting from an unknown database/router returns the expected message and error code.
     pub async fn assert_delete_unknown_database<T>(test_server: TestServer<T>)
     where
         T: ServerType,
@@ -740,6 +701,7 @@ pub mod test_utils {
         .await;
     }
 
+    /// Assert that deleting from an unknown table returns the expected message and error code.
     pub async fn assert_delete_unknown_table<T>(test_server: TestServer<T>)
     where
         T: ServerType,
@@ -768,6 +730,7 @@ pub mod test_utils {
         .await;
     }
 
+    /// Assert that deleting with a malformed body returns the expected message and error code.
     pub async fn assert_delete_bad_request<T>(test_server: TestServer<T>)
     where
         T: ServerType,
@@ -796,6 +759,7 @@ pub mod test_utils {
         .await;
     }
 
+    /// GZIP the given string.
     fn gzip_str(s: &str) -> Vec<u8> {
         use flate2::{write::GzEncoder, Compression};
         use std::io::Write;

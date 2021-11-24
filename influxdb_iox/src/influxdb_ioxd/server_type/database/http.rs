@@ -189,6 +189,7 @@ where
                             db_name: db_name.to_string(),
                         },
                         e => InnerDmlError::InternalError {
+                            db_name: db_name.to_string(),
                             source: Box::new(e),
                         },
                     })
@@ -209,6 +210,7 @@ where
                         }
                     }
                     e => InnerDmlError::InternalError {
+                        db_name: db_name.to_string(),
                         source: Box::new(e),
                     },
                 })?;

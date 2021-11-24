@@ -54,6 +54,7 @@ impl HttpDrivenDml for RouterServerType {
                 .write(op)
                 .await
                 .map_err(|e| InnerDmlError::InternalError {
+                    db_name: db_name.to_string(),
                     source: Box::new(e),
                 }),
             None => Err(InnerDmlError::DatabaseNotFound {
