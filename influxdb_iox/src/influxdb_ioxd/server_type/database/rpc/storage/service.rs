@@ -18,7 +18,7 @@ use generated_types::{
     ReadWindowAggregateRequest, StringValuesResponse, TagKeyMetaNames, TagKeysRequest,
     TagValuesRequest, TimestampRange,
 };
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{error, info, trace};
 use predicate::predicate::PredicateBuilder;
 use query::exec::{
     fieldlist::FieldList, seriesset::converter::Error as SeriesSetError, ExecutionContextProvider,
@@ -735,6 +735,7 @@ where
         .map(|name| name.bytes().collect())
         .collect();
 
+    trace!(measurement_names=?values.iter().map(|k| String::from_utf8_lossy(k)).collect::<Vec<_>>(), "Measurement names response");
     Ok(StringValuesResponse { values })
 }
 
@@ -786,10 +787,8 @@ where
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
     let values = tag_keys_to_byte_vecs(tag_keys);
-    // Debugging help: uncomment this out to see what is coming back
-    // info!("Returning tag keys");
-    // values.iter().for_each(|k| info!("  {}", String::from_utf8_lossy(k)));
 
+    trace!(tag_keys=?values.iter().map(|k| String::from_utf8_lossy(k)).collect::<Vec<_>>(), "Tag keys response");
     Ok(StringValuesResponse { values })
 }
 
@@ -842,10 +841,7 @@ where
         .map(|name| name.bytes().collect())
         .collect();
 
-    // Debugging help: uncomment to see raw values coming back
-    //info!("Returning tag values");
-    //values.iter().for_each(|k| info!("  {}", String::from_utf8_lossy(k)));
-
+    trace!(tag_values=?values.iter().map(|k| String::from_utf8_lossy(k)).collect::<Vec<_>>(), "Tag values response");
     Ok(StringValuesResponse { values })
 }
 
@@ -1004,6 +1000,7 @@ where
         .map_err(|e| Box::new(e) as _)
         .context(ListingFields { db_name })?;
 
+    trace!(field_names=?field_list, "Field names response");
     Ok(field_list)
 }
 
