@@ -1,4 +1,9 @@
-use influxdb_iox_client::write::WriteError;
+use influxdb_iox_client::{
+    router::generated_types::{
+        write_sink, HashRing, Matcher, MatcherToShard, Router, ShardConfig, WriteSink, WriteSinkSet,
+    },
+    write::WriteError,
+};
 use test_helpers::assert_contains;
 
 use crate::{
@@ -8,11 +13,6 @@ use crate::{
 
 use super::scenario::{create_readable_database, rand_name};
 use arrow_util::assert_batches_sorted_eq;
-use generated_types::influxdata::iox::management::v1::database_rules::RoutingRules;
-use generated_types::influxdata::iox::management::v1::{
-    node_group::Node, sink, HashRing, Matcher, MatcherToShard, NodeGroup, RoutingConfig,
-    ShardConfig, Sink,
-};
 use std::{collections::HashMap, num::NonZeroU32};
 
 #[tokio::test]
@@ -114,15 +114,14 @@ async fn test_write_routed() {
     const TEST_SHARD_ID_2: u32 = 43;
     const TEST_SHARD_ID_3: u32 = 44;
 
-    let router = ServerFixture::create_single_use(ServerType::Database).await;
+    let router = ServerFixture::create_single_use(ServerType::Router).await;
     let mut router_deployment = router.deployment_client();
     let mut router_remote = router.remote_client();
-    let mut router_mgmt = router.management_client();
+    let mut router_router = router.router_client();
     router_deployment
         .update_server_id(test_router_id)
         .await
         .expect("set ID failed");
-    router.wait_server_initialized().await;
 
     let target_1 = ServerFixture::create_single_use(ServerType::Database).await;
     let mut target_1_deployment = target_1.deployment_client();
@@ -164,76 +163,67 @@ async fn test_write_routed() {
         .expect("set remote failed");
 
     let db_name = rand_name();
-    create_readable_database(&db_name, router.grpc_channel()).await;
     create_readable_database(&db_name, target_1.grpc_channel()).await;
     create_readable_database(&db_name, target_2.grpc_channel()).await;
     create_readable_database(&db_name, target_3.grpc_channel()).await;
 
     // Set sharding rules on the router:
-    let mut router_db_rules = router_mgmt
-        .get_database(&db_name, false)
-        .await
-        .expect("cannot get database on router");
-    let shard_config = ShardConfig {
-        specific_targets: vec![
-            MatcherToShard {
-                matcher: Some(Matcher {
-                    table_name_regex: "^cpu$".to_string(),
-                }),
-                shard: TEST_SHARD_ID_1,
-            },
-            MatcherToShard {
-                matcher: Some(Matcher {
-                    table_name_regex: "^mem$".to_string(),
-                }),
-                shard: TEST_SHARD_ID_3,
-            },
-        ],
-        hash_ring: Some(HashRing {
-            shards: vec![TEST_SHARD_ID_2],
+    let router_config = Router {
+        name: db_name.clone(),
+        write_sharder: Some(ShardConfig {
+            specific_targets: vec![
+                MatcherToShard {
+                    matcher: Some(Matcher {
+                        table_name_regex: "^cpu$".to_string(),
+                    }),
+                    shard: TEST_SHARD_ID_1,
+                },
+                MatcherToShard {
+                    matcher: Some(Matcher {
+                        table_name_regex: "^mem$".to_string(),
+                    }),
+                    shard: TEST_SHARD_ID_3,
+                },
+            ],
+            hash_ring: Some(HashRing {
+                shards: vec![TEST_SHARD_ID_2],
+            }),
         }),
-        shards: vec![
+        write_sinks: HashMap::from([
             (
                 TEST_SHARD_ID_1,
-                Sink {
-                    sink: Some(sink::Sink::Iox(NodeGroup {
-                        nodes: vec![Node {
-                            id: TEST_REMOTE_ID_1,
-                        }],
-                    })),
+                WriteSinkSet {
+                    sinks: vec![WriteSink {
+                        sink: Some(write_sink::Sink::GrpcRemote(TEST_REMOTE_ID_1)),
+                        ignore_errors: false,
+                    }],
                 },
             ),
             (
                 TEST_SHARD_ID_2,
-                Sink {
-                    sink: Some(sink::Sink::Iox(NodeGroup {
-                        nodes: vec![Node {
-                            id: TEST_REMOTE_ID_2,
-                        }],
-                    })),
+                WriteSinkSet {
+                    sinks: vec![WriteSink {
+                        sink: Some(write_sink::Sink::GrpcRemote(TEST_REMOTE_ID_2)),
+                        ignore_errors: false,
+                    }],
                 },
             ),
             (
                 TEST_SHARD_ID_3,
-                Sink {
-                    sink: Some(sink::Sink::Iox(NodeGroup {
-                        nodes: vec![Node {
-                            id: TEST_REMOTE_ID_3,
-                        }],
-                    })),
+                WriteSinkSet {
+                    sinks: vec![WriteSink {
+                        sink: Some(write_sink::Sink::GrpcRemote(TEST_REMOTE_ID_3)),
+                        ignore_errors: false,
+                    }],
                 },
             ),
-        ]
-        .into_iter()
-        .collect::<HashMap<_, _>>(),
-        ..Default::default()
+        ]),
+        query_sinks: None,
     };
-    router_db_rules.routing_rules = Some(RoutingRules::ShardConfig(shard_config));
-
-    router_mgmt
-        .update_database(router_db_rules)
+    router_router
+        .update_router(router_config)
         .await
-        .expect("cannot update router db rules");
+        .expect("cannot update router rules");
 
     // Write some data
     let mut write_client = router.write_client();
@@ -342,47 +332,43 @@ async fn test_write_routed_errors() {
     const TEST_REMOTE_ID: u32 = 2;
     const TEST_SHARD_ID: u32 = 42;
 
-    let router = ServerFixture::create_single_use(ServerType::Database).await;
+    let router = ServerFixture::create_single_use(ServerType::Router).await;
     let mut router_deployment = router.deployment_client();
-    let mut router_mgmt = router.management_client();
+    let mut router_router = router.router_client();
     router_deployment
         .update_server_id(test_router_id)
         .await
         .expect("set ID failed");
-    router.wait_server_initialized().await;
 
     let db_name = rand_name();
-    create_readable_database(&db_name, router.grpc_channel()).await;
 
     // Set sharding rules on the router:
-    let mut router_db_rules = router_mgmt
-        .get_database(&db_name, false)
-        .await
-        .expect("cannot get database on router");
-    let shard_config = ShardConfig {
-        specific_targets: vec![MatcherToShard {
-            matcher: Some(Matcher {
-                table_name_regex: "^cpu$".to_string(),
-            }),
-            shard: TEST_SHARD_ID,
-        }],
-        shards: vec![(
+    let router_config = Router {
+        name: db_name.clone(),
+        write_sharder: Some(ShardConfig {
+            specific_targets: vec![MatcherToShard {
+                matcher: Some(Matcher {
+                    table_name_regex: "^cpu$".to_string(),
+                }),
+                shard: TEST_SHARD_ID,
+            }],
+            hash_ring: None,
+        }),
+        write_sinks: HashMap::from([(
             TEST_SHARD_ID,
-            Sink {
-                sink: Some(sink::Sink::Iox(NodeGroup {
-                    nodes: vec![Node { id: TEST_REMOTE_ID }],
-                })),
+            WriteSinkSet {
+                sinks: vec![WriteSink {
+                    sink: Some(write_sink::Sink::GrpcRemote(TEST_REMOTE_ID)),
+                    ignore_errors: false,
+                }],
             },
-        )]
-        .into_iter()
-        .collect::<HashMap<_, _>>(),
-        ..Default::default()
+        )]),
+        query_sinks: None,
     };
-    router_db_rules.routing_rules = Some(RoutingRules::ShardConfig(shard_config));
-    router_mgmt
-        .update_database(router_db_rules)
+    router_router
+        .update_router(router_config)
         .await
-        .expect("cannot update router db rules");
+        .expect("cannot update router rules");
 
     // We intentionally omit to configure the "remotes" name resolution on the
     // router server.
@@ -396,9 +382,12 @@ async fn test_write_routed_errors() {
     assert_eq!(
         err.to_string(),
         format!(
-            "Unexpected server error: Some requested entity was not found: Resource \
-             remote/[ServerId({})] not found",
-            TEST_REMOTE_ID
+            "Unexpected server error: \
+            The system is not in a state required for the operation's execution: \
+            Precondition violation influxdata.com/iox - router: \
+            One or more writes failed: \
+            ShardId({}) => \"Write to sink set failed: No remote for server ID {}\"",
+            TEST_SHARD_ID, TEST_REMOTE_ID,
         )
     );
 
@@ -411,45 +400,35 @@ async fn test_write_dev_null() {
     let test_router_id = NonZeroU32::new(1).unwrap();
     const TEST_SHARD_ID: u32 = 42;
 
-    let router = ServerFixture::create_single_use(ServerType::Database).await;
+    let router = ServerFixture::create_single_use(ServerType::Router).await;
     let mut router_deployment = router.deployment_client();
-    let mut router_mgmt = router.management_client();
+    let mut router_router = router.router_client();
     router_deployment
         .update_server_id(test_router_id)
         .await
         .expect("set ID failed");
-    router.wait_server_initialized().await;
 
     let db_name = rand_name();
-    create_readable_database(&db_name, router.grpc_channel()).await;
 
     // Set sharding rules on the router:
-    let mut router_db_rules = router_mgmt
-        .get_database(&db_name, false)
-        .await
-        .expect("cannot get database on router");
-    let shard_config = ShardConfig {
-        specific_targets: vec![MatcherToShard {
-            matcher: Some(Matcher {
-                table_name_regex: "^cpu$".to_string(),
-            }),
-            shard: TEST_SHARD_ID,
-        }],
-        shards: vec![(
-            TEST_SHARD_ID,
-            Sink {
-                sink: Some(sink::Sink::DevNull(Default::default())),
-            },
-        )]
-        .into_iter()
-        .collect::<HashMap<_, _>>(),
-        ..Default::default()
+    let router_config = Router {
+        name: db_name.clone(),
+        write_sharder: Some(ShardConfig {
+            specific_targets: vec![MatcherToShard {
+                matcher: Some(Matcher {
+                    table_name_regex: "^cpu$".to_string(),
+                }),
+                shard: TEST_SHARD_ID,
+            }],
+            hash_ring: None,
+        }),
+        write_sinks: HashMap::from([(TEST_SHARD_ID, WriteSinkSet { sinks: vec![] })]),
+        query_sinks: None,
     };
-    router_db_rules.routing_rules = Some(RoutingRules::ShardConfig(shard_config));
-    router_mgmt
-        .update_database(router_db_rules)
+    router_router
+        .update_router(router_config)
         .await
-        .expect("cannot update router db rules");
+        .expect("cannot update router rules");
 
     // Rows matching a shard directed to "/dev/null" are silently ignored
     let mut write_client = router.write_client();
@@ -461,16 +440,10 @@ async fn test_write_dev_null() {
 
     // Rows not matching that shard won't be send to "/dev/null".
     let lp_lines = vec!["mem bar=1 1", "mem bar=2 2"];
-    let err = write_client
+    write_client
         .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
-        .unwrap_err();
-
-    assert_eq!(
-        err.to_string(),
-        "Unexpected server error: The system is not in a state required for the operation's \
-         execution: Error sharding write: No sharding rule matches table: mem"
-    );
+        .expect("no shard means dev null as well");
 }
 
 #[tokio::test]
@@ -485,15 +458,16 @@ async fn test_write_routed_no_shard() {
     const TEST_REMOTE_ID_2: u32 = 3;
     const TEST_REMOTE_ID_3: u32 = 4;
 
-    let router = ServerFixture::create_single_use(ServerType::Database).await;
+    const TEST_SHARD_ID: u32 = 42;
+
+    let router = ServerFixture::create_single_use(ServerType::Router).await;
     let mut router_deployment = router.deployment_client();
-    let mut router_mgmt = router.management_client();
     let mut router_remote = router.remote_client();
+    let mut router_router = router.router_client();
     router_deployment
         .update_server_id(test_router_id)
         .await
         .expect("set ID failed");
-    router.wait_server_initialized().await;
 
     let target_1 = ServerFixture::create_single_use(ServerType::Database).await;
     let mut target_1_deployment = target_1.deployment_client();
@@ -537,7 +511,6 @@ async fn test_write_routed_no_shard() {
     let db_name_1 = rand_name();
     let db_name_2 = rand_name();
     for &db_name in &[&db_name_1, &db_name_2] {
-        create_readable_database(db_name, router.grpc_channel()).await;
         create_readable_database(db_name, target_1.grpc_channel()).await;
         create_readable_database(db_name, target_2.grpc_channel()).await;
         create_readable_database(db_name, target_3.grpc_channel()).await;
@@ -548,23 +521,32 @@ async fn test_write_routed_no_shard() {
         (db_name_1.clone(), TEST_REMOTE_ID_1),
         (db_name_2.clone(), TEST_REMOTE_ID_2),
     ] {
-        let mut router_db_rules = router_mgmt
-            .get_database(db_name, false)
-            .await
-            .expect("cannot get database on router");
-        let routing_config = RoutingConfig {
-            sink: Some(Sink {
-                sink: Some(sink::Sink::Iox(NodeGroup {
-                    nodes: vec![Node { id: *remote_id }],
-                })),
+        let router_config = Router {
+            name: db_name.clone(),
+            write_sharder: Some(ShardConfig {
+                specific_targets: vec![MatcherToShard {
+                    matcher: Some(Matcher {
+                        table_name_regex: ".*".to_string(),
+                    }),
+                    shard: TEST_SHARD_ID,
+                }],
+                hash_ring: None,
             }),
+            write_sinks: HashMap::from([(
+                TEST_SHARD_ID,
+                WriteSinkSet {
+                    sinks: vec![WriteSink {
+                        sink: Some(write_sink::Sink::GrpcRemote(*remote_id)),
+                        ignore_errors: false,
+                    }],
+                },
+            )]),
+            query_sinks: None,
         };
-        router_db_rules.routing_rules = Some(RoutingRules::RoutingConfig(routing_config));
-
-        router_mgmt
-            .update_database(router_db_rules)
+        router_router
+            .update_router(router_config)
             .await
-            .expect("cannot update router db rules");
+            .expect("cannot update router rules");
     }
 
     // Write some data
