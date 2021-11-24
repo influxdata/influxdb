@@ -19,43 +19,6 @@ use test_helpers::make_temp_file;
 use uuid::Uuid;
 
 #[tokio::test]
-async fn test_server_id() {
-    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
-    let addr = server_fixture.grpc_base();
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("server")
-        .arg("set")
-        .arg("32")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("Ok"));
-
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("server")
-        .arg("get")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("32"));
-
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("server")
-        .arg("set")
-        .arg("42")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("ID already set"));
-}
-
-#[tokio::test]
 async fn test_create_database() {
     let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = server_fixture.grpc_base();
@@ -763,79 +726,6 @@ async fn test_list_chunks_error() {
             predicate::str::contains("Some requested entity was not found: Resource database")
                 .and(predicate::str::contains(&db_name)),
         );
-}
-
-#[tokio::test]
-async fn test_remotes() {
-    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
-    let addr = server_fixture.grpc_base();
-
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("server")
-        .arg("set")
-        .arg("32")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("Ok"));
-
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("server")
-        .arg("remote")
-        .arg("list")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("no remotes configured"));
-
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("server")
-        .arg("remote")
-        .arg("set")
-        .arg("1")
-        .arg("http://1.2.3.4:1234")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success();
-
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("server")
-        .arg("remote")
-        .arg("list")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("http://1.2.3.4:1234"));
-
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("server")
-        .arg("remote")
-        .arg("remove")
-        .arg("1")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success();
-
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("server")
-        .arg("remote")
-        .arg("list")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("no remotes configured"));
 }
 
 #[tokio::test]
