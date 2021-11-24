@@ -895,6 +895,11 @@ impl InfluxRpcPlanner {
             })
             .collect::<Vec<_>>();
 
+        // If the projection is empty then there is no plan to execute.
+        if select_exprs.is_empty() {
+            return Ok(None);
+        }
+
         let plan = plan_builder
             .project(select_exprs)
             .context(BuildingPlan)?

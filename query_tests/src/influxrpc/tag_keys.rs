@@ -47,6 +47,15 @@ where
 }
 
 #[tokio::test]
+async fn list_tag_columns_with_no_tags() {
+    let predicate = PredicateBuilder::default().build();
+    run_tag_keys_test_case(OneMeasurementNoTags {}, predicate, vec![]).await;
+
+    let predicate = PredicateBuilder::default().timestamp_range(0, 1000).build();
+    run_tag_keys_test_case(OneMeasurementNoTags {}, predicate, vec![]).await;
+}
+
+#[tokio::test]
 async fn list_tag_columns_no_predicate() {
     let predicate = PredicateBuilder::default().build();
     let expected_tag_keys = vec!["borough", "city", "county", "state"];

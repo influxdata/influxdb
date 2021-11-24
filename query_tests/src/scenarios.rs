@@ -224,6 +224,25 @@ impl DbSetup for OneMeasurementRealisticTimes {
 }
 
 #[derive(Debug)]
+pub struct OneMeasurementNoTags {}
+#[async_trait]
+impl DbSetup for OneMeasurementNoTags {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines = vec![
+            "h2o temp=70.4 100",
+            "h2o temp=72.4 250",
+            "h2o temp=50.4 200",
+            "h2o level=200.0 300",
+        ];
+
+        // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
+    }
+}
+
+#[derive(Debug)]
 pub struct OneMeasurementManyNullTags {}
 #[async_trait]
 impl DbSetup for OneMeasurementManyNullTags {
