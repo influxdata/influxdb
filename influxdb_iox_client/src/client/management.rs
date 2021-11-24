@@ -160,22 +160,6 @@ pub enum ListChunksError {
     ServerError(tonic::Status),
 }
 
-/// Errors returned by Client::list_remotes
-#[derive(Debug, Error)]
-pub enum ListRemotesError {
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::update_remote
-#[derive(Debug, Error)]
-pub enum UpdateRemoteError {
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
 /// Errors returned by Client::create_dummy_job
 #[derive(Debug, Error)]
 pub enum CreateDummyJobError {
@@ -651,43 +635,6 @@ impl Client {
                 _ => ListChunksError::ServerError(status),
             })?;
         Ok(response.into_inner().chunks)
-    }
-
-    /// List remotes.
-    pub async fn list_remotes(&mut self) -> Result<Vec<generated_types::Remote>, ListRemotesError> {
-        let response = self
-            .inner
-            .list_remotes(ListRemotesRequest {})
-            .await
-            .map_err(ListRemotesError::ServerError)?;
-        Ok(response.into_inner().remotes)
-    }
-
-    /// Update remote
-    pub async fn update_remote(
-        &mut self,
-        id: u32,
-        connection_string: impl Into<String> + Send,
-    ) -> Result<(), UpdateRemoteError> {
-        self.inner
-            .update_remote(UpdateRemoteRequest {
-                remote: Some(generated_types::Remote {
-                    id,
-                    connection_string: connection_string.into(),
-                }),
-            })
-            .await
-            .map_err(UpdateRemoteError::ServerError)?;
-        Ok(())
-    }
-
-    /// Delete remote
-    pub async fn delete_remote(&mut self, id: u32) -> Result<(), UpdateRemoteError> {
-        self.inner
-            .delete_remote(DeleteRemoteRequest { id })
-            .await
-            .map_err(UpdateRemoteError::ServerError)?;
-        Ok(())
     }
 
     /// List all partitions of the database

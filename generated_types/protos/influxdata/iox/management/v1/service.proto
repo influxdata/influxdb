@@ -40,27 +40,6 @@ service ManagementService {
   // List chunks available on this database
   rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
 
-  // List remote IOx servers we know about.
-  //
-  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
-  rpc ListRemotes(ListRemotesRequest) returns (ListRemotesResponse) {
-    option deprecated = true;
-  };
-
-  // Update information about a remote IOx server (upsert).
-  //
-  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
-  rpc UpdateRemote(UpdateRemoteRequest) returns (UpdateRemoteResponse) {
-    option deprecated = true;
-  };
-
-  // Delete a reference to remote IOx server.
-  //
-  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
-  rpc DeleteRemote(DeleteRemoteRequest) returns (DeleteRemoteResponse) {
-    option deprecated = true;
-  };
-
   // Creates a dummy job that for each value of the nanos field
   // spawns a task that sleeps for that number of nanoseconds before returning
   rpc CreateDummyJob(CreateDummyJobRequest) returns (CreateDummyJobResponse) {
@@ -215,39 +194,6 @@ message CreateDummyJobRequest {
 message CreateDummyJobResponse {
   google.longrunning.Operation operation = 1;
 }
-
-message ListRemotesRequest {}
-
-message ListRemotesResponse {
-  repeated Remote remotes = 1;
-}
-
-// This resource represents a remote IOx server.
-message Remote {
-  // The server ID associated with a remote IOx server.
-  uint32 id = 1;
-
-  // The address of the remote IOx server gRPC endpoint.
-  string connection_string = 2;
-}
-
-// Updates information about a remote IOx server.
-//
-// If a remote for a given `id` already exists, it is updated in place.
-message UpdateRemoteRequest {
-  // If omitted, the remote associated with `id` will be removed.
-  Remote remote = 1;
-
-  // TODO(#917): add an optional flag to test the connection or not before adding it.
-}
-
-message UpdateRemoteResponse {}
-
-message DeleteRemoteRequest{
-  uint32 id = 1;
-}
-
-message DeleteRemoteResponse {}
 
 // Request to list all partitions from a named database
 message ListPartitionsRequest {

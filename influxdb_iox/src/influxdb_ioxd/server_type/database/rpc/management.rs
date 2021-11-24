@@ -1,4 +1,4 @@
-use data_types::{chunk_metadata::ChunkId, server_id::ServerId, DatabaseName};
+use data_types::{chunk_metadata::ChunkId, DatabaseName};
 use generated_types::{
     google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound},
     influxdata::iox::management::v1::{Error as ProtobufError, *},
@@ -229,56 +229,6 @@ where
             .spawn_dummy_job(request.nanos, None);
         let operation = Some(super::operations::encode_tracker(tracker)?);
         Ok(Response::new(CreateDummyJobResponse { operation }))
-    }
-
-    async fn list_remotes(
-        &self,
-        _: Request<ListRemotesRequest>,
-    ) -> Result<Response<ListRemotesResponse>, Status> {
-        let remotes = self
-            .server
-            .remotes_sorted()
-            .into_iter()
-            .map(|(id, connection_string)| Remote {
-                id: id.get_u32(),
-                connection_string,
-            })
-            .collect();
-
-        Ok(Response::new(ListRemotesResponse { remotes }))
-    }
-
-    async fn update_remote(
-        &self,
-        request: Request<UpdateRemoteRequest>,
-    ) -> Result<Response<UpdateRemoteResponse>, Status> {
-        let remote = request
-            .into_inner()
-            .remote
-            .ok_or_else(|| FieldViolation::required("remote"))?;
-        let remote_id = ServerId::try_from(remote.id)
-            .map_err(|_| FieldViolation::required("id").scope("remote"))?;
-
-        self.server
-            .update_remote(remote_id, remote.connection_string);
-
-        Ok(Response::new(UpdateRemoteResponse {}))
-    }
-
-    async fn delete_remote(
-        &self,
-        request: Request<DeleteRemoteRequest>,
-    ) -> Result<Response<DeleteRemoteResponse>, Status> {
-        let request = request.into_inner();
-        let remote_id =
-            ServerId::try_from(request.id).map_err(|_| FieldViolation::required("id"))?;
-
-        match self.server.delete_remote(remote_id) {
-            Some(_) => {}
-            None => return Err(NotFound::default().into()),
-        }
-
-        Ok(Response::new(DeleteRemoteResponse {}))
     }
 
     async fn list_partitions(

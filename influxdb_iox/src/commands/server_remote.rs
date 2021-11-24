@@ -1,6 +1,6 @@
 use crate::TABLE_STYLE_SINGLE_LINE_BORDERS;
 use comfy_table::{Cell, Table};
-use influxdb_iox_client::{connection::Connection, management};
+use influxdb_iox_client::{connection::Connection, remote};
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -8,10 +8,10 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Update remote error: {0}")]
-    UpdateError(#[from] management::UpdateRemoteError),
+    UpdateError(#[from] remote::UpdateRemoteError),
 
     #[error("List remote error: {0}")]
-    ListError(#[from] management::ListRemotesError),
+    ListError(#[from] remote::ListRemotesError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -24,8 +24,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Config {
     /// Set connection parameters for a remote IOx server.
     Set { id: u32, connection_string: String },
+
     /// Remove a reference to a remote IOx server.
     Remove { id: u32 },
+
     /// List configured remote IOx server.
     List,
 }
@@ -36,15 +38,15 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             id,
             connection_string,
         } => {
-            let mut client = management::Client::new(connection);
+            let mut client = remote::Client::new(connection);
             client.update_remote(id, connection_string).await?;
         }
         Config::Remove { id } => {
-            let mut client = management::Client::new(connection);
+            let mut client = remote::Client::new(connection);
             client.delete_remote(id).await?;
         }
         Config::List => {
-            let mut client = management::Client::new(connection);
+            let mut client = remote::Client::new(connection);
 
             let remotes = client.list_remotes().await?;
             if remotes.is_empty() {
