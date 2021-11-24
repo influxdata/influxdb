@@ -1,11 +1,6 @@
 use crate::common::server_fixture::{ServerFixture, ServerType};
 
 #[tokio::test]
-async fn test_list_update_remotes_database() {
-    assert_list_update_remotes(ServerFixture::create_single_use(ServerType::Database).await).await;
-}
-
-#[tokio::test]
 async fn test_list_update_remotes_router() {
     assert_list_update_remotes(ServerFixture::create_single_use(ServerType::Router).await).await;
 }
