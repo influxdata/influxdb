@@ -5049,7 +5049,6 @@ dependencies = [
  "bytes",
  "cc",
  "chrono",
- "clap",
  "either",
  "futures",
  "futures-channel",

@@ -16,7 +16,6 @@ publish = false
 ahash = { version = "0.7", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
 chrono = { version = "0.4", features = ["clock", "libc", "oldtime", "serde", "std", "time", "winapi"] }
-clap = { version = "2", features = ["ansi_term", "atty", "color", "strsim", "suggestions", "vec_map"] }
 either = { version = "1", features = ["use_std"] }
 futures = { version = "0.3", features = ["alloc", "async-await", "executor", "futures-executor", "std"] }
 futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
@@ -57,7 +56,6 @@ uuid = { version = "0.8", features = ["getrandom", "serde", "std", "v4"] }
 ahash = { version = "0.7", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
 cc = { version = "1", default-features = false, features = ["jobserver", "parallel"] }
-clap = { version = "2", features = ["ansi_term", "atty", "color", "strsim", "suggestions", "vec_map"] }
 either = { version = "1", features = ["use_std"] }
 getrandom = { version = "0.2", default-features = false, features = ["js", "js-sys", "std", "wasm-bindgen"] }
 hashbrown = { version = "0.11", features = ["ahash", "inline-more", "raw"] }
