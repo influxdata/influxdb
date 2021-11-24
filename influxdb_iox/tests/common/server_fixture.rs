@@ -1,26 +1,24 @@
-use std::collections::HashMap;
-use std::net::SocketAddrV4;
-use std::num::NonZeroU32;
-use std::sync::atomic::{AtomicU16, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use std::{
-    path::Path,
-    process::{Child, Command},
-    str,
-    sync::Weak,
-    time::Instant,
-};
-
 use assert_cmd::prelude::*;
 use futures::prelude::*;
 use generated_types::influxdata::iox::management::v1::{
     database_status::DatabaseState, ServerStatus,
 };
-use http::header::HeaderName;
-use http::HeaderValue;
+use http::{header::HeaderName, HeaderValue};
 use influxdb_iox_client::connection::Connection;
 use once_cell::sync::OnceCell;
+use std::{
+    collections::HashMap,
+    net::SocketAddrV4,
+    num::NonZeroU32,
+    path::Path,
+    process::{Child, Command},
+    str,
+    sync::{
+        atomic::{AtomicU16, Ordering},
+        Arc, Weak,
+    },
+    time::{Duration, Instant},
+};
 use tempfile::{NamedTempFile, TempDir};
 use tokio::sync::Mutex;
 use uuid::Uuid;

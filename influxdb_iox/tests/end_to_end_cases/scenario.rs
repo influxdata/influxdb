@@ -1,38 +1,40 @@
-use std::collections::HashMap;
-use std::num::NonZeroU32;
-use std::path::Path;
-use std::time::Duration;
-use std::{convert::TryInto, str, u32};
-use std::{sync::Arc, time::SystemTime};
-
+use crate::common::server_fixture::{ServerFixture, ServerType, TestConfig, DEFAULT_SERVER_ID};
 use arrow::{
     array::{ArrayRef, Float64Array, StringArray, TimestampNanosecondArray},
     record_batch::RecordBatch,
 };
-use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
+use data_types::{
+    chunk_metadata::{ChunkStorage, ChunkSummary},
+    names::org_and_bucket_to_database,
+    DatabaseName,
+};
 use futures::prelude::*;
-use influxdb_iox_client::management::generated_types::partition_template;
-use influxdb_iox_client::management::generated_types::WriteBufferConnection;
+use generated_types::{
+    google::protobuf::Empty,
+    influxdata::iox::{management::v1::*, write_buffer::v1::WriteBufferCreationConfig},
+    ReadSource, TimestampRange,
+};
+use influxdb_iox_client::{
+    connection::Connection,
+    flight::PerformQuery,
+    management::generated_types::{partition_template, WriteBufferConnection},
+};
 use prost::Message;
 use rand::{
     distributions::{Alphanumeric, Standard},
     thread_rng, Rng,
 };
+use std::{
+    collections::HashMap, convert::TryInto, num::NonZeroU32, path::Path, str, sync::Arc,
+    time::Duration, time::SystemTime, u32,
+};
 use tempfile::TempDir;
 use test_helpers::assert_contains;
-
-use data_types::{names::org_and_bucket_to_database, DatabaseName};
-use generated_types::google::protobuf::Empty;
-use generated_types::{
-    influxdata::iox::{management::v1::*, write_buffer::v1::WriteBufferCreationConfig},
-    ReadSource, TimestampRange,
-};
-use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
 use time::SystemProvider;
-use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
-use write_buffer::file::{FileBufferConsumer, FileBufferProducer};
-
-use crate::common::server_fixture::{ServerFixture, ServerType, TestConfig, DEFAULT_SERVER_ID};
+use write_buffer::{
+    core::{WriteBufferReading, WriteBufferWriting},
+    file::{FileBufferConsumer, FileBufferProducer},
+};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;

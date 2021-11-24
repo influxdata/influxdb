@@ -1,5 +1,3 @@
-use std::num::NonZeroU32;
-
 use super::scenario::{collect_query, Scenario};
 use crate::common::{
     server_fixture::{ServerFixture, ServerType, TestConfig},
@@ -7,6 +5,7 @@ use crate::common::{
 };
 use futures::TryStreamExt;
 use generated_types::{storage_client::StorageClient, ReadFilterRequest};
+use std::num::NonZeroU32;
 
 async fn setup() -> (UdpCapture, ServerFixture) {
     let udp_capture = UdpCapture::new().await;
