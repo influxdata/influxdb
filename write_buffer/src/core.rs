@@ -287,7 +287,7 @@ pub mod test_utils {
 
         // re-creating stream after reading remembers offset, but wait a bit to provoke the stream to buffer some
         // entries
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(10)).await;
         drop(stream);
         drop(streams);
         let mut streams = reader.streams();

@@ -5130,6 +5130,7 @@ dependencies = [
  "tempfile",
  "time 0.1.0",
  "tokio",
+ "tokio-util",
  "trace",
  "trace_http",
  "uuid",
