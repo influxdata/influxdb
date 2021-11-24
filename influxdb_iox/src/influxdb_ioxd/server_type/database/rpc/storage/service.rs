@@ -214,8 +214,6 @@ where
         let span_ctx = req.extensions().get().cloned();
 
         let read_filter_request = req.into_inner();
-        println!("REQUEST {:?}", &read_filter_request);
-
         let db_name = get_database_name(&read_filter_request)?;
         info!(%db_name, ?read_filter_request.range, predicate=%read_filter_request.predicate.loggable(), "read filter");
 
