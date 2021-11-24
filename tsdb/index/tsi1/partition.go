@@ -1088,6 +1088,11 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 		return
 	}
 
+	if err = f.Sync(); err != nil {
+		log.Error("Error sync index file", zap.Error(err))
+		return
+	}
+
 	// Close file.
 	if err := f.Close(); err != nil {
 		log.Error("Error closing index file", zap.Error(err))
@@ -1232,9 +1237,14 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 		return
 	}
 
+	if err = f.Sync(); err != nil {
+		log.Error("Cannot sync index file", zap.Error(err))
+		return
+	}
+
 	// Close file.
 	if err := f.Close(); err != nil {
-		log.Error("Cannot close log file", zap.Error(err))
+		log.Error("Cannot close index file", zap.Error(err))
 		return
 	}
 
