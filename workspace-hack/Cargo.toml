@@ -17,10 +17,8 @@ ahash = { version = "0.7", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
 chrono = { version = "0.4", features = ["clock", "libc", "oldtime", "serde", "std", "time", "winapi"] }
 either = { version = "1", features = ["use_std"] }
-futures = { version = "0.3", features = ["alloc", "async-await", "executor", "futures-executor", "std"] }
 futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
 futures-core = { version = "0.3", features = ["alloc", "std"] }
-futures-io = { version = "0.3", default-features = false, features = ["std"] }
 futures-sink = { version = "0.3", features = ["alloc", "std"] }
 futures-task = { version = "0.3", default-features = false, features = ["alloc", "std"] }
 futures-util = { version = "0.3", features = ["alloc", "async-await", "async-await-macro", "channel", "futures-channel", "futures-io", "futures-macro", "futures-sink", "io", "memchr", "proc-macro-hack", "proc-macro-nested", "sink", "slab", "std"] }

@@ -1539,7 +1539,6 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5049,10 +5048,8 @@ dependencies = [
  "cc",
  "chrono",
  "either",
- "futures",
  "futures-channel",
  "futures-core",
- "futures-io",
  "futures-sink",
  "futures-task",
  "futures-util",
