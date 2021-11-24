@@ -14,34 +14,6 @@ pub mod generated_types {
     pub use generated_types::influxdata::iox::write_buffer::v1::*;
 }
 
-/// Errors returned by Client::update_server_id
-#[derive(Debug, Error)]
-pub enum UpdateServerIdError {
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::get_server_id
-#[derive(Debug, Error)]
-pub enum GetServerIdError {
-    /// Server ID is not set
-    #[error("Server ID not set")]
-    NoServerId,
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::set_serving_readiness
-#[derive(Debug, Error)]
-pub enum SetServingReadinessError {
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
 /// Errors returned by Client::create_database
 #[derive(Debug, Error)]
 pub enum CreateDatabaseError {
