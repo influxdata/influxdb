@@ -71,8 +71,25 @@ pub enum Error {
     ))]
     ChunksNotInPartition {},
 
+    #[snafu(display("Cannot compact chunks because at least one is not yet persisted"))]
+    ChunksNotPersisted {},
+
     #[snafu(display("Cannot compact the provided persisted chunks. They are not contiguous"))]
     ChunksNotContiguous {},
+
+    #[snafu(display(
+        "Error reading IOx Metadata from Parquet IoxParquetMetadata: {}",
+        source
+    ))]
+    ParquetMetaRead {
+        source: parquet_file::metadata::Error,
+    },
+
+    #[snafu(display("Cannot compact chunks because of error computing max partition checkpoint"))]
+    ComparePartitionCheckpoint {},
+
+    #[snafu(display("Cannot compact chunks because no checkpoint was computed"))]
+    NoCheckpoint {},
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

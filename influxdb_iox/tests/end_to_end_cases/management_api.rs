@@ -21,8 +21,6 @@ use crate::{
         fixture_broken_catalog, wait_for_exact_chunk_states, DatabaseBuilder,
     },
 };
-use chrono::{DateTime, Utc};
-use std::convert::TryInto;
 use std::time::Instant;
 use uuid::Uuid;
 
@@ -1412,74 +1410,6 @@ async fn test_unload_read_buffer() {
         ChunkStorage::ObjectStoreOnly.into();
     let storage: i32 = storage.into();
     assert_eq!(chunks[0].storage, storage);
-}
-
-#[tokio::test]
-async fn test_chunk_access_time() {
-    let fixture = ServerFixture::create_shared(ServerType::Database).await;
-    let mut write_client = fixture.write_client();
-    let mut management_client = fixture.management_client();
-    let mut flight_client = fixture.flight_client();
-
-    let db_name = rand_name();
-    DatabaseBuilder::new(db_name.clone())
-        .build(fixture.grpc_channel())
-        .await;
-
-    write_client
-        .write_lp(&db_name, "cpu foo=1 10", 0)
-        .await
-        .unwrap();
-
-    let to_datetime = |a: Option<&generated_types::google::protobuf::Timestamp>| -> DateTime<Utc> {
-        a.unwrap().clone().try_into().unwrap()
-    };
-
-    let chunks = management_client.list_chunks(&db_name).await.unwrap();
-    assert_eq!(chunks.len(), 1);
-    let t0 = to_datetime(chunks[0].time_of_last_access.as_ref());
-
-    flight_client
-        .perform_query(&db_name, "select * from cpu;")
-        .await
-        .unwrap();
-
-    let chunks = management_client.list_chunks(&db_name).await.unwrap();
-    assert_eq!(chunks.len(), 1);
-    let t1 = to_datetime(chunks[0].time_of_last_access.as_ref());
-
-    flight_client
-        .perform_query(&db_name, "select * from cpu;")
-        .await
-        .unwrap();
-
-    let chunks = management_client.list_chunks(&db_name).await.unwrap();
-    assert_eq!(chunks.len(), 1);
-    let t2 = to_datetime(chunks[0].time_of_last_access.as_ref());
-
-    write_client
-        .write_lp(&db_name, "cpu foo=1 20", 0)
-        .await
-        .unwrap();
-
-    let chunks = management_client.list_chunks(&db_name).await.unwrap();
-    assert_eq!(chunks.len(), 1);
-    let t3 = to_datetime(chunks[0].time_of_last_access.as_ref());
-
-    // This chunk should be pruned out and therefore not accessed by the query
-    flight_client
-        .perform_query(&db_name, "select * from cpu where foo = 2;")
-        .await
-        .unwrap();
-
-    let chunks = management_client.list_chunks(&db_name).await.unwrap();
-    assert_eq!(chunks.len(), 1);
-    let t4 = to_datetime(chunks[0].time_of_last_access.as_ref());
-
-    assert!(t0 < t1, "{} {}", t0, t1);
-    assert!(t1 < t2, "{} {}", t1, t2);
-    assert!(t2 < t3, "{} {}", t2, t3);
-    assert_eq!(t3, t4)
 }
 
 #[tokio::test]
