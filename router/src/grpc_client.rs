@@ -74,9 +74,7 @@ impl GrpcClient for RealClient {
                             .table_name()
                             .map(|s| s.to_owned())
                             .unwrap_or_default(),
-                        delete.predicate().range.start.to_string(),
-                        delete.predicate().range.end.to_string(),
-                        delete.predicate().expr_sql_string(),
+                        delete.predicate().clone().into(),
                     )
                     .await
                     .map_err(|e| Box::new(e) as _)

@@ -1,11 +1,12 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use data_types::non_empty::NonEmptyString;
 use data_types::DatabaseName;
-use generated_types::google::FieldViolationExt;
+use dml::{DmlDelete, DmlMeta};
+use generated_types::google::{FieldViolationExt, FromOptionalField, OptionalField};
 use generated_types::influxdata::iox::delete::v1::*;
-use predicate::delete_predicate::parse_delete_predicate;
-use server::{connection::ConnectionManager, Error, Server};
+use server::{connection::ConnectionManager, Server};
 use tonic::Response;
 
 struct DeleteService<M: ConnectionManager> {
@@ -23,13 +24,18 @@ where
         &self,
         request: tonic::Request<DeleteRequest>,
     ) -> Result<tonic::Response<DeleteResponse>, tonic::Status> {
-        let DeleteRequest {
+        let span_ctx = request.extensions().get().cloned();
+        let DeleteRequest { payload } = request.into_inner();
+        let DeletePayload {
             db_name,
             table_name,
-            start_time,
-            stop_time,
             predicate,
-        } = request.into_inner();
+        } = payload.unwrap_field("payload")?;
+        let predicate = predicate.required("predicate")?;
+
+        let table_name = NonEmptyString::new(table_name);
+        let meta = DmlMeta::unsequenced(span_ctx);
+        let delete = DmlDelete::new(predicate, table_name, meta);
 
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).scope("db_name")?;
@@ -38,21 +44,7 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        let del_predicate_result = parse_delete_predicate(&start_time, &stop_time, &predicate);
-        match del_predicate_result {
-            Err(_) => {
-                return Err(default_server_error_handler(Error::DeleteExpression {
-                    start_time,
-                    stop_time,
-                    predicate,
-                }))
-            }
-            Ok(del_predicate) => {
-                // execute delete
-                db.delete(&table_name, Arc::new(del_predicate))
-                    .map_err(default_db_error_handler)?;
-            }
-        }
+        db.store_delete(&delete).map_err(default_db_error_handler)?;
 
         Ok(Response::new(DeleteResponse {}))
     }

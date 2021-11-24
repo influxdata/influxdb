@@ -7,6 +7,7 @@ use crate::connection::Connection;
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::influxdata::iox::delete::v1::*;
+    pub use generated_types::influxdata::iox::predicate::v1::*;
 }
 
 /// Errors returned by [`Client::delete`]
@@ -38,7 +39,10 @@ pub enum DeleteError {
 /// #[tokio::main]
 /// # async fn main() {
 /// use influxdb_iox_client::{
-///     delete::Client,
+///     delete::{
+///         Client,
+///         generated_types::*,
+///     },
 ///     connection::Builder,
 /// };
 ///
@@ -49,14 +53,27 @@ pub enum DeleteError {
 ///
 /// let mut client = Client::new(connection);
 ///
-/// // Create a new database!
+/// // Delete some data
+/// let pred = Predicate {
+///     range: Some(TimestampRange {
+///         start: 100,
+///         end: 120,
+///     }),
+///     exprs: vec![Expr {
+///         column: String::from("region"),
+///         op: Op::Eq.into(),
+///         scalar: Some(Scalar {
+///             value: Some(scalar::Value::ValueString(
+///                 String::from("west"),
+///             )),
+///         }),
+///     }],
+/// };
 /// client
 ///     .delete(
 ///         "my_db",
 ///         "my_table",
-///         "100",
-///         "200",
-///         "A = 1",
+///         pred,
 ///     )
 ///     .await
 ///     .expect("failed to delete data");
@@ -80,23 +97,18 @@ impl Client {
         &mut self,
         db_name: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
-        start_time: impl Into<String> + Send,
-        stop_time: impl Into<String> + Send,
-        predicate: impl Into<String> + Send,
+        predicate: Predicate,
     ) -> Result<(), DeleteError> {
         let db_name = db_name.into();
         let table_name = table_name.into();
-        let start_time = start_time.into();
-        let stop_time = stop_time.into();
-        let predicate = predicate.into();
 
         self.inner
             .delete(DeleteRequest {
-                db_name,
-                table_name,
-                start_time,
-                stop_time,
-                predicate,
+                payload: Some(DeletePayload {
+                    db_name,
+                    table_name,
+                    predicate: Some(predicate),
+                }),
             })
             .await
             .map_err(|status| match status.code() {
