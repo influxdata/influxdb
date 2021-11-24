@@ -14,7 +14,6 @@ import (
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/replications/internal"
 	replicationsMock "github.com/influxdata/influxdb/v2/replications/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -90,7 +89,7 @@ var (
 		RemoteBucketID:    replication1.RemoteBucketID,
 		MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
 	}
-	httpConfig = internal.ReplicationHTTPConfig{
+	httpConfig = influxdb.ReplicationHTTPConfig{
 		RemoteURL:        fmt.Sprintf("http://%s.cloud", replication1.RemoteID),
 		RemoteToken:      replication1.RemoteID.String(),
 		RemoteOrgID:      platform.ID(888888),
@@ -291,7 +290,7 @@ func TestValidateNewReplication(t *testing.T) {
 
 			mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), tt.req.LocalBucketID).Return(nil, tt.bucketErr)
 
-			testConfig := &internal.ReplicationHTTPConfig{RemoteBucketID: tt.req.RemoteBucketID}
+			testConfig := &influxdb.ReplicationHTTPConfig{RemoteBucketID: tt.req.RemoteBucketID}
 			if tt.bucketErr == nil {
 				mocks.serviceStore.EXPECT().PopulateRemoteHTTPConfig(gomock.Any(), tt.req.RemoteID, testConfig).Return(tt.storeErr)
 			}
@@ -444,7 +443,7 @@ func TestValidateUpdatedReplication(t *testing.T) {
 	tests := []struct {
 		name                   string
 		request                influxdb.UpdateReplicationRequest
-		baseConfig             *internal.ReplicationHTTPConfig
+		baseConfig             *influxdb.ReplicationHTTPConfig
 		storeGetConfigErr      error
 		storePopulateConfigErr error
 		validatorErr           error

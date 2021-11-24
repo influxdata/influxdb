@@ -11,7 +11,6 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	influxdb "github.com/influxdata/influxdb/v2"
 	platform "github.com/influxdata/influxdb/v2/kit/platform"
-	internal "github.com/influxdata/influxdb/v2/replications/internal"
 )
 
 // MockServiceStore is a mock of ServiceStore interface.
@@ -82,10 +81,10 @@ func (mr *MockServiceStoreMockRecorder) DeleteReplication(arg0, arg1 interface{}
 }
 
 // GetFullHTTPConfig mocks base method.
-func (m *MockServiceStore) GetFullHTTPConfig(arg0 context.Context, arg1 platform.ID) (*internal.ReplicationHTTPConfig, error) {
+func (m *MockServiceStore) GetFullHTTPConfig(arg0 context.Context, arg1 platform.ID) (*influxdb.ReplicationHTTPConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetFullHTTPConfig", arg0, arg1)
-	ret0, _ := ret[0].(*internal.ReplicationHTTPConfig)
+	ret0, _ := ret[0].(*influxdb.ReplicationHTTPConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -139,7 +138,7 @@ func (mr *MockServiceStoreMockRecorder) Lock() *gomock.Call {
 }
 
 // PopulateRemoteHTTPConfig mocks base method.
-func (m *MockServiceStore) PopulateRemoteHTTPConfig(arg0 context.Context, arg1 platform.ID, arg2 *internal.ReplicationHTTPConfig) error {
+func (m *MockServiceStore) PopulateRemoteHTTPConfig(arg0 context.Context, arg1 platform.ID, arg2 *influxdb.ReplicationHTTPConfig) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PopulateRemoteHTTPConfig", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)

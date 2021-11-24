@@ -1,6 +1,9 @@
 package internal
 
 import (
+	"context"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"github.com/influxdata/influxdb/v2/replications/metrics"
+	replicationsMock "github.com/influxdata/influxdb/v2/replications/mock"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -37,38 +41,69 @@ func TestCreateNewQueueDirExists(t *testing.T) {
 func TestEnqueueScan(t *testing.T) {
 	t.Parallel()
 
-	queuePath, qm := initQueueManager(t)
-	defer os.RemoveAll(filepath.Dir(queuePath))
+	data := "weather,location=us-midwest temperature=82 1465839830100400200"
 
-	// Create new queue
-	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
-	require.NoError(t, err)
+	tests := []struct {
+		name            string
+		testData        []string
+		writeFuncReturn error
+	}{
+		{
+			name:            "single point with successful write",
+			testData:        []string{data},
+			writeFuncReturn: nil,
+		},
+		{
+			name:            "multiple points with successful write",
+			testData:        []string{data, data, data},
+			writeFuncReturn: nil,
+		},
+		{
+			name:            "single point with unsuccessful write",
+			testData:        []string{data},
+			writeFuncReturn: errors.New("some error"),
+		},
+		{
+			name:            "multiple points with unsuccessful write",
+			testData:        []string{data, data, data},
+			writeFuncReturn: errors.New("some error"),
+		},
+	}
 
-	// Enqueue some data
-	testData := "weather,location=us-midwest temperature=82 1465839830100400200"
-	qm.writeFunc = getTestWriteFunc(t, testData)
-	err = qm.EnqueueData(id1, []byte(testData), 1)
-	require.NoError(t, err)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			queuePath, qm := initQueueManager(t)
+			defer os.RemoveAll(filepath.Dir(queuePath))
 
-func TestEnqueueScanMultiple(t *testing.T) {
-	t.Parallel()
+			// Create new queue
+			err := qm.InitializeQueue(id1, maxQueueSizeBytes)
+			require.NoError(t, err)
+			rq := qm.replicationQueues[id1]
+			rq.remoteWriter = getTestRemoteWriter(t, data, tt.writeFuncReturn)
 
-	queuePath, qm := initQueueManager(t)
-	defer os.RemoveAll(filepath.Dir(queuePath))
+			// Enqueue the data
+			for _, dat := range tt.testData {
+				err = qm.EnqueueData(id1, []byte(dat), 1)
+				require.NoError(t, err)
+			}
 
-	// Create new queue
-	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
-	require.NoError(t, err)
+			// Check queue position
+			close(rq.done)
+			rq.wg.Wait()
+			scan, err := rq.queue.NewScanner()
 
-	// Enqueue some data
-	testData := "weather,location=us-midwest temperature=82 1465839830100400200"
-	qm.writeFunc = getTestWriteFunc(t, testData)
-	err = qm.EnqueueData(id1, []byte(testData), 1)
-	require.NoError(t, err)
-
-	err = qm.EnqueueData(id1, []byte(testData), 1)
-	require.NoError(t, err)
+			if tt.writeFuncReturn == nil {
+				require.ErrorIs(t, io.EOF, err)
+			} else {
+				// Queue should not have advanced at all
+				for range tt.testData {
+					require.True(t, scan.Next())
+				}
+				// Should now be at the end of the queue
+				require.False(t, scan.Next())
+			}
+		})
+	}
 }
 
 func TestCreateNewQueueDuplicateID(t *testing.T) {
@@ -274,7 +309,7 @@ func initQueueManager(t *testing.T) (string, *durableQueueManager) {
 	queuePath := filepath.Join(enginePath, "replicationq")
 
 	logger := zaptest.NewLogger(t)
-	qm := NewDurableQueueManager(logger, queuePath, metrics.NewReplicationsMetrics(), WriteFunc)
+	qm := NewDurableQueueManager(logger, queuePath, metrics.NewReplicationsMetrics(), replicationsMock.NewMockHttpConfigStore(nil))
 
 	return queuePath, qm
 }
@@ -291,12 +326,27 @@ func shutdown(t *testing.T, qm *durableQueueManager) {
 	qm.replicationQueues = emptyMap
 }
 
-func getTestWriteFunc(t *testing.T, expected string) func([]byte) error {
+type testRemoteWriter struct {
+	writeFn func(context.Context, []byte) error
+}
+
+func (tw *testRemoteWriter) Write(ctx context.Context, data []byte) error {
+	return tw.writeFn(ctx, data)
+}
+
+func getTestRemoteWriter(t *testing.T, expected string, returning error) remoteWriter {
 	t.Helper()
-	return func(b []byte) error {
+
+	writeFn := func(ctx context.Context, b []byte) error {
 		require.Equal(t, expected, string(b))
-		return nil
+		return returning
 	}
+
+	writer := &testRemoteWriter{}
+
+	writer.writeFn = writeFn
+
+	return writer
 }
 
 func TestEnqueueData(t *testing.T) {
@@ -307,7 +357,7 @@ func TestEnqueueData(t *testing.T) {
 	defer os.RemoveAll(queuePath)
 
 	logger := zaptest.NewLogger(t)
-	qm := NewDurableQueueManager(logger, queuePath, metrics.NewReplicationsMetrics(), WriteFunc)
+	qm := NewDurableQueueManager(logger, queuePath, metrics.NewReplicationsMetrics(), replicationsMock.NewMockHttpConfigStore(nil))
 
 	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
@@ -376,9 +426,7 @@ func TestEnqueueData_WithMetrics(t *testing.T) {
 	require.NoError(t, rq.queue.SetMaxSegmentSize(8))
 
 	queueSizeBefore := rq.queue.DiskUsage()
-	rq.SendWrite(func(bytes []byte) error {
-		return nil
-	})
+	rq.SendWrite()
 
 	// Ensure that the smaller queue disk size was reflected in the metrics.
 	currentBytesQueued := getPromMetric(t, "replications_queue_current_bytes_queued", reg)

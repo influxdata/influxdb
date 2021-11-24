@@ -38,7 +38,7 @@ var (
 		RemoteBucketID:    replication.RemoteBucketID,
 		MaxQueueSizeBytes: replication.MaxQueueSizeBytes,
 	}
-	httpConfig = ReplicationHTTPConfig{
+	httpConfig = influxdb.ReplicationHTTPConfig{
 		RemoteURL:        fmt.Sprintf("http://%s.cloud", replication.RemoteID),
 		RemoteToken:      replication.RemoteID.String(),
 		RemoteOrgID:      platform.ID(888888),
@@ -372,16 +372,16 @@ func TestPopulateRemoteHTTPConfig(t *testing.T) {
 	testStore, clean := newTestStore(t)
 	defer clean(t)
 
-	emptyConfig := &ReplicationHTTPConfig{}
+	emptyConfig := &influxdb.ReplicationHTTPConfig{}
 
 	// Remote not found returns the appropriate error
-	target := &ReplicationHTTPConfig{}
+	target := &influxdb.ReplicationHTTPConfig{}
 	err := testStore.PopulateRemoteHTTPConfig(ctx, replication.RemoteID, target)
 	require.Equal(t, errRemoteNotFound(replication.RemoteID, nil), err)
 	require.Equal(t, emptyConfig, target)
 
 	// Valid result
-	want := ReplicationHTTPConfig{
+	want := influxdb.ReplicationHTTPConfig{
 		RemoteURL:        httpConfig.RemoteURL,
 		RemoteToken:      httpConfig.RemoteToken,
 		RemoteOrgID:      httpConfig.RemoteOrgID,

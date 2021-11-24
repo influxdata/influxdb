@@ -181,6 +181,12 @@ func (s *Store) UpdateReplication(ctx context.Context, id platform.ID, request i
 	return &r, nil
 }
 
+// UpdateResponseInfo sets the most recent HTTP status code and error message received for a replication remote write.
+func (s *Store) UpdateResponseInfo(ctx context.Context, id platform.ID, code int, message string) error {
+	// TODO: Implement this
+	return nil
+}
+
 // DeleteReplication deletes a replication by ID from the database.  Caller is responsible for managing locks.
 func (s *Store) DeleteReplication(ctx context.Context, id platform.ID) error {
 	q := sq.Delete("replications").Where(sq.Eq{"id": id}).Suffix("RETURNING id")
@@ -217,8 +223,8 @@ func (s *Store) DeleteBucketReplications(ctx context.Context, localBucketID plat
 	return deleted, nil
 }
 
-func (s *Store) GetFullHTTPConfig(ctx context.Context, id platform.ID) (*ReplicationHTTPConfig, error) {
-	q := sq.Select("c.remote_url", "c.remote_api_token", "c.remote_org_id", "c.allow_insecure_tls", "r.remote_bucket_id").
+func (s *Store) GetFullHTTPConfig(ctx context.Context, id platform.ID) (*influxdb.ReplicationHTTPConfig, error) {
+	q := sq.Select("c.remote_url", "c.remote_api_token", "c.remote_org_id", "c.allow_insecure_tls", "r.remote_bucket_id", "r.drop_non_retryable_data").
 		From("replications r").InnerJoin("remotes c ON r.remote_id = c.id AND r.id = ?", id)
 
 	query, args, err := q.ToSql()
@@ -226,7 +232,7 @@ func (s *Store) GetFullHTTPConfig(ctx context.Context, id platform.ID) (*Replica
 		return nil, err
 	}
 
-	var rc ReplicationHTTPConfig
+	var rc influxdb.ReplicationHTTPConfig
 	if err := s.sqlStore.DB.GetContext(ctx, &rc, query, args...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errReplicationNotFound
@@ -236,7 +242,7 @@ func (s *Store) GetFullHTTPConfig(ctx context.Context, id platform.ID) (*Replica
 	return &rc, nil
 }
 
-func (s *Store) PopulateRemoteHTTPConfig(ctx context.Context, id platform.ID, target *ReplicationHTTPConfig) error {
+func (s *Store) PopulateRemoteHTTPConfig(ctx context.Context, id platform.ID, target *influxdb.ReplicationHTTPConfig) error {
 	q := sq.Select("remote_url", "remote_api_token", "remote_org_id", "allow_insecure_tls").
 		From("remotes").Where(sq.Eq{"id": id})
 	query, args, err := q.ToSql()

@@ -99,7 +99,7 @@ require (
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
 )
 
-require github.com/influxdata/influx-cli/v2 v2.1.1-0.20211007122339-c4a5a13c8ee3
+require github.com/influxdata/influx-cli/v2 v2.2.1-0.20211129214229-4c0fae3a4c0d
 
 require (
 	cloud.google.com/go v0.82.0 // indirect
@@ -137,6 +137,7 @@ require (
 	github.com/bonitoo-io/go-sql-bigquery v0.3.4-1.4.0 // indirect
 	github.com/c-bata/go-prompt v0.2.2 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
+	github.com/daixiang0/gci v0.2.8 // indirect
 	github.com/deepmap/oapi-codegen v1.6.0 // indirect
 	github.com/denisenkom/go-mssqldb v0.10.0 // indirect
 	github.com/dimchansky/utfbom v1.1.0 // indirect

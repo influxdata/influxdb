@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,18 +12,23 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
 	"github.com/influxdata/influxdb/v2/replications/metrics"
+	"github.com/influxdata/influxdb/v2/replications/remotewrite"
 	"go.uber.org/zap"
 )
 
+type remoteWriter interface {
+	Write(context.Context, []byte) error
+}
+
 type replicationQueue struct {
-	id        platform.ID
-	queue     *durablequeue.Queue
-	wg        sync.WaitGroup
-	done      chan struct{}
-	receive   chan struct{}
-	logger    *zap.Logger
-	metrics   *metrics.ReplicationsMetrics
-	writeFunc func([]byte) error
+	id           platform.ID
+	queue        *durablequeue.Queue
+	wg           sync.WaitGroup
+	done         chan struct{}
+	receive      chan struct{}
+	logger       *zap.Logger
+	metrics      *metrics.ReplicationsMetrics
+	remoteWriter remoteWriter
 }
 
 type durableQueueManager struct {
@@ -31,7 +37,7 @@ type durableQueueManager struct {
 	queuePath         string
 	mutex             sync.RWMutex
 	metrics           *metrics.ReplicationsMetrics
-	writeFunc         func([]byte) error
+	configStore       remotewrite.HttpConfigStore
 }
 
 var errStartup = errors.New("startup tasks for replications durable queue management failed, see server logs for details")
@@ -39,7 +45,7 @@ var errShutdown = errors.New("shutdown tasks for replications durable queues fai
 
 // NewDurableQueueManager creates a new durableQueueManager struct, for managing durable queues associated with
 // replication streams.
-func NewDurableQueueManager(log *zap.Logger, queuePath string, metrics *metrics.ReplicationsMetrics, writeFunc func([]byte) error) *durableQueueManager {
+func NewDurableQueueManager(log *zap.Logger, queuePath string, metrics *metrics.ReplicationsMetrics, configStore remotewrite.HttpConfigStore) *durableQueueManager {
 	replicationQueues := make(map[platform.ID]*replicationQueue)
 
 	os.MkdirAll(queuePath, 0777)
@@ -49,7 +55,7 @@ func NewDurableQueueManager(log *zap.Logger, queuePath string, metrics *metrics.
 		logger:            log,
 		queuePath:         queuePath,
 		metrics:           metrics,
-		writeFunc:         writeFunc,
+		configStore:       configStore,
 	}
 }
 
@@ -116,13 +122,6 @@ func (rq *replicationQueue) Close() error {
 	return rq.queue.Close()
 }
 
-// WriteFunc is currently a placeholder for the "default" behavior
-// of the queue scanner sending data from the durable queue to a remote host.
-func WriteFunc(b []byte) error {
-	// TODO: Add metrics updates for BytesSent, BytesDropped, and ErrorCodes
-	return nil
-}
-
 func (rq *replicationQueue) run() {
 	defer rq.wg.Done()
 
@@ -131,7 +130,7 @@ func (rq *replicationQueue) run() {
 		case <-rq.done: // end the goroutine when done is messaged
 			return
 		case <-rq.receive: // run the scanner on data append
-			for rq.SendWrite(rq.writeFunc) {
+			for rq.SendWrite() {
 			}
 		}
 	}
@@ -141,7 +140,7 @@ func (rq *replicationQueue) run() {
 // SendWrite is responsible for processing all data in the queue at the time of calling.
 // Retryable errors should be handled and retried in the dp function.
 // Unprocessable data should be dropped in the dp function.
-func (rq *replicationQueue) SendWrite(dp func([]byte) error) bool {
+func (rq *replicationQueue) SendWrite() (error bool) {
 	// Any error in creating the scanner should exit the loop in run()
 	// Either it is io.EOF indicating no data, or some other failure in making
 	// the Scanner object that we don't know how to handle.
@@ -170,7 +169,7 @@ func (rq *replicationQueue) SendWrite(dp func([]byte) error) bool {
 		// An error here indicates an unhandlable error. Data is not corrupt, and
 		// the remote write is not retryable. A potential example of an error here
 		// is an authentication error with the remote host.
-		if err = dp(scan.Bytes()); err != nil {
+		if err = rq.remoteWriter.Write(context.Background(), scan.Bytes()); err != nil {
 			rq.logger.Error("Error in replication stream", zap.Error(err))
 			return false
 		}
@@ -369,13 +368,15 @@ func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byt
 }
 
 func (qm *durableQueueManager) newReplicationQueue(id platform.ID, queue *durablequeue.Queue) *replicationQueue {
+	logger := qm.logger.With(zap.String("replication_id", id.String()))
+
 	return &replicationQueue{
-		id:        id,
-		queue:     queue,
-		done:      make(chan struct{}),
-		receive:   make(chan struct{}),
-		logger:    qm.logger.With(zap.String("replication_id", id.String())),
-		metrics:   qm.metrics,
-		writeFunc: qm.writeFunc,
+		id:           id,
+		queue:        queue,
+		done:         make(chan struct{}),
+		receive:      make(chan struct{}),
+		logger:       logger,
+		metrics:      qm.metrics,
+		remoteWriter: remotewrite.NewWriter(id, qm.configStore, qm.metrics, logger),
 	}
 }
