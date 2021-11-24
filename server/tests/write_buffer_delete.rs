@@ -23,7 +23,6 @@ use query::frontend::sql::SqlQueryPlanner;
 use regex::Regex;
 use router::router::Router;
 use router::server::RouterServer;
-use server::connection::test_helpers::TestConnectionManager;
 use server::rules::ProvidedDatabaseRules;
 use server::test_utils::{make_application, make_initialized_server};
 use server::{Db, Server};
@@ -44,7 +43,7 @@ use write_buffer::mock::MockBufferSharedState;
 struct DistributedTest {
     router: Arc<Router>,
 
-    consumer: Arc<Server<TestConnectionManager>>,
+    consumer: Arc<Server>,
     consumer_db: Arc<Db>,
 }
 

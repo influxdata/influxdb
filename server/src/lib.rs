@@ -70,7 +70,6 @@
 
 use ::lifecycle::{LockableChunk, LockablePartition};
 use async_trait::async_trait;
-use connection::ConnectionManager;
 use data_types::{
     chunk_metadata::ChunkId,
     detailed_database::ActiveDatabase,
@@ -87,7 +86,6 @@ use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
-use resolver::Resolver;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::{sync::Notify, task::JoinError};
@@ -98,14 +96,11 @@ use uuid::Uuid;
 pub use application::ApplicationState;
 pub use db::Db;
 pub use job::JobRegistry;
-pub use resolver::{GrpcConnectionString, RemoteTemplate};
 
 mod application;
-pub mod connection;
 pub mod database;
 pub mod db;
 mod job;
-mod resolver;
 
 pub mod rules;
 use rules::{PersistedDatabaseRules, ProvidedDatabaseRules};
@@ -233,8 +228,6 @@ pub trait DatabaseStore: std::fmt::Debug + Send + Sync {
 /// Configuration options for `Server`
 #[derive(Debug)]
 pub struct ServerConfig {
-    pub remote_template: Option<RemoteTemplate>,
-
     pub wipe_catalog_on_error: bool,
 
     pub skip_replay_and_seek_instead: bool,
@@ -243,7 +236,6 @@ pub struct ServerConfig {
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            remote_template: None,
             wipe_catalog_on_error: false,
             skip_replay_and_seek_instead: false,
         }
@@ -254,20 +246,15 @@ impl Default for ServerConfig {
 /// well as how they communicate with other servers. Each server will have one
 /// of these structs, which keeps track of all replication and query rules.
 #[derive(Debug)]
-pub struct Server<M: ConnectionManager> {
-    connection_manager: Arc<M>,
-
+pub struct Server {
     /// Future that resolves when the background worker exits
     join: Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>,
-
-    /// Resolver for mapping ServerId to gRPC connection strings
-    resolver: RwLock<Resolver>,
 
     /// State shared with the background worker
     shared: Arc<ServerShared>,
 }
 
-impl<M: ConnectionManager> Drop for Server<M> {
+impl Drop for Server {
     fn drop(&mut self) {
         if !self.shared.shutdown.is_cancelled() {
             warn!("server dropped without calling shutdown()");
@@ -466,15 +453,8 @@ impl ServerStateInitialized {
     }
 }
 
-impl<M> Server<M>
-where
-    M: ConnectionManager + Send + Sync,
-{
-    pub fn new(
-        connection_manager: M,
-        application: Arc<ApplicationState>,
-        config: ServerConfig,
-    ) -> Self {
+impl Server {
+    pub fn new(application: Arc<ApplicationState>, config: ServerConfig) -> Self {
         let shared = Arc::new(ServerShared {
             shutdown: Default::default(),
             application,
@@ -488,12 +468,7 @@ where
         let handle = tokio::spawn(background_worker(Arc::clone(&shared)));
         let join = handle.map_err(Arc::new).boxed().shared();
 
-        Self {
-            shared,
-            join,
-            connection_manager: Arc::new(connection_manager),
-            resolver: RwLock::new(Resolver::new(config.remote_template)),
-        }
+        Self { shared, join }
     }
 
     /// sets the id of the server, which is used for replication and the base
@@ -860,18 +835,6 @@ where
             .context(CanNotUpdateRules { db_name })?)
     }
 
-    pub fn remotes_sorted(&self) -> Vec<(ServerId, String)> {
-        self.resolver.read().remotes_sorted()
-    }
-
-    pub fn update_remote(&self, id: ServerId, addr: GrpcConnectionString) {
-        self.resolver.write().update_remote(id, addr)
-    }
-
-    pub fn delete_remote(&self, id: ServerId) -> Option<GrpcConnectionString> {
-        self.resolver.write().delete_remote(id)
-    }
-
     /// Closes a chunk and starts moving its data to the read buffer, as a
     /// background job, dropping when complete.
     pub fn close_chunk(
@@ -1115,10 +1078,7 @@ async fn maybe_initialize_server(shared: &ServerShared) {
 
 /// TODO: Revisit this trait's API
 #[async_trait]
-impl<M> DatabaseStore for Server<M>
-where
-    M: ConnectionManager + std::fmt::Debug + Send + Sync,
-{
+impl DatabaseStore for Server {
     type Database = Db;
     type Error = Error;
 
@@ -1148,10 +1108,7 @@ where
 }
 
 #[cfg(test)]
-impl<M> Server<M>
-where
-    M: ConnectionManager + Send + Sync,
-{
+impl Server {
     /// For tests:  list of database names in this server, regardless
     /// of their initialization state
     fn db_names_sorted(&self) -> Vec<String> {
@@ -1218,7 +1175,6 @@ async fn database_name_from_rules_file(
 
 pub mod test_utils {
     use super::*;
-    use crate::connection::test_helpers::TestConnectionManager;
     use object_store::ObjectStore;
 
     /// Create a new [`ApplicationState`] with an in-memory object store
@@ -1231,12 +1187,8 @@ pub mod test_utils {
     }
 
     /// Creates a new server with the provided [`ApplicationState`]
-    pub fn make_server(application: Arc<ApplicationState>) -> Arc<Server<TestConnectionManager>> {
-        Arc::new(Server::new(
-            TestConnectionManager::new(),
-            application,
-            Default::default(),
-        ))
+    pub fn make_server(application: Arc<ApplicationState>) -> Arc<Server> {
+        Arc::new(Server::new(application, Default::default()))
     }
 
     /// Creates a new server with the provided [`ApplicationState`]
@@ -1245,7 +1197,7 @@ pub mod test_utils {
     pub async fn make_initialized_server(
         server_id: ServerId,
         application: Arc<ApplicationState>,
-    ) -> Arc<Server<TestConnectionManager>> {
+    ) -> Arc<Server> {
         let server = make_server(application);
         server.set_id(server_id).unwrap();
         server.wait_for_init().await.unwrap();
@@ -1457,13 +1409,10 @@ mod tests {
         }
     }
 
-    async fn create_simple_database<M>(
-        server: &Server<M>,
+    async fn create_simple_database(
+        server: &Server,
         name: impl Into<String> + Send,
-    ) -> Result<Arc<Database>>
-    where
-        M: ConnectionManager + Send + Sync,
-    {
+    ) -> Result<Arc<Database>> {
         let name = DatabaseName::new(name.into()).unwrap();
 
         let rules = DatabaseRules {

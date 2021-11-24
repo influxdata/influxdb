@@ -2,21 +2,17 @@ use data_types::DatabaseName;
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::google::{FieldViolation, FieldViolationExt};
 use generated_types::influxdata::pbdata::v1::*;
-use server::{connection::ConnectionManager, Server};
-use std::fmt::Debug;
+use server::Server;
 use std::sync::Arc;
 
 use super::error::{default_database_write_error_handler, default_server_error_handler};
 
-struct PBWriteService<M: ConnectionManager> {
-    server: Arc<Server<M>>,
+struct PBWriteService {
+    server: Arc<Server>,
 }
 
 #[tonic::async_trait]
-impl<M> write_service_server::WriteService for PBWriteService<M>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+impl write_service_server::WriteService for PBWriteService {
     async fn write(
         &self,
         request: tonic::Request<WriteRequest>,
@@ -53,11 +49,8 @@ where
     }
 }
 
-pub fn make_server<M>(
-    server: Arc<Server<M>>,
-) -> write_service_server::WriteServiceServer<impl write_service_server::WriteService>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+pub fn make_server(
+    server: Arc<Server>,
+) -> write_service_server::WriteServiceServer<impl write_service_server::WriteService> {
     write_service_server::WriteServiceServer::new(PBWriteService { server })
 }
