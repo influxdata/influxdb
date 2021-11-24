@@ -1571,7 +1571,6 @@ dependencies = [
  "http",
  "humantime",
  "hyper",
- "influxdb2_client",
  "influxdb_iox_client",
  "influxdb_line_protocol",
  "influxdb_storage_client",

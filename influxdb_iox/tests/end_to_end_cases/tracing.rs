@@ -38,7 +38,7 @@ async fn run_sql_query(server_fixture: &ServerFixture) {
     scenario
         .create_database(&mut server_fixture.management_client())
         .await;
-    scenario.load_data(&server_fixture.influxdb2_client()).await;
+    scenario.load_data(&mut server_fixture.write_client()).await;
 
     // run a query, ensure we get traces
     let sql_query = "select * from cpu_load_short";
@@ -79,7 +79,7 @@ pub async fn test_tracing_storage_api() {
     scenario
         .create_database(&mut server_fixture.management_client())
         .await;
-    scenario.load_data(&server_fixture.influxdb2_client()).await;
+    scenario.load_data(&mut server_fixture.write_client()).await;
 
     // run a query via gRPC, ensure we get traces
     let read_source = scenario.read_source();

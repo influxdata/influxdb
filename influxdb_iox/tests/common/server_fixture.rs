@@ -79,8 +79,6 @@ impl Default for BindAddresses {
     }
 }
 
-const TOKEN: &str = "InfluxDB IOx doesn't have authentication yet";
-
 /// Represents a server that has been started and is available for
 /// testing.
 pub struct ServerFixture {
@@ -209,12 +207,6 @@ impl ServerFixture {
     /// server
     pub fn deployment_client(&self) -> influxdb_iox_client::deployment::Client {
         influxdb_iox_client::deployment::Client::new(self.grpc_channel())
-    }
-
-    /// Return an a http client suitable suitable for communicating with this
-    /// server
-    pub fn influxdb2_client(&self) -> influxdb2_client::Client {
-        influxdb2_client::Client::new(self.http_base(), TOKEN)
     }
 
     /// Return a management client suitable for communicating with this
