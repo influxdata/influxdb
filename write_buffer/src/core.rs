@@ -285,7 +285,9 @@ pub mod test_utils {
         let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
         assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
 
-        // re-creating stream after reading remembers offset
+        // re-creating stream after reading remembers offset, but wait a bit to provoke the stream to buffer some
+        // entries
+        tokio::time::sleep(Duration::from_millis(10)).await;
         drop(stream);
         drop(streams);
         let mut streams = reader.streams();
