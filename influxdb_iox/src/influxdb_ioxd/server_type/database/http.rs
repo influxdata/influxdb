@@ -11,33 +11,28 @@
 //! database names and may remove this quasi /v2 API.
 
 // Influx crates
-use data_types::{
-    names::{org_and_bucket_to_database, OrgBucketMappingError},
-    DatabaseName,
-};
+use data_types::{names::OrgBucketMappingError, DatabaseName};
 use influxdb_iox_client::format::QueryOutputFormat;
-use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use query::exec::ExecutionContextProvider;
 use server::{connection::ConnectionManager, Error};
 
 // External crates
 use async_trait::async_trait;
 use http::header::CONTENT_TYPE;
-use hyper::{Body, Method, Request, Response, StatusCode};
+use hyper::{Body, Method, Request, Response};
 use observability_deps::tracing::{debug, error};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use crate::influxdb_ioxd::{
     http::{
+        dml::{HttpDrivenDml, InnerDmlError, RequestOrResponse},
         error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
         metrics::LineProtocolMetrics,
-        utils::parse_body,
-        write::{HttpDrivenWrite, InnerWriteError, RequestOrResponse, WriteInfo},
     },
     planner::Planner,
 };
-use dml::DmlWrite;
+use dml::DmlOperation;
 use std::{
     fmt::Debug,
     str::{self, FromStr},
@@ -67,27 +62,6 @@ pub enum ApplicationError {
     InvalidQueryString {
         query_string: String,
         source: serde_urlencoded::de::Error,
-    },
-
-    #[snafu(display("Error reading request body as utf8: {}", source))]
-    ReadingBodyAsUtf8 { source: std::str::Utf8Error },
-
-    #[snafu(display("Error parsing delete {}: {}", input, source))]
-    ParsingDelete {
-        source: predicate::delete_predicate::Error,
-        input: String,
-    },
-
-    #[snafu(display("Error building delete predicate {}: {}", input, source))]
-    BuildingDeletePredicate {
-        source: predicate::delete_predicate::Error,
-        input: String,
-    },
-
-    #[snafu(display("Error executing delete {}: {}", input, source))]
-    ExecutingDelete {
-        source: server::db::Error,
-        input: String,
     },
 
     #[snafu(display("No handler for {:?} {}", method, path))]
@@ -139,14 +113,9 @@ pub enum ApplicationError {
     #[snafu(display("Internal server error"))]
     InternalServerError,
 
-    #[snafu(display("Cannot parse body: {}", source))]
-    ParseBody {
-        source: crate::influxdb_ioxd::http::utils::ParseBodyError,
-    },
-
-    #[snafu(display("Cannot write data: {}", source))]
-    WriteError {
-        source: crate::influxdb_ioxd::http::write::HttpWriteError,
+    #[snafu(display("Cannot perform DML operation: {}", source))]
+    DmlError {
+        source: crate::influxdb_ioxd::http::dml::HttpDmlError,
     },
 }
 
@@ -159,10 +128,6 @@ impl HttpApiErrorSource for ApplicationError {
             e @ Self::Query { .. } => e.internal_error(),
             e @ Self::ExpectedQueryString { .. } => e.invalid(),
             e @ Self::InvalidQueryString { .. } => e.invalid(),
-            e @ Self::ReadingBodyAsUtf8 { .. } => e.invalid(),
-            e @ Self::ParsingDelete { .. } => e.invalid(),
-            e @ Self::BuildingDeletePredicate { .. } => e.invalid(),
-            e @ Self::ExecutingDelete { .. } => e.invalid(),
             e @ Self::RouteNotFound { .. } => e.not_found(),
             e @ Self::DatabaseNameError { .. } => e.invalid(),
             e @ Self::DatabaseNotFound { .. } => e.not_found(),
@@ -174,8 +139,7 @@ impl HttpApiErrorSource for ApplicationError {
             e @ Self::ServerNotInitialized => e.invalid(),
             e @ Self::DatabaseNotInitialized { .. } => e.invalid(),
             e @ Self::InternalServerError => e.internal_error(),
-            Self::ParseBody { source } => source.to_http_api_error(),
-            Self::WriteError { source } => source.to_http_api_error(),
+            Self::DmlError { source } => source.to_http_api_error(),
         }
     }
 }
@@ -198,7 +162,7 @@ impl From<server::Error> for ApplicationError {
 }
 
 #[async_trait]
-impl<M> HttpDrivenWrite for DatabaseServerType<M>
+impl<M> HttpDrivenDml for DatabaseServerType<M>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
@@ -213,19 +177,47 @@ where
     async fn write(
         &self,
         db_name: &DatabaseName<'_>,
-        write: DmlWrite,
-    ) -> Result<(), InnerWriteError> {
-        self.server
-            .write(db_name, write)
-            .await
-            .map_err(|e| match e {
-                server::Error::DatabaseNotFound { .. } => InnerWriteError::NotFound {
-                    db_name: db_name.to_string(),
-                },
-                e => InnerWriteError::OtherError {
-                    source: Box::new(e),
-                },
-            })
+        op: DmlOperation,
+    ) -> Result<(), InnerDmlError> {
+        match op {
+            DmlOperation::Write(write) => {
+                self.server
+                    .write(db_name, write)
+                    .await
+                    .map_err(|e| match e {
+                        server::Error::DatabaseNotFound { .. } => InnerDmlError::DatabaseNotFound {
+                            db_name: db_name.to_string(),
+                        },
+                        e => InnerDmlError::InternalError {
+                            db_name: db_name.to_string(),
+                            source: Box::new(e),
+                        },
+                    })
+            }
+            DmlOperation::Delete(delete) => {
+                let db = self
+                    .server
+                    .db(db_name)
+                    .map_err(|_| InnerDmlError::DatabaseNotFound {
+                        db_name: db_name.to_string(),
+                    })?;
+
+                db.store_delete(&delete).map_err(|e| match e {
+                    server::db::Error::DeleteFromTable { table_name, .. } => {
+                        InnerDmlError::TableNotFound {
+                            db_name: db_name.to_string(),
+                            table_name,
+                        }
+                    }
+                    e => InnerDmlError::InternalError {
+                        db_name: db_name.to_string(),
+                        source: Box::new(e),
+                    },
+                })?;
+
+                Ok(())
+            }
+        }
     }
 }
 
@@ -237,9 +229,9 @@ where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     match server_type
-        .route_write_http_request(req)
+        .route_dml_http_request(req)
         .await
-        .context(WriteError)?
+        .context(DmlError)?
     {
         RequestOrResponse::Response(resp) => Ok(resp),
         RequestOrResponse::Request(req) => {
@@ -247,7 +239,6 @@ where
             let uri = req.uri().clone();
 
             match (method.clone(), uri.path()) {
-                (Method::POST, "/api/v2/delete") => delete(req, server_type).await,
                 (Method::GET, "/api/v3/query") => query(req, server_type).await,
 
                 (method, path) => Err(ApplicationError::RouteNotFound {
@@ -257,73 +248,6 @@ where
             }
         }
     }
-}
-
-async fn delete<M>(
-    req: Request<Body>,
-    server_type: &DatabaseServerType<M>,
-) -> Result<Response<Body>, ApplicationError>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
-    let DatabaseServerType {
-        server,
-        max_request_size,
-        ..
-    } = server_type;
-    let max_request_size = *max_request_size;
-    let server = Arc::clone(server);
-
-    // Extract the DB name from the request
-    // db_name = orrID_bucketID
-    let query = req.uri().query().context(ExpectedQueryString)?;
-    let delete_info: WriteInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
-        query_string: String::from(query),
-    })?;
-    let db_name = org_and_bucket_to_database(&delete_info.org, &delete_info.bucket)
-        .context(BucketMappingError)?;
-
-    // Parse body
-    let body = parse_body(req, max_request_size).await.context(ParseBody)?;
-    let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
-
-    // Parse and extract table name (which can be empty), start, stop, and predicate
-    let parsed_delete = parse_http_delete_request(body).context(ParsingDelete { input: body })?;
-
-    let table_name = parsed_delete.table_name;
-    let predicate = parsed_delete.predicate;
-    let start = parsed_delete.start_time;
-    let stop = parsed_delete.stop_time;
-    debug!(%table_name, %predicate, %start, %stop, body_size=body.len(), %db_name, org=%delete_info.org, bucket=%delete_info.bucket, "delete data from database");
-
-    // Validate that the database name is legit
-    let db = server.db(&db_name)?;
-
-    // Build delete predicate
-    let del_predicate = parse_delete_predicate(&start, &stop, &predicate)
-        .context(BuildingDeletePredicate { input: body })?;
-
-    // Tables data will be deleted from
-    // Note for developer:  this the only place we support INFLUX DELETE that deletes
-    // data from many tables in one command. If you want to use general delete API to
-    // delete data from a specified table, use the one in the management API (src/influxdb_ioxd/rpc/management.rs) instead
-    let mut tables = vec![];
-    if table_name.is_empty() {
-        tables = db.table_names();
-    } else {
-        tables.push(table_name);
-    }
-
-    // Execute delete
-    for table in tables {
-        db.delete(&table, Arc::new(del_predicate.clone()))
-            .context(ExecutingDelete { input: body })?;
-    }
-
-    Ok(Response::builder()
-        .status(StatusCode::NO_CONTENT)
-        .body(Body::empty())
-        .unwrap())
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
@@ -390,13 +314,14 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 mod tests {
     use crate::influxdb_ioxd::{
         http::{
+            dml::test_utils::{
+                assert_delete_bad_request, assert_delete_unknown_database,
+                assert_delete_unknown_table, assert_gzip_write, assert_write, assert_write_metrics,
+                assert_write_to_invalid_database,
+            },
             test_utils::{
                 assert_health, assert_metrics, assert_tracing, check_response, get_content_type,
                 TestServer,
-            },
-            write::test_utils::{
-                assert_gzip_write, assert_write, assert_write_metrics,
-                assert_write_to_invalid_database,
             },
         },
         server_type::common_state::CommonServerState,
@@ -407,6 +332,8 @@ mod tests {
 
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
+    use dml::DmlWrite;
+    use http::StatusCode;
     use reqwest::Client;
 
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
@@ -581,48 +508,21 @@ mod tests {
             "+----------------+--------------+-------+-----------------+----------------------+",
         ];
         assert_batches_eq!(expected, &batches);
+    }
 
-        // -------------------
-        // negative tests
-        // Not able to parse _measurement="not_a_table"  (it must be _measurement=\"not_a_table\" to work)
-        let delete_line = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement="not_a_table" and location=Boston"}"#;
-        let response = client
-            .post(&format!(
-                "{}/api/v2/delete?bucket={}&org={}",
-                test_server.url(),
-                bucket_name,
-                org_name
-            ))
-            .body(delete_line)
-            .send()
-            .await;
-        check_response(
-            "delete",
-            response,
-            StatusCode::BAD_REQUEST,
-            Some("Unable to parse delete string"),
-        )
-        .await;
+    #[tokio::test]
+    async fn test_delete_unknown_database() {
+        assert_delete_unknown_database(setup_server().await).await;
+    }
 
-        // delete from non-existing table
-        let delete_line = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=not_a_table and location=Boston"}"#;
-        let response = client
-            .post(&format!(
-                "{}/api/v2/delete?bucket={}&org={}",
-                test_server.url(),
-                bucket_name,
-                org_name
-            ))
-            .body(delete_line)
-            .send()
-            .await;
-        check_response(
-            "delete",
-            response,
-            StatusCode::BAD_REQUEST,
-            Some("Cannot delete data from non-existing table"),
-        )
-        .await;
+    #[tokio::test]
+    async fn test_delete_unknown_table() {
+        assert_delete_unknown_table(setup_server().await).await;
+    }
+
+    #[tokio::test]
+    async fn test_delete_bad_request() {
+        assert_delete_bad_request(setup_server().await).await;
     }
 
     /// Sets up a test database with some data for testing the query endpoint

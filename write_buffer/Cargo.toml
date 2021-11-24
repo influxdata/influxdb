@@ -22,6 +22,7 @@ prost = "0.8"
 rdkafka = "0.27.0"
 time = { path = "../time" }
 tokio = { version = "1.13", features = ["macros", "fs"] }
+tokio-util = "0.6.9"
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
 uuid = { version = "0.8", features = ["serde", "v4"] }
