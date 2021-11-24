@@ -590,15 +590,13 @@ pub async fn list_chunks(fixture: &ServerFixture, db_name: &str) -> Vec<ChunkSum
 
 /// Creates a database with a broken catalog
 pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
-    let server_id = DEFAULT_SERVER_ID;
-
     let test_config =
         TestConfig::new(ServerType::Database).with_env("INFLUXDB_IOX_WIPE_CATALOG_ON_ERROR", "no");
 
     let fixture = ServerFixture::create_single_use_with_config(test_config).await;
     fixture
-        .management_client()
-        .update_server_id(server_id)
+        .deployment_client()
+        .update_server_id(NonZeroU32::new(DEFAULT_SERVER_ID).unwrap())
         .await
         .unwrap();
     fixture.wait_server_initialized().await;
@@ -647,15 +645,13 @@ pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
 
 /// Creates a database that cannot be replayed
 pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> ServerFixture {
-    let server_id = DEFAULT_SERVER_ID;
-
     let test_config =
         TestConfig::new(ServerType::Database).with_env("INFLUXDB_IOX_SKIP_REPLAY", "no");
 
     let fixture = ServerFixture::create_single_use_with_config(test_config).await;
     fixture
-        .management_client()
-        .update_server_id(server_id)
+        .deployment_client()
+        .update_server_id(NonZeroU32::new(DEFAULT_SERVER_ID).unwrap())
         .await
         .unwrap();
     fixture.wait_server_initialized().await;

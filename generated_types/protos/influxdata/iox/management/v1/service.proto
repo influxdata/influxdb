@@ -10,27 +10,6 @@ import "influxdata/iox/management/v1/chunk.proto";
 import "influxdata/iox/management/v1/partition.proto";
 
 service ManagementService {
-  // Get server ID.
-  //
-  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
-  rpc GetServerId(GetServerIdRequest) returns (GetServerIdResponse) {
-    option deprecated = true;
-  };
-
-  // Update server ID.
-  //
-  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
-  rpc UpdateServerId(UpdateServerIdRequest) returns (UpdateServerIdResponse) {
-    option deprecated = true;
-  };
-
-  // Set serving readiness.
-  //
-  // This call is deprecated, see <https://github.com/influxdata/influxdb_iox/issues/2980>.
-  rpc SetServingReadiness(SetServingReadinessRequest) returns (SetServingReadinessResponse) {
-    option deprecated = true;
-  };
-
   // List all databases on this server.
   //
   // Roughly follows the <https://google.aip.dev/132> pattern, except we wrap the response
@@ -127,27 +106,6 @@ service ManagementService {
   // Drop partition from memory and (if persisted) from object store.
   rpc DropPartition(DropPartitionRequest) returns (DropPartitionResponse);
 }
-
-message GetServerIdRequest {}
-
-message GetServerIdResponse {
-  // Must be non-zero
-  uint32 id = 1;
-}
-
-message UpdateServerIdRequest {
-  // Must be non-zero
-  uint32 id = 1;
-}
-
-message UpdateServerIdResponse {}
-
-message SetServingReadinessRequest {
-  // If false, the IOx server will respond with UNAVAILABLE to all data plane requests.
-  bool ready = 1;
-}
-
-message SetServingReadinessResponse {}
 
 message ListDatabasesRequest {
   // If true, returns only explicitly defined values. See additional

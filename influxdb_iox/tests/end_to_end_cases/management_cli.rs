@@ -52,7 +52,7 @@ async fn test_server_id() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("id already set"));
+        .stderr(predicate::str::contains("ID already set"));
 }
 
 #[tokio::test]

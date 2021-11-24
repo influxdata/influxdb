@@ -14,49 +14,17 @@ use uuid::Uuid;
 struct ManagementService<M: ConnectionManager> {
     application: Arc<ApplicationState>,
     server: Arc<Server<M>>,
-    serving_readiness: ServingReadiness,
 }
 
 use super::error::{
     default_database_error_handler, default_db_error_handler, default_server_error_handler,
 };
-use crate::influxdb_ioxd::serving_readiness::ServingReadiness;
 
 #[tonic::async_trait]
 impl<M> management_service_server::ManagementService for ManagementService<M>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    async fn get_server_id(
-        &self,
-        _: Request<GetServerIdRequest>,
-    ) -> Result<Response<GetServerIdResponse>, Status> {
-        match self.server.server_id() {
-            Some(id) => Ok(Response::new(GetServerIdResponse { id: id.get_u32() })),
-            None => return Err(NotFound::default().into()),
-        }
-    }
-
-    async fn update_server_id(
-        &self,
-        request: Request<UpdateServerIdRequest>,
-    ) -> Result<Response<UpdateServerIdResponse>, Status> {
-        let id =
-            ServerId::try_from(request.get_ref().id).map_err(|_| FieldViolation::required("id"))?;
-
-        match self.server.set_id(id) {
-            Ok(_) => Ok(Response::new(UpdateServerIdResponse {})),
-            Err(e @ Error::IdAlreadySet) => {
-                return Err(FieldViolation {
-                    field: "id".to_string(),
-                    description: e.to_string(),
-                }
-                .into())
-            }
-            Err(e) => Err(default_server_error_handler(e)),
-        }
-    }
-
     async fn list_databases(
         &self,
         request: Request<ListDatabasesRequest>,
@@ -457,15 +425,6 @@ where
         Ok(Response::new(UnloadPartitionChunkResponse {}))
     }
 
-    async fn set_serving_readiness(
-        &self,
-        request: Request<SetServingReadinessRequest>,
-    ) -> Result<Response<SetServingReadinessResponse>, Status> {
-        let SetServingReadinessRequest { ready } = request.into_inner();
-        self.serving_readiness.set(ready.into());
-        Ok(Response::new(SetServingReadinessResponse {}))
-    }
-
     async fn get_server_status(
         &self,
         _request: Request<GetServerStatusRequest>,
@@ -617,7 +576,6 @@ fn format_rules(provided_rules: Arc<ProvidedDatabaseRules>, omit_defaults: bool)
 pub fn make_server<M>(
     application: Arc<ApplicationState>,
     server: Arc<Server<M>>,
-    serving_readiness: ServingReadiness,
 ) -> management_service_server::ManagementServiceServer<
     impl management_service_server::ManagementService,
 >
@@ -627,6 +585,5 @@ where
     management_service_server::ManagementServiceServer::new(ManagementService {
         application,
         server,
-        serving_readiness,
     })
 }

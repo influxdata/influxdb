@@ -1,9 +1,13 @@
 //! Implementation of command line option for manipulating and showing server
 //! config
 
-use std::time::{Duration, Instant};
+use std::{
+    num::NonZeroU32,
+    time::{Duration, Instant},
+};
 
 use crate::commands::server_remote;
+use influxdb_iox_client::{connection::Connection, deployment, management};
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -14,13 +18,13 @@ pub enum Error {
     RemoteError(#[from] server_remote::Error),
 
     #[error("Error getting server ID: {0}")]
-    GetServerIdError(#[from] GetServerIdError),
+    GetServerIdError(#[from] deployment::GetServerIdError),
 
     #[error("Error updating server ID: {0}")]
-    UpdateServerIdError(#[from] UpdateServerIdError),
+    UpdateServerIdError(#[from] deployment::UpdateServerIdError),
 
     #[error("Error checking if databases are loded: {0}")]
-    AreDatabasesLoadedError(#[from] GetServerStatusError),
+    AreDatabasesLoadedError(#[from] management::GetServerStatusError),
 
     #[error("Timeout waiting for databases to be loaded")]
     TimeoutDatabasesLoaded,
@@ -53,7 +57,7 @@ enum Command {
 #[derive(Debug, StructOpt)]
 struct Set {
     /// The server ID to set
-    id: u32,
+    id: NonZeroU32,
 }
 
 /// Wait until server is initialized.
@@ -64,24 +68,22 @@ struct WaitSeverInitialized {
     timeout: u64,
 }
 
-use influxdb_iox_client::{connection::Connection, management::*};
-
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
     match config.command {
         Command::Set(command) => {
-            let mut client = Client::new(connection);
+            let mut client = deployment::Client::new(connection);
             client.update_server_id(command.id).await?;
             println!("Ok");
             Ok(())
         }
         Command::Get => {
-            let mut client = Client::new(connection);
+            let mut client = deployment::Client::new(connection);
             let id = client.get_server_id().await?;
-            println!("{}", id);
+            println!("{}", id.get());
             Ok(())
         }
         Command::WaitServerInitialized(command) => {
-            let mut client = Client::new(connection);
+            let mut client = management::Client::new(connection);
             let end = Instant::now() + Duration::from_secs(command.timeout);
             loop {
                 let status = client.get_server_status().await?;

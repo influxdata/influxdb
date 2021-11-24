@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use super::scenario::{collect_query, Scenario};
 use crate::common::{
     server_fixture::{ServerFixture, ServerType, TestConfig},
@@ -21,9 +23,12 @@ async fn setup() -> (UdpCapture, ServerFixture) {
 
     let server_fixture = ServerFixture::create_single_use_with_config(test_config).await;
 
-    let mut management_client = server_fixture.management_client();
+    let mut deployment_client = server_fixture.deployment_client();
 
-    management_client.update_server_id(1).await.unwrap();
+    deployment_client
+        .update_server_id(NonZeroU32::new(1).unwrap())
+        .await
+        .unwrap();
     server_fixture.wait_server_initialized().await;
 
     (udp_capture, server_fixture)
@@ -127,9 +132,12 @@ pub async fn test_tracing_create_trace() {
 
     let server_fixture = ServerFixture::create_single_use_with_config(test_config).await;
 
-    let mut management_client = server_fixture.management_client();
+    let mut deployment_client = server_fixture.deployment_client();
 
-    management_client.update_server_id(1).await.unwrap();
+    deployment_client
+        .update_server_id(NonZeroU32::new(1).unwrap())
+        .await
+        .unwrap();
     server_fixture.wait_server_initialized().await;
 
     run_sql_query(&server_fixture).await;

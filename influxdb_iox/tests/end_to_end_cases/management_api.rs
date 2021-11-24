@@ -8,9 +8,8 @@ use generated_types::{
 use influxdb_iox_client::{
     management::{Client, CreateDatabaseError},
     router::generated_types::{write_buffer_connection, WriteBufferConnection},
-    write::WriteError,
 };
-use std::{fs::set_permissions, os::unix::fs::PermissionsExt};
+use std::{fs::set_permissions, num::NonZeroU32, os::unix::fs::PermissionsExt};
 use test_helpers::assert_contains;
 
 use super::scenario::{
@@ -23,42 +22,7 @@ use crate::{
     },
 };
 use std::time::Instant;
-use tonic::Code;
 use uuid::Uuid;
-
-#[tokio::test]
-async fn test_serving_readiness() {
-    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut mgmt_client = server_fixture.management_client();
-    let mut write_client = server_fixture.write_client();
-
-    let name = "foo";
-    let lp_data = "bar baz=1 10";
-
-    mgmt_client
-        .update_server_id(42)
-        .await
-        .expect("set ID failed");
-    server_fixture.wait_server_initialized().await;
-    mgmt_client
-        .create_database(DatabaseRules {
-            name: name.to_string(),
-            ..Default::default()
-        })
-        .await
-        .expect("create database failed");
-
-    mgmt_client.set_serving_readiness(false).await.unwrap();
-    let err = write_client.write_lp(name, lp_data, 0).await.unwrap_err();
-    assert!(
-        matches!(&err, WriteError::ServerError(status) if status.code() == Code::Unavailable),
-        "{}",
-        &err
-    );
-
-    mgmt_client.set_serving_readiness(true).await.unwrap();
-    write_client.write_lp(name, lp_data, 0).await.unwrap();
-}
 
 #[tokio::test]
 async fn test_list_update_remotes() {
@@ -118,23 +82,6 @@ async fn test_list_update_remotes() {
     assert_eq!(res.len(), 1);
     assert_eq!(res[0].id, TEST_REMOTE_ID_2);
     assert_eq!(res[0].connection_string, TEST_REMOTE_ADDR_2_UPDATED);
-}
-
-#[tokio::test]
-async fn test_set_get_writer_id() {
-    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut client = server_fixture.management_client();
-
-    const TEST_ID: u32 = 42;
-
-    client
-        .update_server_id(TEST_ID)
-        .await
-        .expect("set ID failed");
-
-    let got = client.get_server_id().await.expect("get ID failed");
-
-    assert_eq!(got.get(), TEST_ID);
 }
 
 #[tokio::test]
@@ -1229,24 +1176,28 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
 #[tokio::test]
 async fn test_get_server_status_ok() {
     let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut client = server_fixture.management_client();
+    let mut deployment_client = server_fixture.deployment_client();
+    let mut management_client = server_fixture.management_client();
 
     // not initalized
-    let status = client.get_server_status().await.unwrap();
+    let status = management_client.get_server_status().await.unwrap();
     assert!(!status.initialized);
 
     // initialize
-    client.update_server_id(42).await.expect("set ID failed");
+    deployment_client
+        .update_server_id(NonZeroU32::new(42).unwrap())
+        .await
+        .expect("set ID failed");
     server_fixture.wait_server_initialized().await;
 
     // now initalized
-    let status = client.get_server_status().await.unwrap();
+    let status = management_client.get_server_status().await.unwrap();
     assert!(status.initialized);
 
     // create DBs
     let db_name1 = rand_name();
     let db_name2 = rand_name();
-    client
+    management_client
         .create_database(DatabaseRules {
             name: db_name1.clone(),
             ..Default::default()
@@ -1254,7 +1205,7 @@ async fn test_get_server_status_ok() {
         .await
         .expect("create database failed");
 
-    client
+    management_client
         .create_database(DatabaseRules {
             name: db_name2.clone(),
             ..Default::default()
@@ -1269,7 +1220,7 @@ async fn test_get_server_status_ok() {
     } else {
         (db_name2, db_name1)
     };
-    let status = client.get_server_status().await.unwrap();
+    let status = management_client.get_server_status().await.unwrap();
     let names: Vec<_> = status
         .database_statuses
         .iter()
@@ -1296,7 +1247,8 @@ async fn test_get_server_status_ok() {
 #[tokio::test]
 async fn test_get_server_status_global_error() {
     let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut client = server_fixture.management_client();
+    let mut deployment_client = server_fixture.deployment_client();
+    let mut management_client = server_fixture.management_client();
 
     // we need to "break" the object store AFTER the server was started, otherwise the server
     // process will exit immediately
@@ -1306,13 +1258,16 @@ async fn test_get_server_status_global_error() {
     set_permissions(server_fixture.dir(), permissions).unwrap();
 
     // setup server
-    client.update_server_id(42).await.expect("set ID failed");
+    deployment_client
+        .update_server_id(NonZeroU32::new(42).unwrap())
+        .await
+        .expect("set ID failed");
 
     let check = async {
         let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
 
         loop {
-            let status = client.get_server_status().await.unwrap();
+            let status = management_client.get_server_status().await.unwrap();
             if let Some(err) = status.error {
                 assert!(dbg!(err.message)
                     .starts_with("error getting server config from object storage:"));
@@ -1330,7 +1285,8 @@ async fn test_get_server_status_global_error() {
 #[tokio::test]
 async fn test_get_server_status_db_error() {
     let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut client = server_fixture.management_client();
+    let mut deployment_client = server_fixture.deployment_client();
+    let mut management_client = server_fixture.management_client();
 
     // Valid content of the owner.pb file
     let owner_info = OwnerInfo {
@@ -1375,11 +1331,14 @@ async fn test_get_server_status_db_error() {
     std::fs::write(path, encoded).unwrap();
 
     // initialize
-    client.update_server_id(42).await.expect("set ID failed");
+    deployment_client
+        .update_server_id(NonZeroU32::new(42).unwrap())
+        .await
+        .expect("set ID failed");
     server_fixture.wait_server_initialized().await;
 
     // check for errors
-    let status = client.get_server_status().await.unwrap();
+    let status = management_client.get_server_status().await.unwrap();
     assert!(status.initialized);
     assert_eq!(status.error, None);
     assert_eq!(status.database_statuses.len(), 1);
