@@ -35,7 +35,7 @@ case "$(uname -s)" in
         echo "$(cat sha256.txt)" | sha256sum --check -- \
             || { echo "Checksums did not match for downloaded UI assets!"; exit 1; } ;;
     *)
-        echo "The '$(uname -s)' operating system is not supported" >&2
+        echo "The '$(uname -s)' operating system is not supported as a build host for the UI" >&2
         exit 1
 esac
 
