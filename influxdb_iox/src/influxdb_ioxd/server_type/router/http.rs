@@ -2,14 +2,14 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use data_types::DatabaseName;
-use dml::{DmlOperation, DmlWrite};
+use dml::DmlOperation;
 use hyper::{Body, Method, Request, Response};
 use snafu::{ResultExt, Snafu};
 
 use crate::influxdb_ioxd::http::{
+    dml::{HttpDrivenDml, InnerDmlError, RequestOrResponse},
     error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
     metrics::LineProtocolMetrics,
-    write::{HttpDrivenWrite, InnerWriteError, RequestOrResponse},
 };
 
 use super::RouterServerType;
@@ -21,7 +21,7 @@ pub enum ApplicationError {
 
     #[snafu(display("Cannot write data: {}", source))]
     WriteError {
-        source: crate::influxdb_ioxd::http::write::HttpWriteError,
+        source: crate::influxdb_ioxd::http::dml::HttpDmlError,
     },
 }
 
@@ -35,7 +35,7 @@ impl HttpApiErrorSource for ApplicationError {
 }
 
 #[async_trait]
-impl HttpDrivenWrite for RouterServerType {
+impl HttpDrivenDml for RouterServerType {
     fn max_request_size(&self) -> usize {
         self.max_request_size
     }
@@ -47,15 +47,17 @@ impl HttpDrivenWrite for RouterServerType {
     async fn write(
         &self,
         db_name: &DatabaseName<'_>,
-        write: DmlWrite,
-    ) -> Result<(), InnerWriteError> {
+        op: DmlOperation,
+    ) -> Result<(), InnerDmlError> {
         match self.server.router(db_name) {
-            Some(router) => router.write(DmlOperation::Write(write)).await.map_err(|e| {
-                InnerWriteError::OtherError {
+            Some(router) => router
+                .write(op)
+                .await
+                .map_err(|e| InnerDmlError::InternalError {
+                    db_name: db_name.to_string(),
                     source: Box::new(e),
-                }
-            }),
-            None => Err(InnerWriteError::NotFound {
+                }),
+            None => Err(InnerDmlError::DatabaseNotFound {
                 db_name: db_name.to_string(),
             }),
         }
@@ -68,7 +70,7 @@ pub async fn route_request(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
     match server_type
-        .route_write_http_request(req)
+        .route_dml_http_request(req)
         .await
         .context(WriteError)?
     {
@@ -84,18 +86,26 @@ pub async fn route_request(
 mod tests {
     use std::{collections::BTreeMap, sync::Arc};
 
-    use data_types::server_id::ServerId;
-    use dml::DmlOperation;
+    use data_types::{
+        delete_predicate::{DeleteExpr, DeletePredicate},
+        server_id::ServerId,
+        timestamp::TimestampRange,
+    };
+    use dml::{DmlDelete, DmlMeta, DmlOperation};
+    use http::StatusCode;
+    use reqwest::Client;
     use router::{grpc_client::MockClient, resolver::RemoteTemplate, server::RouterServer};
     use time::SystemProvider;
     use trace::RingBufferTraceCollector;
 
     use crate::influxdb_ioxd::{
         http::{
-            test_utils::{assert_health, assert_metrics, assert_tracing, TestServer},
-            write::test_utils::{
-                assert_gzip_write, assert_write, assert_write_metrics,
-                assert_write_to_invalid_database,
+            dml::test_utils::{
+                assert_delete_bad_request, assert_delete_unknown_database, assert_gzip_write,
+                assert_write, assert_write_metrics, assert_write_to_invalid_database,
+            },
+            test_utils::{
+                assert_health, assert_metrics, assert_tracing, check_response, TestServer,
             },
         },
         server_type::common_state::CommonServerState,
@@ -140,6 +150,52 @@ mod tests {
     #[tokio::test]
     async fn test_write_to_invalid_database() {
         assert_write_to_invalid_database(test_server().await).await;
+    }
+
+    #[tokio::test]
+    async fn test_delete() {
+        // Set up server
+        let test_server = test_server().await;
+
+        // Set up client
+        let client = Client::new();
+        let bucket_name = "MyBucket";
+        let org_name = "MyOrg";
+
+        // Client requests to delete data
+        let delete_line = r#"{"start":"1","stop":"2", "predicate":"foo=1"}"#;
+        let response = client
+            .post(&format!(
+                "{}/api/v2/delete?bucket={}&org={}",
+                test_server.url(),
+                bucket_name,
+                org_name
+            ))
+            .body(delete_line)
+            .send()
+            .await;
+        check_response("delete", response, StatusCode::NO_CONTENT, Some("")).await;
+
+        let predicate = DeletePredicate {
+            range: TimestampRange { start: 1, end: 2 },
+            exprs: vec![DeleteExpr {
+                column: String::from("foo"),
+                op: data_types::delete_predicate::Op::Eq,
+                scalar: data_types::delete_predicate::Scalar::I64(1),
+            }],
+        };
+        let delete = DmlDelete::new(predicate, None, DmlMeta::unsequenced(None));
+        assert_dbwrite(test_server, DmlOperation::Delete(delete)).await;
+    }
+
+    #[tokio::test]
+    async fn test_delete_unknown_database() {
+        assert_delete_unknown_database(test_server().await).await;
+    }
+
+    #[tokio::test]
+    async fn test_delete_bad_request() {
+        assert_delete_bad_request(test_server().await).await;
     }
 
     async fn test_server() -> TestServer<RouterServerType> {
