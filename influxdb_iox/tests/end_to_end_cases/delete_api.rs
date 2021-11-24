@@ -65,11 +65,19 @@ async fn test_delete_on_database() {
 
     // Delete some data
     let table = "cpu";
-    let start = "100";
-    let stop = "120";
-    let pred = "region = west";
-    let _del = delete_client
-        .delete(db_name.clone(), table, start, stop, pred)
+    let pred = DeletePredicate {
+        range: TimestampRange {
+            start: 100,
+            end: 120,
+        },
+        exprs: vec![DeleteExpr {
+            column: String::from("region"),
+            op: data_types::delete_predicate::Op::Eq,
+            scalar: data_types::delete_predicate::Scalar::String(String::from("west")),
+        }],
+    };
+    delete_client
+        .delete(db_name.clone(), table, pred.clone().into())
         .await
         .unwrap();
 
@@ -115,11 +123,8 @@ async fn test_delete_on_database() {
 
     // Delete from non-existing table
     let table = "notable";
-    let start = "100";
-    let stop = "120";
-    let pred = "region = west";
     let del = delete_client
-        .delete(db_name.clone(), table, start, stop, pred)
+        .delete(db_name.clone(), table, pred.into())
         .await
         .unwrap_err()
         .to_string();
@@ -165,29 +170,27 @@ pub async fn test_delete_on_router() {
     let (_tmpdir, mut write_buffer) = create_router_to_write_buffer(&fixture, &db_name).await;
 
     let table = "cpu";
-    let start = "100";
-    let stop = "120";
-    let pred = "region = west";
-    let _del = fixture
+    let pred = DeletePredicate {
+        range: TimestampRange {
+            start: 100,
+            end: 120,
+        },
+        exprs: vec![DeleteExpr {
+            column: String::from("region"),
+            op: data_types::delete_predicate::Op::Eq,
+            scalar: data_types::delete_predicate::Scalar::String(String::from("west")),
+        }],
+    };
+    fixture
         .delete_client()
-        .delete(db_name.clone(), table, start, stop, pred)
+        .delete(db_name.clone(), table, pred.clone().into())
         .await
         .expect("cannot delete");
 
     let mut stream = write_buffer.streams().into_values().next().unwrap();
     let delete_actual = stream.stream.next().await.unwrap().unwrap();
     let delete_expected = DmlDelete::new(
-        DeletePredicate {
-            range: TimestampRange {
-                start: 100,
-                end: 120,
-            },
-            exprs: vec![DeleteExpr {
-                column: String::from("region"),
-                op: data_types::delete_predicate::Op::Eq,
-                scalar: data_types::delete_predicate::Scalar::String(String::from("west")),
-            }],
-        },
+        pred,
         NonEmptyString::new(table),
         // We don't care about the metadata here, timestamps and sequence numbers are hard to guess
         delete_actual.meta().clone(),

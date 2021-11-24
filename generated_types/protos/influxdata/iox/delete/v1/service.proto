@@ -10,24 +10,24 @@ service DeleteService {
 }
 
 // Request to delete data from a table on a specified predicate
-//
-// TODO: Use DeletePayload
 message DeleteRequest {
-  // name of the database
-  string db_name = 1;
+  reserved 1;
+  reserved "db_name";
 
-  // table name
-  string table_name = 2;
+  reserved 2;
+  reserved "table_name";
 
-  // start time range
-  string start_time = 3;
+  reserved 3;
+  reserved "start_time";
 
-  // stop time range
-  string stop_time = 4;
+  reserved 4;
+  reserved "stop_time";
 
-  // predicate
-  // conjunctive expressions of binary 'column_name = literal' or 'column_ame != literal'
-  string predicate = 5;
+  reserved 5;
+  reserved "predicate";
+
+  // Delete payload
+  DeletePayload payload = 6;
 }
 
 message DeleteResponse {
