@@ -236,7 +236,6 @@ func (s *Store) GetFullHTTPConfig(ctx context.Context, id platform.ID) (*Replica
 	return &rc, nil
 }
 
-// todo: need test
 func (s *Store) PopulateRemoteHTTPConfig(ctx context.Context, id platform.ID, target *ReplicationHTTPConfig) error {
 	q := sq.Select("remote_url", "remote_api_token", "remote_org_id", "allow_insecure_tls").
 		From("remotes").Where(sq.Eq{"id": id})
