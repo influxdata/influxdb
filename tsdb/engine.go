@@ -184,6 +184,7 @@ type EngineOptions struct {
 	OnNewEngine func(Engine)
 
 	FileStoreObserver FileStoreObserver
+	MetricsDisabled   bool
 }
 
 // NewEngineOptions constructs an EngineOptions object with safe default values.

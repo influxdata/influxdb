@@ -324,6 +324,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.engine = storage.NewEngine(
 			opts.EnginePath,
 			opts.StorageConfig,
+			storage.WithMetricsDisabled(opts.MetricsDisabled),
 			storage.WithMetaClient(metaClient),
 		)
 	}

@@ -54,11 +54,11 @@ type Engine struct {
 	retentionService  *retention.Service
 	precreatorService *precreator.Service
 
-	defaultMetricLabels prometheus.Labels
 
 	writePointsValidationEnabled bool
 
-	logger *zap.Logger
+	logger          *zap.Logger
+	metricsDisabled bool
 }
 
 // Option provides a set
@@ -67,6 +67,12 @@ type Option func(*Engine)
 func WithMetaClient(c MetaClient) Option {
 	return func(e *Engine) {
 		e.metaClient = c
+	}
+}
+
+func WithMetricsDisabled(m bool) Option {
+	return func( e *Engine) {
+		e.metricsDisabled = m
 	}
 }
 
@@ -111,7 +117,6 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e := &Engine{
 		config:              c,
 		path:                path,
-		defaultMetricLabels: prometheus.Labels{},
 		tsdbStore:           tsdb.NewStore(c.Data.Dir),
 		logger:              zap.NewNop(),
 
@@ -127,6 +132,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	// Copy TSDB configuration.
 	e.tsdbStore.EngineOptions.EngineVersion = c.Data.Engine
 	e.tsdbStore.EngineOptions.IndexVersion = c.Data.Index
+	e.tsdbStore.EngineOptions.MetricsDisabled = e.metricsDisabled
 
 	pw := coordinator.NewPointsWriter(c.WriteTimeout, path)
 	pw.TSDBStore = e.tsdbStore
@@ -167,6 +173,7 @@ func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
 	metrics = append(metrics, tsm1.PrometheusCollectors()...)
 	metrics = append(metrics, coordinator.PrometheusCollectors()...)
+	metrics = append(metrics, tsdb.ShardCollectors()...)
 	return metrics
 }
 

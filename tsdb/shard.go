@@ -33,17 +33,8 @@ import (
 )
 
 const (
-	statWriteReq           = "writeReq"
-	statWriteReqOK         = "writeReqOk"
-	statWriteReqErr        = "writeReqErr"
-	statSeriesCreate       = "seriesCreate"
-	statFieldsCreate       = "fieldsCreate"
-	statWritePointsErr     = "writePointsErr"
-	statWritePointsDropped = "writePointsDropped"
-	statWritePointsOK      = "writePointsOk"
-	statWriteBytes         = "writeBytes"
-	statDiskBytes          = "diskBytes"
 	measurementKey         = "_name"
+	DefaultMetricInterval  = 10*time.Second
 )
 
 var (
@@ -134,11 +125,13 @@ type Shard struct {
 	enabled bool
 
 	// expvar-based stats.
-	stats       *ShardStatistics
+	stats       *ShardMetrics
 	defaultTags models.StatisticTags
 
 	baseLogger *zap.Logger
 	logger     *zap.Logger
+
+	metricUpdater *ticker
 
 	EnableOnOpen bool
 
@@ -152,26 +145,23 @@ func NewShard(id uint64, path string, walPath string, sfile *SeriesFile, opt Eng
 	db, rp := decodeStorePath(path)
 	logger := zap.NewNop()
 
+	engineTags := EngineTags{
+		Path:          path,
+		WalPath:       walPath,
+		Id:            fmt.Sprintf("%d", id),
+		Bucket:        db,
+		EngineVersion: opt.EngineVersion,
+	}
+
 	s := &Shard{
 		id:      id,
 		path:    path,
 		walPath: walPath,
 		sfile:   sfile,
 		options: opt,
-
-		stats: &ShardStatistics{},
-		defaultTags: models.StatisticTags{
-			"path":            path,
-			"walPath":         walPath,
-			"id":              fmt.Sprintf("%d", id),
-			"database":        db,
-			"retentionPolicy": rp,
-			"engine":          opt.EngineVersion,
-		},
-
+		stats: newShardMetrics(engineTags),
 		database:        db,
 		retentionPolicy: rp,
-
 		logger:       logger,
 		baseLogger:   logger,
 		EnableOnOpen: true,
@@ -227,58 +217,141 @@ func (s *Shard) RetentionPolicy() string {
 	return s.retentionPolicy
 }
 
-// ShardStatistics maintains statistics for a shard.
-type ShardStatistics struct {
-	WriteReq           int64
-	WriteReqOK         int64
-	WriteReqErr        int64
-	FieldsCreated      int64
-	WritePointsErr     int64
-	WritePointsDropped int64
-	WritePointsOK      int64
-	BytesWritten       int64
+var globalShardMetrics = newAllShardMetrics()
+
+type twoCounterObserver struct {
+	count prometheus.Counter
+	sum prometheus.Counter
 }
 
-// Statistics returns statistics for periodic monitoring.
-func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
-	engine, err := s.Engine()
-	if err != nil {
-		return nil
+func (t twoCounterObserver) Observe(f float64) {
+	t.sum.Inc()
+	t.count.Add(f)
+}
+
+var _ prometheus.Observer = twoCounterObserver{}
+
+type allShardMetrics struct {
+	writes *prometheus.CounterVec
+	writesSum *prometheus.CounterVec
+	writesErr *prometheus.CounterVec
+	writesErrSum *prometheus.CounterVec
+	writesDropped *prometheus.CounterVec
+	fieldsCreated *prometheus.CounterVec
+	diskSize *prometheus.GaugeVec
+	series *prometheus.GaugeVec
+}
+
+type ShardMetrics struct {
+	writes prometheus.Observer
+	writesErr prometheus.Observer
+	writesDropped prometheus.Counter
+	fieldsCreated prometheus.Counter
+	// FIXME: ensure these are present
+	diskSize prometheus.Gauge
+	series prometheus.Gauge
+}
+
+const storageNamespace = "storage"
+const shardSubsystem = "shard"
+
+func newAllShardMetrics() *allShardMetrics {
+	labels := EngineLabelNames()
+	return &allShardMetrics{
+		writes: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: storageNamespace,
+			Subsystem: shardSubsystem,
+			Name:      "write_count",
+			Help:      "Count of the number of write requests",
+		}, labels),
+		writesSum: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: storageNamespace,
+			Subsystem: shardSubsystem,
+			Name:      "write_sum",
+			Help:      "Counter of the number of points for write requests",
+		}, labels),
+		writesErr: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: storageNamespace,
+			Subsystem: shardSubsystem,
+			Name:      "write_err_count",
+			Help:      "Count of the number of write requests with errors",
+		}, labels),
+		writesErrSum: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: storageNamespace,
+			Subsystem: shardSubsystem,
+			Name:      "write_err_sum",
+			Help:      "Counter of the number of points for write requests with errors",
+		}, labels),
+		writesDropped: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: storageNamespace,
+			Subsystem: shardSubsystem,
+			Name:      "write_dropped_sum",
+			Help:      "Counter of the number of points droppped",
+		}, labels),
+		fieldsCreated: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: storageNamespace,
+			Subsystem: shardSubsystem,
+			Name:      "fields_created",
+			Help:      "Counter of the number of fields created",
+		}, labels),
+		diskSize: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: storageNamespace,
+			Subsystem: shardSubsystem,
+			Name:      "disk_size",
+			Help:      "Gauge of the disk size for the shard",
+		}, labels),
+		series: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: storageNamespace,
+			Subsystem: shardSubsystem,
+			Name:      "series",
+			Help:      "Gauge of the number of series in the shard index",
+		}, labels),
 	}
+}
 
-	// Refresh our disk size stat
-	diskSize, err := s.DiskSize()
-	if err != nil {
-		return nil
+func ShardCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		globalShardMetrics.writes,
+		globalShardMetrics.writesSum,
+		globalShardMetrics.writesErr,
+		globalShardMetrics.writesErrSum,
+		globalShardMetrics.writesDropped,
+		globalShardMetrics.fieldsCreated,
+		globalShardMetrics.diskSize,
+		globalShardMetrics.series,
 	}
-	seriesN := engine.SeriesN()
+}
 
-	tags = s.defaultTags.Merge(tags)
-
-	// Set the index type on the tags.  N.B this needs to be checked since it's
-	// only set when the shard is opened.
-	if indexType := s.IndexType(); indexType != "" {
-		tags["indexType"] = indexType
-	}
-
-	statistics := []models.Statistic{{
-		Name: "shard",
-		Tags: tags,
-		Values: map[string]interface{}{
-			statWriteReq:           atomic.LoadInt64(&s.stats.WriteReq),
-			statWriteReqOK:         atomic.LoadInt64(&s.stats.WriteReqOK),
-			statWriteReqErr:        atomic.LoadInt64(&s.stats.WriteReqErr),
-			statSeriesCreate:       seriesN,
-			statFieldsCreate:       atomic.LoadInt64(&s.stats.FieldsCreated),
-			statWritePointsErr:     atomic.LoadInt64(&s.stats.WritePointsErr),
-			statWritePointsDropped: atomic.LoadInt64(&s.stats.WritePointsDropped),
-			statWritePointsOK:      atomic.LoadInt64(&s.stats.WritePointsOK),
-			statWriteBytes:         atomic.LoadInt64(&s.stats.BytesWritten),
-			statDiskBytes:          diskSize,
+func newShardMetrics(tags EngineTags) *ShardMetrics {
+	labels := tags.GetLabels()
+	return &ShardMetrics{
+		writes: twoCounterObserver{
+			count: globalShardMetrics.writes.With(labels),
+			sum:   globalShardMetrics.writesSum.With(labels),
 		},
-	}}
+		writesErr: twoCounterObserver{
+			count: globalShardMetrics.writesErr.With(labels),
+			sum:   globalShardMetrics.writesErrSum.With(labels),
+		},
+		writesDropped: globalShardMetrics.writesDropped.With(labels),
+		fieldsCreated: globalShardMetrics.fieldsCreated.With(labels),
+		diskSize:      globalShardMetrics.diskSize.With(labels),
+		series:        globalShardMetrics.series.With(labels),
+	}
+}
 
-	return statistics
+// ticker runs fn periodically, and stops when Stop() is called
+//
+// Stop waits for the last function run to finish if already running
+type ticker struct {
+	wg sync.WaitGroup
+	closing chan struct{}
+}
+
+// Stops the ticker and waits for the function to complete
+func (t *ticker) Stop() {
+	close(t.closing)
+	t.wg.Wait()
 }
 
 // Path returns the path set on the shard when it was created.
@@ -289,6 +362,7 @@ func (s *Shard) Open(ctx context.Context) error {
 	if err := func() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+
 
 		// Return if the shard is already open
 		if s._engine != nil {
@@ -345,6 +419,39 @@ func (s *Shard) Open(ctx context.Context) error {
 		}
 		s._engine = e
 
+		// Set up metric collection
+		metricUpdater := &ticker{
+			closing: make(chan struct{}),
+		}
+
+		// We want a way to turn off the series and disk size metrics if they are suspected to cause issues
+		// This corresponds to the top-level MetricsDisabled argument
+		if !s.options.MetricsDisabled {
+			metricUpdater.wg.Add(1)
+			go func() {
+				tick := time.NewTicker(DefaultMetricInterval)
+				defer metricUpdater.wg.Done()
+				defer tick.Stop()
+				for {
+					select {
+					case <-tick.C:
+						// Note this takes the engine lock, so we have to be careful not
+						// to close metricUpdater.closing while holding the engine lock
+						e, err := s.Engine()
+						if err != nil {
+							continue
+						}
+						s.stats.series.Set(float64(e.SeriesN()))
+						s.stats.diskSize.Set(float64(e.DiskSize()))
+					case <-metricUpdater.closing:
+						return
+					}
+				}
+			}()
+		}
+
+		s.metricUpdater = metricUpdater
+
 		return nil
 	}(); err != nil {
 		s.close()
@@ -361,9 +468,14 @@ func (s *Shard) Open(ctx context.Context) error {
 
 // Close shuts down the shard's store.
 func (s *Shard) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.close()
+	err := func() error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.close()
+	}()
+	// make sure not to hold a lock while waiting for the metric updater to finish
+	s.metricUpdater.wg.Wait()
+	return err
 }
 
 // close closes the shard an removes reference to the shard from associated
@@ -371,6 +483,10 @@ func (s *Shard) Close() error {
 func (s *Shard) close() error {
 	if s._engine == nil {
 		return nil
+	}
+
+	if s.metricUpdater != nil {
+		close(s.metricUpdater.closing)
 	}
 
 	err := s._engine.Close()
@@ -490,7 +606,7 @@ type FieldCreate struct {
 }
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard.
-func (s *Shard) WritePoints(ctx context.Context, points []models.Point) error {
+func (s *Shard) WritePoints(ctx context.Context, points []models.Point) (rErr error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -500,7 +616,12 @@ func (s *Shard) WritePoints(ctx context.Context, points []models.Point) error {
 	}
 
 	var writeError error
-	atomic.AddInt64(&s.stats.WriteReq, 1)
+	s.stats.writes.Observe(float64(len(points)))
+	defer func() {
+		if rErr != nil {
+			s.stats.writesErr.Observe(float64(len(points)))
+		}
+	}()
 
 	points, fieldsToCreate, err := s.validateSeriesAndFields(points)
 	if err != nil {
@@ -511,7 +632,7 @@ func (s *Shard) WritePoints(ctx context.Context, points []models.Point) error {
 		// to the caller, but continue on writing the remaining points.
 		writeError = err
 	}
-	atomic.AddInt64(&s.stats.FieldsCreated, int64(len(fieldsToCreate)))
+	s.stats.fieldsCreated.Add(float64(len(fieldsToCreate)))
 
 	// add any new fields and keep track of what needs to be saved
 	if err := s.createFieldsAndMeasurements(fieldsToCreate); err != nil {
@@ -520,12 +641,8 @@ func (s *Shard) WritePoints(ctx context.Context, points []models.Point) error {
 
 	// Write to the engine.
 	if err := engine.WritePoints(ctx, points); err != nil {
-		atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
-		atomic.AddInt64(&s.stats.WriteReqErr, 1)
 		return fmt.Errorf("engine: %s", err)
 	}
-	atomic.AddInt64(&s.stats.WritePointsOK, int64(len(points)))
-	atomic.AddInt64(&s.stats.WriteReqOK, 1)
 
 	return writeError
 }
@@ -595,7 +712,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 			reason = err.Reason
 			dropped += err.Dropped
 			droppedKeys = err.DroppedKeys
-			atomic.AddInt64(&s.stats.WritePointsDropped, int64(err.Dropped))
+			s.stats.writesDropped.Add(float64(err.Dropped))
 		default:
 			return nil, nil, err
 		}
@@ -639,7 +756,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 					reason = err.Reason
 				}
 				dropped += err.Dropped
-				atomic.AddInt64(&s.stats.WritePointsDropped, int64(err.Dropped))
+				s.stats.writesDropped.Add(float64(err.Dropped))
 			default:
 				return nil, nil, err
 			}

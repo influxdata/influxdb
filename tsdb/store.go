@@ -128,9 +128,6 @@ func (s *Store) WithLogger(log *zap.Logger) {
 
 // Statistics returns statistics for period monitoring.
 func (s *Store) Statistics(tags map[string]string) []models.Statistic {
-	s.mu.RLock()
-	shards := s.shardsSlice()
-	s.mu.RUnlock()
 
 	// Add all the series and measurements cardinality estimations.
 	databases := s.Databases()
@@ -159,10 +156,6 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 		})
 	}
 
-	// Gather all statistics for all shards.
-	for _, shard := range shards {
-		statistics = append(statistics, shard.Statistics(tags)...)
-	}
 	return statistics
 }
 
