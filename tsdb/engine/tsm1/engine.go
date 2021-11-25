@@ -638,7 +638,8 @@ func newAllCompactionMetrics(labelNames []string) *compactionMetrics {
 			Subsystem: engineSubsystem,
 			Name:      "duration_seconds",
 			Help:      "Histogram of compactions by level since startup",
-			Buckets:   []float64{0.1, 1, 10, 100, 1000, 10000, 100000},
+			// 10 minute compactions seem normal, 1h40min is high
+			Buckets:   []float64{60, 600, 6000},
 		}, labelNamesWithLevel),
 		Active: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: storageNamespace,

@@ -804,17 +804,6 @@ func (s *Shard) MeasurementExists(name []byte) (bool, error) {
 	return engine.MeasurementExists(name)
 }
 
-// WriteTo writes the shard's data to w.
-func (s *Shard) WriteTo(w io.Writer) (int64, error) {
-	engine, err := s.Engine()
-	if err != nil {
-		return 0, err
-	}
-	n, err := engine.WriteTo(w)
-	atomic.AddInt64(&s.stats.BytesWritten, int64(n))
-	return n, err
-}
-
 // CreateIterator returns an iterator for the data in the shard.
 func (s *Shard) CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 	engine, err := s.Engine()

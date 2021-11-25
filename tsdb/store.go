@@ -1499,13 +1499,6 @@ func (s *Store) MeasurementNames(ctx context.Context, auth query.Authorizer, dat
 	return is.MeasurementNamesByExpr(auth, cond)
 }
 
-// MeasurementSeriesCounts returns the number of measurements and series in all
-// the shards' indices.
-func (s *Store) MeasurementSeriesCounts(database string) (measuments int, series int) {
-	// TODO: implement me
-	return 0, 0
-}
-
 type TagKeys struct {
 	Measurement string
 	Keys        []string
