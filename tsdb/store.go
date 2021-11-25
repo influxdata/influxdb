@@ -25,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/v2/pkg/limiter"
 	"github.com/influxdata/influxql"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -39,12 +40,6 @@ var (
 	// ErrMultipleIndexTypes is returned when trying to do deletes on a database with
 	// multiple index types.
 	ErrMultipleIndexTypes = errors.New("cannot delete data. DB contains shards using multiple indexes. Please convert all shards to use the same index type to delete data")
-)
-
-// Statistics gathered by the store.
-const (
-	statDatabaseSeries       = "numSeries"       // number of series in a database
-	statDatabaseMeasurements = "numMeasurements" // number of measurements in a database
 )
 
 // SeriesFileDirectory is the name of the directory containing series files for
@@ -126,13 +121,12 @@ func (s *Store) WithLogger(log *zap.Logger) {
 	}
 }
 
-// Statistics returns statistics for period monitoring.
-func (s *Store) Statistics(tags map[string]string) []models.Statistic {
-
-	// Add all the series and measurements cardinality estimations.
+// CollectBucketMetrics sets prometheus metrics for each bucket
+func (s *Store) CollectBucketMetrics() {
+	// Collect all the bucket cardinality estimations
 	databases := s.Databases()
-	statistics := make([]models.Statistic, 0, len(databases))
 	for _, database := range databases {
+
 		log := s.Logger.With(logger.Database(database))
 		sc, err := s.SeriesCardinality(context.Background(), database)
 		if err != nil {
@@ -146,17 +140,48 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 			continue
 		}
 
-		statistics = append(statistics, models.Statistic{
-			Name: "database",
-			Tags: models.StatisticTags{"database": database}.Merge(tags),
-			Values: map[string]interface{}{
-				statDatabaseSeries:       sc,
-				statDatabaseMeasurements: mc,
-			},
-		})
-	}
+		labels := prometheus.Labels{bucketLabel: database}
+		seriesCardinality := globalBucketMetrics.seriesCardinality.With(labels)
+		measureCardinality := globalBucketMetrics.measureCardinality.With(labels)
 
-	return statistics
+		seriesCardinality.Set(float64(sc))
+		measureCardinality.Set(float64(mc))
+	}
+}
+
+var globalBucketMetrics = newAllBucketMetrics()
+
+const bucketSubsystem = "bucket"
+const bucketLabel = "bucket"
+
+type allBucketMetrics struct {
+	seriesCardinality  *prometheus.GaugeVec
+	measureCardinality *prometheus.GaugeVec
+}
+
+func newAllBucketMetrics() *allBucketMetrics {
+	labels := []string{bucketLabel}
+	return &allBucketMetrics{
+		seriesCardinality: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: storageNamespace,
+			Subsystem: bucketSubsystem,
+			Name:      "series_num",
+			Help:      "Gauge of series cardinality per bucket",
+		}, labels),
+		measureCardinality: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: storageNamespace,
+			Subsystem: bucketSubsystem,
+			Name:      "measurement_num",
+			Help:      "Gauge of measurement cardinality per bucket",
+		}, labels),
+	}
+}
+
+func BucketCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		globalBucketMetrics.seriesCardinality,
+		globalBucketMetrics.measureCardinality,
+	}
 }
 
 func (s *Store) IndexBytes() int {
@@ -219,6 +244,14 @@ func (s *Store) Open(ctx context.Context) error {
 		go func() {
 			s.wg.Done()
 			s.monitorShards()
+		}()
+	}
+
+	if !s.EngineOptions.MetricsDisabled {
+		s.wg.Add(1)
+		go func() {
+			s.wg.Done()
+			s.collectMetrics()
 		}()
 	}
 
@@ -1926,6 +1959,19 @@ func (s *Store) monitorShards() {
 				}
 			}
 			s.mu.RUnlock()
+		}
+	}
+}
+
+func (s *Store) collectMetrics() {
+	t := time.NewTicker(10 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-s.closing:
+			return
+		case <-t.C:
+			s.CollectBucketMetrics()
 		}
 	}
 }

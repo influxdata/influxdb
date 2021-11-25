@@ -124,7 +124,7 @@ type Shard struct {
 	index   Index
 	enabled bool
 
-	stats       *ShardMetrics
+	stats *ShardMetrics
 
 	baseLogger *zap.Logger
 	logger     *zap.Logger
