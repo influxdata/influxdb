@@ -1,0 +1,69 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio-deployment
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2021-08-05T22-01-19Z
+          args:
+            - server
+            - --address=0.0.0.0:8080
+            - --console-address=0.0.0.0:8081
+            - /data
+          env:
+            - name: MINIO_ROOT_USER
+              value: minio
+            - name: MINIO_ROOT_PASSWORD
+              value: miniominio
+            - name: MINIO_PROMETHEUS_AUTH_TYPE
+              value: public
+            - name: MINIO_HTTP_TRACE
+              value: /dev/stdout
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      initContainers:
+        - name: create-bucket
+          image: minio/minio:RELEASE.2021-08-05T22-01-19Z
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - mkdir -p /data/iox
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-service
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: s3
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+    - name: console
+      protocol: TCP
+      port: 8081
+      targetPort: 8081
