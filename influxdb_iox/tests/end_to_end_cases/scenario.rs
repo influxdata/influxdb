@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::iter::once;
 use std::num::NonZeroU32;
 use std::path::Path;
 use std::time::Duration;
@@ -25,13 +24,9 @@ use tempfile::TempDir;
 use test_helpers::assert_contains;
 
 use data_types::{names::org_and_bucket_to_database, DatabaseName};
-use database_rules::RoutingRules;
 use generated_types::google::protobuf::Empty;
 use generated_types::{
-    influxdata::iox::{
-        management::v1::{self as management, *},
-        write_buffer::v1::WriteBufferCreationConfig,
-    },
+    influxdata::iox::{management::v1::*, write_buffer::v1::WriteBufferCreationConfig},
     ReadSource, TimestampRange,
 };
 use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
@@ -312,7 +307,6 @@ pub struct DatabaseBuilder {
     partition_template: PartitionTemplate,
     lifecycle_rules: LifecycleRules,
     write_buffer: Option<WriteBufferConnection>,
-    table_whitelist: Option<Vec<String>>,
 }
 
 impl DatabaseBuilder {
@@ -331,7 +325,6 @@ impl DatabaseBuilder {
                 ..Default::default()
             },
             write_buffer: None,
-            table_whitelist: None,
         }
     }
 
@@ -375,11 +368,6 @@ impl DatabaseBuilder {
         self
     }
 
-    pub fn write_buffer_table_whitelist(mut self, whitelist: Vec<String>) -> Self {
-        self.table_whitelist = Some(whitelist);
-        self
-    }
-
     pub fn worker_backoff_millis(mut self, millis: u64) -> Self {
         self.lifecycle_rules.worker_backoff_millis = millis;
         self
@@ -389,58 +377,13 @@ impl DatabaseBuilder {
     pub async fn try_build(self, channel: Connection) -> Result<(), CreateDatabaseError> {
         let mut management_client = influxdb_iox_client::management::Client::new(channel);
 
-        let routing_rules = if self.write_buffer.is_some() {
-            const KAFKA_PRODUCER_SINK_ID: u32 = 0;
-            let kafka_producer_sink = management::Sink {
-                sink: Some(management::sink::Sink::Kafka(KafkaProducer {})),
-            };
-            const DEV_NULL_SINK_ID: u32 = 1;
-            let dev_null_sink = management::Sink {
-                sink: Some(management::sink::Sink::DevNull(DevNull {})),
-            };
-
-            let to_shard = |shard: u32| {
-                Box::new(move |i: String| MatcherToShard {
-                    matcher: Some(Matcher {
-                        table_name_regex: format!("^{}$", i),
-                    }),
-                    shard,
-                })
-            };
-
-            if let Some(table_whitelist) = self.table_whitelist {
-                Some(RoutingRules::ShardConfig(ShardConfig {
-                    specific_targets: table_whitelist
-                        .into_iter()
-                        .map(to_shard(KAFKA_PRODUCER_SINK_ID))
-                        .chain(once(to_shard(DEV_NULL_SINK_ID)(".*".to_string())))
-                        .collect(),
-                    shards: vec![
-                        (KAFKA_PRODUCER_SINK_ID, kafka_producer_sink),
-                        (DEV_NULL_SINK_ID, dev_null_sink),
-                    ]
-                    .into_iter()
-                    .collect(),
-                    ..Default::default()
-                }))
-            } else {
-                Some(RoutingRules::RoutingConfig(RoutingConfig {
-                    sink: Some(management::Sink {
-                        sink: Some(management::sink::Sink::Kafka(KafkaProducer {})),
-                    }),
-                }))
-            }
-        } else {
-            None
-        };
-
         management_client
             .create_database(DatabaseRules {
                 name: self.name,
                 partition_template: Some(self.partition_template),
                 lifecycle_rules: Some(self.lifecycle_rules),
                 worker_cleanup_avg_sleep: None,
-                routing_rules,
+                routing_rules: None,
                 write_buffer_connection: self.write_buffer,
             })
             .await?;
@@ -769,27 +712,25 @@ pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> S
     fixture
 }
 
-pub async fn create_router_to_write_buffer(
-    fixture: &ServerFixture,
+pub fn wildcard_router_config(
     db_name: &str,
-) -> (TempDir, Box<dyn WriteBufferReading>) {
+    write_buffer_path: &Path,
+) -> influxdb_iox_client::router::generated_types::Router {
     use influxdb_iox_client::router::generated_types::{
         write_sink::Sink, Matcher, MatcherToShard, Router, ShardConfig, WriteSink, WriteSinkSet,
     };
 
-    let write_buffer_dir = TempDir::new().unwrap();
-
     let write_buffer_connection = WriteBufferConnection {
         direction: write_buffer_connection::Direction::Write.into(),
         r#type: "file".to_string(),
-        connection: write_buffer_dir.path().display().to_string(),
+        connection: write_buffer_path.display().to_string(),
         creation_config: Some(WriteBufferCreationConfig {
             n_sequencers: 1,
             ..Default::default()
         }),
         ..Default::default()
     };
-    let router_cfg = Router {
+    Router {
         name: db_name.to_string(),
         write_sharder: Some(ShardConfig {
             specific_targets: vec![MatcherToShard {
@@ -810,7 +751,16 @@ pub async fn create_router_to_write_buffer(
             },
         )]),
         query_sinks: Default::default(),
-    };
+    }
+}
+
+pub async fn create_router_to_write_buffer(
+    fixture: &ServerFixture,
+    db_name: &str,
+) -> (TempDir, Box<dyn WriteBufferReading>) {
+    let write_buffer_dir = TempDir::new().unwrap();
+
+    let router_cfg = wildcard_router_config(db_name, write_buffer_dir.path());
     fixture
         .router_client()
         .update_router(router_cfg)

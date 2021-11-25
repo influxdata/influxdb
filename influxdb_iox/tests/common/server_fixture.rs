@@ -369,6 +369,13 @@ impl TestConfig {
             server_type,
         }
     }
+
+    // change server type
+    pub fn with_server_type(mut self, server_type: ServerType) -> Self {
+        self.server_type = server_type;
+        self
+    }
+
     // add a name=value environment variable when starting the server
     pub fn with_env(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.env.push((name.into(), value.into()));
