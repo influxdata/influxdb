@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -2749,7 +2750,7 @@ func TestFileStore_CreateSnapshot(t *testing.T) {
 }
 
 func newTestFileStore(dir string) *tsm1.FileStore {
-	return tsm1.NewFileStore(dir, tsm1.EngineTags{})
+	return tsm1.NewFileStore(dir, tsdb.EngineTags{})
 }
 
 type mockObserver struct {

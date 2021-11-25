@@ -190,7 +190,7 @@ type Cache struct {
 // NewCache returns an instance of a cache which will use a maximum of maxSize bytes of memory.
 // Only used for engine caches, never for snapshots.
 // Note tags are for metrics only, so if metrics are not desired tags do not have to be set.
-func NewCache(maxSize uint64, tags EngineTags) *Cache {
+func NewCache(maxSize uint64, tags tsdb.EngineTags) *Cache {
 	c := &Cache{
 		maxSize: maxSize,
 		store:   emptyStore{},
@@ -224,7 +224,7 @@ type cacheMetrics struct {
 }
 
 func newAllCacheMetrics() *allCacheMetrics {
-	labels := EngineLabelNames()
+	labels := tsdb.EngineLabelNames()
 	return &allCacheMetrics{
 		MemBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: storageNamespace,
@@ -276,7 +276,7 @@ func CacheCollectors() []prometheus.Collector {
 	}
 }
 
-func newCacheMetrics(tags EngineTags) *cacheMetrics {
+func newCacheMetrics(tags tsdb.EngineTags) *cacheMetrics {
 	labels := tags.GetLabels()
 	return &cacheMetrics{
 		MemBytes:     globalCacheMetrics.MemBytes.With(labels),

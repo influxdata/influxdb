@@ -158,12 +158,12 @@ type Engine struct {
 
 // NewEngine returns a new instance of Engine.
 func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
-	etags := EngineTags{
-		path:          path,
-		walPath:       walPath,
-		id:            fmt.Sprintf("%d", id),
-		bucket:        filepath.Base(filepath.Dir(filepath.Dir(path))), // discard shard & rp, take db
-		engineVersion: opt.EngineVersion,
+	etags := tsdb.EngineTags{
+		Path:          path,
+		WalPath:       walPath,
+		Id:            fmt.Sprintf("%d", id),
+		Bucket:        filepath.Base(filepath.Dir(filepath.Dir(path))), // discard shard & rp, take db
+		EngineVersion: opt.EngineVersion,
 	}
 
 	var wal *WAL
@@ -590,7 +590,7 @@ func (e *Engine) LastModified() time.Time {
 	return fsTime
 }
 
-var globalCompactionMetrics *compactionMetrics = newAllCompactionMetrics(EngineLabelNames())
+var globalCompactionMetrics *compactionMetrics = newAllCompactionMetrics(tsdb.EngineLabelNames())
 
 // PrometheusCollectors returns all prometheus metrics for the tsm1 package.
 func PrometheusCollectors() []prometheus.Collector {
@@ -689,33 +689,7 @@ type compactionMetrics struct {
 	Failed   *prometheus.CounterVec
 }
 
-// EngineTags holds tags for prometheus
-//
-// It should not be used for behaviour other than attaching tags to prometheus metrics
-type EngineTags struct {
-	path, walPath, id, bucket, engineVersion string
-}
-
-func (et *EngineTags) GetLabels() prometheus.Labels {
-	return prometheus.Labels{
-		"path":    et.path,
-		"walPath": et.walPath,
-		"id":      et.id,
-		"bucket":  et.bucket,
-		"engine":  et.engineVersion,
-	}
-}
-
-func EngineLabelNames() []string {
-	emptyLabels := (&EngineTags{}).GetLabels()
-	val := make([]string, 0, len(emptyLabels))
-	for k := range emptyLabels {
-		val = append(val, k)
-	}
-	return val
-}
-
-func newEngineMetrics(tags EngineTags) *compactionMetrics {
+func newEngineMetrics(tags tsdb.EngineTags) *compactionMetrics {
 	engineLabels := tags.GetLabels()
 	return &compactionMetrics{
 		Duration: globalCompactionMetrics.Duration.MustCurryWith(engineLabels),

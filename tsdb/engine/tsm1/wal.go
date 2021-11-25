@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"io"
 	"math"
 	"os"
@@ -116,7 +117,7 @@ type WAL struct {
 }
 
 // NewWAL initializes a new WAL at the given directory.
-func NewWAL(path string, maxConcurrentWrites int, maxWriteDelay time.Duration, tags EngineTags) *WAL {
+func NewWAL(path string, maxConcurrentWrites int, maxWriteDelay time.Duration, tags tsdb.EngineTags) *WAL {
 	logger := zap.NewNop()
 	if maxConcurrentWrites == 0 {
 		maxConcurrentWrites = defaultWaitingWALWrites
@@ -184,7 +185,7 @@ func (f *walMetrics) SetSize(n int64) {
 }
 
 func newAllWALMetrics() *allWALMetrics {
-	labels := EngineLabelNames()
+	labels := tsdb.EngineLabelNames()
 	return &allWALMetrics{
 		size: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: storageNamespace,
@@ -215,7 +216,7 @@ func WALCollectors() []prometheus.Collector {
 	}
 }
 
-func newWALMetrics(tags EngineTags) *walMetrics {
+func newWALMetrics(tags tsdb.EngineTags) *walMetrics {
 	labels := tags.GetLabels()
 	return &walMetrics{
 		size:      globalWALMetrics.size.With(labels),

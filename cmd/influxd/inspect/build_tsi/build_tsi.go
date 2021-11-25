@@ -441,7 +441,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 		}
 	} else {
 		log.Debug("Building cache from wal files")
-		cache := tsm1.NewCache(maxCacheSize, tsm1.EngineTags{}) // tags are for metrics only
+		cache := tsm1.NewCache(maxCacheSize, tsdb.EngineTags{}) // tags are for metrics only
 		loader := tsm1.NewCacheLoader(walPaths)
 		loader.WithLogger(log)
 		if err := loader.Load(cache); err != nil {

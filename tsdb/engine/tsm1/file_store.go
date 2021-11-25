@@ -226,7 +226,7 @@ func (f FileStat) ContainsKey(key []byte) bool {
 }
 
 // NewFileStore returns a new instance of FileStore based on the given directory.
-func NewFileStore(dir string, tags EngineTags) *FileStore {
+func NewFileStore(dir string, tags tsdb.EngineTags) *FileStore {
 	logger := zap.NewNop()
 	fs := &FileStore{
 		dir:          dir,
@@ -308,7 +308,7 @@ func (f *fileStoreMetrics) SetFiles(n int64) {
 }
 
 func newAllFileStoreMetrics() *allFileStoreMetrics {
-	labels := EngineLabelNames()
+	labels := tsdb.EngineLabelNames()
 	return &allFileStoreMetrics{
 		files: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: storageNamespace,
@@ -332,7 +332,7 @@ func FileStoreCollectors() []prometheus.Collector {
 	}
 }
 
-func newFileStoreMetrics(tags EngineTags) *fileStoreMetrics {
+func newFileStoreMetrics(tags tsdb.EngineTags) *fileStoreMetrics {
 	labels := tags.GetLabels()
 	return &fileStoreMetrics{
 		files: globalFileStoreMetrics.files.With(labels),

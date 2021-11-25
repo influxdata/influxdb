@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"io"
 	"os"
 	"path/filepath"
@@ -20,7 +21,7 @@ import (
 
 func NewWAL(path string, maxConcurrentWrites int, maxWriteDelay time.Duration) *tsm1.WAL {
 	// EngineTags is only for metrics, not needed for tests
-	return tsm1.NewWAL(path, maxConcurrentWrites, maxWriteDelay, tsm1.EngineTags{})
+	return tsm1.NewWAL(path, maxConcurrentWrites, maxWriteDelay, tsdb.EngineTags{})
 }
 
 func TestWALWriter_WriteMulti_Single(t *testing.T) {
