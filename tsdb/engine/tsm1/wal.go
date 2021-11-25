@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/tsdb"
 	"io"
 	"math"
 	"os"
@@ -22,6 +21,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/v2/pkg/limiter"
 	"github.com/influxdata/influxdb/v2/pkg/pool"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

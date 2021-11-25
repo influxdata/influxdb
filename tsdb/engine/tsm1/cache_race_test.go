@@ -2,11 +2,11 @@ package tsm1_test
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/v2/tsdb"
 	"math/rand"
 	"sync"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 )
 

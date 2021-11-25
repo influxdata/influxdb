@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
 	"io"
 	"io/ioutil"
 	"os"
@@ -28,13 +27,14 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/slices"
 	internal "github.com/influxdata/influxdb/v2/tsdb/internal"
 	"github.com/influxdata/influxql"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
 const (
-	measurementKey         = "_name"
-	DefaultMetricInterval  = 10*time.Second
+	measurementKey        = "_name"
+	DefaultMetricInterval = 10 * time.Second
 )
 
 var (
@@ -124,9 +124,7 @@ type Shard struct {
 	index   Index
 	enabled bool
 
-	// expvar-based stats.
 	stats       *ShardMetrics
-	defaultTags models.StatisticTags
 
 	baseLogger *zap.Logger
 	logger     *zap.Logger
@@ -154,17 +152,17 @@ func NewShard(id uint64, path string, walPath string, sfile *SeriesFile, opt Eng
 	}
 
 	s := &Shard{
-		id:      id,
-		path:    path,
-		walPath: walPath,
-		sfile:   sfile,
-		options: opt,
-		stats: newShardMetrics(engineTags),
+		id:              id,
+		path:            path,
+		walPath:         walPath,
+		sfile:           sfile,
+		options:         opt,
+		stats:           newShardMetrics(engineTags),
 		database:        db,
 		retentionPolicy: rp,
-		logger:       logger,
-		baseLogger:   logger,
-		EnableOnOpen: true,
+		logger:          logger,
+		baseLogger:      logger,
+		EnableOnOpen:    true,
 	}
 	return s
 }
@@ -221,7 +219,7 @@ var globalShardMetrics = newAllShardMetrics()
 
 type twoCounterObserver struct {
 	count prometheus.Counter
-	sum prometheus.Counter
+	sum   prometheus.Counter
 }
 
 func (t twoCounterObserver) Observe(f float64) {
@@ -232,24 +230,24 @@ func (t twoCounterObserver) Observe(f float64) {
 var _ prometheus.Observer = twoCounterObserver{}
 
 type allShardMetrics struct {
-	writes *prometheus.CounterVec
-	writesSum *prometheus.CounterVec
-	writesErr *prometheus.CounterVec
-	writesErrSum *prometheus.CounterVec
+	writes        *prometheus.CounterVec
+	writesSum     *prometheus.CounterVec
+	writesErr     *prometheus.CounterVec
+	writesErrSum  *prometheus.CounterVec
 	writesDropped *prometheus.CounterVec
 	fieldsCreated *prometheus.CounterVec
-	diskSize *prometheus.GaugeVec
-	series *prometheus.GaugeVec
+	diskSize      *prometheus.GaugeVec
+	series        *prometheus.GaugeVec
 }
 
 type ShardMetrics struct {
-	writes prometheus.Observer
-	writesErr prometheus.Observer
+	writes        prometheus.Observer
+	writesErr     prometheus.Observer
 	writesDropped prometheus.Counter
 	fieldsCreated prometheus.Counter
 	// FIXME: ensure these are present
 	diskSize prometheus.Gauge
-	series prometheus.Gauge
+	series   prometheus.Gauge
 }
 
 const storageNamespace = "storage"
@@ -344,7 +342,7 @@ func newShardMetrics(tags EngineTags) *ShardMetrics {
 //
 // Stop waits for the last function run to finish if already running
 type ticker struct {
-	wg sync.WaitGroup
+	wg      sync.WaitGroup
 	closing chan struct{}
 }
 
@@ -362,7 +360,6 @@ func (s *Shard) Open(ctx context.Context) error {
 	if err := func() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-
 
 		// Return if the shard is already open
 		if s._engine != nil {

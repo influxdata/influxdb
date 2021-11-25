@@ -54,7 +54,6 @@ type Engine struct {
 	retentionService  *retention.Service
 	precreatorService *precreator.Service
 
-
 	writePointsValidationEnabled bool
 
 	logger          *zap.Logger
@@ -71,7 +70,7 @@ func WithMetaClient(c MetaClient) Option {
 }
 
 func WithMetricsDisabled(m bool) Option {
-	return func( e *Engine) {
+	return func(e *Engine) {
 		e.metricsDisabled = m
 	}
 }
@@ -115,10 +114,10 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	c.Data.WALDir = filepath.Join(path, "wal")
 
 	e := &Engine{
-		config:              c,
-		path:                path,
-		tsdbStore:           tsdb.NewStore(c.Data.Dir),
-		logger:              zap.NewNop(),
+		config:    c,
+		path:      path,
+		tsdbStore: tsdb.NewStore(c.Data.Dir),
+		logger:    zap.NewNop(),
 
 		writePointsValidationEnabled: true,
 	}

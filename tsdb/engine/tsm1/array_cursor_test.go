@@ -3,7 +3,6 @@ package tsm1
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/tsdb"
 	"os"
 	"path/filepath"
 	"sort"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/stretchr/testify/assert"
 )

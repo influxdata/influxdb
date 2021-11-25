@@ -3,11 +3,11 @@ package verify_wal
 import (
 	"bytes"
 	"context"
-	"github.com/influxdata/influxdb/v2/tsdb"
 	"io"
 	"os"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/stretchr/testify/require"
 )

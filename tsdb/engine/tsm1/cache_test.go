@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/tsdb"
 	"math"
 	"math/rand"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/golang/snappy"
+	"github.com/influxdata/influxdb/v2/tsdb"
 )
 
 // Convenience method for testing.

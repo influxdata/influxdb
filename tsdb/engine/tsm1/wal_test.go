@@ -3,7 +3,6 @@ package tsm1_test
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/tsdb"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/stretchr/testify/require"
 )

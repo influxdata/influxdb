@@ -3,7 +3,6 @@ package tsm1_test
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/tsdb"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"go.uber.org/zap/zaptest"
 )
