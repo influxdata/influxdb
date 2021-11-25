@@ -708,8 +708,15 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let input_schema = input.schema();
         let output_schema = output_schema.as_arrow();
 
-        // If the schemas are the same, nothing to do
-        if input_schema == output_schema {
+        // If columns are the same, nothing to do
+        let same_columns = input_schema.fields().len() == output_schema.fields().len()
+            && input_schema
+                .fields()
+                .iter()
+                .zip(output_schema.fields())
+                .all(|(a, b)| a.name() == b.name());
+
+        if same_columns {
             return Ok(input);
         }
 
@@ -2440,6 +2447,56 @@ mod test {
             "+-----------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn test_sorted_metadata() {
+        let mut key = SortKey::default();
+        key.push("time", Default::default());
+
+        let chunk = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_i64_field_column("field_int")
+                .with_one_row_of_data()
+                .with_sort_key(&key),
+        );
+
+        let schema = chunk.schema();
+        assert!(schema.sort_key().is_some());
+
+        let mut provider = ProviderBuilder::new("t", Arc::clone(&schema))
+            .add_no_op_pruner()
+            .add_chunk(chunk)
+            .build()
+            .unwrap();
+
+        provider.ensure_pk_sort();
+
+        let plan = provider.scan(&None, 1024, &[], None).await.unwrap();
+        let batches = collect(plan).await.unwrap();
+
+        for batch in &batches {
+            // TODO: schema output lacks sort key (#3214)
+            //assert_eq!(batch.schema(), schema.as_arrow())
+
+            let schema: Schema = batch.schema().try_into().unwrap();
+            for field_idx in 0..schema.len() {
+                assert!(schema.field(field_idx).0.is_some());
+            }
+        }
+
+        assert_batches_eq!(
+            &[
+                "+-----------+-----------------------------+",
+                "| field_int | time                        |",
+                "+-----------+-----------------------------+",
+                "| 1000      | 1970-01-01T00:00:00.000001Z |",
+                "+-----------+-----------------------------+",
+            ],
+            &batches
+        );
     }
 
     fn chunk_ids(group: &[Arc<TestChunk>]) -> String {

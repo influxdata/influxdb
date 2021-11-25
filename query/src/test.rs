@@ -781,6 +781,16 @@ impl TestChunk {
         self
     }
 
+    /// Set the sort key for this chunk
+    pub fn with_sort_key(mut self, sort_key: &SortKey<'_>) -> Self {
+        let mut merger = SchemaMerger::new();
+        merger = merger
+            .merge(self.schema.as_ref())
+            .expect("merging was successful");
+        self.schema = Arc::new(merger.build_with_sort_key(sort_key));
+        self
+    }
+
     /// Returns all columns of the table
     pub fn all_column_names(&self) -> StringSet {
         self.schema
