@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use arrow_util::assert_batches_eq;
 use data_types::database_rules::{DatabaseRules, LifecycleRules, PartitionTemplate, TemplatePart};
-use data_types::write_buffer::{WriteBufferConnection, WriteBufferDirection};
+use data_types::write_buffer::WriteBufferConnection;
 use data_types::{sequence::Sequence, server_id::ServerId, DatabaseName};
 use query::QueryDatabase;
 use server::{
@@ -61,7 +61,6 @@ async fn write_buffer_reads_wait_for_compaction() {
             ..Default::default()
         },
         write_buffer_connection: Some(WriteBufferConnection {
-            direction: WriteBufferDirection::Read,
             type_: "mock".to_string(),
             connection: "my_mock".to_string(),
             ..Default::default()

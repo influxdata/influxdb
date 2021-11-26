@@ -17,7 +17,6 @@
               "sinks": [
                   {
                       "write_buffer": {
-                          "direction": "DIRECTION_WRITE",
                           "type": "kafka",
                           "connection": "redpanda-service:9093",
                           "connection_config": {},

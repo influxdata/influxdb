@@ -5,10 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use data_types::{
-    server_id::ServerId,
-    write_buffer::{WriteBufferConnection, WriteBufferDirection},
-};
+use data_types::{server_id::ServerId, write_buffer::WriteBufferConnection};
 use time::TimeProvider;
 use trace::TraceCollector;
 
@@ -94,16 +91,11 @@ impl WriteBufferConfigFactory {
 
     /// Returns a new [`WriteBufferWriting`] for the provided [`WriteBufferConnection`]
     ///
-    /// # Panics
-    /// When the provided connection is not [`WriteBufferDirection::Write`]
-    ///
     pub async fn new_config_write(
         &self,
         db_name: &str,
         cfg: &WriteBufferConnection,
     ) -> Result<Arc<dyn WriteBufferWriting>, WriteBufferError> {
-        assert_eq!(cfg.direction, WriteBufferDirection::Write);
-
         let writer = match &cfg.type_[..] {
             "file" => {
                 let root = PathBuf::from(&cfg.connection);
@@ -151,9 +143,6 @@ impl WriteBufferConfigFactory {
     }
 
     /// Returns a new [`WriteBufferReading`] for the provided [`WriteBufferConnection`]
-    ///
-    /// # Panics
-    /// When the provided connection is not [`WriteBufferDirection::Read`]
     pub async fn new_config_read(
         &self,
         server_id: ServerId,
@@ -161,8 +150,6 @@ impl WriteBufferConfigFactory {
         trace_collector: Option<&Arc<dyn TraceCollector>>,
         cfg: &WriteBufferConnection,
     ) -> Result<Box<dyn WriteBufferReading>, WriteBufferError> {
-        assert_eq!(cfg.direction, WriteBufferDirection::Read);
-
         let reader = match &cfg.type_[..] {
             "file" => {
                 let root = PathBuf::from(&cfg.connection);
@@ -228,7 +215,6 @@ mod tests {
         let factory = factory();
         let db_name = DatabaseName::try_from("foo").unwrap();
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Write,
             type_: "file".to_string(),
             connection: root.path().display().to_string(),
             creation_config: Some(WriteBufferCreationConfig::default()),
@@ -248,7 +234,6 @@ mod tests {
         let factory = factory();
         let db_name = DatabaseName::try_from("foo").unwrap();
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Read,
             type_: "file".to_string(),
             connection: root.path().display().to_string(),
             creation_config: Some(WriteBufferCreationConfig::default()),
@@ -269,7 +254,6 @@ mod tests {
         let factory = factory();
         let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Write,
             type_: "kafka".to_string(),
             connection: conn,
             creation_config: Some(WriteBufferCreationConfig::default()),
@@ -291,7 +275,6 @@ mod tests {
 
         let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Read,
             type_: "kafka".to_string(),
             connection: conn,
             creation_config: Some(WriteBufferCreationConfig::default()),
@@ -316,7 +299,6 @@ mod tests {
 
         let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Write,
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
             ..Default::default()
@@ -330,7 +312,6 @@ mod tests {
 
         // will error when state is unknown
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Write,
             type_: "mock".to_string(),
             connection: "bar".to_string(),
             ..Default::default()
@@ -354,7 +335,6 @@ mod tests {
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Read,
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
             ..Default::default()
@@ -368,7 +348,6 @@ mod tests {
 
         // will error when state is unknown
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Read,
             type_: "mock".to_string(),
             connection: "bar".to_string(),
             ..Default::default()
@@ -389,7 +368,6 @@ mod tests {
 
         let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Write,
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
             ..Default::default()
@@ -403,7 +381,6 @@ mod tests {
 
         // will error when state is unknown
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Write,
             type_: "mock".to_string(),
             connection: "bar".to_string(),
             ..Default::default()
@@ -426,7 +403,6 @@ mod tests {
 
         let db_name = DatabaseName::new("foo").unwrap();
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Read,
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
             ..Default::default()
@@ -440,7 +416,6 @@ mod tests {
 
         // will error when state is unknown
         let cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Read,
             type_: "mock".to_string(),
             connection: "bar".to_string(),
             ..Default::default()

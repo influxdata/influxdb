@@ -6,9 +6,7 @@ use crate::{
     end_to_end_cases::scenario::{rand_name, wildcard_router_config, DatabaseBuilder},
 };
 use arrow_util::assert_batches_sorted_eq;
-use generated_types::influxdata::iox::write_buffer::v1::{
-    write_buffer_connection::Direction as WriteBufferDirection, WriteBufferConnection,
-};
+use generated_types::influxdata::iox::write_buffer::v1::WriteBufferConnection;
 use influxdb_iox_client::{
     delete::{
         generated_types::{Predicate, TimestampRange},
@@ -31,7 +29,6 @@ async fn reads_come_from_write_buffer() {
     let server = ServerFixture::create_shared(ServerType::Database).await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
-        direction: WriteBufferDirection::Read.into(),
         r#type: "file".to_string(),
         connection: write_buffer_dir.path().display().to_string(),
         creation_config: Some(WriteBufferCreationConfig {
@@ -133,7 +130,6 @@ async fn cant_write_to_db_reading_from_write_buffer() {
     let server = ServerFixture::create_shared(ServerType::Database).await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
-        direction: WriteBufferDirection::Read.into(),
         r#type: "file".to_string(),
         connection: write_buffer_dir.path().display().to_string(),
         creation_config: Some(WriteBufferCreationConfig {
@@ -184,7 +180,6 @@ async fn test_create_database_missing_write_buffer_sequencers() {
     let server = ServerFixture::create_shared(ServerType::Database).await;
     let db_name = rand_name();
     let write_buffer_connection = WriteBufferConnection {
-        direction: WriteBufferDirection::Read.into(),
         r#type: "file".to_string(),
         connection: write_buffer_dir.path().display().to_string(),
         ..Default::default()
@@ -243,7 +238,6 @@ pub async fn test_cross_write_buffer_tracing() {
         .unwrap();
     server_read.wait_server_initialized().await;
     let conn_read = WriteBufferConnection {
-        direction: WriteBufferDirection::Read.into(),
         r#type: "file".to_string(),
         connection: write_buffer_dir.path().display().to_string(),
         creation_config: Some(WriteBufferCreationConfig {

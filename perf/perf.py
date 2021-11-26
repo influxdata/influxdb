@@ -524,7 +524,6 @@ def grpc_create_database(router_id, writer_id):
                     'sinks': [
                         {
                             'write_buffer': {
-                                'direction': 'DIRECTION_WRITE',
                                 'type': 'kafka',
                                 'connection': '127.0.0.1:9093',
                                 'connection_config': {},
@@ -565,7 +564,6 @@ def grpc_create_database(router_id, writer_id):
             'routing_config': {'sink': {'kafka': {}}},
             'worker_cleanup_avg_sleep': '500s',
             'write_buffer_connection': {
-                'direction': 'DIRECTION_READ',
                 'type': 'kafka',
                 'connection': '127.0.0.1:9093',
                 'connection_config': {},

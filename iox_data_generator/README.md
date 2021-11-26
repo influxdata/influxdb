@@ -15,7 +15,7 @@ And the built binary has command line help:
 ./target/release/iox_data_generator --help
 ```
 
-For examples of specifications see the [schemas folder](schemas). The [full_example](schemas/full_example.toml) is the 
+For examples of specifications see the [schemas folder](schemas). The [full_example](schemas/full_example.toml) is the
 most comprehensive with comments and example output.
 
 ## Use with two IOx servers and Kafka
@@ -47,7 +47,7 @@ For the Kafka setup, you'll need to start two IOx servers, so you'll need to set
 for at least one of them. Here's an example of the two commands to run:
 
 ```
-cargo run --release -- run database --server-id 1
+cargo run --release -- run router --server-id 1
 cargo run --release -- run database --server-id 2 --api-bind 127.0.0.1:8084 --grpc-bind 127.0.0.1:8086
 ```
 

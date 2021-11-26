@@ -1215,7 +1215,7 @@ mod tests {
     use data_types::{
         chunk_metadata::{ChunkAddr, ChunkStorage},
         database_rules::{DatabaseRules, LifecycleRules, PartitionTemplate, TemplatePart},
-        write_buffer::{WriteBufferConnection, WriteBufferDirection},
+        write_buffer::WriteBufferConnection,
     };
     use dml::DmlWrite;
     use iox_object_store::IoxObjectStore;
@@ -2005,7 +2005,6 @@ mod tests {
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
             write_buffer_connection: Some(WriteBufferConnection {
-                direction: WriteBufferDirection::Write,
                 type_: "mock".to_string(),
                 connection: "my_mock".to_string(),
                 ..Default::default()
