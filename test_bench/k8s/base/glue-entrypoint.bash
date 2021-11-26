@@ -1,24 +1,21 @@
 #!/bin/bash
 
 set -eu -o pipefail
+shopt -s expand_aliases
 
 # extract ordinal index from server ID
 [[ $HOSTNAME =~ -([0-9]+)$ ]] || (echo "invalid hostname" && exit 1)
 ordinal=${BASH_REMATCH[1]}
 
 # calculate server ID
-offset="${INFLUXDB_IOX_ID_OFFSET:-0}"
+offset="${INFLUXDB_IOX_ID_OFFSET:-1}"
 server_id=$((ordinal + offset))
 echo "ServerID: $server_id"
 
 # set server ID
+alias textgrpc="grpcurl -allow-unknown-fields -plaintext"
 while true; do
-    set +e
-    grpcurl -d "{\"id\": $server_id}" -allow-unknown-fields -plaintext "$INFLUXDB_IOX_GRPC_BIND_ADDR" influxdata.iox.deployment.v1.DeploymentService.UpdateServerId
-    status=$?
-    set -e
-
-    if [[ $status == 0 ]]; then
+    if textgrpc -d "{\"id\": $server_id}" "$INFLUXDB_IOX_GRPC_BIND_ADDR" influxdata.iox.deployment.v1.DeploymentService.UpdateServerId; then
         echo "server ID set"
         break
     else
@@ -60,23 +57,13 @@ while true; do
             if [[ $type == "database" ]]; then
                 echo "Create database..."
 
-                set +e
-                grpcurl -d @ < "$F_CURRENT" -allow-unknown-fields -plaintext "$INFLUXDB_IOX_GRPC_BIND_ADDR" influxdata.iox.management.v1.ManagementService.CreateDatabase
-                status=$?
-                set -e
-
-                if [[ $status == 0 ]]; then
+                if textgrpc -d @ < "$F_CURRENT" "$INFLUXDB_IOX_GRPC_BIND_ADDR" influxdata.iox.management.v1.ManagementService.CreateDatabase; then
                     echo "databse created"
                     in_sync=1
                 else
                     echo "cannot create database, try updating it..."
 
-                    set +e
-                    grpcurl -d @ < "$F_CURRENT" -allow-unknown-fields -plaintext "$INFLUXDB_IOX_GRPC_BIND_ADDR" influxdata.iox.management.v1.ManagementService.UpdateDatabase
-                    status=$?
-                    set -e
-
-                    if [[ $status == 0 ]]; then
+                    if textgrpc -d @ < "$F_CURRENT" "$INFLUXDB_IOX_GRPC_BIND_ADDR" influxdata.iox.management.v1.ManagementService.UpdateDatabase; then
                         echo "database updated"
                         in_sync=1
                     else
@@ -86,12 +73,7 @@ while true; do
             else
                 echo "Update router..."
 
-                set +e
-                grpcurl -d @ < "$F_CURRENT" -allow-unknown-fields -plaintext "$INFLUXDB_IOX_GRPC_BIND_ADDR" influxdata.iox.router.v1.RouterService.UpdateRouter
-                status=$?
-                set -e
-
-                if [[ $status == 0 ]]; then
+                if textgrpc -d @ < "$F_CURRENT" "$INFLUXDB_IOX_GRPC_BIND_ADDR" influxdata.iox.router.v1.RouterService.UpdateRouter; then
                     echo "router updated"
                     in_sync=1
                 else
