@@ -192,7 +192,7 @@ func (s *Service) run(ctx context.Context) {
 			}
 
 			logEnd()
-			elapsed := time.Now().Sub(startTime)
+			elapsed := time.Since(startTime)
 			globalRetentionMetrics.checkDuration.Observe(elapsed.Seconds())
 		}
 	}
