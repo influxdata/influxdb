@@ -10,6 +10,10 @@ use generated_types::influxdata::iox::write_buffer::v1::{
     write_buffer_connection::Direction as WriteBufferDirection, WriteBufferConnection,
 };
 use influxdb_iox_client::{
+    delete::{
+        generated_types::{Predicate, TimestampRange},
+        DeleteError,
+    },
     management::{generated_types::WriteBufferCreationConfig, CreateDatabaseError},
     write::WriteError,
 };
@@ -153,6 +157,23 @@ async fn cant_write_to_db_reading_from_write_buffer() {
 
     assert_contains!(err.to_string(), "only allowed through write buffer");
     assert!(matches!(dbg!(err), WriteError::ServerError(_)));
+
+    // Deleting from this database is an error; all data comes from write buffer
+    let mut delete_client = server.delete_client();
+    let err = delete_client
+        .delete(
+            &db_name,
+            "temp",
+            Predicate {
+                range: Some(TimestampRange { start: 1, end: 2 }),
+                exprs: vec![],
+            },
+        )
+        .await
+        .expect_err("expected delete to fail");
+
+    assert_contains!(err.to_string(), "only allowed through write buffer");
+    assert!(matches!(dbg!(err), DeleteError::ServerError(_)));
 }
 
 #[tokio::test]
