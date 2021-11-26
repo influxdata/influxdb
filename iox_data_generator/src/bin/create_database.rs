@@ -10,9 +10,20 @@
     clippy::clone_on_ref_ptr
 )]
 
+use std::collections::HashMap;
+
 use clap::{App, Arg};
-use influxdb_iox_client::management::generated_types::*;
-use influxdb_iox_client::write::generated_types::*;
+use influxdb_iox_client::{
+    management::generated_types::{
+        database_rules, lifecycle_rules, partition_template, sink, DatabaseRules, KafkaProducer,
+        LifecycleRules, PartitionTemplate, RoutingConfig, Sink,
+    },
+    router::generated_types::{
+        write_sink, Matcher, MatcherToShard, Router, ShardConfig, WriteBufferConnection, WriteSink,
+        WriteSinkSet,
+    },
+    write::generated_types::{column, Column, DatabaseBatch, TableBatch, WriteRequest},
+};
 
 #[tokio::main]
 async fn main() {
@@ -69,33 +80,33 @@ Examples:
         .expect("KAFKA has a default value");
 
     // Edit these to whatever DatabaseRules you want to use
-    let writer_database_rules = DatabaseRules {
+    let router_config = Router {
         name: db_name.clone(),
-        partition_template: Some(PartitionTemplate {
-            parts: vec![partition_template::Part {
-                part: Some(partition_template::part::Part::Time(
-                    "%Y-%m-%d %H:00:00".into(),
-                )),
+        write_sharder: Some(ShardConfig {
+            specific_targets: vec![MatcherToShard {
+                matcher: Some(Matcher {
+                    table_name_regex: String::from(".*"),
+                }),
+                shard: 1,
             }],
+            hash_ring: None,
         }),
-        lifecycle_rules: Some(LifecycleRules {
-            immutable: true,
-            ..Default::default()
-        }),
-        worker_cleanup_avg_sleep: None,
-        routing_rules: Some(database_rules::RoutingRules::RoutingConfig(RoutingConfig {
-            sink: Some(Sink {
-                sink: Some(sink::Sink::Kafka(KafkaProducer {})),
-            }),
-        })),
-        write_buffer_connection: Some(WriteBufferConnection {
-            direction: write_buffer_connection::Direction::Write.into(),
-            r#type: "kafka".to_string(),
-            connection: kafka.to_string(),
-            ..Default::default()
-        }),
+        write_sinks: HashMap::from([(
+            1,
+            WriteSinkSet {
+                sinks: vec![WriteSink {
+                    sink: Some(write_sink::Sink::WriteBuffer(WriteBufferConnection {
+                        r#type: "kafka".to_string(),
+                        connection: kafka.to_string(),
+                        ..Default::default()
+                    })),
+                    ignore_errors: false,
+                }],
+            },
+        )]),
+        query_sinks: None,
     };
-    let reader_database_rules = DatabaseRules {
+    let database_rules = DatabaseRules {
         name: db_name.clone(),
         partition_template: Some(PartitionTemplate {
             parts: vec![partition_template::Part {
@@ -122,7 +133,6 @@ Examples:
             }),
         })),
         write_buffer_connection: Some(WriteBufferConnection {
-            direction: write_buffer_connection::Direction::Read.into(),
             r#type: "kafka".to_string(),
             connection: kafka.to_string(),
             ..Default::default()
@@ -135,12 +145,12 @@ Examples:
         .build(writer_grpc_bind_addr)
         .await
         .unwrap();
-    let mut writer_management_client =
-        influxdb_iox_client::management::Client::new(writer_grpc_channel.clone());
-    writer_management_client
-        .create_database(writer_database_rules)
+    let mut writer_router_client =
+        influxdb_iox_client::router::Client::new(writer_grpc_channel.clone());
+    writer_router_client
+        .update_router(router_config)
         .await
-        .expect("create writer database failed");
+        .expect("create router failed");
 
     // Write a few points
     let mut write_client = influxdb_iox_client::write::Client::new(writer_grpc_channel);
@@ -158,7 +168,7 @@ Examples:
     let mut reader_management_client =
         influxdb_iox_client::management::Client::new(reader_grpc_channel.clone());
     reader_management_client
-        .create_database(reader_database_rules)
+        .create_database(database_rules)
         .await
         .expect("create reader database failed");
 

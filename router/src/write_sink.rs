@@ -204,7 +204,6 @@ impl WriteSinkSet {
 
 #[cfg(test)]
 mod tests {
-    use data_types::write_buffer::WriteBufferDirection;
     use dml::DmlWrite;
     use mutable_batch_lp::lines_to_batches;
     use time::SystemProvider;
@@ -267,7 +266,6 @@ mod tests {
 
         // write buffer, do NOT ignore errors
         let write_buffer_cfg = WriteBufferConnection {
-            direction: WriteBufferDirection::Write,
             type_: String::from("mock"),
             connection: String::from("failing_wb"),
             ..Default::default()

@@ -14,8 +14,7 @@ use data_types::timestamp::TimestampRange;
 use data_types::DatabaseName;
 use dml::{DmlDelete, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::{
-    management::v1::DatabaseRules,
-    write_buffer::v1::{write_buffer_connection::Direction, WriteBufferConnection},
+    management::v1::DatabaseRules, write_buffer::v1::WriteBufferConnection,
 };
 use mutable_batch_lp::lines_to_batches;
 use query::exec::ExecutionContextProvider;
@@ -58,8 +57,7 @@ impl DistributedTest {
             .write_buffer_factory()
             .register_mock("my_mock".to_string(), write_buffer_state);
 
-        let mut write_buffer_connection = WriteBufferConnection {
-            direction: Direction::Write as _,
+        let write_buffer_connection = WriteBufferConnection {
             r#type: "mock".to_string(),
             connection: "my_mock".to_string(),
             connection_config: Default::default(),
@@ -106,8 +104,6 @@ impl DistributedTest {
         // Create a consumer
         let consumer_id = ServerId::new(NonZeroU32::new(2).unwrap());
         let consumer = make_initialized_server(consumer_id, Arc::clone(&application)).await;
-
-        write_buffer_connection.direction = Direction::Read as _;
 
         let consumer_db = consumer
             .create_database(
