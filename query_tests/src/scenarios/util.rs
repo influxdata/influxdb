@@ -189,7 +189,7 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     // Make an open MUB
     //
     // There may be more than one tables in the lp data
-    let tables = write_lp(&db, &lp_lines.join("\n")).await;
+    let tables = write_lp(&db, &lp_lines.join("\n"));
     for table in &tables {
         let num_mubs = count_mub_table_chunks(&db, table.as_str(), partition_key);
         // must be one MUB per table
@@ -434,7 +434,7 @@ pub async fn make_different_stage_chunks_with_deletes_scenario(
 
         // ----------
         // Make an open MUB
-        write_lp(&db, &chunk_data.lp_lines.join("\n")).await;
+        write_lp(&db, &chunk_data.lp_lines.join("\n"));
         // 0 does not represent the real chunk id. It is here just to initialize the chunk_id  variable for later assignment
         let mut chunk_id = db.chunk_summaries().unwrap()[0].id;
 

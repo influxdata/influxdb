@@ -635,7 +635,7 @@ mod tests {
     async fn mub_records_access() {
         let (db, time) = make_db_time().await;
 
-        write_lp(&db, "cpu,tag=1 bar=1 1").await;
+        write_lp(&db, "cpu,tag=1 bar=1 1");
 
         let chunks = db.catalog.chunks();
         assert_eq!(chunks.len(), 1);
@@ -650,7 +650,7 @@ mod tests {
     async fn rub_records_access() {
         let (db, time) = make_db_time().await;
 
-        write_lp(&db, "cpu,tag=1 bar=1 1").await;
+        write_lp(&db, "cpu,tag=1 bar=1 1");
         db.compact_partition("cpu", "1970-01-01T00").await.unwrap();
 
         let chunks = db.catalog.chunks();
@@ -667,7 +667,7 @@ mod tests {
         let (db, time) = make_db_time().await;
 
         let t0 = time.inc(Duration::from_secs(324));
-        write_lp(&db, "cpu,tag=1 bar=1 1").await;
+        write_lp(&db, "cpu,tag=1 bar=1 1");
 
         let id = db
             .persist_partition("cpu", "1970-01-01T00", true)
@@ -697,10 +697,10 @@ mod tests {
         let (db, time) = make_db_time().await;
 
         let w0 = time.inc(Duration::from_secs(10));
-        write_lp(&db, "cpu,tag=1 bar=1 1").await;
+        write_lp(&db, "cpu,tag=1 bar=1 1");
 
         let w1 = time.inc(Duration::from_secs(10));
-        write_lp(&db, "cpu,tag=2 bar=2 2").await;
+        write_lp(&db, "cpu,tag=2 bar=2 2");
 
         db.persist_partition("cpu", "1970-01-01T00", true)
             .await

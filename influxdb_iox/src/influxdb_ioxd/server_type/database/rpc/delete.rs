@@ -41,8 +41,7 @@ impl delete_service_server::DeleteService for DeleteService {
             .map_err(default_server_error_handler)?;
 
         database
-            .route_operation(&DmlOperation::Delete(delete))
-            .await
+            .store_operation(&DmlOperation::Delete(delete))
             .map_err(default_database_write_error_handler)?;
 
         Ok(Response::new(DeleteResponse {}))

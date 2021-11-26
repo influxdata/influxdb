@@ -88,7 +88,7 @@ async fn setup(
     let mut chunk_ids = vec![];
 
     for _ in 0..N_CHUNKS {
-        let table_names = write_lp(&db, &lp).await;
+        let table_names = write_lp(&db, &lp);
 
         for table_name in &table_names {
             db.compact_open_chunk(table_name, partition_key)

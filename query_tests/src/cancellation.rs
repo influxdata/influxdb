@@ -31,7 +31,7 @@ async fn test_query_cancellation_slow_store() {
 
     // create persisted chunk
     let data = "cpu,region=west user=23.2 100";
-    write_lp(&db, data).await;
+    write_lp(&db, data);
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -51,7 +51,7 @@ async fn test_query_cancellation_slow_store() {
 
     // create in-memory chunk
     let data = "cpu,region=east user=0.1 42";
-    write_lp(&db, data).await;
+    write_lp(&db, data);
 
     // make store access really slow
     if let ObjectStoreIntegration::InMemoryThrottled(inner) = &object_store.integration {

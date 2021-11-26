@@ -41,8 +41,7 @@ impl write_service_server::WriteService for PBWriteService {
             .map_err(default_server_error_handler)?;
 
         database
-            .route_operation(&DmlOperation::Write(write))
-            .await
+            .store_operation(&DmlOperation::Write(write))
             .map_err(default_database_write_error_handler)?;
 
         Ok(tonic::Response::new(WriteResponse {}))

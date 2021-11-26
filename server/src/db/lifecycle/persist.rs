@@ -267,7 +267,7 @@ mod tests {
     #[tokio::test]
     async fn test_flush_overlapping() {
         let (db, time) = test_db().await;
-        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10");
 
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
@@ -275,7 +275,7 @@ mod tests {
         // Close window
         time.inc(Duration::from_secs(2));
 
-        write_lp(db.as_ref(), "cpu,tag1=lagged bar=1 10").await;
+        write_lp(db.as_ref(), "cpu,tag1=lagged bar=1 10");
 
         let partition = db.lockable_partition("cpu", &partition_keys[0]).unwrap();
         let partition_guard = partition.read();
@@ -314,10 +314,10 @@ mod tests {
         let late_arrival = Duration::from_secs(1);
 
         time.inc(Duration::from_secs(32));
-        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10");
 
         time.inc(late_arrival);
-        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=3 23").await;
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=3 23");
 
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
@@ -357,8 +357,8 @@ mod tests {
 
         // Add a second set of writes one of which overlaps the above chunk
         time.inc(late_arrival * 10);
-        write_lp(db.as_ref(), "cpu,tag1=foo bar=2 23").await;
-        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=2 26").await;
+        write_lp(db.as_ref(), "cpu,tag1=foo bar=2 23");
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=2 26");
 
         // Persist second write but not third
         let maybe_chunk = db
@@ -422,7 +422,7 @@ mod tests {
         let (db, time) = test_db().await;
 
         let late_arrival = Duration::from_secs(1);
-        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10");
 
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
@@ -491,10 +491,10 @@ mod tests {
         // |   2 |                   yes |                   yes |
         // |   3 |                    no |                   yes |
         // |   4 |                    no |                    no |
-        write_lp(db.as_ref(), "cpu foo=1 10").await;
-        write_lp(db.as_ref(), "cpu foo=2 20").await;
-        write_lp(db.as_ref(), "cpu foo=3 20").await;
-        write_lp(db.as_ref(), "cpu foo=4 20").await;
+        write_lp(db.as_ref(), "cpu foo=1 10");
+        write_lp(db.as_ref(), "cpu foo=2 20");
+        write_lp(db.as_ref(), "cpu foo=3 20");
+        write_lp(db.as_ref(), "cpu foo=4 20");
 
         let range = TimestampRange {
             start: 0,

@@ -185,8 +185,7 @@ impl HttpDrivenDml for DatabaseServerType {
                 })?;
 
                 database
-                    .route_operation(&DmlOperation::Write(write))
-                    .await
+                    .store_operation(&DmlOperation::Write(write))
                     .map_err(|e| InnerDmlError::InternalError {
                         db_name: db_name.to_string(),
                         source: Box::new(e),
@@ -200,8 +199,7 @@ impl HttpDrivenDml for DatabaseServerType {
                 })?;
 
                 database
-                    .route_operation(&DmlOperation::Delete(delete))
-                    .await
+                    .store_operation(&DmlOperation::Delete(delete))
                     .map_err(|e| match e {
                         WriteError::DbError { source } => match source {
                             server::db::Error::DeleteFromTable { table_name, .. } => {

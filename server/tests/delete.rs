@@ -64,29 +64,29 @@ async fn delete_predicate_preservation() {
 
     // 1: preserved
     let partition_key = "part_a";
-    write_lp(&db, "cpu,part=a row=10,selector=0i 10").await;
-    write_lp(&db, "cpu,part=a row=11,selector=1i 11").await;
+    write_lp(&db, "cpu,part=a row=10,selector=0i 10");
+    write_lp(&db, "cpu,part=a row=11,selector=1i 11");
     db.persist_partition(table_name, partition_key, true)
         .await
         .unwrap();
 
     // 2: RUB
     let partition_key = "part_b";
-    write_lp(&db, "cpu,part=b row=20,selector=0i 20").await;
-    write_lp(&db, "cpu,part=b row=21,selector=1i 21").await;
+    write_lp(&db, "cpu,part=b row=20,selector=0i 20");
+    write_lp(&db, "cpu,part=b row=21,selector=1i 21");
     db.compact_partition(table_name, partition_key)
         .await
         .unwrap();
 
     // 3: MUB
     let _partition_key = "part_c";
-    write_lp(&db, "cpu,part=c row=30,selector=0i 30").await;
-    write_lp(&db, "cpu,part=c row=31,selector=1i 31").await;
+    write_lp(&db, "cpu,part=c row=30,selector=0i 30");
+    write_lp(&db, "cpu,part=c row=31,selector=1i 31");
 
     // 4: preserved and unloaded
     let partition_key = "part_d";
-    write_lp(&db, "cpu,part=d row=40,selector=0i 40").await;
-    write_lp(&db, "cpu,part=d row=41,selector=1i 41").await;
+    write_lp(&db, "cpu,part=d row=40,selector=0i 40");
+    write_lp(&db, "cpu,part=d row=41,selector=1i 41");
 
     let chunk_id = db
         .persist_partition(table_name, partition_key, true)
