@@ -12,7 +12,6 @@ use arrow::{
 use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
 use futures::prelude::*;
 use influxdb_iox_client::management::generated_types::partition_template;
-use influxdb_iox_client::management::generated_types::write_buffer_connection;
 use influxdb_iox_client::management::generated_types::WriteBufferConnection;
 use influxdb_iox_client::management::CreateDatabaseError;
 use prost::Message;
@@ -605,7 +604,6 @@ pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> S
         .create_database(DatabaseRules {
             name: db_name.to_string(),
             write_buffer_connection: Some(WriteBufferConnection {
-                direction: write_buffer_connection::Direction::Read.into(),
                 r#type: "file".to_string(),
                 connection: write_buffer_path.display().to_string(),
                 creation_config: Some(WriteBufferCreationConfig {
@@ -721,7 +719,6 @@ pub fn wildcard_router_config(
     };
 
     let write_buffer_connection = WriteBufferConnection {
-        direction: write_buffer_connection::Direction::Write.into(),
         r#type: "file".to_string(),
         connection: write_buffer_path.display().to_string(),
         creation_config: Some(WriteBufferCreationConfig {

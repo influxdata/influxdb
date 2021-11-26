@@ -8,7 +8,7 @@ use crate::{
     rules::{PersistedDatabaseRules, ProvidedDatabaseRules},
     ApplicationState, Db,
 };
-use data_types::{server_id::ServerId, write_buffer::WriteBufferDirection, DatabaseName};
+use data_types::{server_id::ServerId, DatabaseName};
 use dml::DmlOperation;
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
@@ -1388,7 +1388,7 @@ impl DatabaseStateCatalogLoaded {
         let trace_collector = shared.application.trace_collector();
         let write_buffer_factory = shared.application.write_buffer_factory();
         let write_buffer_consumer = match rules.write_buffer_connection.as_ref() {
-            Some(connection) if matches!(connection.direction, WriteBufferDirection::Read) => {
+            Some(connection) => {
                 let mut consumer = write_buffer_factory
                     .new_config_read(
                         shared.config.server_id,
@@ -1452,7 +1452,7 @@ mod tests {
     use data_types::{
         database_rules::{PartitionTemplate, TemplatePart},
         sequence::Sequence,
-        write_buffer::{WriteBufferConnection, WriteBufferDirection},
+        write_buffer::WriteBufferConnection,
     };
     use std::{num::NonZeroU32, time::Instant};
     use uuid::Uuid;
@@ -1697,7 +1697,6 @@ mod tests {
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
             write_buffer_connection: Some(WriteBufferConnection {
-                direction: WriteBufferDirection::Read,
                 type_: "mock".to_string(),
                 connection: "my_mock".to_string(),
                 ..Default::default()

@@ -7,19 +7,8 @@ import "influxdata/pbdata/v1/influxdb_pb_data_protocol.proto";
 
 // Configures the use of a write buffer.
 message WriteBufferConnection {
-  enum Direction {
-    // Unspecified direction, will be treated as an error.
-    DIRECTION_UNSPECIFIED = 0;
-
-    // Writes into the buffer aka "producer".
-    DIRECTION_WRITE = 1;
-
-    // Reads from the buffer aka "consumer".
-    DIRECTION_READ = 2;
-  }
-
-  // If the buffer is used for reading or writing.
-  Direction direction = 1;
+  reserved 1;
+  reserved "direction";
 
   // Which type should be used (e.g. "kafka", "mock")
   string type = 2;

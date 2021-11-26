@@ -1,23 +1,10 @@
 use std::{collections::BTreeMap, num::NonZeroU32};
 
-/// If the buffer is used for reading or writing.
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub enum WriteBufferDirection {
-    /// Writes into the buffer aka "producer".
-    Write,
-
-    /// Reads from the buffer aka "consumer".
-    Read,
-}
-
 pub const DEFAULT_N_SEQUENCERS: u32 = 1;
 
 /// Configures the use of a write buffer.
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub struct WriteBufferConnection {
-    /// If the buffer is used for reading or writing.
-    pub direction: WriteBufferDirection,
-
     /// Which type should be used (e.g. "kafka", "mock")
     pub type_: String,
 
@@ -39,7 +26,6 @@ pub struct WriteBufferConnection {
 impl Default for WriteBufferConnection {
     fn default() -> Self {
         Self {
-            direction: WriteBufferDirection::Read,
             type_: "unspecified".to_string(),
             connection: Default::default(),
             connection_config: Default::default(),

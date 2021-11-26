@@ -7,7 +7,7 @@ use generated_types::{
 };
 use influxdb_iox_client::{
     management::{Client, CreateDatabaseError},
-    router::generated_types::{write_buffer_connection, WriteBufferConnection},
+    router::generated_types::WriteBufferConnection,
 };
 use std::{fs::set_permissions, num::NonZeroU32, os::unix::fs::PermissionsExt};
 use test_helpers::assert_contains;
@@ -77,7 +77,6 @@ async fn test_create_database_invalid_kafka() {
     let rules = DatabaseRules {
         name: "db_with_bad_kafka_address".into(),
         write_buffer_connection: Some(WriteBufferConnection {
-            direction: write_buffer_connection::Direction::Read.into(),
             r#type: "kafka".into(),
             connection: "i_am_not_a_kafka_server:1234".into(),
             ..Default::default()

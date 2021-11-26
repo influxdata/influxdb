@@ -21,7 +21,6 @@
         "routing_config": {"sink": {"kafka": {}}},
         "worker_cleanup_avg_sleep": "500s",
         "write_buffer_connection": {
-            "direction": "DIRECTION_READ",
             "type": "kafka",
             "connection": "redpanda-service:9093",
             "connection_config": {},
