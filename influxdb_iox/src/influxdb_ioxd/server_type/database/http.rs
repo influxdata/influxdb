@@ -14,7 +14,7 @@
 use data_types::{names::OrgBucketMappingError, DatabaseName};
 use influxdb_iox_client::format::QueryOutputFormat;
 use query::exec::ExecutionContextProvider;
-use server::{connection::ConnectionManager, Error};
+use server::Error;
 
 // External crates
 use async_trait::async_trait;
@@ -162,10 +162,7 @@ impl From<server::Error> for ApplicationError {
 }
 
 #[async_trait]
-impl<M> HttpDrivenDml for DatabaseServerType<M>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+impl HttpDrivenDml for DatabaseServerType {
     fn max_request_size(&self) -> usize {
         self.max_request_size
     }
@@ -222,13 +219,10 @@ where
     }
 }
 
-pub async fn route_request<M>(
-    server_type: &DatabaseServerType<M>,
+pub async fn route_request(
+    server_type: &DatabaseServerType,
     req: Request<Body>,
-) -> Result<Response<Body>, ApplicationError>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+) -> Result<Response<Body>, ApplicationError> {
     match server_type
         .route_dml_http_request(req)
         .await
@@ -266,9 +260,9 @@ fn default_format() -> String {
     QueryOutputFormat::default().to_string()
 }
 
-async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
+async fn query(
     req: Request<Body>,
-    server_type: &DatabaseServerType<M>,
+    server_type: &DatabaseServerType,
 ) -> Result<Response<Body>, ApplicationError> {
     let server = &server_type.server;
 
@@ -340,10 +334,7 @@ mod tests {
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
     use object_store::ObjectStore;
     use schema::selection::Selection;
-    use server::{
-        connection::ConnectionManagerImpl, db::Db, rules::ProvidedDatabaseRules, ApplicationState,
-        Server,
-    };
+    use server::{db::Db, rules::ProvidedDatabaseRules, ApplicationState, Server};
     use trace::RingBufferTraceCollector;
 
     fn make_application() -> Arc<ApplicationState> {
@@ -354,12 +345,8 @@ mod tests {
         ))
     }
 
-    fn make_server(application: Arc<ApplicationState>) -> Arc<Server<ConnectionManagerImpl>> {
-        Arc::new(Server::new(
-            ConnectionManagerImpl::new(),
-            application,
-            Default::default(),
-        ))
+    fn make_server(application: Arc<ApplicationState>) -> Arc<Server> {
+        Arc::new(Server::new(application, Default::default()))
     }
 
     #[tokio::test]
@@ -377,10 +364,7 @@ mod tests {
         assert_tracing(setup_server().await).await;
     }
 
-    async fn assert_dbwrite(
-        test_server: TestServer<DatabaseServerType<ConnectionManagerImpl>>,
-        write: DmlWrite,
-    ) {
+    async fn assert_dbwrite(test_server: TestServer<DatabaseServerType>, write: DmlWrite) {
         let (table_name, mutable_batch) = write.tables().next().unwrap();
 
         let test_db = test_server
@@ -529,10 +513,7 @@ mod tests {
     /// Sets up a test database with some data for testing the query endpoint
     /// returns a client for communicating with the server, and the server
     /// endpoint
-    async fn setup_test_data() -> (
-        Client,
-        TestServer<DatabaseServerType<ConnectionManagerImpl>>,
-    ) {
+    async fn setup_test_data() -> (Client, TestServer<DatabaseServerType>) {
         let test_server = setup_server().await;
 
         let client = Client::new();
@@ -689,7 +670,7 @@ mod tests {
     }
 
     /// return a test server and the url to contact it for `MyOrg_MyBucket`
-    async fn setup_server() -> TestServer<DatabaseServerType<ConnectionManagerImpl>> {
+    async fn setup_server() -> TestServer<DatabaseServerType> {
         let application = make_application();
 
         let app_server = make_server(Arc::clone(&application));

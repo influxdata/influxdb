@@ -5,7 +5,7 @@ use futures::{future::FusedFuture, FutureExt};
 use hyper::{Body, Request, Response};
 use metric::Registry;
 use observability_deps::tracing::{error, info};
-use server::{connection::ConnectionManager, ApplicationState, Server};
+use server::{ApplicationState, Server};
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
@@ -25,25 +25,19 @@ pub use self::http::ApplicationError;
 use super::common_state::CommonServerState;
 
 #[derive(Debug)]
-pub struct DatabaseServerType<M>
-where
-    M: ConnectionManager + std::fmt::Debug + Send + Sync + 'static,
-{
+pub struct DatabaseServerType {
     pub application: Arc<ApplicationState>,
-    pub server: Arc<Server<M>>,
+    pub server: Arc<Server>,
     pub lp_metrics: Arc<LineProtocolMetrics>,
     pub max_request_size: usize,
     pub serving_readiness: ServingReadiness,
     shutdown: CancellationToken,
 }
 
-impl<M> DatabaseServerType<M>
-where
-    M: ConnectionManager + std::fmt::Debug + Send + Sync + 'static,
-{
+impl DatabaseServerType {
     pub fn new(
         application: Arc<ApplicationState>,
-        server: Arc<Server<M>>,
+        server: Arc<Server>,
         common_state: &CommonServerState,
     ) -> Self {
         let lp_metrics = Arc::new(LineProtocolMetrics::new(
@@ -62,10 +56,7 @@ where
 }
 
 #[async_trait]
-impl<M> ServerType for DatabaseServerType<M>
-where
-    M: ConnectionManager + std::fmt::Debug + Send + Sync + 'static,
-{
+impl ServerType for DatabaseServerType {
     type RouteError = ApplicationError;
 
     fn metric_registry(&self) -> Arc<Registry> {
@@ -132,7 +123,7 @@ mod tests {
     use data_types::{database_rules::DatabaseRules, DatabaseName};
     use futures::pin_mut;
     use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
-    use server::{connection::ConnectionManagerImpl, rules::ProvidedDatabaseRules};
+    use server::rules::ProvidedDatabaseRules;
     use std::{convert::TryInto, net::SocketAddr, num::NonZeroU64};
     use structopt::StructOpt;
     use tokio::task::JoinHandle;
@@ -157,7 +148,7 @@ mod tests {
     async fn test_serve(
         config: RunConfig,
         application: Arc<ApplicationState>,
-        server: Arc<Server<ConnectionManagerImpl>>,
+        server: Arc<Server>,
     ) {
         let grpc_listener = grpc_listener(config.grpc_bind_address.into())
             .await
@@ -348,7 +339,7 @@ mod tests {
         collector: &Arc<T>,
     ) -> (
         SocketAddr,
-        Arc<Server<ConnectionManagerImpl>>,
+        Arc<Server>,
         JoinHandle<crate::influxdb_ioxd::Result<()>>,
     ) {
         let config = test_config(Some(23));

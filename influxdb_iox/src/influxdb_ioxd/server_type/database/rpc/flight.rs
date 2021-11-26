@@ -25,7 +25,7 @@ use tonic::{Request, Response, Streaming};
 use data_types::{DatabaseName, DatabaseNameError};
 use observability_deps::tracing::{info, warn};
 use query::exec::{ExecutionContextProvider, IOxExecutionContext};
-use server::{connection::ConnectionManager, Server};
+use server::Server;
 
 use super::error::default_server_error_handler;
 use crate::influxdb_ioxd::planner::Planner;
@@ -125,22 +125,16 @@ struct ReadInfo {
 
 /// Concrete implementation of the gRPC Arrow Flight Service API
 #[derive(Debug)]
-struct FlightService<M: ConnectionManager> {
-    server: Arc<Server<M>>,
+struct FlightService {
+    server: Arc<Server>,
 }
 
-pub fn make_server<M>(server: Arc<Server<M>>) -> FlightServer<impl Flight>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+pub fn make_server(server: Arc<Server>) -> FlightServer<impl Flight> {
     FlightServer::new(FlightService { server })
 }
 
 #[tonic::async_trait]
-impl<M: ConnectionManager> Flight for FlightService<M>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+impl Flight for FlightService {
     type HandshakeStream = TonicStream<HandshakeResponse>;
     type ListFlightsStream = TonicStream<FlightInfo>;
     type DoGetStream = TonicStream<FlightData>;

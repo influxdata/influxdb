@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use server::connection::ConnectionManager;
-
 use crate::influxdb_ioxd::{
     rpc::{add_gated_service, add_service, serve_builder, setup_builder, RpcBuilderInput},
     server_type::{database::DatabaseServerType, RpcError},
@@ -16,13 +14,10 @@ mod operations;
 mod storage;
 mod write_pb;
 
-pub async fn server_grpc<M>(
-    server_type: Arc<DatabaseServerType<M>>,
+pub async fn server_grpc(
+    server_type: Arc<DatabaseServerType>,
     builder_input: RpcBuilderInput,
-) -> Result<(), RpcError>
-where
-    M: ConnectionManager + std::fmt::Debug + Send + Sync + 'static,
-{
+) -> Result<(), RpcError> {
     let builder = setup_builder!(builder_input, server_type);
 
     add_gated_service!(
