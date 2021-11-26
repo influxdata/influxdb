@@ -1,0 +1,20 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - minio.yml
+  - redpanda.yml
+  - router.yml
+  - query.yml
+
+configMapGenerator:
+  - name: glue-entrypoint
+    files:
+      - glue-entrypoint.bash
+
+patches:
+  - path: debug-sidecar-patch.yml
+    target:
+      kind: StatefulSet
+      name: iox-.*

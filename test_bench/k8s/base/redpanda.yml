@@ -1,0 +1,45 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda-deployment
+  labels:
+    app: redpanda
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: vectorized/redpanda:v21.7.6
+          args:
+            - redpanda
+            - start
+            - --overprovisioned
+            - --smp=1
+            - --memory=128M
+            - --reserve-memory=0M
+            - --node-id=0
+            - --check=false
+            - --kafka-addr=CLIENT://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+            - --advertise-kafka-addr=CLIENT://redpanda-service:9092,EXTERNAL://redpanda-service:9093
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda-service
+spec:
+  selector:
+    app: redpanda
+  ports:
+    - name: kafka
+      protocol: TCP
+      port: 9093
+      targetPort: 9093
