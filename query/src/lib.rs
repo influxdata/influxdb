@@ -165,7 +165,6 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
         &self,
         predicate: &Predicate,
         selection: Selection<'_>,
-        delete_predicates: &[Arc<Predicate>],
     ) -> Result<SendableRecordBatchStream, Self::Error>;
 
     /// Returns true if data of this chunk is sorted

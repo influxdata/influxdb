@@ -24,8 +24,7 @@ use persistence_windows::{
     checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
     persistence_windows::FlushHandle,
 };
-use predicate::predicate::Predicate;
-use query::{QueryChunk, QueryChunkMeta};
+use query::QueryChunk;
 use schema::selection::Selection;
 use snafu::ResultExt;
 use std::{future::Future, sync::Arc};
@@ -95,13 +94,8 @@ pub(super) fn write_chunk_to_object_store(
             collect_checkpoints(flush_handle.checkpoint(), &db.catalog);
 
         // Get RecordBatchStream of data from the read buffer chunk
-        let del_preds: Vec<Arc<Predicate>> = db_chunk
-            .delete_predicates()
-            .iter()
-            .map(|pred| Arc::new(pred.as_ref().clone().into()))
-            .collect();
         let stream = db_chunk
-            .read_filter(&Default::default(), Selection::All, &del_preds)
+            .read_filter(&Default::default(), Selection::All)
             .expect("read filter should be infallible");
 
         // check that the upcoming state change will very likely succeed

@@ -118,22 +118,14 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         let selection_cols = restrict_selection(selection_cols, &chunk_table_schema);
         let selection = Selection::Some(&selection_cols);
 
-        let del_preds = chunk.delete_predicates();
-        let del_preds: Vec<Arc<Predicate>> = del_preds
-            .iter()
-            .map(|pred| Arc::new(pred.as_ref().clone().into()))
-            .collect();
-
-        let stream = chunk
-            .read_filter(&self.predicate, selection, &del_preds)
-            .map_err(|e| {
-                DataFusionError::Execution(format!(
-                    "Error creating scan for table {} chunk {}: {}",
-                    self.table_name,
-                    chunk.id(),
-                    e
-                ))
-            })?;
+        let stream = chunk.read_filter(&self.predicate, selection).map_err(|e| {
+            DataFusionError::Execution(format!(
+                "Error creating scan for table {} chunk {}: {}",
+                self.table_name,
+                chunk.id(),
+                e
+            ))
+        })?;
 
         // all CPU time is now done, pass in baseline metrics to adapter
         timer.done();
