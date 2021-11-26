@@ -11,12 +11,12 @@ use tonic::Status;
 
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
-    google::protobuf::Empty, storage_server::Storage, CapabilitiesResponse, Capability,
-    Int64ValuesResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
-    MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Predicate,
-    ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
-    ReadWindowAggregateRequest, StringValuesResponse, TagKeyMetaNames, TagKeysRequest,
-    TagValuesRequest, TimestampRange,
+    google::protobuf::Empty, offsets_response::PartitionOffsetResponse, storage_server::Storage,
+    CapabilitiesResponse, Capability, Int64ValuesResponse, MeasurementFieldsRequest,
+    MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
+    MeasurementTagValuesRequest, OffsetsResponse, Predicate, ReadFilterRequest, ReadGroupRequest,
+    ReadResponse, ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse,
+    TagKeyMetaNames, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 use observability_deps::tracing::{error, info, trace};
 use predicate::predicate::PredicateBuilder;
@@ -673,6 +673,18 @@ where
             .expect("sending measurement_fields response to server");
 
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
+    }
+
+    async fn offsets(
+        &self,
+        _req: tonic::Request<Empty>,
+    ) -> Result<tonic::Response<OffsetsResponse>, Status> {
+        // We present ourselves to the rest of IDPE as a single storage node with 1 partition.
+        // (Returning offset 1 just in case offset 0 is interpreted by query nodes as being special)
+        let the_partition = PartitionOffsetResponse { id: 0, offset: 1 };
+        Ok(tonic::Response::new(OffsetsResponse {
+            partitions: vec![the_partition],
+        }))
     }
 }
 
