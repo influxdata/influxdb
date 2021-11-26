@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use data_types::non_empty::NonEmptyString;
 use data_types::DatabaseName;
-use dml::{DmlDelete, DmlMeta};
+use dml::{DmlDelete, DmlMeta, DmlOperation};
 use generated_types::google::{FieldViolationExt, FromOptionalField, OptionalField};
 use generated_types::influxdata::iox::delete::v1::*;
 use server::Server;
@@ -12,7 +12,7 @@ struct DeleteService {
     server: Arc<Server>,
 }
 
-use super::error::{default_db_error_handler, default_server_error_handler};
+use super::error::{default_database_write_error_handler, default_server_error_handler};
 
 #[tonic::async_trait]
 impl delete_service_server::DeleteService for DeleteService {
@@ -35,12 +35,15 @@ impl delete_service_server::DeleteService for DeleteService {
 
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).scope("db_name")?;
-        let db = self
+        let database = self
             .server
-            .db(&db_name)
+            .active_database(&db_name)
             .map_err(default_server_error_handler)?;
 
-        db.store_delete(&delete).map_err(default_db_error_handler)?;
+        database
+            .route_operation(&DmlOperation::Delete(delete))
+            .await
+            .map_err(default_database_write_error_handler)?;
 
         Ok(Response::new(DeleteResponse {}))
     }

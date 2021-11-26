@@ -521,12 +521,12 @@ impl Db {
     }
 
     /// Store a delete
-    pub fn store_delete(&self, delete: &DmlDelete) -> Result<()> {
+    pub(crate) fn store_delete(&self, delete: &DmlDelete) -> Result<()> {
         self.store_filtered_delete(delete, DeleteFilterNone::default())
     }
 
     /// Store a delete with the provided [`DeleteFilter`]
-    pub fn store_filtered_delete(
+    pub(crate) fn store_filtered_delete(
         &self,
         delete: &DmlDelete,
         filter: impl DeleteFilter,
@@ -549,6 +549,8 @@ impl Db {
     /// Delete data from a table on a specified predicate
     ///
     /// Returns an error if the table cannot be found in the catalog
+    ///
+    /// **WARNING: Only use that when no write buffer is used.**
     pub fn delete(&self, table_name: &str, delete_predicate: Arc<DeletePredicate>) -> Result<()> {
         self.delete_filtered(table_name, delete_predicate, DeleteFilterNone::default())
     }
@@ -1028,7 +1030,7 @@ impl Db {
     }
 
     /// Writes the provided [`DmlWrite`] to this database with the provided [`WriteFilter`]
-    pub(crate) fn store_filtered_write(
+    pub fn store_filtered_write(
         &self,
         db_write: &DmlWrite,
         filter: impl WriteFilter,
