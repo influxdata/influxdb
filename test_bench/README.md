@@ -10,26 +10,12 @@ The test bench makes it easier to stage deployment scenarios to:
 The test bench is meant to run in [Kubernetes]. To create different test setups or to customize a setup to a specific
 cluster we use [Kustomize]. The [Kustomize] configs can be found in `k8s/`.
 
-To glue IOx to [Kubernetes] we need some helper code which can be found under `glue/`.
+To glue IOx to [Kubernetes] we need some helper code which can be found under `k8s/base/glue-entrypoint.bash`.
 
 ## Getting Started
-First you need to build an image with the glue code:
-
-```console
-$ cd glue
-$ docker build -t iox-glue .
-$ cd ..
-```
-
-Then push the image to some container registry which is accessible by your [Kubernetes] cluster:
-
-```console
-$ docker push some.registry.io/foo/iox-glue
-```
-
-Next we'll "kustomize" the test bench. You can use `k8s/overlays/demo` as a starting point. There you should at least
-have a look at `images-patch.yml` to set the image with the glue code that you've just built. Then you can deploy the
-whole thing:
+We'll "kustomize" the test bench. You can use `k8s/overlays/demo` as a starting point. You may wanna
+[adjust images](https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/images/) or change the router and
+database configs. Then you can deploy the whole thing:
 
 ```console
 $ kubectl kustomize ./k8s/overlays/demo| kubectl apply -f -

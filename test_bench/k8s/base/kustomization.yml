@@ -8,6 +8,11 @@ resources:
   - router.yml
   - query.yml
 
+configMapGenerator:
+  - name: glue-entrypoint
+    files:
+      - glue-entrypoint.bash
+
 patches:
   - path: debug-sidecar-patch.yml
     target:

@@ -111,7 +111,7 @@ while true; do
     # store fingerprints for next round
     rm -rf "$FINGERPRINT_DONE"
     mkdir "$FINGERPRINT_DONE"
-    cp "$FINGERPRINT_STAGING"/. "$FINGERPRINT_DONE"/
+    cp -r "$FINGERPRINT_STAGING"/. "$FINGERPRINT_DONE"/
 
     sleep 10
 done

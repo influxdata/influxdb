@@ -1,0 +1,36 @@
+{
+  "router": {
+      "name": "myorg_mybucket",
+      "write_sharder": {
+          "specific_targets": [
+              {
+                  "matcher": {
+                      "table_name_regex": ".*"
+                  },
+                  "shard": 1
+              }
+          ],
+          "hash_ring": null
+      },
+      "write_sinks": {
+          "1": {
+              "sinks": [
+                  {
+                      "write_buffer": {
+                          "direction": "DIRECTION_WRITE",
+                          "type": "kafka",
+                          "connection": "redpanda-service:9093",
+                          "connection_config": {},
+                          "creation_config": {
+                              "n_sequencers": 1,
+                              "options": {}
+                          }
+                      },
+                      "ignore_errors": false
+                  }
+              ]
+          }
+      },
+      "query_sinks": null
+  }
+}

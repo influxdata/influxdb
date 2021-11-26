@@ -18,6 +18,8 @@ spec:
     spec:
       containers:
         - name: iox
+          image: quay.io/influxdb/iox:main
+          imagePullPolicy: Always
           env:
             - name: INFLUXDB_IOX_SERVER_MODE
               value: database
@@ -49,9 +51,14 @@ spec:
               cpu: 1
               memory: 2G
         - name: glue
+          image: nixery.dev/shell/gnused/grpcurl
+          imagePullPolicy: Always
+          command:
+            - /bin/bash
+            - /entrypoint/glue-entrypoint.bash
           env:
             - name: INFLUXDB_IOX_ID_OFFSET
-              value: "1"
+              value: "1000"
             - name: INFLUXDB_IOX_GRPC_BIND_ADDR
               value: 0.0.0.0:8082
           resources:
@@ -64,10 +71,15 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /iox_config
+            - name: glue-entrypoint
+              mountPath: /entrypoint
       volumes:
         - name: config
           configMap:
             name: iox-query-configs
+        - name: glue-entrypoint
+          configMap:
+            name: glue-entrypoint
 
 ---
 apiVersion: v1

@@ -4,10 +4,17 @@ kind: Kustomization
 
 resources:
   - ../../base
-  - configs.yml
 
-patches:
-  - path: images-patch.yml
-    target:
-      kind: StatefulSet
-      name: iox-.*
+configMapGenerator:
+  - name: iox-query-configs
+    files:
+      - database-1.json
+    options:
+      # we don't wanna recreate containers when configs change
+      disableNameSuffixHash: true
+  - name: iox-router-configs
+    files:
+      - router-1.json
+    options:
+      # we don't wanna recreate containers when configs change
+      disableNameSuffixHash: true

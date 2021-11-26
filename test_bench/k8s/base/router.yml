@@ -18,6 +18,8 @@ spec:
     spec:
       containers:
         - name: iox
+          image: quay.io/influxdb/iox:main
+          imagePullPolicy: Always
           env:
             - name: INFLUXDB_IOX_SERVER_MODE
               value: router
@@ -39,6 +41,11 @@ spec:
               cpu: 1
               memory: 2G
         - name: glue
+          image: nixery.dev/shell/gnused/grpcurl
+          imagePullPolicy: Always
+          command:
+            - /bin/bash
+            - /entrypoint/glue-entrypoint.bash
           env:
             - name: INFLUXDB_IOX_ID_OFFSET
               value: "1000"
@@ -54,10 +61,15 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /iox_config
+            - name: glue-entrypoint
+              mountPath: /entrypoint
       volumes:
         - name: config
           configMap:
             name: iox-router-configs
+        - name: glue-entrypoint
+          configMap:
+            name: glue-entrypoint
 
 ---
 apiVersion: v1
