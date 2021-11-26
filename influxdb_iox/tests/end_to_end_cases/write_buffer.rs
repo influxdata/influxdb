@@ -158,7 +158,7 @@ async fn cant_write_to_db_reading_from_write_buffer() {
     assert_contains!(err.to_string(), "only allowed through write buffer");
     assert!(matches!(dbg!(err), WriteError::ServerError(_)));
 
-    // Deleteing from this database is an error; all data comes from write buffer
+    // Deleting from this database is an error; all data comes from write buffer
     let mut delete_client = server.delete_client();
     let err = delete_client
         .delete(
