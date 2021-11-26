@@ -1,22 +1,18 @@
 use data_types::DatabaseName;
-use dml::{DmlMeta, DmlWrite};
+use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::google::{FieldViolation, FieldViolationExt};
 use generated_types::influxdata::pbdata::v1::*;
-use server::{connection::ConnectionManager, Server};
-use std::fmt::Debug;
+use server::Server;
 use std::sync::Arc;
 
-use super::error::default_server_error_handler;
+use super::error::{default_database_write_error_handler, default_server_error_handler};
 
-struct PBWriteService<M: ConnectionManager> {
-    server: Arc<Server<M>>,
+struct PBWriteService {
+    server: Arc<Server>,
 }
 
 #[tonic::async_trait]
-impl<M> write_service_server::WriteService for PBWriteService<M>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+impl write_service_server::WriteService for PBWriteService {
     async fn write(
         &self,
         request: tonic::Request<WriteRequest>,
@@ -26,9 +22,6 @@ where
             .into_inner()
             .database_batch
             .ok_or_else(|| FieldViolation::required("database_batch"))?;
-
-        let db_name = DatabaseName::new(&database_batch.database_name)
-            .scope("database_batch.database_name")?;
 
         let tables =
             mutable_batch_pb::decode::decode_database_batch(&database_batch).map_err(|e| {
@@ -40,20 +33,24 @@ where
 
         let write = DmlWrite::new(tables, DmlMeta::unsequenced(span_ctx));
 
-        self.server
-            .write(&db_name, write)
-            .await
+        let db_name = DatabaseName::new(&database_batch.database_name)
+            .scope("database_batch.database_name")?;
+        let database = self
+            .server
+            .active_database(&db_name)
             .map_err(default_server_error_handler)?;
+
+        database
+            .route_operation(&DmlOperation::Write(write))
+            .await
+            .map_err(default_database_write_error_handler)?;
 
         Ok(tonic::Response::new(WriteResponse {}))
     }
 }
 
-pub fn make_server<M>(
-    server: Arc<Server<M>>,
-) -> write_service_server::WriteServiceServer<impl write_service_server::WriteService>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+pub fn make_server(
+    server: Arc<Server>,
+) -> write_service_server::WriteServiceServer<impl write_service_server::WriteService> {
     write_service_server::WriteServiceServer::new(PBWriteService { server })
 }

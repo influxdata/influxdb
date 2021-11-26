@@ -70,10 +70,8 @@
 
 use ::lifecycle::{LockableChunk, LockablePartition};
 use async_trait::async_trait;
-use connection::{ConnectionManager, RemoteServer};
 use data_types::{
     chunk_metadata::ChunkId,
-    database_rules::{NodeGroup, RoutingRules, Sink},
     detailed_database::ActiveDatabase,
     error::ErrorLogger,
     job::Job,
@@ -88,8 +86,6 @@ use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
-use rand::seq::SliceRandom;
-use resolver::Resolver;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::{sync::Notify, task::JoinError};
@@ -99,16 +95,12 @@ use uuid::Uuid;
 
 pub use application::ApplicationState;
 pub use db::Db;
-use dml::{DmlOperation, DmlWrite};
 pub use job::JobRegistry;
-pub use resolver::{GrpcConnectionString, RemoteTemplate};
 
 mod application;
-pub mod connection;
 pub mod database;
 pub mod db;
 mod job;
-mod resolver;
 
 pub mod rules;
 use rules::{PersistedDatabaseRules, ProvidedDatabaseRules};
@@ -182,9 +174,6 @@ pub enum Error {
         current: Uuid,
     },
 
-    #[snafu(display("Server error: {}", source))]
-    ServerError { source: std::io::Error },
-
     #[snafu(display("invalid database: {}", source))]
     InvalidDatabaseName { source: DatabaseNameError },
 
@@ -209,61 +198,11 @@ pub enum Error {
         table: String,
     },
 
-    #[snafu(display("hard buffer limit reached"))]
-    HardLimitReached {},
-
-    #[snafu(display(
-        "Storing database write failed with the following error(s), and possibly more: {}",
-        errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
-    ))]
-    StoreWriteErrors { errors: Vec<DatabaseError> },
-
-    #[snafu(display(
-        "Cannot write to database {}, it's configured to only read from the write buffer",
-        db_name
-    ))]
-    WritingOnlyAllowedThroughWriteBuffer { db_name: String },
-
-    #[snafu(display("Cannot write to write buffer: {}", source))]
-    WriteBuffer {
-        source: Box<dyn std::error::Error + Sync + Send>,
-    },
-
-    #[snafu(display("no remote configured for node group: {:?}", node_group))]
-    NoRemoteConfigured { node_group: NodeGroup },
-
-    #[snafu(display("all remotes failed connecting: {:?}", errors))]
-    NoRemoteReachable {
-        errors: HashMap<GrpcConnectionString, connection::ConnectionManagerError>,
-    },
-
-    #[snafu(display("remote error: {}", source))]
-    RemoteError {
-        source: connection::ConnectionManagerError,
-    },
-
     #[snafu(display("database failed to initialize: {}", source))]
     DatabaseInit { source: Arc<database::InitError> },
 
-    #[snafu(display(
-        "Either invalid time range [{}, {}] or invalid delete expression {}",
-        start_time,
-        stop_time,
-        predicate
-    ))]
-    DeleteExpression {
-        start_time: String,
-        stop_time: String,
-        predicate: String,
-    },
-
     #[snafu(display("error persisting server config to object storage: {}", source))]
     PersistServerConfig { source: object_store::Error },
-
-    #[snafu(display("Error sharding write: {}", source))]
-    ShardWrite {
-        source: data_types::database_rules::Error,
-    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -289,8 +228,6 @@ pub trait DatabaseStore: std::fmt::Debug + Send + Sync {
 /// Configuration options for `Server`
 #[derive(Debug)]
 pub struct ServerConfig {
-    pub remote_template: Option<RemoteTemplate>,
-
     pub wipe_catalog_on_error: bool,
 
     pub skip_replay_and_seek_instead: bool,
@@ -299,7 +236,6 @@ pub struct ServerConfig {
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            remote_template: None,
             wipe_catalog_on_error: false,
             skip_replay_and_seek_instead: false,
         }
@@ -310,20 +246,15 @@ impl Default for ServerConfig {
 /// well as how they communicate with other servers. Each server will have one
 /// of these structs, which keeps track of all replication and query rules.
 #[derive(Debug)]
-pub struct Server<M: ConnectionManager> {
-    connection_manager: Arc<M>,
-
+pub struct Server {
     /// Future that resolves when the background worker exits
     join: Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>,
-
-    /// Resolver for mapping ServerId to gRPC connection strings
-    resolver: RwLock<Resolver>,
 
     /// State shared with the background worker
     shared: Arc<ServerShared>,
 }
 
-impl<M: ConnectionManager> Drop for Server<M> {
+impl Drop for Server {
     fn drop(&mut self) {
         if !self.shared.shutdown.is_cancelled() {
             warn!("server dropped without calling shutdown()");
@@ -522,15 +453,8 @@ impl ServerStateInitialized {
     }
 }
 
-impl<M> Server<M>
-where
-    M: ConnectionManager + Send + Sync,
-{
-    pub fn new(
-        connection_manager: M,
-        application: Arc<ApplicationState>,
-        config: ServerConfig,
-    ) -> Self {
+impl Server {
+    pub fn new(application: Arc<ApplicationState>, config: ServerConfig) -> Self {
         let shared = Arc::new(ServerShared {
             shutdown: Default::default(),
             application,
@@ -544,12 +468,7 @@ where
         let handle = tokio::spawn(background_worker(Arc::clone(&shared)));
         let join = handle.map_err(Arc::new).boxed().shared();
 
-        Self {
-            shared,
-            join,
-            connection_manager: Arc::new(connection_manager),
-            resolver: RwLock::new(Resolver::new(config.remote_template)),
-        }
+        Self { shared, join }
     }
 
     /// sets the id of the server, which is used for replication and the base
@@ -901,141 +820,6 @@ where
         Ok(())
     }
 
-    /// `write_lines` takes in raw line protocol and converts it to a collection
-    /// of ShardedEntry which are then sent to other IOx servers based on
-    /// the ShardConfig or sent to the local database for buffering in the
-    /// WriteBuffer and/or the MutableBuffer if configured.
-    ///
-    /// The provided `default_time` is nanoseconds since the epoch and will be assigned
-    /// to any lines that don't have a timestamp.
-    ///
-    /// TODO: Replace with dedicated router in terms of MutableBatch
-    pub async fn write(&self, db_name: &DatabaseName<'_>, write: DmlWrite) -> Result<()> {
-        let db = self.db(db_name)?;
-        let rules = db.rules();
-
-        let sharded_writes = match &rules.routing_rules {
-            Some(RoutingRules::ShardConfig(shard_config)) => {
-                let sharded_writes = write.shard(shard_config).context(ShardWrite)?;
-                itertools::Either::Left(sharded_writes.into_iter().map(|(s, w)| (Some(s), w)))
-            }
-            _ => itertools::Either::Right(std::iter::once((None, write))),
-        };
-
-        // Write to all shards in parallel; as soon as one fails return error
-        // immediately to the client and abort all other outstanding requests.
-        futures_util::future::try_join_all(sharded_writes.map(|(shard, write)| {
-            let sink = match &rules.routing_rules {
-                Some(RoutingRules::ShardConfig(shard_config)) => {
-                    let id = shard.expect("sharded entry");
-                    Some(shard_config.shards.get(&id).expect("valid shard"))
-                }
-                Some(RoutingRules::RoutingConfig(config)) => Some(&config.sink),
-                None => None,
-            };
-
-            async move {
-                match sink {
-                    Some(sink) => self.write_sink(db_name, sink, write).await,
-                    None => self.write_local(db_name, &DmlOperation::Write(write)).await,
-                }
-            }
-        }))
-        .await?;
-        Ok(())
-    }
-
-    async fn write_sink(
-        &self,
-        db_name: &DatabaseName<'_>,
-        sink: &Sink,
-        write: DmlWrite,
-    ) -> Result<()> {
-        match sink {
-            Sink::Iox(node_group) => self.write_downstream(db_name, node_group, &write).await,
-            Sink::Kafka(_) => {
-                // The write buffer write path is currently implemented in "db", so confusingly we
-                // need to invoke write_entry_local.
-                // TODO(mkm): tracked in #2134
-                self.write_local(db_name, &DmlOperation::Write(write)).await
-            }
-            Sink::DevNull => {
-                // write is silently ignored, as requested by the configuration.
-                Ok(())
-            }
-        }
-    }
-
-    async fn write_downstream(
-        &self,
-        db_name: &str,
-        node_group: &[ServerId],
-        write: &DmlWrite,
-    ) -> Result<()> {
-        // Return an error if this server is not yet ready
-        self.shared.state.read().initialized()?;
-
-        let addrs: Vec<_> = {
-            let resolver = self.resolver.read();
-            node_group
-                .iter()
-                .filter_map(|&node| resolver.resolve_remote(node))
-                .collect()
-        };
-
-        if addrs.is_empty() {
-            return NoRemoteConfigured { node_group }.fail();
-        }
-
-        let mut errors = HashMap::new();
-        // this needs to be in its own statement because rand::thread_rng is not Send and the loop below is async.
-        // braces around the expression would work but clippy don't know that and complains the braces are useless.
-        let random_addrs_iter = addrs.choose_multiple(&mut rand::thread_rng(), addrs.len());
-        for addr in random_addrs_iter {
-            match self.connection_manager.remote_server(addr).await {
-                Err(err) => {
-                    info!("error obtaining remote for {}: {}", addr, err);
-                    errors.insert(addr.to_owned(), err);
-                }
-                Ok(remote) => return remote.write(db_name, write).await.context(RemoteError),
-            };
-        }
-        NoRemoteReachable { errors }.fail()
-    }
-
-    /// Write an entry to the local `Db`
-    ///
-    /// TODO: Remove this and migrate callers to `Database::route_write`
-    async fn write_local(
-        &self,
-        db_name: &DatabaseName<'_>,
-        operation: &DmlOperation,
-    ) -> Result<()> {
-        use database::WriteError;
-
-        self.active_database(db_name)?
-            .route_operation(operation)
-            .await
-            .map_err(|e| match e {
-                WriteError::NotInitialized { .. } => Error::DatabaseNotInitialized {
-                    db_name: db_name.to_string(),
-                },
-                WriteError::WriteBuffer { source } => Error::WriteBuffer { source },
-                WriteError::WritingOnlyAllowedThroughWriteBuffer => {
-                    Error::WritingOnlyAllowedThroughWriteBuffer {
-                        db_name: db_name.to_string(),
-                    }
-                }
-                WriteError::DbError { source } => Error::UnknownDatabaseError {
-                    source: Box::new(source),
-                },
-                WriteError::HardLimitReached { .. } => Error::HardLimitReached {},
-                WriteError::StoreWriteErrors { errors } => Error::StoreWriteErrors {
-                    errors: errors.into_iter().map(|e| Box::new(e) as _).collect(),
-                },
-            })
-    }
-
     /// Update database rules and save on success.
     pub async fn update_db_rules(
         &self,
@@ -1049,18 +833,6 @@ where
             .update_provided_rules(rules)
             .await
             .context(CanNotUpdateRules { db_name })?)
-    }
-
-    pub fn remotes_sorted(&self) -> Vec<(ServerId, String)> {
-        self.resolver.read().remotes_sorted()
-    }
-
-    pub fn update_remote(&self, id: ServerId, addr: GrpcConnectionString) {
-        self.resolver.write().update_remote(id, addr)
-    }
-
-    pub fn delete_remote(&self, id: ServerId) -> Option<GrpcConnectionString> {
-        self.resolver.write().delete_remote(id)
     }
 
     /// Closes a chunk and starts moving its data to the read buffer, as a
@@ -1306,10 +1078,7 @@ async fn maybe_initialize_server(shared: &ServerShared) {
 
 /// TODO: Revisit this trait's API
 #[async_trait]
-impl<M> DatabaseStore for Server<M>
-where
-    M: ConnectionManager + std::fmt::Debug + Send + Sync,
-{
+impl DatabaseStore for Server {
     type Database = Db;
     type Error = Error;
 
@@ -1339,10 +1108,7 @@ where
 }
 
 #[cfg(test)]
-impl<M> Server<M>
-where
-    M: ConnectionManager + Send + Sync,
-{
+impl Server {
     /// For tests:  list of database names in this server, regardless
     /// of their initialization state
     fn db_names_sorted(&self) -> Vec<String> {
@@ -1409,7 +1175,6 @@ async fn database_name_from_rules_file(
 
 pub mod test_utils {
     use super::*;
-    use crate::connection::test_helpers::TestConnectionManager;
     use object_store::ObjectStore;
 
     /// Create a new [`ApplicationState`] with an in-memory object store
@@ -1422,12 +1187,8 @@ pub mod test_utils {
     }
 
     /// Creates a new server with the provided [`ApplicationState`]
-    pub fn make_server(application: Arc<ApplicationState>) -> Arc<Server<TestConnectionManager>> {
-        Arc::new(Server::new(
-            TestConnectionManager::new(),
-            application,
-            Default::default(),
-        ))
+    pub fn make_server(application: Arc<ApplicationState>) -> Arc<Server> {
+        Arc::new(Server::new(application, Default::default()))
     }
 
     /// Creates a new server with the provided [`ApplicationState`]
@@ -1436,7 +1197,7 @@ pub mod test_utils {
     pub async fn make_initialized_server(
         server_id: ServerId,
         application: Arc<ApplicationState>,
-    ) -> Arc<Server<TestConnectionManager>> {
+    ) -> Arc<Server> {
         let server = make_server(application);
         server.set_id(server_id).unwrap();
         server.wait_for_init().await.unwrap();
@@ -1450,18 +1211,13 @@ mod tests {
         test_utils::{make_application, make_server},
         *,
     };
-    use arrow::record_batch::RecordBatch;
-    use arrow_util::assert_batches_eq;
     use bytes::Bytes;
-    use connection::test_helpers::{TestConnectionManager, TestRemoteServer};
     use data_types::{
         chunk_metadata::{ChunkAddr, ChunkStorage},
-        database_rules::{
-            DatabaseRules, HashRing, LifecycleRules, PartitionTemplate, ShardConfig, ShardId,
-            TemplatePart,
-        },
+        database_rules::{DatabaseRules, LifecycleRules, PartitionTemplate, TemplatePart},
         write_buffer::{WriteBufferConnection, WriteBufferDirection},
     };
+    use dml::DmlWrite;
     use iox_object_store::IoxObjectStore;
     use mutable_batch_lp::lines_to_batches;
     use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
@@ -1469,13 +1225,10 @@ mod tests {
         core::{PreservedCatalog, PreservedCatalogConfig},
         test_helpers::{load_ok, new_empty},
     };
-    use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryDatabase};
+    use query::QueryDatabase;
     use std::{
         convert::TryFrom,
-        sync::{
-            atomic::{AtomicBool, Ordering},
-            Arc,
-        },
+        sync::Arc,
         time::{Duration, Instant},
     };
     use test_helpers::{assert_contains, assert_error};
@@ -1484,12 +1237,7 @@ mod tests {
     async fn server_api_calls_return_error_with_no_id_set() {
         let server = make_server(make_application());
 
-        let tables = lines_to_batches("cpu foo=1 10", 0).unwrap();
-        let write = DmlWrite::new(tables, Default::default());
-        let resp = server
-            .write(&DatabaseName::new("foo").unwrap(), write)
-            .await
-            .unwrap_err();
+        let resp = server.db(&DatabaseName::new("foo").unwrap()).unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
     }
 
@@ -1661,13 +1409,10 @@ mod tests {
         }
     }
 
-    async fn create_simple_database<M>(
-        server: &Server<M>,
+    async fn create_simple_database(
+        server: &Server,
         name: impl Into<String> + Send,
-    ) -> Result<Arc<Database>>
-    where
-        M: ConnectionManager + Send + Sync,
-    {
+    ) -> Result<Arc<Database>> {
         let name = DatabaseName::new(name.into()).unwrap();
 
         let rules = DatabaseRules {
@@ -1985,136 +1730,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn writes_local() {
-        let server = make_server(make_application());
-        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        let db_name = DatabaseName::new("foo".to_string()).unwrap();
-        server
-            .create_database(default_rules(db_name.clone()))
-            .await
-            .unwrap();
-
-        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DmlWrite::new(tables, Default::default());
-        server.write(&db_name, write).await.unwrap();
-
-        let db_name = DatabaseName::new("foo").unwrap();
-        let db = server.db(&db_name).unwrap();
-        let batches = run_query(db, "select * from cpu").await;
-
-        let expected = vec![
-            "+-----+--------------------------------+",
-            "| bar | time                           |",
-            "+-----+--------------------------------+",
-            "| 1   | 1970-01-01T00:00:00.000000010Z |",
-            "+-----+--------------------------------+",
-        ];
-        assert_batches_eq!(expected, &batches);
-    }
-
-    // This tests sets up a database with a sharding config which defines exactly one shard
-    // backed by 3 remote nodes. One of the nodes is modeled to be "down", while the other two
-    // can record write entry events.
-    // This tests goes through a few trivial error cases before checking that the both working
-    // mock remote servers actually receive write entry events.
-    //
-    // This test is theoretically flaky, low probability though (in the order of 1e-30)
-    #[tokio::test]
-    async fn write_entry_downstream() {
-        const TEST_SHARD_ID: ShardId = 1;
-        const GOOD_REMOTE_ADDR_1: &str = "http://localhost:111";
-        const GOOD_REMOTE_ADDR_2: &str = "http://localhost:222";
-        const BAD_REMOTE_ADDR: &str = "http://localhost:666";
-
-        let good_remote_id_1 = ServerId::try_from(1).unwrap();
-        let good_remote_id_2 = ServerId::try_from(2).unwrap();
-        let bad_remote_id = ServerId::try_from(666).unwrap();
-
-        let mut manager = TestConnectionManager::new();
-        let written_1 = Arc::new(AtomicBool::new(false));
-        manager.remotes.insert(
-            GOOD_REMOTE_ADDR_1.to_owned(),
-            Arc::new(TestRemoteServer {
-                written: Arc::clone(&written_1),
-            }),
-        );
-        let written_2 = Arc::new(AtomicBool::new(false));
-        manager.remotes.insert(
-            GOOD_REMOTE_ADDR_2.to_owned(),
-            Arc::new(TestRemoteServer {
-                written: Arc::clone(&written_2),
-            }),
-        );
-
-        let server = Server::new(manager, make_application(), Default::default());
-        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        let db_name = DatabaseName::new("foo").unwrap();
-        server
-            .create_database(default_rules(db_name.clone()))
-            .await
-            .unwrap();
-
-        let remote_ids = vec![bad_remote_id, good_remote_id_1, good_remote_id_2];
-        let db = server.db(&db_name).unwrap();
-
-        let shard_config = ShardConfig {
-            hash_ring: Some(HashRing {
-                shards: vec![TEST_SHARD_ID].into(),
-            }),
-            shards: vec![(TEST_SHARD_ID, Sink::Iox(remote_ids.clone()))]
-                .into_iter()
-                .collect(),
-            ..Default::default()
-        };
-
-        let mut rules = db.rules().as_ref().clone();
-        rules.routing_rules = Some(RoutingRules::ShardConfig(shard_config));
-        let rules = Arc::new(rules);
-
-        db.update_rules(rules);
-
-        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DmlWrite::new(tables, Default::default());
-        let err = server.write(&db_name, write.clone()).await.unwrap_err();
-        assert!(
-            matches!(err, Error::NoRemoteConfigured { node_group } if node_group == remote_ids)
-        );
-
-        // one remote is configured but it's down and we'll get connection error
-        server.update_remote(bad_remote_id, BAD_REMOTE_ADDR.into());
-        let err = server.write(&db_name, write.clone()).await.unwrap_err();
-        assert!(matches!(
-            err,
-            Error::NoRemoteReachable { errors } if matches!(
-                errors[BAD_REMOTE_ADDR],
-                connection::ConnectionManagerError::RemoteServerConnectError {..}
-            )
-        ));
-        assert!(!written_1.load(Ordering::Relaxed));
-        assert!(!written_2.load(Ordering::Relaxed));
-
-        // We configure the address for the other remote, this time connection will succeed
-        // despite the bad remote failing to connect.
-        server.update_remote(good_remote_id_1, GOOD_REMOTE_ADDR_1.into());
-        server.update_remote(good_remote_id_2, GOOD_REMOTE_ADDR_2.into());
-
-        // Remotes are tried in random order, so we need to repeat the test a few times to have a reasonable
-        // probability both the remotes will get hit.
-        for _ in 0..100 {
-            server
-                .write(&db_name, write.clone())
-                .await
-                .expect("cannot write lines");
-        }
-        assert!(written_1.load(Ordering::Relaxed));
-        assert!(written_2.load(Ordering::Relaxed));
-    }
-
-    #[tokio::test]
     async fn close_chunk() {
         test_helpers::maybe_start_logging();
         let server = make_server(make_application());
@@ -2129,11 +1744,11 @@ mod tests {
             .unwrap();
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
+        let db = server.db(&db_name).unwrap();
         let write = DmlWrite::new(tables, Default::default());
-        server.write(&db_name, write).await.unwrap();
+        db.store_write(&write).unwrap();
 
         // get chunk ID
-        let db = server.db(&db_name).unwrap();
         let chunks = db.chunk_summaries().unwrap();
         assert_eq!(chunks.len(), 1);
         let chunk_id = chunks[0].id;
@@ -2189,39 +1804,6 @@ mod tests {
 
         server.shutdown();
         server.join().await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn hard_buffer_limit() {
-        let server = make_server(make_application());
-        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        let name = DatabaseName::new("foo").unwrap();
-        server
-            .create_database(default_rules(name.clone()))
-            .await
-            .unwrap();
-
-        let db = server.db(&name).unwrap();
-
-        let mut rules: DatabaseRules = db.rules().as_ref().clone();
-
-        rules.lifecycle_rules.buffer_size_hard = Some(std::num::NonZeroUsize::new(10).unwrap());
-
-        let rules = Arc::new(rules);
-        db.update_rules(Arc::clone(&rules));
-
-        // inserting first line does not trigger hard buffer limit
-        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DmlWrite::new(tables, Default::default());
-        server.write(&name, write).await.unwrap();
-
-        // inserting second line will
-        let tables = lines_to_batches("cpu bar=2 20", 0).unwrap();
-        let write = DmlWrite::new(tables, Default::default());
-        let res = server.write(&name, write).await.unwrap_err();
-        assert!(matches!(res, super::Error::HardLimitReached {}));
     }
 
     #[tokio::test]
@@ -2372,9 +1954,13 @@ mod tests {
         // can only write to successfully created DBs
         let tables = lines_to_batches("cpu foo=1 10", 0).unwrap();
         let write = DmlWrite::new(tables, Default::default());
-        server.write(&foo_db_name, write.clone()).await.unwrap();
+        server
+            .db(&foo_db_name)
+            .unwrap()
+            .store_write(&write)
+            .unwrap();
 
-        let err = server.write(&bar_db_name, write).await.unwrap_err();
+        let err = server.db(&bar_db_name).unwrap_err();
         assert!(matches!(err, Error::DatabaseNotInitialized { .. }));
 
         // creating failed DBs does not work
@@ -2766,10 +2352,10 @@ mod tests {
         );
         assert!(database.init_error().is_none());
 
-        assert!(server.db(&db_name_catalog_broken).is_ok());
+        let db = server.db(&db_name_catalog_broken).unwrap();
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
         let write = DmlWrite::new(tables, Default::default());
-        server.write(&db_name_catalog_broken, write).await.unwrap();
+        db.store_write(&write).unwrap();
 
         // 5. cannot wipe if DB was just created
         let created = server
@@ -2790,56 +2376,6 @@ mod tests {
                 .await
                 .unwrap()
         );
-    }
-
-    #[tokio::test]
-    async fn write_buffer_errors_propagate() {
-        let application = make_application();
-
-        application
-            .write_buffer_factory()
-            .register_always_fail_mock("my_mock".to_string());
-
-        let server = make_server(application);
-        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.wait_for_init().await.unwrap();
-
-        let db_name = DatabaseName::new("my_db").unwrap();
-        let rules = DatabaseRules {
-            name: db_name.clone(),
-            partition_template: PartitionTemplate {
-                parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
-            },
-            lifecycle_rules: Default::default(),
-            routing_rules: None,
-            worker_cleanup_avg_sleep: Duration::from_secs(2),
-            write_buffer_connection: Some(WriteBufferConnection {
-                direction: WriteBufferDirection::Write,
-                type_: "mock".to_string(),
-                connection: "my_mock".to_string(),
-                ..Default::default()
-            }),
-        };
-        server
-            .create_database(make_provided_rules(rules))
-            .await
-            .unwrap();
-
-        let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DmlWrite::new(tables, Default::default());
-        assert_error!(
-            server.write(&db_name, write).await,
-            Error::WriteBuffer { .. },
-        );
-    }
-
-    // run a sql query against the database, returning the results as record batches
-    async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
-        let planner = SqlQueryPlanner::default();
-        let ctx = db.new_query_context(None);
-
-        let physical_plan = planner.query(query, &ctx).await.unwrap();
-        ctx.collect(physical_plan).await.unwrap()
     }
 
     fn default_rules(db_name: DatabaseName<'static>) -> ProvidedDatabaseRules {

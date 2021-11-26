@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use object_store::ObjectStore;
 use observability_deps::tracing::warn;
-use server::{
-    connection::ConnectionManagerImpl, ApplicationState, RemoteTemplate, Server, ServerConfig,
-};
+use server::{ApplicationState, Server, ServerConfig};
 use snafu::{ResultExt, Snafu};
 use trace::TraceCollector;
 
@@ -47,18 +45,13 @@ pub async fn make_application(
     )))
 }
 
-pub fn make_server(
-    application: Arc<ApplicationState>,
-    config: &Config,
-) -> Arc<Server<ConnectionManagerImpl>> {
+pub fn make_server(application: Arc<ApplicationState>, config: &Config) -> Arc<Server> {
     let server_config = ServerConfig {
-        remote_template: config.remote_template.clone().map(RemoteTemplate::new),
         wipe_catalog_on_error: config.wipe_catalog_on_error.into(),
         skip_replay_and_seek_instead: config.skip_replay_and_seek_instead.into(),
     };
 
-    let connection_manager = ConnectionManagerImpl::new();
-    let app_server = Arc::new(Server::new(connection_manager, application, server_config));
+    let app_server = Arc::new(Server::new(application, server_config));
 
     // if this ID isn't set the server won't be usable until this is set via an API
     // call

@@ -3,11 +3,9 @@ use crate::{
         server_fixture::{ServerFixture, ServerType, TestConfig},
         udp_listener::UdpCapture,
     },
-    end_to_end_cases::scenario::{rand_name, DatabaseBuilder},
+    end_to_end_cases::scenario::{rand_name, wildcard_router_config, DatabaseBuilder},
 };
 use arrow_util::assert_batches_sorted_eq;
-use dml::DmlOperation;
-use futures::StreamExt;
 use generated_types::influxdata::iox::write_buffer::v1::{
     write_buffer_connection::Direction as WriteBufferDirection, WriteBufferConnection,
 };
@@ -19,112 +17,7 @@ use std::{num::NonZeroU32, sync::Arc};
 use tempfile::TempDir;
 use test_helpers::assert_contains;
 use time::SystemProvider;
-use write_buffer::{
-    core::{WriteBufferReading, WriteBufferWriting},
-    file::{FileBufferConsumer, FileBufferProducer},
-};
-
-#[tokio::test]
-async fn writes_go_to_write_buffer() {
-    let write_buffer_dir = TempDir::new().unwrap();
-
-    // set up a database with a write buffer pointing at write buffer
-    let server = ServerFixture::create_shared(ServerType::Database).await;
-    let db_name = rand_name();
-    let write_buffer_connection = WriteBufferConnection {
-        direction: WriteBufferDirection::Write.into(),
-        r#type: "file".to_string(),
-        connection: write_buffer_dir.path().display().to_string(),
-        creation_config: Some(WriteBufferCreationConfig {
-            n_sequencers: 1,
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    DatabaseBuilder::new(db_name.clone())
-        .write_buffer(write_buffer_connection.clone())
-        .build(server.grpc_channel())
-        .await;
-
-    // write some points
-    let mut write_client = server.write_client();
-
-    let lp_lines = [
-        "cpu,region=west user=23.2 100",
-        "cpu,region=west user=21.0 150",
-        "disk,region=east bytes=99i 200",
-    ];
-
-    let num_lines_written = write_client
-        .write_lp(&db_name, lp_lines.join("\n"), 0)
-        .await
-        .expect("cannot write");
-    assert_eq!(num_lines_written, 3);
-
-    // check the data is in write buffer
-    let mut consumer =
-        FileBufferConsumer::new(write_buffer_dir.path(), &db_name, Default::default(), None)
-            .await
-            .unwrap();
-    let (_, mut stream) = consumer.streams().into_iter().next().unwrap();
-    match stream.stream.next().await.unwrap().unwrap() {
-        DmlOperation::Write(write) => assert_eq!(write.table_count(), 2),
-        a => panic!("unexpected operation: {:?}", a),
-    }
-}
-
-#[tokio::test]
-async fn writes_go_to_write_buffer_whitelist() {
-    let write_buffer_dir = TempDir::new().unwrap();
-
-    // set up a database with a write buffer pointing at write buffer
-    let server = ServerFixture::create_shared(ServerType::Database).await;
-    let db_name = rand_name();
-    let write_buffer_connection = WriteBufferConnection {
-        direction: WriteBufferDirection::Write.into(),
-        r#type: "file".to_string(),
-        connection: write_buffer_dir.path().display().to_string(),
-        creation_config: Some(WriteBufferCreationConfig {
-            n_sequencers: 1,
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    DatabaseBuilder::new(db_name.clone())
-        .write_buffer(write_buffer_connection)
-        .write_buffer_table_whitelist(vec!["cpu".to_string()])
-        .build(server.grpc_channel())
-        .await;
-
-    // write some points
-    let mut write_client = server.write_client();
-
-    let lp_lines = [
-        "cpu,region=west user=23.2 100",
-        "cpu,region=west user=21.0 150",
-        "disk,region=east bytes=99i 200",
-        "mem,region=east bytes=123 250",
-    ];
-
-    let num_lines_written = write_client
-        .write_lp(&db_name, lp_lines.join("\n"), 0)
-        .await
-        .expect("cannot write");
-    assert_eq!(num_lines_written, 4);
-
-    // check the data is in write buffer
-    let mut consumer =
-        FileBufferConsumer::new(write_buffer_dir.path(), &db_name, Default::default(), None)
-            .await
-            .unwrap();
-    let (_, mut stream) = consumer.streams().into_iter().next().unwrap();
-    match stream.stream.next().await.unwrap().unwrap() {
-        DmlOperation::Write(write) => assert_eq!(write.table_count(), 1),
-        a => panic!("unexpected operation: {:?}", a),
-    }
-}
+use write_buffer::{core::WriteBufferWriting, file::FileBufferProducer};
 
 #[tokio::test]
 async fn reads_come_from_write_buffer() {
@@ -258,13 +151,7 @@ async fn cant_write_to_db_reading_from_write_buffer() {
         .await
         .expect_err("expected write to fail");
 
-    assert_contains!(
-        err.to_string(),
-        format!(
-            r#"Cannot write to database {}, it's configured to only read from the write buffer"#,
-            db_name
-        )
-    );
+    assert_contains!(err.to_string(), "only allowed through write buffer");
     assert!(matches!(dbg!(err), WriteError::ServerError(_)));
 }
 
@@ -300,7 +187,7 @@ pub async fn test_cross_write_buffer_tracing() {
 
     // setup tracing
     let udp_capture = UdpCapture::new().await;
-    let test_config = TestConfig::new(ServerType::Database)
+    let test_config = TestConfig::new(ServerType::Router)
         .with_env("TRACES_EXPORTER", "jaeger")
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_HOST", udp_capture.ip())
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())
@@ -316,24 +203,18 @@ pub async fn test_cross_write_buffer_tracing() {
         .update_server_id(NonZeroU32::new(1).unwrap())
         .await
         .unwrap();
-    server_write.wait_server_initialized().await;
-    let conn_write = WriteBufferConnection {
-        direction: WriteBufferDirection::Write.into(),
-        r#type: "file".to_string(),
-        connection: write_buffer_dir.path().display().to_string(),
-        creation_config: Some(WriteBufferCreationConfig {
-            n_sequencers: 1,
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-    DatabaseBuilder::new(db_name.clone())
-        .write_buffer(conn_write.clone())
-        .build(server_write.grpc_channel())
-        .await;
+    let router_cfg = wildcard_router_config(&db_name, write_buffer_dir.path());
+    server_write
+        .router_client()
+        .update_router(router_cfg)
+        .await
+        .unwrap();
 
     // create consumer DB
-    let server_read = ServerFixture::create_single_use_with_config(test_config).await;
+    let server_read = ServerFixture::create_single_use_with_config(
+        test_config.with_server_type(ServerType::Database),
+    )
+    .await;
     server_read
         .deployment_client()
         .update_server_id(NonZeroU32::new(2).unwrap())
@@ -342,7 +223,13 @@ pub async fn test_cross_write_buffer_tracing() {
     server_read.wait_server_initialized().await;
     let conn_read = WriteBufferConnection {
         direction: WriteBufferDirection::Read.into(),
-        ..conn_write
+        r#type: "file".to_string(),
+        connection: write_buffer_dir.path().display().to_string(),
+        creation_config: Some(WriteBufferCreationConfig {
+            n_sequencers: 1,
+            ..Default::default()
+        }),
+        ..Default::default()
     };
     DatabaseBuilder::new(db_name.clone())
         .write_buffer(conn_read)

@@ -4,16 +4,14 @@ use generated_types::{
     influxdata::iox::management::v1::{Error as ProtobufError, *},
 };
 use query::QueryDatabase;
-use server::{
-    connection::ConnectionManager, rules::ProvidedDatabaseRules, ApplicationState, Error, Server,
-};
-use std::{convert::TryFrom, fmt::Debug, sync::Arc};
+use server::{rules::ProvidedDatabaseRules, ApplicationState, Error, Server};
+use std::{convert::TryFrom, sync::Arc};
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
-struct ManagementService<M: ConnectionManager> {
+struct ManagementService {
     application: Arc<ApplicationState>,
-    server: Arc<Server<M>>,
+    server: Arc<Server>,
 }
 
 use super::error::{
@@ -21,10 +19,7 @@ use super::error::{
 };
 
 #[tonic::async_trait]
-impl<M> management_service_server::ManagementService for ManagementService<M>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+impl management_service_server::ManagementService for ManagementService {
     async fn list_databases(
         &self,
         request: Request<ListDatabasesRequest>,
@@ -523,15 +518,12 @@ fn format_rules(provided_rules: Arc<ProvidedDatabaseRules>, omit_defaults: bool)
     }
 }
 
-pub fn make_server<M>(
+pub fn make_server(
     application: Arc<ApplicationState>,
-    server: Arc<Server<M>>,
+    server: Arc<Server>,
 ) -> management_service_server::ManagementServiceServer<
     impl management_service_server::ManagementService,
->
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+> {
     management_service_server::ManagementServiceServer::new(ManagementService {
         application,
         server,

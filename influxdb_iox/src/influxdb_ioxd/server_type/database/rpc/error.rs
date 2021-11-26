@@ -41,39 +41,10 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             description: source.to_string(),
         }
         .into(),
-        Error::HardLimitReached {} => QuotaFailure {
-            subject: "influxdata.com/iox/buffer".to_string(),
-            description: "hard buffer limit reached".to_string(),
-        }
-        .into(),
-        source @ Error::WritingOnlyAllowedThroughWriteBuffer { .. }
-        | source @ Error::ShardWrite { .. } => {
-            tonic::Status::failed_precondition(source.to_string())
-        }
-        Error::NoRemoteConfigured { node_group } => NotFound {
-            resource_type: "remote".to_string(),
-            resource_name: format!("{:?}", node_group),
-            ..Default::default()
-        }
-        .into(),
-        Error::RemoteError { source } => tonic::Status::unavailable(source.to_string()),
         Error::WipePreservedCatalog { source } => default_database_error_handler(source),
-        Error::DeleteExpression {
-            start_time,
-            stop_time,
-            predicate,
-        } => FieldViolation {
-            field: format!(
-                "time range: [{}, {}], predicate: {}",
-                start_time, stop_time, predicate
-            ),
-            description: "Invalid time range or predicate".to_string(),
-        }
-        .into(),
         Error::DatabaseInit { source } => {
             tonic::Status::invalid_argument(format!("Cannot initialize database: {}", source))
         }
-        Error::StoreWriteErrors { .. } => tonic::Status::invalid_argument(error.to_string()),
         Error::DatabaseAlreadyExists { .. } | Error::DatabaseAlreadyOwnedByThisServer { .. } => {
             tonic::Status::already_exists(error.to_string())
         }
@@ -185,8 +156,41 @@ pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
         }
         .into(),
         Error::CatalogError { source } => default_catalog_error_handler(source),
+        Error::HardLimitReached {} => QuotaFailure {
+            subject: "influxdata.com/iox/buffer".to_string(),
+            description: "hard buffer limit reached".to_string(),
+        }
+        .into(),
+        Error::StoreWriteErrors { .. } => tonic::Status::invalid_argument(error.to_string()),
         error => {
             error!(?error, "Unexpected error");
+            InternalError {}.into()
+        }
+    }
+}
+
+/// map common [`database::WriteError`](server::database::WriteError) errors  to the appropriate tonic Status
+pub fn default_database_write_error_handler(error: server::database::WriteError) -> tonic::Status {
+    use server::database::WriteError;
+
+    match error {
+        WriteError::HardLimitReached {} => QuotaFailure {
+            subject: "influxdata.com/iox/buffer".to_string(),
+            description: "hard buffer limit reached".to_string(),
+        }
+        .into(),
+        WriteError::DbError { source } => default_db_error_handler(source),
+        source @ WriteError::WritingOnlyAllowedThroughWriteBuffer => {
+            tonic::Status::failed_precondition(source.to_string())
+        }
+        WriteError::NotInitialized { state } => {
+            tonic::Status::unavailable(format!("Database is not yet initialized: {}", state))
+        }
+        error @ WriteError::StoreWriteErrors { .. } => {
+            tonic::Status::invalid_argument(error.to_string())
+        }
+        error => {
+            error!(?error, "Unexpected write error");
             InternalError {}.into()
         }
     }
