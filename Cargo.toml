@@ -73,6 +73,7 @@ exclude = [
     "massif.out.*",
     "perf/",
     "scripts/",
+    "test_bench/",
     "test_fixtures/",
     "tools/",
 ]
