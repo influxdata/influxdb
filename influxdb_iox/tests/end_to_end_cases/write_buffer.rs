@@ -151,13 +151,7 @@ async fn cant_write_to_db_reading_from_write_buffer() {
         .await
         .expect_err("expected write to fail");
 
-    assert_contains!(
-        err.to_string(),
-        format!(
-            r#"Cannot write to database {}, it's configured to only read from the write buffer"#,
-            db_name
-        )
-    );
+    assert_contains!(err.to_string(), "only allowed through write buffer");
     assert!(matches!(dbg!(err), WriteError::ServerError(_)));
 }
 

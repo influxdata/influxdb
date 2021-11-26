@@ -973,7 +973,7 @@ impl Db {
     /// Stores the write on this [`Db`] and/or routes it to the write buffer
     ///
     /// TODO: Remove this method (#2243)
-    pub async fn route_operation(&self, operation: &DmlOperation) -> Result<()> {
+    pub(crate) async fn route_operation(&self, operation: &DmlOperation) -> Result<()> {
         let immutable = {
             let rules = self.rules.read();
             rules.lifecycle_rules.immutable
@@ -1023,12 +1023,12 @@ impl Db {
     }
 
     /// Writes the provided [`DmlWrite`] to this database
-    pub fn store_write(&self, db_write: &DmlWrite) -> Result<()> {
+    pub(crate) fn store_write(&self, db_write: &DmlWrite) -> Result<()> {
         self.store_filtered_write(db_write, WriteFilterNone::default())
     }
 
     /// Writes the provided [`DmlWrite`] to this database with the provided [`WriteFilter`]
-    pub fn store_filtered_write(
+    pub(crate) fn store_filtered_write(
         &self,
         db_write: &DmlWrite,
         filter: impl WriteFilter,

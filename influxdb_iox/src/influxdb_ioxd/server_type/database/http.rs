@@ -181,17 +181,18 @@ where
     ) -> Result<(), InnerDmlError> {
         match op {
             DmlOperation::Write(write) => {
-                self.server
-                    .write(db_name, write)
+                let database = self.server.active_database(db_name).map_err(|_| {
+                    InnerDmlError::DatabaseNotFound {
+                        db_name: db_name.to_string(),
+                    }
+                })?;
+
+                database
+                    .route_operation(&DmlOperation::Write(write))
                     .await
-                    .map_err(|e| match e {
-                        server::Error::DatabaseNotFound { .. } => InnerDmlError::DatabaseNotFound {
-                            db_name: db_name.to_string(),
-                        },
-                        e => InnerDmlError::InternalError {
-                            db_name: db_name.to_string(),
-                            source: Box::new(e),
-                        },
+                    .map_err(|e| InnerDmlError::InternalError {
+                        db_name: db_name.to_string(),
+                        source: Box::new(e),
                     })
             }
             DmlOperation::Delete(delete) => {
