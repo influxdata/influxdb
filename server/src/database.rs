@@ -565,12 +565,10 @@ impl Database {
         Ok(())
     }
 
-    /// Writes a [`DmlOperation`] to this `Database` this will either:
+    /// Writes a [`DmlOperation`] to this `Database`.
     ///
-    /// - write it to a write buffer
-    /// - write it to a local `Db`
-    ///
-    pub async fn route_operation(&self, operation: &DmlOperation) -> Result<(), WriteError> {
+    /// If the database is configured to consume data from a write buffer, this call will fail.
+    pub fn store_operation(&self, operation: &DmlOperation) -> Result<(), WriteError> {
         let db = {
             let state = self.shared.state.read();
             match &**state {
@@ -587,11 +585,9 @@ impl Database {
             }
         };
 
-        db.route_operation(operation).await.map_err(|e| {
+        db.store_operation(operation).map_err(|e| {
             use super::db::Error;
             match e {
-                // TODO: Pull write buffer producer out of Db
-                Error::WriteBufferWritingError { source } => WriteError::WriteBuffer { source },
                 Error::HardLimitReached {} => WriteError::HardLimitReached {},
                 Error::StoreWriteErrors { errors } => WriteError::StoreWriteErrors { errors },
                 e => e.into(),
@@ -1341,19 +1337,6 @@ impl DatabaseStateRulesLoaded {
         .await
         .context(CatalogLoad)?;
 
-        let rules = self.provided_rules.rules();
-        let write_buffer_factory = shared.application.write_buffer_factory();
-        let producer = match rules.write_buffer_connection.as_ref() {
-            Some(connection) if matches!(connection.direction, WriteBufferDirection::Write) => {
-                let producer = write_buffer_factory
-                    .new_config_write(shared.config.name.as_str(), connection)
-                    .await
-                    .context(CreateWriteBuffer)?;
-                Some(producer)
-            }
-            _ => None,
-        };
-
         let database_to_commit = DatabaseToCommit {
             server_id: shared.config.server_id,
             iox_object_store: Arc::clone(&self.iox_object_store),
@@ -1361,7 +1344,6 @@ impl DatabaseStateRulesLoaded {
             rules: Arc::clone(self.provided_rules.rules()),
             preserved_catalog,
             catalog,
-            write_buffer_producer: producer,
             metric_registry: Arc::clone(shared.application.metric_registry()),
             time_provider: Arc::clone(shared.application.time_provider()),
         };

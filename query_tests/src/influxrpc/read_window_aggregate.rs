@@ -208,7 +208,7 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
 
         let db = make_db().await.db;
         let data = lp_lines.join("\n");
-        write_lp(&db, &data).await;
+        write_lp(&db, &data);
         let scenario1 = DbScenario {
             scenario_name: "Data in 4 partitions, open chunks of mutable buffer".into(),
             db,
@@ -216,7 +216,7 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
 
         let db = make_db().await.db;
         let data = lp_lines.join("\n");
-        write_lp(&db, &data).await;
+        write_lp(&db, &data);
         db.rollover_partition("h2o", "2020-03-01T00").await.unwrap();
         db.rollover_partition("h2o", "2020-03-02T00").await.unwrap();
         let scenario2 = DbScenario {
@@ -228,7 +228,7 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
 
         let db = make_db().await.db;
         let data = lp_lines.join("\n");
-        write_lp(&db, &data).await;
+        write_lp(&db, &data);
         // roll over and load chunks into both RUB and OS
         rollover_and_load(&db, "2020-03-01T00", "h2o").await;
         rollover_and_load(&db, "2020-03-02T00", "h2o").await;

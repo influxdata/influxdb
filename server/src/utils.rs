@@ -19,7 +19,6 @@ use std::{
 };
 use time::{Time, TimeProvider};
 use uuid::Uuid;
-use write_buffer::core::WriteBufferWriting;
 
 // A wrapper around a Db and a metric registry allowing for isolated testing
 // of a Db and its metrics.
@@ -43,7 +42,6 @@ pub struct TestDbBuilder {
     db_name: DatabaseName<'static>,
     uuid: Uuid,
     worker_cleanup_avg_sleep: Duration,
-    write_buffer_producer: Option<Arc<dyn WriteBufferWriting>>,
     lifecycle_rules: LifecycleRules,
     partition_template: PartitionTemplate,
     time_provider: Arc<dyn TimeProvider>,
@@ -58,7 +56,6 @@ impl Default for TestDbBuilder {
             uuid: Uuid::new_v4(),
             // make background loop spin a bit faster for tests
             worker_cleanup_avg_sleep: Duration::from_secs(1),
-            write_buffer_producer: None,
             // default to quick lifecycle rules for faster tests
             lifecycle_rules: LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
@@ -130,7 +127,6 @@ impl TestDbBuilder {
             iox_object_store,
             preserved_catalog,
             catalog,
-            write_buffer_producer: self.write_buffer_producer.clone(),
             exec,
             metric_registry: Arc::clone(&metric_registry),
             time_provider,
@@ -160,14 +156,6 @@ impl TestDbBuilder {
 
     pub fn worker_cleanup_avg_sleep(mut self, d: Duration) -> Self {
         self.worker_cleanup_avg_sleep = d;
-        self
-    }
-
-    pub fn write_buffer_producer(
-        mut self,
-        write_buffer_producer: Arc<dyn WriteBufferWriting>,
-    ) -> Self {
-        self.write_buffer_producer = Some(write_buffer_producer);
         self
     }
 

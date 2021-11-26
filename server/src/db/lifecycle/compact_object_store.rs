@@ -390,7 +390,7 @@ mod tests {
 
         let db = make_db().await.db;
         let partition_key = "1970-01-01T00";
-        write_lp(&db, "cpu,tag1=cupcakes bar=1 10").await;
+        write_lp(&db, "cpu,tag1=cupcakes bar=1 10");
 
         let partition = db.lockable_partition("cpu", partition_key).unwrap();
         let partition = partition.write();
@@ -415,7 +415,7 @@ mod tests {
 
         let db = make_db().await.db;
         let partition_key = "1970-01-01T00";
-        write_lp(&db, "cpu,tag1=cupcakes bar=1 10").await;
+        write_lp(&db, "cpu,tag1=cupcakes bar=1 10");
 
         // persisted non persisted chunks
         let partition = db.lockable_partition("cpu", partition_key).unwrap();
@@ -446,7 +446,7 @@ mod tests {
 
         let db = make_db().await.db;
         let partition_key = "1970-01-01T00";
-        write_lp(&db, "cpu,tag1=cupcakes bar=1 10").await;
+        write_lp(&db, "cpu,tag1=cupcakes bar=1 10");
 
         // persist chunk 1
         db.persist_partition("cpu", partition_key, true)
@@ -456,7 +456,7 @@ mod tests {
             .id();
         //
         // persist chunk 2
-        write_lp(db.as_ref(), "cpu,tag1=chunk2,tag2=a bar=2 10").await;
+        write_lp(db.as_ref(), "cpu,tag1=chunk2,tag2=a bar=2 10");
         db.persist_partition("cpu", partition_key, true)
             .await
             .unwrap()
@@ -464,7 +464,7 @@ mod tests {
             .id();
         //
         // persist chunk 3
-        write_lp(db.as_ref(), "cpu,tag1=chunk3,tag2=a bar=2 30").await;
+        write_lp(db.as_ref(), "cpu,tag1=chunk3,tag2=a bar=2 30");
         db.persist_partition("cpu", partition_key, true)
             .await
             .unwrap()
@@ -472,7 +472,7 @@ mod tests {
             .id();
         //
         // Add a MUB
-        write_lp(db.as_ref(), "cpu,tag1=chunk4,tag2=a bar=2 40").await;
+        write_lp(db.as_ref(), "cpu,tag1=chunk4,tag2=a bar=2 40");
 
         // let compact 2 non contiguous chunk 1 and chunk 3
         let partition = db.lockable_partition("cpu", partition_key).unwrap();

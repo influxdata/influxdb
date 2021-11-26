@@ -180,13 +180,13 @@ mod tests {
         let (db, time) = make_db_time().await;
 
         let t_first_write = time.inc(Duration::from_secs(1));
-        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
-        write_lp(db.as_ref(), "cpu,tag1=asfd,tag2=foo bar=2 20").await;
-        write_lp(db.as_ref(), "cpu,tag1=bingo,tag2=foo bar=2 10").await;
-        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 20").await;
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10");
+        write_lp(db.as_ref(), "cpu,tag1=asfd,tag2=foo bar=2 20");
+        write_lp(db.as_ref(), "cpu,tag1=bingo,tag2=foo bar=2 10");
+        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 20");
 
         let t_last_write = time.inc(Duration::from_secs(1));
-        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 10").await;
+        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 10");
 
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
@@ -201,7 +201,7 @@ mod tests {
         let (_, fut) = compact_chunks(partition_guard.upgrade(), vec![chunk.upgrade()]).unwrap();
         // NB: perform the write before spawning the background task that performs the compaction
         let t_later_write = time.inc(Duration::from_secs(1));
-        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 40").await;
+        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 40");
         tokio::spawn(fut).await.unwrap().unwrap().unwrap();
 
         let mut chunk_summaries: Vec<_> = partition.read().chunk_summaries().collect();
@@ -240,9 +240,9 @@ mod tests {
     async fn test_compact_delete_all() {
         let db = make_db().await.db;
 
-        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
-        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=3 23").await;
-        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=2 26").await;
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10");
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=3 23");
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=2 26");
 
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
@@ -277,10 +277,10 @@ mod tests {
         // |   2 |                      yes |                      yes |
         // |   3 |                       no |                      yes |
         // |   4 |                       no |                       no |
-        write_lp(db.as_ref(), "cpu foo=1 10").await;
-        write_lp(db.as_ref(), "cpu foo=2 20").await;
-        write_lp(db.as_ref(), "cpu foo=3 20").await;
-        write_lp(db.as_ref(), "cpu foo=4 20").await;
+        write_lp(db.as_ref(), "cpu foo=1 10");
+        write_lp(db.as_ref(), "cpu foo=2 20");
+        write_lp(db.as_ref(), "cpu foo=3 20");
+        write_lp(db.as_ref(), "cpu foo=4 20");
 
         let range = TimestampRange {
             start: 0,
