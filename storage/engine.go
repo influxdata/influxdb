@@ -174,6 +174,7 @@ func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	metrics = append(metrics, coordinator.PrometheusCollectors()...)
 	metrics = append(metrics, tsdb.ShardCollectors()...)
 	metrics = append(metrics, tsdb.BucketCollectors()...)
+	metrics = append(metrics, retention.PrometheusCollectors()...)
 	return metrics
 }
 
