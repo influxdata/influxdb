@@ -7,12 +7,14 @@ use generated_types::{
     google::protobuf::Empty,
     measurement_fields_response::FieldType,
     node::{Comparison, Type as NodeType, Value},
+    offsets_response::PartitionOffsetResponse,
     read_group_request::Group,
     read_response::{frame::Data, *},
     storage_client::StorageClient,
     Aggregate, MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadGroupRequest,
-    ReadWindowAggregateRequest, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
+    MeasurementTagValuesRequest, Node, OffsetsResponse, Predicate, ReadFilterRequest,
+    ReadGroupRequest, ReadWindowAggregateRequest, Tag, TagKeysRequest, TagValuesRequest,
+    TimestampRange,
 };
 use influxdb_iox_client::connection::Connection;
 use influxdb_storage_client::tag_key_bytes_to_strings;
@@ -30,7 +32,6 @@ pub async fn test() {
     scenario.create_database(&mut management_client).await;
     scenario.load_data(&influxdb2).await;
 
-    capabilities_endpoint(&mut storage_client).await;
     read_filter_endpoint(&mut storage_client, &scenario).await;
     tag_keys_endpoint(&mut storage_client, &scenario).await;
     tag_values_endpoint(&mut storage_client, &scenario).await;
@@ -41,15 +42,35 @@ pub async fn test() {
 }
 
 /// Validate that capabilities storage endpoint is hooked up
-async fn capabilities_endpoint(storage_client: &mut StorageClient<Connection>) {
-    let capabilities_response = storage_client.capabilities(Empty {}).await.unwrap();
-    let capabilities_response = capabilities_response.into_inner();
+#[tokio::test]
+async fn capabilities_endpoint() {
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let mut storage_client = StorageClient::new(server_fixture.grpc_channel());
+
+    let capabilities_response = storage_client
+        .capabilities(Empty {})
+        .await
+        .unwrap()
+        .into_inner();
     assert_eq!(
         capabilities_response.caps.len(),
         2,
         "Response: {:?}",
         capabilities_response
     );
+}
+
+/// Validate that storage offsets endpoint is hooked up (required by internal Influx cloud)
+#[tokio::test]
+async fn offsets_endpoint() {
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let mut storage_client = StorageClient::new(server_fixture.grpc_channel());
+
+    let offsets_response = storage_client.offsets(Empty {}).await.unwrap().into_inner();
+    let expected = OffsetsResponse {
+        partitions: vec![PartitionOffsetResponse { id: 0, offset: 1 }],
+    };
+    assert_eq!(offsets_response, expected);
 }
 
 async fn read_filter_endpoint(storage_client: &mut StorageClient<Connection>, scenario: &Scenario) {
