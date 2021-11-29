@@ -12,7 +12,10 @@ use metric::{Metric, U64Gauge, U64Histogram, U64HistogramOptions};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
-    consumer::{BaseConsumer, Consumer, ConsumerContext, StreamConsumer},
+    consumer::{
+        stream_consumer::StreamPartitionQueue, BaseConsumer, Consumer, ConsumerContext,
+        StreamConsumer,
+    },
     error::KafkaError,
     message::{BorrowedMessage, Headers, OwnedHeaders},
     producer::{FutureProducer, FutureRecord},
@@ -27,6 +30,7 @@ use data_types::{
 use dml::{DmlMeta, DmlOperation};
 use observability_deps::tracing::{debug, info};
 use time::{Time, TimeProvider};
+use tokio::task::JoinHandle;
 use trace::TraceCollector;
 
 use crate::{
@@ -172,8 +176,9 @@ impl KafkaBufferProducer {
         cfg.set("allow.auto.create.topics", "false");
 
         // handle auto-creation
+        let consumer = Arc::<BaseConsumer>::new(cfg.create()?);
         let partitions =
-            maybe_auto_create_topics(&conn, &database_name, creation_config, &cfg).await?;
+            maybe_auto_create_topics(&conn, &database_name, creation_config, &consumer).await?;
 
         let context = ClientContextImpl::new(database_name.clone(), metric_registry);
         let producer: FutureProducer<ClientContextImpl> = cfg.create_with_context(context)?;
@@ -191,7 +196,9 @@ impl KafkaBufferProducer {
 pub struct KafkaBufferConsumer {
     conn: String,
     database_name: String,
-    consumers: BTreeMap<u32, Arc<StreamConsumer<ClientContextImpl>>>,
+    consumer: Arc<StreamConsumer<ClientContextImpl>>,
+    callback_background_task: JoinHandle<()>,
+    queues: BTreeMap<u32, Arc<StreamPartitionQueue<ClientContextImpl>>>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
     write_buffer_ingest_entry_size: Metric<U64Histogram>,
 }
@@ -219,9 +226,9 @@ impl WriteBufferReading for KafkaBufferConsumer {
     fn streams(&mut self) -> BTreeMap<u32, WriteStream<'_>> {
         let mut streams = BTreeMap::new();
 
-        for (sequencer_id, consumer) in &self.consumers {
+        for (sequencer_id, queue) in &self.queues {
             let sequencer_id = *sequencer_id;
-            let consumer_cloned = Arc::clone(consumer);
+            let consumer_cloned = Arc::clone(&self.consumer);
             let database_name = self.database_name.clone();
             let trace_collector = self.trace_collector.clone();
 
@@ -230,7 +237,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
             let write_buffer_ingest_entry_size =
                 self.write_buffer_ingest_entry_size.recorder(attributes);
 
-            let stream = consumer
+            let stream = queue
                 .stream()
                 .map(move |message| {
                     let message = message?;
@@ -317,8 +324,8 @@ impl WriteBufferReading for KafkaBufferConsumer {
         sequencer_id: u32,
         sequence_number: u64,
     ) -> Result<(), WriteBufferError> {
-        if let Some(consumer) = self.consumers.get(&sequencer_id) {
-            let consumer = Arc::clone(consumer);
+        if self.queues.get(&sequencer_id).is_some() {
+            let consumer = Arc::clone(&self.consumer);
             let database_name = self.database_name.clone();
             let offset = if sequence_number > 0 {
                 Offset::Offset(sequence_number as i64)
@@ -385,37 +392,60 @@ impl KafkaBufferConsumer {
         cfg.set("auto.offset.reset", "smallest");
 
         // figure out which partitions exists
+        let context = ClientContextImpl::new(database_name.clone(), metric_registry);
+        let consumer =
+            Arc::<StreamConsumer<ClientContextImpl>>::new(cfg.create_with_context(context)?);
         let partitions =
-            maybe_auto_create_topics(&conn, &database_name, creation_config, &cfg).await?;
+            maybe_auto_create_topics(&conn, &database_name, creation_config, &consumer).await?;
         info!(%database_name, ?partitions, "found Kafka partitions");
 
-        // setup a single consumer per partition, at least until https://github.com/fede1024/rust-rdkafka/pull/351 is
-        // merged
-        let consumers = partitions
+        // setup assignment
+        //
+        // Note: this must be done BEFORE splitting off queues!
+        let mut assignment = TopicPartitionList::new();
+        for partition in &partitions {
+            assignment.add_partition(&database_name, *partition as i32);
+
+            // We must set the offset to `Beginning` here to avoid the following error during seek:
+            //     KafkaError (Seek error: Local: Erroneous state)
+            //
+            // Also see:
+            // - https://github.com/Blizzard/node-rdkafka/issues/237
+            // - https://github.com/confluentinc/confluent-kafka-go/issues/121#issuecomment-362308376
+            assignment
+                .set_partition_offset(&database_name, *partition as i32, Offset::Beginning)
+                .expect("partition was set just before");
+        }
+        consumer.assign(&assignment)?;
+
+        // Split consumer into per-partition queues.
+        let queues = partitions
             .into_iter()
             .map(|partition| {
-                let context = ClientContextImpl::new(database_name.clone(), metric_registry);
-                let consumer: StreamConsumer<ClientContextImpl> =
-                    cfg.create_with_context(context)?;
-
-                let mut assignment = TopicPartitionList::new();
-                assignment.add_partition(&database_name, partition as i32);
-
-                // We must set the offset to `Beginning` here to avoid the following error during seek:
-                //     KafkaError (Seek error: Local: Erroneous state)
-                //
-                // Also see:
-                // - https://github.com/Blizzard/node-rdkafka/issues/237
-                // - https://github.com/confluentinc/confluent-kafka-go/issues/121#issuecomment-362308376
-                assignment
-                    .set_partition_offset(&database_name, partition as i32, Offset::Beginning)
-                    .expect("partition was set just before");
-
-                consumer.assign(&assignment)?;
-                Ok((partition, Arc::new(consumer)))
+                let queue = consumer
+                    .split_partition_queue(&database_name, partition as i32)
+                    .ok_or_else::<WriteBufferError, _>(|| {
+                        format!(
+                            "Partition {} for topic '{}' was removed between partition scan and subscription",
+                            partition,
+                            database_name,
+                        ).into()
+                    })?;
+                Ok((partition, Arc::new(queue)))
             })
-            .collect::<Result<BTreeMap<u32, Arc<StreamConsumer<ClientContextImpl>>>, KafkaError>>(
+            .collect::<Result<BTreeMap<u32, Arc<StreamPartitionQueue<ClientContextImpl>>>, WriteBufferError>>(
             )?;
+
+        // according to [`StreamConsumer::split_partition_queue`] we still need to poll the main consumer to invoke
+        // callbacks (e.g. for metrics)
+        let consumer_captured = Arc::clone(&consumer);
+        let callback_background_task = tokio::task::spawn(async move {
+            let message = consumer_captured.recv().await;
+            panic!(
+                "main stream consumer queue unexpectedly received message: {:?}",
+                message
+            );
+        });
 
         let write_buffer_ingest_entry_size: Metric<U64Histogram> = metric_registry
             .register_metric_with_options(
@@ -438,24 +468,34 @@ impl KafkaBufferConsumer {
         Ok(Self {
             conn,
             database_name,
-            consumers,
+            consumer,
+            callback_background_task,
+            queues,
             trace_collector: trace_collector.map(|x| Arc::clone(x)),
             write_buffer_ingest_entry_size,
         })
     }
 }
 
-async fn get_partitions(
+impl Drop for KafkaBufferConsumer {
+    fn drop(&mut self) {
+        self.callback_background_task.abort();
+    }
+}
+
+async fn get_partitions<C, D>(
     database_name: &str,
-    cfg: &ClientConfig,
-) -> Result<BTreeSet<u32>, KafkaError> {
+    consumer: &Arc<C>,
+) -> Result<BTreeSet<u32>, KafkaError>
+where
+    C: Consumer<D> + Send + Sync + 'static,
+    D: ConsumerContext,
+{
     let database_name = database_name.to_string();
-    let cfg = cfg.clone();
+    let consumer = Arc::clone(consumer);
 
     let metadata = tokio::task::spawn_blocking(move || {
-        let probe_consumer: BaseConsumer = cfg.create()?;
-
-        probe_consumer.fetch_metadata(
+        consumer.fetch_metadata(
             Some(&database_name),
             Duration::from_millis(KAFKA_OPERATION_TIMEOUT_MS),
         )
@@ -519,13 +559,17 @@ async fn create_kafka_topic(
     }
 }
 
-async fn maybe_auto_create_topics(
+async fn maybe_auto_create_topics<C, D>(
     kafka_connection: &str,
     database_name: &str,
     creation_config: Option<&WriteBufferCreationConfig>,
-    cfg: &ClientConfig,
-) -> Result<BTreeSet<u32>, WriteBufferError> {
-    let mut partitions = get_partitions(database_name, cfg).await?;
+    consumer: &Arc<C>,
+) -> Result<BTreeSet<u32>, WriteBufferError>
+where
+    C: Consumer<D> + Send + Sync + 'static,
+    D: ConsumerContext,
+{
+    let mut partitions = get_partitions(database_name, consumer).await?;
     if partitions.is_empty() {
         if let Some(creation_config) = creation_config {
             create_kafka_topic(
@@ -535,7 +579,7 @@ async fn maybe_auto_create_topics(
                 &creation_config.options,
             )
             .await?;
-            partitions = get_partitions(database_name, cfg).await?;
+            partitions = get_partitions(database_name, consumer).await?;
 
             // while the number of partitions might be different than `creation_cfg.n_sequencers` due to a
             // conflicting, concurrent topic creation, it must not be empty at this point
@@ -965,21 +1009,43 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn metrics() {
+    async fn metrics_producer() {
         let conn = maybe_skip_kafka_integration!();
         let adapter = KafkaTestAdapter::new(conn);
         let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
 
-        let reader = ctx.reading(true).await.unwrap();
+        let _writer = ctx.writing(true).await.unwrap();
 
-        // It seems that th reader must be used for rdkafka / rdkafka-rs to do anything at all =/
-        let background_task = tokio::spawn(async move {
-            let mut reader = reader;
-            let mut streams = reader.streams();
-            assert_eq!(streams.len(), 1);
-            let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
-            stream.stream.next().await;
-        });
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(instrument) = ctx
+                    .metric_registry
+                    .get_instrument::<Metric<U64Gauge>>("kafka_rx_bytes")
+                {
+                    if let Some(observer) = instrument.get_observer(&metric::Attributes::from([
+                        ("database", ctx.database_name.clone().into()),
+                        ("client_type", "producer".into()),
+                    ])) {
+                        let observation = observer.fetch();
+                        assert_ne!(observation, 0);
+                        break;
+                    }
+                }
+
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn metrics_consumer() {
+        let conn = maybe_skip_kafka_integration!();
+        let adapter = KafkaTestAdapter::new(conn);
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let _reader = ctx.reading(true).await.unwrap();
 
         tokio::time::timeout(Duration::from_secs(5), async {
             loop {
@@ -1002,8 +1068,6 @@ mod tests {
         })
         .await
         .unwrap();
-
-        background_task.abort();
     }
 
     #[tokio::test]
