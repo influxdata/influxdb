@@ -1,5 +1,5 @@
 use generated_types::google::{
-    FieldViolation, InternalError, NotFound, PreconditionViolation, QuotaFailure,
+    AlreadyExists, FieldViolation, InternalError, NotFound, PreconditionViolation, QuotaFailure,
 };
 use observability_deps::tracing::error;
 
@@ -17,6 +17,12 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         Error::DatabaseNotInitialized { db_name } => {
             tonic::Status::unavailable(format!("Database ({}) is not yet initialized", db_name))
         }
+        Error::DatabaseAlreadyExists { db_name } => AlreadyExists {
+            resource_type: "database".to_string(),
+            resource_name: db_name,
+            ..Default::default()
+        }
+        .into(),
         Error::ServerNotInitialized { server_id } => tonic::Status::unavailable(format!(
             "Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes \
                      are not loaded). Server is not yet ready to read/write data.",
@@ -45,7 +51,7 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         Error::DatabaseInit { source } => {
             tonic::Status::invalid_argument(format!("Cannot initialize database: {}", source))
         }
-        Error::DatabaseAlreadyExists { .. } | Error::DatabaseAlreadyOwnedByThisServer { .. } => {
+        Error::DatabaseAlreadyOwnedByThisServer { .. } => {
             tonic::Status::already_exists(error.to_string())
         }
         Error::UuidMismatch { .. } | Error::CannotClaimDatabase { .. } => {
@@ -94,9 +100,6 @@ pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic
 pub fn default_database_error_handler(error: server::database::Error) -> tonic::Status {
     use server::database::Error;
     match error {
-        Error::TransitionInProgress { .. } => {
-            tonic::Status::unavailable("another operation already in progress")
-        }
         Error::InvalidState { .. } => tonic::Status::failed_precondition(error.to_string()),
         Error::WipePreservedCatalog { source, .. } => {
             error!(%source, "Unexpected error while wiping catalog");

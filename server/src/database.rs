@@ -8,6 +8,7 @@ use crate::{
     rules::{PersistedDatabaseRules, ProvidedDatabaseRules},
     ApplicationState, Db,
 };
+use data_types::job::Job;
 use data_types::{server_id::ServerId, DatabaseName};
 use dml::DmlOperation;
 use futures::{
@@ -28,22 +29,30 @@ use std::{future::Future, sync::Arc, time::Duration};
 use time::Time;
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
+use tracker::{TaskTracker, TrackedFutureExt};
 use uuid::Uuid;
+
+/// Matches an error [`DatabaseState`] and clones the contained state
+macro_rules! error_state {
+    ($s:expr, $transition: literal, $variant:ident) => {
+        match &**$s.shared.state.read() {
+            DatabaseState::$variant(state, _) => state.clone(),
+            state => {
+                return InvalidState {
+                    db_name: &$s.shared.config.name,
+                    state: state.state_code(),
+                    transition: $transition,
+                }
+                .fail()
+            }
+        }
+    };
+}
 
 const INIT_BACKOFF: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display(
-        "a state transition is already in progress for database ({}) in state {}",
-        db_name,
-        state
-    ))]
-    TransitionInProgress {
-        db_name: String,
-        state: DatabaseStateCode,
-    },
-
     #[snafu(display(
         "database ({}) in invalid state ({:?}) for transition ({})",
         db_name,
@@ -487,47 +496,40 @@ impl Database {
     }
 
     /// Recover from a CatalogLoadError by wiping the catalog
-    pub fn wipe_preserved_catalog(&self) -> Result<impl Future<Output = Result<(), Error>>, Error> {
+    pub async fn wipe_preserved_catalog(&self) -> Result<TaskTracker<Job>, Error> {
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
         let db_name = &self.shared.config.name;
-        let (current_state, handle) = {
-            let state = self.shared.state.read();
-            let current_state = match &**state {
-                DatabaseState::CatalogLoadError(rules_loaded, _) => rules_loaded.clone(),
-                _ => {
-                    return InvalidState {
-                        db_name,
-                        state: state.state_code(),
-                        transition: "WipePreservedCatalog",
-                    }
-                    .fail()
-                }
-            };
+        let current_state = error_state!(self, "WipePreservedCatalog", CatalogLoadError);
 
-            let handle = state.try_freeze().context(TransitionInProgress {
-                db_name,
-                state: state.state_code(),
-            })?;
-
-            (current_state, handle)
-        };
+        let registry = self.shared.application.job_registry();
+        let (tracker, registration) = registry.register(Job::WipePreservedCatalog {
+            db_name: Arc::from(db_name.as_str()),
+        });
 
         let shared = Arc::clone(&self.shared);
 
-        Ok(async move {
-            let db_name = &shared.config.name;
+        tokio::spawn(
+            async move {
+                let db_name = &shared.config.name;
 
-            PreservedCatalog::wipe(&current_state.iox_object_store)
-                .await
-                .map_err(Box::new)
-                .context(WipePreservedCatalog { db_name })?;
+                PreservedCatalog::wipe(&current_state.iox_object_store)
+                    .await
+                    .map_err(Box::new)
+                    .context(WipePreservedCatalog { db_name })?;
 
-            {
-                let mut state = shared.state.write();
-                *state.unfreeze(handle) = DatabaseState::RulesLoaded(current_state);
+                {
+                    let mut state = shared.state.write();
+                    *state.unfreeze(handle) = DatabaseState::RulesLoaded(current_state);
+                }
+
+                Ok::<_, Error>(())
             }
+            .track(registration),
+        );
 
-            Ok(())
-        })
+        Ok(tracker)
     }
 
     /// Recover from a ReplayError by skipping replay
@@ -537,20 +539,7 @@ impl Database {
         let handle = self.shared.state.read().freeze();
         let handle = handle.await;
 
-        let mut current_state = {
-            let state = self.shared.state.read();
-            match &**state {
-                DatabaseState::ReplayError(rules_loaded, _) => rules_loaded.clone(),
-                _ => {
-                    return InvalidState {
-                        db_name,
-                        state: state.state_code(),
-                        transition: "SkipReplay",
-                    }
-                    .fail()
-                }
-            }
-        };
+        let mut current_state = error_state!(self, "SkipReplay", ReplayError);
 
         current_state.replay_plan = Arc::new(None);
         let current_state = current_state

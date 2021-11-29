@@ -90,7 +90,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
-use tracker::{TaskTracker, TrackedFutureExt};
+use tracker::TaskTracker;
 use uuid::Uuid;
 
 pub use application::ApplicationState;
@@ -874,24 +874,14 @@ impl Server {
     ///
     /// The DB must exist in the server and have failed to load the catalog for this to work
     /// This is done to prevent race conditions between DB jobs and this command
-    pub fn wipe_preserved_catalog(
+    pub async fn wipe_preserved_catalog(
         &self,
         db_name: &DatabaseName<'static>,
     ) -> Result<TaskTracker<Job>> {
-        let database = self.database(db_name)?;
-        let registry = self.shared.application.job_registry();
-
-        let (tracker, registration) = registry.register(Job::WipePreservedCatalog {
-            db_name: Arc::from(db_name.as_str()),
-        });
-
-        let fut = database
+        self.database(db_name)?
             .wipe_preserved_catalog()
-            .context(WipePreservedCatalog)?;
-
-        let _ = tokio::spawn(fut.track(registration));
-
-        Ok(tracker)
+            .await
+            .context(WipePreservedCatalog)
     }
 }
 
@@ -2237,6 +2227,7 @@ mod tests {
         assert_eq!(
             server
                 .wipe_preserved_catalog(&db_name_non_existing)
+                .await
                 .unwrap_err()
                 .to_string(),
             "id not set"
@@ -2271,6 +2262,7 @@ mod tests {
         assert_eq!(
             server
                 .wipe_preserved_catalog(&db_name_existing)
+                .await
                 .unwrap_err()
                 .to_string(),
             "error wiping preserved catalog: database (db_existing) in invalid state (Initialized) \
@@ -2303,6 +2295,7 @@ mod tests {
         assert_eq!(
             server
                 .wipe_preserved_catalog(&db_name_non_existing)
+                .await
                 .unwrap_err()
                 .to_string(),
             "database not found: db_non_existing"
@@ -2318,6 +2311,7 @@ mod tests {
         assert_eq!(
             server
                 .wipe_preserved_catalog(&db_name_rules_broken)
+                .await
                 .unwrap_err()
                 .to_string(),
             "error wiping preserved catalog: database (db_broken_rules) in invalid state \
@@ -2330,6 +2324,7 @@ mod tests {
 
         let tracker = server
             .wipe_preserved_catalog(&db_name_catalog_broken)
+            .await
             .unwrap();
 
         let metadata = tracker.metadata();
@@ -2362,6 +2357,7 @@ mod tests {
         assert_eq!(
             server
                 .wipe_preserved_catalog(&db_name_created)
+                .await
                 .unwrap_err()
                 .to_string(),
             "error wiping preserved catalog: database (db_created) in invalid state (Initialized) \

@@ -338,7 +338,7 @@ async fn test_create_get_update_release_claim_database() {
     let err = client.claim_database(released_uuid).await.unwrap_err();
     assert_contains!(
         err.to_string(),
-        format!("A database with the name `{}` already exists", db_name)
+        format!("Resource database/{} already exists", db_name)
     );
 }
 

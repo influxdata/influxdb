@@ -269,7 +269,7 @@ async fn release_claim_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "A database with the name `{}` already exists",
+            "Resource database/{} already exists",
             db
         )));
 
@@ -661,7 +661,7 @@ async fn claim_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "A database with the name `{}` already exists",
+            "Resource database/{} already exists",
             db
         )));
 }

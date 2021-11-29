@@ -1,10 +1,10 @@
 use data_types::{chunk_metadata::ChunkId, DatabaseName};
 use generated_types::{
-    google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound},
+    google::{FieldViolation, FieldViolationExt, NotFound},
     influxdata::iox::management::v1::{Error as ProtobufError, *},
 };
 use query::QueryDatabase;
-use server::{rules::ProvidedDatabaseRules, ApplicationState, Error, Server};
+use server::{rules::ProvidedDatabaseRules, ApplicationState, Server};
 use std::{convert::TryFrom, sync::Arc};
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
@@ -421,15 +421,8 @@ impl management_service_server::ManagementService for ManagementService {
         let tracker = self
             .server
             .wipe_preserved_catalog(&db_name)
-            .map_err(|e| match e {
-                Error::DatabaseAlreadyExists { db_name } => AlreadyExists {
-                    resource_type: "database".to_string(),
-                    resource_name: db_name,
-                    ..Default::default()
-                }
-                .into(),
-                e => default_server_error_handler(e),
-            })?;
+            .await
+            .map_err(default_server_error_handler)?;
         let operation = Some(super::operations::encode_tracker(tracker)?);
 
         Ok(Response::new(WipePreservedCatalogResponse { operation }))
