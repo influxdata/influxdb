@@ -11,4 +11,4 @@ exec valgrind \
     --suppressions="$SCRIPT_DIR/valgrind.supp" \
     --track-origins=yes \
     --verbose \
-    $@
+    "$@"
