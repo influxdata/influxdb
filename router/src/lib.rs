@@ -13,5 +13,4 @@ pub mod grpc_client;
 pub mod resolver;
 pub mod router;
 pub mod server;
-pub mod sharder;
 pub mod write_sink;
