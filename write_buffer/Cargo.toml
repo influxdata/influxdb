@@ -19,7 +19,7 @@ observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.2"
 pin-project = "1.0"
 prost = "0.8"
-rdkafka = "0.27.0"
+rdkafka = "0.28.0"
 time = { path = "../time" }
 tokio = { version = "1.13", features = ["macros", "fs"] }
 tokio-util = "0.6.9"

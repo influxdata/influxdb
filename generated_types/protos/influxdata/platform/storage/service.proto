@@ -39,4 +39,7 @@ service Storage {
     rpc MeasurementTagValues(MeasurementTagValuesRequest) returns (stream StringValuesResponse);
 
     rpc MeasurementFields(MeasurementFieldsRequest) returns (stream MeasurementFieldsResponse);
+
+    // Offsets gets the partition offsets of the node
+    rpc Offsets (google.protobuf.Empty) returns (OffsetsResponse);
 }

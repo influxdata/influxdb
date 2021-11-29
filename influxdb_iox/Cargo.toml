@@ -70,7 +70,7 @@ pprof = { version = "^0.5", default-features = false, features = ["flamegraph", 
 prost = "0.8"
 rustyline = { version = "9.0", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.71"
+serde_json = "1.0.72"
 serde_urlencoded = "0.7.0"
 snafu = "0.6.9"
 structopt = "0.3.25"
@@ -105,7 +105,7 @@ write_buffer = { path = "../write_buffer" }
 # Crates.io dependencies, in alphabetical order
 assert_cmd = "2.0.2"
 hex = "0.4.2"
-predicates = "2.0.3"
+predicates = "2.1.0"
 rand = "0.8.3"
 reqwest = "0.11"
 tempfile = "3.1.0"

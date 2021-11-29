@@ -224,7 +224,7 @@ impl DbChunk {
     /// predicate depends on the schema of the chunk. Callers should validate
     /// predicates against chunks they are to be executed against using
     /// `read_buffer::Chunk::validate_predicate`
-    pub fn to_rub_negated_predicates(
+    fn to_rub_negated_predicates(
         delete_predicates: &[Arc<Predicate>],
     ) -> Result<Vec<read_buffer::Predicate>> {
         let mut rub_preds: Vec<read_buffer::Predicate> = vec![];
@@ -346,7 +346,6 @@ impl QueryChunk for DbChunk {
         &self,
         predicate: &Predicate,
         selection: Selection<'_>,
-        delete_predicates: &[Arc<Predicate>],
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         // Predicate is not required to be applied for correctness. We only pushed it down
         // when possible for performance gain
@@ -354,11 +353,16 @@ impl QueryChunk for DbChunk {
         debug!(?predicate, "Input Predicate to read_filter");
         self.access_recorder.record_access();
 
-        debug!(?delete_predicates, "Input Delete Predicates to read_filter");
+        let delete_predicates: Vec<_> = self
+            .meta
+            .delete_predicates
+            .iter()
+            .map(|pred| Arc::new(pred.as_ref().clone().into()))
+            .collect();
 
         // merge the negated delete predicates into the select predicate
         let mut pred_with_deleted_exprs = predicate.clone();
-        pred_with_deleted_exprs.merge_delete_predicates(delete_predicates);
+        pred_with_deleted_exprs.merge_delete_predicates(&delete_predicates);
         debug!(
             ?pred_with_deleted_exprs,
             "Input Predicate plus deleted ranges and deleted predicates"
@@ -381,7 +385,7 @@ impl QueryChunk for DbChunk {
                 debug!(?rb_predicate, "Predicate pushed down to RUB");
 
                 // combine all delete expressions to RUB's negated ones
-                let negated_delete_exprs = Self::to_rub_negated_predicates(delete_predicates)?
+                let negated_delete_exprs = Self::to_rub_negated_predicates(&delete_predicates)?
                     .into_iter()
                     // Any delete predicates unsupported by the Read Buffer will be elided.
                     .filter_map(|p| chunk.validate_predicate(p).ok())
@@ -581,7 +585,7 @@ mod tests {
 
         let t1 = time.inc(Duration::from_secs(1));
         snapshot
-            .read_filter(&Default::default(), Selection::All, &[])
+            .read_filter(&Default::default(), Selection::All)
             .unwrap();
         let m3 = chunk.access_recorder().get_metrics();
 
