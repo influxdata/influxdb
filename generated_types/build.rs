@@ -48,7 +48,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("partition_template.proto"),
         management_path.join("server_config.proto"),
         management_path.join("service.proto"),
-        management_path.join("shard.proto"),
         predicate_path.join("predicate.proto"),
         preserved_catalog_path.join("catalog.proto"),
         preserved_catalog_path.join("parquet_metadata.proto"),

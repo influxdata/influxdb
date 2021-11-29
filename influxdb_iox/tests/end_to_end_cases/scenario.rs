@@ -382,7 +382,6 @@ impl DatabaseBuilder {
                 partition_template: Some(self.partition_template),
                 lifecycle_rules: Some(self.lifecycle_rules),
                 worker_cleanup_avg_sleep: None,
-                routing_rules: None,
                 write_buffer_connection: self.write_buffer,
             })
             .await?;

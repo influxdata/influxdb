@@ -1694,7 +1694,6 @@ mod tests {
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
                 ..Default::default()
             },
-            routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
             write_buffer_connection: Some(WriteBufferConnection {
                 type_: "mock".to_string(),

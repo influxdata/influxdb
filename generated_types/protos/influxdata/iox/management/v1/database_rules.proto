@@ -4,7 +4,6 @@ option go_package = "github.com/influxdata/iox/management/v1";
 
 import "google/protobuf/duration.proto";
 import "influxdata/iox/management/v1/partition_template.proto";
-import "influxdata/iox/management/v1/shard.proto";
 import "influxdata/iox/write_buffer/v1/write_buffer.proto";
 
 message LifecycleRules {
@@ -105,16 +104,10 @@ message DatabaseRules {
   // If not specified, a server-side default is used
   LifecycleRules lifecycle_rules = 3;
 
-  // If not specified, does not configure any routing
-  //
-  // TODO(marco): remove this
-  oneof routing_rules {
-    // Shard config
-    ShardConfig shard_config = 8;
-
-    // Routing config
-    RoutingConfig routing_config = 9;
-  }
+  reserved 8;
+  reserved "shard_config";
+  reserved 9;
+  reserved "routing_config";
 
   // Duration for which the cleanup loop should sleep on average.
   // Defaults to 500 seconds.
@@ -138,8 +131,4 @@ message PersistedDatabaseRules {
   bytes uuid = 1;
 
   DatabaseRules rules = 2;
-}
-
-message RoutingConfig {
-  Sink sink = 2;
 }

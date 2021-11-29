@@ -561,7 +561,6 @@ def grpc_create_database(router_id, writer_id):
                 'persist_age_threshold_seconds': 1800,
                 'mub_row_threshold': 100000,
             },
-            'routing_config': {'sink': {'kafka': {}}},
             'worker_cleanup_avg_sleep': '500s',
             'write_buffer_connection': {
                 'type': 'kafka',
