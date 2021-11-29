@@ -1261,6 +1261,26 @@ pub mod test_helpers {
         };
     }
 
+    /// Wait for the `db` to contain tables matching `expected_tables`
+    pub async fn wait_for_tables(db: &Db, expected_tables: &[&str]) {
+        let now = std::time::Instant::now();
+        loop {
+            let mut tables = db.table_names();
+            tables.sort_unstable();
+
+            if tables.len() != expected_tables.len() {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                assert!(
+                    now.elapsed() < Duration::from_secs(10),
+                    "consumer failed to receive write"
+                );
+                continue;
+            }
+            assert_eq!(&tables, expected_tables);
+            break;
+        }
+    }
+
     /// Run a sql query against the database, returning the results as record batches.
     pub async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SqlQueryPlanner::default();

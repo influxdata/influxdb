@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use arrow_util::assert_batches_eq;
 use data_types::delete_predicate::{DeleteExpr, DeletePredicate, Op, Scalar};
@@ -22,6 +21,7 @@ use query::frontend::sql::SqlQueryPlanner;
 use regex::Regex;
 use router::router::Router;
 use router::server::RouterServer;
+use server::db::test_helpers::wait_for_tables;
 use server::rules::ProvidedDatabaseRules;
 use server::test_utils::{make_application, make_initialized_server};
 use server::{Db, Server};
@@ -127,23 +127,8 @@ impl DistributedTest {
     }
 
     /// Wait for the consumer to have the following tables
-    pub async fn wait_for_tables(&self, expected_tables: &[String]) {
-        let now = Instant::now();
-        loop {
-            if now.elapsed() > Duration::from_secs(10) {
-                panic!("consumer failed to receive write");
-            }
-
-            let mut tables = self.consumer_db.table_names();
-            tables.sort_unstable();
-
-            if tables.len() != expected_tables.len() {
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                continue;
-            }
-            assert_eq!(&tables, expected_tables);
-            break;
-        }
+    pub async fn wait_for_tables(&self, expected_tables: &[&str]) {
+        wait_for_tables(&self.consumer_db, expected_tables).await
     }
 
     /// Write line protocol
@@ -212,9 +197,7 @@ async fn write_buffer_deletes() {
     fixture.write("bar x=2 1").await;
 
     // Wait for consumer to catch up
-    fixture
-        .wait_for_tables(&["bar".to_string(), "foo".to_string()])
-        .await;
+    fixture.wait_for_tables(&["bar", "foo"]).await;
 
     fixture
         .query(
