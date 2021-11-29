@@ -910,6 +910,7 @@ impl Client {
         db_name: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
+        force: bool,
     ) -> Result<(), PersistPartitionError> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
@@ -920,6 +921,7 @@ impl Client {
                 db_name,
                 partition_key,
                 table_name,
+                force,
             })
             .await
             .map_err(|status| match status.code() {

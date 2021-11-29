@@ -458,6 +458,7 @@ impl management_service_server::ManagementService for ManagementService {
             db_name,
             partition_key,
             table_name,
+            force,
         } = request.into_inner();
 
         // Validate that the database name is legit
@@ -467,7 +468,7 @@ impl management_service_server::ManagementService for ManagementService {
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        db.persist_partition(&table_name, &partition_key, false)
+        db.persist_partition(&table_name, &partition_key, force)
             .await
             .map_err(default_db_error_handler)?;
 

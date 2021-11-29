@@ -1495,10 +1495,8 @@ async fn test_persist_partition() {
     assert_eq!(chunks.len(), 1);
     let partition_key = &chunks[0].partition_key;
 
-    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-
     management_client
-        .persist_partition(&db_name, "data", &partition_key[..])
+        .persist_partition(&db_name, "data", &partition_key[..], true)
         .await
         .unwrap();
 
@@ -1553,11 +1551,28 @@ async fn test_persist_partition_error() {
 
     // there is no old data (late arrival window is 1000s) that can be persisted
     let err = management_client
-        .persist_partition(&db_name, "data", &partition_key[..])
+        .persist_partition(&db_name, "data", &partition_key[..], false)
         .await
         .unwrap_err();
     assert_contains!(
         err.to_string(),
         "Cannot persist partition because it cannot be flushed at the moment"
+    );
+
+    // Can force persistence
+    management_client
+        .persist_partition(&db_name, "data", &partition_key[..], true)
+        .await
+        .unwrap();
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(
+        chunks[0].storage,
+        generated_types::influxdata::iox::management::v1::ChunkStorage::ReadBufferAndObjectStore
+            as i32
     );
 }

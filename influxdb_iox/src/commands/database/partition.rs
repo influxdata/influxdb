@@ -86,6 +86,10 @@ struct Persist {
 
     /// The table name
     table_name: String,
+
+    /// Persist all data irrespective of arrival time
+    #[structopt(long)]
+    force: bool,
 }
 
 /// lists all chunks in this partition
@@ -226,10 +230,11 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 db_name,
                 partition_key,
                 table_name,
+                force,
             } = persist;
 
             client
-                .persist_partition(db_name, table_name, partition_key)
+                .persist_partition(db_name, table_name, partition_key, force)
                 .await?;
             println!("Ok");
         }

@@ -402,6 +402,9 @@ message PersistPartitionRequest {
 
   // the table name
   string table_name = 3;
+
+  // persist all data for partition irrespective of arrival time
+  bool force = 4;
 }
 
 message PersistPartitionResponse {
