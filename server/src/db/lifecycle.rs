@@ -36,6 +36,7 @@ mod compact;
 pub(crate) mod compact_object_store;
 mod drop;
 mod error;
+mod load;
 mod persist;
 mod unload;
 mod write;
@@ -81,12 +82,21 @@ impl LockableChunk for LockableCatalogChunk {
     }
 
     fn unload_read_buffer(
-        s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
+        chunk: LifecycleWriteGuard<'_, Self::Chunk, Self>,
     ) -> Result<(), Self::Error> {
-        info!(chunk=%s.addr(), "unloading from readbuffer");
+        info!(%chunk, "unloading from readbuffer");
 
-        let _ = self::unload::unload_read_buffer_chunk(s)?;
+        let _ = self::unload::unload_read_buffer_chunk(chunk)?;
         Ok(())
+    }
+
+    fn load_read_buffer(
+        chunk: LifecycleWriteGuard<'_, Self::Chunk, Self>,
+    ) -> Result<TaskTracker<Self::Job>, Self::Error> {
+        info!(%chunk, "loading chunk to read buffer");
+        let (tracker, fut) = load::load_chunk(chunk)?;
+        let _ = tokio::spawn(async move { fut.await.log_if_error("compacting chunks") });
+        Ok(tracker)
     }
 
     fn id(&self) -> ChunkId {

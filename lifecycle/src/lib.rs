@@ -151,6 +151,13 @@ pub trait LockableChunk: Sized {
     fn unload_read_buffer(s: LifecycleWriteGuard<'_, Self::Chunk, Self>)
         -> Result<(), Self::Error>;
 
+    /// Load data back into the read buffer from object storage
+    ///
+    /// Note that this can only be called for persisted chunks
+    fn load_read_buffer(
+        s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
+    ) -> Result<TaskTracker<Self::Job>, Self::Error>;
+
     fn id(&self) -> ChunkId;
 
     fn order(&self) -> ChunkOrder;

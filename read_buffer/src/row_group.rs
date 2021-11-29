@@ -1312,7 +1312,7 @@ impl From<RecordBatch> for RowGroup {
 
                     columns.push((col_name.to_owned(), ColumnType::Time(column_data)));
                 }
-                _ => panic!("unknown column type"),
+                _ => panic!("unknown column type {:?} for {}", lp_type, col_name),
             }
         }
 

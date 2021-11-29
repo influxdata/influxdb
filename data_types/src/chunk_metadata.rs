@@ -102,6 +102,9 @@ pub enum ChunkLifecycleAction {
 
     /// Chunk is about to be dropped from memory and (if persisted) from object store
     Dropping,
+
+    /// Chunk is in the process of being loaded back into the RUB
+    LoadingReadBuffer,
 }
 
 impl std::fmt::Display for ChunkLifecycleAction {
@@ -117,6 +120,7 @@ impl ChunkLifecycleAction {
             Self::Compacting => "Compacting",
             Self::CompactingObjectStore => "Compacting Object Store",
             Self::Dropping => "Dropping",
+            Self::LoadingReadBuffer => "Loading to Read Buffer",
         }
     }
 }

@@ -54,6 +54,14 @@ impl From<Job> for management::operation_metadata::Job {
                 partition_key: partition.partition_key.to_string(),
                 table_name: partition.table_name.to_string(),
             }),
+            Job::LoadReadBufferChunk { chunk } => {
+                Self::LoadReadBufferChunk(management::LoadReadBufferChunk {
+                    db_name: chunk.db_name.to_string(),
+                    partition_key: chunk.partition_key.to_string(),
+                    table_name: chunk.table_name.to_string(),
+                    chunk_id: chunk.chunk_id.into(),
+                })
+            }
         }
     }
 }

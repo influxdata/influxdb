@@ -66,6 +66,7 @@ impl From<Option<ChunkLifecycleAction>> for management::ChunkLifecycleAction {
             Some(ChunkLifecycleAction::Compacting) => Self::Compacting,
             Some(ChunkLifecycleAction::CompactingObjectStore) => Self::CompactingObjectStore,
             Some(ChunkLifecycleAction::Dropping) => Self::Dropping,
+            Some(ChunkLifecycleAction::LoadingReadBuffer) => Self::LoadingReadBuffer,
             None => Self::Unspecified,
         }
     }
@@ -156,6 +157,9 @@ impl TryFrom<management::ChunkLifecycleAction> for Option<ChunkLifecycleAction> 
             }
             management::ChunkLifecycleAction::CompactingObjectStore => {
                 Ok(Some(ChunkLifecycleAction::CompactingObjectStore))
+            }
+            management::ChunkLifecycleAction::LoadingReadBuffer => {
+                Ok(Some(ChunkLifecycleAction::LoadingReadBuffer))
             }
             management::ChunkLifecycleAction::Dropping => Ok(Some(ChunkLifecycleAction::Dropping)),
             management::ChunkLifecycleAction::Unspecified => Ok(None),

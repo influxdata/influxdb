@@ -88,6 +88,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
             ".influxdata.iox.management.v1.DropChunk.chunk_id",
             ".influxdata.iox.management.v1.PersistChunks.chunks",
             ".influxdata.iox.management.v1.WriteChunk.chunk_id",
+            ".influxdata.iox.management.v1.LoadReadBufferChunk.chunk_id",
             ".influxdata.iox.management.v1.UnloadPartitionChunkRequest.chunk_id",
             ".influxdata.iox.preserved_catalog.v1.AddParquet.metadata",
             ".influxdata.iox.preserved_catalog.v1.ChunkAddr.chunk_id",
