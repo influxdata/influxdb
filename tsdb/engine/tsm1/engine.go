@@ -158,20 +158,28 @@ type Engine struct {
 
 // NewEngine returns a new instance of Engine.
 func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
+	etags := EngineTags{
+		path:          path,
+		walPath:       walPath,
+		id:            fmt.Sprintf("%d", id),
+		bucket:        filepath.Base(filepath.Dir(filepath.Dir(path))), // discard shard & rp, take db
+		engineVersion: opt.EngineVersion,
+	}
+
 	var wal *WAL
 	if opt.WALEnabled {
-		wal = NewWAL(walPath, opt.Config.WALMaxConcurrentWrites, opt.Config.WALMaxWriteDelay)
+		wal = NewWAL(walPath, opt.Config.WALMaxConcurrentWrites, opt.Config.WALMaxWriteDelay, etags)
 		wal.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
 	}
 
-	fs := NewFileStore(path)
+	fs := NewFileStore(path, etags)
 	fs.openLimiter = opt.OpenLimiter
 	if opt.FileStoreObserver != nil {
 		fs.WithObserver(opt.FileStoreObserver)
 	}
 	fs.tsmMMAPWillNeed = opt.Config.TSMWillNeed
 
-	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize))
+	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), etags)
 
 	c := NewCompactor()
 	c.Dir = path
@@ -184,13 +192,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		planner.SetFileStore(fs)
 	}
 
-	stats := newEngineMetrics(engineTags{
-		path:          path,
-		walPath:       walPath,
-		id:            fmt.Sprintf("%d", id),
-		bucket:        filepath.Base(filepath.Dir(filepath.Dir(path))), // discard shard & rp, take db
-		engineVersion: opt.EngineVersion,
-	})
+	stats := newEngineMetrics(etags)
 	activeCompactions := &compactionCounter{}
 	e := &Engine{
 		id:           id,
@@ -588,16 +590,20 @@ func (e *Engine) LastModified() time.Time {
 	return fsTime
 }
 
-var globalCompactionMetrics *compactionMetrics = newAllCompactionMetrics(engineLabelNames())
+var globalCompactionMetrics *compactionMetrics = newAllCompactionMetrics(EngineLabelNames())
 
 // PrometheusCollectors returns all prometheus metrics for the tsm1 package.
 func PrometheusCollectors() []prometheus.Collector {
-	return []prometheus.Collector{
+	collectors := []prometheus.Collector{
 		globalCompactionMetrics.Duration,
 		globalCompactionMetrics.Active,
 		globalCompactionMetrics.Failed,
 		globalCompactionMetrics.Queued,
 	}
+	collectors = append(collectors, FileStoreCollectors()...)
+	collectors = append(collectors, CacheCollectors()...)
+	collectors = append(collectors, WALCollectors()...)
+	return collectors
 }
 
 const (
@@ -683,11 +689,14 @@ type compactionMetrics struct {
 	Failed   *prometheus.CounterVec
 }
 
-type engineTags struct {
+// EngineTags holds tags for prometheus
+//
+// It should not be used for behaviour other than attaching tags to prometheus metrics
+type EngineTags struct {
 	path, walPath, id, bucket, engineVersion string
 }
 
-func (et *engineTags) getLabels() prometheus.Labels {
+func (et *EngineTags) GetLabels() prometheus.Labels {
 	return prometheus.Labels{
 		"path":    et.path,
 		"walPath": et.walPath,
@@ -697,8 +706,8 @@ func (et *engineTags) getLabels() prometheus.Labels {
 	}
 }
 
-func engineLabelNames() []string {
-	emptyLabels := (&engineTags{}).getLabels()
+func EngineLabelNames() []string {
+	emptyLabels := (&EngineTags{}).GetLabels()
 	val := make([]string, 0, len(emptyLabels))
 	for k := range emptyLabels {
 		val = append(val, k)
@@ -706,8 +715,8 @@ func engineLabelNames() []string {
 	return val
 }
 
-func newEngineMetrics(tags engineTags) *compactionMetrics {
-	engineLabels := tags.getLabels()
+func newEngineMetrics(tags EngineTags) *compactionMetrics {
+	engineLabels := tags.GetLabels()
 	return &compactionMetrics{
 		Duration: globalCompactionMetrics.Duration.MustCurryWith(engineLabels),
 		Active:   globalCompactionMetrics.Active.MustCurryWith(engineLabels),
@@ -1837,8 +1846,10 @@ func (e *Engine) WriteSnapshot() (err error) {
 	log, logEnd := logger.NewOperation(context.TODO(), e.logger, "Cache snapshot", "tsm1_cache_snapshot")
 	defer func() {
 		elapsed := time.Since(started)
-		e.Cache.UpdateCompactTime(elapsed)
-
+		if err != nil && err != errCompactionsDisabled {
+			e.stats.Failed.With(prometheus.Labels{levelKey: levelCache}).Inc()
+		}
+		e.stats.Duration.With(prometheus.Labels{levelKey: levelCache}).Observe(elapsed.Seconds())
 		if err == nil {
 			log.Info("Snapshot for path written", zap.String("path", e.path), zap.Duration("duration", elapsed))
 		}
@@ -1974,16 +1985,12 @@ func (e *Engine) compactCache() {
 			return
 
 		case <-t.C:
-			e.Cache.UpdateAge()
 			if e.ShouldCompactCache(time.Now()) {
-				start := time.Now()
 				e.traceLogger.Info("Compacting cache", zap.String("path", e.path))
 				err := e.WriteSnapshot()
 				if err != nil && err != errCompactionsDisabled {
 					e.logger.Info("Error writing snapshot", zap.Error(err))
-					e.stats.Failed.With(prometheus.Labels{levelKey: levelCache}).Inc()
 				}
-				e.stats.Duration.With(prometheus.Labels{levelKey: levelCache}).Observe(time.Since(start).Seconds())
 			}
 		}
 	}

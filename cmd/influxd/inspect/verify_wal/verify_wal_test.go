@@ -110,7 +110,7 @@ func newTempWALValid(t *testing.T) string {
 	dir, err := os.MkdirTemp("", "verify-wal")
 	require.NoError(t, err)
 
-	w := tsm1.NewWAL(dir, 0, 0)
+	w := tsm1.NewWAL(dir, 0, 0, tsm1.EngineTags{})
 	defer w.Close()
 	require.NoError(t, w.Open())
 

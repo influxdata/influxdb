@@ -440,7 +440,6 @@ github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 h1:W9WBk7
 github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839/go.mod h1:xaLFMmpvUxqXtVkUJfg9QmT88cDaCJ3ZKgdZ78oO8Qo=
 github.com/influxdata/nats-streaming-server v0.11.3-0.20201112040610-c277f7560803 h1:LpaVAM5Www2R7M0GJAxAdL3swBvmna8Pyzw6F7o+j04=
 github.com/influxdata/nats-streaming-server v0.11.3-0.20201112040610-c277f7560803/go.mod h1:qgAMR6M9EokX+R5X7jUQfubwBdS1tBIl4yVJ3shhcWk=
-github.com/influxdata/pkg-config v0.2.9-0.20210928145121-f721f9766b86 h1:GeX1p061dF9UjD5dWa5X4kat8IN1YwkWm7vZ0zVF20Y=
 github.com/influxdata/pkg-config v0.2.9-0.20210928145121-f721f9766b86/go.mod h1:EMS7Ll0S4qkzDk53XS3Z72/egBsPInt+BeRxb0WeSwk=
 github.com/influxdata/pkg-config v0.2.9 h1:OXQkn8rKk+dLibqRRDCqOvwtXZZbkt9KCkwAVikHwcA=
 github.com/influxdata/pkg-config v0.2.9/go.mod h1:EMS7Ll0S4qkzDk53XS3Z72/egBsPInt+BeRxb0WeSwk=

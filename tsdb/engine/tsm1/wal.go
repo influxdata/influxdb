@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/limiter"
 	"github.com/influxdata/influxdb/v2/pkg/pool"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -72,14 +72,6 @@ var (
 	bytesPool = pool.NewLimitedBytes(256, walEncodeBufSize*2)
 )
 
-// Statistics gathered by the WAL.
-const (
-	statWALOldBytes     = "oldSegmentsDiskBytes"
-	statWALCurrentBytes = "currentSegmentDiskBytes"
-	statWriteOk         = "writeOk"
-	statWriteErr        = "writeErr"
-)
-
 // WAL represents the write-ahead log used for writing TSM files.
 type WAL struct {
 	// goroutines waiting for the next fsync
@@ -113,7 +105,7 @@ type WAL struct {
 	SegmentSize int
 
 	// statistics for the WAL
-	stats *WALStatistics
+	stats *walMetrics
 
 	// limiter limits the max concurrency of waiting WAL writes.
 	limiter limiter.Fixed
@@ -124,7 +116,7 @@ type WAL struct {
 }
 
 // NewWAL initializes a new WAL at the given directory.
-func NewWAL(path string, maxConcurrentWrites int, maxWriteDelay time.Duration) *WAL {
+func NewWAL(path string, maxConcurrentWrites int, maxWriteDelay time.Duration, tags EngineTags) *WAL {
 	logger := zap.NewNop()
 	if maxConcurrentWrites == 0 {
 		maxConcurrentWrites = defaultWaitingWALWrites
@@ -137,7 +129,7 @@ func NewWAL(path string, maxConcurrentWrites int, maxWriteDelay time.Duration) *
 		SegmentSize:  DefaultSegmentSize,
 		closing:      make(chan struct{}),
 		syncWaiters:  make(chan chan error, 1024),
-		stats:        &WALStatistics{},
+		stats:        newWALMetrics(tags),
 		limiter:      limiter.NewFixed(maxConcurrentWrites),
 		maxWriteWait: maxWriteDelay,
 		logger:       logger,
@@ -162,26 +154,74 @@ func (l *WAL) WithLogger(log *zap.Logger) {
 	}
 }
 
-// WALStatistics maintains statistics about the WAL.
-type WALStatistics struct {
-	OldBytes     int64
-	CurrentBytes int64
-	WriteOK      int64
-	WriteErr     int64
+var globalWALMetrics = newAllWALMetrics()
+
+const walSubsystem = "wal"
+
+type allWALMetrics struct {
+	size      *prometheus.GaugeVec
+	writes    *prometheus.CounterVec
+	writesErr *prometheus.CounterVec
 }
 
-// Statistics returns statistics for periodic monitoring.
-func (l *WAL) Statistics(tags map[string]string) []models.Statistic {
-	return []models.Statistic{{
-		Name: "tsm1_wal",
-		Tags: tags,
-		Values: map[string]interface{}{
-			statWALOldBytes:     atomic.LoadInt64(&l.stats.OldBytes),
-			statWALCurrentBytes: atomic.LoadInt64(&l.stats.CurrentBytes),
-			statWriteOk:         atomic.LoadInt64(&l.stats.WriteOK),
-			statWriteErr:        atomic.LoadInt64(&l.stats.WriteErr),
-		},
-	}}
+type walMetrics struct {
+	// size should never be updated directly, only through SetSize/AddSize
+	size prometheus.Gauge
+	// sizeAtomic should never be updated directly, only through SetSize/AddSize
+	sizeAtomic int64
+	writes     prometheus.Counter
+	writesErr  prometheus.Counter
+}
+
+func (f *walMetrics) AddSize(n int64) {
+	val := atomic.AddInt64(&f.sizeAtomic, n)
+	f.size.Set(float64(val))
+}
+
+func (f *walMetrics) SetSize(n int64) {
+	atomic.StoreInt64(&f.sizeAtomic, n)
+	f.size.Set(float64(n))
+}
+
+func newAllWALMetrics() *allWALMetrics {
+	labels := EngineLabelNames()
+	return &allWALMetrics{
+		size: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: storageNamespace,
+			Subsystem: walSubsystem,
+			Name:      "size",
+			Help:      "Gauge of size of WAL in bytes",
+		}, labels),
+		writes: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: storageNamespace,
+			Subsystem: walSubsystem,
+			Name:      "writes",
+			Help:      "Number of write attempts to the WAL",
+		}, labels),
+		writesErr: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: storageNamespace,
+			Subsystem: walSubsystem,
+			Name:      "writes_err",
+			Help:      "Number of failed write attempts to the WAL",
+		}, labels),
+	}
+}
+
+func WALCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		globalWALMetrics.size,
+		globalWALMetrics.writes,
+		globalWALMetrics.writesErr,
+	}
+}
+
+func newWALMetrics(tags EngineTags) *walMetrics {
+	labels := tags.GetLabels()
+	return &walMetrics{
+		size:      globalWALMetrics.size.With(labels),
+		writes:    globalWALMetrics.writes.With(labels),
+		writesErr: globalWALMetrics.writesErr.With(labels),
+	}
 }
 
 // Path returns the directory the log was initialized with.
@@ -235,12 +275,11 @@ func (l *WAL) Open() error {
 			l.currentSegmentWriter = NewWALSegmentWriter(fd)
 
 			// Set the correct size on the segment writer
-			atomic.StoreInt64(&l.stats.CurrentBytes, stat.Size())
 			l.currentSegmentWriter.size = int(stat.Size())
 		}
 	}
 
-	var totalOldDiskSize int64
+	var totalSize int64
 	for _, seg := range segments {
 		stat, err := os.Stat(seg)
 		if err != nil {
@@ -248,18 +287,14 @@ func (l *WAL) Open() error {
 		}
 
 		if stat.Size() > 0 {
-			totalOldDiskSize += stat.Size()
+			totalSize += stat.Size()
 			if stat.ModTime().After(l.lastWriteTime) {
 				l.lastWriteTime = stat.ModTime().UTC()
 			}
 		}
 	}
 
-	if l.currentSegmentWriter != nil {
-		totalOldDiskSize -= int64(l.currentSegmentWriter.size)
-	}
-
-	atomic.StoreInt64(&l.stats.OldBytes, totalOldDiskSize)
+	l.stats.SetSize(totalSize)
 
 	l.closing = make(chan struct{})
 
@@ -331,11 +366,11 @@ func (l *WAL) WriteMulti(ctx context.Context, values map[string][]Value) (int, e
 	}
 
 	id, err := l.writeToLog(ctx, entry)
+	l.stats.writes.Inc()
 	if err != nil {
-		atomic.AddInt64(&l.stats.WriteErr, 1)
+		l.stats.writesErr.Inc()
 		return -1, err
 	}
-	atomic.AddInt64(&l.stats.WriteOK, 1)
 
 	return id, nil
 }
@@ -387,21 +422,17 @@ func (l *WAL) Remove(files []string) error {
 		return err
 	}
 
-	var totalOldDiskSize int64
+	var totalSize int64
 	for _, seg := range segments {
 		stat, err := os.Stat(seg)
 		if err != nil {
 			return err
 		}
 
-		totalOldDiskSize += stat.Size()
+		totalSize += stat.Size()
 	}
 
-	if l.currentSegmentWriter != nil {
-		totalOldDiskSize -= int64(l.currentSegmentWriter.size)
-	}
-
-	atomic.StoreInt64(&l.stats.OldBytes, totalOldDiskSize)
+	l.stats.SetSize(totalSize)
 
 	return nil
 }
@@ -414,7 +445,7 @@ func (l *WAL) LastWriteTime() time.Time {
 }
 
 func (l *WAL) DiskSizeBytes() int64 {
-	return atomic.LoadInt64(&l.stats.OldBytes) + atomic.LoadInt64(&l.stats.CurrentBytes)
+	return atomic.LoadInt64(&l.stats.sizeAtomic)
 }
 
 func (l *WAL) writeToLog(ctx context.Context, entry WALEntry) (int, error) {
@@ -464,9 +495,11 @@ func (l *WAL) writeToLog(ctx context.Context, entry WALEntry) (int, error) {
 		}
 
 		// write and sync
+		oldSize := l.currentSegmentWriter.size
 		if err := l.currentSegmentWriter.Write(entry.Type(), compressed); err != nil {
 			return -1, fmt.Errorf("error writing WAL entry: %v", err)
 		}
+		sizeDelta := l.currentSegmentWriter.size - oldSize
 
 		select {
 		case l.syncWaiters <- syncErr:
@@ -476,7 +509,7 @@ func (l *WAL) writeToLog(ctx context.Context, entry WALEntry) (int, error) {
 		l.scheduleSync()
 
 		// Update stats for current segment size
-		atomic.StoreInt64(&l.stats.CurrentBytes, int64(l.currentSegmentWriter.size))
+		l.stats.AddSize(int64(sizeDelta))
 
 		l.lastWriteTime = time.Now().UTC()
 
@@ -598,8 +631,6 @@ func (l *WAL) newSegmentFile() error {
 		if err := l.currentSegmentWriter.close(); err != nil {
 			return err
 		}
-
-		atomic.AddInt64(&l.stats.OldBytes, int64(l.currentSegmentWriter.size))
 	}
 
 	fileName := filepath.Join(l.path, fmt.Sprintf("%s%05d.%s", WALFilePrefix, l.currentSegmentID, WALFileExtension))
@@ -608,9 +639,6 @@ func (l *WAL) newSegmentFile() error {
 		return err
 	}
 	l.currentSegmentWriter = NewWALSegmentWriter(fd)
-
-	// Reset the current segment size stat
-	atomic.StoreInt64(&l.stats.CurrentBytes, 0)
 
 	return nil
 }

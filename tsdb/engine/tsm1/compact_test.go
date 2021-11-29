@@ -29,7 +29,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 		"cpu,host=B#!~#value": {v2, v3},
 	}
 
-	c := tsm1.NewCache(0)
+	c := tsm1.NewCache(0, tsm1.EngineTags{})
 	for k, v := range points1 {
 		if err := c.Write([]byte(k), v); err != nil {
 			t.Fatalf("failed to write key foo to cache: %s", err.Error())
@@ -1386,7 +1386,7 @@ func TestCacheKeyIterator_Single(t *testing.T) {
 		"cpu,host=A#!~#value": {v0},
 	}
 
-	c := tsm1.NewCache(0)
+	c := tsm1.NewCache(0, tsm1.EngineTags{})
 
 	for k, v := range writes {
 		if err := c.Write([]byte(k), v); err != nil {
@@ -1434,7 +1434,7 @@ func TestCacheKeyIterator_Chunked(t *testing.T) {
 		"cpu,host=A#!~#value": {v0, v1},
 	}
 
-	c := tsm1.NewCache(0)
+	c := tsm1.NewCache(0, tsm1.EngineTags{})
 
 	for k, v := range writes {
 		if err := c.Write([]byte(k), v); err != nil {
@@ -1484,7 +1484,7 @@ func TestCacheKeyIterator_Abort(t *testing.T) {
 		"cpu,host=A#!~#value": {v0},
 	}
 
-	c := tsm1.NewCache(0)
+	c := tsm1.NewCache(0, tsm1.EngineTags{})
 
 	for k, v := range writes {
 		if err := c.Write([]byte(k), v); err != nil {

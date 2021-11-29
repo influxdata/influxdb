@@ -19,11 +19,11 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
-	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/file"
 	"github.com/influxdata/influxdb/v2/pkg/limiter"
 	"github.com/influxdata/influxdb/v2/pkg/metrics"
 	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -148,12 +148,6 @@ type TSMFile interface {
 	Free() error
 }
 
-// Statistics gathered by the FileStore.
-const (
-	statFileStoreBytes = "diskBytes"
-	statFileStoreCount = "numFiles"
-)
-
 var (
 	floatBlocksDecodedCounter    = metrics.MustRegisterCounter("float_blocks_decoded", metrics.WithGroup(tsmGroup))
 	floatBlocksSizeCounter       = metrics.MustRegisterCounter("float_blocks_size_bytes", metrics.WithGroup(tsmGroup))
@@ -186,7 +180,7 @@ type FileStore struct {
 	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
 
-	stats  *FileStoreStatistics
+	stats  *fileStoreMetrics
 	purger *purger
 
 	currentTempDirID int
@@ -232,7 +226,7 @@ func (f FileStat) ContainsKey(key []byte) bool {
 }
 
 // NewFileStore returns a new instance of FileStore based on the given directory.
-func NewFileStore(dir string) *FileStore {
+func NewFileStore(dir string, tags EngineTags) *FileStore {
 	logger := zap.NewNop()
 	fs := &FileStore{
 		dir:          dir,
@@ -240,7 +234,7 @@ func NewFileStore(dir string) *FileStore {
 		logger:       logger,
 		traceLogger:  logger,
 		openLimiter:  limiter.NewFixed(runtime.GOMAXPROCS(0)),
-		stats:        &FileStoreStatistics{},
+		stats:        newFileStoreMetrics(tags),
 		purger: &purger{
 			files:  map[string]TSMFile{},
 			logger: logger,
@@ -284,22 +278,66 @@ func (f *FileStore) WithLogger(log *zap.Logger) {
 	}
 }
 
-// FileStoreStatistics keeps statistics about the file store.
-type FileStoreStatistics struct {
-	DiskBytes int64
-	FileCount int64
+var globalFileStoreMetrics = newAllFileStoreMetrics()
+
+const filesSubsystem = "tsm_files"
+
+type allFileStoreMetrics struct {
+	files *prometheus.GaugeVec
+	size  *prometheus.GaugeVec
 }
 
-// Statistics returns statistics for periodic monitoring.
-func (f *FileStore) Statistics(tags map[string]string) []models.Statistic {
-	return []models.Statistic{{
-		Name: "tsm1_filestore",
-		Tags: tags,
-		Values: map[string]interface{}{
-			statFileStoreBytes: atomic.LoadInt64(&f.stats.DiskBytes),
-			statFileStoreCount: atomic.LoadInt64(&f.stats.FileCount),
-		},
-	}}
+type fileStoreMetrics struct {
+	files      prometheus.Gauge
+	size       prometheus.Gauge
+	sizeAtomic int64
+}
+
+func (f *fileStoreMetrics) AddSize(n int64) {
+	val := atomic.AddInt64(&f.sizeAtomic, n)
+	f.size.Set(float64(val))
+}
+
+func (f *fileStoreMetrics) SetSize(n int64) {
+	atomic.StoreInt64(&f.sizeAtomic, n)
+	f.size.Set(float64(n))
+}
+
+func (f *fileStoreMetrics) SetFiles(n int64) {
+	f.files.Set(float64(n))
+}
+
+func newAllFileStoreMetrics() *allFileStoreMetrics {
+	labels := EngineLabelNames()
+	return &allFileStoreMetrics{
+		files: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: storageNamespace,
+			Subsystem: filesSubsystem,
+			Name:      "total",
+			Help:      "Gauge of number of files per shard",
+		}, labels),
+		size: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: storageNamespace,
+			Subsystem: filesSubsystem,
+			Name:      "disk_bytes",
+			Help:      "Gauge of data size in bytes for each shard",
+		}, labels),
+	}
+}
+
+func FileStoreCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		globalFileStoreMetrics.files,
+		globalFileStoreMetrics.size,
+	}
+}
+
+func newFileStoreMetrics(tags EngineTags) *fileStoreMetrics {
+	labels := tags.GetLabels()
+	return &fileStoreMetrics{
+		files: globalFileStoreMetrics.files.With(labels),
+		size:  globalFileStoreMetrics.size.With(labels),
+	}
 }
 
 // Count returns the number of TSM files currently loaded.
@@ -598,9 +636,9 @@ func (f *FileStore) Open(ctx context.Context) error {
 		f.files = append(f.files, res.r)
 
 		// Accumulate file store size stats
-		atomic.AddInt64(&f.stats.DiskBytes, int64(res.r.Size()))
+		f.stats.AddSize(int64(res.r.Size()))
 		if ts := res.r.TombstoneStats(); ts.TombstoneExists {
-			atomic.AddInt64(&f.stats.DiskBytes, int64(ts.Size))
+			f.stats.AddSize(int64(ts.Size))
 		}
 
 		// Re-initialize the lastModified time for the file store
@@ -622,7 +660,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 	close(readerC)
 
 	sort.Sort(tsmReaders(f.files))
-	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
+	f.stats.SetFiles(int64(len(f.files)))
 	return nil
 }
 
@@ -635,7 +673,8 @@ func (f *FileStore) Close() error {
 
 	f.lastFileStats = nil
 	f.files = nil
-	atomic.StoreInt64(&f.stats.FileCount, 0)
+
+	f.stats.SetFiles(0)
 
 	// Let other methods access this closed object while we do the actual closing.
 	f.mu.Unlock()
@@ -651,7 +690,7 @@ func (f *FileStore) Close() error {
 }
 
 func (f *FileStore) DiskSizeBytes() int64 {
-	return atomic.LoadInt64(&f.stats.DiskBytes)
+	return atomic.LoadInt64(&f.stats.sizeAtomic)
 }
 
 // Read returns the slice of values for the given key and the given timestamp,
@@ -917,7 +956,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	f.lastFileStats = nil
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
-	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
+	f.stats.SetFiles(int64(len(f.files)))
 
 	// Recalculate the disk size stat
 	var totalSize int64
@@ -927,7 +966,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			totalSize += int64(ts.Size)
 		}
 	}
-	atomic.StoreInt64(&f.stats.DiskBytes, totalSize)
+	f.stats.SetSize(totalSize)
 
 	return nil
 }

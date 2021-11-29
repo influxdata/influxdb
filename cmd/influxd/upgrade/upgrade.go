@@ -509,7 +509,7 @@ func (o *optionsV1) validatePaths() error {
 	metaDb := filepath.Join(o.metaDir, "meta.db")
 	_, err := os.Stat(metaDb)
 	if err != nil {
-		return fmt.Errorf("1.x meta.db '%s' does not exist", metaDb)
+		return fmt.Errorf("1.x meta.db '%s' does not exist: %w", metaDb, err)
 	}
 
 	return nil

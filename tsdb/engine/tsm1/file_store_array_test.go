@@ -312,7 +312,7 @@ func TestFileStore_Array(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := MustTempDir()
 			defer os.RemoveAll(dir)
-			fs := tsm1.NewFileStore(dir)
+			fs := tsm1.NewFileStore(dir, tsm1.EngineTags{})
 
 			files, err := newFiles(dir, tc.data...)
 			if err != nil {
