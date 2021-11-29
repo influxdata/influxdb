@@ -355,10 +355,6 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 			return err
 		}
 
-		if err := egroup.Wait(); err != nil {
-			return err
-		}
-
 		// Enqueue the data into all registered replications.
 		var wg sync.WaitGroup
 		wg.Add(len(repls.Replications))
