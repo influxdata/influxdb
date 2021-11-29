@@ -41,4 +41,4 @@ aws = ["rusoto_core", "rusoto_credential", "rusoto_s3"]
 [dev-dependencies] # In alphabetical order
 dotenv = "0.15.0"
 tempfile = "3.1.0"
-futures-test = "0.3.12"
+futures-test = "0.3"
