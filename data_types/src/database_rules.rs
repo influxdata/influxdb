@@ -1,11 +1,6 @@
-use crate::{
-    consistent_hasher::ConsistentHasher, server_id::ServerId, write_buffer::WriteBufferConnection,
-    DatabaseName,
-};
-use regex::Regex;
-use snafu::{OptionExt, Snafu};
+use crate::{write_buffer::WriteBufferConnection, DatabaseName};
+use snafu::Snafu;
 use std::{
-    collections::HashMap,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     time::Duration,
 };
@@ -42,10 +37,6 @@ pub struct DatabaseRules {
     /// Configure how data flows through the system
     pub lifecycle_rules: LifecycleRules,
 
-    /// An optional config to delegate data plane operations to one or more
-    /// remote servers.
-    pub routing_rules: Option<RoutingRules>,
-
     /// Duration for which the cleanup loop should sleep on average.
     /// Defaults to 500 seconds.
     pub worker_cleanup_avg_sleep: Duration,
@@ -54,29 +45,12 @@ pub struct DatabaseRules {
     pub write_buffer_connection: Option<WriteBufferConnection>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum RoutingRules {
-    // A routing config defines the target where all data plane operations for
-    // a given database are delegated to.
-    RoutingConfig(RoutingConfig),
-
-    /// A sharding config split writes into different "shards". A shard
-    /// is a logical concept, but the usage is meant to split data into
-    /// mutually exclusive areas. The rough order of organization is:
-    /// database -> shard -> partition -> chunk. For example, you could shard
-    /// based on table name and assign to 1 of 10 shards. Within each
-    /// shard you would have partitions, which would likely be based off time.
-    /// This makes it possible to horizontally scale out writes.
-    ShardConfig(ShardConfig),
-}
-
 impl DatabaseRules {
     pub fn new(name: DatabaseName<'static>) -> Self {
         Self {
             name,
             partition_template: Default::default(),
             lifecycle_rules: Default::default(),
-            routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(500),
             write_buffer_connection: None,
         }
@@ -280,168 +254,9 @@ pub struct StrftimeColumn {
     pub format: String,
 }
 
-/// A routing config defines the destination where to route all data plane operations
-/// for a given database.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RoutingConfig {
-    pub sink: Sink,
-}
-
-/// ShardId maps to a nodegroup that holds the the shard.
-pub type ShardId = u32;
-pub const NO_SHARD_CONFIG: Option<&ShardConfig> = None;
-
-/// Determines the shard ID for a given table
-pub trait Sharder {
-    fn shard(&self, table: &str) -> Result<ShardId>;
-}
-
-/// ShardConfig defines rules for assigning a line/row to an individual
-/// host or a group of hosts. A shard
-/// is a logical concept, but the usage is meant to split data into
-/// mutually exclusive areas. The rough order of organization is:
-/// database -> shard -> partition -> chunk. For example, you could shard
-/// based on table name and assign to 1 of 10 shards. Within each
-/// shard you would have partitions, which would likely be based off time.
-/// This makes it possible to horizontally scale out writes.
-#[derive(Debug, Eq, PartialEq, Clone, Default)]
-pub struct ShardConfig {
-    /// Each matcher, if any, is evaluated in order.
-    /// If there is a match, the route will be evaluated to
-    /// the given targets, otherwise the hash ring will be evaluated.
-    /// This is useful for overriding the hashring function on some hot spot. For
-    /// example, if you use the table name as the input to the hash function
-    /// and your ring has 4 slots. If two tables that are very hot get
-    /// assigned to the same slot you can override that by putting in a
-    /// specific matcher to pull that table over to a different node.
-    pub specific_targets: Vec<MatcherToShard>,
-    /// An optional default hasher which will route to one in a collection of
-    /// nodes.
-    pub hash_ring: Option<HashRing>,
-    /// If set to true the router will ignore any errors sent by the remote
-    /// targets in this route. That is, the write request will succeed
-    /// regardless of this route's success.
-    pub ignore_errors: bool,
-    /// Mapping between shard IDs and node groups. Other sharding rules use
-    /// ShardId as targets.
-    pub shards: HashMap<ShardId, Sink>,
-}
-
-/// Configuration for a specific IOx sink
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Sink {
-    Iox(NodeGroup),
-    Kafka(KafkaProducer),
-    DevNull,
-}
-
-impl Sharder for ShardConfig {
-    fn shard(&self, table: &str) -> Result<ShardId, Error> {
-        for i in &self.specific_targets {
-            if i.matcher.match_table(table) {
-                return Ok(i.shard);
-            }
-        }
-        if let Some(hash_ring) = &self.hash_ring {
-            return hash_ring.shards.find(table).context(NoShardsDefined);
-        }
-
-        NoShardingRuleMatches { table }.fail()
-    }
-}
-
-/// Maps a matcher with specific shard. If the line/row matches
-/// it should be sent to the group.
-#[derive(Debug, Eq, PartialEq, Clone, Default)]
-pub struct MatcherToShard {
-    pub matcher: Matcher,
-    pub shard: ShardId,
-}
-
-/// A collection of IOx nodes
-pub type NodeGroup = Vec<ServerId>;
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct KafkaProducer {}
-
-/// HashRing is a rule for creating a hash key for a table and mapping that to
-/// an individual node on a ring.
-#[derive(Debug, Eq, PartialEq, Clone, Default)]
-pub struct HashRing {
-    /// ring of shard ids
-    pub shards: ConsistentHasher<ShardId>,
-}
-
-/// A matcher is used to match routing rules or subscriptions on a row-by-row
-/// (or line) basis.
-#[derive(Debug, Clone, Default)]
-pub struct Matcher {
-    /// if provided, match if the table name matches against the regex
-    pub table_name_regex: Option<Regex>,
-}
-
-impl PartialEq for Matcher {
-    fn eq(&self, other: &Self) -> bool {
-        // this is kind of janky, but it's only used during tests and should get the job
-        // done
-        format!("{:?}", self.table_name_regex) == format!("{:?}", other.table_name_regex)
-    }
-}
-impl Eq for Matcher {}
-
-impl Matcher {
-    fn match_table(&self, table: &str) -> bool {
-        match &self.table_name_regex {
-            Some(table_name_regex) => table_name_regex.is_match(table),
-            None => false,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    #[allow(clippy::trivial_regex)]
-    fn test_sharder() {
-        let shards: Vec<_> = (1000..1000000).collect();
-        let shard_config = ShardConfig {
-            specific_targets: vec![MatcherToShard {
-                matcher: Matcher {
-                    table_name_regex: Some(Regex::new("pu$").unwrap()),
-                },
-                shard: 1,
-            }],
-            hash_ring: Some(HashRing {
-                shards: ConsistentHasher::new(&shards),
-            }),
-            ..Default::default()
-        };
-
-        // hit the specific targets
-        let shard_id = shard_config.shard("cpu").expect("cannot shard a line");
-        assert_eq!(shard_id, 1);
-
-        // hit the hash ring
-
-        let shard_id = shard_config.shard("mem").expect("cannot shard a line");
-        assert_eq!(shard_id, 355092);
-    }
-
-    #[test]
-    fn test_sharder_no_shards() {
-        let shard_config = ShardConfig {
-            hash_ring: Some(HashRing {
-                shards: ConsistentHasher::new(&[]),
-            }),
-            ..Default::default()
-        };
-
-        let err = shard_config.shard("cpu").unwrap_err();
-
-        assert!(matches!(err, Error::NoShardsDefined));
-    }
 
     #[test]
     fn test_max_active_compactions_cpu_fraction() {

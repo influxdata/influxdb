@@ -15,8 +15,7 @@ use std::collections::HashMap;
 use clap::{App, Arg};
 use influxdb_iox_client::{
     management::generated_types::{
-        database_rules, lifecycle_rules, partition_template, sink, DatabaseRules, KafkaProducer,
-        LifecycleRules, PartitionTemplate, RoutingConfig, Sink,
+        lifecycle_rules, partition_template, DatabaseRules, LifecycleRules, PartitionTemplate,
     },
     router::generated_types::{
         write_sink, Matcher, MatcherToShard, Router, ShardConfig, WriteBufferConnection, WriteSink,
@@ -127,11 +126,6 @@ Examples:
             ..Default::default()
         }),
         worker_cleanup_avg_sleep: None,
-        routing_rules: Some(database_rules::RoutingRules::RoutingConfig(RoutingConfig {
-            sink: Some(Sink {
-                sink: Some(sink::Sink::Kafka(KafkaProducer {})),
-            }),
-        })),
         write_buffer_connection: Some(WriteBufferConnection {
             r#type: "kafka".to_string(),
             connection: kafka.to_string(),

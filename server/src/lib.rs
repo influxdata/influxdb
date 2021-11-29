@@ -1302,7 +1302,6 @@ mod tests {
                 catalog_transactions_until_checkpoint: std::num::NonZeroU64::new(13).unwrap(),
                 ..Default::default()
             },
-            routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
             write_buffer_connection: None,
         };
@@ -1421,7 +1420,6 @@ mod tests {
                 parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
             },
             lifecycle_rules: Default::default(),
-            routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
             write_buffer_connection: None,
         };
@@ -2002,7 +2000,6 @@ mod tests {
                 parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
             },
             lifecycle_rules: Default::default(),
-            routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
             write_buffer_connection: Some(WriteBufferConnection {
                 type_: "mock".to_string(),

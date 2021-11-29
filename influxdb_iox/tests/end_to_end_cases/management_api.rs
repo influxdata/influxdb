@@ -1,9 +1,7 @@
 use data_types::chunk_metadata::ChunkId;
 use generated_types::{
     google::protobuf::{Duration, Empty},
-    influxdata::iox::management::v1::{
-        database_rules::RoutingRules, database_status::DatabaseState, *,
-    },
+    influxdata::iox::management::v1::{database_status::DatabaseState, *},
 };
 use influxdb_iox_client::{
     management::{Client, CreateDatabaseError},
@@ -240,7 +238,6 @@ async fn test_create_get_update_release_claim_database() {
             mub_row_threshold: 1343,
             ..Default::default()
         }),
-        routing_rules: None,
         worker_cleanup_avg_sleep: Some(Duration {
             seconds: 2,
             nanos: 0,
@@ -258,12 +255,19 @@ async fn test_create_get_update_release_claim_database() {
         .await
         .expect("get database failed");
 
-    assert_eq!(response.routing_rules, None);
+    assert_eq!(
+        response
+            .lifecycle_rules
+            .unwrap()
+            .catalog_transactions_until_checkpoint,
+        13
+    );
 
-    rules.routing_rules = Some(RoutingRules::ShardConfig(ShardConfig {
-        ignore_errors: true,
-        ..Default::default()
-    }));
+    rules
+        .lifecycle_rules
+        .as_mut()
+        .unwrap()
+        .catalog_transactions_until_checkpoint = 42;
     let updated_rules = client
         .update_database(rules.clone())
         .await
@@ -276,10 +280,13 @@ async fn test_create_get_update_release_claim_database() {
         .await
         .expect("get database failed");
 
-    assert!(matches!(
-            response.routing_rules,
-            Some(RoutingRules::ShardConfig(cfg)) if cfg.ignore_errors,
-    ));
+    assert_eq!(
+        response
+            .lifecycle_rules
+            .unwrap()
+            .catalog_transactions_until_checkpoint,
+        42
+    );
 
     let databases: Vec<_> = client
         .list_detailed_databases()
