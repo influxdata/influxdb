@@ -183,7 +183,26 @@ func (s *Store) UpdateReplication(ctx context.Context, id platform.ID, request i
 
 // UpdateResponseInfo sets the most recent HTTP status code and error message received for a replication remote write.
 func (s *Store) UpdateResponseInfo(ctx context.Context, id platform.ID, code int, message string) error {
-	// TODO: Implement this
+	updates := sq.Eq{
+		"latest_response_code": code,
+		"latest_error_message": message,
+	}
+
+	q := sq.Update("replications").SetMap(updates).Where(sq.Eq{"id": id}).Suffix("RETURNING id")
+
+	query, args, err := q.ToSql()
+	if err != nil {
+		return err
+	}
+
+	var d platform.ID
+	if err := s.sqlStore.DB.GetContext(ctx, &d, query, args...); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errReplicationNotFound
+		}
+		return err
+	}
+
 	return nil
 }
 

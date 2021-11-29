@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
 
 	sq "github.com/Masterminds/squirrel"
@@ -129,6 +130,38 @@ func TestUpdateAndGetReplication(t *testing.T) {
 	updated, err = testStore.UpdateReplication(ctx, created.ID, updateReq)
 	require.NoError(t, err)
 	require.Equal(t, updatedReplication, *updated)
+}
+
+func TestUpdateResponseInfo(t *testing.T) {
+	t.Parallel()
+
+	testStore, clean := newTestStore(t)
+	defer clean(t)
+
+	insertRemote(t, testStore, replication.RemoteID)
+	insertRemote(t, testStore, updatedReplication.RemoteID)
+
+	testCode := http.StatusBadRequest
+	testMsg := "some error message"
+
+	// Updating a nonexistent ID fails.
+	err := testStore.UpdateResponseInfo(ctx, initID, testCode, testMsg)
+	require.Equal(t, errReplicationNotFound, err)
+
+	// Create a replication.
+	created, err := testStore.CreateReplication(ctx, initID, createReq)
+	require.NoError(t, err)
+	require.Equal(t, replication, *created)
+
+	// Update the replication response info.
+	err = testStore.UpdateResponseInfo(ctx, initID, testCode, testMsg)
+	require.NoError(t, err)
+
+	// Check the updated response code and error message.
+	got, err := testStore.GetReplication(ctx, initID)
+	require.NoError(t, err)
+	require.Equal(t, int32(testCode), *got.LatestResponseCode)
+	require.Equal(t, testMsg, *got.LatestErrorMessage)
 }
 
 func TestUpdateMissingRemote(t *testing.T) {
