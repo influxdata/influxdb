@@ -485,7 +485,7 @@ mod tests {
     #[tokio::test]
     async fn test_roundtrip() {
         test_helpers::maybe_start_logging();
-        // validates that the async plubing is setup to read parquet files from object store
+        // validates that the async plumbing is setup to read parquet files from object store
 
         // prepare input
         let array = StringArray::from(vec!["foo", "bar", "baz"]);

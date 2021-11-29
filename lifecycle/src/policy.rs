@@ -986,6 +986,12 @@ mod tests {
             Ok(())
         }
 
+        fn load_read_buffer(
+            _: LifecycleWriteGuard<'_, Self::Chunk, Self>,
+        ) -> Result<TaskTracker<Self::Job>, Self::Error> {
+            unimplemented!()
+        }
+
         fn id(&self) -> ChunkId {
             self.id
         }

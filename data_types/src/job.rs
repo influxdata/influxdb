@@ -44,6 +44,9 @@ pub enum Job {
 
     /// Wipe preserved catalog
     WipePreservedCatalog { db_name: Arc<str> },
+
+    /// Load chunk to read buffer from object store
+    LoadReadBufferChunk { chunk: ChunkAddr },
 }
 
 impl Job {
@@ -58,6 +61,7 @@ impl Job {
             Self::DropChunk { chunk, .. } => Some(&chunk.db_name),
             Self::DropPartition { partition, .. } => Some(&partition.db_name),
             Self::WipePreservedCatalog { db_name, .. } => Some(db_name),
+            Self::LoadReadBufferChunk { chunk } => Some(&chunk.db_name),
         }
     }
 
@@ -72,6 +76,7 @@ impl Job {
             Self::DropChunk { chunk, .. } => Some(&chunk.partition_key),
             Self::DropPartition { partition, .. } => Some(&partition.partition_key),
             Self::WipePreservedCatalog { .. } => None,
+            Self::LoadReadBufferChunk { chunk } => Some(&chunk.partition_key),
         }
     }
 
@@ -86,6 +91,7 @@ impl Job {
             Self::DropChunk { chunk, .. } => Some(&chunk.table_name),
             Self::DropPartition { partition, .. } => Some(&partition.table_name),
             Self::WipePreservedCatalog { .. } => None,
+            Self::LoadReadBufferChunk { chunk } => Some(&chunk.table_name),
         }
     }
 
@@ -100,6 +106,7 @@ impl Job {
             Self::DropChunk { chunk, .. } => Some(vec![chunk.chunk_id]),
             Self::DropPartition { .. } => None,
             Self::WipePreservedCatalog { .. } => None,
+            Self::LoadReadBufferChunk { chunk } => Some(vec![chunk.chunk_id]),
         }
     }
 
@@ -118,6 +125,7 @@ impl Job {
                 "Drop partition from memory and (if persisted) from object store"
             }
             Self::WipePreservedCatalog { .. } => "Wipe preserved catalog",
+            Self::LoadReadBufferChunk { .. } => "Loading chunk to read buffer",
         }
     }
 }
@@ -137,6 +145,7 @@ impl std::fmt::Display for Job {
             Job::WipePreservedCatalog { db_name } => {
                 write!(f, "Job::WipePreservedCatalog({})", db_name)
             }
+            Job::LoadReadBufferChunk { chunk } => write!(f, "Job::LoadReadBufferChunk({})", chunk),
         }
     }
 }

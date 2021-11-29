@@ -757,35 +757,17 @@ pub async fn make_iox_object_store() -> Arc<IoxObjectStore> {
 }
 
 pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> Vec<RecordBatch> {
-    let mut record_batches = vec![];
-
     let cursor = SliceableCursor::new(parquet_data);
     let reader = SerializedFileReader::new(cursor).unwrap();
     let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(reader));
 
     // Indices of columns in the schema needed to read
     let projection: Vec<usize> = Storage::column_indices(Selection::All, Arc::clone(&schema));
-    let mut batch_reader = arrow_reader
+    let batch_reader = arrow_reader
         .get_record_reader_by_columns(projection, 1024)
         .unwrap();
-    loop {
-        match batch_reader.next() {
-            Some(Ok(batch)) => {
-                // TODO: remove this when arow-rs' ticket https://github.com/apache/arrow-rs/issues/252#252 is done
-                let columns = batch.columns().to_vec();
-                let new_batch = RecordBatch::try_new(Arc::clone(&schema), columns).unwrap();
-                record_batches.push(new_batch);
-            }
-            None => {
-                break;
-            }
-            Some(Err(e)) => {
-                println!("Error reading batch: {}", e.to_string());
-            }
-        }
-    }
 
-    record_batches
+    batch_reader.collect::<Result<_, _>>().unwrap()
 }
 
 /// Create [`PartitionCheckpoint`] and [`DatabaseCheckpoint`] for testing.

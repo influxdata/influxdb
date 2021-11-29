@@ -90,6 +90,9 @@ pub enum Error {
 
     #[snafu(display("Cannot compact chunks because no checkpoint was computed"))]
     NoCheckpoint {},
+
+    #[snafu(display("Cannot load chunk as no rows: {}", addr))]
+    CannotLoadEmptyChunk { addr: ChunkAddr },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

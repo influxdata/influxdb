@@ -16,7 +16,7 @@ pub fn unload_read_buffer_chunk(
 ) -> Result<Arc<DbChunk>> {
     debug!(chunk=%chunk.addr(), "unloading chunk from read buffer");
 
-    chunk.set_unload_from_read_buffer()?;
+    chunk.set_unloaded_from_read_buffer()?;
 
     debug!(chunk=%chunk.addr(), "chunk marked UNLOADED from read buffer");
 

@@ -230,6 +230,12 @@ pub struct CatalogChunk {
     order: ChunkOrder,
 }
 
+impl std::fmt::Display for CatalogChunk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.addr.fmt(f)
+    }
+}
+
 macro_rules! unexpected_state {
     ($SELF: expr, $OP: expr, $EXPECTED: expr, $STATE: expr) => {
         InternalChunkState {
@@ -827,7 +833,43 @@ impl CatalogChunk {
         }
     }
 
-    pub fn set_unload_from_read_buffer(&mut self) -> Result<Arc<RBChunk>> {
+    /// Sets the chunk as loading to the read buffer
+    pub fn set_loading_to_read_buffer(&mut self, registration: &TaskRegistration) -> Result<()> {
+        match &mut self.stage {
+            ChunkStage::Persisted { read_buffer, .. } => match read_buffer {
+                Some(_) => InternalChunkState {
+                    chunk: self.addr.clone(),
+                    operation: "setting loading",
+                    expected: "Persisted without ReadBuffer",
+                    actual: "Persisted with ReadBuffer",
+                }
+                .fail(),
+                None => {
+                    self.set_lifecycle_action(ChunkLifecycleAction::LoadingReadBuffer, registration)
+                }
+            },
+            _ => {
+                unexpected_state!(self, "setting unload", "Persisted", &self.stage)
+            }
+        }
+    }
+
+    /// Sets the chunk as loaded back to the read buffer
+    pub fn set_loaded_to_read_buffer(&mut self, loaded: Arc<RBChunk>) -> Result<()> {
+        self.finish_lifecycle_action(ChunkLifecycleAction::LoadingReadBuffer)?;
+        match &mut self.stage {
+            ChunkStage::Persisted { read_buffer, .. } => {
+                *read_buffer = Some(loaded);
+                Ok(())
+            }
+            _ => {
+                unexpected_state!(self, "setting unload", "Persisted", &self.stage)
+            }
+        }
+    }
+
+    /// Unloads the read buffer chunk if any
+    pub fn set_unloaded_from_read_buffer(&mut self) -> Result<Arc<RBChunk>> {
         match &mut self.stage {
             ChunkStage::Persisted { read_buffer, .. } => {
                 if let Some(rub_chunk) = read_buffer.take() {

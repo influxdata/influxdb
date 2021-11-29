@@ -40,6 +40,7 @@ message OperationMetadata {
     DropChunk drop_chunk = 12;
     DropPartition drop_partition = 17;
     CompactObjectStoreChunks compact_object_store_chunks = 18;
+    LoadReadBufferChunk load_read_buffer_chunk = 19;
   }
 }
 
@@ -94,21 +95,21 @@ message CompactChunks {
 
 // Compact chunks into a single chunk
 message CompactObjectStoreChunks {
-    // name of the database
-    string db_name = 1;
- 
-    // partition key
-    string partition_key = 2;
- 
-    // table name
-    string table_name = 3;
- 
-    // chunk_id
-    // UUID is stored as 16 bytes in big-endian order.
-    repeated bytes chunks = 4;
-  }
+  // name of the database
+  string db_name = 1;
 
-  
+  // partition key
+  string partition_key = 2;
+
+  // table name
+  string table_name = 3;
+
+  // chunk_id
+  // UUID is stored as 16 bytes in big-endian order.
+  repeated bytes chunks = 4;
+}
+
+
 // Split and write chunks to object store
 message PersistChunks {
   // name of the database
@@ -165,4 +166,20 @@ message DropPartition {
 message WipePreservedCatalog {
   // name of the database
   string db_name = 1;
+}
+
+message LoadReadBufferChunk {
+  // name of the database
+  string db_name = 1;
+
+  // partition key
+  string partition_key = 2;
+
+  // table name
+  string table_name = 3;
+
+  // chunk_id
+  //
+  // UUID is stored as 16 bytes in big-endian order.
+  bytes chunk_id = 4;
 }
