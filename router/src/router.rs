@@ -8,10 +8,7 @@ use data_types::router::{Router as RouterConfig, ShardId};
 use dml::DmlOperation;
 use snafu::{ResultExt, Snafu};
 
-use crate::{
-    connection_pool::ConnectionPool, resolver::Resolver, sharder::shard_operation,
-    write_sink::WriteSinkSet,
-};
+use crate::{connection_pool::ConnectionPool, resolver::Resolver, write_sink::WriteSinkSet};
 
 #[derive(Debug, Snafu)]
 pub enum WriteErrorShard {
@@ -105,7 +102,7 @@ impl Router {
         let mut errors: BTreeMap<ShardId, WriteErrorShard> = Default::default();
 
         // The iteration order is stable here, so we ensure deterministic behavior and error order.
-        for (shard_id, operation) in shard_operation(operation, &self.config.write_sharder) {
+        for (shard_id, operation) in operation.shard(&self.config.write_sharder) {
             if let Err(e) = self.write_shard(shard_id, &operation).await {
                 errors.insert(shard_id, e);
             }

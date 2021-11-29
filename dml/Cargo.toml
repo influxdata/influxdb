@@ -14,3 +14,7 @@ schema = { path = "../schema" }
 time = { path = "../time" }
 trace = { path = "../trace" }
 workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies]
+mutable_batch_lp = { path = "../mutable_batch_lp" }
+regex = "1.4"
