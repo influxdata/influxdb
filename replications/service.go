@@ -25,6 +25,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// This is the same batch size limit used by the influx write command
+// https://github.com/influxdata/influx-cli/blob/a408c02bd462946ac6ebdedf6f62f5e3d81c1f6f/clients/write/buffer_batcher.go#L14
+const maxRemoteWriteBatchSize = 500000
+
 var errReplicationNotFound = &ierrors.Error{
 	Code: ierrors.ENotFound,
 	Msg:  "replication not found",
@@ -432,6 +436,8 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 	var egroup errgroup.Group
 	var buf bytes.Buffer
 	gzw := gzip.NewWriter(&buf)
+	var batchSize int
+	var batchPointCount int
 
 	// 1. Write points to local TSM
 	egroup.Go(func() error {
@@ -440,36 +446,54 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 	// 2. Serialize points to gzipped line protocol, to be enqueued for replication if the local write succeeds.
 	//    We gzip the LP to take up less room on disk. On the other end of the queue, we can send the gzip data
 	//    directly to the remote API without needing to decompress it.
-	egroup.Go(func() error {
-		for _, p := range points {
-			if _, err := gzw.Write(append([]byte(p.PrecisionString("ns")), '\n')); err != nil {
-				_ = gzw.Close()
-				return fmt.Errorf("failed to serialize points for replication: %w", err)
+	for len(points) > 0 {
+		egroup.Go(func() error {
+			batchSize = 0
+			batchPointCount = 0
+
+			for i, p := range points {
+				batchSize += p.StringSize()
+
+				// Split into batch if current point would bring size above threshold
+				if batchSize > maxRemoteWriteBatchSize {
+					points = points[i:]
+					break
+				}
+				if _, err := gzw.Write(append([]byte(p.PrecisionString("ns")), '\n')); err != nil {
+					_ = gzw.Close()
+					return fmt.Errorf("failed to serialize points for replication: %w", err)
+				}
+				batchPointCount += 1
+
+				// All points have been written
+				if i == len(points)-1 {
+					points = nil
+				}
 			}
-		}
-		if err := gzw.Close(); err != nil {
+			if err := gzw.Close(); err != nil {
+				return err
+			}
+			return nil
+		})
+
+		if err := egroup.Wait(); err != nil {
 			return err
 		}
-		return nil
-	})
 
-	if err := egroup.Wait(); err != nil {
-		return err
+		// Enqueue the data into all registered replications.
+		var wg sync.WaitGroup
+		wg.Add(len(ids))
+		for _, id := range ids {
+			go func(id platform.ID) {
+				defer wg.Done()
+				if err := s.durableQueueManager.EnqueueData(id, buf.Bytes(), batchPointCount); err != nil {
+					s.log.Error("Failed to enqueue points for replication", zap.String("id", id.String()), zap.Error(err))
+				}
+
+			}(id)
+		}
+		wg.Wait()
 	}
-
-	// Enqueue the data into all registered replications.
-	var wg sync.WaitGroup
-	wg.Add(len(ids))
-	for _, id := range ids {
-		go func(id platform.ID) {
-			defer wg.Done()
-			if err := s.durableQueueManager.EnqueueData(id, buf.Bytes(), len(points)); err != nil {
-				s.log.Error("Failed to enqueue points for replication", zap.String("id", id.String()), zap.Error(err))
-			}
-
-		}(id)
-	}
-	wg.Wait()
 
 	return nil
 }
