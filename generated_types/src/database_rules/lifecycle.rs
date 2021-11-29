@@ -58,6 +58,21 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
     type Error = FieldViolation;
 
     fn try_from(proto: management::LifecycleRules) -> Result<Self, Self::Error> {
+        let persist_age_threshold_seconds = NonZeroU32::new(proto.persist_age_threshold_seconds)
+            .unwrap_or_else(|| NonZeroU32::new(DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS).unwrap());
+
+        let late_arrive_window_seconds = NonZeroU32::new(proto.late_arrive_window_seconds)
+            .unwrap_or_else(|| NonZeroU32::new(DEFAULT_LATE_ARRIVE_WINDOW_SECONDS).unwrap());
+
+        if persist_age_threshold_seconds < late_arrive_window_seconds {
+            return Err(FieldViolation {
+                field: "persist_age_threshold_seconds".to_string(),
+                description:
+                    "persist_age_threshold_seconds must not be less than late_arrive_window_seconds"
+                        .to_string(),
+            });
+        }
+
         Ok(Self {
             buffer_size_soft: (proto.buffer_size_soft as usize).try_into().ok(),
             buffer_size_hard: (proto.buffer_size_hard as usize).try_into().ok(),
@@ -79,14 +94,12 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
                 Some(d) => d.try_into().scope("catalog_transaction_prune_age")?,
                 None => DEFAULT_CATALOG_TRANSACTION_PRUNE_AGE,
             },
-            late_arrive_window_seconds: NonZeroU32::new(proto.late_arrive_window_seconds)
-                .unwrap_or_else(|| NonZeroU32::new(DEFAULT_LATE_ARRIVE_WINDOW_SECONDS).unwrap()),
+            late_arrive_window_seconds,
             persist_row_threshold: NonZeroUsize::new(proto.persist_row_threshold as usize)
                 .unwrap_or_else(|| {
                     NonZeroUsize::new(DEFAULT_PERSIST_ROW_THRESHOLD as usize).unwrap()
                 }),
-            persist_age_threshold_seconds: NonZeroU32::new(proto.persist_age_threshold_seconds)
-                .unwrap_or_else(|| NonZeroU32::new(DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS).unwrap()),
+            persist_age_threshold_seconds,
             mub_row_threshold: NonZeroUsize::new(proto.mub_row_threshold as usize)
                 .unwrap_or_else(|| NonZeroUsize::new(DEFAULT_MUB_ROW_THRESHOLD).unwrap()),
             parquet_cache_limit: NonZeroU64::new(proto.parquet_cache_limit),
@@ -116,7 +129,7 @@ mod tests {
 
     #[test]
     fn lifecycle_rules() {
-        let protobuf = management::LifecycleRules {
+        let mut protobuf = management::LifecycleRules {
             buffer_size_soft: 353,
             buffer_size_hard: 232,
             persist: true,
@@ -132,7 +145,7 @@ mod tests {
             }),
             late_arrive_window_seconds: 23,
             persist_row_threshold: 57,
-            persist_age_threshold_seconds: 23,
+            persist_age_threshold_seconds: 60,
             mub_row_threshold: 3454,
             parquet_cache_limit: 10,
         };
@@ -181,6 +194,12 @@ mod tests {
             protobuf.parquet_cache_limit
         );
         assert_eq!(back.parquet_cache_limit, protobuf.parquet_cache_limit);
+
+        protobuf.late_arrive_window_seconds = 20;
+        protobuf.persist_age_threshold_seconds = 4;
+
+        let e = LifecycleRules::try_from(protobuf).unwrap_err().to_string();
+        assert_eq!(e, "Violation for field \"persist_age_threshold_seconds\": persist_age_threshold_seconds must not be less than late_arrive_window_seconds");
     }
 
     #[test]
