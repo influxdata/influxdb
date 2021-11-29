@@ -355,23 +355,24 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 			return err
 		}
 
-	if err := egroup.Wait(); err != nil {
-		return err
+		if err := egroup.Wait(); err != nil {
+			return err
+		}
+
+		// Enqueue the data into all registered replications.
+		var wg sync.WaitGroup
+		wg.Add(len(repls.Replications))
+		for _, rep := range repls.Replications {
+			go func(id platform.ID) {
+				defer wg.Done()
+				if err := s.durableQueueManager.EnqueueData(id, buf.Bytes(), batchPointCount); err != nil {
+					s.log.Error("Failed to enqueue points for replication", zap.String("id", id.String()), zap.Error(err))
+				}
+
+			}(rep.ID)
+		}
+		wg.Wait()
 	}
-
-	// Enqueue the data into all registered replications.
-	var wg sync.WaitGroup
-	wg.Add(len(repls.Replications))
-	for _, rep := range repls.Replications {
-		go func(id platform.ID) {
-			defer wg.Done()
-			if err := s.durableQueueManager.EnqueueData(id, buf.Bytes(), batchPointCount); err != nil {
-				s.log.Error("Failed to enqueue points for replication", zap.String("id", id.String()), zap.Error(err))
-			}
-
-		}(rep.ID)
-	}
-
 	return nil
 }
 
