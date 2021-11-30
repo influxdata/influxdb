@@ -124,34 +124,41 @@ You also need `clang`, `make`, `pkg-config`, and `protobuf` installed.
 - Linux (Ubuntu): `sudo apt install make clang pkg-config protobuf-compiler libprotobuf-dev`
 - Linux (RHEL): See below
 
-#### Redhat-specific instructions
+#### RedHat-specific instructions
 
 For RedHat, you must enable the [EPEL](https://fedoraproject.org/wiki/EPEL)
 
 ### Building with make
 
-A successful `make` run results in two binaries, with platform-dependent paths:
-
-```
-$ make
-...
-env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx ./cmd/influx
-env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd ./cmd/influxd
-```
-
 `influxd` is the InfluxDB service.
-`influx` is the CLI management tool.
 
-Start the service.
-Logs to stdout by default:
+For `influx`, the InfluxDB CLI tool, see the [influx-cli repository on Github](https://github.com/influxdata/influx-cli).
 
-```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd
-```
+Once you've installed the dependencies,
+follow these steps to build `influxd` from source and start the service:
+
+1. Clone this repo (influxdb).
+2. In your influxdb directory, run `make`.
+
+   `make` generates the influxd binary at a platform-dependent path:
+
+   ```
+   $ make
+   ...
+   env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd ./cmd/influxd
+   ```
+
+3. Start the `influxd` service.
+
+   ```
+   $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd
+   ```
+
+   `influxd` logs to stdout by default.
 
 ### Testing
 
-This project is built from various languages. To run test for all langauges and components use:
+This project is built from various languages. To run test for all languages and components use:
 
 ```bash
 $ make test
