@@ -70,6 +70,9 @@ service ManagementService {
   // Get server status
   rpc GetServerStatus(GetServerStatusRequest) returns (GetServerStatusResponse);
 
+  // Rebuild preserved catalog for given DB
+  rpc RebuildPreservedCatalog(RebuildPreservedCatalogRequest) returns (RebuildPreservedCatalogResponse);
+
   // Wipe preserved catalog for given DB.
   rpc WipePreservedCatalog(WipePreservedCatalogRequest) returns (WipePreservedCatalogResponse);
 
@@ -380,6 +383,17 @@ message WipePreservedCatalogRequest {
 
 message WipePreservedCatalogResponse {
   // The operation that tracks the work for wiping the catalog.
+  google.longrunning.Operation operation = 1;
+}
+
+// Request to rebuild preserved catalog.
+message RebuildPreservedCatalogRequest {
+  // the name of the database
+  string db_name = 1;
+}
+
+message RebuildPreservedCatalogResponse {
+  // The operation that tracks the work for rebuilding the catalog.
   google.longrunning.Operation operation = 1;
 }
 

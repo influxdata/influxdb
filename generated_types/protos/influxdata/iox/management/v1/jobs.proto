@@ -41,6 +41,7 @@ message OperationMetadata {
     DropPartition drop_partition = 17;
     CompactObjectStoreChunks compact_object_store_chunks = 18;
     LoadReadBufferChunk load_read_buffer_chunk = 19;
+    RebuildPreservedCatalog rebuild_preserved_catalog = 20;
   }
 }
 
@@ -182,4 +183,10 @@ message LoadReadBufferChunk {
   //
   // UUID is stored as 16 bytes in big-endian order.
   bytes chunk_id = 4;
+}
+
+// Rebuild preserved catalog
+message RebuildPreservedCatalog {
+  // name of the database
+  string db_name = 1;
 }

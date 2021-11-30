@@ -9,13 +9,18 @@ pub enum Error {
     #[snafu(display("Need to pass `--force`"))]
     NeedsTheForceError,
 
-    #[snafu(display("Error wiping persisted catalog: {}", source))]
+    #[snafu(display("Error wiping preserved catalog: {}", source))]
     WipeError {
-        source: management::WipePersistedCatalogError,
+        source: management::WipePreservedCatalogError,
     },
 
     #[snafu(display("Error skipping replay: {}", source))]
     SkipReplayError { source: management::SkipReplayError },
+
+    #[snafu(display("Error rebuilding preserved catalog: {}", source))]
+    RebuildCatalog {
+        source: management::RebuildPreservedCatalogError,
+    },
 
     #[snafu(display("Received invalid response: {}", source))]
     InvalidResponse { source: FieldViolation },
@@ -35,20 +40,30 @@ pub struct Config {
 /// All possible subcommands for catalog
 #[derive(Debug, StructOpt)]
 enum Command {
-    /// Wipe persisted catalog
+    /// Wipe preserved catalog
     Wipe(Wipe),
 
     /// Skip replay
     SkipReplay(SkipReplay),
+
+    /// Rebuild preserved catalog
+    Rebuild(Rebuild),
 }
 
-/// Wipe persisted catalog.
+/// Wipe preserved catalog.
 #[derive(Debug, StructOpt)]
 struct Wipe {
     /// Force wipe. Required option to prevent accidental erasure
     #[structopt(long)]
     force: bool,
 
+    /// The name of the database
+    db_name: String,
+}
+
+/// Rebuild preserved catalog.
+#[derive(Debug, StructOpt)]
+struct Rebuild {
     /// The name of the database
     db_name: String,
 }
@@ -72,7 +87,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             }
 
             let operation = client
-                .wipe_persisted_catalog(db_name)
+                .wipe_preserved_catalog(db_name)
                 .await
                 .context(WipeError)?;
 
@@ -84,6 +99,14 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             client.skip_replay(db_name).await.context(SkipReplayError)?;
 
             println!("Ok");
+        }
+        Command::Rebuild(rebuild) => {
+            let operation = client
+                .rebuild_preserved_catalog(rebuild.db_name)
+                .await
+                .context(RebuildCatalog)?;
+
+            serde_json::to_writer_pretty(std::io::stdout(), &operation).context(WritingJson)?;
         }
     }
 

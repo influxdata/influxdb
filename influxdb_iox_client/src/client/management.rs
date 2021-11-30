@@ -296,9 +296,33 @@ pub enum GetServerStatusError {
     ServerError(tonic::Status),
 }
 
-/// Errors returned by [`Client::wipe_persisted_catalog`]
+/// Errors returned by [`Client::wipe_preserved_catalog`]
 #[derive(Debug, Error)]
-pub enum WipePersistedCatalogError {
+pub enum WipePreservedCatalogError {
+    /// Server ID is not set
+    #[error("Failed precondition: {}", .0.message())]
+    FailedPrecondition(tonic::Status),
+
+    /// Server returned an invalid argument error
+    #[error("Invalid argument: {}", .0.message())]
+    InvalidArgument(tonic::Status),
+
+    /// Response contained no payload
+    #[error("Server returned an empty response")]
+    EmptyResponse,
+
+    /// Response payload was invalid
+    #[error("Invalid response: {0}")]
+    InvalidResponse(#[from] FieldViolation),
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
+/// Errors returned by [`Client::rebuild_preserved_catalog`]
+#[derive(Debug, Error)]
+pub enum RebuildPreservedCatalogError {
     /// Server ID is not set
     #[error("Failed precondition: {}", .0.message())]
     FailedPrecondition(tonic::Status),
@@ -829,10 +853,10 @@ impl Client {
     }
 
     /// Wipe potential preserved catalog of an uninitialized database.
-    pub async fn wipe_persisted_catalog(
+    pub async fn wipe_preserved_catalog(
         &mut self,
         db_name: impl Into<String> + Send,
-    ) -> Result<IoxOperation, WipePersistedCatalogError> {
+    ) -> Result<IoxOperation, WipePreservedCatalogError> {
         let db_name = db_name.into();
 
         let response = self
@@ -841,16 +865,44 @@ impl Client {
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::FailedPrecondition => {
-                    WipePersistedCatalogError::FailedPrecondition(status)
+                    WipePreservedCatalogError::FailedPrecondition(status)
                 }
-                tonic::Code::InvalidArgument => WipePersistedCatalogError::InvalidArgument(status),
-                _ => WipePersistedCatalogError::ServerError(status),
+                tonic::Code::InvalidArgument => WipePreservedCatalogError::InvalidArgument(status),
+                _ => WipePreservedCatalogError::ServerError(status),
             })?;
 
         Ok(response
             .into_inner()
             .operation
-            .ok_or(WipePersistedCatalogError::EmptyResponse)?
+            .ok_or(WipePreservedCatalogError::EmptyResponse)?
+            .try_into()?)
+    }
+
+    /// Rebuild preserved catalog of an uninitialized database
+    pub async fn rebuild_preserved_catalog(
+        &mut self,
+        db_name: impl Into<String> + Send,
+    ) -> Result<IoxOperation, RebuildPreservedCatalogError> {
+        let db_name = db_name.into();
+
+        let response = self
+            .inner
+            .rebuild_preserved_catalog(RebuildPreservedCatalogRequest { db_name })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::FailedPrecondition => {
+                    RebuildPreservedCatalogError::FailedPrecondition(status)
+                }
+                tonic::Code::InvalidArgument => {
+                    RebuildPreservedCatalogError::InvalidArgument(status)
+                }
+                _ => RebuildPreservedCatalogError::ServerError(status),
+            })?;
+
+        Ok(response
+            .into_inner()
+            .operation
+            .ok_or(RebuildPreservedCatalogError::EmptyResponse)?
             .try_into()?)
     }
 

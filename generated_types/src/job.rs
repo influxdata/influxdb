@@ -62,6 +62,11 @@ impl From<Job> for management::operation_metadata::Job {
                     chunk_id: chunk.chunk_id.into(),
                 })
             }
+            Job::RebuildPreservedCatalog { db_name } => {
+                Self::RebuildPreservedCatalog(management::RebuildPreservedCatalog {
+                    db_name: db_name.to_string(),
+                })
+            }
         }
     }
 }

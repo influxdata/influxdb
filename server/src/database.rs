@@ -22,7 +22,7 @@ use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
-use parquet_catalog::core::PreservedCatalog;
+use parquet_catalog::core::{PreservedCatalog, PreservedCatalogConfig};
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
@@ -73,6 +73,16 @@ pub enum Error {
     WipePreservedCatalog {
         db_name: String,
         source: Box<parquet_catalog::core::Error>,
+    },
+
+    #[snafu(display(
+        "failed to rebuild preserved catalog of database ({}): {}",
+        db_name,
+        source
+    ))]
+    RebuildPreservedCatalog {
+        db_name: String,
+        source: Box<parquet_catalog::rebuild::Error>,
     },
 
     #[snafu(display("failed to skip replay for database ({}): {}", db_name, source))]
@@ -518,6 +528,54 @@ impl Database {
                     .await
                     .map_err(Box::new)
                     .context(WipePreservedCatalog { db_name })?;
+
+                {
+                    let mut state = shared.state.write();
+                    *state.unfreeze(handle) = DatabaseState::RulesLoaded(current_state);
+                }
+
+                Ok::<_, Error>(())
+            }
+            .track(registration),
+        );
+
+        Ok(tracker)
+    }
+
+    /// Recover from a CatalogLoadError by wiping and rebuilding the catalog
+    pub async fn rebuild_preserved_catalog(&self) -> Result<TaskTracker<Job>, Error> {
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
+        let db_name = &self.shared.config.name;
+        let current_state = error_state!(self, "RebuildPreservedCatalog", CatalogLoadError);
+
+        let registry = self.shared.application.job_registry();
+        let (tracker, registration) = registry.register(Job::RebuildPreservedCatalog {
+            db_name: Arc::from(db_name.as_str()),
+        });
+
+        let shared = Arc::clone(&self.shared);
+
+        tokio::spawn(
+            async move {
+                let db_name = &shared.config.name;
+
+                // First attempt to wipe the catalog
+                PreservedCatalog::wipe(&current_state.iox_object_store)
+                    .await
+                    .map_err(Box::new)
+                    .context(WipePreservedCatalog { db_name })?;
+
+                let config = PreservedCatalogConfig::new(
+                    Arc::clone(&current_state.iox_object_store),
+                    db_name.to_string(),
+                    Arc::clone(shared.application.time_provider()),
+                );
+                parquet_catalog::rebuild::rebuild_catalog(config, false)
+                    .await
+                    .map_err(Box::new)
+                    .context(RebuildPreservedCatalog { db_name })?;
 
                 {
                     let mut state = shared.state.write();

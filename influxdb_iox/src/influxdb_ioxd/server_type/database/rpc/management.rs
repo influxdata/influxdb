@@ -428,6 +428,28 @@ impl management_service_server::ManagementService for ManagementService {
         Ok(Response::new(WipePreservedCatalogResponse { operation }))
     }
 
+    async fn rebuild_preserved_catalog(
+        &self,
+        request: Request<RebuildPreservedCatalogRequest>,
+    ) -> Result<Response<RebuildPreservedCatalogResponse>, Status> {
+        let RebuildPreservedCatalogRequest { db_name } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
+        let database = self
+            .server
+            .database(&db_name)
+            .map_err(default_server_error_handler)?;
+        let tracker = database
+            .rebuild_preserved_catalog()
+            .await
+            .map_err(default_database_error_handler)?;
+
+        let operation = Some(super::operations::encode_tracker(tracker)?);
+
+        Ok(Response::new(RebuildPreservedCatalogResponse { operation }))
+    }
+
     async fn skip_replay(
         &self,
         request: Request<SkipReplayRequest>,

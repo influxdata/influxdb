@@ -1,10 +1,10 @@
 use data_types::chunk_metadata::ChunkId;
-use generated_types::{
-    google::protobuf::{Duration, Empty},
-    influxdata::iox::management::v1::{database_status::DatabaseState, *},
-};
+use generated_types::google::protobuf::{Duration, Empty};
 use influxdb_iox_client::{
-    management::{Client, CreateDatabaseError},
+    management::{
+        generated_types::{database_status::DatabaseState, operation_metadata::Job, *},
+        Client, CreateDatabaseError,
+    },
     router::generated_types::WriteBufferConnection,
 };
 use std::{fs::set_permissions, num::NonZeroU32, os::unix::fs::PermissionsExt};
@@ -13,6 +13,7 @@ use test_helpers::assert_contains;
 use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
+use crate::common::server_fixture::{TestConfig, DEFAULT_SERVER_ID};
 use crate::{
     common::server_fixture::{ServerFixture, ServerType},
     end_to_end_cases::scenario::{
@@ -892,9 +893,6 @@ async fn test_new_partition_chunk_error() {
 
 #[tokio::test]
 async fn test_close_partition_chunk() {
-    use influxdb_iox_client::management::generated_types::operation_metadata::Job;
-    use influxdb_iox_client::management::generated_types::ChunkStorage;
-
     let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = fixture.management_client();
     let mut write_client = fixture.write_client();
@@ -1034,7 +1032,6 @@ async fn test_chunk_lifecycle() {
 
 #[tokio::test]
 async fn test_wipe_preserved_catalog() {
-    use influxdb_iox_client::management::generated_types::operation_metadata::Job;
     let db_name = rand_name();
 
     //
@@ -1060,7 +1057,7 @@ async fn test_wipe_preserved_catalog() {
     //
 
     let iox_operation = management_client
-        .wipe_persisted_catalog(&db_name)
+        .wipe_preserved_catalog(&db_name)
         .await
         .expect("wipe persisted catalog");
 
@@ -1083,6 +1080,114 @@ async fn test_wipe_preserved_catalog() {
     let status = fixture.wait_server_initialized().await;
     assert_eq!(status.database_statuses.len(), 1);
     assert!(status.database_statuses[0].error.is_none());
+}
+
+#[tokio::test]
+async fn test_rebuild_preserved_catalog() {
+    let test_config =
+        TestConfig::new(ServerType::Database).with_env("INFLUXDB_IOX_WIPE_CATALOG_ON_ERROR", "no");
+
+    let fixture = ServerFixture::create_single_use_with_config(test_config).await;
+
+    fixture
+        .deployment_client()
+        .update_server_id(NonZeroU32::new(DEFAULT_SERVER_ID).unwrap())
+        .await
+        .unwrap();
+
+    fixture.wait_server_initialized().await;
+
+    let mut management_client = fixture.management_client();
+    let mut write_client = fixture.write_client();
+
+    let db_name = rand_name();
+
+    let uuid = management_client
+        .create_database(DatabaseRules {
+            name: db_name.clone(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    write_client
+        .write_lp(&db_name, "cpu,tag=foo val=1 1", 0)
+        .await
+        .unwrap();
+
+    let chunks = management_client.list_chunks(&db_name).await.unwrap();
+    assert_eq!(chunks.len(), 1);
+    let partition_key = &chunks[0].partition_key;
+
+    management_client
+        .persist_partition(&db_name, "cpu", partition_key, true)
+        .await
+        .unwrap();
+
+    let chunks = management_client.list_chunks(&db_name).await.unwrap();
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(
+        chunks[0].storage,
+        ChunkStorage::ReadBufferAndObjectStore as i32
+    );
+
+    fixture.poison_catalog(uuid);
+    let fixture = fixture.restart_server().await;
+
+    let status = fixture.wait_server_initialized().await;
+
+    let db_status = &status.database_statuses[0];
+    assert_eq!(db_status.db_name, db_name);
+    assert_contains!(
+        &db_status.error.as_ref().unwrap().message,
+        "error loading catalog"
+    );
+    assert_eq!(db_status.state, DatabaseState::CatalogLoadError as i32);
+
+    let mut management_client = fixture.management_client();
+    let mut operations_client = fixture.operations_client();
+    let iox_operation = management_client
+        .rebuild_preserved_catalog(&db_name)
+        .await
+        .unwrap();
+
+    if let Some(Job::RebuildPreservedCatalog(rebuild)) = iox_operation.metadata.job {
+        assert_eq!(rebuild.db_name, db_name);
+    } else {
+        panic!("unexpected job returned")
+    };
+
+    let operation_id = iox_operation.operation.id();
+
+    operations_client
+        .wait_operation(operation_id, Some(std::time::Duration::from_secs(1)))
+        .await
+        .unwrap();
+
+    let status = fixture.wait_server_initialized().await;
+    assert!(status.initialized);
+
+    let db_status = &status.database_statuses[0];
+    assert_eq!(db_status.db_name, db_name);
+    assert!(db_status.error.is_none());
+
+    // Should have restored the prior state of the catalog
+    let new_chunks = management_client.list_chunks(&db_name).await.unwrap();
+    assert_eq!(new_chunks.len(), 1);
+    assert_eq!(new_chunks[0].storage, ChunkStorage::ObjectStoreOnly as i32);
+    assert_eq!(new_chunks[0].id, chunks[0].id);
+    assert_eq!(new_chunks[0].order, chunks[0].order);
+    assert_eq!(new_chunks[0].partition_key, chunks[0].partition_key);
+    assert_eq!(new_chunks[0].table_name, chunks[0].table_name);
+    assert_eq!(new_chunks[0].row_count, chunks[0].row_count);
+    assert_eq!(
+        new_chunks[0].time_of_first_write,
+        chunks[0].time_of_first_write
+    );
+    assert_eq!(
+        new_chunks[0].time_of_last_write,
+        chunks[0].time_of_last_write
+    );
 }
 
 /// Normalizes a set of Chunks for comparison by removing timestamps
@@ -1288,17 +1393,14 @@ async fn test_get_server_status_db_error() {
     assert!(status.initialized);
     assert_eq!(status.error, None);
     assert_eq!(status.database_statuses.len(), 1);
-    dbg!(&status.database_statuses);
 
     let db_status = &status.database_statuses[0];
-    dbg!(&db_status);
     assert_eq!(db_status.db_name, "my_db");
-    assert!(dbg!(&db_status.error.as_ref().unwrap().message)
-        .contains("error deserializing database rules"));
-    assert_eq!(
-        DatabaseState::from_i32(db_status.state).unwrap(),
-        DatabaseState::RulesLoadError
+    assert_contains!(
+        &db_status.error.as_ref().unwrap().message,
+        "error deserializing database rules"
     );
+    assert_eq!(db_status.state, DatabaseState::RulesLoadError as i32);
 }
 
 #[tokio::test]
