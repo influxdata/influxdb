@@ -4,7 +4,7 @@ use super::{
     error::{
         ChunksNotContiguous, ChunksNotInPartition, ChunksNotPersisted, CommitError,
         ComparePartitionCheckpoint, EmptyChunks, NoCheckpoint, ParquetChunkError, ParquetMetaRead,
-        PartitionNotFound, WritingToObjectStore,
+        WritingToObjectStore,
     },
     LockableCatalogChunk, LockableCatalogPartition, Result,
 };
@@ -19,14 +19,13 @@ use crate::{
 };
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
-    delete_predicate::DeletePredicate,
     job::Job,
     partition_metadata::PartitionAddr,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::Future;
 use iox_object_store::ParquetFilePath;
-use lifecycle::{LifecycleWriteGuard, LockablePartition};
+use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
 use parquet_catalog::interface::CatalogParquetInfo;
 use parquet_file::{
@@ -38,14 +37,9 @@ use persistence_windows::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint};
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use schema::Schema;
 use snafu::{OptionExt, ResultExt};
-use std::{
-    cmp::Ordering,
-    collections::{BTreeSet, HashSet},
-    ops::RangeInclusive,
-    sync::Arc,
-};
+use std::{cmp::Ordering, collections::BTreeSet, ops::RangeInclusive, sync::Arc};
 use time::Time;
-use tracker::{TaskRegistration, TaskTracker, TrackedFuture, TrackedFutureExt};
+use tracker::{RwLock, TaskRegistration, TaskTracker, TrackedFuture, TrackedFutureExt};
 
 // Compact the provided object store chunks into a single object store chunk,
 /// returning the newly created chunk
@@ -79,40 +73,46 @@ pub(crate) fn compact_object_store_chunks(
         chunks: chunk_ids.clone(),
     });
 
-    // Step 1: Verify input while marking and snapshoting the chunks for compacting
-    let compacting_os_chunks = mark_chunks_to_compact(partition, chunks, &registration)?;
-    let delete_predicates_before = compacting_os_chunks.delete_predicates;
+    // Step1: create a new ID for the result chunk after compacting
+    // This ID will be kept in the compacting chunk's in-memory catalog for us
+    // to save and retrieve its delete predicates added during compaction
+    let compacted_chunk_id = ChunkId::new();
+
+    // Step 2: Verify input while marking and snapshoting the chunks for compacting
+    // The partition will be unlock after the chunks are marked and snaphot
+    let compacting_os_chunks =
+        mark_chunks_to_compact(partition, chunks, &registration, compacted_chunk_id)?;
 
     let fut = async move {
         // track future runtime
         let fut_now = std::time::Instant::now();
 
-        // Step 2: Compact the os chunks into a stream
+        // Step 3: Compact the os chunks into a stream
+        // No locks are hold during compaction
         let compacted_stream = compact_chunks(&db, &compacting_os_chunks.os_chunks).await?;
         let compacted_rows;
         let _schema = compacted_stream.schema;
         let sort_key = compacted_stream.sort_key;
 
-        // Step 3: Start to persist files and update the preserved catalog accordingly
-        // This process needs to hold cleanup lock to avoid the persisted file was deleted right after
+        // Step 4: Start to persist files and update the preserved catalog accordingly
+        // This process needs to hold cleanup lock to avoid the persisted file from getting deleted right after
         // it is created and before it is updated in the preserved catalog
-        let dbchunk = {
+        let (iox_metadata, compacted_and_persisted_chunk) = {
             // fetch shared (= read) guard preventing the cleanup job from deleting our files
             let _guard = db.cleanup_lock.read().await;
 
-            // Step 3.1: Write the chunk as a parquet file into the object store
+            // Step 4.1: Write the chunk as a parquet file into the object store
             let iox_metadata = IoxMetadata {
                 creation_timestamp: db.time_provider.now(),
                 table_name: Arc::clone(&partition_addr.table_name),
                 partition_key: Arc::clone(&partition_addr.partition_key),
-                chunk_id: ChunkId::new(),
+                chunk_id: compacted_chunk_id,
                 partition_checkpoint: compacting_os_chunks.partition_checkpoint.clone(),
                 database_checkpoint: compacting_os_chunks.database_checkpoint.clone(),
                 time_of_first_write: compacting_os_chunks.time_of_first_write,
                 time_of_last_write: compacting_os_chunks.time_of_last_write,
                 chunk_order: compacting_os_chunks.min_order,
             };
-
             let compacted_and_persisted_chunk = persist_stream_to_chunk(
                 &db,
                 &partition_addr,
@@ -122,31 +122,28 @@ pub(crate) fn compact_object_store_chunks(
             .await?;
             compacted_rows = compacted_and_persisted_chunk.rows();
 
-            // Step 3.2: Update the in-memory catalog to use the newly created os_chunk
-            //   . Drop all os_chunks from the in-memory catalog
-            //   . Add the new created os_chunk in the in-memory catalog
-            let (dbchunk, delete_predicates) = update_in_memory_catalog(
-                &db,
-                &chunk_ids,
-                &delete_predicates_before,
-                iox_metadata,
-                Arc::clone(&compacted_and_persisted_chunk),
-            )
-            .await?;
-
-            // Step 3.3: Update the preserved catalogs to use the newly created os_chunk
-            let chunk_addr = dbchunk.addr().clone();
+            // Step 4.2: Update the preserved catalogs to use the newly created os_chunk
             update_preserved_catalog(
                 &db,
                 &compacting_os_chunks.compacted_parquet_file_paths,
                 &compacted_and_persisted_chunk,
-                chunk_addr,
-                delete_predicates,
             )
             .await?;
 
-            dbchunk
+            (iox_metadata, compacted_and_persisted_chunk)
         }; // End of cleanup locking
+
+        // Step 5: Update the in-memory catalog to use the newly created os_chunk
+        //   . Drop all os_chunks from the in-memory catalog
+        //   . Add the new created os_chunk in the in-memory catalog
+        let dbchunk = update_in_memory_catalog(
+            &db,
+            &chunk_ids,
+            iox_metadata,
+            Arc::clone(&compacted_and_persisted_chunk),
+            compacting_os_chunks.partition,
+        )
+        .await?;
 
         // Log the summary
         let elapsed = now.elapsed();
@@ -181,10 +178,12 @@ pub(crate) fn compact_object_store_chunks(
 ///    . min(order) of the provided chunks
 ///    . max(database_checkpoint) of the provided chunks
 ///    . max(partition_checkpoint) of the provided chunks
+/// The partition will be unlocked before the function is returned.
 fn mark_chunks_to_compact(
     partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
     chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>>,
     registration: &TaskRegistration,
+    compacted_chunk_id: ChunkId,
 ) -> Result<CompactingOsChunks> {
     // no chunks provided
     if chunks.is_empty() {
@@ -199,7 +198,6 @@ fn mark_chunks_to_compact(
     let mut time_of_last_write = Time::MIN;
     let mut chunk_ids = BTreeSet::new();
     let mut input_rows = 0;
-    let mut delete_predicates: HashSet<Arc<DeletePredicate>> = HashSet::new();
     let mut compacted_parquet_file_paths = vec![];
     let mut min_order = ChunkOrder::MAX;
     let mut max_order = ChunkOrder::MIN;
@@ -229,8 +227,6 @@ fn mark_chunks_to_compact(
 
             let candidate_last = chunk.time_of_last_write();
             time_of_last_write = std::cmp::max(time_of_last_write, candidate_last);
-
-            delete_predicates.extend(chunk.delete_predicates().iter().cloned());
 
             min_order = min_order.min(chunk.order());
             max_order = max_order.max(chunk.order());
@@ -265,7 +261,7 @@ fn mark_chunks_to_compact(
 
             // Set chunk in the right action which is compacting object store
             // This function will also error out if the chunk is not yet persisted
-            chunk.set_compacting_object_store(registration)?;
+            chunk.set_compacting_object_store(registration, compacted_chunk_id)?;
 
             // Get the parquet dbchunk snapshot and also keep its file path to remove later
             let dbchunk = DbChunk::parquet_file_snapshot(&*chunk);
@@ -286,18 +282,18 @@ fn mark_chunks_to_compact(
     }
 
     // drop partition lock
-    std::mem::drop(partition);
+    let partition = partition.into_data().partition;
 
     Ok(CompactingOsChunks {
         time_of_first_write,
         time_of_last_write,
         input_rows,
-        delete_predicates,
         compacted_parquet_file_paths,
         os_chunks,
         min_order,
         database_checkpoint,
         partition_checkpoint,
+        partition,
     })
 }
 
@@ -308,12 +304,12 @@ struct CompactingOsChunks {
     time_of_first_write: Time,
     time_of_last_write: Time,
     input_rows: u64,
-    delete_predicates: HashSet<Arc<DeletePredicate>>,
     compacted_parquet_file_paths: Vec<ParquetFilePath>,
     os_chunks: Vec<Arc<DbChunk>>,
     min_order: ChunkOrder,
     database_checkpoint: DatabaseCheckpoint,
     partition_checkpoint: PartitionCheckpoint,
+    partition: Arc<RwLock<Partition>>,
 }
 
 /// Create query plan to compact the given DbChunks and return its output stream
@@ -394,66 +390,12 @@ async fn persist_stream_to_chunk<'a>(
     Ok(parquet_chunk)
 }
 
-///
-async fn update_in_memory_catalog<'a>(
-    db: &'a Arc<Db>,
-    chunk_ids: &'a [ChunkId],
-    delete_predicates_before: &'a HashSet<Arc<DeletePredicate>>,
-    iox_metadata: IoxMetadata,
-    parquet_chunk: Arc<ParquetChunk>,
-) -> Result<(Arc<DbChunk>, Vec<Arc<DeletePredicate>>)> {
-    // Drop the old chunks and capture leftover delete predicates
-    let partition = db
-        .lockable_partition(&iox_metadata.table_name, &iox_metadata.partition_key)
-        .context(PartitionNotFound)?;
-    let mut partition = partition.write();
-
-    let mut delete_predicates_after: HashSet<Arc<DeletePredicate>> = HashSet::new();
-    for id in chunk_ids {
-        let chunk = partition
-            .force_drop_chunk(*id)
-            .expect("There was a lifecycle action attached to this chunk, who deleted it?!");
-
-        let chunk = chunk.read();
-        for pred in chunk.delete_predicates() {
-            if !delete_predicates_before.contains(pred) {
-                delete_predicates_after.insert(Arc::clone(pred));
-            }
-        }
-    }
-    let delete_predicates = {
-        let mut tmp: Vec<_> = delete_predicates_after.into_iter().collect();
-        tmp.sort();
-        tmp
-    };
-
-    // Insert new compacted and persisted chunk
-    let chunk = partition.insert_object_store_only_chunk(
-        iox_metadata.chunk_id,
-        parquet_chunk,
-        iox_metadata.time_of_first_write,
-        iox_metadata.time_of_last_write,
-        delete_predicates.clone(),
-        iox_metadata.chunk_order,
-    );
-    //let chunk = chunk.read();
-    //let chunk_addr = chunk.addr().clone();
-    let dbchunk = DbChunk::parquet_file_snapshot(&*chunk.read());
-
-    Ok((dbchunk, delete_predicates))
-}
-
 /// Update the preserved catalog : replace compacted chunks with a newly persisted chunk
 async fn update_preserved_catalog(
     db: &Db,
     commpated_parquet_file_paths: &[ParquetFilePath],
     parquet_chunk: &Arc<ParquetChunk>,
-    chunk_addr: ChunkAddr,
-    delete_predicates: Vec<Arc<DeletePredicate>>,
 ) -> Result<()> {
-    // Collect pending delete predicates before opening the transaction
-    let delete_handle = db.delete_predicates_mailbox.consume().await;
-
     // Open transaction
     let mut transaction = db.preserved_catalog.open_transaction().await;
 
@@ -470,20 +412,57 @@ async fn update_preserved_catalog(
     };
     transaction.add_parquet(&catalog_parquet_info);
 
-    // Update delete predicate for the chunk
-    for predicate in delete_predicates {
-        transaction.delete_predicate(&predicate, &[chunk_addr.clone().into()]);
-    }
-
-    // Add pending delete predicates
-    for (predicate, chunks) in delete_handle.outbox() {
-        transaction.delete_predicate(predicate, chunks);
-    }
-
     // Close/commit the transaction
     transaction.commit().await.context(CommitError)?;
 
+    // Ask Marco and Raphael to see if anything needs to ge flushed here. I do not think so.
+
     Ok(())
+}
+
+async fn update_in_memory_catalog(
+    db: &Arc<Db>,
+    chunk_ids: &[ChunkId],
+    iox_metadata: IoxMetadata,
+    parquet_chunk: Arc<ParquetChunk>,
+    partition: Arc<RwLock<Partition>>,
+) -> Result<Arc<DbChunk>> {
+    // Collect delete predicates added during compaction
+    let delete_handle = db.delete_predicates_mailbox.consume().await;
+    let mut delete_predicates = vec![];
+    for (predicate, chunks) in delete_handle.outbox() {
+        for chunk in chunks {
+            if chunk.chunk_id == iox_metadata.chunk_id {
+                delete_predicates.push(Arc::clone(predicate));
+            }
+        }
+    }
+    delete_predicates.sort();
+
+    // Drop the old chunks
+    let mut partition = partition.write();
+
+    for id in chunk_ids {
+        partition
+            .force_drop_chunk(*id)
+            .expect("There was a lifecycle action attached to this chunk, who deleted it?!");
+    }
+
+    // Insert new compacted and persisted chunk
+    let chunk = partition.insert_object_store_only_chunk(
+        iox_metadata.chunk_id,
+        parquet_chunk,
+        iox_metadata.time_of_first_write,
+        iox_metadata.time_of_last_write,
+        delete_predicates,
+        iox_metadata.chunk_order,
+    );
+    let dbchunk = DbChunk::parquet_file_snapshot(&*chunk.read());
+
+    // drop partition lock
+    std::mem::drop(partition);
+
+    Ok(dbchunk)
 }
 
 ////////////////////////////////////////////////////////////
@@ -493,7 +472,9 @@ mod tests {
     use super::*;
     use crate::{db::test_helpers::write_lp, utils::make_db};
     use data_types::{
-        chunk_metadata::ChunkStorage, delete_predicate::DeleteExpr, timestamp::TimestampRange,
+        chunk_metadata::ChunkStorage,
+        delete_predicate::{DeleteExpr, DeletePredicate},
+        timestamp::TimestampRange,
     };
     use lifecycle::{LockableChunk, LockablePartition};
     use query::QueryChunk;
@@ -513,7 +494,8 @@ mod tests {
             partition: partition.addr().clone(),
             chunks: vec![],
         });
-        let compact_no_chunks = mark_chunks_to_compact(partition, vec![], &registration);
+        let chunk_id = ChunkId::new();
+        let compact_no_chunks = mark_chunks_to_compact(partition, vec![], &registration, chunk_id);
 
         let err = compact_no_chunks.unwrap_err();
         assert!(
@@ -544,8 +526,9 @@ mod tests {
             chunks: vec![chunk.id()],
         });
 
+        let chunk_id = ChunkId::new();
         let compact_non_persisted_chunks =
-            mark_chunks_to_compact(partition, vec![chunk], &registration);
+            mark_chunks_to_compact(partition, vec![chunk], &registration, chunk_id);
         let err = compact_non_persisted_chunks.unwrap_err();
         assert!(
             err.to_string()
@@ -602,8 +585,9 @@ mod tests {
             chunks: vec![chunk1.id(), chunk3.id()],
         });
 
+        let chunk_id = ChunkId::new();
         let compact_non_contiguous_persisted_chunks =
-            mark_chunks_to_compact(partition, vec![chunk1, chunk3], &registration);
+            mark_chunks_to_compact(partition, vec![chunk1, chunk3], &registration, chunk_id);
         let err = compact_non_contiguous_persisted_chunks.unwrap_err();
         assert!(
             err.to_string()
