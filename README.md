@@ -7,13 +7,13 @@ The list of InfluxDB Client Libraries that are compatible with the latest versio
 
 If you are looking for the 1.x line of releases, there are branches for each minor version as well as a `master-1.x` branch that will contain the code for the next 1.x release. The master-1.x [working branch is here](https://github.com/influxdata/influxdb/tree/master-1.x). The [InfluxDB 1.x Go Client can be found here](https://github.com/influxdata/influxdb1-client).
 
-## Installing
+## Install
 
 We have nightly and versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/). We also provide the `influx` command line interface (CLI) client as a separate binary available at the same location.
 
 If you are interested in building from source, see the [building from source](CONTRIBUTING.md#building-from-source) guide for contributors.
 
-## Getting Started
+## Get Started
 
 For a complete getting started guide, please see our full [online documentation site](https://docs.influxdata.com/influxdb/latest/).
 
@@ -76,7 +76,7 @@ Active	Name	URL			            Org
 *	    default	http://localhost:8086	InfluxData
 ```
 
-## Writing Data
+## Write Data
 Write to measurement `m`, with tag `v=2`, in bucket `telegraf`, which belongs to organization `InfluxData`:
 
 ```bash
@@ -106,7 +106,7 @@ Table: keys: [_start, _stop, _field, _measurement]
 
 Use the `-r, --raw` option to return the raw flux response from the query. This is useful for moving data from one instance to another as the `influx write` command can accept the Flux response using the `--format csv` option.
 
-## Flux
+## Script with Flux
 
 Flux (previously named IFQL) is an open source functional data scripting language designed for querying, analyzing, and acting on data. Flux supports multiple data source types, including:
 
@@ -117,7 +117,7 @@ Flux (previously named IFQL) is an open source functional data scripting languag
 The source for Flux is [available on GitHub](https://github.com/influxdata/flux).
 To learn more about Flux, see the latest [InfluxData Flux documentation](https://docs.influxdata.com/flux/) and [CTO Paul Dix's presentation](https://speakerdeck.com/pauldix/flux-number-fluxlang-a-new-time-series-data-scripting-language).
 
-## Contributing to the Project
+## Contribute to the Project
 
 InfluxDB is an [MIT licensed](LICENSE) open source project and we love our community. The fastest way to get something fixed is to open a PR. Check out our [contributing](CONTRIBUTING.md) guide if you're interested in helping out. Also, join us on our [Community Slack Workspace](https://influxdata.com/slack) if you have questions or comments for our engineering teams.
 
