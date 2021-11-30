@@ -31,9 +31,10 @@ func errLocalBucketNotFound(id platform.ID, cause error) error {
 
 func NewService(sqlStore *sqlite.SqlStore, bktSvc BucketService, localWriter storage.PointsWriter, log *zap.Logger, enginePath string) (*service, *metrics.ReplicationsMetrics) {
 	metrs := metrics.NewReplicationsMetrics()
+	store := internal.NewStore(sqlStore)
 
 	return &service{
-		store:         internal.NewStore(sqlStore),
+		store:         store,
 		idGenerator:   snowflake.NewIDGenerator(),
 		bucketService: bktSvc,
 		localWriter:   localWriter,
@@ -43,13 +44,13 @@ func NewService(sqlStore *sqlite.SqlStore, bktSvc BucketService, localWriter sto
 			log,
 			filepath.Join(enginePath, "replicationq"),
 			metrs,
-			internal.WriteFunc,
+			store,
 		),
 	}, metrs
 }
 
 type ReplicationValidator interface {
-	ValidateReplication(context.Context, *internal.ReplicationHTTPConfig) error
+	ValidateReplication(context.Context, *influxdb.ReplicationHTTPConfig) error
 }
 
 type BucketService interface {
@@ -76,8 +77,8 @@ type ServiceStore interface {
 	GetReplication(context.Context, platform.ID) (*influxdb.Replication, error)
 	UpdateReplication(context.Context, platform.ID, influxdb.UpdateReplicationRequest) (*influxdb.Replication, error)
 	DeleteReplication(context.Context, platform.ID) error
-	PopulateRemoteHTTPConfig(context.Context, platform.ID, *internal.ReplicationHTTPConfig) error
-	GetFullHTTPConfig(context.Context, platform.ID) (*internal.ReplicationHTTPConfig, error)
+	PopulateRemoteHTTPConfig(context.Context, platform.ID, *influxdb.ReplicationHTTPConfig) error
+	GetFullHTTPConfig(context.Context, platform.ID) (*influxdb.ReplicationHTTPConfig, error)
 	DeleteBucketReplications(context.Context, platform.ID) ([]platform.ID, error)
 }
 
@@ -149,7 +150,7 @@ func (s service) ValidateNewReplication(ctx context.Context, request influxdb.Cr
 		return errLocalBucketNotFound(request.LocalBucketID, err)
 	}
 
-	config := internal.ReplicationHTTPConfig{RemoteBucketID: request.RemoteBucketID}
+	config := influxdb.ReplicationHTTPConfig{RemoteBucketID: request.RemoteBucketID}
 	if err := s.store.PopulateRemoteHTTPConfig(ctx, request.RemoteID, &config); err != nil {
 		return err
 	}

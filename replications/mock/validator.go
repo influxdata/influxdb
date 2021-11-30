@@ -9,7 +9,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	internal "github.com/influxdata/influxdb/v2/replications/internal"
+	"github.com/influxdata/influxdb/v2"
 )
 
 // MockReplicationValidator is a mock of ReplicationValidator interface.
@@ -36,7 +36,7 @@ func (m *MockReplicationValidator) EXPECT() *MockReplicationValidatorMockRecorde
 }
 
 // ValidateReplication mocks base method.
-func (m *MockReplicationValidator) ValidateReplication(arg0 context.Context, arg1 *internal.ReplicationHTTPConfig) error {
+func (m *MockReplicationValidator) ValidateReplication(arg0 context.Context, arg1 *influxdb.ReplicationHTTPConfig) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidateReplication", arg0, arg1)
 	ret0, _ := ret[0].(error)
