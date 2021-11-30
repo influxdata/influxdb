@@ -1410,6 +1410,7 @@ async fn test_unload_read_buffer() {
     let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
     let mut management_client = fixture.management_client();
+    let mut operations_client = fixture.operations_client();
 
     let db_name = rand_name();
     DatabaseBuilder::new(db_name.clone())
@@ -1443,19 +1444,57 @@ async fn test_unload_read_buffer() {
         .expect("listing chunks");
     assert_eq!(chunks.len(), 1);
     let chunk_id = chunks[0].id.clone();
+    let table_name = &chunks[0].table_name;
     let partition_key = &chunks[0].partition_key;
 
     management_client
-        .unload_partition_chunk(&db_name, "data", &partition_key[..], chunk_id)
+        .unload_partition_chunk(&db_name, "data", &partition_key[..], chunk_id.clone())
         .await
         .unwrap();
+
     let chunks = management_client
         .list_chunks(&db_name)
         .await
         .expect("listing chunks");
+
     assert_eq!(chunks.len(), 1);
     let storage: generated_types::influxdata::iox::management::v1::ChunkStorage =
         ChunkStorage::ObjectStoreOnly.into();
+    let storage: i32 = storage.into();
+    assert_eq!(chunks[0].storage, storage);
+
+    let iox_operation = management_client
+        .load_partition_chunk(&db_name, "data", &partition_key[..], chunk_id.clone())
+        .await
+        .unwrap();
+
+    let operation_id = iox_operation.operation.id();
+
+    // ensure we got a legit job description back
+    match iox_operation.metadata.job {
+        Some(Job::LoadReadBufferChunk(job)) => {
+            assert_eq!(job.chunk_id, chunk_id);
+            assert_eq!(&job.db_name, &db_name);
+            assert_eq!(job.partition_key.as_str(), partition_key);
+            assert_eq!(job.table_name.as_str(), table_name);
+        }
+        job => panic!("unexpected job returned {:#?}", job),
+    }
+
+    // wait for the job to be done
+    operations_client
+        .wait_operation(operation_id, Some(std::time::Duration::from_secs(1)))
+        .await
+        .expect("failed to wait operation");
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+
+    assert_eq!(chunks.len(), 1);
+    let storage: generated_types::influxdata::iox::management::v1::ChunkStorage =
+        ChunkStorage::ReadBufferAndObjectStore.into();
     let storage: i32 = storage.into();
     assert_eq!(chunks[0].storage, storage);
 }

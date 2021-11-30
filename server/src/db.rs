@@ -18,6 +18,7 @@ use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 pub use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
+use data_types::job::Job;
 use data_types::partition_metadata::PartitionAddr;
 use data_types::{
     chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
@@ -49,6 +50,7 @@ use schema::selection::Selection;
 use schema::Schema;
 use time::{Time, TimeProvider};
 use trace::ctx::SpanContext;
+use tracker::TaskTracker;
 use write_buffer::core::WriteBufferReading;
 
 pub(crate) use crate::db::chunk::DbChunk;
@@ -757,6 +759,17 @@ impl Db {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
         let chunk = chunk.write();
         lifecycle::unload_read_buffer_chunk(chunk).context(LifecycleError)
+    }
+
+    /// Load chunk from object store to read buffer
+    pub fn load_read_buffer(
+        self: &Arc<Self>,
+        table_name: &str,
+        partition_key: &str,
+        chunk_id: ChunkId,
+    ) -> Result<TaskTracker<Job>> {
+        let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
+        LockableChunk::load_read_buffer(chunk.write()).context(LifecycleError)
     }
 
     /// Return chunk summary information for all chunks in the specified

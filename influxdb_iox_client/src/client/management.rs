@@ -284,6 +284,34 @@ pub enum UnloadPartitionChunkError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by [`Client::unload_partition_chunk`]
+#[derive(Debug, Error)]
+pub enum LoadPartitionChunkError {
+    /// Database not found
+    #[error("Not found: {}", .0)]
+    NotFound(String),
+
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
+    /// Server indicated that it is not (yet) available
+    #[error("Cannot perform operation due to wrong chunk lifecycle state: {}", .0.message())]
+    LifecycleError(tonic::Status),
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+
+    /// Response payload was invalid
+    #[error("Invalid response: {0}")]
+    InvalidResponse(#[from] FieldViolation),
+
+    /// Response contained no payload
+    #[error("Server returned an empty response")]
+    EmptyResponse,
+}
+
 /// Errors returned by [`Client::get_server_status`]
 #[derive(Debug, Error)]
 pub enum GetServerStatusError {
@@ -850,6 +878,43 @@ impl Client {
             })?;
 
         Ok(())
+    }
+
+    /// Unload chunk from read buffer but keep it in object store.
+    pub async fn load_partition_chunk(
+        &mut self,
+        db_name: impl Into<String> + Send,
+        table_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
+        chunk_id: Bytes,
+    ) -> Result<IoxOperation, LoadPartitionChunkError> {
+        let db_name = db_name.into();
+        let partition_key = partition_key.into();
+        let table_name = table_name.into();
+
+        let response = self
+            .inner
+            .load_partition_chunk(LoadPartitionChunkRequest {
+                db_name,
+                partition_key,
+                table_name,
+                chunk_id,
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => {
+                    LoadPartitionChunkError::NotFound(status.message().to_string())
+                }
+                tonic::Code::Unavailable => LoadPartitionChunkError::Unavailable(status),
+                tonic::Code::FailedPrecondition => LoadPartitionChunkError::LifecycleError(status),
+                _ => LoadPartitionChunkError::ServerError(status),
+            })?;
+
+        Ok(response
+            .into_inner()
+            .operation
+            .ok_or(LoadPartitionChunkError::EmptyResponse)?
+            .try_into()?)
     }
 
     /// Wipe potential preserved catalog of an uninitialized database.
