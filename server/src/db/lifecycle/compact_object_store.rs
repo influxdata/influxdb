@@ -96,7 +96,7 @@ pub(crate) fn compact_object_store_chunks(
         // Step 3: Start to persist files and update the preserved catalog accordingly
         // This process needs to hold cleanup lock to avoid the persisted file was deleted right after
         // it is created and before it is updated in the preserved catalog
-        {
+        let dbchunk = {
             // fetch shared (= read) guard preventing the cleanup job from deleting our files
             let _guard = db.cleanup_lock.read().await;
 
@@ -125,7 +125,7 @@ pub(crate) fn compact_object_store_chunks(
             // Step 3.2: Update the in-memory catalog to use the newly created os_chunk
             //   . Drop all os_chunks from the in-memory catalog
             //   . Add the new created os_chunk in the in-memory catalog
-            let (chunk_addr, delete_predicates) = update_in_memory_catalog(
+            let (dbchunk, delete_predicates) = update_in_memory_catalog(
                 &db,
                 &chunk_ids,
                 &delete_predicates_before,
@@ -135,6 +135,7 @@ pub(crate) fn compact_object_store_chunks(
             .await?;
 
             // Step 3.3: Update the preserved catalogs to use the newly created os_chunk
+            let chunk_addr = dbchunk.addr().clone();
             update_preserved_catalog(
                 &db,
                 &compacting_os_chunks.compacted_parquet_file_paths,
@@ -143,7 +144,9 @@ pub(crate) fn compact_object_store_chunks(
                 delete_predicates,
             )
             .await?;
-        } // End of cleanup locking
+
+            dbchunk
+        }; // End of cleanup locking
 
         // Log the summary
         let elapsed = now.elapsed();
@@ -158,7 +161,7 @@ pub(crate) fn compact_object_store_chunks(
             rows_per_sec=?throughput,
             "object store chunk(s) compacted");
 
-        Ok(None) // todo: will be a real chunk when all todos done
+        Ok(Some(dbchunk)) // todo: consider to return Ok(None) when appropriate
     };
 
     Ok((tracker, fut.track(registration)))
@@ -392,13 +395,13 @@ async fn persist_stream_to_chunk<'a>(
 }
 
 ///
-async fn update_in_memory_catalog(
-    db: &Arc<Db>,
-    chunk_ids: &[ChunkId],
-    delete_predicates_before: &HashSet<Arc<DeletePredicate>>,
+async fn update_in_memory_catalog<'a>(
+    db: &'a Arc<Db>,
+    chunk_ids: &'a [ChunkId],
+    delete_predicates_before: &'a HashSet<Arc<DeletePredicate>>,
     iox_metadata: IoxMetadata,
     parquet_chunk: Arc<ParquetChunk>,
-) -> Result<(ChunkAddr, Vec<Arc<DeletePredicate>>)> {
+) -> Result<(Arc<DbChunk>, Vec<Arc<DeletePredicate>>)> {
     // Drop the old chunks and capture leftover delete predicates
     let partition = db
         .lockable_partition(&iox_metadata.table_name, &iox_metadata.partition_key)
@@ -433,10 +436,11 @@ async fn update_in_memory_catalog(
         delete_predicates.clone(),
         iox_metadata.chunk_order,
     );
-    let chunk = chunk.read();
-    let chunk_addr = chunk.addr().clone();
+    //let chunk = chunk.read();
+    //let chunk_addr = chunk.addr().clone();
+    let dbchunk = DbChunk::parquet_file_snapshot(&*chunk.read());
 
-    Ok((chunk_addr, delete_predicates))
+    Ok((dbchunk, delete_predicates))
 }
 
 /// Update the preserved catalog : replace compacted chunks with a newly persisted chunk
@@ -488,6 +492,9 @@ async fn update_preserved_catalog(
 mod tests {
     use super::*;
     use crate::{db::test_helpers::write_lp, utils::make_db};
+    use data_types::{
+        chunk_metadata::ChunkStorage, delete_predicate::DeleteExpr, timestamp::TimestampRange,
+    };
     use lifecycle::{LockableChunk, LockablePartition};
     use query::QueryChunk;
 
@@ -605,11 +612,211 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_compact_os_two_contiguous_chunks() {
+        test_helpers::maybe_start_logging();
+
+        let db = make_db().await.db;
+        let partition_key = "1970-01-01T00";
+        write_lp(&db, "cpu,tag1=cupcakes bar=1 10");
+
+        // persist chunk 1
+        let chunk_id_1 = db
+            .persist_partition("cpu", partition_key, true)
+            .await
+            .unwrap()
+            .unwrap()
+            .id();
+        //
+        // persist chunk 2
+        write_lp(&db, "cpu,tag1=cookies bar=2 20");
+        let _chunk_id_2 = db
+            .persist_partition("cpu", partition_key, true)
+            .await
+            .unwrap()
+            .unwrap()
+            .id();
+        //
+        // persist chunk 3
+        write_lp(&db, "cpu,tag1=cookies,tag2=20 bar=3 30");
+        let _chunk_id_3 = db
+            .persist_partition("cpu", partition_key, true)
+            .await
+            .unwrap()
+            .unwrap()
+            .id();
+        //
+        // drop RUB of chunk 1 but keep its OS
+        db.unload_read_buffer("cpu", partition_key, chunk_id_1)
+            .unwrap();
+        //
+        // Add a MUB
+        write_lp(db.as_ref(), "cpu,tag1=brownies,tag2=a bar=2 40");
+
+        // Verify results before OS compacting
+        let partition = db.lockable_partition("cpu", partition_key).unwrap();
+        let partition = partition.read();
+        let chunks = LockablePartition::chunks(&partition);
+        assert_eq!(chunks.len(), 4);
+        // ensure all RUBs are unloaded
+        let mut summary_chunks: Vec<_> = partition.chunk_summaries().collect();
+        assert_eq!(summary_chunks.len(), 4);
+        summary_chunks.sort_by_key(|c| c.storage);
+        assert_eq!(summary_chunks[0].storage, ChunkStorage::OpenMutableBuffer);
+        assert_eq!(summary_chunks[0].row_count, 1);
+        assert_eq!(
+            summary_chunks[1].storage,
+            ChunkStorage::ReadBufferAndObjectStore
+        );
+        assert_eq!(summary_chunks[1].row_count, 1);
+        assert_eq!(
+            summary_chunks[2].storage,
+            ChunkStorage::ReadBufferAndObjectStore
+        );
+        assert_eq!(summary_chunks[2].row_count, 1);
+        assert_eq!(summary_chunks[3].storage, ChunkStorage::ObjectStoreOnly);
+        assert_eq!(summary_chunks[3].row_count, 1);
+
+        // compact 2 contiguous chunk 1 and chunk 2
+        let partition = partition.upgrade();
+        let chunk1 = chunks[0].write();
+        let chunk2 = chunks[1].write();
+        let _compacted_chunk = compact_object_store_chunks(partition, vec![chunk1, chunk2])
+            .unwrap()
+            .1
+            .await
+            .unwrap()
+            .unwrap();
+
+        // verify results
+        let partition = db.partition("cpu", partition_key).unwrap();
+        let mut summary_chunks: Vec<_> = partition.read().chunk_summaries().collect();
+        summary_chunks.sort_by_key(|c| c.storage);
+        assert_eq!(summary_chunks.len(), 3);
+        // MUB
+        assert_eq!(summary_chunks[0].storage, ChunkStorage::OpenMutableBuffer);
+        assert_eq!(summary_chunks[0].row_count, 1);
+        // RUB & OS (chunk_id_3 tha tis not compacted)
+        assert_eq!(
+            summary_chunks[1].storage,
+            ChunkStorage::ReadBufferAndObjectStore
+        );
+        assert_eq!(summary_chunks[1].row_count, 1);
+        // OS: the result of compacting 2 persisted chunks (chunk_id_1 and chunk_id_2)
+        assert_eq!(summary_chunks[2].storage, ChunkStorage::ObjectStoreOnly);
+        assert_eq!(summary_chunks[2].row_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_compact_os_duplicates_and_hard_deletes() {
+        test_helpers::maybe_start_logging();
+
+        let db = make_db().await.db;
+        let partition_key = "1970-01-01T00";
+        write_lp(&db, "cpu,tag1=cupcakes bar=1 10");
+        write_lp(&db, "cpu,tag1=cookies bar=2 10"); // delete
+
+        // persist chunk 1
+        let _chunk_id_1 = db
+            .persist_partition("cpu", partition_key, true)
+            .await
+            .unwrap()
+            .unwrap()
+            .id();
+        //
+        // persist chunk 2
+        write_lp(&db, "cpu,tag1=cookies bar=2 20"); // delete
+        write_lp(&db, "cpu,tag1=cookies bar=3 30"); // duplicate & delete
+        write_lp(&db, "cpu,tag1=cupcakes bar=2 20");
+
+        let chunk_id_2 = db
+            .persist_partition("cpu", partition_key, true)
+            .await
+            .unwrap()
+            .unwrap()
+            .id();
+        //
+        // persist chunk 3
+        write_lp(&db, "cpu,tag1=cookies bar=2 20"); // delete
+        let _chunk_id_3 = db
+            .persist_partition("cpu", partition_key, true)
+            .await
+            .unwrap()
+            .unwrap()
+            .id();
+        //
+        // drop RUB of chunk_id_2
+        db.unload_read_buffer("cpu", partition_key, chunk_id_2)
+            .unwrap();
+        //
+        // Delete all cookies
+        let predicate = Arc::new(DeletePredicate {
+            range: TimestampRange { start: 0, end: 30 },
+            exprs: vec![DeleteExpr::new(
+                "tag1".to_string(),
+                data_types::delete_predicate::Op::Eq,
+                data_types::delete_predicate::Scalar::String("cookies".to_string()),
+            )],
+        });
+        db.delete("cpu", predicate).unwrap();
+        //
+        // Add a MUB
+        write_lp(db.as_ref(), "cpu,tag1=brownies,tag2=a bar=2 40");
+
+        // Verify results before OS compacting
+        let partition = db.lockable_partition("cpu", partition_key).unwrap();
+        let partition = partition.read();
+        let chunks = LockablePartition::chunks(&partition);
+        assert_eq!(chunks.len(), 4);
+        // ensure all RUBs are unloaded
+        let mut summary_chunks: Vec<_> = partition.chunk_summaries().collect();
+        assert_eq!(summary_chunks.len(), 4);
+        summary_chunks.sort_by_key(|c| c.storage);
+        assert_eq!(summary_chunks[0].storage, ChunkStorage::OpenMutableBuffer);
+        assert_eq!(summary_chunks[0].row_count, 1);
+        assert_eq!(
+            summary_chunks[1].storage,
+            ChunkStorage::ReadBufferAndObjectStore
+        );
+        assert_eq!(summary_chunks[1].row_count, 2); // chunk_id_1
+        assert_eq!(
+            summary_chunks[2].storage,
+            ChunkStorage::ReadBufferAndObjectStore
+        );
+        assert_eq!(summary_chunks[2].row_count, 1); // chunk_id_3
+        assert_eq!(summary_chunks[3].storage, ChunkStorage::ObjectStoreOnly);
+        assert_eq!(summary_chunks[3].row_count, 3); // chunk_id_2
+
+        // compact 3 contiguous chunks 1, 2, 3
+        let partition = partition.upgrade();
+        let chunk1 = chunks[0].write();
+        let chunk2 = chunks[1].write();
+        let chunk3 = chunks[2].write();
+        let _compacted_chunk = compact_object_store_chunks(partition, vec![chunk1, chunk2, chunk3])
+            .unwrap()
+            .1
+            .await
+            .unwrap()
+            .unwrap();
+
+        // verify results
+        let partition = db.partition("cpu", partition_key).unwrap();
+        let mut summary_chunks: Vec<_> = partition.read().chunk_summaries().collect();
+        summary_chunks.sort_by_key(|c| c.storage);
+        assert_eq!(summary_chunks.len(), 2);
+        // MUB
+        assert_eq!(summary_chunks[0].storage, ChunkStorage::OpenMutableBuffer);
+        assert_eq!(summary_chunks[0].row_count, 1);
+        // OS: the result of compacting all 3 persisted chunks
+        assert_eq!(summary_chunks[1].storage, ChunkStorage::ObjectStoreOnly);
+        assert_eq!(summary_chunks[1].row_count, 2);
+    }
+
     // todo: add tests
-    //   . compact 2 contiguous OS chunks
-    //   . compact 3 chunks with duplicated data
-    //  . compact with deletes before compacting
     //  . compact with deletes happening during compaction
+    //  . compact with deletes/duplicates that lead to empty result
+    //    --- this needs more coding before testing
     //  . verify checkpoints
     //   . replay
+    //  . en-to-end tests to not only verify row num but also data
 }
