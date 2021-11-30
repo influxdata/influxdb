@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func fluxTime(t int64) flux.Time {
@@ -36,12 +37,14 @@ func TestPushDownRangeRule(t *testing.T) {
 			Stop:  fluxTime(10),
 		},
 	}
-	readRangeSpec := influxdb.ReadRangePhysSpec{
-		Bucket: "my-bucket",
-		Bounds: flux.Bounds{
-			Start: fluxTime(5),
-			Stop:  fluxTime(10),
-		},
+	createRangeSpec := func() *influxdb.ReadRangePhysSpec {
+		return &influxdb.ReadRangePhysSpec{
+			Bucket: "my-bucket",
+			Bounds: flux.Bounds{
+				Start: fluxTime(5),
+				Stop:  fluxTime(10),
+			},
+		}
 	}
 
 	tests := []plantest.RuleTestCase{
@@ -61,7 +64,7 @@ func TestPushDownRangeRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", &readRangeSpec),
+					plan.CreatePhysicalNode("ReadRange", createRangeSpec()),
 				},
 			},
 		},
@@ -85,7 +88,7 @@ func TestPushDownRangeRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", &readRangeSpec),
+					plan.CreatePhysicalNode("ReadRange", createRangeSpec()),
 					plan.CreatePhysicalNode("count", &universe.CountProcedureSpec{}),
 				},
 				Edges: [][2]int{{0, 1}},
@@ -117,7 +120,7 @@ func TestPushDownRangeRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", &readRangeSpec),
+					plan.CreatePhysicalNode("ReadRange", createRangeSpec()),
 					plan.CreatePhysicalNode("count", &universe.CountProcedureSpec{}),
 					plan.CreatePhysicalNode("mean", &universe.MeanProcedureSpec{}),
 				},
@@ -133,8 +136,7 @@ func TestPushDownRangeRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			t.Skip("TODO(dstrand1): Fix to support go-cmp comparisons with protobufs. See in idpe: https://github.com/influxdata/idpe/blob/1326013a0cac99234e947ad5ed02b9fde21db95e/query/stdlib/influxdata/influxdb/rules_test.go#L199")
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, protocmp.Transform())
 		})
 	}
 }
@@ -479,19 +481,20 @@ func TestPushDownFilterRule(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
-			t.Skip("TODO(dstrand1): Fix to support go-cmp comparisons with protobufs. See similar problem in idpe: https://github.com/influxdata/idpe/blob/1326013a0cac99234e947ad5ed02b9fde21db95e/query/stdlib/influxdata/influxdb/rules_test.go#L545")
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, protocmp.Transform())
 		})
 	}
 }
 
 func TestPushDownGroupRule(t *testing.T) {
-	readRange := influxdb.ReadRangePhysSpec{
-		Bucket: "my-bucket",
-		Bounds: flux.Bounds{
-			Start: fluxTime(5),
-			Stop:  fluxTime(10),
-		},
+	createRangeSpec := func() *influxdb.ReadRangePhysSpec {
+		return &influxdb.ReadRangePhysSpec{
+			Bucket: "my-bucket",
+			Bounds: flux.Bounds{
+				Start: fluxTime(5),
+				Stop:  fluxTime(10),
+			},
+		}
 	}
 
 	tests := []plantest.RuleTestCase{
@@ -503,7 +506,7 @@ func TestPushDownGroupRule(t *testing.T) {
 			},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeBy,
 						GroupKeys: []string{"_measurement", "tag0", "tag1"},
@@ -514,7 +517,7 @@ func TestPushDownGroupRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("ReadGroup", &influxdb.ReadGroupPhysSpec{
-						ReadRangePhysSpec: readRange,
+						ReadRangePhysSpec: *createRangeSpec(),
 						GroupMode:         flux.GroupModeBy,
 						GroupKeys:         []string{"_measurement", "tag0", "tag1"},
 					}),
@@ -529,7 +532,7 @@ func TestPushDownGroupRule(t *testing.T) {
 			},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeBy,
 						GroupKeys: []string{"_measurement", "tag0", "tag1"},
@@ -544,7 +547,7 @@ func TestPushDownGroupRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("ReadGroup", &influxdb.ReadGroupPhysSpec{
-						ReadRangePhysSpec: readRange,
+						ReadRangePhysSpec: *createRangeSpec(),
 						GroupMode:         flux.GroupModeBy,
 						GroupKeys:         []string{"_measurement", "tag0", "tag1"},
 					}),
@@ -565,7 +568,7 @@ func TestPushDownGroupRule(t *testing.T) {
 			},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeBy,
 						GroupKeys: []string{"_measurement", "tag0", "tag1"},
@@ -587,7 +590,7 @@ func TestPushDownGroupRule(t *testing.T) {
 			},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeBy,
 						GroupKeys: []string{},
@@ -600,7 +603,7 @@ func TestPushDownGroupRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("ReadGroup", &influxdb.ReadGroupPhysSpec{
-						ReadRangePhysSpec: readRange,
+						ReadRangePhysSpec: *createRangeSpec(),
 						GroupMode:         flux.GroupModeBy,
 						GroupKeys:         []string{},
 					}),
@@ -615,7 +618,7 @@ func TestPushDownGroupRule(t *testing.T) {
 			},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeExcept,
 						GroupKeys: []string{"_measurement", "tag0", "tag1"},
@@ -634,7 +637,7 @@ func TestPushDownGroupRule(t *testing.T) {
 			},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeNone,
 						GroupKeys: []string{},
@@ -654,7 +657,7 @@ func TestPushDownGroupRule(t *testing.T) {
 			},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 					plan.CreatePhysicalNode("count", &universe.CountProcedureSpec{}),
 					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeBy,
@@ -674,8 +677,7 @@ func TestPushDownGroupRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			t.Skip("TODO(dstrand1): Fix to support go-cmp comparisons with protobufs. See in idpe: https://github.com/influxdata/idpe/blob/1326013a0cac99234e947ad5ed02b9fde21db95e/query/stdlib/influxdata/influxdb/rules_test.go#L740")
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, protocmp.Transform())
 		})
 	}
 }
@@ -894,8 +896,7 @@ func TestReadTagKeysRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			t.Skip("TODO(dstrand1): Fix to support go-cmp comparisons with protobufs. See in idpe: https://github.com/influxdata/idpe/blob/1326013a0cac99234e947ad5ed02b9fde21db95e/query/stdlib/influxdata/influxdb/rules_test.go#L960")
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, protocmp.Transform())
 		})
 	}
 }
@@ -1116,8 +1117,7 @@ func TestReadTagValuesRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			t.Skip("TODO(dstrand1): Fix to support go-cmp comparisons with protobufs. See in idpe: https://github.com/influxdata/idpe/blob/1326013a0cac99234e947ad5ed02b9fde21db95e/query/stdlib/influxdata/influxdb/rules_test.go#L1182")
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, protocmp.Transform())
 		})
 	}
 }
@@ -1162,12 +1162,14 @@ func meanProcedureSpec() *universe.MeanProcedureSpec {
 // Window Aggregate Testing
 //
 func TestPushDownWindowAggregateRule(t *testing.T) {
-	readRange := influxdb.ReadRangePhysSpec{
-		Bucket: "my-bucket",
-		Bounds: flux.Bounds{
-			Start: fluxTime(5),
-			Stop:  fluxTime(10),
-		},
+	createRangeSpec := func() *influxdb.ReadRangePhysSpec {
+		return &influxdb.ReadRangePhysSpec{
+			Bucket: "my-bucket",
+			Bounds: flux.Bounds{
+				Start: fluxTime(5),
+				Stop:  fluxTime(10),
+			},
+		}
 	}
 
 	dur1m := values.ConvertDurationNsecs(60 * time.Second)
@@ -1208,7 +1210,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	simplePlanWithWindowAgg := func(window universe.WindowProcedureSpec, agg plan.NodeID, spec plan.ProcedureSpec) *plantest.PlanSpec {
 		return &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window", &window),
 				plan.CreateLogicalNode(agg, spec),
 			},
@@ -1224,7 +1226,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		spec := &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
-					ReadRangePhysSpec: readRange,
+					ReadRangePhysSpec: *createRangeSpec(),
 					Aggregates:        []plan.ProcedureKind{proc},
 					WindowEvery:       flux.ConvertDuration(60000000000 * time.Nanosecond),
 					CreateEmpty:       createEmpty,
@@ -1309,7 +1311,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window", &window1m),
 				plan.CreateLogicalNode("min", minProcedureSpec()),
 				plan.CreateLogicalNode("count", countProcedureSpec()),
@@ -1325,7 +1327,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
-					ReadRangePhysSpec: readRange,
+					ReadRangePhysSpec: *createRangeSpec(),
 					Aggregates:        []plan.ProcedureKind{"min"},
 					WindowEvery:       flux.ConvertDuration(60000000000 * time.Nanosecond),
 				}),
@@ -1357,7 +1359,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
-					ReadRangePhysSpec: readRange,
+					ReadRangePhysSpec: *createRangeSpec(),
 					Aggregates:        []plan.ProcedureKind{universe.LastKind},
 					WindowEvery:       flux.ConvertDuration(120000000000 * time.Nanosecond),
 					Offset:            flux.ConvertDuration(60000000000 * time.Nanosecond),
@@ -1375,7 +1377,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
-					ReadRangePhysSpec: readRange,
+					ReadRangePhysSpec: *createRangeSpec(),
 					Aggregates:        []plan.ProcedureKind{universe.LastKind},
 					WindowEvery:       dur1mo,
 				}),
@@ -1392,7 +1394,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
-					ReadRangePhysSpec: readRange,
+					ReadRangePhysSpec: *createRangeSpec(),
 					Aggregates:        []plan.ProcedureKind{universe.LastKind},
 					WindowEvery:       dur1y,
 				}),
@@ -1413,7 +1415,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
-					ReadRangePhysSpec: readRange,
+					ReadRangePhysSpec: *createRangeSpec(),
 					Aggregates:        []plan.ProcedureKind{universe.LastKind},
 					WindowEvery:       dur1y,
 					Offset:            dur1mo,
@@ -1435,7 +1437,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadWindowAggregate", &influxdb.ReadWindowAggregatePhysSpec{
-					ReadRangePhysSpec: readRange,
+					ReadRangePhysSpec: *createRangeSpec(),
 					Aggregates:        []plan.ProcedureKind{universe.LastKind},
 					WindowEvery:       dur1y,
 					Offset:            durMixed,
@@ -1551,7 +1553,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window", &window1m),
 				plan.CreateLogicalNode("min", minProcedureSpec()),
 				plan.CreateLogicalNode("min", minProcedureSpec()),
@@ -1574,7 +1576,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window", &window1m),
 				plan.CreateLogicalNode("min", minProcedureSpec()),
 				plan.CreateLogicalNode("window", &window2m),
@@ -1601,7 +1603,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	noPatternMatch1 := func() *plantest.PlanSpec {
 		return &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
 					Fn: makeResolvedFilterFn(pushableFn1),
 				}),
@@ -1628,7 +1630,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	noPatternMatch2 := func() *plantest.PlanSpec {
 		return &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window", &window1m),
 				plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
 					Fn: makeResolvedFilterFn(pushableFn1),
@@ -1664,7 +1666,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	aggregateWindowPlan := func(window universe.WindowProcedureSpec, agg plan.NodeID, spec plan.ProcedureSpec, timeColumn string) *plantest.PlanSpec {
 		return &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window1", &window),
 				plan.CreateLogicalNode(agg, spec),
 				plan.CreateLogicalNode("duplicate", duplicate(timeColumn, "_time")),
@@ -1683,7 +1685,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		spec := &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreatePhysicalNode("ReadWindowAggregateByTime", &influxdb.ReadWindowAggregatePhysSpec{
-					ReadRangePhysSpec: readRange,
+					ReadRangePhysSpec: *createRangeSpec(),
 					Aggregates:        []plan.ProcedureKind{proc},
 					WindowEvery:       flux.ConvertDuration(60000000000 * time.Nanosecond),
 					CreateEmpty:       createEmpty,
@@ -1759,7 +1761,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		},
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window1", &window1m),
 				plan.CreateLogicalNode("count", countProcedureSpec()),
 				plan.CreateLogicalNode("duplicate", duplicate("_stop", "time")),
@@ -1788,7 +1790,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		},
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window1", &window1m),
 				plan.CreateLogicalNode("count", countProcedureSpec()),
 				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
@@ -1817,7 +1819,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		},
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window1", &window1m),
 				plan.CreateLogicalNode("count", countProcedureSpec()),
 				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
@@ -1846,7 +1848,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		},
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window1", &window1m),
 				plan.CreateLogicalNode("count", countProcedureSpec()),
 				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
@@ -1875,7 +1877,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		},
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window1", &window1m),
 				plan.CreateLogicalNode("count", countProcedureSpec()),
 				plan.CreateLogicalNode("duplicate", duplicate("_stop", "_time")),
@@ -1916,7 +1918,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		},
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
-				plan.CreateLogicalNode("ReadRange", &readRange),
+				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
 				plan.CreateLogicalNode("window1", &window1m),
 				plan.CreateLogicalNode("count", countProcedureSpec()),
 				plan.CreateLogicalNode("rename", &rename),
@@ -1939,24 +1941,25 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			t.Skip("TODO(dstrand1): Fix to support go-cmp comparisons with protobufs. See in idpe: https://github.com/influxdata/idpe/blob/1326013a0cac99234e947ad5ed02b9fde21db95e/query/stdlib/influxdata/influxdb/rules_test.go#L2030")
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, protocmp.Transform())
 		})
 	}
 }
 
 func TestPushDownBareAggregateRule(t *testing.T) {
-	readRange := &influxdb.ReadRangePhysSpec{
-		Bucket: "my-bucket",
-		Bounds: flux.Bounds{
-			Start: fluxTime(5),
-			Stop:  fluxTime(10),
-		},
+	createRangeSpec := func() *influxdb.ReadRangePhysSpec {
+		return &influxdb.ReadRangePhysSpec{
+			Bucket: "my-bucket",
+			Bounds: flux.Bounds{
+				Start: fluxTime(5),
+				Stop:  fluxTime(10),
+			},
+		}
 	}
 
 	readWindowAggregate := func(proc plan.ProcedureKind) *influxdb.ReadWindowAggregatePhysSpec {
 		return &influxdb.ReadWindowAggregatePhysSpec{
-			ReadRangePhysSpec: *(readRange.Copy().(*influxdb.ReadRangePhysSpec)),
+			ReadRangePhysSpec: *createRangeSpec(),
 			WindowEvery:       flux.ConvertDuration(math.MaxInt64 * time.Nanosecond),
 			Aggregates:        []plan.ProcedureKind{proc},
 		}
@@ -1970,7 +1973,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("ReadRange", createRangeSpec()),
 					plan.CreatePhysicalNode("count", countProcedureSpec()),
 				},
 				Edges: [][2]int{
@@ -1990,7 +1993,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("ReadRange", createRangeSpec()),
 					plan.CreatePhysicalNode("sum", sumProcedureSpec()),
 				},
 				Edges: [][2]int{
@@ -2010,7 +2013,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("ReadRange", createRangeSpec()),
 					plan.CreatePhysicalNode("first", firstProcedureSpec()),
 				},
 				Edges: [][2]int{
@@ -2030,7 +2033,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 			Rules:   []plan.Rule{influxdb.PushDownBareAggregateRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreatePhysicalNode("ReadRange", readRange),
+					plan.CreatePhysicalNode("ReadRange", createRangeSpec()),
 					plan.CreatePhysicalNode("last", lastProcedureSpec()),
 				},
 				Edges: [][2]int{
@@ -2049,8 +2052,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			t.Skip("TODO(dstrand1): Fix to support go-cmp comparisons with protobufs. See in idpe: https://github.com/influxdata/idpe/blob/1326013a0cac99234e947ad5ed02b9fde21db95e/query/stdlib/influxdata/influxdb/rules_test.go#L2834")
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, protocmp.Transform())
 		})
 	}
 }
