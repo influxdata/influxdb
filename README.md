@@ -15,7 +15,7 @@ If you are interested in building from source, see the [building from source](CO
 
 ## Getting Started
 
-For a complete getting started guide, please see our full [online documentation site](https://docs.influxdata.com/influxdb/latest/). 
+For a complete getting started guide, please see our full [online documentation site](https://docs.influxdata.com/influxdb/latest/).
 
 To write and query data or use the API in any way, you'll need to first create a user, credentials, organization and bucket.
 Everything in InfluxDB is organized under a concept of an organization. The API is designed to be multi-tenant.
@@ -32,9 +32,9 @@ $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup
 Welcome to InfluxDB 2.0!
 Please type your primary username: marty
 
-Please type your password: 
+Please type your password:
 
-Please type your password again: 
+Please type your password again:
 
 Please type your primary organization name.: InfluxData
 
@@ -104,11 +104,18 @@ Table: keys: [_start, _stop, _field, _measurement]
 2019-12-30T22:19:39.043918000Z  2019-12-30T23:19:39.043918000Z                       v                       m  2019-12-30T23:17:02.000000000Z                             2
 ```
 
-Use the `-r, --raw` option to return the raw flux response from the query. This is useful for moving data from one instance to another as the `influx write` command can accept the Flux response using the `--format csv` option. 
+Use the `-r, --raw` option to return the raw flux response from the query. This is useful for moving data from one instance to another as the `influx write` command can accept the Flux response using the `--format csv` option.
 
-## Introducing Flux
+## Flux
 
-Flux is an MIT-licensed data scripting language (previously named IFQL) used for querying time series data from InfluxDB. The source for Flux is [available on GitHub](https://github.com/influxdata/flux). Learn more about Flux from [CTO Paul Dix's presentation](https://speakerdeck.com/pauldix/flux-number-fluxlang-a-new-time-series-data-scripting-language).
+Flux (previously named IFQL) is an open source functional data scripting language designed for querying, analyzing, and acting on data. Flux supports multiple data source types, including:
+
+- Time series databases (such as InfluxDB)
+- Relational SQL databases (such as MySQL and PostgreSQL)
+- CSV
+
+The source for Flux is [available on GitHub](https://github.com/influxdata/flux).
+To learn more about Flux, see the latest [InfluxData Flux documentation](https://docs.influxdata.com/flux/) and [CTO Paul Dix's presentation](https://speakerdeck.com/pauldix/flux-number-fluxlang-a-new-time-series-data-scripting-language).
 
 ## Contributing to the Project
 
@@ -164,7 +171,7 @@ If you re-generate a file and find that `staticcheck` has failed, please see thi
 
 #### End-to-End Tests
 
-CI also runs end-to-end tests. These test the integration between the `influxd` server the UI. 
+CI also runs end-to-end tests. These test the integration between the `influxd` server the UI.
 Since the UI is used by interal repositories as well as the `influxdb` repository, the
 end-to-end tests cannot be run on forked pull requests or run locally. The extent of end-to-end
 testing required for forked pull requests will be determined as part of the review process.
