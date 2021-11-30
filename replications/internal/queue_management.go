@@ -140,7 +140,7 @@ func (rq *replicationQueue) run() {
 // SendWrite is responsible for processing all data in the queue at the time of calling.
 // Retryable errors should be handled and retried in the dp function.
 // Unprocessable data should be dropped in the dp function.
-func (rq *replicationQueue) SendWrite() (error bool) {
+func (rq *replicationQueue) SendWrite() bool {
 	// Any error in creating the scanner should exit the loop in run()
 	// Either it is io.EOF indicating no data, or some other failure in making
 	// the Scanner object that we don't know how to handle.
@@ -169,6 +169,7 @@ func (rq *replicationQueue) SendWrite() (error bool) {
 		// An error here indicates an unhandlable error. Data is not corrupt, and
 		// the remote write is not retryable. A potential example of an error here
 		// is an authentication error with the remote host.
+		// TODO: Propagate context if needed to allow for graceful shutdowns, see https://github.com/influxdata/influxdb/issues/22944
 		if err = rq.remoteWriter.Write(context.Background(), scan.Bytes()); err != nil {
 			rq.logger.Error("Error in replication stream", zap.Error(err))
 			return false

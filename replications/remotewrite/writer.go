@@ -24,7 +24,7 @@ const (
 	retryAfterHeaderKey = "Retry-After"
 	maximumBackoffTime  = 15 * time.Minute
 	maximumAttempts     = 10 // After this many attempts, wait maximumBackoffTime
-	DefaultTimeout      = 5 * time.Minute
+	DefaultTimeout      = 2 * time.Minute
 )
 
 var (
@@ -194,6 +194,7 @@ func PostWrite(ctx context.Context, config *influxdb.ReplicationHTTPConfig, data
 		Bucket(config.RemoteBucketID.String()).
 		Body(data)
 
+	// Don't set the encoding header for empty bodies, like those used for validation.
 	if len(data) > 0 {
 		req = req.ContentEncoding("gzip")
 	}
