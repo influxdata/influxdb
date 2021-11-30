@@ -661,14 +661,12 @@ pub mod test_utils {
                 .await
                 .unwrap();
 
-            // This currently results in an InternalServerError which is correctly recorded
-            // as a server error, but this should probably be a BadRequest client error (#2538)
             assert_eq!(ingest_lines_ok.fetch(), 1);
             assert_eq!(ingest_lines_error.fetch(), 1);
             assert_eq!(request_duration_ok.fetch().sample_count(), 1);
             assert_eq!(request_count_ok.fetch(), 1);
-            assert_eq!(request_count_client_error.fetch(), 0);
-            assert_eq!(request_count_server_error.fetch(), 1);
+            assert_eq!(request_count_client_error.fetch(), 1);
+            assert_eq!(request_count_server_error.fetch(), 0);
         }
     }
 

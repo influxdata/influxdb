@@ -5,7 +5,7 @@ use generated_types::influxdata::pbdata::v1::*;
 use server::Server;
 use std::sync::Arc;
 
-use super::error::{default_database_write_error_handler, default_server_error_handler};
+use super::error::{default_dml_error_handler, default_server_error_handler};
 
 struct PBWriteService {
     server: Arc<Server>,
@@ -35,14 +35,14 @@ impl write_service_server::WriteService for PBWriteService {
 
         let db_name = DatabaseName::new(&database_batch.database_name)
             .scope("database_batch.database_name")?;
-        let database = self
+
+        let db = self
             .server
-            .active_database(&db_name)
+            .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        database
-            .store_operation(&DmlOperation::Write(write))
-            .map_err(default_database_write_error_handler)?;
+        db.store_operation(&DmlOperation::Write(write))
+            .map_err(default_dml_error_handler)?;
 
         Ok(tonic::Response::new(WriteResponse {}))
     }

@@ -129,12 +129,6 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
 pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
     use server::db::Error;
     match error {
-        Error::DatabaseNotWriteable {} => PreconditionViolation {
-            category: "database".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: "Cannot write to database: no mutable buffer configured".to_string(),
-        }
-        .into(),
         Error::LifecycleError { source } => PreconditionViolation {
             category: "chunk".to_string(),
             subject: "influxdata.com/iox".to_string(),
@@ -156,19 +150,7 @@ pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
             ),
         }
         .into(),
-        Error::DeleteFromTable { source, table_name } => PreconditionViolation {
-            category: "database".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: format!("Cannot delete data from table: {} : {}", table_name, source),
-        }
-        .into(),
         Error::CatalogError { source } => default_catalog_error_handler(source),
-        Error::HardLimitReached {} => QuotaFailure {
-            subject: "influxdata.com/iox/buffer".to_string(),
-            description: "hard buffer limit reached".to_string(),
-        }
-        .into(),
-        Error::StoreWriteErrors { .. } => tonic::Status::invalid_argument(error.to_string()),
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()
@@ -176,29 +158,16 @@ pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
     }
 }
 
-/// map common [`database::WriteError`](server::database::WriteError) errors  to the appropriate tonic Status
-pub fn default_database_write_error_handler(error: server::database::WriteError) -> tonic::Status {
-    use server::database::WriteError;
+/// map common [`server::db::DmlError`](server::db::DmlError) errors  to the appropriate tonic Status
+pub fn default_dml_error_handler(error: server::db::DmlError) -> tonic::Status {
+    use server::db::DmlError;
 
     match error {
-        WriteError::HardLimitReached {} => QuotaFailure {
+        DmlError::HardLimitReached {} => QuotaFailure {
             subject: "influxdata.com/iox/buffer".to_string(),
             description: "hard buffer limit reached".to_string(),
         }
         .into(),
-        WriteError::DbError { source } => default_db_error_handler(source),
-        source @ WriteError::WritingOnlyAllowedThroughWriteBuffer => {
-            tonic::Status::failed_precondition(source.to_string())
-        }
-        WriteError::NotInitialized { state } => {
-            tonic::Status::unavailable(format!("Database is not yet initialized: {}", state))
-        }
-        error @ WriteError::StoreWriteErrors { .. } => {
-            tonic::Status::invalid_argument(error.to_string())
-        }
-        error => {
-            error!(?error, "Unexpected write error");
-            InternalError {}.into()
-        }
+        e => tonic::Status::invalid_argument(e.to_string()),
     }
 }

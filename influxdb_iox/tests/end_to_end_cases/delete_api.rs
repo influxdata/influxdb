@@ -7,6 +7,7 @@ use data_types::{
 use dml::{test_util::assert_delete_op_eq, DmlDelete};
 use futures::StreamExt;
 use influxdb_iox_client::management::generated_types::DatabaseRules;
+use test_helpers::assert_contains;
 
 use super::scenario::{create_router_to_write_buffer, rand_name};
 use crate::common::server_fixture::{ServerFixture, ServerType};
@@ -128,7 +129,7 @@ async fn test_delete_on_database() {
         .await
         .unwrap_err()
         .to_string();
-    assert!(del.contains("Cannot delete data from table"));
+    assert_contains!(del, "Cannot delete data from non-existent table");
 
     // Verify both existing tables still have the same data
     // query to verify data deleted

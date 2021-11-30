@@ -12,7 +12,7 @@ struct DeleteService {
     server: Arc<Server>,
 }
 
-use super::error::{default_database_write_error_handler, default_server_error_handler};
+use super::error::{default_dml_error_handler, default_server_error_handler};
 
 #[tonic::async_trait]
 impl delete_service_server::DeleteService for DeleteService {
@@ -35,14 +35,13 @@ impl delete_service_server::DeleteService for DeleteService {
 
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).scope("db_name")?;
-        let database = self
+        let db = self
             .server
-            .active_database(&db_name)
+            .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        database
-            .store_operation(&DmlOperation::Delete(delete))
-            .map_err(default_database_write_error_handler)?;
+        db.store_operation(&DmlOperation::Delete(delete))
+            .map_err(default_dml_error_handler)?;
 
         Ok(Response::new(DeleteResponse {}))
     }

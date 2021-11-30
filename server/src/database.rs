@@ -10,7 +10,6 @@ use crate::{
 };
 use data_types::job::Job;
 use data_types::{server_id::ServerId, DatabaseName};
-use dml::DmlOperation;
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
@@ -111,32 +110,6 @@ pub enum Error {
         db_name: String,
         source: OwnerInfoUpdateError,
     },
-}
-
-#[derive(Debug, Snafu)]
-pub enum WriteError {
-    #[snafu(context(false))]
-    DbError { source: super::db::Error },
-
-    #[snafu(display("write buffer producer error: {}", source))]
-    WriteBuffer {
-        source: Box<dyn std::error::Error + Sync + Send>,
-    },
-
-    #[snafu(display("writing only allowed through write buffer"))]
-    WritingOnlyAllowedThroughWriteBuffer,
-
-    #[snafu(display("database not initialized: {}", state))]
-    NotInitialized { state: DatabaseStateCode },
-
-    #[snafu(display("Hard buffer size limit reached"))]
-    HardLimitReached {},
-
-    #[snafu(display(
-        "Storing database write failed with the following error(s), and possibly more: {}",
-        errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
-    ))]
-    StoreWriteErrors { errors: Vec<super::db::Error> },
 }
 
 type BackgroundWorkerFuture = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
@@ -608,38 +581,6 @@ impl Database {
 
         let mut state = self.shared.state.write();
         *state.unfreeze(handle) = DatabaseState::Initialized(current_state);
-
-        Ok(())
-    }
-
-    /// Writes a [`DmlOperation`] to this `Database`.
-    ///
-    /// If the database is configured to consume data from a write buffer, this call will fail.
-    pub fn store_operation(&self, operation: &DmlOperation) -> Result<(), WriteError> {
-        let db = {
-            let state = self.shared.state.read();
-            match &**state {
-                DatabaseState::Initialized(initialized) => match &initialized.write_buffer_consumer
-                {
-                    Some(_) => return Err(WriteError::WritingOnlyAllowedThroughWriteBuffer),
-                    None => Arc::clone(&initialized.db),
-                },
-                state => {
-                    return Err(WriteError::NotInitialized {
-                        state: state.state_code(),
-                    })
-                }
-            }
-        };
-
-        db.store_operation(operation).map_err(|e| {
-            use super::db::Error;
-            match e {
-                Error::HardLimitReached {} => WriteError::HardLimitReached {},
-                Error::StoreWriteErrors { errors } => WriteError::StoreWriteErrors { errors },
-                e => e.into(),
-            }
-        })?;
 
         Ok(())
     }
