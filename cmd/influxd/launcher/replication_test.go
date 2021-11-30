@@ -212,9 +212,13 @@ func TestReplicationStreamEndToEnd(t *testing.T) {
 	// allow for synchronization. The server also returns an error on every other request to verify that remote write
 	// retries work correctly.
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 	serverShouldErr := true
 	proxyHandler := httputil.NewSingleHostReverseProxy(l.URL())
 	proxy := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+
 		if serverShouldErr {
 			serverShouldErr = false
 			w.Header().Set("Retry-After", strconv.Itoa(0)) // writer will use a minimal retry wait time
