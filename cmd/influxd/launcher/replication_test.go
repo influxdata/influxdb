@@ -2,12 +2,14 @@ package launcher_test
 
 import (
 	"fmt"
+	"net/http"
 	nethttp "net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influx-cli/v2/api"
 	"github.com/influxdata/influxdb/v2"
@@ -307,4 +309,75 @@ func TestReplicationStreamEndToEnd(t *testing.T) {
 	require.Equal(t, exp2, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(qs, localBucketName)))
 	require.Equal(t, exp2, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(qs, remote1BucketName)))
 	require.Equal(t, exp3, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(qs, remote2BucketName)))
+}
+
+func TestReplicationsLocalWriteBlocking(t *testing.T) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.FeatureFlags = map[string]string{feature.ReplicationStreamBackend().Key(): "true"}
+	})
+	defer l.ShutdownOrFail(t, ctx)
+	client := l.APIClient(t)
+
+	// Server that only returns an error will cause the remote write to retry on loop.
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer svr.Close()
+
+	// Create a "remote" connection to the blocking server
+	remote, err := client.RemoteConnectionsApi.PostRemoteConnection(ctx).
+		RemoteConnectionCreationRequest(api.RemoteConnectionCreationRequest{
+			Name:             "self",
+			OrgID:            l.Org.ID.String(),
+			RemoteURL:        svr.URL,
+			RemoteAPIToken:   "foo",
+			RemoteOrgID:      l.Org.ID.String(),
+			AllowInsecureTLS: false,
+		}).Execute()
+	require.NoError(t, err)
+
+	createReq := api.ReplicationCreationRequest{
+		Name:              "test",
+		OrgID:             l.Org.ID.String(),
+		RemoteID:          remote.Id,
+		LocalBucketID:     l.Bucket.ID.String(),
+		RemoteBucketID:    l.Bucket.ID.String(),
+		MaxQueueSizeBytes: influxdb.DefaultReplicationMaxQueueSizeBytes,
+	}
+
+	// Create the replication
+	_, err = client.ReplicationsApi.PostReplication(ctx).ReplicationCreationRequest(createReq).Execute()
+	require.NoError(t, err)
+
+	p := `m,k=v1 f=100i 946684800000000000`
+
+	// Do a write; the remote writer will block forever
+	l.WritePointsOrFail(t, p)
+
+	// Do some more writes; these should not be blocked locally, although the remote writer will be.
+	var wg sync.WaitGroup
+	for idx := 0; idx < 3; idx++ {
+		wg.Add(1)
+		go func() {
+			l.WritePointsOrFail(t, p)
+			wg.Done()
+		}()
+	}
+
+	writesAreDone := make(chan struct{})
+
+	go func() {
+		wg.Wait()
+		// If local writes don't block, this will quickly send on the writesAreDone channel to prevent the test from timing
+		// out.
+		writesAreDone <- struct{}{}
+	}()
+
+	// Test timeout
+	delay := 5 * time.Second
+	select {
+	case <-time.After(delay):
+		t.Fatalf("test timed out after %s - writing was blocked by remote writer", delay)
+	case <-writesAreDone:
+	}
 }
