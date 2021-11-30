@@ -179,8 +179,6 @@ impl FromStr for JaegerCtx {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use itertools::Itertools;
 
-        // TEMPORARY (#2297)
-        info!("traced request {}", s);
         let (trace_id, span_id, parent_span_id, flags) = s
             .split(':')
             .collect_tuple()

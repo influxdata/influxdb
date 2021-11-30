@@ -8,8 +8,8 @@ use crate::{
     rules::{PersistedDatabaseRules, ProvidedDatabaseRules},
     ApplicationState, Db,
 };
+use data_types::job::Job;
 use data_types::{server_id::ServerId, DatabaseName};
-use dml::DmlOperation;
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
@@ -21,29 +21,37 @@ use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
-use parquet_catalog::core::PreservedCatalog;
+use parquet_catalog::core::{PreservedCatalog, PreservedCatalogConfig};
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
 use time::Time;
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
+use tracker::{TaskTracker, TrackedFutureExt};
 use uuid::Uuid;
+
+/// Matches an error [`DatabaseState`] and clones the contained state
+macro_rules! error_state {
+    ($s:expr, $transition: literal, $variant:ident) => {
+        match &**$s.shared.state.read() {
+            DatabaseState::$variant(state, _) => state.clone(),
+            state => {
+                return InvalidState {
+                    db_name: &$s.shared.config.name,
+                    state: state.state_code(),
+                    transition: $transition,
+                }
+                .fail()
+            }
+        }
+    };
+}
 
 const INIT_BACKOFF: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display(
-        "a state transition is already in progress for database ({}) in state {}",
-        db_name,
-        state
-    ))]
-    TransitionInProgress {
-        db_name: String,
-        state: DatabaseStateCode,
-    },
-
     #[snafu(display(
         "database ({}) in invalid state ({:?}) for transition ({})",
         db_name,
@@ -64,6 +72,16 @@ pub enum Error {
     WipePreservedCatalog {
         db_name: String,
         source: Box<parquet_catalog::core::Error>,
+    },
+
+    #[snafu(display(
+        "failed to rebuild preserved catalog of database ({}): {}",
+        db_name,
+        source
+    ))]
+    RebuildPreservedCatalog {
+        db_name: String,
+        source: Box<parquet_catalog::rebuild::Error>,
     },
 
     #[snafu(display("failed to skip replay for database ({}): {}", db_name, source))]
@@ -92,32 +110,6 @@ pub enum Error {
         db_name: String,
         source: OwnerInfoUpdateError,
     },
-}
-
-#[derive(Debug, Snafu)]
-pub enum WriteError {
-    #[snafu(context(false))]
-    DbError { source: super::db::Error },
-
-    #[snafu(display("write buffer producer error: {}", source))]
-    WriteBuffer {
-        source: Box<dyn std::error::Error + Sync + Send>,
-    },
-
-    #[snafu(display("writing only allowed through write buffer"))]
-    WritingOnlyAllowedThroughWriteBuffer,
-
-    #[snafu(display("database not initialized: {}", state))]
-    NotInitialized { state: DatabaseStateCode },
-
-    #[snafu(display("Hard buffer size limit reached"))]
-    HardLimitReached {},
-
-    #[snafu(display(
-        "Storing database write failed with the following error(s), and possibly more: {}",
-        errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
-    ))]
-    StoreWriteErrors { errors: Vec<super::db::Error> },
 }
 
 type BackgroundWorkerFuture = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
@@ -487,47 +479,88 @@ impl Database {
     }
 
     /// Recover from a CatalogLoadError by wiping the catalog
-    pub fn wipe_preserved_catalog(&self) -> Result<impl Future<Output = Result<(), Error>>, Error> {
+    pub async fn wipe_preserved_catalog(&self) -> Result<TaskTracker<Job>, Error> {
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
         let db_name = &self.shared.config.name;
-        let (current_state, handle) = {
-            let state = self.shared.state.read();
-            let current_state = match &**state {
-                DatabaseState::CatalogLoadError(rules_loaded, _) => rules_loaded.clone(),
-                _ => {
-                    return InvalidState {
-                        db_name,
-                        state: state.state_code(),
-                        transition: "WipePreservedCatalog",
-                    }
-                    .fail()
-                }
-            };
+        let current_state = error_state!(self, "WipePreservedCatalog", CatalogLoadError);
 
-            let handle = state.try_freeze().context(TransitionInProgress {
-                db_name,
-                state: state.state_code(),
-            })?;
-
-            (current_state, handle)
-        };
+        let registry = self.shared.application.job_registry();
+        let (tracker, registration) = registry.register(Job::WipePreservedCatalog {
+            db_name: Arc::from(db_name.as_str()),
+        });
 
         let shared = Arc::clone(&self.shared);
 
-        Ok(async move {
-            let db_name = &shared.config.name;
+        tokio::spawn(
+            async move {
+                let db_name = &shared.config.name;
 
-            PreservedCatalog::wipe(&current_state.iox_object_store)
-                .await
-                .map_err(Box::new)
-                .context(WipePreservedCatalog { db_name })?;
+                PreservedCatalog::wipe(&current_state.iox_object_store)
+                    .await
+                    .map_err(Box::new)
+                    .context(WipePreservedCatalog { db_name })?;
 
-            {
-                let mut state = shared.state.write();
-                *state.unfreeze(handle) = DatabaseState::RulesLoaded(current_state);
+                {
+                    let mut state = shared.state.write();
+                    *state.unfreeze(handle) = DatabaseState::RulesLoaded(current_state);
+                }
+
+                Ok::<_, Error>(())
             }
+            .track(registration),
+        );
 
-            Ok(())
-        })
+        Ok(tracker)
+    }
+
+    /// Recover from a CatalogLoadError by wiping and rebuilding the catalog
+    pub async fn rebuild_preserved_catalog(&self) -> Result<TaskTracker<Job>, Error> {
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
+        let db_name = &self.shared.config.name;
+        let current_state = error_state!(self, "RebuildPreservedCatalog", CatalogLoadError);
+
+        let registry = self.shared.application.job_registry();
+        let (tracker, registration) = registry.register(Job::RebuildPreservedCatalog {
+            db_name: Arc::from(db_name.as_str()),
+        });
+
+        let shared = Arc::clone(&self.shared);
+
+        tokio::spawn(
+            async move {
+                let db_name = &shared.config.name;
+
+                // First attempt to wipe the catalog
+                PreservedCatalog::wipe(&current_state.iox_object_store)
+                    .await
+                    .map_err(Box::new)
+                    .context(WipePreservedCatalog { db_name })?;
+
+                let config = PreservedCatalogConfig::new(
+                    Arc::clone(&current_state.iox_object_store),
+                    db_name.to_string(),
+                    Arc::clone(shared.application.time_provider()),
+                );
+                parquet_catalog::rebuild::rebuild_catalog(config, false)
+                    .await
+                    .map_err(Box::new)
+                    .context(RebuildPreservedCatalog { db_name })?;
+
+                {
+                    let mut state = shared.state.write();
+                    *state.unfreeze(handle) = DatabaseState::RulesLoaded(current_state);
+                }
+
+                Ok::<_, Error>(())
+            }
+            .track(registration),
+        );
+
+        Ok(tracker)
     }
 
     /// Recover from a ReplayError by skipping replay
@@ -537,20 +570,7 @@ impl Database {
         let handle = self.shared.state.read().freeze();
         let handle = handle.await;
 
-        let mut current_state = {
-            let state = self.shared.state.read();
-            match &**state {
-                DatabaseState::ReplayError(rules_loaded, _) => rules_loaded.clone(),
-                _ => {
-                    return InvalidState {
-                        db_name,
-                        state: state.state_code(),
-                        transition: "SkipReplay",
-                    }
-                    .fail()
-                }
-            }
-        };
+        let mut current_state = error_state!(self, "SkipReplay", ReplayError);
 
         current_state.replay_plan = Arc::new(None);
         let current_state = current_state
@@ -561,38 +581,6 @@ impl Database {
 
         let mut state = self.shared.state.write();
         *state.unfreeze(handle) = DatabaseState::Initialized(current_state);
-
-        Ok(())
-    }
-
-    /// Writes a [`DmlOperation`] to this `Database`.
-    ///
-    /// If the database is configured to consume data from a write buffer, this call will fail.
-    pub fn store_operation(&self, operation: &DmlOperation) -> Result<(), WriteError> {
-        let db = {
-            let state = self.shared.state.read();
-            match &**state {
-                DatabaseState::Initialized(initialized) => match &initialized.write_buffer_consumer
-                {
-                    Some(_) => return Err(WriteError::WritingOnlyAllowedThroughWriteBuffer),
-                    None => Arc::clone(&initialized.db),
-                },
-                state => {
-                    return Err(WriteError::NotInitialized {
-                        state: state.state_code(),
-                    })
-                }
-            }
-        };
-
-        db.store_operation(operation).map_err(|e| {
-            use super::db::Error;
-            match e {
-                Error::HardLimitReached {} => WriteError::HardLimitReached {},
-                Error::StoreWriteErrors { errors } => WriteError::StoreWriteErrors { errors },
-                e => e.into(),
-            }
-        })?;
 
         Ok(())
     }

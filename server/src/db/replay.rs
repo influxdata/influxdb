@@ -251,7 +251,7 @@ pub async fn perform_replay(
                         Ok(_) => {
                             break;
                         }
-                        Err(crate::db::Error::HardLimitReached {}) if n_try < n_tries => {
+                        Err(crate::db::DmlError::HardLimitReached {}) if n_try < n_tries => {
                             if !logged_hard_limit {
                                 info!(
                                     %db_name,

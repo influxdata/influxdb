@@ -22,4 +22,5 @@ fi
 # portable way of saying TZ=UTC
 export TZ=C
 
+# shellcheck disable=SC2016
 exec gawk -F"time=" '{print strftime("%Y-%m-%d %H:%M:%S", $2/1000000000), $1 }'
