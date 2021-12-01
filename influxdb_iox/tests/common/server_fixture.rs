@@ -23,6 +23,7 @@ use influxdb_iox_client::connection::Connection;
 use once_cell::sync::OnceCell;
 use tempfile::{NamedTempFile, TempDir};
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 // These port numbers are chosen to not collide with a development ioxd server
 // running locally.
@@ -303,6 +304,20 @@ impl ServerFixture {
     /// Directory used for data storage.
     pub fn dir(&self) -> &Path {
         self.server.dir.path()
+    }
+
+    /// Poison persisted catalog
+    pub fn poison_catalog(&self, database_uuid: Uuid) {
+        let mut path = self.dir().to_path_buf();
+        path.push("dbs");
+        path.push(database_uuid.to_string());
+
+        path.push("transactions");
+        path.push("10000000000000000000");
+        std::fs::create_dir(path.clone()).unwrap();
+
+        path.push("48eb9059-ca73-45e1-b6b4-e1f47d6159fb.txn");
+        std::fs::write(path, "INVALID").unwrap();
     }
 }
 

@@ -1,6 +1,6 @@
 use data_types::{chunk_metadata::ChunkId, DatabaseName};
 use generated_types::{
-    google::{FieldViolation, FieldViolationExt, NotFound},
+    google::{FieldViolation, FieldViolationExt},
     influxdata::iox::management::v1::{Error as ProtobufError, *},
 };
 use query::QueryDatabase;
@@ -50,17 +50,8 @@ impl management_service_server::ManagementService for ManagementService {
         let name = DatabaseName::new(name).scope("name")?;
         let database = self
             .server
-            .database(&name)
+            .active_database(&name)
             .map_err(default_server_error_handler)?;
-
-        if !database.is_active() {
-            return Err(NotFound {
-                resource_type: "database".to_string(),
-                resource_name: name.to_string(),
-                ..Default::default()
-            }
-            .into());
-        }
 
         let rules = database
             .provided_rules()
@@ -370,6 +361,35 @@ impl management_service_server::ManagementService for ManagementService {
         Ok(Response::new(UnloadPartitionChunkResponse {}))
     }
 
+    async fn load_partition_chunk(
+        &self,
+        request: tonic::Request<LoadPartitionChunkRequest>,
+    ) -> Result<tonic::Response<LoadPartitionChunkResponse>, tonic::Status> {
+        let LoadPartitionChunkRequest {
+            db_name,
+            partition_key,
+            table_name,
+            chunk_id,
+        } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
+        let chunk_id = ChunkId::try_from(chunk_id).scope("chunk_id")?;
+
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
+
+        let tracker = db
+            .load_read_buffer(&table_name, &partition_key, chunk_id)
+            .map_err(default_db_error_handler)?;
+
+        let operation = Some(super::operations::encode_tracker(tracker)?);
+
+        Ok(Response::new(LoadPartitionChunkResponse { operation }))
+    }
+
     async fn get_server_status(
         &self,
         _request: Request<GetServerStatusRequest>,
@@ -426,6 +446,28 @@ impl management_service_server::ManagementService for ManagementService {
         let operation = Some(super::operations::encode_tracker(tracker)?);
 
         Ok(Response::new(WipePreservedCatalogResponse { operation }))
+    }
+
+    async fn rebuild_preserved_catalog(
+        &self,
+        request: Request<RebuildPreservedCatalogRequest>,
+    ) -> Result<Response<RebuildPreservedCatalogResponse>, Status> {
+        let RebuildPreservedCatalogRequest { db_name } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
+        let database = self
+            .server
+            .database(&db_name)
+            .map_err(default_server_error_handler)?;
+        let tracker = database
+            .rebuild_preserved_catalog()
+            .await
+            .map_err(default_database_error_handler)?;
+
+        let operation = Some(super::operations::encode_tracker(tracker)?);
+
+        Ok(Response::new(RebuildPreservedCatalogResponse { operation }))
     }
 
     async fn skip_replay(

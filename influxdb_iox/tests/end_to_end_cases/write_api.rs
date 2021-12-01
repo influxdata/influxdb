@@ -383,9 +383,7 @@ async fn test_write_routed_errors() {
         err.to_string(),
         format!(
             "Unexpected server error: \
-            The system is not in a state required for the operation's execution: \
-            Precondition violation influxdata.com/iox - router: \
-            One or more writes failed: \
+            The operation was aborted: One or more writes failed: \
             ShardId({}) => \"Write to sink set failed: No remote for server ID {}\"",
             TEST_SHARD_ID, TEST_REMOTE_ID,
         )
@@ -661,7 +659,7 @@ async fn test_write_schema_mismatch() {
         .write_lp(&db_name, "table field=1.1 10", 0)
         .await
         .unwrap_err();
-    assert_contains!(err.to_string(), "Table batch has mismatching schema");
+    assert_contains!(err.to_string(), "Schema Merge Error");
     if let WriteError::InvalidArgument(status) = &err {
         assert_eq!(status.code(), tonic::Code::InvalidArgument);
     } else {

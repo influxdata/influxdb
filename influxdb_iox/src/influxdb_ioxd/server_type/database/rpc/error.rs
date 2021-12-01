@@ -1,5 +1,6 @@
 use generated_types::google::{
     AlreadyExists, FieldViolation, InternalError, NotFound, PreconditionViolation, QuotaFailure,
+    ResourceType,
 };
 use observability_deps::tracing::error;
 
@@ -8,40 +9,28 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
     use server::{DatabaseNameFromRulesError, Error};
 
     match error {
-        Error::IdNotSet => PreconditionViolation {
-            category: "Writer ID".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: "Writer ID must be set".to_string(),
-        }
+        Error::IdNotSet => PreconditionViolation::ServerIdNotSet.into(),
+        Error::DatabaseNotInitialized { db_name } => PreconditionViolation::DatabaseInvalidState(
+            format!("Database ({}) is not yet initialized", db_name),
+        )
         .into(),
-        Error::DatabaseNotInitialized { db_name } => {
-            tonic::Status::unavailable(format!("Database ({}) is not yet initialized", db_name))
+        Error::DatabaseAlreadyExists { db_name } => {
+            AlreadyExists::new(ResourceType::Database, db_name).into()
         }
-        Error::DatabaseAlreadyExists { db_name } => AlreadyExists {
-            resource_type: "database".to_string(),
-            resource_name: db_name,
-            ..Default::default()
-        }
-        .into(),
-        Error::ServerNotInitialized { server_id } => tonic::Status::unavailable(format!(
-            "Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes \
+        Error::ServerNotInitialized { server_id } => {
+            PreconditionViolation::ServerInvalidState(format!(
+                "Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes \
                      are not loaded). Server is not yet ready to read/write data.",
-            server_id
-        )),
-        Error::DatabaseNotFound { db_name } => NotFound {
-            resource_type: "database".to_string(),
-            resource_name: db_name.clone(),
-            description: format!("Could not find database {}", db_name),
-            ..Default::default()
+                server_id
+            ))
+            .into()
         }
-        .into(),
-        Error::DatabaseUuidNotFound { uuid } => NotFound {
-            resource_type: "database".to_string(),
-            resource_name: uuid.to_string(),
-            description: format!("Could not find database with UUID {}", uuid),
-            ..Default::default()
+        Error::DatabaseNotFound { db_name } => {
+            NotFound::new(ResourceType::Database, db_name).into()
         }
-        .into(),
+        Error::DatabaseUuidNotFound { uuid } => {
+            NotFound::new(ResourceType::DatabaseUuid, uuid.to_string()).into()
+        }
         Error::InvalidDatabaseName { source } => FieldViolation {
             field: "db_name".into(),
             description: source.to_string(),
@@ -51,15 +40,15 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         Error::DatabaseInit { source } => {
             tonic::Status::invalid_argument(format!("Cannot initialize database: {}", source))
         }
-        Error::DatabaseAlreadyOwnedByThisServer { .. } => {
-            tonic::Status::already_exists(error.to_string())
+        Error::DatabaseAlreadyOwnedByThisServer { uuid } => {
+            AlreadyExists::new(ResourceType::DatabaseUuid, uuid.to_string()).into()
         }
         Error::UuidMismatch { .. } | Error::CannotClaimDatabase { .. } => {
             tonic::Status::invalid_argument(error.to_string())
         }
         Error::CouldNotGetDatabaseNameFromRules {
             source: DatabaseNameFromRulesError::DatabaseRulesNotFound { uuid, .. },
-        } => tonic::Status::not_found(format!("Could not find a database with UUID `{}`", uuid)),
+        } => NotFound::new(ResourceType::DatabaseUuid, uuid.to_string()).into(),
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()
@@ -71,27 +60,18 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
 pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic::Status {
     use server::db::catalog::Error;
     match error {
-        Error::TableNotFound { table } => NotFound {
-            resource_type: "table".to_string(),
-            resource_name: table,
-            ..Default::default()
+        Error::TableNotFound { table } => NotFound::new(ResourceType::Table, table).into(),
+        Error::PartitionNotFound { partition, table } => {
+            NotFound::new(ResourceType::Partition, format!("{}:{}", table, partition)).into()
         }
-        .into(),
-        Error::PartitionNotFound { partition, table } => NotFound {
-            resource_type: "partition".to_string(),
-            resource_name: format!("{}:{}", table, partition),
-            ..Default::default()
-        }
-        .into(),
         Error::ChunkNotFound {
             chunk_id,
             partition,
             table,
-        } => NotFound {
-            resource_type: "chunk".to_string(),
-            resource_name: format!("{}:{}:{}", table, partition, chunk_id),
-            ..Default::default()
-        }
+        } => NotFound::new(
+            ResourceType::Chunk,
+            format!("{}:{}:{}", table, partition, chunk_id),
+        )
         .into(),
     }
 }
@@ -100,14 +80,23 @@ pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic
 pub fn default_database_error_handler(error: server::database::Error) -> tonic::Status {
     use server::database::Error;
     match error {
-        Error::InvalidState { .. } => tonic::Status::failed_precondition(error.to_string()),
+        Error::InvalidState { .. } => {
+            PreconditionViolation::DatabaseInvalidState(error.to_string()).into()
+        }
+        Error::RulesNotUpdateable { .. } => {
+            PreconditionViolation::DatabaseInvalidState(error.to_string()).into()
+        }
         Error::WipePreservedCatalog { source, .. } => {
             error!(%source, "Unexpected error while wiping catalog");
             InternalError {}.into()
         }
-        Error::RulesNotUpdateable { .. } => tonic::Status::failed_precondition(error.to_string()),
-        Error::CannotPersistUpdatedRules { .. } => {
-            tonic::Status::failed_precondition(error.to_string())
+        Error::RebuildPreservedCatalog { source, .. } => {
+            error!(%source, "Unexpected error while rebuilding catalog");
+            InternalError {}.into()
+        }
+        Error::CannotPersistUpdatedRules { source } => {
+            error!(%source, "Unexpected error persisting database rules");
+            InternalError {}.into()
         }
         Error::SkipReplay { source, .. } => {
             error!(%source, "Unexpected error skipping replay");
@@ -125,46 +114,20 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
 pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
     use server::db::Error;
     match error {
-        Error::DatabaseNotWriteable {} => PreconditionViolation {
-            category: "database".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: "Cannot write to database: no mutable buffer configured".to_string(),
-        }
-        .into(),
-        Error::LifecycleError { source } => PreconditionViolation {
-            category: "chunk".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: format!(
-                "Cannot perform operation due to wrong chunk lifecycle: {}",
-                source
-            ),
-        }
+        Error::LifecycleError { source } => PreconditionViolation::ChunkInvalidState(format!(
+            "Cannot perform operation due to wrong chunk lifecycle: {}",
+            source
+        ))
         .into(),
         Error::CannotFlushPartition {
             table_name,
             partition_key,
-        } => PreconditionViolation {
-            category: "database".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: format!(
-                "Cannot persist partition because it cannot be flushed at the moment: {}:{}",
-                table_name, partition_key
-            ),
-        }
-        .into(),
-        Error::DeleteFromTable { source, table_name } => PreconditionViolation {
-            category: "database".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: format!("Cannot delete data from table: {} : {}", table_name, source),
-        }
+        } => PreconditionViolation::PartitionInvalidState(format!(
+            "Cannot persist partition because it cannot be flushed at the moment: {}:{}",
+            table_name, partition_key
+        ))
         .into(),
         Error::CatalogError { source } => default_catalog_error_handler(source),
-        Error::HardLimitReached {} => QuotaFailure {
-            subject: "influxdata.com/iox/buffer".to_string(),
-            description: "hard buffer limit reached".to_string(),
-        }
-        .into(),
-        Error::StoreWriteErrors { .. } => tonic::Status::invalid_argument(error.to_string()),
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()
@@ -172,29 +135,16 @@ pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
     }
 }
 
-/// map common [`database::WriteError`](server::database::WriteError) errors  to the appropriate tonic Status
-pub fn default_database_write_error_handler(error: server::database::WriteError) -> tonic::Status {
-    use server::database::WriteError;
+/// map common [`server::db::DmlError`](server::db::DmlError) errors  to the appropriate tonic Status
+pub fn default_dml_error_handler(error: server::db::DmlError) -> tonic::Status {
+    use server::db::DmlError;
 
     match error {
-        WriteError::HardLimitReached {} => QuotaFailure {
+        DmlError::HardLimitReached {} => QuotaFailure {
             subject: "influxdata.com/iox/buffer".to_string(),
             description: "hard buffer limit reached".to_string(),
         }
         .into(),
-        WriteError::DbError { source } => default_db_error_handler(source),
-        source @ WriteError::WritingOnlyAllowedThroughWriteBuffer => {
-            tonic::Status::failed_precondition(source.to_string())
-        }
-        WriteError::NotInitialized { state } => {
-            tonic::Status::unavailable(format!("Database is not yet initialized: {}", state))
-        }
-        error @ WriteError::StoreWriteErrors { .. } => {
-            tonic::Status::invalid_argument(error.to_string())
-        }
-        error => {
-            error!(?error, "Unexpected write error");
-            InternalError {}.into()
-        }
+        e => tonic::Status::invalid_argument(e.to_string()),
     }
 }

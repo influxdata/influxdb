@@ -39,6 +39,11 @@ ignore = [
     # why needed: part of `arrow`
     # upstream issue: https://github.com/google/flatbuffers/issues/6627
     "RUSTSEC-2021-0122",
+
+    # title: serde_cbor is unmaintained
+    # why needed: used by `criterion`
+    # upstream issue: https://github.com/bheisler/criterion.rs/issues/534
+    "RUSTSEC-2021-0127",
 ]
 
 [output]

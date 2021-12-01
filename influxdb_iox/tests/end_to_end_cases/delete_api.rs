@@ -121,14 +121,12 @@ async fn test_delete_on_database() {
     // ------------------------------------------
     // Negative Delete test to get error messages
 
-    // Delete from non-existing table
+    // Delete from non-existing table should be a no-op
     let table = "notable";
-    let del = delete_client
+    delete_client
         .delete(db_name.clone(), table, pred.into())
         .await
-        .unwrap_err()
-        .to_string();
-    assert!(del.contains("Cannot delete data from table"));
+        .unwrap();
 
     // Verify both existing tables still have the same data
     // query to verify data deleted

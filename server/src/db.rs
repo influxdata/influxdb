@@ -18,16 +18,16 @@ use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 pub use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
-use data_types::partition_metadata::PartitionAddr;
 use data_types::{
     chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
     database_rules::DatabaseRules,
     delete_predicate::DeletePredicate,
+    job::Job,
     partition_metadata::{PartitionSummary, TableSummary},
     server_id::ServerId,
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
-use dml::{DmlDelete, DmlOperation, DmlWrite};
+use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use internal_types::mailbox::Mailbox;
 use iox_object_store::IoxObjectStore;
 use mutable_batch::payload::PartitionWrite;
@@ -49,6 +49,7 @@ use schema::selection::Selection;
 use schema::Schema;
 use time::{Time, TimeProvider};
 use trace::ctx::SpanContext;
+use tracker::TaskTracker;
 use write_buffer::core::WriteBufferReading;
 
 pub(crate) use crate::db::chunk::DbChunk;
@@ -61,7 +62,7 @@ use crate::{
             chunk::{CatalogChunk, ChunkStage},
             partition::Partition,
             table::TableSchemaUpsertHandle,
-            Catalog, Error as CatalogError, TableNameFilter,
+            Catalog, TableNameFilter,
         },
         lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     },
@@ -94,39 +95,8 @@ pub enum Error {
     #[snafu(display("Error freezing chunk while rolling over partition: {}", source))]
     FreezingChunk { source: catalog::chunk::Error },
 
-    #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
-    DatabaseNotWriteable {},
-
-    #[snafu(display("Hard buffer size limit reached"))]
-    HardLimitReached {},
-
-    #[snafu(display(
-        "Cannot delete data from non-existing table, {}: {}",
-        table_name,
-        source
-    ))]
-    DeleteFromTable {
-        table_name: String,
-        source: CatalogError,
-    },
-
-    #[snafu(display(
-        "Storing database write failed with the following error(s), and possibly more: {}",
-        errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
-    ))]
-    StoreWriteErrors { errors: Vec<Error> },
-
     #[snafu(display("background task cancelled: {}", source))]
     TaskCancelled { source: futures::future::Aborted },
-
-    #[snafu(display("error batch had null times"))]
-    TableBatchMissingTimes {},
-
-    #[snafu(display("Table batch has invalid schema: {}", source))]
-    TableBatchSchemaExtractError { source: schema::builder::Error },
-
-    #[snafu(display("Table batch has mismatching schema: {}", source))]
-    TableBatchSchemaMergeError { source: schema::merge::Error },
 
     #[snafu(display(
         "Unable to flush partition at the moment {}:{}",
@@ -137,9 +107,6 @@ pub enum Error {
         table_name: String,
         partition_key: String,
     },
-
-    #[snafu(display("Partition {} has no open chunk", addr))]
-    NoOpenChunk { addr: PartitionAddr },
 
     #[snafu(display("Cannot create replay plan: {}", source))]
     ReplayPlanError {
@@ -159,6 +126,24 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+#[derive(Debug, Snafu)]
+pub enum DmlError {
+    #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
+    DatabaseNotWriteable {},
+
+    #[snafu(display("Hard buffer size limit reached"))]
+    HardLimitReached {},
+
+    #[snafu(display("writing only allowed through write buffer"))]
+    WritingOnlyAllowedThroughWriteBuffer,
+
+    #[snafu(display(
+        "Storing database write failed with the following error(s), and possibly more: {}",
+        errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+    ))]
+    SchemaErrors { errors: Vec<schema::merge::Error> },
+}
 
 /// `Db` is an instance-local, queryable, possibly persisted, and possibly mutable data store
 ///
@@ -507,7 +492,7 @@ impl Db {
     }
 
     /// Store a delete
-    pub(crate) fn store_delete(&self, delete: &DmlDelete) -> Result<()> {
+    pub(crate) fn store_delete(&self, delete: &DmlDelete) -> Result<(), DmlError> {
         self.store_filtered_delete(delete, DeleteFilterNone::default())
     }
 
@@ -516,7 +501,9 @@ impl Db {
         &self,
         delete: &DmlDelete,
         filter: impl DeleteFilter,
-    ) -> Result<()> {
+    ) -> Result<(), DmlError> {
+        self.can_store(delete.meta())?;
+
         let predicate = Arc::new(delete.predicate().clone());
         match delete.table_name() {
             None => {
@@ -534,10 +521,14 @@ impl Db {
 
     /// Delete data from a table on a specified predicate
     ///
-    /// Returns an error if the table cannot be found in the catalog
+    /// Delete is silently ignored if table cannot be found
     ///
     /// **WARNING: Only use that when no write buffer is used.**
-    pub fn delete(&self, table_name: &str, delete_predicate: Arc<DeletePredicate>) -> Result<()> {
+    pub fn delete(
+        &self,
+        table_name: &str,
+        delete_predicate: Arc<DeletePredicate>,
+    ) -> Result<(), DmlError> {
         self.delete_filtered(table_name, delete_predicate, DeleteFilterNone::default())
     }
 
@@ -546,17 +537,13 @@ impl Db {
         table_name: &str,
         delete_predicate: Arc<DeletePredicate>,
         filter: impl DeleteFilter,
-    ) -> Result<()> {
+    ) -> Result<(), DmlError> {
         // collect delete predicates on preserved partitions for a catalog transaction
         let mut affected_persisted_chunks = vec![];
 
         // get all partitions of this table
         // Note: we need an additional scope here to convince rustc that the future produced by this function is sendable.
-        {
-            let table = self
-                .catalog
-                .table(table_name)
-                .context(DeleteFromTable { table_name })?;
+        if let Ok(table) = self.catalog.table(table_name) {
             let partitions = table.partitions();
             for partition in partitions {
                 let partition = partition.write();
@@ -759,6 +746,17 @@ impl Db {
         lifecycle::unload_read_buffer_chunk(chunk).context(LifecycleError)
     }
 
+    /// Load chunk from object store to read buffer
+    pub fn load_read_buffer(
+        self: &Arc<Self>,
+        table_name: &str,
+        partition_key: &str,
+        chunk_id: ChunkId,
+    ) -> Result<TaskTracker<Job>> {
+        let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
+        LockableChunk::load_read_buffer(chunk.write()).context(LifecycleError)
+    }
+
     /// Return chunk summary information for all chunks in the specified
     /// partition across all storage systems
     pub fn partition_chunk_summaries(&self, partition_key: &str) -> Vec<ChunkSummary> {
@@ -958,17 +956,21 @@ impl Db {
         Ok(())
     }
 
-    /// Stores the write on this [`Db`].
-    pub(crate) fn store_operation(&self, operation: &DmlOperation) -> Result<()> {
-        let immutable = {
-            let rules = self.rules.read();
-            rules.lifecycle_rules.immutable
-        };
-        debug!(%immutable, "storing entry");
-        if immutable {
-            return DatabaseNotWriteable {}.fail();
+    /// Returns an error if this [`Db`] cannot accept a given DML operation
+    fn can_store(&self, meta: &DmlMeta) -> Result<(), DmlError> {
+        let rules = self.rules.read();
+        ensure!(!rules.lifecycle_rules.immutable, DatabaseNotWriteable);
+        if rules.write_buffer_connection.is_some() {
+            ensure!(
+                meta.sequence().is_some(),
+                WritingOnlyAllowedThroughWriteBuffer
+            );
         }
+        Ok(())
+    }
 
+    /// Stores the write on this [`Db`].
+    pub fn store_operation(&self, operation: &DmlOperation) -> Result<(), DmlError> {
         match operation {
             DmlOperation::Write(write) => self.store_write(write),
             DmlOperation::Delete(delete) => self.store_delete(delete),
@@ -976,7 +978,7 @@ impl Db {
     }
 
     /// Writes the provided [`DmlWrite`] to this database
-    pub(crate) fn store_write(&self, db_write: &DmlWrite) -> Result<()> {
+    pub(crate) fn store_write(&self, db_write: &DmlWrite) -> Result<(), DmlError> {
         self.store_filtered_write(db_write, WriteFilterNone::default())
     }
 
@@ -985,7 +987,9 @@ impl Db {
         &self,
         db_write: &DmlWrite,
         filter: impl WriteFilter,
-    ) -> Result<()> {
+    ) -> Result<(), DmlError> {
+        self.can_store(db_write.meta())?;
+
         // Get all needed database rule values, then release the lock
         let rules = self.rules.read();
         let partition_template = rules.partition_template.clone();
@@ -1010,7 +1014,7 @@ impl Db {
 
         // Protect against DoS by limiting the number of errors we might collect
         const MAX_ERRORS: usize = 10;
-        let mut errors = vec![];
+        let mut schema_errors = vec![];
 
         for (table_name, batch) in db_write.tables() {
             let write_schema = batch.schema(Selection::All).unwrap();
@@ -1018,13 +1022,11 @@ impl Db {
                 let table = self.catalog.get_or_create_table(table_name);
 
                 let schema_handle =
-                    match TableSchemaUpsertHandle::new(table.schema(), &write_schema)
-                        .context(TableBatchSchemaMergeError)
-                    {
+                    match TableSchemaUpsertHandle::new(table.schema(), &write_schema) {
                         Ok(schema_handle) => schema_handle,
                         Err(e) => {
-                            if errors.len() < MAX_ERRORS {
-                                errors.push(e);
+                            if schema_errors.len() < MAX_ERRORS {
+                                schema_errors.push(e);
                             }
                             continue;
                         }
@@ -1112,7 +1114,12 @@ impl Db {
             table_metrics.record_write(|| batch.timestamp_summary().unwrap_or_default());
         }
 
-        ensure!(errors.is_empty(), StoreWriteErrors { errors });
+        ensure!(
+            schema_errors.is_empty(),
+            SchemaErrors {
+                errors: schema_errors
+            }
+        );
 
         Ok(())
     }
@@ -1226,7 +1233,7 @@ pub mod test_helpers {
     use super::*;
 
     /// Try to write lineprotocol data and return all tables that where written.
-    pub fn try_write_lp(db: &Db, lp: &str) -> Result<Vec<String>> {
+    pub fn try_write_lp(db: &Db, lp: &str) -> Result<Vec<String>, DmlError> {
         let tables = lines_to_batches(lp, 0).unwrap();
         let mut table_names: Vec<_> = tables.keys().cloned().collect();
 
@@ -1240,25 +1247,6 @@ pub mod test_helpers {
     /// Same was [`try_write_lp`](try_write_lp) but will panic on failure.
     pub fn write_lp(db: &Db, lp: &str) -> Vec<String> {
         try_write_lp(db, lp).unwrap()
-    }
-
-    /// Convenience macro to test if an [`db::Error`](crate::db::Error) is a
-    /// [StoreWriteErrors](crate::db::Error::StoreWriteErrors) and then check for errors contained
-    /// in it.
-    #[macro_export]
-    macro_rules! assert_store_sequenced_entry_failures {
-        ($e:expr, [$($sub:pat),*]) => {
-            {
-                // bind $e to variable so we don't evaluate it twice
-                let e = $e;
-
-                if let $crate::db::Error::StoreWriteErrors{errors} = e {
-                    assert!(matches!(&errors[..], [$($sub),*]));
-                } else {
-                    panic!("Expected StoreWriteErrors but got {}", e);
-                }
-            }
-        };
     }
 
     /// Wait for the `db` to contain tables matching `expected_tables`
@@ -1375,7 +1363,6 @@ pub mod test_helpers {
 mod tests {
     use super::*;
     use crate::{
-        assert_store_sequenced_entry_failures,
         db::{
             catalog::chunk::ChunkStage,
             test_helpers::{
@@ -1385,7 +1372,7 @@ mod tests {
         },
         utils::{make_db, make_db_time, TestDb},
     };
-    use ::test_helpers::assert_contains;
+    use ::test_helpers::{assert_contains, assert_error};
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
@@ -2083,7 +2070,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1232);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1233);
 
         // All the chunks should have different IDs
         assert_ne!(mb_chunk.id(), rb_chunk.id());
@@ -2195,7 +2182,7 @@ mod tests {
         let registry = test_db.metric_registry.as_ref();
 
         // Read buffer + Parquet chunk size
-        let object_store_bytes = 1232;
+        let object_store_bytes = 1233;
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", object_store_bytes);
@@ -2910,7 +2897,7 @@ mod tests {
         // but second line will
         assert!(matches!(
             try_write_lp(db.as_ref(), "cpu bar=2 20"),
-            Err(super::Error::HardLimitReached {})
+            Err(super::DmlError::HardLimitReached {})
         ));
     }
 
@@ -3407,24 +3394,13 @@ mod tests {
         );
 
         // illegal changes
-        let e =
-            try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10").unwrap_err();
-        assert_store_sequenced_entry_failures!(
-            e,
-            [super::Error::TableBatchSchemaMergeError { .. }]
-        );
-        let e =
-            try_write_lp(&db, "my_table,tag_partition_by=b field_integer=\"foo\" 10").unwrap_err();
-        assert_store_sequenced_entry_failures!(
-            e,
-            [super::Error::TableBatchSchemaMergeError { .. }]
-        );
-        let e =
-            try_write_lp(&db, "my_table,tag_partition_by=c field_integer=\"foo\" 10").unwrap_err();
-        assert_store_sequenced_entry_failures!(
-            e,
-            [super::Error::TableBatchSchemaMergeError { .. }]
-        );
+        let r = try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10");
+        assert_error!(r, DmlError::SchemaErrors { .. });
+
+        let r = try_write_lp(&db, "my_table,tag_partition_by=b field_integer=\"foo\" 10");
+        assert_error!(r, DmlError::SchemaErrors { .. });
+        let r = try_write_lp(&db, "my_table,tag_partition_by=c field_integer=\"foo\" 10");
+        assert_error!(r, DmlError::SchemaErrors { .. });
 
         // drop all chunks
         for partition_key in db.partition_keys().unwrap() {
@@ -3449,12 +3425,8 @@ mod tests {
         }
 
         // schema is still there
-        let e =
-            try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10").unwrap_err();
-        assert_store_sequenced_entry_failures!(
-            e,
-            [super::Error::TableBatchSchemaMergeError { .. }]
-        );
+        let r = try_write_lp(&db, "my_table,tag_partition_by=a field_integer=\"foo\" 10");
+        assert_error!(r, DmlError::SchemaErrors { .. });
     }
 
     #[tokio::test]

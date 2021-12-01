@@ -7,7 +7,7 @@ use prost::Message;
 use tonic::Response;
 
 use data_types::job::Job;
-use generated_types::google::FieldViolationExt;
+use generated_types::google::{FieldViolationExt, ResourceType};
 use generated_types::{
     google::{
         longrunning::*,
@@ -116,11 +116,9 @@ fn get_tracker(jobs: &JobRegistry, tracker: String) -> Result<TaskTracker<Job>, 
         description: e.to_string(),
     })?;
 
-    let tracker = jobs.get(tracker_id).ok_or(NotFound {
-        resource_type: "job".to_string(),
-        resource_name: tracker,
-        ..Default::default()
-    })?;
+    let tracker = jobs
+        .get(tracker_id)
+        .ok_or_else(|| NotFound::new(ResourceType::Job, tracker))?;
 
     Ok(tracker)
 }

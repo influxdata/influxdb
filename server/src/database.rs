@@ -10,7 +10,6 @@ use crate::{
 };
 use data_types::job::Job;
 use data_types::{server_id::ServerId, DatabaseName};
-use dml::DmlOperation;
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
@@ -22,7 +21,7 @@ use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
-use parquet_catalog::core::PreservedCatalog;
+use parquet_catalog::core::{PreservedCatalog, PreservedCatalogConfig};
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
@@ -75,6 +74,16 @@ pub enum Error {
         source: Box<parquet_catalog::core::Error>,
     },
 
+    #[snafu(display(
+        "failed to rebuild preserved catalog of database ({}): {}",
+        db_name,
+        source
+    ))]
+    RebuildPreservedCatalog {
+        db_name: String,
+        source: Box<parquet_catalog::rebuild::Error>,
+    },
+
     #[snafu(display("failed to skip replay for database ({}): {}", db_name, source))]
     SkipReplay {
         db_name: String,
@@ -101,32 +110,6 @@ pub enum Error {
         db_name: String,
         source: OwnerInfoUpdateError,
     },
-}
-
-#[derive(Debug, Snafu)]
-pub enum WriteError {
-    #[snafu(context(false))]
-    DbError { source: super::db::Error },
-
-    #[snafu(display("write buffer producer error: {}", source))]
-    WriteBuffer {
-        source: Box<dyn std::error::Error + Sync + Send>,
-    },
-
-    #[snafu(display("writing only allowed through write buffer"))]
-    WritingOnlyAllowedThroughWriteBuffer,
-
-    #[snafu(display("database not initialized: {}", state))]
-    NotInitialized { state: DatabaseStateCode },
-
-    #[snafu(display("Hard buffer size limit reached"))]
-    HardLimitReached {},
-
-    #[snafu(display(
-        "Storing database write failed with the following error(s), and possibly more: {}",
-        errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
-    ))]
-    StoreWriteErrors { errors: Vec<super::db::Error> },
 }
 
 type BackgroundWorkerFuture = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
@@ -532,6 +515,54 @@ impl Database {
         Ok(tracker)
     }
 
+    /// Recover from a CatalogLoadError by wiping and rebuilding the catalog
+    pub async fn rebuild_preserved_catalog(&self) -> Result<TaskTracker<Job>, Error> {
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
+        let db_name = &self.shared.config.name;
+        let current_state = error_state!(self, "RebuildPreservedCatalog", CatalogLoadError);
+
+        let registry = self.shared.application.job_registry();
+        let (tracker, registration) = registry.register(Job::RebuildPreservedCatalog {
+            db_name: Arc::from(db_name.as_str()),
+        });
+
+        let shared = Arc::clone(&self.shared);
+
+        tokio::spawn(
+            async move {
+                let db_name = &shared.config.name;
+
+                // First attempt to wipe the catalog
+                PreservedCatalog::wipe(&current_state.iox_object_store)
+                    .await
+                    .map_err(Box::new)
+                    .context(WipePreservedCatalog { db_name })?;
+
+                let config = PreservedCatalogConfig::new(
+                    Arc::clone(&current_state.iox_object_store),
+                    db_name.to_string(),
+                    Arc::clone(shared.application.time_provider()),
+                );
+                parquet_catalog::rebuild::rebuild_catalog(config, false)
+                    .await
+                    .map_err(Box::new)
+                    .context(RebuildPreservedCatalog { db_name })?;
+
+                {
+                    let mut state = shared.state.write();
+                    *state.unfreeze(handle) = DatabaseState::RulesLoaded(current_state);
+                }
+
+                Ok::<_, Error>(())
+            }
+            .track(registration),
+        );
+
+        Ok(tracker)
+    }
+
     /// Recover from a ReplayError by skipping replay
     pub async fn skip_replay(&self) -> Result<(), Error> {
         let db_name = &self.shared.config.name;
@@ -550,38 +581,6 @@ impl Database {
 
         let mut state = self.shared.state.write();
         *state.unfreeze(handle) = DatabaseState::Initialized(current_state);
-
-        Ok(())
-    }
-
-    /// Writes a [`DmlOperation`] to this `Database`.
-    ///
-    /// If the database is configured to consume data from a write buffer, this call will fail.
-    pub fn store_operation(&self, operation: &DmlOperation) -> Result<(), WriteError> {
-        let db = {
-            let state = self.shared.state.read();
-            match &**state {
-                DatabaseState::Initialized(initialized) => match &initialized.write_buffer_consumer
-                {
-                    Some(_) => return Err(WriteError::WritingOnlyAllowedThroughWriteBuffer),
-                    None => Arc::clone(&initialized.db),
-                },
-                state => {
-                    return Err(WriteError::NotInitialized {
-                        state: state.state_code(),
-                    })
-                }
-            }
-        };
-
-        db.store_operation(operation).map_err(|e| {
-            use super::db::Error;
-            match e {
-                Error::HardLimitReached {} => WriteError::HardLimitReached {},
-                Error::StoreWriteErrors { errors } => WriteError::StoreWriteErrors { errors },
-                e => e.into(),
-            }
-        })?;
 
         Ok(())
     }

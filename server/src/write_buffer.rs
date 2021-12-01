@@ -176,7 +176,7 @@ async fn stream_in_sequenced_entries<'a>(
 
                     break;
                 }
-                Err(crate::db::Error::HardLimitReached {}) => {
+                Err(crate::db::DmlError::HardLimitReached {}) => {
                     // wait a bit and retry
                     if !logged_hard_limit {
                         info!(

@@ -47,6 +47,9 @@ pub enum Job {
 
     /// Load chunk to read buffer from object store
     LoadReadBufferChunk { chunk: ChunkAddr },
+
+    /// Rebuild preserved catalog
+    RebuildPreservedCatalog { db_name: Arc<str> },
 }
 
 impl Job {
@@ -62,6 +65,7 @@ impl Job {
             Self::DropPartition { partition, .. } => Some(&partition.db_name),
             Self::WipePreservedCatalog { db_name, .. } => Some(db_name),
             Self::LoadReadBufferChunk { chunk } => Some(&chunk.db_name),
+            Self::RebuildPreservedCatalog { db_name } => Some(db_name),
         }
     }
 
@@ -77,6 +81,7 @@ impl Job {
             Self::DropPartition { partition, .. } => Some(&partition.partition_key),
             Self::WipePreservedCatalog { .. } => None,
             Self::LoadReadBufferChunk { chunk } => Some(&chunk.partition_key),
+            Self::RebuildPreservedCatalog { .. } => None,
         }
     }
 
@@ -92,6 +97,7 @@ impl Job {
             Self::DropPartition { partition, .. } => Some(&partition.table_name),
             Self::WipePreservedCatalog { .. } => None,
             Self::LoadReadBufferChunk { chunk } => Some(&chunk.table_name),
+            Self::RebuildPreservedCatalog { .. } => None,
         }
     }
 
@@ -107,6 +113,7 @@ impl Job {
             Self::DropPartition { .. } => None,
             Self::WipePreservedCatalog { .. } => None,
             Self::LoadReadBufferChunk { chunk } => Some(vec![chunk.chunk_id]),
+            Self::RebuildPreservedCatalog { .. } => None,
         }
     }
 
@@ -126,6 +133,7 @@ impl Job {
             }
             Self::WipePreservedCatalog { .. } => "Wipe preserved catalog",
             Self::LoadReadBufferChunk { .. } => "Loading chunk to read buffer",
+            Self::RebuildPreservedCatalog { .. } => "Rebuild preserved catalog",
         }
     }
 }
@@ -146,6 +154,9 @@ impl std::fmt::Display for Job {
                 write!(f, "Job::WipePreservedCatalog({})", db_name)
             }
             Job::LoadReadBufferChunk { chunk } => write!(f, "Job::LoadReadBufferChunk({})", chunk),
+            Job::RebuildPreservedCatalog { db_name } => {
+                write!(f, "Job::RebuildPreservedCatalog({})", db_name)
+            }
         }
     }
 }

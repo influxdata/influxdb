@@ -14,7 +14,7 @@
 use data_types::{names::OrgBucketMappingError, DatabaseName};
 use influxdb_iox_client::format::QueryOutputFormat;
 use query::exec::ExecutionContextProvider;
-use server::{database::WriteError, Error};
+use server::Error;
 
 // External crates
 use async_trait::async_trait;
@@ -176,52 +176,18 @@ impl HttpDrivenDml for DatabaseServerType {
         db_name: &DatabaseName<'_>,
         op: DmlOperation,
     ) -> Result<(), InnerDmlError> {
-        match op {
-            DmlOperation::Write(write) => {
-                let database = self.server.active_database(db_name).map_err(|_| {
-                    InnerDmlError::DatabaseNotFound {
-                        db_name: db_name.to_string(),
-                    }
-                })?;
+        let db = self
+            .server
+            .db(db_name)
+            .map_err(|_| InnerDmlError::DatabaseNotFound {
+                db_name: db_name.to_string(),
+            })?;
 
-                database
-                    .store_operation(&DmlOperation::Write(write))
-                    .map_err(|e| InnerDmlError::InternalError {
-                        db_name: db_name.to_string(),
-                        source: Box::new(e),
-                    })
-            }
-            DmlOperation::Delete(delete) => {
-                let database = self.server.active_database(db_name).map_err(|_| {
-                    InnerDmlError::DatabaseNotFound {
-                        db_name: db_name.to_string(),
-                    }
-                })?;
-
-                database
-                    .store_operation(&DmlOperation::Delete(delete))
-                    .map_err(|e| match e {
-                        WriteError::DbError { source } => match source {
-                            server::db::Error::DeleteFromTable { table_name, .. } => {
-                                InnerDmlError::TableNotFound {
-                                    db_name: db_name.to_string(),
-                                    table_name,
-                                }
-                            }
-                            _ => InnerDmlError::InternalError {
-                                db_name: db_name.to_string(),
-                                source: Box::new(source),
-                            },
-                        },
-                        e => InnerDmlError::InternalError {
-                            db_name: db_name.to_string(),
-                            source: Box::new(dbg!(e)),
-                        },
-                    })?;
-
-                Ok(())
-            }
-        }
+        db.store_operation(&op)
+            .map_err(|e| InnerDmlError::UserError {
+                db_name: db_name.to_string(),
+                source: Box::new(e),
+            })
     }
 }
 

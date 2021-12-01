@@ -555,21 +555,10 @@ pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
         .await
         .unwrap();
 
-    let mut path = fixture.dir().to_path_buf();
-    path.push("dbs");
-    path.push(uuid.to_string());
-
-    path.push("transactions");
-    path.push("00000000000000000001");
-    std::fs::create_dir(path.clone()).unwrap();
-
-    path.push("48eb9059-ca73-45e1-b6b4-e1f47d6159fb.txn");
-    std::fs::write(path, "INVALID").unwrap();
-
     //
     // Try to load broken catalog and error
     //
-
+    fixture.poison_catalog(uuid);
     let fixture = fixture.restart_server().await;
 
     let status = fixture.wait_server_initialized().await;

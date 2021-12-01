@@ -1,5 +1,5 @@
 use dml::{DmlMeta, DmlOperation, DmlWrite};
-use generated_types::google::{FieldViolation, NotFound, PreconditionViolation};
+use generated_types::google::{FieldViolation, NotFound, ResourceType};
 use generated_types::influxdata::pbdata::v1::*;
 use router::server::RouterServer;
 use std::sync::Arc;
@@ -33,15 +33,12 @@ impl write_service_server::WriteService for PBWriteService {
         let router = self
             .server
             .router(&database_batch.database_name)
-            .ok_or_else(NotFound::default)?;
-        router.write(write).await.map_err::<tonic::Status, _>(|e| {
-            PreconditionViolation {
-                category: String::from("router"),
-                subject: String::from("influxdata.com/iox"),
-                description: e.to_string(),
-            }
-            .into()
-        })?;
+            .ok_or_else(|| NotFound::new(ResourceType::Router, database_batch.database_name))?;
+
+        router
+            .write(write)
+            .await
+            .map_err::<tonic::Status, _>(|e| tonic::Status::aborted(e.to_string()))?;
 
         Ok(tonic::Response::new(WriteResponse {}))
     }
