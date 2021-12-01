@@ -120,6 +120,7 @@ impl ChunkGenerator {
             .storage
             .write_to_object_store(chunk_addr, stream, metadata.clone())
             .await
+            .unwrap()
             .unwrap();
 
         let chunk = ParquetChunk::new_from_parts(

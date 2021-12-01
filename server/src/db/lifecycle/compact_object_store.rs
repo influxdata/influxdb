@@ -382,7 +382,7 @@ async fn persist_stream_to_chunk<'a>(
     // Write the chunk stream data into a parquet file in the storage
     let chunk_addr = ChunkAddr::new(partition_addr, iox_metadata.chunk_id);
     let written_result = storage
-        .write_to_object_store_if_having_data(chunk_addr, stream, iox_metadata)
+        .write_to_object_store(chunk_addr, stream, iox_metadata)
         .await
         .context(WritingToObjectStore)?;
 
