@@ -15,7 +15,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # Google Cloud Storage integration
 cloud-storage = {version = "0.10.3", optional = true}
 futures = "0.3"
-indexmap = { version = "1.7", optional = true }
+indexmap = { version = "1.7", optional = true, features = ["std"] }
 itertools = "0.10.1"
 observability_deps = { path = "../observability_deps" }
 percent-encoding = "2.1"
