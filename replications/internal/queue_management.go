@@ -370,7 +370,7 @@ func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byt
 	qm.metrics.EnqueueData(replicationID, len(data), numPoints, rq.queue.TotalBytes())
 
 	// Send to the replication receive channel if it is not full to activate the queue processing. If the receive channel
-	// is not full, don't block further writes and return.
+	// is full, don't block further writes and return.
 	select {
 	case qm.replicationQueues[replicationID].receive <- struct{}{}:
 	default:
