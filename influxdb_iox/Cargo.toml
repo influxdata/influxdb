@@ -103,7 +103,7 @@ hex = "0.4.2"
 predicates = "2.1.0"
 rand = "0.8.3"
 regex = "1"
-reqwest = "0.11"
+reqwest = { version = "0.11", features = ["json"] }
 tempfile = "3.1.0"
 
 [features]
