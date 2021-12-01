@@ -1,14 +1,19 @@
 package metrics
 
 import (
+	"strconv"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type ReplicationsMetrics struct {
-	TotalPointsQueued  *prometheus.CounterVec
-	TotalBytesQueued   *prometheus.CounterVec
-	CurrentBytesQueued *prometheus.GaugeVec
+	TotalPointsQueued       *prometheus.CounterVec
+	TotalBytesQueued        *prometheus.CounterVec
+	CurrentBytesQueued      *prometheus.GaugeVec
+	RemoteWriteErrors       *prometheus.CounterVec
+	RemoteWriteBytesSent    *prometheus.CounterVec
+	RemoteWriteBytesDropped *prometheus.CounterVec
 }
 
 func NewReplicationsMetrics() *ReplicationsMetrics {
@@ -34,6 +39,24 @@ func NewReplicationsMetrics() *ReplicationsMetrics {
 			Name:      "current_bytes_queued",
 			Help:      "Current number of bytes in the replication stream queue",
 		}, []string{"replicationID"}),
+		RemoteWriteErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "remote_write_errors",
+			Help:      "Error codes returned from attempted remote writes",
+		}, []string{"replicationID", "code"}),
+		RemoteWriteBytesSent: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "remote_write_bytes_sent",
+			Help:      "Bytes of data successfully sent by the replication stream",
+		}, []string{"replicationID"}),
+		RemoteWriteBytesDropped: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "remote_write_bytes_dropped",
+			Help:      "Bytes of data dropped by the replication stream",
+		}, []string{"replicationID"}),
 	}
 }
 
@@ -43,17 +66,35 @@ func (rm *ReplicationsMetrics) PrometheusCollectors() []prometheus.Collector {
 		rm.TotalPointsQueued,
 		rm.TotalBytesQueued,
 		rm.CurrentBytesQueued,
+		rm.RemoteWriteErrors,
+		rm.RemoteWriteBytesSent,
+		rm.RemoteWriteBytesDropped,
 	}
 }
 
 // EnqueueData updates the metrics when adding new data to a replication queue.
-func (rm *ReplicationsMetrics) EnqueueData(replicationID platform.ID, numBytes, numPoints int, queueSizeOnDisk int64) {
+func (rm *ReplicationsMetrics) EnqueueData(replicationID platform.ID, numBytes, numPoints int, queueSize int64) {
 	rm.TotalPointsQueued.WithLabelValues(replicationID.String()).Add(float64(numPoints))
 	rm.TotalBytesQueued.WithLabelValues(replicationID.String()).Add(float64(numBytes))
-	rm.CurrentBytesQueued.WithLabelValues(replicationID.String()).Set(float64(queueSizeOnDisk))
+	rm.CurrentBytesQueued.WithLabelValues(replicationID.String()).Set(float64(queueSize))
 }
 
 // Dequeue updates the metrics when data has been removed from the queue.
-func (rm *ReplicationsMetrics) Dequeue(replicationID platform.ID, queueSizeOnDisk int64) {
-	rm.CurrentBytesQueued.WithLabelValues(replicationID.String()).Set(float64(queueSizeOnDisk))
+func (rm *ReplicationsMetrics) Dequeue(replicationID platform.ID, queueSize int64) {
+	rm.CurrentBytesQueued.WithLabelValues(replicationID.String()).Set(float64(queueSize))
+}
+
+// RemoteWriteError increments the error code counter for the replication.
+func (rm *ReplicationsMetrics) RemoteWriteError(replicationID platform.ID, errorCode int) {
+	rm.RemoteWriteErrors.WithLabelValues(replicationID.String(), strconv.Itoa(errorCode)).Inc()
+}
+
+// RemoteWriteSent increases the total count of bytes sent following a successful remote write
+func (rm *ReplicationsMetrics) RemoteWriteSent(replicationID platform.ID, bytes int) {
+	rm.RemoteWriteBytesSent.WithLabelValues(replicationID.String()).Add(float64(bytes))
+}
+
+// RemoteWriteDropped increases the total count of bytes dropped when data is dropped
+func (rm *ReplicationsMetrics) RemoteWriteDropped(replicationID platform.ID, bytes int) {
+	rm.RemoteWriteBytesDropped.WithLabelValues(replicationID.String()).Add(float64(bytes))
 }

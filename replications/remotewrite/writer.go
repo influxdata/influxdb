@@ -106,14 +106,20 @@ func (w *writer) Write(ctx context.Context, data []byte) error {
 			return err
 		}
 
+		// Update metrics and most recent error diagnostic information.
+		w.metrics.RemoteWriteError(w.replicationID, res.StatusCode)
 		if err := w.configStore.UpdateResponseInfo(ctx, w.replicationID, res.StatusCode, msg); err != nil {
 			return err
 		}
 
 		if err == nil {
 			// Successful write
+			w.metrics.RemoteWriteSent(w.replicationID, len(data))
+			w.logger.Debug("remote write successful", zap.Int("attempt", attempts), zap.Int("bytes", len(data)))
 			return nil
 		}
+
+		w.logger.Debug("remote write error", zap.Int("attempt", attempts), zap.String("error message", "msg"), zap.Int("status code", res.StatusCode))
 
 		attempts++
 		var waitTime time.Duration
@@ -122,7 +128,8 @@ func (w *writer) Write(ctx context.Context, data []byte) error {
 		switch res.StatusCode {
 		case http.StatusBadRequest:
 			if conf.DropNonRetryableData {
-				w.logger.Debug(fmt.Sprintf("dropped %d bytes of data due to %d response from server", len(data), http.StatusBadRequest))
+				w.logger.Debug("dropped data", zap.Int("bytes", len(data)))
+				w.metrics.RemoteWriteDropped(w.replicationID, len(data))
 				return nil
 			}
 		case http.StatusTooManyRequests:
@@ -136,6 +143,7 @@ func (w *writer) Write(ctx context.Context, data []byte) error {
 		if !hasSetWaitTime {
 			waitTime = w.backoff(attempts)
 		}
+		w.logger.Debug("waiting to retry", zap.Duration("wait time", waitTime))
 
 		select {
 		case <-w.waitFunc(waitTime):

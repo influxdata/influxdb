@@ -178,7 +178,7 @@ func (rq *replicationQueue) SendWrite() bool {
 
 	// Update metrics after the call to scan.Advance()
 	defer func() {
-		rq.metrics.Dequeue(rq.id, rq.queue.DiskUsage())
+		rq.metrics.Dequeue(rq.id, rq.queue.TotalBytes())
 	}()
 
 	if _, err = scan.Advance(); err != nil {
@@ -361,7 +361,7 @@ func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byt
 		return err
 	}
 	// Update metrics for this replication queue when adding data to the queue.
-	qm.metrics.EnqueueData(replicationID, len(data), numPoints, rq.queue.DiskUsage())
+	qm.metrics.EnqueueData(replicationID, len(data), numPoints, rq.queue.TotalBytes())
 
 	qm.replicationQueues[replicationID].receive <- struct{}{}
 

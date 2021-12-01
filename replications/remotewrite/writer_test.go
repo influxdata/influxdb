@@ -14,6 +14,8 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"github.com/influxdata/influxdb/v2/replications/metrics"
 	replicationsMock "github.com/influxdata/influxdb/v2/replications/mock"
 	"github.com/stretchr/testify/require"
@@ -242,6 +244,102 @@ func TestWrite(t *testing.T) {
 		configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusInternalServerError, invalidResponseCode(http.StatusInternalServerError).Error()).Return(nil)
 		require.Equal(t, context.Canceled, w.Write(ctx, testData))
 	})
+}
+
+func TestWrite_Metrics(t *testing.T) {
+	maximumAttemptsBeforeErr := 5
+	testData := []byte("this is some data")
+
+	tests := []struct {
+		name                 string
+		status               int
+		data                 []byte
+		wantWriteErr         error
+		registerExpectations func(*testing.T, *replicationsMock.MockHttpConfigStore, *influxdb.ReplicationHTTPConfig)
+		checkMetrics         func(*testing.T, *prom.Registry)
+	}{
+		{
+			name:         "server errors",
+			status:       http.StatusTeapot,
+			data:         []byte{},
+			wantWriteErr: errors.New("maximum number of attempts exceeded"),
+			registerExpectations: func(t *testing.T, store *replicationsMock.MockHttpConfigStore, conf *influxdb.ReplicationHTTPConfig) {
+				store.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(conf, nil).Times(5)
+				store.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusTeapot, invalidResponseCode(http.StatusTeapot).Error()).Return(nil).Times(5)
+			},
+			checkMetrics: func(t *testing.T, reg *prom.Registry) {
+				mfs := promtest.MustGather(t, reg)
+
+				errorCodes := promtest.FindMetric(mfs, "replications_queue_remote_write_errors", map[string]string{
+					"replicationID": testID.String(),
+					"code":          strconv.Itoa(http.StatusTeapot),
+				})
+				require.NotNil(t, errorCodes)
+				require.Equal(t, float64(maximumAttemptsBeforeErr), errorCodes.Counter.GetValue())
+			},
+		},
+		{
+			name:         "successful write",
+			status:       http.StatusNoContent,
+			data:         testData,
+			wantWriteErr: nil,
+			registerExpectations: func(t *testing.T, store *replicationsMock.MockHttpConfigStore, conf *influxdb.ReplicationHTTPConfig) {
+				store.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(conf, nil)
+				store.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusNoContent, "").Return(nil)
+			},
+			checkMetrics: func(t *testing.T, reg *prom.Registry) {
+				mfs := promtest.MustGather(t, reg)
+
+				bytesSent := promtest.FindMetric(mfs, "replications_queue_remote_write_bytes_sent", map[string]string{
+					"replicationID": testID.String(),
+				})
+				require.NotNil(t, bytesSent)
+				require.Equal(t, float64(len(testData)), bytesSent.Counter.GetValue())
+			},
+		},
+		{
+			name:         "dropped data",
+			status:       http.StatusBadRequest,
+			data:         testData,
+			wantWriteErr: nil,
+			registerExpectations: func(t *testing.T, store *replicationsMock.MockHttpConfigStore, conf *influxdb.ReplicationHTTPConfig) {
+				store.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(conf, nil)
+				store.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusBadRequest, invalidResponseCode(http.StatusBadRequest).Error()).Return(nil)
+			},
+			checkMetrics: func(t *testing.T, reg *prom.Registry) {
+				mfs := promtest.MustGather(t, reg)
+
+				bytesDropped := promtest.FindMetric(mfs, "replications_queue_remote_write_bytes_dropped", map[string]string{
+					"replicationID": testID.String(),
+				})
+				require.NotNil(t, bytesDropped)
+				require.Equal(t, float64(len(testData)), bytesDropped.Counter.GetValue())
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svr := testServer(t, tt.status, tt.data)
+			defer svr.Close()
+
+			testConfig := &influxdb.ReplicationHTTPConfig{
+				RemoteURL:            svr.URL,
+				DropNonRetryableData: true,
+			}
+
+			w, configStore := testWriter(t)
+			reg := prom.NewRegistry(zaptest.NewLogger(t))
+			reg.MustRegister(w.metrics.PrometheusCollectors()...)
+
+			w.waitFunc = instaWait()
+			w.maximumAttemptsBeforeErr = maximumAttemptsBeforeErr
+
+			tt.registerExpectations(t, configStore, testConfig)
+			require.Equal(t, tt.wantWriteErr, w.Write(context.Background(), tt.data))
+			tt.checkMetrics(t, reg)
+		})
+	}
 }
 
 func TestPostWrite(t *testing.T) {
