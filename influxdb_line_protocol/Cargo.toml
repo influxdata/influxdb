@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies] # In alphabetical order
 nom = { version = "7", default-features = false, features = ["std"] }
-smallvec = "1.7.0"
+smallvec = { version = "1.7.0", features = ["union"] }
 snafu = "0.6.2"
 observability_deps = { path = "../observability_deps" }
 workspace-hack = { path = "../workspace-hack"}
