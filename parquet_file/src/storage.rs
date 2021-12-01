@@ -160,6 +160,35 @@ impl Storage {
         Ok((path, file_size_bytes, md))
     }
 
+    /// Write the given stream of data of a specified table of
+    /// a specified partitioned chunk to a parquet file of this storage
+    ///
+    /// returns the path to which the chunk was written, the size of
+    /// the bytes, and the parquet metadata
+    pub async fn write_to_object_store_if_having_data(
+        &self,
+        chunk_addr: ChunkAddr,
+        stream: SendableRecordBatchStream,
+        metadata: IoxMetadata,
+    ) -> Result<Option<(ParquetFilePath, usize, IoxParquetMetaData)>> {
+        // Create full path location of this file in object store
+        let path = ParquetFilePath::new(&chunk_addr);
+
+        let schema = stream.schema();
+        let data = Self::parquet_stream_to_bytes(stream, schema, metadata).await?;
+        // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
+        if data.is_empty() {
+            return Ok(None);
+        }
+
+        let file_size_bytes = data.len();
+        let md =
+            IoxParquetMetaData::from_file_bytes(data.clone()).context(ExtractingMetadataFailure)?;
+        self.to_object_store(data, &path).await?;
+
+        Ok(Some((path, file_size_bytes, md)))
+    }
+
     fn writer_props(metadata_bytes: &[u8]) -> WriterProperties {
         WriterProperties::builder()
             .set_key_value_metadata(Some(vec![KeyValue {

@@ -559,14 +559,27 @@ impl Db {
 
                     // We should only report persisted chunks or chunks that are currently being persisted, because the
                     // preserved catalog does not care about purely in-mem chunks.
+
+                    // Capture ID of to-be-created chunk for the in-progress compacting OS chunks
+                    let to_be_created_chunk_id = chunk.in_lifecycle_compacting_object_store();
+
                     if matches!(chunk.stage(), ChunkStage::Persisted { .. })
                         || chunk.is_in_lifecycle(ChunkLifecycleAction::Persisting)
+                        || to_be_created_chunk_id.is_some()
                     {
                         affected_persisted_chunks.push(ChunkAddrWithoutDatabase {
                             table_name: Arc::clone(&chunk.addr().table_name),
                             partition_key: Arc::clone(&chunk.addr().partition_key),
                             chunk_id: chunk.addr().chunk_id,
                         });
+
+                        if let Some(chunk_id) = to_be_created_chunk_id {
+                            affected_persisted_chunks.push(ChunkAddrWithoutDatabase {
+                                table_name: Arc::clone(&chunk.addr().table_name),
+                                partition_key: Arc::clone(&chunk.addr().partition_key),
+                                chunk_id,
+                            });
+                        }
                     }
                 }
             }
