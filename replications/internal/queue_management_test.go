@@ -402,13 +402,14 @@ func TestEnqueueData_WithMetrics(t *testing.T) {
 	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(qm.metrics.PrometheusCollectors()...)
 
-	data := []byte("some fake data")
+	data := "some fake data"
 	numPointsPerData := 3
 	numDataToAdd := 4
+	rq.remoteWriter = getTestRemoteWriter(t, data, nil)
 
 	for i := 1; i <= numDataToAdd; i++ {
 		go func() { <-rq.receive }() // absorb the receive to avoid testcase deadlock
-		require.NoError(t, qm.EnqueueData(id1, data, numPointsPerData))
+		require.NoError(t, qm.EnqueueData(id1, []byte(data), numPointsPerData))
 
 		pointCount := getPromMetric(t, "replications_queue_total_points_queued", reg)
 		require.Equal(t, i*numPointsPerData, int(pointCount.Counter.GetValue()))
@@ -417,20 +418,14 @@ func TestEnqueueData_WithMetrics(t *testing.T) {
 		require.Equal(t, i*len(data), int(totalBytesQueued.Counter.GetValue()))
 
 		currentBytesQueued := getPromMetric(t, "replications_queue_current_bytes_queued", reg)
-		// 8 bytes for an empty queue; 8 extra bytes for each byte slice appended to the queue
-		require.Equal(t, 8+i*(8+len(data)), int(currentBytesQueued.Gauge.GetValue()))
+		// 8 extra bytes for each byte slice appended to the queue
+		require.Equal(t, i*(8+len(data)), int(currentBytesQueued.Gauge.GetValue()))
 	}
 
-	// Reduce the max segment size so that a new segment is created & the next call to SendWrite causes the first
-	// segment to be dropped and the queue size on disk to be lower than before when the queue head is advanced.
-	require.NoError(t, rq.queue.SetMaxSegmentSize(8))
-
-	queueSizeBefore := rq.queue.DiskUsage()
+	// Queue size should be 0 after SendWrite completes
 	rq.SendWrite()
-
-	// Ensure that the smaller queue disk size was reflected in the metrics.
 	currentBytesQueued := getPromMetric(t, "replications_queue_current_bytes_queued", reg)
-	require.Less(t, int64(currentBytesQueued.Gauge.GetValue()), queueSizeBefore)
+	require.Equal(t, float64(0), currentBytesQueued.Gauge.GetValue())
 }
 
 func getPromMetric(t *testing.T, name string, reg *prom.Registry) *dto.Metric {
