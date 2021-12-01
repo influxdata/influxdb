@@ -245,9 +245,8 @@ type ShardMetrics struct {
 	writesErr     prometheus.Observer
 	writesDropped prometheus.Counter
 	fieldsCreated prometheus.Counter
-	// FIXME: ensure these are present
-	diskSize prometheus.Gauge
-	series   prometheus.Gauge
+	diskSize      prometheus.Gauge
+	series        prometheus.Gauge
 }
 
 const storageNamespace = "storage"
