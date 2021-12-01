@@ -431,7 +431,9 @@ func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
 
 			// Set RunInterval high so we can trigger using Run method.
 			s.RunInterval = 10 * time.Minute
-			done := make(chan struct{})
+			// we should call 'done' exactly once, and if the test fails we don't want
+			// s.Close to block waiting for a deadlocked StatementExecutor
+			done := make(chan struct{}, 1)
 
 			// Set a callback for ExecuteStatement.
 			s.QueryExecutor.StatementExecutor = &StatementExecutor{
@@ -455,11 +457,12 @@ func TestExecuteContinuousQuery_TimeRange(t *testing.T) {
 			defer s.Close()
 
 			// Send an initial run request one nanosecond after the start to
-			// prime the last CQ map.
+			// prime the last CQ map. This is guaranteed not to call the function above.
 			s.RunCh <- &RunRequest{Now: now.Add(time.Nanosecond)}
+
 			// Execute the real request after the time interval.
 			s.RunCh <- &RunRequest{Now: now.Add(d)}
-			if err := wait(done, 100*time.Millisecond); err != nil {
+			if err := wait(done, 5*time.Second); err != nil {
 				t.Fatal(err)
 			}
 		})
