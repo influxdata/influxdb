@@ -135,10 +135,11 @@ pub fn decode(
     headers: IoxHeaders,
     sequence: Sequence,
     producer_ts: Time,
+    bytes_read: usize,
 ) -> Result<DmlOperation, WriteBufferError> {
     match headers.content_type {
         ContentType::Protobuf => {
-            let meta = DmlMeta::sequenced(sequence, producer_ts, headers.span_context, data.len());
+            let meta = DmlMeta::sequenced(sequence, producer_ts, headers.span_context, bytes_read);
 
             let payload: WriteBufferPayload = prost::Message::decode(data)
                 .map_err(|e| format!("failed to decode WriteBufferPayload: {}", e))?;
