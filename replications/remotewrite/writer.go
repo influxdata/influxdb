@@ -66,11 +66,12 @@ type writer struct {
 	maximumBackoffTime            time.Duration
 	maximumAttemptsForBackoffTime int
 	clientTimeout                 time.Duration
+	done                          chan struct{}
 	maximumAttemptsBeforeErr      int      // used for testing, 0 for unlimited
 	waitFunc                      waitFunc // used for testing
 }
 
-func NewWriter(replicationID platform.ID, store HttpConfigStore, metrics *metrics.ReplicationsMetrics, logger *zap.Logger) *writer {
+func NewWriter(replicationID platform.ID, store HttpConfigStore, metrics *metrics.ReplicationsMetrics, logger *zap.Logger, done chan struct{}) *writer {
 	return &writer{
 		replicationID:                 replicationID,
 		configStore:                   store,
@@ -79,14 +80,22 @@ func NewWriter(replicationID platform.ID, store HttpConfigStore, metrics *metric
 		maximumBackoffTime:            maximumBackoffTime,
 		maximumAttemptsForBackoffTime: maximumAttempts,
 		clientTimeout:                 DefaultTimeout,
+		done:                          done,
 		waitFunc: func(t time.Duration) <-chan time.Time {
 			return time.After(t)
 		},
 	}
 }
 
-func (w *writer) Write(ctx context.Context, data []byte) error {
+func (w *writer) Write(data []byte) error {
 	attempts := 0
+
+	// Cancel any outstanding HTTP requests if the replicationQueue is closed.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-w.done
+		cancel()
+	}()
 
 	for {
 		if w.maximumAttemptsBeforeErr > 0 && attempts >= w.maximumAttemptsBeforeErr {

@@ -1,6 +1,7 @@
 package launcher_test
 
 import (
+	"context"
 	"fmt"
 	nethttp "net/http"
 	"net/http/httptest"
@@ -310,11 +311,10 @@ func TestReplicationStreamEndToEnd(t *testing.T) {
 	require.Equal(t, exp3, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(qs, remote2BucketName)))
 }
 
-func TestReplicationsLocalWriteBlocking(t *testing.T) {
+func TestReplicationsLocalWriteAndShutdownBlocking(t *testing.T) {
 	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
 		o.FeatureFlags = map[string]string{feature.ReplicationStreamBackend().Key(): "true"}
 	})
-	defer l.ShutdownOrFail(t, ctx)
 	client := l.APIClient(t)
 
 	// Server that only returns an error will cause the remote write to retry on loop.
@@ -367,16 +367,33 @@ func TestReplicationsLocalWriteBlocking(t *testing.T) {
 
 	go func() {
 		wg.Wait()
-		// If local writes don't block, this will quickly send on the writesAreDone channel to prevent the test from timing
-		// out.
+		// If remote writes don't block local writes, this will quickly send on the writesAreDone channel to prevent the
+		// test from timing out.
 		writesAreDone <- struct{}{}
 	}()
 
-	// Test timeout
+	// Test timeout for local writes
 	delay := 5 * time.Second
 	select {
 	case <-time.After(delay):
 		t.Fatalf("test timed out after %s - writing was blocked by remote writer", delay)
 	case <-writesAreDone:
+	}
+
+	// Try to shut down the server
+	didShutdown := make(chan struct{})
+	go func() {
+		// If remote writes don't block the server shutdown, the server should quickly shutdown and send on the didShutdown
+		// channel.
+		l.ShutdownOrFail(t, context.Background())
+		didShutdown <- struct{}{}
+	}()
+
+	// Test timeout for server shutdown
+	delay = 10 * time.Second
+	select {
+	case <-time.After(delay):
+		t.Fatalf("test timed out after %s - server shutdown was blocked by remote writer", delay)
+	case <-didShutdown:
 	}
 }
