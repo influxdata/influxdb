@@ -4987,7 +4987,6 @@ dependencies = [
  "futures-util",
  "getrandom",
  "hashbrown",
- "hyper",
  "indexmap",
  "log",
  "memchr",
@@ -4999,9 +4998,7 @@ dependencies = [
  "regex",
  "regex-automata",
  "regex-syntax",
- "reqwest",
  "serde",
- "serde_json",
  "smallvec",
  "syn",
  "tokio",
@@ -5011,7 +5008,6 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-subscriber",
- "url",
  "uuid",
 ]
 
