@@ -149,7 +149,7 @@ pub(crate) fn compact_object_store_chunks(
             compacting_os_chunks.partition,
             delete_predicates_before,
         )
-        .await?;
+        .await;
 
         if let Some(compacted_and_persisted_chunk) = compacted_and_persisted_chunk {
             compacted_rows = compacted_and_persisted_chunk.rows();
@@ -168,7 +168,7 @@ pub(crate) fn compact_object_store_chunks(
             rows_per_sec=?throughput,
             "object store chunk(s) compacted");
 
-        Ok(dbchunk) // todo: consider to return Ok(None) when appropriate
+        Ok(dbchunk)
     };
 
     Ok((tracker, fut.track(registration)))
@@ -427,11 +427,7 @@ async fn update_preserved_catalog(
 
     // Add new chunk if compaction returns some data
     if let Some(parquet_chunk) = parquet_chunk {
-        let catalog_parquet_info = CatalogParquetInfo {
-            path: parquet_chunk.path().clone(),
-            file_size_bytes: parquet_chunk.file_size_bytes(),
-            metadata: parquet_chunk.parquet_metadata(),
-        };
+        let catalog_parquet_info = CatalogParquetInfo::from_chunk(parquet_chunk);
         transaction.add_parquet(&catalog_parquet_info);
     }
 
@@ -447,7 +443,7 @@ async fn update_in_memory_catalog(
     parquet_chunk: Option<Arc<ParquetChunk>>,
     partition: Arc<RwLock<Partition>>,
     delete_predicates_before: HashSet<Arc<DeletePredicate>>,
-) -> Result<Option<Arc<DbChunk>>> {
+) -> Option<Arc<DbChunk>> {
     // Acquire write lock to drop the old chunks while also getting delete predicates added during compaction
     let mut partition = partition.write();
 
@@ -491,7 +487,7 @@ async fn update_in_memory_catalog(
     // drop partition lock
     std::mem::drop(partition);
 
-    Ok(dbchunk)
+    dbchunk
 }
 
 ////////////////////////////////////////////////////////////
@@ -895,9 +891,7 @@ mod tests {
 
     // todo: add tests
     //  . compact with deletes happening during compaction
-    //  . compact with deletes/duplicates that lead to empty result
-    //    --- this needs more coding before testing
     //  . verify checkpoints
     //   . replay
-    //  . en-to-end tests to not only verify row num but also data
+    //  . end-to-end tests to not only verify row num but also data
 }
