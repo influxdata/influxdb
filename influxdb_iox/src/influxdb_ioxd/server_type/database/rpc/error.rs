@@ -1,5 +1,6 @@
 use generated_types::google::{
     AlreadyExists, FieldViolation, InternalError, NotFound, PreconditionViolation, QuotaFailure,
+    ResourceType,
 };
 use observability_deps::tracing::error;
 
@@ -17,31 +18,20 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         Error::DatabaseNotInitialized { db_name } => {
             tonic::Status::unavailable(format!("Database ({}) is not yet initialized", db_name))
         }
-        Error::DatabaseAlreadyExists { db_name } => AlreadyExists {
-            resource_type: "database".to_string(),
-            resource_name: db_name,
-            ..Default::default()
+        Error::DatabaseAlreadyExists { db_name } => {
+            AlreadyExists::new(ResourceType::Database, db_name).into()
         }
-        .into(),
         Error::ServerNotInitialized { server_id } => tonic::Status::unavailable(format!(
             "Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes \
                      are not loaded). Server is not yet ready to read/write data.",
             server_id
         )),
-        Error::DatabaseNotFound { db_name } => NotFound {
-            resource_type: "database".to_string(),
-            resource_name: db_name.clone(),
-            description: format!("Could not find database {}", db_name),
-            ..Default::default()
+        Error::DatabaseNotFound { db_name } => {
+            NotFound::new(ResourceType::Database, db_name).into()
         }
-        .into(),
-        Error::DatabaseUuidNotFound { uuid } => NotFound {
-            resource_type: "database".to_string(),
-            resource_name: uuid.to_string(),
-            description: format!("Could not find database with UUID {}", uuid),
-            ..Default::default()
+        Error::DatabaseUuidNotFound { uuid } => {
+            NotFound::new(ResourceType::DatabaseUuid, uuid.to_string()).into()
         }
-        .into(),
         Error::InvalidDatabaseName { source } => FieldViolation {
             field: "db_name".into(),
             description: source.to_string(),
@@ -51,15 +41,15 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         Error::DatabaseInit { source } => {
             tonic::Status::invalid_argument(format!("Cannot initialize database: {}", source))
         }
-        Error::DatabaseAlreadyOwnedByThisServer { .. } => {
-            tonic::Status::already_exists(error.to_string())
+        Error::DatabaseAlreadyOwnedByThisServer { uuid } => {
+            AlreadyExists::new(ResourceType::DatabaseUuid, uuid.to_string()).into()
         }
         Error::UuidMismatch { .. } | Error::CannotClaimDatabase { .. } => {
             tonic::Status::invalid_argument(error.to_string())
         }
         Error::CouldNotGetDatabaseNameFromRules {
             source: DatabaseNameFromRulesError::DatabaseRulesNotFound { uuid, .. },
-        } => tonic::Status::not_found(format!("Could not find a database with UUID `{}`", uuid)),
+        } => NotFound::new(ResourceType::DatabaseUuid, uuid.to_string()).into(),
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()
@@ -71,27 +61,18 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
 pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic::Status {
     use server::db::catalog::Error;
     match error {
-        Error::TableNotFound { table } => NotFound {
-            resource_type: "table".to_string(),
-            resource_name: table,
-            ..Default::default()
+        Error::TableNotFound { table } => NotFound::new(ResourceType::Table, table).into(),
+        Error::PartitionNotFound { partition, table } => {
+            NotFound::new(ResourceType::Partition, format!("{}:{}", table, partition)).into()
         }
-        .into(),
-        Error::PartitionNotFound { partition, table } => NotFound {
-            resource_type: "partition".to_string(),
-            resource_name: format!("{}:{}", table, partition),
-            ..Default::default()
-        }
-        .into(),
         Error::ChunkNotFound {
             chunk_id,
             partition,
             table,
-        } => NotFound {
-            resource_type: "chunk".to_string(),
-            resource_name: format!("{}:{}:{}", table, partition, chunk_id),
-            ..Default::default()
-        }
+        } => NotFound::new(
+            ResourceType::Chunk,
+            format!("{}:{}:{}", table, partition, chunk_id),
+        )
         .into(),
     }
 }

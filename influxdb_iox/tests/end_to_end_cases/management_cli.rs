@@ -333,7 +333,7 @@ async fn release_claim_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "The database with UUID `{}` is already owned by this server",
+            "Resource database_uuid/{} already exists",
             db_uuid
         )));
 
@@ -618,7 +618,7 @@ async fn claim_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "The database with UUID `{}` is already owned by this server",
+            "Resource database_uuid/{} already exists",
             deleted_uuid
         )));
 

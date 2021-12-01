@@ -238,13 +238,65 @@ impl From<InternalError> for tonic::Status {
     }
 }
 
+/// A resource type within the gRPC error model
+#[derive(Debug, Clone)]
+pub enum ResourceType {
+    Database,
+    Table,
+    Partition,
+    Chunk,
+    DatabaseUuid,
+    Job,
+    Router,
+    ServerId,
+    Unknown(String),
+}
+
+impl ResourceType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Database => "database",
+            Self::DatabaseUuid => "database_uuid",
+            Self::Table => "table",
+            Self::Partition => "partition",
+            Self::Chunk => "chunk",
+            Self::Job => "job",
+            Self::Router => "router",
+            Self::ServerId => "server_id",
+            Self::Unknown(unknown) => unknown,
+        }
+    }
+}
+
+impl std::fmt::Display for ResourceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+
 /// The entity the client attempted to create already existed
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct AlreadyExists {
-    pub resource_type: String,
+    pub resource_type: ResourceType,
     pub resource_name: String,
     pub owner: String,
     pub description: String,
+}
+
+impl AlreadyExists {
+    pub fn new(resource_type: ResourceType, resource_name: String) -> Self {
+        let description = format!(
+            "Resource {}/{} already exists",
+            resource_type, resource_name
+        );
+
+        Self {
+            resource_type,
+            resource_name,
+            description,
+            owner: Default::default(),
+        }
+    }
 }
 
 fn encode_resource_info(
@@ -271,44 +323,49 @@ fn encode_resource_info(
 
 impl From<AlreadyExists> for tonic::Status {
     fn from(exists: AlreadyExists) -> Self {
-        let message = format!(
-            "Resource {}/{} already exists",
-            exists.resource_type, exists.resource_name
-        );
         match encode_resource_info(
-            exists.resource_type,
+            exists.resource_type.to_string(),
             exists.resource_name,
             exists.owner,
-            exists.description,
+            exists.description.clone(),
         ) {
-            Ok(details) => encode_status(tonic::Code::AlreadyExists, message, details),
+            Ok(details) => encode_status(tonic::Code::AlreadyExists, exists.description, details),
             Err(e) => e.into(),
         }
     }
 }
 
 /// Some requested entity was not found
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct NotFound {
-    pub resource_type: String,
+    pub resource_type: ResourceType,
     pub resource_name: String,
     pub owner: String,
     pub description: String,
 }
 
+impl NotFound {
+    pub fn new(resource_type: ResourceType, resource_name: String) -> Self {
+        let description = format!("Resource {}/{} not found", resource_type, resource_name);
+
+        Self {
+            resource_type,
+            resource_name,
+            description,
+            owner: Default::default(),
+        }
+    }
+}
+
 impl From<NotFound> for tonic::Status {
     fn from(not_found: NotFound) -> Self {
-        let message = format!(
-            "Resource {}/{} not found",
-            not_found.resource_type, not_found.resource_name
-        );
         match encode_resource_info(
-            not_found.resource_type,
+            not_found.resource_type.to_string(),
             not_found.resource_name,
             not_found.owner,
-            not_found.description,
+            not_found.description.clone(),
         ) {
-            Ok(details) => encode_status(tonic::Code::NotFound, message, details),
+            Ok(details) => encode_status(tonic::Code::NotFound, not_found.description, details),
             Err(e) => e.into(),
         }
     }

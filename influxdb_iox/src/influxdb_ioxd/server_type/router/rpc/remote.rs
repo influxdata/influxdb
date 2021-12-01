@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::sync::Arc;
 
 use data_types::server_id::ServerId;
-use generated_types::google::{FieldViolation, NotFound};
+use generated_types::google::{FieldViolation, NotFound, ResourceType};
 use generated_types::influxdata::iox::remote::v1::*;
 use router::server::RouterServer;
 use tonic::{Request, Response, Status};
@@ -60,7 +60,7 @@ impl remote_service_server::RemoteService for RemoteService {
         if self.server.resolver().delete_remote(remote_id) {
             Ok(Response::new(DeleteRemoteResponse {}))
         } else {
-            Err(NotFound::default().into())
+            Err(NotFound::new(ResourceType::ServerId, remote_id.to_string()).into())
         }
     }
 }

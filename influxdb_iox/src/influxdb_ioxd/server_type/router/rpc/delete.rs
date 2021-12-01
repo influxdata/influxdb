@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use data_types::non_empty::NonEmptyString;
 use dml::{DmlDelete, DmlMeta, DmlOperation};
-use generated_types::google::{FromOptionalField, NotFound, OptionalField};
+use generated_types::google::{FromOptionalField, NotFound, OptionalField, ResourceType};
 use generated_types::influxdata::iox::delete::v1::*;
 use router::server::RouterServer;
 use tonic::Response;
@@ -30,7 +30,11 @@ impl delete_service_server::DeleteService for DeleteService {
         let meta = DmlMeta::unsequenced(span_ctx);
         let op = DmlOperation::Delete(DmlDelete::new(predicate, table_name, meta));
 
-        let router = self.server.router(&db_name).ok_or_else(NotFound::default)?;
+        let router = self
+            .server
+            .router(&db_name)
+            .ok_or_else(|| NotFound::new(ResourceType::Router, db_name))?;
+
         router
             .write(op)
             .await
