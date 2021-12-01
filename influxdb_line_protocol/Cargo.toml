@@ -5,7 +5,7 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
-nom = "7"
+nom = { version = "7", default-features = false, features = ["std"] }
 smallvec = "1.7.0"
 snafu = "0.6.2"
 observability_deps = { path = "../observability_deps" }

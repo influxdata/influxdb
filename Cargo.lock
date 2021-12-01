@@ -4991,7 +4991,6 @@ dependencies = [
  "indexmap",
  "log",
  "memchr",
- "nom",
  "num-bigint 0.4.3",
  "num-integer",
  "num-traits",
