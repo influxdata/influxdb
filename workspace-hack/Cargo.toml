@@ -27,7 +27,8 @@ hashbrown = { version = "0.11", features = ["ahash", "inline-more", "raw"] }
 hyper = { version = "0.14", features = ["client", "full", "h2", "http1", "http2", "runtime", "server", "socket2", "stream", "tcp"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
-memchr = { version = "2", features = ["std", "use_std"] }
+memchr = { version = "2", features = ["std"] }
+nom = { version = "7", features = ["alloc", "std"] }
 num-bigint = { version = "0.4", features = ["std"] }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
@@ -59,7 +60,8 @@ getrandom = { version = "0.2", default-features = false, features = ["js", "js-s
 hashbrown = { version = "0.11", features = ["ahash", "inline-more", "raw"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
-memchr = { version = "2", features = ["std", "use_std"] }
+memchr = { version = "2", features = ["std"] }
+nom = { version = "7", features = ["alloc", "std"] }
 rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "rand_hc", "small_rng", "std", "std_rng"] }
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
