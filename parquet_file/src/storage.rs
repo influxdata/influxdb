@@ -140,6 +140,9 @@ impl Storage {
     ///
     /// returns the path to which the chunk was written, the size of
     /// the bytes, and the parquet metadata
+    ///
+    /// Nothing will be persisted if the input stream returns nothing as
+    /// a result of hard deletes and deduplications
     pub async fn write_to_object_store(
         &self,
         chunk_addr: ChunkAddr,
