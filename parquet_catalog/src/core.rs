@@ -155,7 +155,7 @@ pub enum Error {
 
     #[snafu(display("Cannot decode chunk id: {}", source))]
     CannotDecodeChunkId {
-        source: data_types::chunk_metadata::BytesToChunkIdError,
+        source: data_types::chunk_metadata::ChunkConversionError,
     },
 }
 
