@@ -2,7 +2,6 @@ package launcher_test
 
 import (
 	"fmt"
-	"net/http"
 	nethttp "net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -319,8 +318,8 @@ func TestReplicationsLocalWriteBlocking(t *testing.T) {
 	client := l.APIClient(t)
 
 	// Server that only returns an error will cause the remote write to retry on loop.
-	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+	svr := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		w.WriteHeader(nethttp.StatusInternalServerError)
 	}))
 	defer svr.Close()
 
