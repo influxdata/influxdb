@@ -139,6 +139,11 @@ Logging:
                 .help("Generate this many samplings to batch into a single API call. Good for sending a bunch of historical data in quickly if paired with a start time from long ago.")
                 .takes_value(true)
         )
+        .arg(
+            Arg::with_name("jaeger_debug")
+                .long("jaeger_debug")
+                .help("Generate `jaeger-debug-id` headers during write")
+        )
         .get_matches();
 
     let disable_log_output = matches.is_present("PRINT");
@@ -191,7 +196,16 @@ Logging:
             matches.value_of("ORG_ID"),
         );
 
-        PointsWriterBuilder::new_api(host, org, bucket, token, create_bucket, org_id).await?
+        PointsWriterBuilder::new_api(
+            host,
+            org,
+            bucket,
+            token,
+            create_bucket,
+            org_id,
+            matches.is_present("jaeger_debug"),
+        )
+        .await?
     } else if matches.is_present("PRINT") {
         PointsWriterBuilder::new_std_out()
     } else if matches.is_present("NOOP") {

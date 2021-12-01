@@ -1549,6 +1549,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "url",
+ "uuid",
  "workspace-hack",
 ]
 
