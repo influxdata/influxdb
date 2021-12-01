@@ -238,7 +238,7 @@ impl From<InternalError> for tonic::Status {
     }
 }
 
-/// A resource type within the gRPC error model
+/// A resource type within [`AlreadyExists`] or [`NotFound`]
 #[derive(Debug, Clone)]
 pub enum ResourceType {
     Database,
@@ -274,7 +274,8 @@ impl std::fmt::Display for ResourceType {
     }
 }
 
-/// The entity the client attempted to create already existed
+/// IOx returns [`AlreadyExists`] when it is unable to create the requested entity
+/// as it already exists on the server
 #[derive(Debug, Clone)]
 pub struct AlreadyExists {
     pub resource_type: ResourceType,
@@ -335,7 +336,8 @@ impl From<AlreadyExists> for tonic::Status {
     }
 }
 
-/// Some requested entity was not found
+/// IOx returns [`NotFound`] when it is unable to perform an operation on a resource
+/// because it doesn't exist on the server
 #[derive(Debug, Clone)]
 pub struct NotFound {
     pub resource_type: ResourceType,
@@ -371,27 +373,95 @@ impl From<NotFound> for tonic::Status {
     }
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct PreconditionViolation {
-    pub category: String,
-    pub subject: String,
-    pub description: String,
+/// A [`PreconditionViolation`] is returned by IOx when the system is in a state that
+/// prevents performing the requested operation
+#[derive(Debug, Clone)]
+pub enum PreconditionViolation {
+    /// Server ID not set
+    ServerIdNotSet,
+    /// Database is not mutable
+    DatabaseImmutable,
+    /// Server not in required state for operation
+    ServerInvalidState(String),
+    /// Database not in required state for operation
+    DatabaseInvalidState(String),
+    /// Partition not in required state for operation
+    PartitionInvalidState(String),
+    /// Chunk not in required state for operation
+    ChunkInvalidState(String),
+    /// An unknown precondition violation
+    Unknown {
+        category: String,
+        subject: String,
+        description: String,
+    },
+}
+
+impl PreconditionViolation {
+    fn description(&self) -> String {
+        match self {
+            Self::ServerIdNotSet => "server id must be set".to_string(),
+            Self::DatabaseImmutable => "database must be mutable".to_string(),
+            Self::ServerInvalidState(description) => description.clone(),
+            Self::DatabaseInvalidState(description) => description.clone(),
+            Self::PartitionInvalidState(description) => description.clone(),
+            Self::ChunkInvalidState(description) => description.clone(),
+            Self::Unknown { description, .. } => description.clone(),
+        }
+    }
+}
+
+impl From<PreconditionViolation> for rpc::precondition_failure::Violation {
+    fn from(v: PreconditionViolation) -> Self {
+        match v {
+            PreconditionViolation::ServerIdNotSet => Self {
+                r#type: "server_id".to_string(),
+                subject: "influxdata.com/iox".to_string(),
+                description: v.description(),
+            },
+            PreconditionViolation::ServerInvalidState(_) => Self {
+                r#type: "state".to_string(),
+                subject: "influxdata.com/iox".to_string(),
+                description: v.description(),
+            },
+            PreconditionViolation::DatabaseImmutable => Self {
+                r#type: "mutable".to_string(),
+                subject: "influxdata.com/iox/database".to_string(),
+                description: v.description(),
+            },
+            PreconditionViolation::DatabaseInvalidState(_) => Self {
+                r#type: "state".to_string(),
+                subject: "influxdata.com/iox/database".to_string(),
+                description: v.description(),
+            },
+            PreconditionViolation::PartitionInvalidState(_) => Self {
+                r#type: "state".to_string(),
+                subject: "influxdata.com/iox/partition".to_string(),
+                description: v.description(),
+            },
+            PreconditionViolation::ChunkInvalidState(_) => Self {
+                r#type: "state".to_string(),
+                subject: "influxdata.com/iox/chunk".to_string(),
+                description: v.description(),
+            },
+            PreconditionViolation::Unknown {
+                category,
+                subject,
+                description,
+            } => Self {
+                r#type: category,
+                subject,
+                description,
+            },
+        }
+    }
 }
 
 fn encode_precondition_failure(violations: Vec<PreconditionViolation>) -> Result<Any, EncodeError> {
-    use rpc::precondition_failure::Violation;
-
     let mut buffer = BytesMut::new();
 
     rpc::PreconditionFailure {
-        violations: violations
-            .into_iter()
-            .map(|x| Violation {
-                r#type: x.category,
-                subject: x.subject,
-                description: x.description,
-            })
-            .collect(),
+        violations: violations.into_iter().map(Into::into).collect(),
     }
     .encode(&mut buffer)?;
 
@@ -403,10 +473,7 @@ fn encode_precondition_failure(violations: Vec<PreconditionViolation>) -> Result
 
 impl From<PreconditionViolation> for tonic::Status {
     fn from(violation: PreconditionViolation) -> Self {
-        let message = format!(
-            "Precondition violation {} - {}: {}",
-            violation.subject, violation.category, violation.description
-        );
+        let message = violation.description();
         match encode_precondition_failure(vec![violation]) {
             Ok(details) => encode_status(tonic::Code::FailedPrecondition, message, details),
             Err(e) => e.into(),

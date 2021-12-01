@@ -9,23 +9,22 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
     use server::{DatabaseNameFromRulesError, Error};
 
     match error {
-        Error::IdNotSet => PreconditionViolation {
-            category: "Writer ID".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: "Writer ID must be set".to_string(),
-        }
+        Error::IdNotSet => PreconditionViolation::ServerIdNotSet.into(),
+        Error::DatabaseNotInitialized { db_name } => PreconditionViolation::DatabaseInvalidState(
+            format!("Database ({}) is not yet initialized", db_name),
+        )
         .into(),
-        Error::DatabaseNotInitialized { db_name } => {
-            tonic::Status::unavailable(format!("Database ({}) is not yet initialized", db_name))
-        }
         Error::DatabaseAlreadyExists { db_name } => {
             AlreadyExists::new(ResourceType::Database, db_name).into()
         }
-        Error::ServerNotInitialized { server_id } => tonic::Status::unavailable(format!(
-            "Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes \
+        Error::ServerNotInitialized { server_id } => {
+            PreconditionViolation::ServerInvalidState(format!(
+                "Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes \
                      are not loaded). Server is not yet ready to read/write data.",
-            server_id
-        )),
+                server_id
+            ))
+            .into()
+        }
         Error::DatabaseNotFound { db_name } => {
             NotFound::new(ResourceType::Database, db_name).into()
         }
@@ -81,7 +80,12 @@ pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic
 pub fn default_database_error_handler(error: server::database::Error) -> tonic::Status {
     use server::database::Error;
     match error {
-        Error::InvalidState { .. } => tonic::Status::failed_precondition(error.to_string()),
+        Error::InvalidState { .. } => {
+            PreconditionViolation::DatabaseInvalidState(error.to_string()).into()
+        }
+        Error::RulesNotUpdateable { .. } => {
+            PreconditionViolation::DatabaseInvalidState(error.to_string()).into()
+        }
         Error::WipePreservedCatalog { source, .. } => {
             error!(%source, "Unexpected error while wiping catalog");
             InternalError {}.into()
@@ -90,9 +94,9 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
             error!(%source, "Unexpected error while rebuilding catalog");
             InternalError {}.into()
         }
-        Error::RulesNotUpdateable { .. } => tonic::Status::failed_precondition(error.to_string()),
-        Error::CannotPersistUpdatedRules { .. } => {
-            tonic::Status::failed_precondition(error.to_string())
+        Error::CannotPersistUpdatedRules { source } => {
+            error!(%source, "Unexpected error persisting database rules");
+            InternalError {}.into()
         }
         Error::SkipReplay { source, .. } => {
             error!(%source, "Unexpected error skipping replay");
@@ -110,26 +114,18 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
 pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
     use server::db::Error;
     match error {
-        Error::LifecycleError { source } => PreconditionViolation {
-            category: "chunk".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: format!(
-                "Cannot perform operation due to wrong chunk lifecycle: {}",
-                source
-            ),
-        }
+        Error::LifecycleError { source } => PreconditionViolation::ChunkInvalidState(format!(
+            "Cannot perform operation due to wrong chunk lifecycle: {}",
+            source
+        ))
         .into(),
         Error::CannotFlushPartition {
             table_name,
             partition_key,
-        } => PreconditionViolation {
-            category: "database".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: format!(
-                "Cannot persist partition because it cannot be flushed at the moment: {}:{}",
-                table_name, partition_key
-            ),
-        }
+        } => PreconditionViolation::PartitionInvalidState(format!(
+            "Cannot persist partition because it cannot be flushed at the moment: {}:{}",
+            table_name, partition_key
+        ))
         .into(),
         Error::CatalogError { source } => default_catalog_error_handler(source),
         error => {
