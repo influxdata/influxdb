@@ -1,4 +1,5 @@
 use data_types::server_id::ServerId;
+use generated_types::google::ResourceType;
 use generated_types::{
     google::{FieldViolation, NotFound},
     influxdata::iox::deployment::v1::*,
@@ -23,7 +24,7 @@ impl deployment_service_server::DeploymentService for DeploymentService {
     ) -> Result<Response<GetServerIdResponse>, Status> {
         match self.server.server_id() {
             Some(id) => Ok(Response::new(GetServerIdResponse { id: id.get_u32() })),
-            None => return Err(NotFound::default().into()),
+            None => return Err(NotFound::new(ResourceType::ServerId, Default::default()).into()),
         }
     }
 

@@ -314,10 +314,7 @@ async fn test_create_get_update_release_claim_database() {
     let err = client.claim_database(released_uuid).await.unwrap_err();
     assert_contains!(
         err.to_string(),
-        format!(
-            "The database with UUID `{}` is already owned by this server",
-            released_uuid
-        )
+        format!("Resource database_uuid/{} already exists", released_uuid)
     );
 
     let unknown_uuid = Uuid::new_v4();
@@ -443,10 +440,7 @@ async fn claim_database() {
     let err = client.claim_database(deleted_uuid).await.unwrap_err();
     assert_contains!(
         err.to_string(),
-        format!(
-            "The database with UUID `{}` is already owned by this server",
-            deleted_uuid
-        )
+        format!("Resource database_uuid/{} already exists", deleted_uuid)
     );
 }
 

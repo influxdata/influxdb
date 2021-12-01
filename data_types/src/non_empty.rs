@@ -4,7 +4,7 @@ use std::ops::Deref;
 ///
 /// This is particularly useful for types that map to/from protobuf, where string fields
 /// are not nullable - that is they default to an empty string if not specified
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NonEmptyString(Box<str>);
 
 impl NonEmptyString {

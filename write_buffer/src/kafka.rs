@@ -17,7 +17,7 @@ use rdkafka::{
         StreamConsumer,
     },
     error::KafkaError,
-    message::{BorrowedMessage, Headers, OwnedHeaders},
+    message::{Headers, OwnedHeaders},
     producer::{FutureProducer, FutureRecord},
     types::RDKafkaErrorCode,
     util::Timeout,
@@ -119,6 +119,11 @@ impl WriteBufferWriting for KafkaBufferProducer {
             .partition(partition)
             .timestamp(timestamp_millis)
             .headers((&headers).into());
+        let kafka_write_size = estimate_message_size(
+            record.payload.map(|v| v.as_ref()),
+            record.key.map(|s| s.as_bytes()),
+            record.headers.as_ref(),
+        );
 
         debug!(db_name=%self.database_name, partition, size=buf.len(), "writing to kafka");
 
@@ -134,7 +139,7 @@ impl WriteBufferWriting for KafkaBufferProducer {
             Sequence::new(partition.try_into()?, offset.try_into()?),
             timestamp,
             operation.meta().span_context().cloned(),
-            buf.len(),
+            kafka_write_size,
         ))
     }
 
@@ -213,12 +218,30 @@ impl std::fmt::Debug for KafkaBufferConsumer {
     }
 }
 
-// Iterate over the kafka messages
-fn header_iter<'a>(message: &'a BorrowedMessage<'_>) -> impl Iterator<Item = (&'a str, &'a [u8])> {
-    message
-        .headers()
+/// Iterate over the kafka messages
+fn header_iter<H>(headers: Option<&H>) -> impl Iterator<Item = (&str, &[u8])>
+where
+    H: Headers,
+{
+    headers
         .into_iter()
         .flat_map(|headers| (0..headers.count()).map(|idx| headers.get(idx).unwrap()))
+}
+
+/// Estimate size of data read from kafka as payload len + key len + headers
+fn estimate_message_size<H>(
+    payload: Option<&[u8]>,
+    key: Option<&[u8]>,
+    headers: Option<&H>,
+) -> usize
+where
+    H: Headers,
+{
+    payload.map(|payload| payload.len()).unwrap_or_default()
+        + key.map(|key| key.len()).unwrap_or_default()
+        + header_iter(headers)
+            .map(|(key, value)| key.len() + value.len())
+            .sum::<usize>()
 }
 
 #[async_trait]
@@ -242,7 +265,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
                 .map(move |message| {
                     let message = message?;
 
-                    let kafka_headers = header_iter(&message);
+                    let kafka_headers = header_iter(message.headers());
                     let headers = IoxHeaders::from_headers(kafka_headers, trace_collector.as_ref())?;
                     let payload = message.payload().ok_or_else::<WriteBufferError, _>(|| {
                         "Payload missing".to_string().into()
@@ -250,9 +273,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
 
                     // Estimate size of data read from kafka as
                     // payload len + key len + headers
-                    let kafka_read_size: usize = payload.len() +
-                        message.key().map(|key| key.len()).unwrap_or_default() +
-                        header_iter(&message).map(|(key, value)| key.len() + value.len()).sum::<usize>();
+                    let kafka_read_size = estimate_message_size(Some(payload), message.key(), message.headers());
                     write_buffer_ingest_entry_size
                         .record(kafka_read_size as u64);
 
@@ -278,7 +299,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
                         number: message.offset().try_into()?,
                     };
 
-                    crate::codec::decode(payload, headers, sequence, timestamp)
+                    crate::codec::decode(payload, headers, sequence, timestamp, kafka_read_size)
                 })
                 .boxed();
 

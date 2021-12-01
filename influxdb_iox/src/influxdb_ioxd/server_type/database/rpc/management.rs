@@ -1,6 +1,6 @@
 use data_types::{chunk_metadata::ChunkId, DatabaseName};
 use generated_types::{
-    google::{FieldViolation, FieldViolationExt, NotFound},
+    google::{FieldViolation, FieldViolationExt},
     influxdata::iox::management::v1::{Error as ProtobufError, *},
 };
 use query::QueryDatabase;
@@ -50,17 +50,8 @@ impl management_service_server::ManagementService for ManagementService {
         let name = DatabaseName::new(name).scope("name")?;
         let database = self
             .server
-            .database(&name)
+            .active_database(&name)
             .map_err(default_server_error_handler)?;
-
-        if !database.is_active() {
-            return Err(NotFound {
-                resource_type: "database".to_string(),
-                resource_name: name.to_string(),
-                ..Default::default()
-            }
-            .into());
-        }
 
         let rules = database
             .provided_rules()
