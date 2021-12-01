@@ -577,8 +577,8 @@ impl Db {
                     // Capture ID of to be created chunk for the in-progress compacting OS chunks
                     let (to_be_created_chunk_id, compacting_os) =
                         match chunk.in_lifecycle_compacting_object_store() {
-                            Some(id) => (id, true),
-                            _ => (chunk.addr().chunk_id, false),
+                            Some(id) => (Some(id), true),
+                            _ => (None, false),
                         };
 
                     if matches!(chunk.stage(), ChunkStage::Persisted { .. })
@@ -595,7 +595,7 @@ impl Db {
                             affected_persisted_chunks.push(ChunkAddrWithoutDatabase {
                                 table_name: Arc::clone(&chunk.addr().table_name),
                                 partition_key: Arc::clone(&chunk.addr().partition_key),
-                                chunk_id: to_be_created_chunk_id,
+                                chunk_id: to_be_created_chunk_id.unwrap(),
                             });
                         }
                     }
