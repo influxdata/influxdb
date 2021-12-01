@@ -118,7 +118,7 @@ impl PointsWriterBuilder {
         token: impl Into<String> + Send,
         create_bucket: bool,
         org_id: Option<&str>,
-        jaeger_debug: bool,
+        jaeger_debug: Option<&str>,
     ) -> Result<Self> {
         let host = host.into();
 
@@ -132,8 +132,8 @@ impl PointsWriterBuilder {
         };
 
         let mut client = influxdb2_client::Client::new(host, token.into());
-        if jaeger_debug {
-            client = client.with_jaeger_debug();
+        if let Some(header) = jaeger_debug {
+            client = client.with_jaeger_debug(header.to_string());
         }
         let org = org.into();
         let bucket = bucket.into();
