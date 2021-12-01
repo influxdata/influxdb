@@ -438,8 +438,6 @@ async fn update_preserved_catalog(
     // Close/commit the transaction
     transaction.commit().await.context(CommitError)?;
 
-    // Ask Marco and Raphael to see if anything needs to ge flushed here. I do not think so.
-
     Ok(())
 }
 
