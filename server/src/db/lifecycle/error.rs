@@ -3,7 +3,7 @@ use snafu::Snafu;
 
 use data_types::chunk_metadata::ChunkAddr;
 
-use crate::db::{self, catalog};
+use crate::db::catalog;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -93,9 +93,6 @@ pub enum Error {
 
     #[snafu(display("Cannot load chunk as no rows: {}", addr))]
     CannotLoadEmptyChunk { addr: ChunkAddr },
-
-    #[snafu(display("partition not found: {}", source))]
-    PartitionNotFound { source: db::catalog::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
