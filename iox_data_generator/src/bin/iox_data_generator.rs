@@ -140,8 +140,8 @@ Logging:
                 .takes_value(true)
         )
         .arg(
-            Arg::with_name("jaeger_debug")
-                .long("jaeger_debug")
+            Arg::with_name("jaeger_debug_header")
+                .long("jaeger_debug_header")
                 .help("Generate jaeger debug header with given key during write")
                 .takes_value(true)
         )
@@ -204,7 +204,7 @@ Logging:
             token,
             create_bucket,
             org_id,
-            matches.value_of("jaeger_debug"),
+            matches.value_of("jaeger_debug_header"),
         )
         .await?
     } else if matches.is_present("PRINT") {
