@@ -486,9 +486,16 @@ impl ConsumerStream {
                 };
 
                 // parse entry
+                let full_data_length = data.len();
                 let entry_data = data.split_off(offset);
 
-                crate::codec::decode(&entry_data, iox_headers, sequence, timestamp)
+                crate::codec::decode(
+                    &entry_data,
+                    iox_headers,
+                    sequence,
+                    timestamp,
+                    full_data_length,
+                )
             }
             httparse::Status::Partial => Err("Too many headers".to_string().into()),
         }
