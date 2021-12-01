@@ -121,6 +121,7 @@ use prost::{bytes::BytesMut, Message};
 use std::convert::TryInto;
 
 // A newtype struct to provide conversion into tonic::Status
+#[derive(Debug)]
 struct EncodeError(prost::EncodeError);
 
 impl From<EncodeError> for tonic::Status {
@@ -151,10 +152,18 @@ fn encode_status(code: tonic::Code, message: String, details: Any) -> tonic::Sta
     }
 }
 
+/// Returns an iterator over the [`protobuf::Any`] payloads in the provided [`tonic::Status`]
+fn get_details(status: &tonic::Status) -> impl Iterator<Item = protobuf::Any> {
+    rpc::Status::decode(status.details())
+        .ok()
+        .into_iter()
+        .flat_map(|status| status.details)
+}
+
 /// Error returned if a request field has an invalid value. Includes
 /// machinery to add parent field names for context -- thus it will
 /// report `rules.write_timeout` than simply `write_timeout`.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct FieldViolation {
     pub field: String,
     pub description: String,
@@ -226,6 +235,24 @@ impl From<FieldViolation> for tonic::Status {
     }
 }
 
+impl From<rpc::bad_request::FieldViolation> for FieldViolation {
+    fn from(v: rpc::bad_request::FieldViolation) -> Self {
+        Self {
+            field: v.field,
+            description: v.description,
+        }
+    }
+}
+
+/// Returns an iterator over the [`FieldViolation`] in the provided [`tonic::Status`]
+pub fn decode_field_violation(status: &tonic::Status) -> impl Iterator<Item = FieldViolation> {
+    get_details(status)
+        .filter(|details| details.type_url == "type.googleapis.com/google.rpc.BadRequest")
+        .flat_map(|details| rpc::BadRequest::decode(details.value).ok())
+        .flat_map(|bad_request| bad_request.field_violations)
+        .map(Into::into)
+}
+
 /// An internal error occurred, no context is provided to the client
 ///
 /// Should be reserved for when a fundamental invariant of the system has been broken
@@ -239,7 +266,7 @@ impl From<InternalError> for tonic::Status {
 }
 
 /// A resource type within [`AlreadyExists`] or [`NotFound`]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ResourceType {
     Database,
     Table,
@@ -268,15 +295,38 @@ impl ResourceType {
     }
 }
 
+impl From<String> for ResourceType {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "database" => Self::Database,
+            "database_uuid" => Self::DatabaseUuid,
+            "table" => Self::Table,
+            "partition" => Self::Partition,
+            "chunk" => Self::Chunk,
+            "job" => Self::Job,
+            "router" => Self::Router,
+            "server_id" => Self::ServerId,
+            _ => Self::Unknown(s),
+        }
+    }
+}
+
 impl std::fmt::Display for ResourceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.as_str().fmt(f)
     }
 }
 
+/// Returns an iterator over the [`rpc::ResourceInfo`] payloads in the provided [`tonic::Status`]
+fn decode_resource_info(status: &tonic::Status) -> impl Iterator<Item = rpc::ResourceInfo> {
+    get_details(status)
+        .filter(|details| details.type_url == "type.googleapis.com/google.rpc.ResourceInfo")
+        .flat_map(|details| rpc::ResourceInfo::decode(details.value).ok())
+}
+
 /// IOx returns [`AlreadyExists`] when it is unable to create the requested entity
 /// as it already exists on the server
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AlreadyExists {
     pub resource_type: ResourceType,
     pub resource_name: String,
@@ -336,9 +386,25 @@ impl From<AlreadyExists> for tonic::Status {
     }
 }
 
+impl From<rpc::ResourceInfo> for AlreadyExists {
+    fn from(r: rpc::ResourceInfo) -> Self {
+        Self {
+            resource_type: r.resource_type.into(),
+            resource_name: r.resource_name,
+            owner: r.owner,
+            description: r.description,
+        }
+    }
+}
+
+/// Returns an iterator over the [`AlreadyExists`] in the provided [`tonic::Status`]
+pub fn decode_already_exists(status: &tonic::Status) -> impl Iterator<Item = AlreadyExists> {
+    decode_resource_info(status).map(Into::into)
+}
+
 /// IOx returns [`NotFound`] when it is unable to perform an operation on a resource
 /// because it doesn't exist on the server
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NotFound {
     pub resource_type: ResourceType,
     pub resource_name: String,
@@ -373,9 +439,25 @@ impl From<NotFound> for tonic::Status {
     }
 }
 
+impl From<rpc::ResourceInfo> for NotFound {
+    fn from(r: rpc::ResourceInfo) -> Self {
+        Self {
+            resource_type: r.resource_type.into(),
+            resource_name: r.resource_name,
+            owner: r.owner,
+            description: r.description,
+        }
+    }
+}
+
+/// Returns an iterator over the [`NotFound`] in the provided [`tonic::Status`]
+pub fn decode_not_found(status: &tonic::Status) -> impl Iterator<Item = NotFound> {
+    decode_resource_info(status).map(Into::into)
+}
+
 /// A [`PreconditionViolation`] is returned by IOx when the system is in a state that
 /// prevents performing the requested operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PreconditionViolation {
     /// Server ID not set
     ServerIdNotSet,
@@ -455,6 +537,43 @@ impl From<PreconditionViolation> for rpc::precondition_failure::Violation {
             },
         }
     }
+}
+
+impl From<rpc::precondition_failure::Violation> for PreconditionViolation {
+    fn from(v: rpc::precondition_failure::Violation) -> Self {
+        match (v.r#type.as_str(), v.subject.as_str()) {
+            ("server_id", "influxdata.com/iox") => PreconditionViolation::ServerIdNotSet,
+            ("state", "influxdata.com/iox") => {
+                PreconditionViolation::ServerInvalidState(v.description)
+            }
+            ("mutable", "influxdata.com/iox/database") => PreconditionViolation::DatabaseImmutable,
+            ("state", "influxdata.com/iox/database") => {
+                PreconditionViolation::DatabaseInvalidState(v.description)
+            }
+            ("state", "influxdata.com/iox/partition") => {
+                PreconditionViolation::PartitionInvalidState(v.description)
+            }
+            ("state", "influxdata.com/iox/chunk") => {
+                PreconditionViolation::ChunkInvalidState(v.description)
+            }
+            _ => Self::Unknown {
+                category: v.r#type,
+                subject: v.subject,
+                description: v.description,
+            },
+        }
+    }
+}
+
+/// Returns an iterator over the [`PreconditionViolation`] in the provided [`tonic::Status`]
+pub fn decode_precondition_violation(
+    status: &tonic::Status,
+) -> impl Iterator<Item = PreconditionViolation> {
+    get_details(status)
+        .filter(|details| details.type_url == "type.googleapis.com/google.rpc.PreconditionFailure")
+        .flat_map(|details| rpc::PreconditionFailure::decode(details.value).ok())
+        .flat_map(|failure| failure.violations)
+        .map(Into::into)
 }
 
 fn encode_precondition_failure(violations: Vec<PreconditionViolation>) -> Result<Any, EncodeError> {
@@ -645,5 +764,66 @@ pub trait OptionalField<T> {
 impl<T> OptionalField<T> for Option<T> {
     fn unwrap_field(self, field: impl Into<String>) -> Result<T, FieldViolation> {
         self.ok_or_else(|| FieldViolation::required(field))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+
+    #[test]
+    fn test_error_roundtrip() {
+        let violation = FieldViolation::required("foobar");
+        let status = tonic::Status::from(violation.clone());
+        let collected: Vec<_> = decode_field_violation(&status).collect();
+        assert_eq!(collected, vec![violation]);
+
+        let not_found = NotFound::new(ResourceType::Chunk, "chunky".to_string());
+        let status = tonic::Status::from(not_found.clone());
+        let collected: Vec<_> = decode_not_found(&status).collect();
+        assert_eq!(collected, vec![not_found]);
+
+        let already_exists = AlreadyExists::new(ResourceType::Database, "my database".to_string());
+        let status = tonic::Status::from(already_exists.clone());
+        let collected: Vec<_> = decode_already_exists(&status).collect();
+        assert_eq!(collected, vec![already_exists]);
+
+        let precondition = PreconditionViolation::PartitionInvalidState("mumbo".to_string());
+        let status = tonic::Status::from(precondition.clone());
+        let collected: Vec<_> = decode_precondition_violation(&status).collect();
+        assert_eq!(collected, vec![precondition]);
+    }
+
+    #[test]
+    fn test_multiple() {
+        // Should allow encoding multiple violations
+        let violations = vec![
+            FieldViolation::required("fizbuz"),
+            FieldViolation::required("bingo"),
+        ];
+
+        let encoded = encode_bad_request(violations.clone()).unwrap();
+        let mut buffer = BytesMut::new();
+
+        let code = tonic::Code::InvalidArgument;
+
+        let status = rpc::Status {
+            code: code as i32,
+            message: "message".to_string(),
+            details: vec![
+                // Should ignore unrecognised details payloads
+                protobuf::Any {
+                    type_url: "my_magic/type".to_string(),
+                    value: Bytes::from(&b"INVALID"[..]),
+                },
+                encoded,
+            ],
+        };
+
+        status.encode(&mut buffer).unwrap();
+        let status = tonic::Status::with_details(code, status.message, buffer.freeze());
+        let collected: Vec<_> = decode_field_violation(&status).collect();
+        assert_eq!(collected, violations);
     }
 }
