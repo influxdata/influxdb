@@ -107,7 +107,6 @@ func (w *writer) Write(ctx context.Context, data []byte) error {
 		}
 
 		// Update metrics and most recent error diagnostic information.
-		w.metrics.RemoteWriteError(w.replicationID, res.StatusCode)
 		if err := w.configStore.UpdateResponseInfo(ctx, w.replicationID, res.StatusCode, msg); err != nil {
 			return err
 		}
@@ -119,6 +118,7 @@ func (w *writer) Write(ctx context.Context, data []byte) error {
 			return nil
 		}
 
+		w.metrics.RemoteWriteError(w.replicationID, res.StatusCode)
 		w.logger.Debug("remote write error", zap.Int("attempt", attempts), zap.String("error message", "msg"), zap.Int("status code", res.StatusCode))
 
 		attempts++
