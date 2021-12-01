@@ -62,7 +62,7 @@ use crate::{
             chunk::{CatalogChunk, ChunkStage},
             partition::Partition,
             table::TableSchemaUpsertHandle,
-            Catalog, Error as CatalogError, TableNameFilter,
+            Catalog, TableNameFilter,
         },
         lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     },
@@ -137,16 +137,6 @@ pub enum DmlError {
 
     #[snafu(display("writing only allowed through write buffer"))]
     WritingOnlyAllowedThroughWriteBuffer,
-
-    #[snafu(display(
-        "Cannot delete data from non-existent table, {}: {}",
-        table_name,
-        source
-    ))]
-    TableNotFound {
-        table_name: String,
-        source: CatalogError,
-    },
 
     #[snafu(display(
         "Storing database write failed with the following error(s), and possibly more: {}",
@@ -531,7 +521,7 @@ impl Db {
 
     /// Delete data from a table on a specified predicate
     ///
-    /// Returns an error if the table cannot be found in the catalog
+    /// Delete is silently ignored if table cannot be found
     ///
     /// **WARNING: Only use that when no write buffer is used.**
     pub fn delete(
@@ -553,11 +543,7 @@ impl Db {
 
         // get all partitions of this table
         // Note: we need an additional scope here to convince rustc that the future produced by this function is sendable.
-        {
-            let table = self
-                .catalog
-                .table(table_name)
-                .context(TableNotFound { table_name })?;
+        if let Ok(table) = self.catalog.table(table_name) {
             let partitions = table.partitions();
             for partition in partitions {
                 let partition = partition.write();

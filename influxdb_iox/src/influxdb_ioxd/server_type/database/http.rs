@@ -183,19 +183,11 @@ impl HttpDrivenDml for DatabaseServerType {
                 db_name: db_name.to_string(),
             })?;
 
-        db.store_operation(&op).map_err(|e| match e {
-            // TODO: missing tables should not be special-cased (#3259)
-            server::db::DmlError::TableNotFound { table_name, .. } => {
-                InnerDmlError::TableNotFound {
-                    table_name,
-                    db_name: db_name.to_string(),
-                }
-            }
-            e => InnerDmlError::UserError {
+        db.store_operation(&op)
+            .map_err(|e| InnerDmlError::UserError {
                 db_name: db_name.to_string(),
                 source: Box::new(e),
-            },
-        })
+            })
     }
 }
 

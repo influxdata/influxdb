@@ -83,9 +83,6 @@ pub enum HttpDmlError {
     #[snafu(display("Database {} not found", db_name))]
     NotFoundDatabase { db_name: String },
 
-    #[snafu(display("Table {}:{} not found", db_name, table_name))]
-    NotFoundTable { db_name: String, table_name: String },
-
     #[snafu(display("Cannot parse body: {}", source))]
     ParseBody {
         source: crate::influxdb_ioxd::http::utils::ParseBodyError,
@@ -117,7 +114,6 @@ impl HttpApiErrorSource for HttpDmlError {
             e @ Self::ReadingBodyAsUtf8 { .. } => e.invalid(),
             e @ Self::ParsingLineProtocol { .. } => e.invalid(),
             e @ Self::NotFoundDatabase { .. } => e.not_found(),
-            e @ Self::NotFoundTable { .. } => e.not_found(),
             Self::ParseBody { source } => source.to_http_api_error(),
             e @ Self::ParsingDelete { .. } => e.invalid(),
             e @ Self::BuildingDeletePredicate { .. } => e.invalid(),
@@ -130,9 +126,6 @@ impl HttpApiErrorSource for HttpDmlError {
 pub enum InnerDmlError {
     #[snafu(display("Database {} not found", db_name))]
     DatabaseNotFound { db_name: String },
-
-    #[snafu(display("Table {}:{} not found", db_name, table_name))]
-    TableNotFound { db_name: String, table_name: String },
 
     #[snafu(display("User-provoked error while processing DML request: {}", source))]
     UserError {
@@ -153,16 +146,6 @@ impl From<InnerDmlError> for HttpDmlError {
             InnerDmlError::DatabaseNotFound { db_name } => {
                 debug!(%db_name, "database not found");
                 Self::NotFoundDatabase { db_name }
-            }
-            InnerDmlError::TableNotFound {
-                db_name,
-                table_name,
-            } => {
-                debug!(%db_name, %table_name, "table not found");
-                Self::NotFoundTable {
-                    db_name,
-                    table_name,
-                }
             }
             InnerDmlError::UserError { db_name, source } => {
                 debug!(e=%source, %db_name, "error writing lines");
@@ -266,9 +249,7 @@ pub trait HttpDrivenDml: ServerType {
                         .unwrap(),
                 ))
             }
-            Err(
-                e @ (InnerDmlError::DatabaseNotFound { .. } | InnerDmlError::TableNotFound { .. }),
-            ) => {
+            Err(e @ InnerDmlError::DatabaseNotFound { .. }) => {
                 // Purposefully do not record ingest metrics
                 Err(e.into())
             }
@@ -690,6 +671,7 @@ pub mod test_utils {
             .body(delete_line)
             .send()
             .await;
+
         check_response(
             "delete",
             response,
@@ -719,13 +701,8 @@ pub mod test_utils {
             .body(delete_line)
             .send()
             .await;
-        check_response(
-            "delete",
-            response,
-            StatusCode::NOT_FOUND,
-            Some("Table MyOrg_MyBucket:not_a_table not found"),
-        )
-        .await;
+
+        check_response("delete", response, StatusCode::NO_CONTENT, None).await;
     }
 
     /// Assert that deleting with a malformed body returns the expected message and error code.
