@@ -59,7 +59,7 @@ write_buffer = { path = "../write_buffer" }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
-regex = "1.4"
+regex = "1"
 router = { path = "../router" }
 test_helpers = { path = "../test_helpers" }
 

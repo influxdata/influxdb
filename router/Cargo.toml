@@ -23,5 +23,5 @@ workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 mutable_batch_lp = { path = "../mutable_batch_lp" }
-regex = "1.4"
+regex = "1"
 tokio = { version = "1.13", features = ["macros", "time"] }
