@@ -111,7 +111,6 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 
 func (rq *replicationQueue) Open() {
 	rq.wg.Add(1)
-
 	go rq.run()
 }
 
