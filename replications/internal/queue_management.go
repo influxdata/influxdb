@@ -352,9 +352,16 @@ func (qm *durableQueueManager) CloseAll() error {
 }
 
 // EnqueueData persists a set of bytes to a replication's durable queue.
-func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byte, numPoints int) error {
+func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byte, numPoints int) (err error) {
 	qm.mutex.RLock()
 	defer qm.mutex.RUnlock()
+
+	// Update metrics if data fails to be added to queue
+	defer func() {
+		if err != nil {
+			qm.metrics.EnqueueError(replicationID, len(data), numPoints)
+		}
+	}()
 
 	rq, ok := qm.replicationQueues[replicationID]
 	if !ok {

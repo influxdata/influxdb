@@ -427,6 +427,33 @@ func TestEnqueueData_WithMetrics(t *testing.T) {
 	require.Equal(t, float64(0), currentBytesQueued.Gauge.GetValue())
 }
 
+func TestEnqueueData_EnqueueFailure(t *testing.T) {
+	t.Parallel()
+
+	path, qm := initQueueManager(t)
+	defer os.RemoveAll(path)
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.DirExists(t, filepath.Join(path, id1.String()))
+
+	// close the scanner goroutine to specifically test EnqueueData()
+	rq, ok := qm.replicationQueues[id1]
+	require.True(t, ok)
+	// Close the underlying queue so an error is generated if we try to append to it
+	require.NoError(t, rq.queue.Close())
+
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
+	reg.MustRegister(qm.metrics.PrometheusCollectors()...)
+
+	data := "some fake data"
+	numPointsPerData := 3
+	require.Error(t, qm.EnqueueData(id1, []byte(data), numPointsPerData)) // this will generate an error because of the closed queue
+
+	droppedPoints := getPromMetric(t, "replications_queue_points_failed_to_queue", reg)
+	require.Equal(t, numPointsPerData, int(droppedPoints.Counter.GetValue()))
+	droppedBytes := getPromMetric(t, "replications_queue_bytes_failed_to_queue", reg)
+	require.Equal(t, len(data), int(droppedBytes.Counter.GetValue()))
+}
+
 func getPromMetric(t *testing.T, name string, reg *prom.Registry) *dto.Metric {
 	mfs := promtest.MustGather(t, reg)
 	return promtest.FindMetric(mfs, name, map[string]string{

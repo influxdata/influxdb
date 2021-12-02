@@ -14,6 +14,8 @@ type ReplicationsMetrics struct {
 	RemoteWriteErrors       *prometheus.CounterVec
 	RemoteWriteBytesSent    *prometheus.CounterVec
 	RemoteWriteBytesDropped *prometheus.CounterVec
+	PointsFailedToQueue     *prometheus.CounterVec
+	BytesFailedToQueue      *prometheus.CounterVec
 }
 
 func NewReplicationsMetrics() *ReplicationsMetrics {
@@ -25,19 +27,19 @@ func NewReplicationsMetrics() *ReplicationsMetrics {
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "total_points_queued",
-			Help:      "Sum of all points that have been added to the replication stream queue",
+			Help:      "Sum of all points that have been successfully added to the replication stream queue",
 		}, []string{"replicationID"}),
 		TotalBytesQueued: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "total_bytes_queued",
-			Help:      "Sum of all bytes that have been added to the replication stream queue",
+			Help:      "Sum of all bytes that have been successfully added to the replication stream queue",
 		}, []string{"replicationID"}),
 		CurrentBytesQueued: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "current_bytes_queued",
-			Help:      "Current number of bytes in the replication stream queue",
+			Help:      "Current number of bytes in the replication stream queue remaining to be processed",
 		}, []string{"replicationID"}),
 		RemoteWriteErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -49,13 +51,25 @@ func NewReplicationsMetrics() *ReplicationsMetrics {
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "remote_write_bytes_sent",
-			Help:      "Bytes of data successfully sent by the replication stream",
+			Help:      "Bytes of data successfully sent to the remote by the replication stream",
 		}, []string{"replicationID"}),
 		RemoteWriteBytesDropped: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "remote_write_bytes_dropped",
-			Help:      "Bytes of data dropped by the replication stream",
+			Help:      "Bytes of data dropped due to remote write failures",
+		}, []string{"replicationID"}),
+		PointsFailedToQueue: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "points_failed_to_queue",
+			Help:      "Sum of all points that could not be added to the local replication queue",
+		}, []string{"replicationID"}),
+		BytesFailedToQueue: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "bytes_failed_to_queue",
+			Help:      "Sum of all bytes that could not be added to the local replication queue",
 		}, []string{"replicationID"}),
 	}
 }
@@ -69,6 +83,8 @@ func (rm *ReplicationsMetrics) PrometheusCollectors() []prometheus.Collector {
 		rm.RemoteWriteErrors,
 		rm.RemoteWriteBytesSent,
 		rm.RemoteWriteBytesDropped,
+		rm.PointsFailedToQueue,
+		rm.BytesFailedToQueue,
 	}
 }
 
@@ -82,6 +98,12 @@ func (rm *ReplicationsMetrics) EnqueueData(replicationID platform.ID, numBytes, 
 // Dequeue updates the metrics when data has been removed from the queue.
 func (rm *ReplicationsMetrics) Dequeue(replicationID platform.ID, queueSize int64) {
 	rm.CurrentBytesQueued.WithLabelValues(replicationID.String()).Set(float64(queueSize))
+}
+
+// EnqueueError updates the metrics when data fails to be added to the replication queue.
+func (rm *ReplicationsMetrics) EnqueueError(replicationID platform.ID, numBytes, numPoints int) {
+	rm.PointsFailedToQueue.WithLabelValues(replicationID.String()).Add(float64(numPoints))
+	rm.BytesFailedToQueue.WithLabelValues(replicationID.String()).Add(float64(numBytes))
 }
 
 // RemoteWriteError increments the error code counter for the replication.
