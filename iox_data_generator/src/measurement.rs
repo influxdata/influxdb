@@ -207,6 +207,7 @@ impl MeasurementGenerator {
 #[derive(Debug)]
 pub struct Measurement {
     name: String,
+    #[allow(dead_code)]
     id: usize,
     tag_pairs: Vec<Arc<TagPair>>,
     generated_tag_sets: Arc<Vec<TagSet>>,
@@ -643,8 +644,8 @@ mod test {
                 split.next();
                 let after_space = split.next().unwrap();
                 let prefix = format!(",{}=", field_name);
-                let after = after_space.rsplitn(2, &prefix).next().unwrap();
-                after.splitn(2, ',').next().unwrap()
+                let after = after_space.rsplit_once(&prefix).unwrap().1;
+                after.split_once(',').map_or(after, |x| x.0)
             })
             .collect()
     }

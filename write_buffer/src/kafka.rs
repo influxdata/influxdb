@@ -492,7 +492,7 @@ impl KafkaBufferConsumer {
             consumer,
             callback_background_task,
             queues,
-            trace_collector: trace_collector.map(|x| Arc::clone(x)),
+            trace_collector: trace_collector.map(Arc::clone),
             write_buffer_ingest_entry_size,
         })
     }

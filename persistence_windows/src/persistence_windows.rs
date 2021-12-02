@@ -50,6 +50,7 @@ pub struct PersistenceWindows {
     closed_window_period: Duration,
 
     /// The instant this PersistenceWindows was created
+    #[allow(dead_code)]
     time_of_first_write: Time,
 
     /// The maximum Wall timestamp that has been passed to PersistenceWindows::add_range

@@ -209,6 +209,7 @@ pub struct Db {
 
     name: Arc<str>,
 
+    #[allow(dead_code)]
     server_id: ServerId, // this is also the Query Server ID
 
     /// Interface to use for persistence

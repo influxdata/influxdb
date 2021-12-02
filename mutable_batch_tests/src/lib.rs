@@ -10,7 +10,7 @@ pub fn benchmark_lp() -> Vec<(String, String)> {
     let env = std::env::var("BENCHMARK_LP")
         .expect("set BENCHMARK_LP to a semicolon-delimited list of source files");
 
-    env.split(';').map(|path| read_path(path)).collect()
+    env.split(';').map(read_path).collect()
 }
 
 fn read_path(path: &str) -> (String, String) {

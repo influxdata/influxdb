@@ -190,22 +190,11 @@ use std::{sync::atomic, sync::atomic::AtomicUsize, sync::Arc};
 #[cfg(test)]
 /// A mock implementation of Transcoder that tracks calls to encode and decode.
 /// This is useful for testing encoder implementations.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MockTranscoder {
     encoding_calls: AtomicUsize,
     decoding_calls: AtomicUsize,
     partial_cmp_calls: AtomicUsize,
-}
-
-#[cfg(test)]
-impl Default for MockTranscoder {
-    fn default() -> Self {
-        Self {
-            encoding_calls: AtomicUsize::default(),
-            decoding_calls: AtomicUsize::default(),
-            partial_cmp_calls: AtomicUsize::default(),
-        }
-    }
 }
 
 #[cfg(test)]
