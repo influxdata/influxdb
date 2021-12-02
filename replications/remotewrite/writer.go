@@ -88,14 +88,26 @@ func NewWriter(replicationID platform.ID, store HttpConfigStore, metrics *metric
 }
 
 func (w *writer) Write(data []byte) error {
-	attempts := 0
+	// Clean up the cancellation goroutine on a successful write.
+	writeDone := make(chan struct{})
+	defer func() {
+		select {
+		case writeDone <- struct{}{}: // send signal if the cancellation goroutine is still waiting to receive
+		default:
+		}
+	}()
 
 	// Cancel any outstanding HTTP requests if the replicationQueue is closed.
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		<-w.done
-		cancel()
+		select {
+		case <-w.done:
+			cancel()
+		case <-writeDone:
+		}
 	}()
+
+	attempts := 0
 
 	for {
 		if w.maximumAttemptsBeforeErr > 0 && attempts >= w.maximumAttemptsBeforeErr {
