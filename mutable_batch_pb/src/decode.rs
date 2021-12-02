@@ -107,17 +107,17 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
             InfluxColumnType::Field(InfluxFieldType::Float) => writer.write_f64(
                 &column.column_name,
                 valid_mask,
-                values.f64_values.iter().cloned(),
+                RepeatLastElement::new(values.f64_values.iter().cloned()),
             ),
             InfluxColumnType::Field(InfluxFieldType::Integer) => writer.write_i64(
                 &column.column_name,
                 valid_mask,
-                values.i64_values.iter().cloned(),
+                RepeatLastElement::new(values.i64_values.iter().cloned()),
             ),
             InfluxColumnType::Field(InfluxFieldType::UInteger) => writer.write_u64(
                 &column.column_name,
                 valid_mask,
-                values.u64_values.iter().cloned(),
+                RepeatLastElement::new(values.u64_values.iter().cloned()),
             ),
             InfluxColumnType::Tag => {
                 if let Some(interned) = values.interned_string_values.as_ref() {
@@ -128,17 +128,21 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
                     writer.write_tag_dict(
                         &column.column_name,
                         valid_mask,
-                        interned.values.iter().map(|x| *x as usize),
+                        RepeatLastElement::new(interned.values.iter().map(|x| *x as usize)),
                         packed_strings_iter(dictionary),
                     )
                 } else if let Some(packed) = values.packed_string_values.as_ref() {
                     validate_packed_string(&column.column_name, packed)?;
-                    writer.write_tag(&column.column_name, valid_mask, packed_strings_iter(packed))
+                    writer.write_tag(
+                        &column.column_name,
+                        valid_mask,
+                        RepeatLastElement::new(packed_strings_iter(packed)),
+                    )
                 } else {
                     writer.write_tag(
                         &column.column_name,
                         valid_mask,
-                        values.string_values.iter().map(|x| x.as_str()),
+                        RepeatLastElement::new(values.string_values.iter().map(|x| x.as_str())),
                     )
                 }
             }
@@ -152,34 +156,39 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
                     writer.write_string(
                         &column.column_name,
                         valid_mask,
-                        interned
-                            .values
-                            .iter()
-                            .map(|x| packed_string_idx(dictionary, *x as usize)),
+                        RepeatLastElement::new(
+                            interned
+                                .values
+                                .iter()
+                                .map(|x| packed_string_idx(dictionary, *x as usize)),
+                        ),
                     )
                 } else if let Some(packed) = values.packed_string_values.as_ref() {
                     validate_packed_string(&column.column_name, packed)?;
                     writer.write_string(
                         &column.column_name,
                         valid_mask,
-                        packed_strings_iter(packed),
+                        RepeatLastElement::new(packed_strings_iter(packed)),
                     )
                 } else {
                     writer.write_string(
                         &column.column_name,
                         valid_mask,
-                        values.string_values.iter().map(|x| x.as_str()),
+                        RepeatLastElement::new(values.string_values.iter().map(|x| x.as_str())),
                     )
                 }
             }
             InfluxColumnType::Field(InfluxFieldType::Boolean) => writer.write_bool(
                 &column.column_name,
                 valid_mask,
-                values.bool_values.iter().cloned(),
+                RepeatLastElement::new(values.bool_values.iter().cloned()),
             ),
             InfluxColumnType::Timestamp => {
                 ensure!(valid_mask.is_none(), NullTime);
-                writer.write_time(&column.column_name, values.i64_values.iter().cloned())
+                writer.write_time(
+                    &column.column_name,
+                    RepeatLastElement::new(values.i64_values.iter().cloned()),
+                )
             }
             InfluxColumnType::IOx(_) => unimplemented!(),
         }
@@ -190,6 +199,84 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
 
     writer.commit();
     Ok(())
+}
+
+/// Inner state of [`RepeatLastElement`].
+enum RepeatLastElementInner<I>
+where
+    I: Iterator,
+    I::Item: Clone,
+{
+    /// The iteration is running and the iterator hasn't ended yet.
+    Running { it: I, next: I::Item },
+
+    /// The iterator has ended and we're repeating the last element by cloning it.
+    Repeating { element: I::Item },
+
+    /// The iterator was empty.
+    Empty,
+}
+
+/// Iterator wrapper that repeats the last element forever.
+///
+/// This will just yield `None` if the wrapped iterator was empty.
+struct RepeatLastElement<I>
+where
+    I: Iterator,
+    I::Item: Clone,
+{
+    /// Inner state, wrapped into an option to make the borrow-checker happy.
+    inner: Option<RepeatLastElementInner<I>>,
+}
+
+impl<I> RepeatLastElement<I>
+where
+    I: Iterator,
+    I::Item: Clone,
+{
+    fn new(mut it: I) -> Self {
+        let inner = match it.next() {
+            Some(next) => RepeatLastElementInner::Running { it, next },
+            None => RepeatLastElementInner::Empty,
+        };
+
+        Self { inner: Some(inner) }
+    }
+}
+
+impl<I> Iterator for RepeatLastElement<I>
+where
+    I: Iterator,
+    I::Item: Clone,
+{
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.inner.take().expect("should be set") {
+            RepeatLastElementInner::Running { mut it, next } => {
+                match it.next() {
+                    Some(next2) => {
+                        self.inner = Some(RepeatLastElementInner::Running { it, next: next2 });
+                    }
+                    None => {
+                        self.inner = Some(RepeatLastElementInner::Repeating {
+                            element: next.clone(),
+                        });
+                    }
+                }
+                Some(next)
+            }
+            RepeatLastElementInner::Repeating { element } => {
+                let element_cloned = element.clone();
+                self.inner = Some(RepeatLastElementInner::Repeating { element });
+                Some(element_cloned)
+            }
+            RepeatLastElementInner::Empty => {
+                self.inner = Some(RepeatLastElementInner::Empty);
+                None
+            }
+        }
+    }
 }
 
 /// Validates that the packed strings array is valid
@@ -415,6 +502,14 @@ mod tests {
     fn with_f64(mut column: PbColumn, values: Vec<f64>, nulls: Vec<u8>) -> PbColumn {
         let mut v = empty_values();
         v.f64_values = values;
+        column.null_mask = nulls;
+        column.values = Some(v);
+        column
+    }
+
+    fn with_bool(mut column: PbColumn, values: Vec<bool>, nulls: Vec<u8>) -> PbColumn {
+        let mut v = empty_values();
+        v.bool_values = values;
         column.null_mask = nulls;
         column.values = Some(v);
         column
@@ -740,18 +835,6 @@ mod tests {
             with_packed_strings(
                 column("tag2", SemanticType::Tag),
                 PackedStrings {
-                    values: "helloworld".to_string(),
-                    offsets: vec![0, 5],
-                },
-                vec![0b000111010],
-            ),
-            "error writing column tag2: Incorrect number of values provided",
-        );
-
-        try_write(
-            with_packed_strings(
-                column("tag2", SemanticType::Tag),
-                PackedStrings {
                     values: "hello😀world".to_string(),
                     offsets: vec![0, 6, 10],
                 },
@@ -789,5 +872,201 @@ mod tests {
             ),
             "column \"tag3\" contains invalid offset 3 at index 2",
         );
+    }
+
+    #[test]
+    fn test_optimization_trim_null_masks() {
+        // See https://github.com/influxdata/influxdb-pb-data-protocol#optimization-1-trim-null-masks
+        let table_batch = TableBatch {
+            table_name: "table".to_string(),
+            columns: vec![
+                with_i64(
+                    column("i64", SemanticType::Field),
+                    vec![1, 2, 3, 4, 5, 6, 7],
+                    vec![0b11000001],
+                ),
+                with_i64(
+                    column("time", SemanticType::Time),
+                    vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    vec![0b00000000],
+                ),
+            ],
+            row_count: 10,
+        };
+
+        let mut batch = MutableBatch::new();
+
+        write_table_batch(&mut batch, &table_batch).unwrap();
+
+        let expected = &[
+            "+-----+--------------------------------+",
+            "| i64 | time                           |",
+            "+-----+--------------------------------+",
+            "|     | 1970-01-01T00:00:00.000000001Z |",
+            "| 1   | 1970-01-01T00:00:00.000000002Z |",
+            "| 2   | 1970-01-01T00:00:00.000000003Z |",
+            "| 3   | 1970-01-01T00:00:00.000000004Z |",
+            "| 4   | 1970-01-01T00:00:00.000000005Z |",
+            "| 5   | 1970-01-01T00:00:00.000000006Z |",
+            "|     | 1970-01-01T00:00:00.000000007Z |",
+            "|     | 1970-01-01T00:00:00.000000008Z |",
+            "| 6   | 1970-01-01T00:00:00.000000009Z |",
+            "| 7   | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
+        ];
+
+        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+    }
+
+    #[test]
+    fn test_optimization_omit_null_masks() {
+        // See https://github.com/influxdata/influxdb-pb-data-protocol#optimization-1b-omit-empty-null-masks
+        let table_batch = TableBatch {
+            table_name: "table".to_string(),
+            columns: vec![with_i64(
+                column("time", SemanticType::Time),
+                vec![1, 2, 3, 4, 5, 6, 7, 8, 9],
+                vec![],
+            )],
+            row_count: 9,
+        };
+
+        let mut batch = MutableBatch::new();
+
+        write_table_batch(&mut batch, &table_batch).unwrap();
+
+        let expected = &[
+            "+--------------------------------+",
+            "| time                           |",
+            "+--------------------------------+",
+            "| 1970-01-01T00:00:00.000000001Z |",
+            "| 1970-01-01T00:00:00.000000002Z |",
+            "| 1970-01-01T00:00:00.000000003Z |",
+            "| 1970-01-01T00:00:00.000000004Z |",
+            "| 1970-01-01T00:00:00.000000005Z |",
+            "| 1970-01-01T00:00:00.000000006Z |",
+            "| 1970-01-01T00:00:00.000000007Z |",
+            "| 1970-01-01T00:00:00.000000008Z |",
+            "| 1970-01-01T00:00:00.000000009Z |",
+            "+--------------------------------+",
+        ];
+
+        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+    }
+
+    #[test]
+    fn test_optimization_trim_repeated_tail_values() {
+        // See https://github.com/influxdata/influxdb-pb-data-protocol#optimization-2-trim-repeated-tail-values
+        let table_batch = TableBatch {
+            table_name: "table".to_string(),
+            columns: vec![
+                with_strings(
+                    column("f_s", SemanticType::Field),
+                    vec!["s1", "s2", "s3"],
+                    vec![0b11000001],
+                ),
+                with_interned_strings(
+                    column("f_i", SemanticType::Field),
+                    InternedStrings {
+                        dictionary: Some(PackedStrings {
+                            values: "s1s2".to_string(),
+                            offsets: vec![0, 2, 4],
+                        }),
+                        values: vec![0, 1, 0],
+                    },
+                    vec![0b11000001],
+                ),
+                with_packed_strings(
+                    column("f_p", SemanticType::Field),
+                    PackedStrings {
+                        values: "s1s2s3".to_string(),
+                        offsets: vec![0, 2, 4, 6],
+                    },
+                    vec![0b11000001],
+                ),
+                with_strings(
+                    column("t_s", SemanticType::Tag),
+                    vec!["s1", "s2", "s3"],
+                    vec![0b11000001],
+                ),
+                with_interned_strings(
+                    column("t_i", SemanticType::Tag),
+                    InternedStrings {
+                        dictionary: Some(PackedStrings {
+                            values: "s1s2".to_string(),
+                            offsets: vec![0, 2, 4],
+                        }),
+                        values: vec![0, 1, 0],
+                    },
+                    vec![0b11000001],
+                ),
+                with_packed_strings(
+                    column("t_p", SemanticType::Tag),
+                    PackedStrings {
+                        values: "s1s2s3".to_string(),
+                        offsets: vec![0, 2, 4, 6],
+                    },
+                    vec![0b11000001],
+                ),
+                with_bool(
+                    column("bool", SemanticType::Field),
+                    vec![false, false, true],
+                    vec![0b11000001],
+                ),
+                with_f64(
+                    column("f64", SemanticType::Field),
+                    vec![1.1, 2.2, 3.3],
+                    vec![0b11000001],
+                ),
+                with_i64(
+                    column("i64", SemanticType::Field),
+                    vec![1, 2, 3],
+                    vec![0b11000001],
+                ),
+                with_u64(
+                    column("u64", SemanticType::Field),
+                    vec![1, 2, 3],
+                    vec![0b11000001],
+                ),
+                with_i64(column("time", SemanticType::Time), vec![1, 2, 3], vec![]),
+            ],
+            row_count: 9,
+        };
+
+        let mut batch = MutableBatch::new();
+
+        write_table_batch(&mut batch, &table_batch).unwrap();
+
+        let expected = &[
+            "+-------+-----+-----+-----+-----+-----+-----+-----+-----+--------------------------------+-----+",
+            "| bool  | f64 | f_i | f_p | f_s | i64 | t_i | t_p | t_s | time                           | u64 |",
+            "+-------+-----+-----+-----+-----+-----+-----+-----+-----+--------------------------------+-----+",
+            "|       |     |     |     |     |     |     |     |     | 1970-01-01T00:00:00.000000001Z |     |",
+            "| false | 1.1 | s1  | s1  | s1  | 1   | s1  | s1  | s1  | 1970-01-01T00:00:00.000000002Z | 1   |",
+            "| false | 2.2 | s2  | s2  | s2  | 2   | s2  | s2  | s2  | 1970-01-01T00:00:00.000000003Z | 2   |",
+            "| true  | 3.3 | s1  | s3  | s3  | 3   | s1  | s3  | s3  | 1970-01-01T00:00:00.000000003Z | 3   |",
+            "| true  | 3.3 | s1  | s3  | s3  | 3   | s1  | s3  | s3  | 1970-01-01T00:00:00.000000003Z | 3   |",
+            "| true  | 3.3 | s1  | s3  | s3  | 3   | s1  | s3  | s3  | 1970-01-01T00:00:00.000000003Z | 3   |",
+            "|       |     |     |     |     |     |     |     |     | 1970-01-01T00:00:00.000000003Z |     |",
+            "|       |     |     |     |     |     |     |     |     | 1970-01-01T00:00:00.000000003Z |     |",
+            "| true  | 3.3 | s1  | s3  | s3  | 3   | s1  | s3  | s3  | 1970-01-01T00:00:00.000000003Z | 3   |",
+            "+-------+-----+-----+-----+-----+-----+-----+-----+-----+--------------------------------+-----+",
+        ];
+
+        assert_batches_eq!(expected, &[batch.to_arrow(Selection::All).unwrap()]);
+
+        // we need at least one value though
+        let table_batch = TableBatch {
+            table_name: "table".to_string(),
+            columns: vec![with_i64(column("time", SemanticType::Time), vec![], vec![])],
+            row_count: 9,
+        };
+
+        let mut batch = MutableBatch::new();
+
+        let err = write_table_batch(&mut batch, &table_batch)
+            .unwrap_err()
+            .to_string();
+        assert_eq!(err, "column with no values: time");
     }
 }
