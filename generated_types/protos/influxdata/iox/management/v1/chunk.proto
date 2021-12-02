@@ -44,7 +44,6 @@ enum ChunkLifecycleAction {
   CHUNK_LIFECYCLE_ACTION_DROPPING = 4;
 
   /// Chunk is in the process of being compacted
-  // todo: how to make this enum(ChunkId)?
   CHUNK_LIFECYCLE_ACTION_COMPACTING_OBJECT_STORE = 5;
 
   /// Chunk is being loaded into the read buffer
