@@ -64,9 +64,7 @@ impl From<Option<ChunkLifecycleAction>> for management::ChunkLifecycleAction {
         match lifecycle_action {
             Some(ChunkLifecycleAction::Persisting) => Self::Persisting,
             Some(ChunkLifecycleAction::Compacting) => Self::Compacting,
-            Some(ChunkLifecycleAction::CompactingObjectStore(_chunk_id)) => {
-                Self::CompactingObjectStore
-            } // todo: use chunk_id
+            Some(ChunkLifecycleAction::CompactingObjectStore) => Self::CompactingObjectStore,
             Some(ChunkLifecycleAction::Dropping) => Self::Dropping,
             Some(ChunkLifecycleAction::LoadingReadBuffer) => Self::LoadingReadBuffer,
             None => Self::Unspecified,
@@ -158,8 +156,7 @@ impl TryFrom<management::ChunkLifecycleAction> for Option<ChunkLifecycleAction> 
                 Ok(Some(ChunkLifecycleAction::Compacting))
             }
             management::ChunkLifecycleAction::CompactingObjectStore => {
-                let chunk_id = ChunkId::new_test(1); // todo: need to replace 1 with a meaningful chunk_id
-                Ok(Some(ChunkLifecycleAction::CompactingObjectStore(chunk_id)))
+                Ok(Some(ChunkLifecycleAction::CompactingObjectStore))
             }
             management::ChunkLifecycleAction::LoadingReadBuffer => {
                 Ok(Some(ChunkLifecycleAction::LoadingReadBuffer))

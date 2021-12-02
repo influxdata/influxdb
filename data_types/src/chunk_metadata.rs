@@ -98,9 +98,7 @@ pub enum ChunkLifecycleAction {
     Compacting,
 
     /// Object Store Chunk is in the process of being compacted
-    /// The ChunkId is the ID of the new chunk that will replace this chunk
-    /// after the compaction is completed
-    CompactingObjectStore(ChunkId),
+    CompactingObjectStore,
 
     /// Chunk is about to be dropped from memory and (if persisted) from object store
     Dropping,
@@ -120,7 +118,7 @@ impl ChunkLifecycleAction {
         match self {
             Self::Persisting => "Persisting to Object Storage",
             Self::Compacting => "Compacting",
-            Self::CompactingObjectStore(_chunk_id) => "Compacting Object Store",
+            Self::CompactingObjectStore => "Compacting Object Store",
             Self::Dropping => "Dropping",
             Self::LoadingReadBuffer => "Loading to Read Buffer",
         }
@@ -149,6 +147,10 @@ pub struct ChunkSummary {
     /// Is there any outstanding lifecycle action for this chunk?
     pub lifecycle_action: Option<ChunkLifecycleAction>,
 
+    // todo: I am debating whether to add to_be_created_chunk_id here.
+    // If we want this to fully reflect CatalogChunk, then we should add it.
+    // However if we do, we also need to add it to management::Chunk API which I found maybe better to
+    // go with the other solution https://github.com/influxdata/influxdb_iox/pull/3275#pullrequestreview-821179885
     /// The number of bytes used to store this chunk in memory
     pub memory_bytes: usize,
 
