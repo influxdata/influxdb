@@ -118,6 +118,7 @@ where
     index: usize,
 
     /// The underlying chunk
+    #[allow(dead_code)]
     chunk: &'a C,
 
     /// the ColumnSummaries for the chunk's 'primary_key' columns, in

@@ -115,14 +115,14 @@ impl UdpCapture {
     }
 
     // wait for a message to appear that passes `pred` or the timeout expires
-    pub async fn wait_for<P>(&self, mut pred: P)
+    pub async fn wait_for<P>(&self, pred: P)
     where
-        P: FnMut(&Message) -> bool,
+        P: FnMut(&Message) -> bool + Copy,
     {
         let end = Instant::now() + Duration::from_secs(MAX_WAIT_TIME_SEC);
 
         while Instant::now() < end {
-            if self.messages.lock().iter().any(|m| pred(m)) {
+            if self.messages.lock().iter().any(pred) {
                 return;
             }
             tokio::time::sleep(Duration::from_millis(200)).await

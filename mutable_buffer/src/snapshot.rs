@@ -31,6 +31,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct ChunkSnapshot {
     schema: Arc<Schema>,
     batch: RecordBatch,
+    #[allow(dead_code)]
     table_name: Arc<str>,
     summary: TableSummary,
 }

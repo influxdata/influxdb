@@ -226,20 +226,11 @@ pub trait DatabaseStore: std::fmt::Debug + Send + Sync {
 }
 
 /// Configuration options for `Server`
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ServerConfig {
     pub wipe_catalog_on_error: bool,
 
     pub skip_replay_and_seek_instead: bool,
-}
-
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            wipe_catalog_on_error: false,
-            skip_replay_and_seek_instead: false,
-        }
-    }
 }
 
 /// `Server` is the container struct for how servers store data internally, as

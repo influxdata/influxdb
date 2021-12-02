@@ -185,9 +185,19 @@ impl Chunk {
         select_columns: Selection<'_>,
         negated_predicates: Vec<Predicate>,
     ) -> Result<table::ReadFilterResults> {
-        self.table
+        debug!(%predicate, ?select_columns, ?negated_predicates, "read_filter called");
+        let now = std::time::Instant::now();
+        let result = self
+            .table
             .read_filter(&select_columns, &predicate, negated_predicates.as_slice())
-            .context(TableError)
+            .context(TableError);
+
+        let row_groups = result
+            .as_ref()
+            .map(|result| result.row_groups())
+            .unwrap_or(0);
+        debug!(elapsed=?now.elapsed(), succeeded=result.is_ok(), ?row_groups, "read_filter completed");
+        result
     }
 
     /// Returns an iterable collection of data in group columns and aggregate

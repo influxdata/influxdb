@@ -279,7 +279,7 @@ impl FileBufferConsumer {
             .collect();
         Ok(Self {
             dirs,
-            trace_collector: trace_collector.map(|x| Arc::clone(x)),
+            trace_collector: trace_collector.map(Arc::clone),
         })
     }
 }

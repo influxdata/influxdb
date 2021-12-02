@@ -54,6 +54,7 @@ pub enum Error {
 #[derive(Debug)]
 pub struct MicrosoftAzure {
     container_client: Arc<ContainerClient>,
+    #[allow(dead_code)]
     container_name: String,
 }
 

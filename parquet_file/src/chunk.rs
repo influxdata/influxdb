@@ -102,6 +102,7 @@ pub struct ParquetChunk {
     /// Number of rows
     rows: usize,
 
+    #[allow(dead_code)]
     metrics: ChunkMetrics,
 }
 
