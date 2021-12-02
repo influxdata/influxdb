@@ -100,9 +100,13 @@ pub struct Client {
     pub url: String,
     auth_header: Option<String>,
     reqwest: reqwest::Client,
+    jaeger_debug_header: Option<String>,
 }
 
 impl Client {
+    /// Default [jaeger debug header](Self::with_jaeger_debug) that should work in many environments.
+    pub const DEFAULT_JAEGER_DEBUG_HEADER: &'static str = "jaeger-debug-id";
+
     /// Create a new client pointing to the URL specified in
     /// `protocol://server:port` format and using the specified token for
     /// authorization.
@@ -124,6 +128,15 @@ impl Client {
             url: url.into(),
             auth_header,
             reqwest: reqwest::Client::new(),
+            jaeger_debug_header: None,
+        }
+    }
+
+    /// Enable generation of jaeger debug headers with the given header name.
+    pub fn with_jaeger_debug(self, header: String) -> Self {
+        Self {
+            jaeger_debug_header: Some(header),
+            ..self
         }
     }
 
@@ -133,6 +146,9 @@ impl Client {
 
         if let Some(auth) = &self.auth_header {
             req = req.header("Authorization", auth);
+        }
+        if let Some(header) = &self.jaeger_debug_header {
+            req = req.header(header, format!("influxdb_client-{}", uuid::Uuid::new_v4()));
         }
 
         req
