@@ -1,5 +1,5 @@
 //! Module contains a representation of chunk metadata
-use std::{convert::TryFrom, num::NonZeroU32, sync::Arc};
+use std::{convert::TryFrom, num::NonZeroU32, str::FromStr, sync::Arc};
 
 use bytes::Bytes;
 use snafu::{ResultExt, Snafu};
@@ -256,13 +256,16 @@ impl From<ChunkId> for Bytes {
 }
 
 #[derive(Debug, Snafu)]
-pub enum BytesToChunkIdError {
+pub enum ChunkIdConversionError {
     #[snafu(display("Cannot convert bytes to chunk ID: {}", source))]
     CannotConvertBytes { source: uuid::Error },
+
+    #[snafu(display("Cannot convert UUID text to chunk ID: {}", source))]
+    CannotConvertUUIDText { source: uuid::Error },
 }
 
 impl TryFrom<Bytes> for ChunkId {
-    type Error = BytesToChunkIdError;
+    type Error = ChunkIdConversionError;
 
     fn try_from(value: Bytes) -> Result<Self, Self::Error> {
         Ok(Self(Uuid::from_slice(&value).context(CannotConvertBytes)?))
@@ -272,6 +275,17 @@ impl TryFrom<Bytes> for ChunkId {
 impl From<Uuid> for ChunkId {
     fn from(uuid: Uuid) -> Self {
         Self(uuid)
+    }
+}
+
+/// Implements conversion from the canonical textual representation of a UUID
+/// into a `ChunkId`.
+impl FromStr for ChunkId {
+    type Err = ChunkIdConversionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let uuid = Uuid::parse_str(s).context(CannotConvertUUIDText)?;
+        Ok(Self::from(uuid))
     }
 }
 

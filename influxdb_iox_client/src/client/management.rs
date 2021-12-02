@@ -284,7 +284,7 @@ pub enum UnloadPartitionChunkError {
     ServerError(tonic::Status),
 }
 
-/// Errors returned by [`Client::unload_partition_chunk`]
+/// Errors returned by [`Client::load_partition_chunk`]
 #[derive(Debug, Error)]
 pub enum LoadPartitionChunkError {
     /// Database not found
@@ -880,7 +880,7 @@ impl Client {
         Ok(())
     }
 
-    /// Unload chunk from read buffer but keep it in object store.
+    /// Load a chunk from the object store into the Read Buffer.
     pub async fn load_partition_chunk(
         &mut self,
         db_name: impl Into<String> + Send,
