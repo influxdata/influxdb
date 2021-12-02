@@ -5,7 +5,7 @@ use data_types::chunk_metadata::{ChunkId, ChunkIdConversionError};
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
     connection::Connection,
-    management::{self, generated_types::Chunk, ListChunksError, LoadPartitionChunkError},
+    management::{self, generated_types::Chunk},
 };
 use structopt::StructOpt;
 use thiserror::Error;
@@ -13,9 +13,6 @@ use thiserror::Error;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error listing chunks: {0}")]
-    ListChunkError(#[from] ListChunksError),
-
     #[error("Error interpreting server response: {0}")]
     ConvertingResponse(#[from] FieldViolation),
 
@@ -25,14 +22,14 @@ pub enum Error {
     #[error("Error connecting to IOx: {0}")]
     ConnectionError(#[from] influxdb_iox_client::connection::Error),
 
-    #[error("Error loading chunks: {0}")]
-    LoadChunkError(#[from] LoadPartitionChunkError),
-
     #[error("Chunk {value:?} not found")]
     ChunkNotFound { value: String },
 
     #[error("Invalid chunk ID: {0}")]
     InvalidChunkIDError(#[from] ChunkIdConversionError),
+
+    #[error("Client error: {0}")]
+    ClientError(#[from] influxdb_iox_client::error::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -92,6 +89,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                     .clone()
                     .try_into()
                     .expect("catalog chunk IDs to be valid");
+
                 if id == load_chunk_id {
                     return load_chunk_to_read_buffer(&mut client, &db_name, chunk).await;
                 }

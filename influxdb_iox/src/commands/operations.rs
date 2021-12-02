@@ -1,8 +1,4 @@
-use influxdb_iox_client::{
-    connection::Connection,
-    management,
-    operations::{self, Client},
-};
+use influxdb_iox_client::{connection::Connection, management, operations::Client};
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -10,10 +6,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Client error: {0}")]
-    ClientError(#[from] operations::Error),
-
-    #[error("Failed to create dummy job: {0}")]
-    CreateDummyJobError(#[from] management::CreateDummyJobError),
+    ClientError(#[from] influxdb_iox_client::error::Error),
 
     #[error("Output serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),

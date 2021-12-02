@@ -4,7 +4,7 @@ use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
 use structopt::StructOpt;
 
-use influxdb_iox_client::connection::Connection;
+use influxdb_iox_client::{connection::Connection, health};
 
 mod observer;
 mod repl;
@@ -29,10 +29,13 @@ pub struct Config {
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Storage health check failed: {}", source))]
-    HealthCheck {
-        source: influxdb_iox_client::health::Error,
+    #[snafu(display("Health check request failed: {}", source))]
+    Client {
+        source: influxdb_iox_client::error::Error,
     },
+
+    #[snafu(display("Storage service not running"))]
+    StorageNotRunning,
 
     #[snafu(display("Repl Error: {}", source))]
     Repl { source: repl::Error },
@@ -56,8 +59,13 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 }
 
 async fn check_health(connection: Connection) -> Result<()> {
-    influxdb_iox_client::health::Client::new(connection)
+    let response = health::Client::new(connection)
         .check_storage()
         .await
-        .context(HealthCheck)
+        .context(Client)?;
+
+    match response {
+        true => Ok(()),
+        false => Err(Error::StorageNotRunning),
+    }
 }

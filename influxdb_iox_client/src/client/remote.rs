@@ -1,28 +1,11 @@
-use thiserror::Error;
-
 use self::generated_types::{remote_service_client::RemoteServiceClient, *};
 
 use crate::connection::Connection;
+use crate::error::Error;
 
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::influxdata::iox::remote::v1::*;
-}
-
-/// Errors returned by Client::list_remotes
-#[derive(Debug, Error)]
-pub enum ListRemotesError {
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::update_remote
-#[derive(Debug, Error)]
-pub enum UpdateRemoteError {
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
 }
 
 /// An IOx Remote API client.
@@ -66,12 +49,8 @@ impl Client {
     }
 
     /// List remotes.
-    pub async fn list_remotes(&mut self) -> Result<Vec<generated_types::Remote>, ListRemotesError> {
-        let response = self
-            .inner
-            .list_remotes(ListRemotesRequest {})
-            .await
-            .map_err(ListRemotesError::ServerError)?;
+    pub async fn list_remotes(&mut self) -> Result<Vec<generated_types::Remote>, Error> {
+        let response = self.inner.list_remotes(ListRemotesRequest {}).await?;
         Ok(response.into_inner().remotes)
     }
 
@@ -80,7 +59,7 @@ impl Client {
         &mut self,
         id: u32,
         connection_string: impl Into<String> + Send,
-    ) -> Result<(), UpdateRemoteError> {
+    ) -> Result<(), Error> {
         self.inner
             .update_remote(UpdateRemoteRequest {
                 remote: Some(generated_types::Remote {
@@ -88,17 +67,13 @@ impl Client {
                     connection_string: connection_string.into(),
                 }),
             })
-            .await
-            .map_err(UpdateRemoteError::ServerError)?;
+            .await?;
         Ok(())
     }
 
     /// Delete remote
-    pub async fn delete_remote(&mut self, id: u32) -> Result<(), UpdateRemoteError> {
-        self.inner
-            .delete_remote(DeleteRemoteRequest { id })
-            .await
-            .map_err(UpdateRemoteError::ServerError)?;
+    pub async fn delete_remote(&mut self, id: u32) -> Result<(), Error> {
+        self.inner.delete_remote(DeleteRemoteRequest { id }).await?;
         Ok(())
     }
 }

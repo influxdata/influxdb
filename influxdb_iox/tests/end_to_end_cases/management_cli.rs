@@ -34,7 +34,10 @@ async fn test_create_database() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Database not found"));
+        .stderr(predicate::str::contains(format!(
+            "Resource database/{} not found",
+            db
+        )));
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -230,7 +233,7 @@ async fn release_claim_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "Error releasing database: Could not find database {}",
+            "Resource database/{} not found",
             db
         )));
 
@@ -350,7 +353,7 @@ async fn release_claim_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "Could not find a database with UUID `{}`",
+            "Resource database_uuid/{} not found",
             unknown_uuid
         )));
 }
@@ -426,7 +429,7 @@ async fn release_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "Could not find database {}",
+            "Resource database/{} not found",
             db
         )));
 
@@ -646,7 +649,7 @@ async fn claim_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "Could not find a database with UUID `{}`",
+            "Resource database_uuid/{} not found",
             unknown_uuid
         )));
 
@@ -770,7 +773,9 @@ async fn test_list_partitions_error() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Database not found"));
+        .stderr(predicate::str::contains(
+            "Resource database/non_existent_database not found",
+        ));
 }
 
 #[tokio::test]
@@ -819,7 +824,7 @@ async fn test_get_partition_error() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Database not found"));
+        .stderr(predicate::str::contains("Resource database/cpu not found"));
 }
 
 #[tokio::test]
@@ -1019,7 +1024,9 @@ async fn test_close_partition_chunk_error() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Database not found"));
+        .stderr(predicate::str::contains(
+            "Resource database/non_existent_database not found",
+        ));
 }
 
 #[tokio::test]
@@ -1082,7 +1089,10 @@ async fn test_wipe_persisted_catalog_error_db_exists() {
 
     create_readable_database(&db_name, server_fixture.grpc_channel()).await;
 
-    let expected_err = format!("Failed precondition: database ({}) in invalid state (Initialized) for transition (WipePreservedCatalog)", db_name);
+    let expected_err = format!(
+        "database ({}) in invalid state (Initialized) for transition (WipePreservedCatalog)",
+        db_name
+    );
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -1126,7 +1136,10 @@ async fn test_skip_replay_error_db_exists() {
 
     create_readable_database(&db_name, server_fixture.grpc_channel()).await;
 
-    let expected_err = format!("Failed precondition: database ({}) in invalid state (Initialized) for transition (SkipReplay)", db_name);
+    let expected_err = format!(
+        "database ({}) in invalid state (Initialized) for transition (SkipReplay)",
+        db_name
+    );
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -1448,9 +1461,7 @@ async fn test_persist_partition_error() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Error persisting partition:").and(
-            predicate::str::contains(
-                "Cannot persist partition because it cannot be flushed at the moment",
-            ),
+        .stderr(predicate::str::contains(
+            "Cannot persist partition because it cannot be flushed at the moment",
         ));
 }

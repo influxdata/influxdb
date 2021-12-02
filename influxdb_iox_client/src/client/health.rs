@@ -1,27 +1,9 @@
-use thiserror::Error;
+use generated_types::google::FieldViolation;
 
 use generated_types::grpc::health::v1::*;
 
 use crate::connection::Connection;
-
-/// Error type for the health check client
-#[derive(Debug, Error)]
-pub enum Error {
-    /// Service is not serving
-    #[error("Service is not serving")]
-    NotServing,
-
-    /// Service returned an unexpected variant for the status enumeration
-    #[error("Received invalid response: {}", .0)]
-    InvalidResponse(i32),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    UnexpectedError(#[from] tonic::Status),
-}
-
-/// Result type for the health check client
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+use crate::error::Error;
 
 /// A client for the gRPC health checking API
 ///
@@ -39,11 +21,11 @@ impl Client {
         }
     }
 
-    /// Returns `Ok()` if the corresponding service is serving
-    pub async fn check(&mut self, service: impl Into<String> + Send) -> Result<()> {
+    /// Returns `Ok(true)` if the corresponding service is serving
+    pub async fn check(&mut self, service: impl Into<String> + Send) -> Result<bool, Error> {
         use health_check_response::ServingStatus;
 
-        let status = self
+        let response = self
             .inner
             .check(HealthCheckRequest {
                 service: service.into(),
@@ -51,20 +33,23 @@ impl Client {
             .await?
             .into_inner();
 
-        match status.status() {
-            ServingStatus::Serving => Ok(()),
-            ServingStatus::NotServing => Err(Error::NotServing),
-            _ => Err(Error::InvalidResponse(status.status)),
+        match response.status() {
+            ServingStatus::Serving => Ok(true),
+            ServingStatus::NotServing => Ok(false),
+            _ => Err(Error::InvalidResponse(FieldViolation {
+                field: "status".to_string(),
+                description: format!("invalid response: {}", response.status),
+            })),
         }
     }
 
-    /// Returns `Ok()` if the deployment service is serving
-    pub async fn check_deployment(&mut self) -> Result<()> {
+    /// Returns `Ok(true)` if the deployment service is serving
+    pub async fn check_deployment(&mut self) -> Result<bool, Error> {
         self.check(generated_types::DEPLOYMENT_SERVICE).await
     }
 
-    /// Returns `Ok()` if the storage service is serving
-    pub async fn check_storage(&mut self) -> Result<()> {
+    /// Returns `Ok(true)` if the storage service is serving
+    pub async fn check_storage(&mut self) -> Result<bool, Error> {
         self.check(generated_types::STORAGE_SERVICE).await
     }
 }

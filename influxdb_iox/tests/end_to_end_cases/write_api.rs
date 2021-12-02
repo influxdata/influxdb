@@ -1,8 +1,8 @@
 use influxdb_iox_client::{
+    error::Error,
     router::generated_types::{
         write_sink, HashRing, Matcher, MatcherToShard, Router, ShardConfig, WriteSink, WriteSinkSet,
     },
-    write::WriteError,
 };
 use test_helpers::assert_contains;
 
@@ -55,9 +55,9 @@ async fn test_write() {
 
     assert_contains!(
         err.to_string(),
-        r#"Error converting lines: error parsing line 1: A generic parsing error occurred: TakeWhile1"#
+        r#"error parsing line 1: A generic parsing error occurred: TakeWhile1"#
     );
-    assert!(matches!(dbg!(err), WriteError::LinesConversion(_)));
+    assert!(matches!(err, Error::Client(_)));
 
     // ---- test non existent database ----
     let err = write_client
@@ -67,9 +67,9 @@ async fn test_write() {
 
     assert_contains!(
         err.to_string(),
-        r#"Unexpected server error: Some requested entity was not found: Resource database/Non_existent_database not found"#
+        r#"Some requested entity was not found: Resource database/Non_existent_database not found"#
     );
-    assert!(matches!(dbg!(err), WriteError::ServerError(_)));
+    assert!(matches!(dbg!(err), Error::NotFound(_)));
 
     // ---- test hard limit ----
     // stream data until limit is reached
@@ -88,11 +88,7 @@ async fn test_write() {
     }
     assert!(maybe_err.is_some());
     let err = maybe_err.unwrap();
-    if let WriteError::ServerError(status) = dbg!(&err) {
-        assert_eq!(status.code(), tonic::Code::ResourceExhausted);
-    } else {
-        panic!("Expected ServerError, got {}", err);
-    }
+    assert!(matches!(err, Error::ResourceExhausted(_)));
 
     // IMPORTANT: At this point, the database is flooded and pretty much
     // useless. Don't append any tests after the "hard limit" test!
@@ -382,8 +378,7 @@ async fn test_write_routed_errors() {
     assert_eq!(
         err.to_string(),
         format!(
-            "Unexpected server error: \
-            The operation was aborted: One or more writes failed: \
+            "The operation was aborted: One or more writes failed: \
             ShardId({}) => \"Write to sink set failed: No remote for server ID {}\"",
             TEST_SHARD_ID, TEST_REMOTE_ID,
         )
@@ -660,9 +655,5 @@ async fn test_write_schema_mismatch() {
         .await
         .unwrap_err();
     assert_contains!(err.to_string(), "Schema Merge Error");
-    if let WriteError::InvalidArgument(status) = &err {
-        assert_eq!(status.code(), tonic::Code::InvalidArgument);
-    } else {
-        panic!("Expected InvalidArgument, got {}", err);
-    }
+    assert!(matches!(err, Error::InvalidArgument(_)));
 }

@@ -1,3 +1,6 @@
+/// Errors for the client
+pub mod error;
+
 /// Client for health checking API
 pub mod health;
 

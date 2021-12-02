@@ -11,15 +11,17 @@ pub enum Error {
 
     #[snafu(display("Error wiping preserved catalog: {}", source))]
     WipeError {
-        source: management::WipePreservedCatalogError,
+        source: influxdb_iox_client::error::Error,
     },
 
     #[snafu(display("Error skipping replay: {}", source))]
-    SkipReplayError { source: management::SkipReplayError },
+    SkipReplayError {
+        source: influxdb_iox_client::error::Error,
+    },
 
     #[snafu(display("Error rebuilding preserved catalog: {}", source))]
     RebuildCatalog {
-        source: management::RebuildPreservedCatalogError,
+        source: influxdb_iox_client::error::Error,
     },
 
     #[snafu(display("Received invalid response: {}", source))]

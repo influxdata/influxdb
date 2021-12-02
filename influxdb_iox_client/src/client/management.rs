@@ -1,431 +1,17 @@
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
 use crate::{
     connection::Connection,
-    google::{longrunning::IoxOperation, FieldViolation},
+    error::Error,
+    google::{longrunning::IoxOperation, OptionalField},
 };
 use bytes::Bytes;
 use std::convert::TryInto;
-use thiserror::Error;
 use uuid::Uuid;
 
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::influxdata::iox::management::v1::*;
     pub use generated_types::influxdata::iox::write_buffer::v1::*;
-}
-
-/// Errors returned by Client::create_database
-#[derive(Debug, Error)]
-pub enum CreateDatabaseError {
-    /// Server ID is not set
-    #[error("Server ID not set")]
-    NoServerId,
-
-    /// Database already exists
-    #[error("Database already exists")]
-    DatabaseAlreadyExists,
-
-    /// Server returned an invalid argument error
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    InvalidArgument(tonic::Status),
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::update_database
-#[derive(Debug, Error)]
-pub enum UpdateDatabaseError {
-    /// Server ID is not set
-    #[error("Server ID not set")]
-    NoServerId,
-
-    /// Database not found
-    #[error("Database not found")]
-    DatabaseNotFound,
-
-    /// Server returned an invalid argument error
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    InvalidArgument(tonic::Status),
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::list_databases
-#[derive(Debug, Error)]
-pub enum ListDatabaseError {
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::get_database
-#[derive(Debug, Error)]
-pub enum GetDatabaseError {
-    /// Server ID is not set
-    #[error("Server ID not set")]
-    NoServerId,
-
-    /// Database not found
-    #[error("Database not found")]
-    DatabaseNotFound,
-
-    /// Response contained no payload
-    #[error("Server returned an empty response")]
-    EmptyResponse,
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::release_database
-#[derive(Debug, Error)]
-pub enum ReleaseDatabaseError {
-    /// The UUID specified was not in a valid format
-    #[error("Invalid UUID: {0}")]
-    InvalidUuid(#[from] uuid::Error),
-
-    /// Database not found
-    #[error("Could not find database {}", .name)]
-    DatabaseNotFound {
-        /// The name specified
-        name: String,
-    },
-
-    /// Server returned an invalid argument error
-    #[error("Invalid argument {}: {}", .0.code(), .0.message())]
-    InvalidArgument(tonic::Status),
-
-    /// Server ID is not set
-    #[error("Server ID not set")]
-    NoServerId,
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::claim_database
-#[derive(Debug, Error)]
-pub enum ClaimDatabaseError {
-    /// Database not found
-    #[error("Could not find a database with UUID `{}`", .uuid)]
-    DatabaseNotFound {
-        /// The UUID requested
-        uuid: Uuid,
-    },
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Server ID is not set
-    #[error("Server ID not set")]
-    NoServerId,
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::list_chunks
-#[derive(Debug, Error)]
-pub enum ListChunksError {
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::create_dummy_job
-#[derive(Debug, Error)]
-pub enum CreateDummyJobError {
-    /// Response contained no payload
-    #[error("Server returned an empty response")]
-    EmptyResponse,
-
-    /// Response payload was invalid
-    #[error("Invalid response: {0}")]
-    InvalidResponse(#[from] FieldViolation),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::list_partitions
-#[derive(Debug, Error)]
-pub enum ListPartitionsError {
-    /// Database not found
-    #[error("Database not found")]
-    DatabaseNotFound,
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::get_partition
-#[derive(Debug, Error)]
-pub enum GetPartitionError {
-    /// Database not found
-    #[error("Database not found")]
-    DatabaseNotFound,
-
-    /// Partition not found
-    #[error("Partition not found")]
-    PartitionNotFound,
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::list_partition_chunks
-#[derive(Debug, Error)]
-pub enum ListPartitionChunksError {
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::new_partition_chunk
-#[derive(Debug, Error)]
-pub enum NewPartitionChunkError {
-    /// Database or partition not found
-    #[error("{}", .0)]
-    NotFound(String),
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::close_partition_chunk
-#[derive(Debug, Error)]
-pub enum ClosePartitionChunkError {
-    /// Database not found
-    #[error("Database not found")]
-    DatabaseNotFound,
-
-    /// Response contained no payload
-    #[error("Server returned an empty response")]
-    EmptyResponse,
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Response payload was invalid
-    #[error("Invalid response: {0}")]
-    InvalidResponse(#[from] FieldViolation),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by [`Client::unload_partition_chunk`]
-#[derive(Debug, Error)]
-pub enum UnloadPartitionChunkError {
-    /// Database not found
-    #[error("Not found: {}", .0)]
-    NotFound(String),
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Server indicated that it is not (yet) available
-    #[error("Cannot perform operation due to wrong chunk lifecycle state: {}", .0.message())]
-    LifecycleError(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by [`Client::load_partition_chunk`]
-#[derive(Debug, Error)]
-pub enum LoadPartitionChunkError {
-    /// Database not found
-    #[error("Not found: {}", .0)]
-    NotFound(String),
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Server indicated that it is not (yet) available
-    #[error("Cannot perform operation due to wrong chunk lifecycle state: {}", .0.message())]
-    LifecycleError(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-
-    /// Response payload was invalid
-    #[error("Invalid response: {0}")]
-    InvalidResponse(#[from] FieldViolation),
-
-    /// Response contained no payload
-    #[error("Server returned an empty response")]
-    EmptyResponse,
-}
-
-/// Errors returned by [`Client::get_server_status`]
-#[derive(Debug, Error)]
-pub enum GetServerStatusError {
-    /// Response contained no payload
-    #[error("Server returned an empty response")]
-    EmptyResponse,
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by [`Client::wipe_preserved_catalog`]
-#[derive(Debug, Error)]
-pub enum WipePreservedCatalogError {
-    /// Server ID is not set
-    #[error("Failed precondition: {}", .0.message())]
-    FailedPrecondition(tonic::Status),
-
-    /// Server returned an invalid argument error
-    #[error("Invalid argument: {}", .0.message())]
-    InvalidArgument(tonic::Status),
-
-    /// Response contained no payload
-    #[error("Server returned an empty response")]
-    EmptyResponse,
-
-    /// Response payload was invalid
-    #[error("Invalid response: {0}")]
-    InvalidResponse(#[from] FieldViolation),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by [`Client::rebuild_preserved_catalog`]
-#[derive(Debug, Error)]
-pub enum RebuildPreservedCatalogError {
-    /// Server ID is not set
-    #[error("Failed precondition: {}", .0.message())]
-    FailedPrecondition(tonic::Status),
-
-    /// Server returned an invalid argument error
-    #[error("Invalid argument: {}", .0.message())]
-    InvalidArgument(tonic::Status),
-
-    /// Response contained no payload
-    #[error("Server returned an empty response")]
-    EmptyResponse,
-
-    /// Response payload was invalid
-    #[error("Invalid response: {0}")]
-    InvalidResponse(#[from] FieldViolation),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by [`Client::skip_replay`]
-#[derive(Debug, Error)]
-pub enum SkipReplayError {
-    /// Server ID is not set
-    #[error("Failed precondition: {}", .0.message())]
-    FailedPrecondition(tonic::Status),
-
-    /// Server returned an invalid argument error
-    #[error("Invalid argument: {}", .0.message())]
-    InvalidArgument(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by [`Client::drop_partition`]
-#[derive(Debug, Error)]
-pub enum DropPartitionError {
-    /// Database not found
-    #[error("Not found: {}", .0)]
-    NotFound(String),
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Server indicated some other action was active for this partition
-    #[error("Cannot perform operation due to wrong chunk lifecycle state: {}", .0.message())]
-    LifecycleError(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by [`Client::persist_partition`]
-#[derive(Debug, Error)]
-pub enum PersistPartitionError {
-    /// Database not found
-    #[error("Not found: {}", .0)]
-    NotFound(String),
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Server indicated some other action was active for this partition
-    #[error("Cannot perform operation due to wrong chunk lifecycle state: {}", .0.message())]
-    LifecycleError(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
 }
 
 /// An IOx Management API client.
@@ -472,36 +58,24 @@ impl Client {
     }
 
     /// Check if databases are loaded and ready for read and write.
-    pub async fn get_server_status(&mut self) -> Result<ServerStatus, GetServerStatusError> {
+    pub async fn get_server_status(&mut self) -> Result<ServerStatus, Error> {
         let response = self
             .inner
             .get_server_status(GetServerStatusRequest {})
-            .await
-            .map_err(GetServerStatusError::ServerError)?;
+            .await?;
 
-        let server_status = response
+        Ok(response
             .into_inner()
             .server_status
-            .ok_or(GetServerStatusError::EmptyResponse)?;
-        Ok(server_status)
+            .unwrap_field("server_status")?)
     }
 
     /// Creates a new IOx database.
-    pub async fn create_database(
-        &mut self,
-        rules: DatabaseRules,
-    ) -> Result<Uuid, CreateDatabaseError> {
+    pub async fn create_database(&mut self, rules: DatabaseRules) -> Result<Uuid, Error> {
         let response = self
             .inner
             .create_database(CreateDatabaseRequest { rules: Some(rules) })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::AlreadyExists => CreateDatabaseError::DatabaseAlreadyExists,
-                tonic::Code::FailedPrecondition => CreateDatabaseError::NoServerId,
-                tonic::Code::InvalidArgument => CreateDatabaseError::InvalidArgument(status),
-                tonic::Code::Unavailable => CreateDatabaseError::Unavailable(status),
-                _ => CreateDatabaseError::ServerError(status),
-            })?;
+            .await?;
 
         let server_uuid = response.into_inner().uuid;
         let uuid = Uuid::from_slice(&server_uuid)
@@ -517,23 +91,13 @@ impl Client {
     }
 
     /// Updates the configuration for a database.
-    pub async fn update_database(
-        &mut self,
-        rules: DatabaseRules,
-    ) -> Result<DatabaseRules, UpdateDatabaseError> {
+    pub async fn update_database(&mut self, rules: DatabaseRules) -> Result<DatabaseRules, Error> {
         let response = self
             .inner
             .update_database(UpdateDatabaseRequest { rules: Some(rules) })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => UpdateDatabaseError::DatabaseNotFound,
-                tonic::Code::FailedPrecondition => UpdateDatabaseError::NoServerId,
-                tonic::Code::InvalidArgument => UpdateDatabaseError::InvalidArgument(status),
-                tonic::Code::Unavailable => UpdateDatabaseError::Unavailable(status),
-                _ => UpdateDatabaseError::ServerError(status),
-            })?;
+            .await?;
 
-        Ok(response.into_inner().rules.unwrap())
+        Ok(response.into_inner().rules.unwrap_field("rules")?)
     }
 
     /// List databases.
@@ -542,21 +106,17 @@ impl Client {
     pub async fn list_databases(
         &mut self,
         omit_defaults: bool,
-    ) -> Result<Vec<DatabaseRules>, ListDatabaseError> {
+    ) -> Result<Vec<DatabaseRules>, Error> {
         let response = self
             .inner
             .list_databases(ListDatabasesRequest { omit_defaults })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::Unavailable => ListDatabaseError::Unavailable(status),
-                _ => ListDatabaseError::ServerError(status),
-            })?;
+            .await?;
 
         Ok(response.into_inner().rules)
     }
 
     /// List databases names
-    pub async fn list_database_names(&mut self) -> Result<Vec<String>, ListDatabaseError> {
+    pub async fn list_database_names(&mut self) -> Result<Vec<String>, Error> {
         // doesn't really matter as the name is present in all forms
         // of the config. Pick true to minimize bandwidth.
         let omit_defaults = true;
@@ -572,17 +132,11 @@ impl Client {
     }
 
     /// List databases and detailed metadata
-    pub async fn list_detailed_databases(
-        &mut self,
-    ) -> Result<Vec<DetailedDatabase>, ListDatabaseError> {
+    pub async fn list_detailed_databases(&mut self) -> Result<Vec<DetailedDatabase>, Error> {
         let response = self
             .inner
             .list_detailed_databases(ListDetailedDatabasesRequest {})
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::Unavailable => ListDatabaseError::Unavailable(status),
-                _ => ListDatabaseError::ServerError(status),
-            })?;
+            .await?;
         Ok(response.into_inner().databases)
     }
 
@@ -599,26 +153,16 @@ impl Client {
         &mut self,
         name: impl Into<String> + Send,
         omit_defaults: bool,
-    ) -> Result<DatabaseRules, GetDatabaseError> {
+    ) -> Result<DatabaseRules, Error> {
         let response = self
             .inner
             .get_database(GetDatabaseRequest {
                 name: name.into(),
                 omit_defaults,
             })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => GetDatabaseError::DatabaseNotFound,
-                tonic::Code::FailedPrecondition => GetDatabaseError::NoServerId,
-                tonic::Code::Unavailable => GetDatabaseError::Unavailable(status),
-                _ => GetDatabaseError::ServerError(status),
-            })?;
+            .await?;
 
-        let rules = response
-            .into_inner()
-            .rules
-            .ok_or(GetDatabaseError::EmptyResponse)?;
-        Ok(rules)
+        Ok(response.into_inner().rules.unwrap_field("rules")?)
     }
 
     /// Release database
@@ -626,7 +170,7 @@ impl Client {
         &mut self,
         db_name: impl Into<String> + Send,
         uuid: Option<Uuid>,
-    ) -> Result<Uuid, ReleaseDatabaseError> {
+    ) -> Result<Uuid, Error> {
         let db_name = db_name.into();
         let response = self
             .inner
@@ -634,13 +178,7 @@ impl Client {
                 db_name: db_name.clone(),
                 uuid: uuid.map(|u| u.as_bytes().to_vec()).unwrap_or_default(),
             })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => ReleaseDatabaseError::DatabaseNotFound { name: db_name },
-                tonic::Code::FailedPrecondition => ReleaseDatabaseError::NoServerId,
-                tonic::Code::InvalidArgument => ReleaseDatabaseError::InvalidArgument(status),
-                _ => ReleaseDatabaseError::ServerError(status),
-            })?;
+            .await?;
 
         let server_uuid = response.into_inner().uuid;
         let uuid = Uuid::from_slice(&server_uuid)
@@ -656,36 +194,29 @@ impl Client {
     }
 
     /// Claim database
-    pub async fn claim_database(&mut self, uuid: Uuid) -> Result<String, ClaimDatabaseError> {
+    pub async fn claim_database(&mut self, uuid: Uuid) -> Result<String, Error> {
         let uuid_bytes = uuid.as_bytes().to_vec();
 
-        self.inner
+        let response = self
+            .inner
             .claim_database(ClaimDatabaseRequest { uuid: uuid_bytes })
-            .await
-            .map(|response| response.into_inner().db_name)
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => ClaimDatabaseError::DatabaseNotFound { uuid },
-                tonic::Code::FailedPrecondition => ClaimDatabaseError::NoServerId,
-                tonic::Code::Unavailable => ClaimDatabaseError::Unavailable(status),
-                _ => ClaimDatabaseError::ServerError(status),
-            })
+            .await?;
+
+        Ok(response.into_inner().db_name)
     }
 
     /// List chunks in a database.
     pub async fn list_chunks(
         &mut self,
         db_name: impl Into<String> + Send,
-    ) -> Result<Vec<Chunk>, ListChunksError> {
+    ) -> Result<Vec<Chunk>, Error> {
         let db_name = db_name.into();
 
         let response = self
             .inner
             .list_chunks(ListChunksRequest { db_name })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::Unavailable => ListChunksError::Unavailable(status),
-                _ => ListChunksError::ServerError(status),
-            })?;
+            .await?;
+
         Ok(response.into_inner().chunks)
     }
 
@@ -693,21 +224,14 @@ impl Client {
     pub async fn list_partitions(
         &mut self,
         db_name: impl Into<String> + Send,
-    ) -> Result<Vec<Partition>, ListPartitionsError> {
+    ) -> Result<Vec<Partition>, Error> {
         let db_name = db_name.into();
         let response = self
             .inner
             .list_partitions(ListPartitionsRequest { db_name })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => ListPartitionsError::DatabaseNotFound,
-                tonic::Code::Unavailable => ListPartitionsError::Unavailable(status),
-                _ => ListPartitionsError::ServerError(status),
-            })?;
+            .await?;
 
-        let ListPartitionsResponse { partitions } = response.into_inner();
-
-        Ok(partitions)
+        Ok(response.into_inner().partitions)
     }
 
     /// Get details about a specific partition
@@ -715,7 +239,7 @@ impl Client {
         &mut self,
         db_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
-    ) -> Result<Partition, GetPartitionError> {
+    ) -> Result<Partition, Error> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
 
@@ -725,16 +249,9 @@ impl Client {
                 db_name,
                 partition_key,
             })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => GetPartitionError::DatabaseNotFound,
-                tonic::Code::Unavailable => GetPartitionError::Unavailable(status),
-                _ => GetPartitionError::ServerError(status),
-            })?;
+            .await?;
 
-        let GetPartitionResponse { partition } = response.into_inner();
-
-        partition.ok_or(GetPartitionError::PartitionNotFound)
+        Ok(response.into_inner().partition.unwrap_field("partition")?)
     }
 
     /// List chunks in a partition
@@ -742,7 +259,7 @@ impl Client {
         &mut self,
         db_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
-    ) -> Result<Vec<Chunk>, ListPartitionChunksError> {
+    ) -> Result<Vec<Chunk>, Error> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
 
@@ -752,11 +269,8 @@ impl Client {
                 db_name,
                 partition_key,
             })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::Unavailable => ListPartitionChunksError::Unavailable(status),
-                _ => ListPartitionChunksError::ServerError(status),
-            })?;
+            .await?;
+
         Ok(response.into_inner().chunks)
     }
 
@@ -766,7 +280,7 @@ impl Client {
         db_name: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
-    ) -> Result<(), NewPartitionChunkError> {
+    ) -> Result<(), Error> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
         let table_name = table_name.into();
@@ -777,14 +291,7 @@ impl Client {
                 partition_key,
                 table_name,
             })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => {
-                    NewPartitionChunkError::NotFound(status.message().to_string())
-                }
-                tonic::Code::Unavailable => NewPartitionChunkError::Unavailable(status),
-                _ => NewPartitionChunkError::ServerError(status),
-            })?;
+            .await?;
 
         Ok(())
     }
@@ -792,20 +299,16 @@ impl Client {
     /// Creates a dummy job that for each value of the nanos field
     /// spawns a task that sleeps for that number of nanoseconds before
     /// returning
-    pub async fn create_dummy_job(
-        &mut self,
-        nanos: Vec<u64>,
-    ) -> Result<IoxOperation, CreateDummyJobError> {
+    pub async fn create_dummy_job(&mut self, nanos: Vec<u64>) -> Result<IoxOperation, Error> {
         let response = self
             .inner
             .create_dummy_job(CreateDummyJobRequest { nanos })
-            .await
-            .map_err(CreateDummyJobError::ServerError)?;
+            .await?;
 
         Ok(response
             .into_inner()
             .operation
-            .ok_or(CreateDummyJobError::EmptyResponse)?
+            .unwrap_field("operation")?
             .try_into()?)
     }
 
@@ -819,7 +322,7 @@ impl Client {
         table_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
         chunk_id: Bytes,
-    ) -> Result<IoxOperation, ClosePartitionChunkError> {
+    ) -> Result<IoxOperation, Error> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
         let table_name = table_name.into();
@@ -832,17 +335,12 @@ impl Client {
                 table_name,
                 chunk_id,
             })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => ClosePartitionChunkError::DatabaseNotFound,
-                tonic::Code::Unavailable => ClosePartitionChunkError::Unavailable(status),
-                _ => ClosePartitionChunkError::ServerError(status),
-            })?;
+            .await?;
 
         Ok(response
             .into_inner()
             .operation
-            .ok_or(ClosePartitionChunkError::EmptyResponse)?
+            .unwrap_field("operation")?
             .try_into()?)
     }
 
@@ -853,7 +351,7 @@ impl Client {
         table_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
         chunk_id: Bytes,
-    ) -> Result<(), UnloadPartitionChunkError> {
+    ) -> Result<(), Error> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
         let table_name = table_name.into();
@@ -865,17 +363,7 @@ impl Client {
                 table_name,
                 chunk_id,
             })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => {
-                    UnloadPartitionChunkError::NotFound(status.message().to_string())
-                }
-                tonic::Code::Unavailable => UnloadPartitionChunkError::Unavailable(status),
-                tonic::Code::FailedPrecondition => {
-                    UnloadPartitionChunkError::LifecycleError(status)
-                }
-                _ => UnloadPartitionChunkError::ServerError(status),
-            })?;
+            .await?;
 
         Ok(())
     }
@@ -887,7 +375,7 @@ impl Client {
         table_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
         chunk_id: Bytes,
-    ) -> Result<IoxOperation, LoadPartitionChunkError> {
+    ) -> Result<IoxOperation, Error> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
         let table_name = table_name.into();
@@ -900,20 +388,12 @@ impl Client {
                 table_name,
                 chunk_id,
             })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => {
-                    LoadPartitionChunkError::NotFound(status.message().to_string())
-                }
-                tonic::Code::Unavailable => LoadPartitionChunkError::Unavailable(status),
-                tonic::Code::FailedPrecondition => LoadPartitionChunkError::LifecycleError(status),
-                _ => LoadPartitionChunkError::ServerError(status),
-            })?;
+            .await?;
 
         Ok(response
             .into_inner()
             .operation
-            .ok_or(LoadPartitionChunkError::EmptyResponse)?
+            .unwrap_field("operation")?
             .try_into()?)
     }
 
@@ -921,25 +401,18 @@ impl Client {
     pub async fn wipe_preserved_catalog(
         &mut self,
         db_name: impl Into<String> + Send,
-    ) -> Result<IoxOperation, WipePreservedCatalogError> {
+    ) -> Result<IoxOperation, Error> {
         let db_name = db_name.into();
 
         let response = self
             .inner
             .wipe_preserved_catalog(WipePreservedCatalogRequest { db_name })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::FailedPrecondition => {
-                    WipePreservedCatalogError::FailedPrecondition(status)
-                }
-                tonic::Code::InvalidArgument => WipePreservedCatalogError::InvalidArgument(status),
-                _ => WipePreservedCatalogError::ServerError(status),
-            })?;
+            .await?;
 
         Ok(response
             .into_inner()
             .operation
-            .ok_or(WipePreservedCatalogError::EmptyResponse)?
+            .unwrap_field("operation")?
             .try_into()?)
     }
 
@@ -947,45 +420,28 @@ impl Client {
     pub async fn rebuild_preserved_catalog(
         &mut self,
         db_name: impl Into<String> + Send,
-    ) -> Result<IoxOperation, RebuildPreservedCatalogError> {
+    ) -> Result<IoxOperation, Error> {
         let db_name = db_name.into();
 
         let response = self
             .inner
             .rebuild_preserved_catalog(RebuildPreservedCatalogRequest { db_name })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::FailedPrecondition => {
-                    RebuildPreservedCatalogError::FailedPrecondition(status)
-                }
-                tonic::Code::InvalidArgument => {
-                    RebuildPreservedCatalogError::InvalidArgument(status)
-                }
-                _ => RebuildPreservedCatalogError::ServerError(status),
-            })?;
+            .await?;
 
         Ok(response
             .into_inner()
             .operation
-            .ok_or(RebuildPreservedCatalogError::EmptyResponse)?
+            .unwrap_field("operation")?
             .try_into()?)
     }
 
     /// Skip replay of an uninitialized database.
-    pub async fn skip_replay(
-        &mut self,
-        db_name: impl Into<String> + Send,
-    ) -> Result<(), SkipReplayError> {
+    pub async fn skip_replay(&mut self, db_name: impl Into<String> + Send) -> Result<(), Error> {
         let db_name = db_name.into();
 
         self.inner
             .skip_replay(SkipReplayRequest { db_name })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::FailedPrecondition => SkipReplayError::FailedPrecondition(status),
-                tonic::Code::InvalidArgument => SkipReplayError::InvalidArgument(status),
-                _ => SkipReplayError::ServerError(status),
-            })?;
+            .await?;
 
         Ok(())
     }
@@ -996,7 +452,7 @@ impl Client {
         db_name: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
-    ) -> Result<(), DropPartitionError> {
+    ) -> Result<(), Error> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
         let table_name = table_name.into();
@@ -1007,13 +463,7 @@ impl Client {
                 partition_key,
                 table_name,
             })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => DropPartitionError::NotFound(status.message().to_string()),
-                tonic::Code::Unavailable => DropPartitionError::Unavailable(status),
-                tonic::Code::FailedPrecondition => DropPartitionError::LifecycleError(status),
-                _ => DropPartitionError::ServerError(status),
-            })?;
+            .await?;
 
         Ok(())
     }
@@ -1028,7 +478,7 @@ impl Client {
         table_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
         force: bool,
-    ) -> Result<(), PersistPartitionError> {
+    ) -> Result<(), Error> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
         let table_name = table_name.into();
@@ -1040,15 +490,7 @@ impl Client {
                 table_name,
                 force,
             })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => {
-                    PersistPartitionError::NotFound(status.message().to_string())
-                }
-                tonic::Code::Unavailable => PersistPartitionError::Unavailable(status),
-                tonic::Code::FailedPrecondition => PersistPartitionError::LifecycleError(status),
-                _ => PersistPartitionError::ServerError(status),
-            })?;
+            .await?;
 
         Ok(())
     }
