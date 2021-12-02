@@ -678,20 +678,73 @@ disk,host=C value=1.3 1000000000`)
 			EnqueueData(id, gomock.Any(), len(points)).
 			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
 				require.Equal(t, len(points), numPoints)
+				checkCompressedData(t, data, points)
+				return nil
+			})
+	}
 
-				gzBuf := bytes.NewBuffer(data)
-				gzr, err := gzip.NewReader(gzBuf)
-				require.NoError(t, err)
-				defer gzr.Close()
+	require.NoError(t, svc.WritePoints(ctx, orgID, id1, points))
+}
 
-				var buf bytes.Buffer
-				_, err = buf.ReadFrom(gzr)
-				require.NoError(t, err)
-				require.NoError(t, gzr.Close())
+func TestWritePointsBatches(t *testing.T) {
+	t.Parallel()
 
-				writtenPoints, err := models.ParsePoints(buf.Bytes())
-				require.NoError(t, err)
-				require.ElementsMatch(t, writtenPoints, points)
+	svc, mocks := newTestService(t)
+
+	// Set batch size to smaller size for testing (should result in 3 batches sized 93, 93, and 63 - total size 249)
+	svc.maxRemoteWriteBatchSize = 100
+
+	// Define metadata for two replications
+	list := &influxdb.Replications{
+		Replications: []influxdb.Replication{replication1, replication2},
+	}
+
+	mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
+		OrgID:         orgID,
+		LocalBucketID: &id1,
+	}).Return(list, nil)
+
+	// Define some points of line protocol, parse string --> []Point
+	points, err := models.ParsePointsString(`
+cpu,host=0 value=1.1 6000000000
+cpu,host=A value=1.2 2000000000
+cpu,host=A value=1.3 3000000000
+cpu,host=B value=1.3 4000000000
+cpu,host=B value=1.3 5000000000
+cpu,host=C value=1.3 1000000000
+mem,host=C value=1.3 1000000000
+disk,host=C value=1.3 1000000000`)
+	require.NoError(t, err)
+
+	// Points should successfully write to local TSM.
+	mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), orgID, id1, points).Return(nil)
+
+	// Points should successfully be enqueued in the 2 replications associated with the local bucket.
+	for _, id := range []platform.ID{replication1.ID, replication2.ID} {
+		// Check batch 1
+		mocks.durableQueueManager.EXPECT().
+			EnqueueData(id, gomock.Any(), 3).
+			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
+				require.Equal(t, 3, numPoints)
+				checkCompressedData(t, data, points[:3])
+				return nil
+			})
+
+		// Check batch 2
+		mocks.durableQueueManager.EXPECT().
+			EnqueueData(id, gomock.Any(), 3).
+			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
+				require.Equal(t, 3, numPoints)
+				checkCompressedData(t, data, points[3:6])
+				return nil
+			})
+
+		// Check batch 3
+		mocks.durableQueueManager.EXPECT().
+			EnqueueData(id, gomock.Any(), 2).
+			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
+				require.Equal(t, 2, numPoints)
+				checkCompressedData(t, data, points[6:])
 				return nil
 			})
 	}
@@ -808,6 +861,22 @@ type mocks struct {
 	serviceStore        *replicationsMock.MockServiceStore
 }
 
+func checkCompressedData(t *testing.T, data []byte, expectedPoints []models.Point) {
+	gzBuf := bytes.NewBuffer(data)
+	gzr, err := gzip.NewReader(gzBuf)
+	require.NoError(t, err)
+	defer gzr.Close()
+
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(gzr)
+	require.NoError(t, err)
+	require.NoError(t, gzr.Close())
+
+	writtenPoints, err := models.ParsePoints(buf.Bytes())
+	require.NoError(t, err)
+	require.ElementsMatch(t, writtenPoints, expectedPoints)
+}
+
 func newTestService(t *testing.T) (*service, mocks) {
 	logger := zaptest.NewLogger(t)
 
@@ -820,13 +889,14 @@ func newTestService(t *testing.T) (*service, mocks) {
 		serviceStore:        replicationsMock.NewMockServiceStore(ctrl),
 	}
 	svc := service{
-		store:               mocks.serviceStore,
-		idGenerator:         mock.NewIncrementingIDGenerator(id1),
-		bucketService:       mocks.bucketSvc,
-		validator:           mocks.validator,
-		log:                 logger,
-		durableQueueManager: mocks.durableQueueManager,
-		localWriter:         mocks.pointWriter,
+		store:                   mocks.serviceStore,
+		idGenerator:             mock.NewIncrementingIDGenerator(id1),
+		bucketService:           mocks.bucketSvc,
+		validator:               mocks.validator,
+		log:                     logger,
+		durableQueueManager:     mocks.durableQueueManager,
+		localWriter:             mocks.pointWriter,
+		maxRemoteWriteBatchSize: maxRemoteWriteBatchSize,
 	}
 
 	return &svc, mocks
