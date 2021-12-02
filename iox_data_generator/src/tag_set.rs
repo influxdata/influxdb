@@ -57,7 +57,9 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// A collection of pre-generated values.
 #[derive(Debug)]
 pub struct GeneratedValueCollection {
+    #[allow(dead_code)]
     name: String,
+    #[allow(dead_code)]
     values: Vec<GeneratedValue>,
 }
 

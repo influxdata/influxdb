@@ -81,9 +81,7 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
 
 /// Return a reference to the specified scenario
 pub fn get_db_setup(setup_name: impl AsRef<str>) -> Option<Arc<dyn DbSetup>> {
-    get_all_setups()
-        .get(setup_name.as_ref())
-        .map(|setup| Arc::clone(setup))
+    get_all_setups().get(setup_name.as_ref()).map(Arc::clone)
 }
 
 /// No data
