@@ -22,7 +22,7 @@ pub struct Config {
 #[derive(Debug, StructOpt)]
 enum Command {
     /// Dump preserved catalog.
-    DumpCatalog(dump_catalog::Config),
+    DumpCatalog(Box<dump_catalog::Config>),
 
     /// Prints what CPU features are used by the compiler by default.
     PrintCpu,
@@ -30,7 +30,7 @@ enum Command {
 
 pub async fn command(config: Config) -> Result<()> {
     match config.command {
-        Command::DumpCatalog(dump_catalog) => dump_catalog::command(dump_catalog)
+        Command::DumpCatalog(dump_catalog) => dump_catalog::command(*dump_catalog)
             .await
             .context(DumpCatalogError),
         Command::PrintCpu => {
