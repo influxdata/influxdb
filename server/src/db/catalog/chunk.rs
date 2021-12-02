@@ -949,7 +949,7 @@ impl CatalogChunk {
         if lifecycle_action == ChunkLifecycleAction::CompactingObjectStore {
             assert!(
                 to_be_created_chunk_id.is_some(),
-                "Compacting Object Store must go with a chunk ID"
+                "Compacting Object Store Action must go with a chunk ID"
             );
             self.to_be_created_chunk_id = to_be_created_chunk_id;
         }
