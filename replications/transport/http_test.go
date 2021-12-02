@@ -19,6 +19,8 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+//go:generate go run github.com/golang/mock/mockgen -package mock -destination ../mock/service.go github.com/influxdata/influxdb/v2/replications/transport ReplicationService
+
 var (
 	orgStr            = "1234123412341234"
 	orgID, _          = platform.IDFromString(orgStr)
