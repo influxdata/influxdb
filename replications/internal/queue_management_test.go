@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"context"
 	"errors"
 	"io"
 	"os"
@@ -327,17 +326,17 @@ func shutdown(t *testing.T, qm *durableQueueManager) {
 }
 
 type testRemoteWriter struct {
-	writeFn func(context.Context, []byte) error
+	writeFn func([]byte) error
 }
 
-func (tw *testRemoteWriter) Write(ctx context.Context, data []byte) error {
-	return tw.writeFn(ctx, data)
+func (tw *testRemoteWriter) Write(data []byte) error {
+	return tw.writeFn(data)
 }
 
 func getTestRemoteWriter(t *testing.T, expected string, returning error) remoteWriter {
 	t.Helper()
 
-	writeFn := func(ctx context.Context, b []byte) error {
+	writeFn := func(b []byte) error {
 		require.Equal(t, expected, string(b))
 		return returning
 	}

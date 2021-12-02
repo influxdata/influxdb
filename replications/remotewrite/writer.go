@@ -66,11 +66,12 @@ type writer struct {
 	maximumBackoffTime            time.Duration
 	maximumAttemptsForBackoffTime int
 	clientTimeout                 time.Duration
+	done                          chan struct{}
 	maximumAttemptsBeforeErr      int      // used for testing, 0 for unlimited
 	waitFunc                      waitFunc // used for testing
 }
 
-func NewWriter(replicationID platform.ID, store HttpConfigStore, metrics *metrics.ReplicationsMetrics, logger *zap.Logger) *writer {
+func NewWriter(replicationID platform.ID, store HttpConfigStore, metrics *metrics.ReplicationsMetrics, logger *zap.Logger, done chan struct{}) *writer {
 	return &writer{
 		replicationID:                 replicationID,
 		configStore:                   store,
@@ -79,13 +80,33 @@ func NewWriter(replicationID platform.ID, store HttpConfigStore, metrics *metric
 		maximumBackoffTime:            maximumBackoffTime,
 		maximumAttemptsForBackoffTime: maximumAttempts,
 		clientTimeout:                 DefaultTimeout,
+		done:                          done,
 		waitFunc: func(t time.Duration) <-chan time.Time {
 			return time.After(t)
 		},
 	}
 }
 
-func (w *writer) Write(ctx context.Context, data []byte) error {
+func (w *writer) Write(data []byte) error {
+	// Clean up the cancellation goroutine on a successful write.
+	writeDone := make(chan struct{})
+	defer func() {
+		select {
+		case writeDone <- struct{}{}: // send signal if the cancellation goroutine is still waiting to receive
+		default:
+		}
+	}()
+
+	// Cancel any outstanding HTTP requests if the replicationQueue is closed.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-w.done:
+			cancel()
+		case <-writeDone:
+		}
+	}()
+
 	attempts := 0
 
 	for {

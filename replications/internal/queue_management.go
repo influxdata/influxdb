@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -17,7 +16,7 @@ import (
 )
 
 type remoteWriter interface {
-	Write(context.Context, []byte) error
+	Write([]byte) error
 }
 
 type replicationQueue struct {
@@ -175,8 +174,7 @@ func (rq *replicationQueue) SendWrite() bool {
 
 		// An error here indicates an unhandlable error. Data is not corrupt, and
 		// the remote write is not retryable.
-		// TODO: Propagate context if needed to allow for graceful shutdowns, see https://github.com/influxdata/influxdb/issues/22944
-		if err = rq.remoteWriter.Write(context.Background(), scan.Bytes()); err != nil {
+		if err = rq.remoteWriter.Write(scan.Bytes()); err != nil {
 			rq.logger.Error("Error in replication stream", zap.Error(err))
 			return false
 		}
@@ -381,14 +379,15 @@ func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byt
 
 func (qm *durableQueueManager) newReplicationQueue(id platform.ID, queue *durablequeue.Queue) *replicationQueue {
 	logger := qm.logger.With(zap.String("replication_id", id.String()))
+	done := make(chan struct{})
 
 	return &replicationQueue{
 		id:           id,
 		queue:        queue,
-		done:         make(chan struct{}),
+		done:         done,
 		receive:      make(chan struct{}, 1),
 		logger:       logger,
 		metrics:      qm.metrics,
-		remoteWriter: remotewrite.NewWriter(id, qm.configStore, qm.metrics, logger),
+		remoteWriter: remotewrite.NewWriter(id, qm.configStore, qm.metrics, logger, done),
 	}
 }
