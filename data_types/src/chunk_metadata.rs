@@ -256,7 +256,7 @@ impl From<ChunkId> for Bytes {
 }
 
 #[derive(Debug, Snafu)]
-pub enum ChunkConversionError {
+pub enum ChunkIdConversionError {
     #[snafu(display("Cannot convert bytes to chunk ID: {}", source))]
     CannotConvertBytes { source: uuid::Error },
 
@@ -265,7 +265,7 @@ pub enum ChunkConversionError {
 }
 
 impl TryFrom<Bytes> for ChunkId {
-    type Error = ChunkConversionError;
+    type Error = ChunkIdConversionError;
 
     fn try_from(value: Bytes) -> Result<Self, Self::Error> {
         Ok(Self(Uuid::from_slice(&value).context(CannotConvertBytes)?))
@@ -281,7 +281,7 @@ impl From<Uuid> for ChunkId {
 /// Implements conversion from the canonical textual representation of a UUID
 /// into a `ChunkId`.
 impl FromStr for ChunkId {
-    type Err = ChunkConversionError;
+    type Err = ChunkIdConversionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let uuid = Uuid::parse_str(s).context(CannotConvertUUIDText)?;

@@ -238,7 +238,7 @@ pub enum Error {
 
     #[snafu(display("Cannot decode chunk id: {}", source))]
     CannotDecodeChunkId {
-        source: data_types::chunk_metadata::ChunkConversionError,
+        source: data_types::chunk_metadata::ChunkIdConversionError,
     },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;

@@ -1,7 +1,7 @@
 //! This module implements the `chunk` CLI command
 use std::str::FromStr;
 
-use data_types::chunk_metadata::{ChunkConversionError, ChunkId};
+use data_types::chunk_metadata::{ChunkId, ChunkIdConversionError};
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
     connection::Connection,
@@ -32,7 +32,7 @@ pub enum Error {
     ChunkNotFound { value: String },
 
     #[error("Invalid chunk ID: {0}")]
-    InvalidChunkIDError(#[from] ChunkConversionError),
+    InvalidChunkIDError(#[from] ChunkIdConversionError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

@@ -7,7 +7,7 @@ use crate::{
     },
 };
 use assert_cmd::Command;
-use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
+use data_types::chunk_metadata::ChunkStorage;
 use generated_types::{
     google::longrunning::IoxOperation,
     influxdata::iox::management::v1::{operation_metadata::Job, WipePreservedCatalog},
