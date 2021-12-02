@@ -333,15 +333,12 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 		})
 
 		currentBatchSize := 0
-		currentBatchIndex := 0
 		gzw := gzip.NewWriter(batches[0].data)
 
 		// Iterate through points and compress in batches
 		for _, p := range points {
 			// If current point will cause this batch to exceed max size, start a new batch for it first
 			if currentBatchSize+p.StringSize() > s.maxRemoteWriteBatchSize {
-				currentBatchIndex += 1
-
 				batches = append(batches, &batch{
 					data:      &bytes.Buffer{},
 					numPoints: 0,
@@ -351,7 +348,7 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 					return err
 				}
 				currentBatchSize = 0
-				gzw = gzip.NewWriter(batches[currentBatchIndex].data)
+				gzw = gzip.NewWriter(batches[len(batches)-1].data)
 			}
 
 			// Compress point and append to buffer
@@ -360,7 +357,7 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 				return fmt.Errorf("failed to serialize points for replication: %w", err)
 			}
 
-			batches[currentBatchIndex].numPoints += 1
+			batches[len(batches)-1].numPoints += 1
 			currentBatchSize += p.StringSize()
 		}
 		if err := gzw.Close(); err != nil {
