@@ -867,7 +867,7 @@ async fn do_read_group_request(
 }
 
 fn dump_data_frames(frames: &[Data]) -> Vec<String> {
-    frames.iter().map(|f| dump_data(f)).collect()
+    frames.iter().map(dump_data).collect()
 }
 
 fn dump_data(data: &Data) -> String {

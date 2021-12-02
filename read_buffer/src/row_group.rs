@@ -1909,7 +1909,7 @@ impl Display for &ReadFilterResult<'_> {
         let mut iter_map = self
             .data
             .iter()
-            .map(|v| ValuesIterator::new(v))
+            .map(ValuesIterator::new)
             .collect::<Vec<_>>();
 
         let columns = iter_map.len();

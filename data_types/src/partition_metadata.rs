@@ -353,7 +353,7 @@ impl Statistics {
             Self::U64(v) => v.min.map(|x| Cow::Owned(x.to_string())),
             Self::F64(v) => v.min.map(|x| Cow::Owned(x.to_string())),
             Self::Bool(v) => v.min.map(|x| Cow::Owned(x.to_string())),
-            Self::String(v) => v.min.as_deref().map(|x| Cow::Borrowed(x)),
+            Self::String(v) => v.min.as_deref().map(Cow::Borrowed),
         }
     }
 
@@ -364,7 +364,7 @@ impl Statistics {
             Self::U64(v) => v.max.map(|x| Cow::Owned(x.to_string())),
             Self::F64(v) => v.max.map(|x| Cow::Owned(x.to_string())),
             Self::Bool(v) => v.max.map(|x| Cow::Owned(x.to_string())),
-            Self::String(v) => v.max.as_deref().map(|x| Cow::Borrowed(x)),
+            Self::String(v) => v.max.as_deref().map(Cow::Borrowed),
         }
     }
 
