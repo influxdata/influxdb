@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 )
 
@@ -26,7 +27,7 @@ func TestCacheCheckConcurrentReadsAreSafe(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	c := tsm1.NewCache(1000000, tsm1.EngineTags{})
+	c := tsm1.NewCache(1000000, tsdb.EngineTags{})
 
 	ch := make(chan struct{})
 	for _, s := range series {
@@ -71,7 +72,7 @@ func TestCacheRace(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	c := tsm1.NewCache(1000000, tsm1.EngineTags{})
+	c := tsm1.NewCache(1000000, tsdb.EngineTags{})
 
 	ch := make(chan struct{})
 	for _, s := range series {
@@ -136,7 +137,7 @@ func TestCacheRace2Compacters(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	c := tsm1.NewCache(1000000, tsm1.EngineTags{})
+	c := tsm1.NewCache(1000000, tsdb.EngineTags{})
 
 	ch := make(chan struct{})
 	for _, s := range series {

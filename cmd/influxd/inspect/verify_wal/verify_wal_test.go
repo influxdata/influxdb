@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/stretchr/testify/require"
 )
@@ -110,7 +111,7 @@ func newTempWALValid(t *testing.T) string {
 	dir, err := os.MkdirTemp("", "verify-wal")
 	require.NoError(t, err)
 
-	w := tsm1.NewWAL(dir, 0, 0, tsm1.EngineTags{})
+	w := tsm1.NewWAL(dir, 0, 0, tsdb.EngineTags{})
 	defer w.Close()
 	require.NoError(t, w.Open())
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -78,6 +79,32 @@ func (s *Service) WithLogger(log *zap.Logger) {
 	s.logger = log.With(zap.String("service", "retention"))
 }
 
+var globalRetentionMetrics = newRetentionMetrics()
+
+const storageNamespace = "storage"
+const retentionSubsystem = "retention"
+
+type retentionMetrics struct {
+	checkDuration prometheus.Histogram
+}
+
+func newRetentionMetrics() *retentionMetrics {
+	return &retentionMetrics{
+		checkDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace: storageNamespace,
+			Subsystem: retentionSubsystem,
+			Name:      "check_duration",
+			Help:      "Histogram of duration of retention check (in seconds)",
+		}),
+	}
+}
+
+func PrometheusCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		globalRetentionMetrics.checkDuration,
+	}
+}
+
 func (s *Service) run(ctx context.Context) {
 	ticker := time.NewTicker(time.Duration(s.config.CheckInterval))
 	defer ticker.Stop()
@@ -87,6 +114,7 @@ func (s *Service) run(ctx context.Context) {
 			return
 
 		case <-ticker.C:
+			startTime := time.Now()
 			log, logEnd := logger.NewOperation(context.Background(), s.logger, "Retention policy deletion check", "retention_delete_check")
 
 			type deletionInfo struct {
@@ -164,6 +192,8 @@ func (s *Service) run(ctx context.Context) {
 			}
 
 			logEnd()
+			elapsed := time.Since(startTime)
+			globalRetentionMetrics.checkDuration.Observe(elapsed.Seconds())
 		}
 	}
 }

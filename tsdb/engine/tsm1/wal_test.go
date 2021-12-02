@@ -14,13 +14,14 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/stretchr/testify/require"
 )
 
 func NewWAL(path string, maxConcurrentWrites int, maxWriteDelay time.Duration) *tsm1.WAL {
 	// EngineTags is only for metrics, not needed for tests
-	return tsm1.NewWAL(path, maxConcurrentWrites, maxWriteDelay, tsm1.EngineTags{})
+	return tsm1.NewWAL(path, maxConcurrentWrites, maxWriteDelay, tsdb.EngineTags{})
 }
 
 func TestWALWriter_WriteMulti_Single(t *testing.T) {

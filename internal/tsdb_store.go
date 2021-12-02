@@ -29,7 +29,6 @@ type TSDBStoreMock struct {
 	DiskSizeFn                func() (int64, error)
 	ExpandSourcesFn           func(sources influxql.Sources) (influxql.Sources, error)
 	ImportShardFn             func(id uint64, r io.Reader) error
-	MeasurementSeriesCountsFn func(database string) (measurements int, series int)
 	MeasurementsCardinalityFn func(database string) (int64, error)
 	MeasurementNamesFn        func(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
 	OpenFn                    func() error
@@ -94,9 +93,6 @@ func (s *TSDBStoreMock) ImportShard(id uint64, r io.Reader) error {
 }
 func (s *TSDBStoreMock) MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error) {
 	return s.MeasurementNamesFn(ctx, auth, database, cond)
-}
-func (s *TSDBStoreMock) MeasurementSeriesCounts(database string) (measurements int, series int) {
-	return s.MeasurementSeriesCountsFn(database)
 }
 func (s *TSDBStoreMock) MeasurementsCardinality(database string) (int64, error) {
 	return s.MeasurementsCardinalityFn(database)
