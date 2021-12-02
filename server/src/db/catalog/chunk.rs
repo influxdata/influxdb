@@ -427,6 +427,15 @@ impl CatalogChunk {
             .map_or(false, |action| action.metadata() == &lifecycle_action)
     }
 
+    pub fn in_lifecycle_compacting_object_store(&self) -> Option<ChunkId> {
+        if let Some(task) = self.lifecycle_action.as_ref() {
+            if let ChunkLifecycleAction::CompactingObjectStore(chunk_id) = task.metadata() {
+                return Some(*chunk_id);
+            }
+        }
+        None
+    }
+
     pub fn time_of_first_write(&self) -> Time {
         self.time_of_first_write
     }
@@ -749,7 +758,11 @@ impl CatalogChunk {
     }
 
     /// Set the persisted chunk to be compacting
-    pub fn set_compacting_object_store(&mut self, registration: &TaskRegistration) -> Result<()> {
+    pub fn set_compacting_object_store(
+        &mut self,
+        registration: &TaskRegistration,
+        compacted_chunk_id: ChunkId,
+    ) -> Result<()> {
         match &self.stage {
             ChunkStage::Open { .. } | ChunkStage::Frozen { .. } => {
                 unexpected_state!(
@@ -761,7 +774,7 @@ impl CatalogChunk {
             }
             ChunkStage::Persisted { .. } => {
                 self.set_lifecycle_action(
-                    ChunkLifecycleAction::CompactingObjectStore,
+                    ChunkLifecycleAction::CompactingObjectStore(compacted_chunk_id),
                     registration,
                 )?;
                 Ok(())

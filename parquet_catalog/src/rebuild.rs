@@ -387,6 +387,7 @@ mod tests {
                 metadata,
             )
             .await
+            .unwrap()
             .unwrap();
 
         CatalogParquetInfo {

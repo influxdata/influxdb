@@ -140,24 +140,31 @@ impl Storage {
     ///
     /// returns the path to which the chunk was written, the size of
     /// the bytes, and the parquet metadata
+    ///
+    /// Nothing will be persisted if the input stream returns nothing as
+    /// a result of hard deletes and deduplications
     pub async fn write_to_object_store(
         &self,
         chunk_addr: ChunkAddr,
         stream: SendableRecordBatchStream,
         metadata: IoxMetadata,
-    ) -> Result<(ParquetFilePath, usize, IoxParquetMetaData)> {
+    ) -> Result<Option<(ParquetFilePath, usize, IoxParquetMetaData)>> {
         // Create full path location of this file in object store
         let path = ParquetFilePath::new(&chunk_addr);
 
         let schema = stream.schema();
         let data = Self::parquet_stream_to_bytes(stream, schema, metadata).await?;
         // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
+        if data.is_empty() {
+            return Ok(None);
+        }
+
         let file_size_bytes = data.len();
         let md =
             IoxParquetMetaData::from_file_bytes(data.clone()).context(ExtractingMetadataFailure)?;
         self.to_object_store(data, &path).await?;
 
-        Ok((path, file_size_bytes, md))
+        Ok(Some((path, file_size_bytes, md)))
     }
 
     fn writer_props(metadata_bytes: &[u8]) -> WriterProperties {
@@ -550,7 +557,8 @@ mod tests {
                 metadata,
             )
             .await
-            .expect("successfully wrote to object store");
+            .expect("successfully wrote to object store")
+            .unwrap();
 
         let iox_object_store = Arc::clone(&storage.iox_object_store);
         let read_stream = Storage::read_filter(

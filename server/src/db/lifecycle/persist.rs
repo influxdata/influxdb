@@ -216,7 +216,7 @@ pub fn persist_chunks(
               ?max_persistable_timestamp,
               rows_per_sec=?throughput,  "chunk(s) persisted");
 
-        Ok(Some(persisted_chunk))
+        Ok(persisted_chunk)
     };
 
     Ok((tracker, fut.track(registration)))
