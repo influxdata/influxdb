@@ -2226,7 +2226,6 @@ dependencies = [
  "schema",
  "snafu",
  "test_helpers",
- "tokio",
  "workspace-hack",
 ]
 
