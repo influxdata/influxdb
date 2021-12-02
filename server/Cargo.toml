@@ -51,7 +51,7 @@ snafu = "0.6"
 snap = "1.0.0"
 time = { path = "../time" }
 trace = { path = "../trace" }
-tokio = { version = "1.13", features = ["macros", "time"] }
+tokio = { version = "1.13", features = ["macros", "parking_lot", "time"] }
 tokio-util = { version = "0.6.9" }
 tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["serde", "v4"] }

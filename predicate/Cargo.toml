@@ -20,4 +20,4 @@ workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 test_helpers = { path = "../test_helpers" }
-tokio = { version = "1.13", features = ["macros"] }
+tokio = { version = "1.13", features = ["macros", "parking_lot"] }
