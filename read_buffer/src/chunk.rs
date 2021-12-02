@@ -192,10 +192,10 @@ impl Chunk {
             .read_filter(&select_columns, &predicate, negated_predicates.as_slice())
             .context(TableError);
 
-        let row_groups = match &result {
-            Ok(result) => result.row_groups(),
-            Err(_) => 0,
-        };
+        let row_groups = result
+            .as_ref()
+            .map(|result| result.row_groups())
+            .unwrap_or(0);
         debug!(elapsed=?now.elapsed(), succeeded=result.is_ok(), ?row_groups, "read_filter completed");
         result
     }
