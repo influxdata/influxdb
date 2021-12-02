@@ -435,7 +435,6 @@ func TestEnqueueData_EnqueueFailure(t *testing.T) {
 	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
 	require.DirExists(t, filepath.Join(path, id1.String()))
 
-	// close the scanner goroutine to specifically test EnqueueData()
 	rq, ok := qm.replicationQueues[id1]
 	require.True(t, ok)
 	// Close the underlying queue so an error is generated if we try to append to it
