@@ -1718,7 +1718,6 @@ dependencies = [
  "criterion",
  "data_types",
  "futures",
- "generated_types",
  "handlebars",
  "humantime",
  "influxdb2_client",
