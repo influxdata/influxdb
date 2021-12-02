@@ -7,13 +7,13 @@ use crate::{
     },
 };
 use assert_cmd::Command;
-use data_types::chunk_metadata::ChunkStorage;
+use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
 use generated_types::{
     google::longrunning::IoxOperation,
     influxdata::iox::management::v1::{operation_metadata::Job, WipePreservedCatalog},
 };
 use predicates::prelude::*;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 use tempfile::TempDir;
 use test_helpers::make_temp_file;
 use uuid::Uuid;
@@ -1158,9 +1158,8 @@ fn load_lp(addr: &str, db_name: &str, lp_data: Vec<&str>) {
         .stdout(predicate::str::contains("Lines OK"));
 }
 
-#[tokio::test]
-async fn test_unload_partition_chunk() {
-    let fixture = ServerFixture::create_shared(ServerType::Database).await;
+async fn setup_load_unload_partition_chunk() -> (Arc<ServerFixture>, String, String) {
+    let fixture = Arc::from(ServerFixture::create_shared(ServerType::Database).await);
     let addr = fixture.grpc_base();
     let db_name = rand_name();
 
@@ -1174,6 +1173,70 @@ async fn test_unload_partition_chunk() {
     let lp_data = vec!["cpu,region=west user=23.2 10"];
     load_lp(addr, &db_name, lp_data);
 
+    (Arc::clone(&fixture), db_name, String::from(addr))
+}
+
+#[tokio::test]
+async fn test_load_partition_chunk() {
+    let (fixture, db_name, addr) = setup_load_unload_partition_chunk().await;
+    let mut chunks = wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+    let chunk = chunks.pop().unwrap();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("unload-chunk")
+        .arg(&db_name)
+        .arg("cpu")
+        .arg("cpu")
+        .arg(chunk.id.get().to_string())
+        .arg("--host")
+        .arg(&addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ok"));
+
+    let mut chunks = wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ObjectStoreOnly],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+    let chunk = chunks.pop().unwrap();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("chunk")
+        .arg("load")
+        .arg(&db_name)
+        .arg(chunk.id.get().to_string())
+        .arg("--host")
+        .arg(&addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("loadReadBufferChunk"));
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_unload_partition_chunk() {
+    let (fixture, db_name, addr) = setup_load_unload_partition_chunk().await;
     let mut chunks = wait_for_exact_chunk_states(
         &fixture,
         &db_name,
