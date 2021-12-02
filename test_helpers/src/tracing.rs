@@ -19,6 +19,7 @@ use parking_lot::Mutex;
 pub struct TracingCapture {
     /// The raw logs are captured as a list of strings
     logs: Arc<Mutex<Vec<String>>>,
+    #[allow(dead_code)]
     guard: DefaultGuard,
 }
 

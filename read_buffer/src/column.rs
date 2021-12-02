@@ -1409,6 +1409,7 @@ impl Iterator for RowIDsIterator<'_> {
 }
 
 /// Statistics about the composition of a column
+#[derive(Debug)]
 pub(crate) struct Statistics {
     pub enc_type: Cow<'static, str>, // The encoding type
     pub log_data_type: &'static str, // The logical data-type

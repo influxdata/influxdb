@@ -307,7 +307,7 @@ impl QueryChunk for DbChunk {
                 let rb_predicate = match to_read_buffer_predicate(predicate) {
                     Ok(rb_predicate) => rb_predicate,
                     Err(e) => {
-                        debug!(?predicate, %e, "read buffer predicate not supported for table_names, falling back");
+                        debug!(?predicate, %e, "Cannot push down predicate to RUB, will fully scan");
                         return Ok(PredicateMatch::Unknown);
                     }
                 };
@@ -350,7 +350,7 @@ impl QueryChunk for DbChunk {
         // Predicate is not required to be applied for correctness. We only pushed it down
         // when possible for performance gain
 
-        debug!(?predicate, "Input Predicate to read_filter");
+        debug!(table=?self.table_name(), chunk_id=%self.addr().chunk_id, ?predicate, ?selection, "read_filter called");
         self.access_recorder.record_access();
 
         let delete_predicates: Vec<_> = self
@@ -363,10 +363,7 @@ impl QueryChunk for DbChunk {
         // merge the negated delete predicates into the select predicate
         let mut pred_with_deleted_exprs = predicate.clone();
         pred_with_deleted_exprs.merge_delete_predicates(&delete_predicates);
-        debug!(
-            ?pred_with_deleted_exprs,
-            "Input Predicate plus deleted ranges and deleted predicates"
-        );
+        debug!(?pred_with_deleted_exprs, "Merged negated predicate");
 
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
@@ -382,7 +379,7 @@ impl QueryChunk for DbChunk {
                     // predicate.
                     .validate_predicate(to_read_buffer_predicate(predicate).unwrap_or_default())
                     .unwrap_or_default();
-                debug!(?rb_predicate, "Predicate pushed down to RUB");
+                debug!(?rb_predicate, "RUB predicate");
 
                 // combine all delete expressions to RUB's negated ones
                 let negated_delete_exprs = Self::to_rub_negated_predicates(&delete_predicates)?
