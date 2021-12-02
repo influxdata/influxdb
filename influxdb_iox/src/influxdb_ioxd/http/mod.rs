@@ -201,8 +201,10 @@ async fn pprof_home(req: Request<Body>) -> Result<Response<Body>, ApplicationErr
 #[derive(Debug, Deserialize)]
 struct PProfArgs {
     #[serde(default = "PProfArgs::default_seconds")]
+    #[allow(dead_code)]
     seconds: u64,
     #[serde(default = "PProfArgs::default_frequency")]
+    #[allow(dead_code)]
     frequency: NonZeroI32,
 }
 
@@ -220,6 +222,7 @@ impl PProfArgs {
 #[derive(Debug, Deserialize)]
 struct PProfAllocsArgs {
     #[serde(default = "PProfAllocsArgs::default_seconds")]
+    #[allow(dead_code)]
     seconds: u64,
     // The sampling interval is a number of bytes that have to cumulatively allocated for a sample to be taken.
     //
@@ -227,6 +230,7 @@ struct PProfAllocsArgs {
     // the allocations profile will account for 16MB instead of 40MB.
     // Heappy will adjust the estimate for sampled recordings, but now that feature is not yet implemented.
     #[serde(default = "PProfAllocsArgs::default_interval")]
+    #[allow(dead_code)]
     interval: NonZeroI32,
 }
 

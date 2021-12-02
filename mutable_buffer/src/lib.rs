@@ -56,6 +56,7 @@ pub struct MBChunk {
     table_name: Arc<str>,
 
     /// Metrics tracked by this chunk
+    #[allow(dead_code)]
     metrics: ChunkMetrics,
 
     /// Map of column id from the chunk dictionary to the column

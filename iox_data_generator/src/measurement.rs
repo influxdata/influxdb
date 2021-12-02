@@ -207,6 +207,7 @@ impl MeasurementGenerator {
 #[derive(Debug)]
 pub struct Measurement {
     name: String,
+    #[allow(dead_code)]
     id: usize,
     tag_pairs: Vec<Arc<TagPair>>,
     generated_tag_sets: Arc<Vec<TagSet>>,
