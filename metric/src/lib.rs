@@ -566,6 +566,6 @@ mod tests {
     #[test]
     #[should_panic(expected = "string must be [0-9a-z_]+ got: \"foo bar\"")]
     fn illegal_attribute_name() {
-        Attributes::from(&[("foo bar", "value")]);
+        let _ = Attributes::from(&[("foo bar", "value")]);
     }
 }
