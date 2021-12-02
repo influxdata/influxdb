@@ -15,7 +15,7 @@ observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.2"
 pin-project = "1.0"
 time = { path = "../time" }
-tokio = { version = "1.13", features = ["macros", "parking_lot", "time"] }
+tokio = { version = "1.13", features = ["macros", "parking_lot", "sync", "time"] }
 tokio-util = { version = "0.6.9" }
 workspace-hack = { path = "../workspace-hack"}
 

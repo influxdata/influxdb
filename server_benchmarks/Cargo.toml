@@ -24,7 +24,7 @@ query_tests = { path = "../query_tests" }
 rand = "0.8.3"
 server = { path = "../server" }
 test_helpers = { path = "../test_helpers" }
-tokio = { version = "1.13", features = ["macros", "parking_lot", "time"] }
+tokio = { version = "1.13", features = ["macros", "parking_lot"] }
 
 [[bench]]
 name = "influxrpc"

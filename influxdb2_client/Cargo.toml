@@ -18,5 +18,5 @@ uuid = { version = "0.8", features = ["v4"] }
 mockito = "0.30"
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
 parking_lot = "0.11.2"
-tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread"] }
+tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 test_helpers = { path = "../test_helpers" }
