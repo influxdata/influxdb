@@ -51,7 +51,7 @@ pub(super) fn write_chunk_to_object_store(
     flush_handle: FlushHandle,
 ) -> Result<(
     TaskTracker<Job>,
-    TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
+    TrackedFuture<impl Future<Output = Result<Option<Arc<DbChunk>>>> + Send>,
 )> {
     let db = Arc::clone(&chunk.data().db);
     let addr = chunk.addr().clone();
@@ -131,10 +131,17 @@ pub(super) fn write_chunk_to_object_store(
                 time_of_last_write,
                 chunk_order,
             };
-            let (path, file_size_bytes, parquet_metadata) = storage
+            let written_result = storage
                 .write_to_object_store(addr.clone(), stream, metadata)
                 .await
                 .context(WritingToObjectStore)?;
+
+            // the stream was empty
+            if written_result.is_none() {
+                return Ok(None);
+            }
+
+            let (path, file_size_bytes, parquet_metadata) = written_result.unwrap();
             let parquet_metadata = Arc::new(parquet_metadata);
 
             let metrics = ParquetChunkMetrics::new(db.metric_registry.as_ref());
@@ -235,7 +242,7 @@ pub(super) fn write_chunk_to_object_store(
 
         // We know this chunk is ParquetFile type
         let chunk = chunk.read();
-        Ok(DbChunk::parquet_file_snapshot(&chunk))
+        Ok(Some(DbChunk::parquet_file_snapshot(&chunk)))
     };
 
     Ok((tracker, fut.track(registration)))

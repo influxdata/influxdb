@@ -25,7 +25,7 @@ use time::Time;
 use trace::ctx::SpanContext;
 
 /// Metadata information about a DML operation
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct DmlMeta {
     /// The sequence number associated with this write
     sequence: Option<Sequence>,
@@ -237,7 +237,7 @@ impl DmlWrite {
 }
 
 /// A delete operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DmlDelete {
     predicate: DeletePredicate,
     table_name: Option<NonEmptyString>,
@@ -338,7 +338,7 @@ pub mod test_util {
     pub fn assert_op_eq(a: &DmlOperation, b: &DmlOperation) {
         match (a, b) {
             (DmlOperation::Write(a), DmlOperation::Write(b)) => assert_writes_eq(a, b),
-            (DmlOperation::Delete(a), DmlOperation::Delete(b)) => assert_deletes_eq(a, b),
+            (DmlOperation::Delete(a), DmlOperation::Delete(b)) => assert_eq!(a, b),
             (a, b) => panic!("a != b, {:?} vs {:?}", a, b),
         }
     }
@@ -353,7 +353,7 @@ pub mod test_util {
 
     /// Asserts two writes are equal
     pub fn assert_writes_eq(a: &DmlWrite, b: &DmlWrite) {
-        assert_meta_eq(a.meta(), b.meta());
+        assert_eq!(a.meta(), b.meta());
 
         assert_eq!(a.table_count(), b.table_count());
 
@@ -372,37 +372,9 @@ pub mod test_util {
     /// Asserts `a` contains a [`DmlDelete`] equal to `b`
     pub fn assert_delete_op_eq(a: &DmlOperation, b: &DmlDelete) {
         match a {
-            DmlOperation::Delete(a) => assert_deletes_eq(a, b),
+            DmlOperation::Delete(a) => assert_eq!(a, b),
             _ => panic!("unexpected operation: {:?}", a),
         }
-    }
-
-    /// Asserts two deletes are equal
-    pub fn assert_deletes_eq(a: &DmlDelete, b: &DmlDelete) {
-        assert_meta_eq(a.meta(), b.meta());
-
-        assert_eq!(a.table_name(), b.table_name());
-
-        assert_eq!(a.predicate(), b.predicate());
-    }
-
-    /// Assert that two metadata objects are equal
-    pub fn assert_meta_eq(a: &DmlMeta, b: &DmlMeta) {
-        assert_eq!(a.sequence(), b.sequence());
-
-        assert_eq!(a.producer_ts(), b.producer_ts());
-
-        match (a.span_context(), b.span_context()) {
-            (None, None) => (),
-            (Some(a), Some(b)) => {
-                assert_eq!(a, b);
-            }
-            (None, Some(_)) => panic!("rhs has span context but lhs has not"),
-            (Some(_), None) => panic!("lhs has span context but rhs has not"),
-        }
-
-        // TODO: https://github.com/influxdata/influxdb_iox/issues/3186
-        // assert_eq!(a.bytes_read(), b.bytes_read());
     }
 }
 
@@ -418,7 +390,7 @@ mod tests {
     use mutable_batch_lp::lines_to_batches;
     use regex::Regex;
 
-    use crate::test_util::{assert_deletes_eq, assert_writes_eq};
+    use crate::test_util::assert_writes_eq;
 
     use super::*;
 
@@ -615,7 +587,7 @@ mod tests {
         assert_eq!(actual_shard_ids, expected_shard_ids);
 
         for (actual_delete, expected_delete) in actual.values().zip(expected.values()) {
-            assert_deletes_eq(actual_delete, expected_delete);
+            assert_eq!(actual_delete, expected_delete);
         }
     }
 }

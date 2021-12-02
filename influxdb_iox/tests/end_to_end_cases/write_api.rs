@@ -383,9 +383,7 @@ async fn test_write_routed_errors() {
         err.to_string(),
         format!(
             "Unexpected server error: \
-            The system is not in a state required for the operation's execution: \
-            Precondition violation influxdata.com/iox - router: \
-            One or more writes failed: \
+            The operation was aborted: One or more writes failed: \
             ShardId({}) => \"Write to sink set failed: No remote for server ID {}\"",
             TEST_SHARD_ID, TEST_REMOTE_ID,
         )
