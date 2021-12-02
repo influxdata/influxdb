@@ -904,7 +904,7 @@ impl ReadFilterResults {
         self.row_groups.is_empty()
     }
 
-    pub fn len(&self) -> usize {
+    pub fn row_groups(&self) -> usize {
         self.row_groups.len()
     }
 
