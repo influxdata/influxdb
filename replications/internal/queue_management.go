@@ -136,8 +136,7 @@ func (rq *replicationQueue) run() {
 			// that rq.SendWrite will be called again in this situation and not leave data in the queue. Outside of this
 			// specific scenario, the buffer might result in an extra call to rq.SendWrite that will immediately return on
 			// EOF.
-			for rq.SendWrite() {
-			}
+			rq.SendWrite()
 		}
 	}
 }
@@ -145,53 +144,43 @@ func (rq *replicationQueue) run() {
 // SendWrite processes data enqueued into the durablequeue.Queue.
 // SendWrite is responsible for processing all data in the queue at the time of calling.
 // Network errors will be handled by the remote writer.
-func (rq *replicationQueue) SendWrite() bool {
+func (rq *replicationQueue) SendWrite() {
 	// Any error in creating the scanner should exit the loop in run()
 	// Either it is io.EOF indicating no data, or some other failure in making
 	// the Scanner object that we don't know how to handle.
 	scan, err := rq.queue.NewScanner()
 	if err != nil {
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			rq.logger.Error("Error creating replications queue scanner", zap.Error(err))
 		}
-		return false
+		return
 	}
 
 	for scan.Next() {
-		// An io.EOF error here indicates that there is no more data
-		// left to process, and is an expected error.
-		if scan.Err() == io.EOF {
-			break
-		}
-
-		// Any other here indicates a problem, so we log the error and
-		// drop the data with a call to scan.Advance() later.
-		if scan.Err() != nil {
+		if err := scan.Err(); err != nil {
+			if errors.Is(err, io.EOF) {
+				// An io.EOF error here indicates that there is no more data left to process, and is an expected error.
+				return
+			}
+			// Any other error here indicates a problem reading the data from the queue, so we log the error and drop the data
+			// with a call to scan.Advance() later.
 			rq.logger.Info("Segment read error.", zap.Error(scan.Err()))
-			// TODO: Add metrics collection for dropped data here.
-			break
 		}
 
-		// An error here indicates an unhandlable error. Data is not corrupt, and
-		// the remote write is not retryable.
 		if err = rq.remoteWriter.Write(scan.Bytes()); err != nil {
+			// An error here indicates an unhandleable remote write error. The scanner will not be advanced.
 			rq.logger.Error("Error in replication stream", zap.Error(err))
-			return false
+			return
 		}
-	}
 
-	// Update metrics after the call to scan.Advance()
-	defer func() {
+		if _, err = scan.Advance(); err != nil {
+			if err != io.EOF {
+				rq.logger.Error("Error in replication queue scanner", zap.Error(err))
+			}
+			return
+		}
 		rq.metrics.Dequeue(rq.id, rq.queue.TotalBytes())
-	}()
-
-	if _, err = scan.Advance(); err != nil {
-		if err != io.EOF {
-			rq.logger.Error("Error in replication queue scanner", zap.Error(err))
-		}
-		return false
 	}
-	return true
 }
 
 // DeleteQueue deletes a durable queue and its associated data on disk.

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -499,4 +500,52 @@ func TestGoroutineCloses(t *testing.T) {
 	// wg should be zero here, indicating that the goroutine has closed
 	// if this does not panic, then the routine is still active
 	require.Panics(t, func() { rq.wg.Add(-1) })
+}
+
+func TestEnqueueData_QueueAdvances(t *testing.T) {
+	t.Parallel()
+
+	path, qm := initQueueManager(t)
+	defer os.RemoveAll(path)
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.DirExists(t, filepath.Join(path, id1.String()))
+
+	rq, ok := qm.replicationQueues[id1]
+	require.True(t, ok)
+
+	returnErrorOnWriteNumber := 5
+	counter := 0
+	var wg sync.WaitGroup
+	var writesReceived [][]byte
+
+	// Returns an error on a specific count of invocations; nil otherwise.
+	writeFn := func(b []byte) error {
+		counter++
+
+		defer func() {
+			// If the scanner is not advanced properly on remote writer errors, this assertion will panic due to the queue being
+			// re-scanned and the WaitGroup going negative.
+			require.NotPanics(t, func() { wg.Done() }, "writeFn called too many times")
+		}()
+
+		if counter == returnErrorOnWriteNumber {
+			return errors.New("error")
+		}
+
+		// A remote server would receive the data on a successful remote write.
+		writesReceived = append(writesReceived, b)
+		return nil
+	}
+	writer := &testRemoteWriter{}
+	writer.writeFn = writeFn
+	rq.remoteWriter = writer
+
+	wg.Add(1) // for the remote writer call that will return an error
+	for i := 0; i < returnErrorOnWriteNumber*2; i++ {
+		wg.Add(1)
+		require.NoError(t, qm.EnqueueData(id1, []byte("test data"), 1))
+	}
+	wg.Wait()
+	// Writes received by the hypothetical "remote" should match the enqueued data.
+	require.Equal(t, returnErrorOnWriteNumber*2, len(writesReceived))
 }
