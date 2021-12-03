@@ -209,7 +209,7 @@ pub struct CatalogChunk {
     /// This is the new chunkId if this chunk is compacted (with many other chunks) successfully and dropped.
     /// Since compacting object store chunks is a long process, we do not lock the whole process
     /// and deletes can happen during that time. This ID is needed to store delete predicates
-    /// that happens during that time for it in a mailbox. The mailbox will be read
+    /// of deletes that happen during that time for it in a mailbox. The mailbox will be read
     /// in the background and update this chunk after it is completely created.
     /// See compact_object_store_chunks for the detail.
     to_be_created_chunk_id: Option<ChunkId>,
