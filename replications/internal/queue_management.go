@@ -136,7 +136,8 @@ func (rq *replicationQueue) run() {
 			// that rq.SendWrite will be called again in this situation and not leave data in the queue. Outside of this
 			// specific scenario, the buffer might result in an extra call to rq.SendWrite that will immediately return on
 			// EOF.
-			rq.SendWrite()
+			for rq.SendWrite() {
+			}
 		}
 	}
 }
@@ -144,7 +145,7 @@ func (rq *replicationQueue) run() {
 // SendWrite processes data enqueued into the durablequeue.Queue.
 // SendWrite is responsible for processing all data in the queue at the time of calling.
 // Network errors will be handled by the remote writer.
-func (rq *replicationQueue) SendWrite() {
+func (rq *replicationQueue) SendWrite() bool {
 	// Any error in creating the scanner should exit the loop in run()
 	// Either it is io.EOF indicating no data, or some other failure in making
 	// the Scanner object that we don't know how to handle.
@@ -153,14 +154,14 @@ func (rq *replicationQueue) SendWrite() {
 		if !errors.Is(err, io.EOF) {
 			rq.logger.Error("Error creating replications queue scanner", zap.Error(err))
 		}
-		return
+		return false
 	}
 
 	for scan.Next() {
 		if err := scan.Err(); err != nil {
 			if errors.Is(err, io.EOF) {
 				// An io.EOF error here indicates that there is no more data left to process, and is an expected error.
-				return
+				return false
 			}
 			// Any other error here indicates a problem reading the data from the queue, so we log the error and drop the data
 			// with a call to scan.Advance() later.
@@ -170,17 +171,19 @@ func (rq *replicationQueue) SendWrite() {
 		if err = rq.remoteWriter.Write(scan.Bytes()); err != nil {
 			// An error here indicates an unhandleable remote write error. The scanner will not be advanced.
 			rq.logger.Error("Error in replication stream", zap.Error(err))
-			return
+			return false
 		}
 
 		if _, err = scan.Advance(); err != nil {
 			if err != io.EOF {
 				rq.logger.Error("Error in replication queue scanner", zap.Error(err))
 			}
-			return
+			return false
 		}
 		rq.metrics.Dequeue(rq.id, rq.queue.TotalBytes())
 	}
+
+	return true
 }
 
 // DeleteQueue deletes a durable queue and its associated data on disk.
