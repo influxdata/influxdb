@@ -147,10 +147,6 @@ pub struct ChunkSummary {
     /// Is there any outstanding lifecycle action for this chunk?
     pub lifecycle_action: Option<ChunkLifecycleAction>,
 
-    // todo: I am debating whether to add to_be_created_chunk_id here.
-    // If we want this to fully reflect CatalogChunk, then we should add it.
-    // However if we do, we also need to add it to management::Chunk API which I found maybe better to
-    // go with the other solution https://github.com/influxdata/influxdb_iox/pull/3275#pullrequestreview-821179885
     /// The number of bytes used to store this chunk in memory
     pub memory_bytes: usize,
 
