@@ -98,9 +98,7 @@ pub enum ChunkLifecycleAction {
     Compacting,
 
     /// Object Store Chunk is in the process of being compacted
-    /// The ChunkId is the ID of the new chunk that will replace this chunk
-    /// after the compaction is completed
-    CompactingObjectStore(ChunkId),
+    CompactingObjectStore,
 
     /// Chunk is about to be dropped from memory and (if persisted) from object store
     Dropping,
@@ -120,7 +118,7 @@ impl ChunkLifecycleAction {
         match self {
             Self::Persisting => "Persisting to Object Storage",
             Self::Compacting => "Compacting",
-            Self::CompactingObjectStore(_chunk_id) => "Compacting Object Store",
+            Self::CompactingObjectStore => "Compacting Object Store",
             Self::Dropping => "Dropping",
             Self::LoadingReadBuffer => "Loading to Read Buffer",
         }
