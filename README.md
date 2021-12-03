@@ -255,10 +255,10 @@ influxdb_iox database create company_sensors
 ```
 
 Data can be stored in InfluxDB IOx by sending it in [line protocol] format to the `/api/v2/write` endpoint or using the CLI.
-For example, here is a command that will send the data in the `tests/fixtures/lineproto/metrics.lp` file in this repository, assuming that you're running the server on the default port into the `company_sensors` database, you can use:
+For example, here is a command that will send the data in the `test_fixtures/lineproto/metrics.lp` file in this repository, assuming that you're running the server on the default port into the `company_sensors` database, you can use:
 
 ```shell
-influxdb_iox database write company_sensors tests/fixtures/lineproto/metrics.lp
+influxdb_iox database write company_sensors test_fixtures/lineproto/metrics.lp
 ```
 
 To query data stored in the `company_sensors` database:
@@ -286,7 +286,7 @@ IOx maps `organization` and `bucket` pairs to databases named with the two parts
 Here's an example using [`curl`] to send data into the `company_sensors` database using the InfluxDB 2.0 `/api/v2/write` API:
 
 ```shell
-curl -v "http://127.0.0.1:8080/api/v2/write?org=company&bucket=sensors" --data-binary @tests/fixtures/lineproto/metrics.lp
+curl -v "http://127.0.0.1:8080/api/v2/write?org=company&bucket=sensors" --data-binary @test_fixtures/lineproto/metrics.lp
 ```
 
 [line protocol]: https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/

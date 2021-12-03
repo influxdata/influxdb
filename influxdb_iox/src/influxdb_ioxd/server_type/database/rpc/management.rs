@@ -144,13 +144,13 @@ impl management_service_server::ManagementService for ManagementService {
         &self,
         request: Request<ClaimDatabaseRequest>,
     ) -> Result<Response<ClaimDatabaseResponse>, Status> {
-        let ClaimDatabaseRequest { uuid } = request.into_inner();
+        let ClaimDatabaseRequest { uuid, force } = request.into_inner();
 
         let uuid = Uuid::from_slice(&uuid).scope("uuid")?;
 
         let db_name = self
             .server
-            .claim_database(uuid)
+            .claim_database(uuid, force)
             .await
             .map_err(default_server_error_handler)?;
 

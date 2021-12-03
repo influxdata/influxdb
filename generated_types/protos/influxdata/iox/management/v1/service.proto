@@ -160,6 +160,15 @@ message ReleaseDatabaseResponse {
 
 message ClaimDatabaseRequest {
   bytes uuid = 1;
+
+  // Force this server to claim this database, even if it is
+  // ostensibly owned by another server.
+  //
+  // WARNING: ONLY do this if no other servers are writing to this
+  // database (for example, the data files have been copied
+  // somewhere). If another server is currently writing to this
+  // database, corruption will very likely occur
+  bool force = 2;
 }
 
 message ClaimDatabaseResponse {
