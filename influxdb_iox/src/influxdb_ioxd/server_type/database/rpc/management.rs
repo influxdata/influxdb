@@ -76,10 +76,7 @@ impl management_service_server::ManagementService for ManagementService {
             .ok_or_else(|| FieldViolation::required("rules"))?;
 
         let provided_rules =
-            ProvidedDatabaseRules::new_rules(rules).map_err(|e| FieldViolation {
-                field: "rules".to_string(),
-                description: e.to_string(),
-            })?;
+            ProvidedDatabaseRules::new_rules(rules).map_err(|e| e.scope("rules"))?;
 
         let database = self
             .server
@@ -106,10 +103,7 @@ impl management_service_server::ManagementService for ManagementService {
             .ok_or_else(|| FieldViolation::required("rules"))?;
 
         let provided_rules =
-            ProvidedDatabaseRules::new_rules(rules).map_err(|e| FieldViolation {
-                field: "rules".to_string(),
-                description: e.to_string(),
-            })?;
+            ProvidedDatabaseRules::new_rules(rules).map_err(|e| e.scope("rules"))?;
 
         let updated_rules = self
             .server

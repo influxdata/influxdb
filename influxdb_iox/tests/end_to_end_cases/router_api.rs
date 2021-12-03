@@ -1,6 +1,6 @@
-use influxdb_iox_client::router::{
-    generated_types::{Matcher, MatcherToShard, QuerySinks, Router, ShardConfig},
-    UpdateRouterError,
+use influxdb_iox_client::{
+    error::Error,
+    router::generated_types::{Matcher, MatcherToShard, QuerySinks, Router, ShardConfig},
 };
 use test_helpers::assert_error;
 
@@ -98,14 +98,14 @@ async fn test_router_update_invalid_argument() {
 
     // invalid args don't create routers
     let res = client.update_router(cfg_invalid.clone()).await;
-    assert_error!(res, UpdateRouterError::InvalidArgument(_));
+    assert_error!(res, Error::InvalidArgument(_));
     let routers = client.list_routers().await.unwrap();
     assert_eq!(routers.len(), 0);
 
     // invalid args don't update routesr
     client.update_router(cfg_valid.clone()).await.unwrap();
     let res = client.update_router(cfg_invalid).await;
-    assert_error!(res, UpdateRouterError::InvalidArgument(_));
+    assert_error!(res, Error::InvalidArgument(_));
     let routers = client.list_routers().await.unwrap();
     assert_eq!(routers.len(), 1);
     assert_eq!(&routers[0], &cfg_valid);

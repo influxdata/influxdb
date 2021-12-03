@@ -1,14 +1,16 @@
 use data_types::chunk_metadata::ChunkId;
 use generated_types::google::protobuf::{Duration, Empty};
 use influxdb_iox_client::{
+    error::Error,
+    google::{PreconditionViolation, ResourceType},
     management::{
         generated_types::{database_status::DatabaseState, operation_metadata::Job, *},
-        Client, CreateDatabaseError,
+        Client,
     },
     router::generated_types::WriteBufferConnection,
 };
 use std::{fs::set_permissions, num::NonZeroU32, os::unix::fs::PermissionsExt};
-use test_helpers::assert_contains;
+use test_helpers::{assert_contains, assert_error};
 
 use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
@@ -22,6 +24,20 @@ use crate::{
 };
 use std::time::Instant;
 use uuid::Uuid;
+
+#[tokio::test]
+async fn test_server_id() {
+    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
+    let mut client = server_fixture.management_client();
+    let r = client.list_chunks("foo").await;
+    match r {
+        Err(Error::FailedPrecondition(e)) => {
+            let details = e.details.unwrap();
+            assert_eq!(details, PreconditionViolation::ServerIdNotSet)
+        }
+        _ => panic!("unexpected response: {:?}", r),
+    }
+}
 
 #[tokio::test]
 async fn test_create_database_duplicate_name() {
@@ -38,18 +54,14 @@ async fn test_create_database_duplicate_name() {
         .await
         .expect("create database failed");
 
-    let err = client
+    let r = client
         .create_database(DatabaseRules {
             name: db_name,
             ..Default::default()
         })
-        .await
-        .expect_err("create database failed");
+        .await;
 
-    assert!(matches!(
-        dbg!(err),
-        CreateDatabaseError::DatabaseAlreadyExists
-    ))
+    assert_error!(r, Error::AlreadyExists(_));
 }
 
 #[tokio::test]
@@ -57,15 +69,20 @@ async fn test_create_database_invalid_name() {
     let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut client = server_fixture.management_client();
 
-    let err = client
+    let r = client
         .create_database(DatabaseRules {
             name: "my_example\ndb".to_string(),
             ..Default::default()
         })
-        .await
-        .expect_err("expected request to fail");
+        .await;
 
-    assert!(matches!(dbg!(err), CreateDatabaseError::InvalidArgument(_)));
+    match r {
+        Err(Error::InvalidArgument(e)) => {
+            let details = e.details.unwrap();
+            assert_eq!(&details.field, "rules.name")
+        }
+        _ => panic!("unexpected response: {:?}", r),
+    }
 }
 
 #[tokio::test]
@@ -305,7 +322,10 @@ async fn test_create_get_update_release_claim_database() {
     assert_eq!(created_uuid, released_uuid);
 
     let err = client.get_database(&db_name, false).await.unwrap_err();
-    assert_contains!(err.to_string(), "Database not found");
+    assert_contains!(
+        err.to_string(),
+        format!("Resource database/{} not found", db_name)
+    );
 
     client.claim_database(released_uuid).await.unwrap();
 
@@ -317,11 +337,20 @@ async fn test_create_get_update_release_claim_database() {
         format!("Resource database_uuid/{} already exists", released_uuid)
     );
 
+    match err {
+        Error::AlreadyExists(e) => {
+            let details = e.details.unwrap();
+            assert_eq!(details.resource_type, ResourceType::DatabaseUuid);
+            assert_eq!(details.resource_name, released_uuid.to_string());
+        }
+        _ => panic!("unexpected variant: {}", err),
+    }
+
     let unknown_uuid = Uuid::new_v4();
     let err = client.claim_database(unknown_uuid).await.unwrap_err();
     assert_contains!(
         err.to_string(),
-        format!("Could not find a database with UUID `{}`", unknown_uuid)
+        format!("Resource database_uuid/{} not found", unknown_uuid)
     );
 
     client.release_database(&db_name, None).await.unwrap();
@@ -373,7 +402,7 @@ async fn release_database() {
     let err = client.release_database(&db_name, None).await.unwrap_err();
     assert_contains!(
         err.to_string(),
-        format!("Could not find database {}", db_name)
+        format!("Resource database/{} not found", db_name)
     );
 
     // Create another database
@@ -660,7 +689,19 @@ async fn test_partition_list_error() {
         .await
         .expect_err("expected error");
 
-    assert_contains!(err.to_string(), "Database not found");
+    assert_contains!(
+        err.to_string(),
+        "Resource database/this database does not exist not found"
+    );
+
+    match err {
+        Error::NotFound(e) => {
+            let details = e.details.unwrap();
+            assert_eq!(details.resource_type, ResourceType::Database);
+            assert_eq!(&details.resource_name, "this database does not exist")
+        }
+        _ => panic!("unexpected variant: {}", err),
+    }
 }
 
 #[tokio::test]
@@ -699,7 +740,10 @@ async fn test_partition_get_error() {
         .await
         .expect_err("expected error");
 
-    assert_contains!(err.to_string(), "Database not found");
+    assert_contains!(
+        err.to_string(),
+        "Resource database/this database does not exist not found"
+    );
 
     let db_name = rand_name();
     create_readable_database(&db_name, fixture.grpc_channel()).await;
@@ -715,9 +759,13 @@ async fn test_partition_get_error() {
     let err = management_client
         .get_partition(&db_name, "non existent partition")
         .await
-        .expect_err("exepcted error getting partition");
+        .expect_err("expected error getting partition");
 
-    assert_contains!(err.to_string(), "Partition not found");
+    // TODO(raphael): this should be a 404
+    assert_contains!(
+        err.to_string(),
+        "Violation for field \"partition\": Field is required"
+    );
 }
 
 #[tokio::test]
@@ -848,9 +896,9 @@ async fn test_new_partition_chunk() {
         .await
         .expect_err("new partition chunk");
 
-    assert_eq!(
-        "Resource partition/cpu:non_existent_partition not found",
-        err.to_string()
+    assert_contains!(
+        err.to_string(),
+        "Resource partition/cpu:non_existent_partition not found"
     );
 
     // Rollover a (currently non existent) table in an existing partition which is not OK
@@ -859,9 +907,9 @@ async fn test_new_partition_chunk() {
         .await
         .expect_err("new partition chunk");
 
-    assert_eq!(
-        "Resource table/non_existing_table not found",
-        err.to_string()
+    assert_contains!(
+        err.to_string(),
+        "Resource table/non_existing_table not found"
     );
 }
 
@@ -965,7 +1013,10 @@ async fn test_close_partition_chunk_error() {
         .await
         .expect_err("expected error");
 
-    assert_contains!(err.to_string(), "Database not found");
+    assert_contains!(
+        err.to_string(),
+        "Resource database/this database does not exist not found"
+    );
 }
 
 #[tokio::test]

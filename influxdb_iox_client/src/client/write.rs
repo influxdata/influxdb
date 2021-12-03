@@ -1,5 +1,3 @@
-use thiserror::Error;
-
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::influxdata::pbdata::v1::*;
@@ -8,23 +6,7 @@ pub mod generated_types {
 use self::generated_types::write_service_client::WriteServiceClient;
 
 use crate::connection::Connection;
-
-/// Errors returned by Client::write_data
-#[derive(Debug, Error)]
-pub enum WriteError {
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-
-    /// Server returned an invalid argument error
-    #[error("Invalid argument: {}: {}", .0.code(), .0.message())]
-    InvalidArgument(tonic::Status),
-
-    #[cfg(feature = "write_lp")]
-    /// Error converting lines
-    #[error("Error converting lines: {}", .0)]
-    LinesConversion(#[from] mutable_batch_lp::Error),
-}
+use crate::error::Error;
 
 /// An IOx Write API client.
 ///
@@ -75,8 +57,10 @@ impl Client {
         db_name: impl AsRef<str> + Send,
         lp_data: impl AsRef<str> + Send,
         default_time: i64,
-    ) -> Result<usize, WriteError> {
-        let tables = mutable_batch_lp::lines_to_batches(lp_data.as_ref(), default_time)?;
+    ) -> Result<usize, Error> {
+        let tables = mutable_batch_lp::lines_to_batches(lp_data.as_ref(), default_time)
+            .map_err(|e| Error::Client(Box::new(e)))?;
+
         let meta = dml::DmlMeta::unsequenced(None);
         let write = dml::DmlWrite::new(tables, meta);
         let lines = write.tables().map(|(_, table)| table.rows()).sum();
@@ -87,8 +71,7 @@ impl Client {
             .write(generated_types::WriteRequest {
                 database_batch: Some(database_batch),
             })
-            .await
-            .map_err(Self::map_err)?;
+            .await?;
 
         Ok(lines)
     }
@@ -97,19 +80,8 @@ impl Client {
     pub async fn write_pb(
         &mut self,
         write_request: generated_types::WriteRequest,
-    ) -> Result<(), WriteError> {
-        self.inner
-            .write(write_request)
-            .await
-            .map_err(Self::map_err)?;
-
+    ) -> Result<(), Error> {
+        self.inner.write(write_request).await?;
         Ok(())
-    }
-
-    fn map_err(status: tonic::Status) -> WriteError {
-        match status.code() {
-            tonic::Code::InvalidArgument => WriteError::InvalidArgument(status),
-            _ => WriteError::ServerError(status),
-        }
     }
 }

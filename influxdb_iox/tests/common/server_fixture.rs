@@ -571,7 +571,7 @@ impl TestServer {
         let mut deployment_client = influxdb_iox_client::deployment::Client::new(channel.clone());
 
         if !matches!(initial_config, InitialConfig::ServerIdAlreadySet) {
-            if let Ok(id) = deployment_client.get_server_id().await {
+            if let Ok(Some(id)) = deployment_client.get_server_id().await {
                 // tell others that this server had some problem
                 *ready = ServerState::Error;
                 std::mem::drop(ready);
@@ -638,13 +638,13 @@ impl TestServer {
 
                     let mut health = influxdb_iox_client::health::Client::new(channel);
 
-                    match health.check_deployment().await {
-                        Ok(_) => {
+                    match health.check_deployment().await.unwrap() {
+                        true => {
                             println!("Deployment service is running");
                             return;
                         }
-                        Err(e) => {
-                            println!("Error checking deployment service status: {}", e);
+                        false => {
+                            println!("Deployment service is not running");
                         }
                     }
                 }

@@ -1,51 +1,11 @@
 use self::generated_types::{deployment_service_client::DeploymentServiceClient, *};
 use crate::connection::Connection;
+use crate::error::Error;
 use std::{convert::TryInto, num::NonZeroU32};
-use thiserror::Error;
 
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::influxdata::iox::deployment::v1::*;
-}
-
-/// Errors returned by Client::update_server_id
-#[derive(Debug, Error)]
-pub enum UpdateServerIdError {
-    /// Client received an unexpected error from the server
-    #[error("Server ID already set")]
-    AlreadySet,
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::get_server_id
-#[derive(Debug, Error)]
-pub enum GetServerIdError {
-    /// Server ID is not set
-    #[error("Server ID not set")]
-    NoServerId,
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::set_serving_readiness
-#[derive(Debug, Error)]
-pub enum SetServingReadinessError {
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
-}
-
-/// Errors returned by Client::get_serving_readiness
-#[derive(Debug, Error)]
-pub enum GetServingReadinessError {
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
 }
 
 /// An IOx Deployment API client.
@@ -91,56 +51,34 @@ impl Client {
     }
 
     /// Set the server's ID.
-    pub async fn update_server_id(&mut self, id: NonZeroU32) -> Result<(), UpdateServerIdError> {
+    pub async fn update_server_id(&mut self, id: NonZeroU32) -> Result<(), Error> {
         self.inner
             .update_server_id(UpdateServerIdRequest { id: id.get() })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::InvalidArgument => UpdateServerIdError::AlreadySet,
-                _ => UpdateServerIdError::ServerError(status),
-            })?;
+            .await?;
         Ok(())
     }
 
     /// Get the server's ID.
-    pub async fn get_server_id(&mut self) -> Result<NonZeroU32, GetServerIdError> {
-        let response = self
-            .inner
-            .get_server_id(GetServerIdRequest {})
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => GetServerIdError::NoServerId,
-                _ => GetServerIdError::ServerError(status),
-            })?;
-
-        let id = response
-            .get_ref()
-            .id
-            .try_into()
-            .map_err(|_| GetServerIdError::NoServerId)?;
-
-        Ok(id)
+    pub async fn get_server_id(&mut self) -> Result<Option<NonZeroU32>, Error> {
+        let response = self.inner.get_server_id(GetServerIdRequest {}).await?;
+        let maybe_id = response.get_ref().id.try_into().ok();
+        Ok(maybe_id)
     }
 
     /// Set serving readiness.
-    pub async fn set_serving_readiness(
-        &mut self,
-        ready: bool,
-    ) -> Result<(), SetServingReadinessError> {
+    pub async fn set_serving_readiness(&mut self, ready: bool) -> Result<(), Error> {
         self.inner
             .set_serving_readiness(SetServingReadinessRequest { ready })
-            .await
-            .map_err(SetServingReadinessError::ServerError)?;
+            .await?;
         Ok(())
     }
 
     /// Get serving readiness.
-    pub async fn get_serving_readiness(&mut self) -> Result<bool, GetServingReadinessError> {
+    pub async fn get_serving_readiness(&mut self) -> Result<bool, Error> {
         let response = self
             .inner
             .get_serving_readiness(GetServingReadinessRequest {})
-            .await
-            .map_err(GetServingReadinessError::ServerError)?;
+            .await?;
 
         Ok(response.get_ref().ready)
     }

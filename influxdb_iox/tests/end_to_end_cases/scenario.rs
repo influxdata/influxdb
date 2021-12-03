@@ -13,7 +13,6 @@ use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
 use futures::prelude::*;
 use influxdb_iox_client::management::generated_types::partition_template;
 use influxdb_iox_client::management::generated_types::WriteBufferConnection;
-use influxdb_iox_client::management::CreateDatabaseError;
 use prost::Message;
 use rand::{
     distributions::{Alphanumeric, Standard},
@@ -373,7 +372,10 @@ impl DatabaseBuilder {
     }
 
     // Build a database
-    pub async fn try_build(self, channel: Connection) -> Result<(), CreateDatabaseError> {
+    pub async fn try_build(
+        self,
+        channel: Connection,
+    ) -> Result<(), influxdb_iox_client::error::Error> {
         let mut management_client = influxdb_iox_client::management::Client::new(channel);
 
         management_client

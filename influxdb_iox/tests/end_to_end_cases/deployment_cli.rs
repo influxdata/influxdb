@@ -45,5 +45,5 @@ async fn assert_server_id(server_fixture: ServerFixture) {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("ID already set"));
+        .stderr(predicate::str::contains("id already set"));
 }
