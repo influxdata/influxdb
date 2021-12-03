@@ -881,7 +881,7 @@ mod tests {
     async fn test_restore_from_file() {
         // setup: preserve chunk to object store
         let mut generator = ChunkGenerator::new().await;
-        let (chunk, _) = generator.generate().await;
+        let (chunk, _) = generator.generate().await.unwrap();
         let parquet_metadata = chunk.parquet_metadata();
         let decoded = parquet_metadata.decode().unwrap();
 
@@ -905,7 +905,7 @@ mod tests {
     async fn test_restore_from_thrift() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let mut generator = ChunkGenerator::new().await;
-        let (chunk, _) = generator.generate().await;
+        let (chunk, _) = generator.generate().await.unwrap();
         let parquet_metadata = chunk.parquet_metadata();
         let data = parquet_metadata.thrift_bytes().to_vec();
         let parquet_metadata = IoxParquetMetaData::from_thrift_bytes(data);
@@ -927,52 +927,14 @@ mod tests {
         // setup: preserve chunk to object store
         let mut generator = ChunkGenerator::new().await;
         generator.set_config(GeneratorConfig::NoData);
-        let (chunk, _) = generator.generate().await;
-        let parquet_metadata = chunk.parquet_metadata();
-        let decoded = parquet_metadata.decode().unwrap();
-
-        // step 1: read back schema
-        let schema_actual = decoded.read_schema().unwrap();
-        let schema_expected = chunk.schema();
-        assert_eq!(schema_actual, schema_expected);
-
-        // step 2: reading back statistics fails
-        let res = decoded.read_statistics(&schema_actual);
-        assert_eq!(
-            res.unwrap_err().to_string(),
-            "No row group found, cannot recover statistics"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_restore_from_thrift_no_row_group() {
-        // setup: write chunk to object store and only keep thrift-encoded metadata
-        let mut generator = ChunkGenerator::new().await;
-        generator.set_config(GeneratorConfig::NoData);
-        let (chunk, _) = generator.generate().await;
-        let parquet_metadata = chunk.parquet_metadata();
-
-        let data = parquet_metadata.thrift_bytes().to_vec();
-        let parquet_metadata = IoxParquetMetaData::from_thrift_bytes(data);
-        let decoded = parquet_metadata.decode().unwrap();
-
-        // step 1: read back schema
-        let schema_actual = decoded.read_schema().unwrap();
-        let schema_expected = chunk.schema();
-        assert_eq!(schema_actual, schema_expected);
-
-        // step 2: reading back statistics fails
-        let res = decoded.read_statistics(&schema_actual);
-        assert_eq!(
-            res.unwrap_err().to_string(),
-            "No row group found, cannot recover statistics"
-        );
+        let result = generator.generate().await;
+        assert!(result.is_none());
     }
 
     #[tokio::test]
     async fn test_make_chunk() {
         let mut generator = ChunkGenerator::new().await;
-        let (chunk, _) = generator.generate().await;
+        let (chunk, _) = generator.generate().await.unwrap();
         let parquet_metadata = chunk.parquet_metadata();
         let decoded = parquet_metadata.decode().unwrap();
 
@@ -991,30 +953,6 @@ mod tests {
         for summary in &chunk.table_summary().columns {
             assert!(summary.total_count() <= n_rows);
         }
-
-        // check column names
-        for column in decoded.md.file_metadata().schema_descr().columns() {
-            assert!((column.name() == TIME_COLUMN_NAME) || column.name().starts_with("foo_"));
-        }
-    }
-
-    #[tokio::test]
-    async fn test_make_chunk_no_row_group() {
-        let mut generator = ChunkGenerator::new().await;
-        generator.set_config(GeneratorConfig::NoData);
-        let (chunk, _) = generator.generate().await;
-        let parquet_metadata = chunk.parquet_metadata();
-        let decoded = parquet_metadata.decode().unwrap();
-
-        assert_eq!(decoded.md.num_row_groups(), 0);
-        assert_ne!(decoded.md.file_metadata().schema_descr().num_columns(), 0);
-        assert_eq!(decoded.md.file_metadata().num_rows(), 0);
-
-        // column count in summary including the timestamp column
-        assert_eq!(
-            chunk.table_summary().columns.len(),
-            decoded.md.file_metadata().schema_descr().num_columns()
-        );
 
         // check column names
         for column in decoded.md.file_metadata().schema_descr().columns() {
@@ -1066,7 +1004,7 @@ mod tests {
     async fn test_parquet_metadata_size() {
         // setup: preserve chunk to object store
         let mut generator = ChunkGenerator::new().await;
-        let (chunk, _) = generator.generate().await;
+        let (chunk, _) = generator.generate().await.unwrap();
         let parquet_metadata = chunk.parquet_metadata();
         assert_eq!(parquet_metadata.size(), 3729);
     }

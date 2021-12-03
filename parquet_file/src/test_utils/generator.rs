@@ -66,13 +66,13 @@ impl ChunkGenerator {
         &self.partition
     }
 
-    pub async fn generate(&mut self) -> (ParquetChunk, IoxMetadata) {
+    pub async fn generate(&mut self) -> Option<(ParquetChunk, IoxMetadata)> {
         let id = self.next_chunk;
         self.next_chunk += 1;
         self.generate_id(id).await
     }
 
-    pub async fn generate_id(&mut self, id: u32) -> (ParquetChunk, IoxMetadata) {
+    pub async fn generate_id(&mut self, id: u32) -> Option<(ParquetChunk, IoxMetadata)> {
         let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
             Arc::clone(&self.partition.table_name),
             Arc::clone(&self.partition.partition_key),
@@ -116,12 +116,14 @@ impl ChunkGenerator {
             Arc::clone(schema.inner()),
         ));
 
-        let (path, file_size_bytes, parquet_metadata) = self
+        let written_result = self
             .storage
             .write_to_object_store(chunk_addr, stream, metadata.clone())
             .await
-            .unwrap()
             .unwrap();
+
+        written_result.as_ref()?;
+        let (path, file_size_bytes, parquet_metadata) = written_result.unwrap();
 
         let chunk = ParquetChunk::new_from_parts(
             Arc::clone(&self.partition.partition_key),
@@ -135,6 +137,6 @@ impl ChunkGenerator {
             ChunkMetrics::new_unregistered(),
         );
 
-        (chunk, metadata)
+        Some((chunk, metadata))
     }
 }

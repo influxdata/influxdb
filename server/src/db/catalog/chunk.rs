@@ -1007,7 +1007,7 @@ mod tests {
     use data_types::{delete_predicate::DeleteExpr, timestamp::TimestampRange};
 
     use mutable_buffer::test_helpers::write_lp_to_new_chunk;
-    use parquet_file::test_utils::generator::{ChunkGenerator, GeneratorConfig};
+    use parquet_file::test_utils::generator::ChunkGenerator;
 
     #[test]
     fn test_new_open() {
@@ -1241,8 +1241,7 @@ mod tests {
 
     async fn make_persisted_chunk() -> CatalogChunk {
         let mut generator = ChunkGenerator::new().await;
-        generator.set_config(GeneratorConfig::NoData);
-        let (parquet_chunk, metadata) = generator.generate().await;
+        let (parquet_chunk, metadata) = generator.generate().await.unwrap();
         let addr = ChunkAddr::new(generator.partition(), metadata.chunk_id);
 
         let now = Time::from_timestamp_nanos(43564);

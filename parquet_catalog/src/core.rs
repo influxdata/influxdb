@@ -1663,7 +1663,7 @@ mod tests {
 
         // create another transaction on-top that adds a file (this transaction will be required to load the full state)
         {
-            let (chunk, _) = generator.generate_id(1337).await;
+            let (chunk, _) = generator.generate_id(1337).await.unwrap();
 
             let mut transaction = catalog.open_transaction().await;
             let info = CatalogParquetInfo::from_chunk(&chunk);
@@ -1717,7 +1717,7 @@ mod tests {
             // create 3 chunks
             let mut chunk_addrs = vec![];
             for _ in 0..3 {
-                let (chunk, metadata) = generator.generate().await;
+                let (chunk, metadata) = generator.generate().await.unwrap();
                 let chunk_addr = ChunkAddr::new(generator.partition(), metadata.chunk_id);
 
                 let info = CatalogParquetInfo::from_chunk(&chunk);
@@ -1903,7 +1903,7 @@ mod tests {
             let mut t = catalog.open_transaction().await;
 
             for _ in 0..4 {
-                let (chunk, _) = generator.generate().await;
+                let (chunk, _) = generator.generate().await.unwrap();
                 let info = CatalogParquetInfo::from_chunk(&chunk);
                 expected.push(chunk);
                 state.insert(info.clone()).unwrap();
@@ -1918,7 +1918,7 @@ mod tests {
 
         // modify catalog with examples
         {
-            let (chunk, _) = generator.generate().await;
+            let (chunk, _) = generator.generate().await.unwrap();
             let info = CatalogParquetInfo::from_chunk(&chunk);
             expected.push(chunk);
 
@@ -1942,7 +1942,7 @@ mod tests {
         {
             let mut t = catalog.open_transaction().await;
 
-            let (chunk, _) = generator.generate().await;
+            let (chunk, _) = generator.generate().await.unwrap();
             let info = CatalogParquetInfo::from_chunk(&chunk);
 
             t.add_parquet(&info);

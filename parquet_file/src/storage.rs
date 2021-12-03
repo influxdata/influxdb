@@ -473,10 +473,10 @@ mod tests {
         };
 
         // create parquet file
-        let (_record_batches, schema, _column_summaries, _num_rows) =
-            make_record_batch("foo", TestSize::Full);
+        let (record_batches, schema, _column_summaries, _num_rows) =
+            make_record_batch("foo", TestSize::Minimal);
         let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new_with_schema(
-            vec![],
+            record_batches,
             Arc::clone(schema.inner()),
         ));
         let bytes =
@@ -596,7 +596,7 @@ mod tests {
         // Store the data as a chunk and write it to in the object store
         // This tests Storage::write_to_object_store
         let mut generator = ChunkGenerator::new().await;
-        let (chunk, _) = generator.generate().await;
+        let (chunk, _) = generator.generate().await.unwrap();
         let key_value_metadata = chunk.schema().as_arrow().metadata().clone();
 
         ////////////////////
