@@ -25,7 +25,7 @@ tokio = { version = "1.13", features = ["fs", "macros", "parking_lot", "rt", "sy
 tokio-util = "0.6.9"
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
-uuid = { version = "0.8", features = ["serde", "v4"] }
+uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

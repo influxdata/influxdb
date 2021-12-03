@@ -54,7 +54,7 @@ trace = { path = "../trace" }
 tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.6.9" }
 tracker = { path = "../tracker" }
-uuid = { version = "0.8", features = ["serde", "v4"] }
+uuid = { version = "0.8", features = ["v4"] }
 write_buffer = { path = "../write_buffer" }
 workspace-hack = { path = "../workspace-hack"}
 

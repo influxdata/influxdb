@@ -31,6 +31,6 @@ thrift = "0.13"
 time = { path = "../time" }
 tokio = { version = "1.13", features = ["macros", "parking_lot", "rt", "rt-multi-thread", "sync"] }
 tokio-stream = "0.1"
-uuid = { version = "0.8", features = ["serde", "v4"] }
+uuid = { version = "0.8", features = ["v4"] }
 zstd = "0.9"
 workspace-hack = { path = "../workspace-hack"}
