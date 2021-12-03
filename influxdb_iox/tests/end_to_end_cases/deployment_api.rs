@@ -1,11 +1,9 @@
 use std::num::NonZeroU32;
 
 use influxdb_iox_client::{
-    deployment::UpdateServerIdError, management::generated_types::DatabaseRules,
-    router::generated_types::Router, write::WriteError,
+    error::Error, management::generated_types::DatabaseRules, router::generated_types::Router,
 };
 use test_helpers::assert_error;
-use tonic::Code;
 
 use crate::common::server_fixture::{ServerFixture, ServerType, TestConfig};
 
@@ -38,12 +36,8 @@ async fn test_serving_readiness_database() {
         .set_serving_readiness(false)
         .await
         .unwrap();
-    let err = write_client.write_lp(name, lp_data, 0).await.unwrap_err();
-    assert!(
-        matches!(&err, WriteError::ServerError(status) if status.code() == Code::Unavailable),
-        "{}",
-        &err
-    );
+    let r = write_client.write_lp(name, lp_data, 0).await;
+    assert_error!(r, Error::Unavailable(_));
 
     assert!(!deployment_client.get_serving_readiness().await.unwrap());
 
@@ -80,12 +74,8 @@ async fn test_serving_readiness_router() {
         .set_serving_readiness(false)
         .await
         .unwrap();
-    let err = write_client.write_lp(name, lp_data, 0).await.unwrap_err();
-    assert!(
-        matches!(&err, WriteError::ServerError(status) if status.code() == Code::Unavailable),
-        "{}",
-        &err
-    );
+    let r = write_client.write_lp(name, lp_data, 0).await;
+    assert_error!(r, Error::Unavailable(_));
 
     assert!(!deployment_client.get_serving_readiness().await.unwrap());
 
@@ -137,13 +127,13 @@ async fn assert_set_get_server_id(server_fixture: ServerFixture) {
         .expect("set ID failed");
 
     let got = client.get_server_id().await.expect("get ID failed");
-    assert_eq!(got, test_id);
+    assert_eq!(got, Some(test_id));
 
     // setting server ID a second time should fail
     let result = client
         .update_server_id(NonZeroU32::try_from(13).unwrap())
         .await;
-    assert_error!(result, UpdateServerIdError::AlreadySet);
+    assert_error!(result, Error::InvalidArgument(_));
 }
 
 async fn assert_set_get_server_id_already_set(
@@ -153,11 +143,11 @@ async fn assert_set_get_server_id_already_set(
     let mut client = server_fixture.deployment_client();
 
     let got = client.get_server_id().await.expect("get ID failed");
-    assert_eq!(got, server_id);
+    assert_eq!(got, Some(server_id));
 
     // setting server ID a second time should fail
     let result = client
         .update_server_id(NonZeroU32::try_from(13).unwrap())
         .await;
-    assert_error!(result, UpdateServerIdError::AlreadySet);
+    assert_error!(result, Error::InvalidArgument(_));
 }

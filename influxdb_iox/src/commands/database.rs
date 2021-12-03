@@ -6,11 +6,8 @@ use influxdb_iox_client::{
     connection::Connection,
     flight,
     format::QueryOutputFormat,
-    management::{
-        self, generated_types::*, ClaimDatabaseError, CreateDatabaseError, GetDatabaseError,
-        ListDatabaseError, ReleaseDatabaseError,
-    },
-    write::{self, WriteError},
+    management::{self, generated_types::*},
+    write,
 };
 use std::{fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr, time::Duration};
 use structopt::StructOpt;
@@ -25,29 +22,11 @@ mod recover;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error creating database: {0}")]
-    CreateDatabaseError(#[from] CreateDatabaseError),
-
-    #[error("Error getting database: {0}")]
-    GetDatabaseError(#[from] GetDatabaseError),
-
-    #[error("Error listing databases: {0}")]
-    ListDatabaseError(#[from] ListDatabaseError),
-
-    #[error("Error releasing database: {0}")]
-    ReleaseDatabaseError(#[from] ReleaseDatabaseError),
-
-    #[error("Error claiming database: {0}")]
-    ClaimDatabaseError(#[from] ClaimDatabaseError),
-
     #[error("Error reading file {:?}: {}", file_name, source)]
     ReadingFile {
         file_name: PathBuf,
         source: std::io::Error,
     },
-
-    #[error("Error writing: {0}")]
-    WriteError(#[from] WriteError),
 
     #[error("Error formatting: {0}")]
     FormattingError(#[from] influxdb_iox_client::format::Error),
@@ -66,6 +45,9 @@ pub enum Error {
 
     #[error("Error in partition subcommand: {0}")]
     Catalog(#[from] recover::Error),
+
+    #[error("Client error: {0}")]
+    ClientError(#[from] influxdb_iox_client::error::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

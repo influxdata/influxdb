@@ -17,7 +17,7 @@ use crate::{
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations)]
 pub enum SetServerIdError {
-    #[snafu(display("Server ID already set: {}", server_id))]
+    #[snafu(display("id already set: {}", server_id))]
     AlreadySet { server_id: ServerId },
 }
 

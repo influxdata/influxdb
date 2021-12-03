@@ -13,7 +13,7 @@ use generated_types::{
     influxdata::iox::management::v1::{operation_metadata::Job, WipePreservedCatalog},
 };
 use predicates::prelude::*;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 use tempfile::TempDir;
 use test_helpers::make_temp_file;
 use uuid::Uuid;
@@ -34,7 +34,10 @@ async fn test_create_database() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Database not found"));
+        .stderr(predicate::str::contains(format!(
+            "Resource database/{} not found",
+            db
+        )));
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -230,7 +233,7 @@ async fn release_claim_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "Error releasing database: Could not find database {}",
+            "Resource database/{} not found",
             db
         )));
 
@@ -350,7 +353,7 @@ async fn release_claim_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "Could not find a database with UUID `{}`",
+            "Resource database_uuid/{} not found",
             unknown_uuid
         )));
 }
@@ -426,7 +429,7 @@ async fn release_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "Could not find database {}",
+            "Resource database/{} not found",
             db
         )));
 
@@ -646,7 +649,7 @@ async fn claim_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(format!(
-            "Could not find a database with UUID `{}`",
+            "Resource database_uuid/{} not found",
             unknown_uuid
         )));
 
@@ -770,7 +773,9 @@ async fn test_list_partitions_error() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Database not found"));
+        .stderr(predicate::str::contains(
+            "Resource database/non_existent_database not found",
+        ));
 }
 
 #[tokio::test]
@@ -819,7 +824,7 @@ async fn test_get_partition_error() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Database not found"));
+        .stderr(predicate::str::contains("Resource database/cpu not found"));
 }
 
 #[tokio::test]
@@ -1019,7 +1024,9 @@ async fn test_close_partition_chunk_error() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Database not found"));
+        .stderr(predicate::str::contains(
+            "Resource database/non_existent_database not found",
+        ));
 }
 
 #[tokio::test]
@@ -1082,7 +1089,10 @@ async fn test_wipe_persisted_catalog_error_db_exists() {
 
     create_readable_database(&db_name, server_fixture.grpc_channel()).await;
 
-    let expected_err = format!("Failed precondition: database ({}) in invalid state (Initialized) for transition (WipePreservedCatalog)", db_name);
+    let expected_err = format!(
+        "database ({}) in invalid state (Initialized) for transition (WipePreservedCatalog)",
+        db_name
+    );
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -1126,7 +1136,10 @@ async fn test_skip_replay_error_db_exists() {
 
     create_readable_database(&db_name, server_fixture.grpc_channel()).await;
 
-    let expected_err = format!("Failed precondition: database ({}) in invalid state (Initialized) for transition (SkipReplay)", db_name);
+    let expected_err = format!(
+        "database ({}) in invalid state (Initialized) for transition (SkipReplay)",
+        db_name
+    );
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -1158,9 +1171,8 @@ fn load_lp(addr: &str, db_name: &str, lp_data: Vec<&str>) {
         .stdout(predicate::str::contains("Lines OK"));
 }
 
-#[tokio::test]
-async fn test_unload_partition_chunk() {
-    let fixture = ServerFixture::create_shared(ServerType::Database).await;
+async fn setup_load_unload_partition_chunk() -> (Arc<ServerFixture>, String, String) {
+    let fixture = Arc::from(ServerFixture::create_shared(ServerType::Database).await);
     let addr = fixture.grpc_base();
     let db_name = rand_name();
 
@@ -1174,6 +1186,70 @@ async fn test_unload_partition_chunk() {
     let lp_data = vec!["cpu,region=west user=23.2 10"];
     load_lp(addr, &db_name, lp_data);
 
+    (Arc::clone(&fixture), db_name, String::from(addr))
+}
+
+#[tokio::test]
+async fn test_load_partition_chunk() {
+    let (fixture, db_name, addr) = setup_load_unload_partition_chunk().await;
+    let mut chunks = wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+    let chunk = chunks.pop().unwrap();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("unload-chunk")
+        .arg(&db_name)
+        .arg("cpu")
+        .arg("cpu")
+        .arg(chunk.id.get().to_string())
+        .arg("--host")
+        .arg(&addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ok"));
+
+    let mut chunks = wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ObjectStoreOnly],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+    let chunk = chunks.pop().unwrap();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("chunk")
+        .arg("load")
+        .arg(&db_name)
+        .arg(chunk.id.get().to_string())
+        .arg("--host")
+        .arg(&addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("loadReadBufferChunk"));
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_unload_partition_chunk() {
+    let (fixture, db_name, addr) = setup_load_unload_partition_chunk().await;
     let mut chunks = wait_for_exact_chunk_states(
         &fixture,
         &db_name,
@@ -1385,9 +1461,7 @@ async fn test_persist_partition_error() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Error persisting partition:").and(
-            predicate::str::contains(
-                "Cannot persist partition because it cannot be flushed at the moment",
-            ),
+        .stderr(predicate::str::contains(
+            "Cannot persist partition because it cannot be flushed at the moment",
         ));
 }

@@ -7,11 +7,8 @@ use thiserror::Error;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Update remote error: {0}")]
-    UpdateError(#[from] remote::UpdateRemoteError),
-
-    #[error("List remote error: {0}")]
-    ListError(#[from] remote::ListRemotesError),
+    #[error("Client error: {0}")]
+    ClientError(#[from] influxdb_iox_client::error::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

@@ -17,14 +17,8 @@ pub enum Error {
     #[error("Remote: {0}")]
     RemoteError(#[from] server_remote::Error),
 
-    #[error("Error getting server ID: {0}")]
-    GetServerIdError(#[from] deployment::GetServerIdError),
-
-    #[error("Error updating server ID: {0}")]
-    UpdateServerIdError(#[from] deployment::UpdateServerIdError),
-
-    #[error("Error checking if databases are loded: {0}")]
-    AreDatabasesLoadedError(#[from] management::GetServerStatusError),
+    #[error("Request error: {0}")]
+    Request(#[from] influxdb_iox_client::error::Error),
 
     #[error("Timeout waiting for databases to be loaded")]
     TimeoutDatabasesLoaded,
@@ -78,8 +72,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Get => {
             let mut client = deployment::Client::new(connection);
-            let id = client.get_server_id().await?;
-            println!("{}", id.get());
+            match client.get_server_id().await? {
+                Some(id) => println!("{}", id.get()),
+                None => println!("NONE"),
+            }
             Ok(())
         }
         Command::WaitServerInitialized(command) => {

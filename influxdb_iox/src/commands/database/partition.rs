@@ -2,11 +2,7 @@
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
     connection::Connection,
-    management::{
-        self, ClosePartitionChunkError, DropPartitionError, GetPartitionError,
-        ListPartitionChunksError, ListPartitionsError, NewPartitionChunkError,
-        PersistPartitionError, UnloadPartitionChunkError,
-    },
+    management::{self},
 };
 use structopt::StructOpt;
 use thiserror::Error;
@@ -15,29 +11,8 @@ use uuid::Uuid;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error listing partitions: {0}")]
-    ListPartitionsError(#[from] ListPartitionsError),
-
-    #[error("Error getting partition: {0}")]
-    GetPartitionsError(#[from] GetPartitionError),
-
-    #[error("Error persisting partition: {0}")]
-    PersistPartitionError(#[from] PersistPartitionError),
-
-    #[error("Error dropping partition: {0}")]
-    DropPartitionError(#[from] DropPartitionError),
-
-    #[error("Error listing partition chunks: {0}")]
-    ListPartitionChunksError(#[from] ListPartitionChunksError),
-
-    #[error("Error creating new partition chunk: {0}")]
-    NewPartitionChunkError(#[from] NewPartitionChunkError),
-
-    #[error("Error closing chunk: {0}")]
-    ClosePartitionChunkError(#[from] ClosePartitionChunkError),
-
-    #[error("Error unloading chunk: {0}")]
-    UnloadPartitionChunkError(#[from] UnloadPartitionChunkError),
+    #[error("Client error: {0}")]
+    ClientError(#[from] influxdb_iox_client::error::Error),
 
     #[error("Error rendering response as JSON: {0}")]
     WritingJson(#[from] serde_json::Error),

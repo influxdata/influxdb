@@ -24,7 +24,7 @@ pub enum Error {
 
     #[snafu(display("Error loading remote state: {}", source))]
     LoadingDatabaseNames {
-        source: influxdb_iox_client::management::ListDatabaseError,
+        source: influxdb_iox_client::error::Error,
     },
 
     #[snafu(display("Error running remote query: {}", source))]

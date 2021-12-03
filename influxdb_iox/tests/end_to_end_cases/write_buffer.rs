@@ -8,16 +8,13 @@ use crate::{
 use arrow_util::assert_batches_sorted_eq;
 use generated_types::influxdata::iox::write_buffer::v1::WriteBufferConnection;
 use influxdb_iox_client::{
-    delete::{
-        generated_types::{Predicate, TimestampRange},
-        DeleteError,
-    },
-    management::{generated_types::WriteBufferCreationConfig, CreateDatabaseError},
-    write::WriteError,
+    delete::generated_types::{Predicate, TimestampRange},
+    error::Error,
+    management::generated_types::WriteBufferCreationConfig,
 };
 use std::{num::NonZeroU32, sync::Arc};
 use tempfile::TempDir;
-use test_helpers::assert_contains;
+use test_helpers::{assert_contains, assert_error};
 use time::SystemProvider;
 use write_buffer::{core::WriteBufferWriting, file::FileBufferProducer};
 
@@ -152,7 +149,7 @@ async fn cant_write_to_db_reading_from_write_buffer() {
         .expect_err("expected write to fail");
 
     assert_contains!(err.to_string(), "only allowed through write buffer");
-    assert!(matches!(dbg!(err), WriteError::InvalidArgument(_)));
+    assert!(matches!(err, Error::InvalidArgument(_)));
 
     // Deleting from this database is an error; all data comes from write buffer
     let mut delete_client = server.delete_client();
@@ -169,7 +166,7 @@ async fn cant_write_to_db_reading_from_write_buffer() {
         .expect_err("expected delete to fail");
 
     assert_contains!(err.to_string(), "only allowed through write buffer");
-    assert!(matches!(dbg!(err), DeleteError::ServerError(_)));
+    assert!(matches!(err, Error::InvalidArgument(_)));
 }
 
 #[tokio::test]
@@ -185,16 +182,12 @@ async fn test_create_database_missing_write_buffer_sequencers() {
         ..Default::default()
     };
 
-    let err = DatabaseBuilder::new(db_name.clone())
+    let r = DatabaseBuilder::new(db_name.clone())
         .write_buffer(write_buffer_connection)
         .try_build(server.grpc_channel())
-        .await
-        .unwrap_err();
-    assert!(
-        matches!(&err, CreateDatabaseError::InvalidArgument { .. }),
-        "{}",
-        &err
-    );
+        .await;
+
+    assert_error!(r, Error::InvalidArgument(_));
 }
 
 #[tokio::test]

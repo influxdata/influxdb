@@ -1,33 +1,12 @@
-use thiserror::Error;
-
 use self::generated_types::{delete_service_client::DeleteServiceClient, *};
 
 use crate::connection::Connection;
+use crate::error::Error;
 
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::influxdata::iox::delete::v1::*;
     pub use generated_types::influxdata::iox::predicate::v1::*;
-}
-
-/// Errors returned by [`Client::delete`]
-#[derive(Debug, Error)]
-pub enum DeleteError {
-    /// Database not found
-    #[error("Not found: {}", .0)]
-    NotFound(String),
-
-    /// Response contained no payload
-    #[error("Server returned an empty response")]
-    EmptyResponse,
-
-    /// Server indicated that it is not (yet) available
-    #[error("Server unavailable: {}", .0.message())]
-    Unavailable(tonic::Status),
-
-    /// Client received an unexpected error from the server
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
-    ServerError(tonic::Status),
 }
 
 /// An IOx Delete API client.
@@ -98,7 +77,7 @@ impl Client {
         db_name: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
         predicate: Predicate,
-    ) -> Result<(), DeleteError> {
+    ) -> Result<(), Error> {
         let db_name = db_name.into();
         let table_name = table_name.into();
 
@@ -110,12 +89,7 @@ impl Client {
                     predicate: Some(predicate),
                 }),
             })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => DeleteError::NotFound(status.message().to_string()),
-                tonic::Code::Unavailable => DeleteError::Unavailable(status),
-                _ => DeleteError::ServerError(status),
-            })?;
+            .await?;
 
         Ok(())
     }
