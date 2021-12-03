@@ -7,19 +7,14 @@ use arrow::{
 };
 use bytes::Bytes;
 use data_types::chunk_metadata::ChunkAddr;
-use datafusion::{
-    datasource::{object_store::local::LocalFileSystem, PartitionedFile},
-    logical_plan::Expr,
-    physical_plan::{
-        file_format::{ParquetExec, PhysicalPlanConfig},
-        ExecutionPlan, Partitioning, SendableRecordBatchStream,
-    },
-};
+use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::AdapterStream;
 use futures::StreamExt;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
+use parquet::arrow::{ArrowReader, ParquetFileArrowReader};
+use parquet::file::reader::SerializedFileReader;
 use parquet::{
     self,
     arrow::ArrowWriter,
@@ -28,7 +23,7 @@ use parquet::{
 };
 use predicate::predicate::Predicate;
 use schema::selection::Selection;
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},
     sync::Arc,
@@ -62,60 +57,14 @@ pub enum Error {
     #[snafu(display("Error converting to vec[u8]: Nothing else should have a reference here"))]
     WritingToMemWriter {},
 
-    #[snafu(display("Non local file not supported"))]
-    NonLocalFile {},
-
-    #[snafu(display("Error opening file: {}", source))]
-    OpenFile { source: std::io::Error },
-
     #[snafu(display("Error opening temp file: {}", source))]
     OpenTempFile { source: std::io::Error },
 
     #[snafu(display("Error writing to temp file: {}", source))]
     WriteTempFile { source: std::io::Error },
 
-    #[snafu(display("Error getting metadata from temp file: {}", source))]
-    MetaTempFile { source: std::io::Error },
-
-    #[snafu(display("Internal error: can not get temp file as str: {}", path))]
-    TempFilePathAsStr { path: String },
-
-    #[snafu(display(
-        "Internal error: unexpected partitioning in parquet reader: {:?}",
-        partitioning
-    ))]
-    UnexpectedPartitioning { partitioning: Partitioning },
-
-    #[snafu(display("Error creating pruning predicate: {}", source))]
-    CreatingPredicate {
-        source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display("Error reading from parquet stream: {}", source))]
-    ReadingParquet {
-        source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display("Error at serialized file reader: {}", source))]
-    SerializedFileReaderError {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Error at parquet arrow reader: {}", source))]
-    ParquetArrowReaderError {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Error reading data from parquet file: {}", source))]
-    ReadingFile { source: ArrowError },
-
     #[snafu(display("Error reading data from object store: {}", source))]
     ReadingObjectStore { source: object_store::Error },
-
-    #[snafu(display("Error sending results: {}", source))]
-    SendResult {
-        source: datafusion::error::DataFusionError,
-    },
 
     #[snafu(display("Cannot extract Parquet metadata from byte array: {}", source))]
     ExtractingMetadataFailure { source: crate::metadata::Error },
@@ -231,13 +180,10 @@ impl Storage {
     }
 
     /// Downloads the specified parquet file to a local temporary file
-    /// and uses the `[ParquetExec`] from DataFusion to read that
-    /// parquet file (including predicate and projection pushdown).
+    /// and uses the `[ParquetExec`]
     ///
     /// The resulting record batches from Parquet are sent back to `tx`
-    async fn download_and_scan_parquet(
-        schema: SchemaRef,
-        predicate: Option<Expr>,
+    fn download_and_scan_parquet(
         projection: Vec<usize>,
         path: ParquetFilePath,
         store: Arc<IoxObjectStore>,
@@ -246,106 +192,46 @@ impl Storage {
         // Size of each batch
         let batch_size = 1024; // Todo: make a constant or policy for this
 
-        // Limit of total rows to read
-        let limit: Option<usize> = None; // Todo: this should be a parameter of the function
-
-        // todo(paul): Here is where I'd get the cache from object store. If it has
-        //  one, I'd do the `fs_path_or_cache`. Otherwise, do the temp file like below.
-
-        // TODO use DataFusion ObjectStore implementation rather than
-        // download the file directly
-
         // read parquet file to local file
-        let mut temp_file = tempfile::Builder::new()
-            .prefix("iox-parquet-cache")
-            .suffix(".parquet")
-            .tempfile()
-            .context(OpenTempFile)?;
+        let mut file = tempfile::tempfile().context(OpenTempFile)?;
 
-        debug!(?path, ?temp_file, "Beginning to read parquet to temp file");
-        let mut read_stream = store
-            .get_parquet_file(&path)
-            .await
+        debug!(?path, ?file, "Beginning to read parquet to temp file");
+        let read_stream = futures::executor::block_on(store.get_parquet_file(&path))
             .context(ReadingObjectStore)?;
 
-        while let Some(bytes) = read_stream.next().await {
+        for bytes in futures::executor::block_on_stream(read_stream) {
             let bytes = bytes.context(ReadingObjectStore)?;
             debug!(len = bytes.len(), "read bytes from object store");
-            temp_file.write_all(&bytes).context(WriteTempFile)?;
+            file.write_all(&bytes).context(WriteTempFile)?;
         }
 
-        let file_size = temp_file.as_file().metadata().context(MetaTempFile)?.len();
+        file.rewind().context(WriteTempFile)?;
 
-        // now, create the appropriate parquet exec from datafusion and make it
-        let temp_path = temp_file.into_temp_path();
-        debug!(?temp_path, "Completed read parquet to tempfile");
+        debug!(?path, "Completed read parquet to tempfile");
 
-        let temp_path = temp_path.to_str().with_context(|| TempFilePathAsStr {
-            path: temp_path.to_string_lossy(),
-        })?;
+        let file_reader = SerializedFileReader::new(file).unwrap();
+        let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
+        let record_batch_reader = arrow_reader
+            .get_record_reader_by_columns(projection, batch_size)
+            .unwrap();
 
-        // TODO: renenable when bug in parquet statistics generation
-        // is fixed: https://github.com/apache/arrow-rs/issues/641
-        // https://github.com/influxdata/influxdb_iox/issues/2163
-        if predicate.is_some() {
-            debug!(?predicate, "Skipping predicate pushdown due to XXX");
-        }
-        let predicate = None;
-
-        let object_store = Arc::new(LocalFileSystem {});
-
-        // TODO real statistics so we can use parquet row group
-        // pruning (needs both a real predicate and the formats to be
-        // exposed)
-        let statistics = datafusion::physical_plan::Statistics::default();
-
-        let part_file = PartitionedFile::new(temp_path.to_string(), file_size);
-        let file_groups = vec![vec![part_file]];
-
-        let base_config = PhysicalPlanConfig {
-            object_store,
-            file_schema: schema,
-            file_groups,
-            statistics,
-            projection: Some(projection),
-            batch_size,
-            limit,
-            table_partition_cols: vec![],
-        };
-
-        let parquet_exec = ParquetExec::new(base_config, predicate);
-
-        // We are assuming there is only a single stream in the
-        // call to execute(0) below
-        let partitioning = parquet_exec.output_partitioning();
-        ensure!(
-            matches!(partitioning, Partitioning::UnknownPartitioning(1)),
-            UnexpectedPartitioning { partitioning }
-        );
-
-        let mut parquet_stream = parquet_exec.execute(0).await.context(ReadingParquet)?;
-
-        while let Some(batch) = parquet_stream.next().await {
-            if let Err(e) = tx.send(batch).await {
-                debug!(%e, "Stopping parquet exec early, receiver hung up");
-                return Ok(());
+        for batch in record_batch_reader {
+            if tx.blocking_send(batch).is_err() {
+                debug!(?path, "Receiver hung up - exiting");
+                break;
             }
         }
+
         Ok(())
     }
 
     pub fn read_filter(
-        predicate: &Predicate,
+        _predicate: &Predicate,
         selection: Selection<'_>,
         schema: SchemaRef,
         path: ParquetFilePath,
         store: Arc<IoxObjectStore>,
     ) -> Result<SendableRecordBatchStream> {
-        // fire up a async task that will fetch the parquet file
-        // locally, start it executing and send results
-
-        let parquet_schema = Arc::clone(&schema);
-
         // Indices of columns in the schema needed to read
         let projection: Vec<usize> = Self::column_indices(selection, Arc::clone(&schema));
 
@@ -357,29 +243,19 @@ impl Storage {
                 .collect(),
         ));
 
-        // pushdown predicate, if any
-        let predicate = predicate.filter_expr();
-
         let (tx, rx) = tokio::sync::mpsc::channel(2);
 
         // Run async dance here to make sure any error returned
         // `download_and_scan_parquet` is sent back to the reader and
         // not silently ignored
-        tokio::task::spawn(async move {
-            let download_result = Self::download_and_scan_parquet(
-                parquet_schema,
-                predicate,
-                projection,
-                path,
-                store,
-                tx.clone(),
-            )
-            .await;
+        tokio::task::spawn_blocking(move || {
+            let download_result =
+                Self::download_and_scan_parquet(projection, path, store, tx.clone());
 
             // If there was an error returned from download_and_scan_parquet send it back to the receiver.
             if let Err(e) = download_result {
                 let e = ArrowError::ExternalError(Box::new(e));
-                if let Err(e) = tx.send(ArrowResult::Err(e)).await {
+                if let Err(e) = tx.blocking_send(ArrowResult::Err(e)) {
                     // if no one is listening, there is no one else to hear our screams
                     debug!(%e, "Error sending result of download function. Receiver is closed.");
                 }
