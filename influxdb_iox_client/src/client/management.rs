@@ -194,12 +194,21 @@ impl Client {
     }
 
     /// Claim database
-    pub async fn claim_database(&mut self, uuid: Uuid) -> Result<String, Error> {
+    ///
+    /// if `force` is true, forces the server to claim this database, even if it is
+    /// ostensibly owned by another server.
+    ///
+    /// WARNING: If another server is currently writing to this
+    /// database, corruption will very likely occur.
+    pub async fn claim_database(&mut self, uuid: Uuid, force: bool) -> Result<String, Error> {
         let uuid_bytes = uuid.as_bytes().to_vec();
 
         let response = self
             .inner
-            .claim_database(ClaimDatabaseRequest { uuid: uuid_bytes })
+            .claim_database(ClaimDatabaseRequest {
+                uuid: uuid_bytes,
+                force,
+            })
             .await?;
 
         Ok(response.into_inner().db_name)

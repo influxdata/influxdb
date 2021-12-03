@@ -2,8 +2,8 @@
 
 use crate::measurement::LineToGenerate;
 use futures::stream;
-use influxdb2_client::models::{PostBucketRequest, WriteDataPoint};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use influxdb2_client::models::WriteDataPoint;
+use snafu::{ensure, ResultExt, Snafu};
 #[cfg(test)]
 use std::{
     collections::BTreeMap,
@@ -116,8 +116,6 @@ impl PointsWriterBuilder {
         org: impl Into<String> + Send,
         bucket: impl Into<String> + Send,
         token: impl Into<String> + Send,
-        create_bucket: bool,
-        org_id: Option<&str>,
         jaeger_debug: Option<&str>,
     ) -> Result<Self> {
         let host = host.into();
@@ -137,20 +135,6 @@ impl PointsWriterBuilder {
         }
         let org = org.into();
         let bucket = bucket.into();
-
-        if create_bucket {
-            let org_id = org_id.context(OrgIdRequiredToCreateBucket)?.to_string();
-            let bucket = PostBucketRequest {
-                org_id,
-                name: bucket.clone(),
-                ..Default::default()
-            };
-
-            client
-                .create_bucket(Some(bucket))
-                .await
-                .context(CantCreateBucket)?;
-        }
 
         Ok(Self {
             config: PointsWriterConfig::Api {

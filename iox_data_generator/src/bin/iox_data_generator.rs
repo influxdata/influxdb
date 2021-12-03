@@ -25,9 +25,8 @@ Examples:
     iox_data_generator -s spec.toml -o lp
 
     # Generate data points and write to the server running at localhost:8080 with the provided org,
-    # bucket and authorization token, creating the bucket
-    iox_data_generator -s spec.toml -h localhost:8080 --org myorg --org_id 0000111100001111 \
-        --bucket mybucket --token mytoken --create
+    # bucket and authorization token
+    iox_data_generator -s spec.toml -h localhost:8080 --org myorg --bucket mybucket --token mytoken
 
     # Generate data points for the 24 hours between midnight 2020-01-01 and 2020-01-02
     iox_data_generator -s spec.toml -o lp --start 2020-01-01 --end 2020-01-02
@@ -87,12 +86,6 @@ Logging:
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("ORG_ID")
-                .long("org_id")
-                .help("The 16-digit hex ID of the organization. Only needed if passing `--create`.")
-                .takes_value(true),
-        )
-        .arg(
             Arg::with_name("BUCKET")
                 .long("bucket")
                 .help("The bucket name to write to")
@@ -123,11 +116,6 @@ Logging:
                        specification like `1 hour ago`. If not specified, defaults to now.",
                 )
                 .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("create")
-                .long("create")
-                .help("Create the bucket specified before sending points. Requires `--org_id`"),
         )
         .arg(Arg::with_name("continue").long("continue").help(
             "Generate live data using the intervals from the spec after generating historical  \
@@ -188,13 +176,11 @@ Logging:
     {
         PointsWriterBuilder::new_file(line_protocol_filename)?
     } else if let Some(host) = matches.value_of("HOST") {
-        let (host, org, bucket, token, create_bucket, org_id) = validate_api_arguments(
+        let (host, org, bucket, token) = validate_api_arguments(
             host,
             matches.value_of("ORG"),
             matches.value_of("BUCKET"),
             matches.value_of("TOKEN"),
-            matches.is_present("create"),
-            matches.value_of("ORG_ID"),
         );
 
         PointsWriterBuilder::new_api(
@@ -202,8 +188,6 @@ Logging:
             org,
             bucket,
             token,
-            create_bucket,
-            org_id,
             matches.value_of("jaeger_debug_header"),
         )
         .await?
@@ -251,14 +235,8 @@ fn validate_api_arguments<'a>(
     org: Option<&'a str>,
     bucket: Option<&'a str>,
     token: Option<&'a str>,
-    create_bucket: bool,
-    org_id: Option<&'a str>,
-) -> (&'a str, &'a str, &'a str, &'a str, bool, Option<&'a str>) {
+) -> (&'a str, &'a str, &'a str, &'a str) {
     let mut errors = vec![];
-
-    if create_bucket && org_id.is_none() {
-        panic!("When `--create` is specified, `--org_id` is required, but it was missing.");
-    }
 
     if org.is_none() {
         errors.push("`--org` is missing");
@@ -272,14 +250,7 @@ fn validate_api_arguments<'a>(
 
     if errors.is_empty() {
         // These `unwrap`s are safe because otherwise errors wouldn't be empty
-        (
-            host,
-            org.unwrap(),
-            bucket.unwrap(),
-            token.unwrap(),
-            create_bucket,
-            org_id,
-        )
+        (host, org.unwrap(), bucket.unwrap(), token.unwrap())
     } else {
         panic!(
             "When `--host` is specified, `--org`, `--bucket`, and `--token` are required, \
