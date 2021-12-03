@@ -178,7 +178,7 @@ jobs:
       - run:
           name: Run Kafka
           # Sudo needed because data directory owned by root but container runs as unprivileged user
-          command: sudo rpk redpanda start
+          command: sudo /opt/redpanda/bin/redpanda --redpanda-cfg /etc/redpanda/redpanda.yaml --overprovisioned --smp 1 --memory 1G --reserve-memory 0M
           background: true
       - checkout
       - rust_components
