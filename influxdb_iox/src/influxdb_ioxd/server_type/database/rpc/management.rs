@@ -534,6 +534,38 @@ impl management_service_server::ManagementService for ManagementService {
 
         Ok(Response::new(DropPartitionResponse {}))
     }
+
+    async fn compact_object_store_chunks(
+        &self,
+        request: Request<CompactObjectStoreChunksRequest>,
+    ) -> Result<Response<CompactObjectStoreChunksResponse>, Status> {
+        let CompactObjectStoreChunksRequest {
+            db_name,
+            partition_key,
+            table_name,
+            chunk_ids,
+        } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
+
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
+
+        let mut chunk_id_ids = vec![];
+        for chunk_id in chunk_ids {
+            let chunk_id = ChunkId::try_from(chunk_id).scope("chunk_id")?;
+            chunk_id_ids.push(chunk_id);
+        }
+
+        db.compact_object_store_chunks(&table_name, &partition_key, chunk_id_ids)
+            .await
+            .map_err(default_db_error_handler)?;
+
+        Ok(Response::new(CompactObjectStoreChunksResponse {}))
+    }
 }
 
 /// Returns [`DatabaseRules`] formated according to the `omit_defaults` flag. If `omit_defaults` is

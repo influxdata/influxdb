@@ -676,14 +676,24 @@ impl Db {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
+            // Lock for read
             let partition = self.lockable_partition(table_name, partition_key)?;
             let partition = partition.read();
+            let mut chunks = vec![];
+            for chunk_id in chunk_ids {
+                let chunk = LockablePartition::chunk(&partition, chunk_id).ok_or(
+                    catalog::Error::ChunkNotFound {
+                        chunk_id,
+                        partition: partition_key.to_string(),
+                        table: table_name.to_string(),
+                    },
+                )?;
+                chunks.push(chunk);
+            }
 
-            // todo: set these chunks
-            let chunks = vec![];
-
-            // Lock partition for write
+            // Lock for write
             let partition = partition.upgrade();
+            let chunks = chunks.iter().map(|c| c.write()).collect();
 
             // invoke compact
             let (_, fut) =

@@ -67,6 +67,25 @@ struct Persist {
     force: bool,
 }
 
+/// Compact Object Store Chunks
+///
+/// Errors if the chunks are not yet compacted and not contiguous. If successful it returns the
+/// compacted chunk or None if no data after compacted due to rows eliminated from deletes and deduplication
+#[derive(Debug, StructOpt)]
+struct CompactObjectStoreChunks {
+    /// The name of the database
+    db_name: String,
+
+    /// The partition key
+    partition_key: String,
+
+    /// The table name
+    table_name: String,
+
+    /// The chunk ids
+    chunk_ids: Vec<Uuid>,
+}
+
 /// lists all chunks in this partition
 #[derive(Debug, StructOpt)]
 struct ListChunks {
@@ -152,6 +171,12 @@ enum Command {
     /// chunk that contains the persisted data.
     Persist(Persist),
 
+    /// Compact Object Store Chunks
+    ///
+    /// Errors if the chunks are not yet compacted and not contiguous. If successful it returns the
+    /// compacted chunk or None if no data after compacted due to rows eliminated from deletes and deduplication
+    CompactObjectStoreChunks(CompactObjectStoreChunks),
+
     /// Drop partition from memory and (if persisted) from object store.
     Drop(DropPartition),
 
@@ -210,6 +235,24 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
             client
                 .persist_partition(db_name, table_name, partition_key, force)
+                .await?;
+            println!("Ok");
+        }
+        Command::CompactObjectStoreChunks(compact) => {
+            let CompactObjectStoreChunks {
+                db_name,
+                partition_key,
+                table_name,
+                chunk_ids,
+            } = compact;
+
+            let chunk_ids = chunk_ids
+                .iter()
+                .map(|chunk_id| chunk_id.as_bytes().to_vec().into())
+                .collect();
+
+            client
+                .compact_object_store_chunks(db_name, table_name, partition_key, chunk_ids)
                 .await?;
             println!("Ok");
         }
