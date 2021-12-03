@@ -327,11 +327,14 @@ async fn test_create_get_update_release_claim_database() {
         format!("Resource database/{} not found", db_name)
     );
 
-    client.claim_database(released_uuid).await.unwrap();
+    client.claim_database(released_uuid, false).await.unwrap();
 
     client.get_database(&db_name, false).await.unwrap();
 
-    let err = client.claim_database(released_uuid).await.unwrap_err();
+    let err = client
+        .claim_database(released_uuid, false)
+        .await
+        .unwrap_err();
     assert_contains!(
         err.to_string(),
         format!("Resource database_uuid/{} already exists", released_uuid)
@@ -347,7 +350,10 @@ async fn test_create_get_update_release_claim_database() {
     }
 
     let unknown_uuid = Uuid::new_v4();
-    let err = client.claim_database(unknown_uuid).await.unwrap_err();
+    let err = client
+        .claim_database(unknown_uuid, false)
+        .await
+        .unwrap_err();
     assert_contains!(
         err.to_string(),
         format!("Resource database_uuid/{} not found", unknown_uuid)
@@ -362,7 +368,10 @@ async fn test_create_get_update_release_claim_database() {
 
     assert_ne!(released_uuid, newly_created_uuid);
 
-    let err = client.claim_database(released_uuid).await.unwrap_err();
+    let err = client
+        .claim_database(released_uuid, false)
+        .await
+        .unwrap_err();
     assert_contains!(
         err.to_string(),
         format!("Resource database/{} already exists", db_name)
@@ -449,7 +458,7 @@ async fn claim_database() {
     let deleted_uuid = client.release_database(&db_name, None).await.unwrap();
     assert_eq!(created_uuid, deleted_uuid);
 
-    client.claim_database(deleted_uuid).await.unwrap();
+    client.claim_database(deleted_uuid, false).await.unwrap();
 
     // Claimed database is back in this server's database list
     assert_eq!(
@@ -466,7 +475,10 @@ async fn claim_database() {
     );
 
     // Claiming the same database again is an error
-    let err = client.claim_database(deleted_uuid).await.unwrap_err();
+    let err = client
+        .claim_database(deleted_uuid, false)
+        .await
+        .unwrap_err();
     assert_contains!(
         err.to_string(),
         format!("Resource database_uuid/{} already exists", deleted_uuid)

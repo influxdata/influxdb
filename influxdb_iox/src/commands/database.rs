@@ -179,6 +179,16 @@ struct Release {
 struct Claim {
     /// The UUID of the database to claim
     uuid: Uuid,
+
+    /// Force this server to claim this database, even if it is
+    /// ostensibly owned by another server.
+    ///
+    /// WARNING: ONLY do this if you are sure that no other servers
+    /// are writing to this database (for example, the data files have
+    /// been copied somewhere). If another server is currently writing
+    /// to this database, corruption will very likely occur
+    #[structopt(long)]
+    force: bool,
 }
 
 /// All possible subcommands for database
@@ -337,7 +347,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Claim(command) => {
             let mut client = management::Client::new(connection);
-            let db_name = client.claim_database(command.uuid).await?;
+            let db_name = client.claim_database(command.uuid, command.force).await?;
             println!("Claimed database {}", db_name);
         }
     }
