@@ -66,17 +66,17 @@ OUTDIR=$(mktemp -d)
 		echo "env for go build: GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=$CGO_ENABLED"
 		# Note that we only do static builds for arm, to be consistent with influxdb 2.x
 		if [[ "$GOARCH" == arm64 ]] ; then
-			echo go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build noasm" $cmd
-			go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build noasm" $cmd
+			echo go build -i -o "$OUTDIR/$(basename $cmd)" -ldflags='-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"' -tags "netgo osusergo static_build noasm" $cmd
+			go build -i -o "$OUTDIR/$(basename $cmd)" -ldflags='-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"' -tags "netgo osusergo static_build noasm" $cmd
 		elif [[ -n "$STATIC" ]]; then
-			echo go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
-			go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
+			echo go build -i -o "$OUTDIR/$(basename $cmd)" -ldflags='-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"' -tags "netgo osusergo static_build" $cmd
+			go build -i -o "$OUTDIR/$(basename $cmd)" -ldflags='-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"' -tags "netgo osusergo static_build" $cmd
 		elif [[ "$GOOS" == windows ]] ; then
-			echo go build $RACE_FLAG -buildmode=exe -i -o "$OUTDIR/$(basename $cmd).exe" $cmd
-			go build $RACE_FLAG -buildmode=exe -i -o "$OUTDIR/$(basename $cmd).exe" $cmd
+			echo go build $RACE_FLAG -buildmode=exe -i -o "$OUTDIR/$(basename $cmd).exe" -ldflags='-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"' $cmd
+			go build $RACE_FLAG -buildmode=exe -i -o "$OUTDIR/$(basename $cmd).exe" -ldflags='-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"' $cmd
 		else
-			echo go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)" $cmd
-			go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)" $cmd
+			echo go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)" -ldflags='-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"' $cmd
+			go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)" -ldflags='-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"' $cmd
 		fi
 	done
 )
