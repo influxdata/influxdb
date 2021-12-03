@@ -155,16 +155,19 @@ impl Storage {
         let schema = stream.schema();
         let data = Self::parquet_stream_to_bytes(stream, schema, metadata).await?;
         // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
-        if data.is_empty() {
-            return Ok(None);
-        }
 
         let file_size_bytes = data.len();
         let md =
             IoxParquetMetaData::from_file_bytes(data.clone()).context(ExtractingMetadataFailure)?;
+
+        // No data
+        if md.is_none() {
+            return Ok(None);
+        }
+
         self.to_object_store(data, &path).await?;
 
-        Ok(Some((path, file_size_bytes, md)))
+        Ok(Some((path, file_size_bytes, md.unwrap())))
     }
 
     fn writer_props(metadata_bytes: &[u8]) -> WriterProperties {
@@ -482,7 +485,7 @@ mod tests {
                 .unwrap();
 
         // extract metadata
-        let md = IoxParquetMetaData::from_file_bytes(bytes).unwrap();
+        let md = IoxParquetMetaData::from_file_bytes(bytes).unwrap().unwrap();
         let metadata_roundtrip = md.decode().unwrap().read_iox_metadata().unwrap();
 
         // compare with input
@@ -602,7 +605,9 @@ mod tests {
         let parquet_data = load_parquet_from_store(&chunk, Arc::clone(generator.store()))
             .await
             .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone())
+            .unwrap()
+            .unwrap();
         let decoded = parquet_metadata.decode().unwrap();
         //
         // 1. Check metadata at file level: Everything is correct

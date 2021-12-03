@@ -821,7 +821,6 @@ mod tests {
         assert_eq!(summary_chunks[1].row_count, 2);
     }
 
-    #[ignore]
     #[tokio::test]
     async fn test_compact_os_on_chunk_delete_all() {
         test_helpers::maybe_start_logging();
@@ -869,15 +868,12 @@ mod tests {
         // compact the only OS chunk
         let partition = partition.upgrade();
         let chunk1 = chunks[0].write();
-        let compacted_chunk = compact_object_store_chunks(partition, vec![chunk1])
+        compact_object_store_chunks(partition, vec![chunk1])
             .unwrap()
             .1
             .await
+            .unwrap()
             .unwrap();
-        //.unwrap();
-
-        let err = compacted_chunk.unwrap_err();
-        println!("{}", err.to_string());
 
         // verify results
         let partition = db.partition("cpu", partition_key).unwrap();
