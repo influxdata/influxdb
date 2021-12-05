@@ -116,6 +116,8 @@ pub struct TagSetsSpec {
 #[cfg_attr(test, derive(Default))]
 #[serde(deny_unknown_fields)]
 pub struct AgentSpec {
+    /// The name of the agent, which can be referenced in templates with `agent.name`.
+    pub name: String,
     /// Specifies the number of agents that should be created with this spec.
     /// Default value is 1.
     pub count: Option<usize>,
@@ -483,6 +485,7 @@ mod test {
 name = "demo_schema"
 
 [[agents]]
+name = "foo"
 
 [[agents.measurements]]
 name = "cpu"

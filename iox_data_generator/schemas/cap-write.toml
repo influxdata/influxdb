@@ -3,6 +3,7 @@
 name = "cap_write"
 
 [[agents]]
+name = "telegraf"
 count = 3
 sampling_interval = "10s"
 tag_pairs = [
