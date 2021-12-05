@@ -2,7 +2,7 @@
 //! store.
 use crate::{
     path::{cloud::CloudPath, DELIMITER},
-    ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
+    GetResult, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -201,7 +201,7 @@ impl ObjectStoreApi for AmazonS3 {
         Ok(())
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
+    async fn get(&self, location: &Self::Path) -> Result<GetResult<Error>> {
         let key = location.to_raw();
         let get_request = rusoto_s3::GetObjectRequest {
             bucket: self.bucket_name.clone(),
@@ -209,7 +209,7 @@ impl ObjectStoreApi for AmazonS3 {
             ..Default::default()
         };
         let bucket_name = self.bucket_name.clone();
-        Ok(self
+        let s = self
             .client
             .get_object(get_request)
             .await
@@ -237,7 +237,9 @@ impl ObjectStoreApi for AmazonS3 {
                 location: key.clone(),
             })
             .err_into()
-            .boxed())
+            .boxed();
+
+        Ok(GetResult::Stream(s))
     }
 
     async fn delete(&self, location: &Self::Path) -> Result<()> {

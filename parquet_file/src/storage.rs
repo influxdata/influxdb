@@ -11,6 +11,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::AdapterStream;
 use futures::StreamExt;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use object_store::GetResult;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use parquet::arrow::{ArrowReader, ParquetFileArrowReader};
@@ -192,22 +193,32 @@ impl Storage {
         // Size of each batch
         let batch_size = 1024; // Todo: make a constant or policy for this
 
-        // read parquet file to local file
-        let mut file = tempfile::tempfile().context(OpenTempFile)?;
-
-        debug!(?path, ?file, "Beginning to read parquet to temp file");
         let read_stream = futures::executor::block_on(store.get_parquet_file(&path))
             .context(ReadingObjectStore)?;
 
-        for bytes in futures::executor::block_on_stream(read_stream) {
-            let bytes = bytes.context(ReadingObjectStore)?;
-            debug!(len = bytes.len(), "read bytes from object store");
-            file.write_all(&bytes).context(WriteTempFile)?;
-        }
+        let file = match read_stream {
+            GetResult::File(f, _) => {
+                debug!(?path, "Using file directly");
+                futures::executor::block_on(f.into_std())
+            }
+            GetResult::Stream(read_stream) => {
+                // read parquet file to local file
+                let mut file = tempfile::tempfile().context(OpenTempFile)?;
 
-        file.rewind().context(WriteTempFile)?;
+                debug!(?path, ?file, "Beginning to read parquet to temp file");
 
-        debug!(?path, "Completed read parquet to tempfile");
+                for bytes in futures::executor::block_on_stream(read_stream) {
+                    let bytes = bytes.context(ReadingObjectStore)?;
+                    debug!(len = bytes.len(), "read bytes from object store");
+                    file.write_all(&bytes).context(WriteTempFile)?;
+                }
+
+                file.rewind().context(WriteTempFile)?;
+
+                debug!(?path, "Completed read parquet to tempfile");
+                file
+            }
+        };
 
         let file_reader = SerializedFileReader::new(file).unwrap();
         let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));

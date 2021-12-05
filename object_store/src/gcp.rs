@@ -2,7 +2,7 @@
 //! as the object store.
 use crate::{
     path::{cloud::CloudPath, DELIMITER},
-    ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
+    GetResult, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -117,7 +117,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
         Ok(())
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
+    async fn get(&self, location: &Self::Path) -> Result<GetResult<Error>> {
         let location = location.to_raw();
         let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
@@ -141,7 +141,8 @@ impl ObjectStoreApi for GoogleCloudStorage {
                 },
             })?;
 
-        Ok(futures::stream::once(async move { Ok(bytes.into()) }).boxed())
+        let s = futures::stream::once(async move { Ok(bytes.into()) }).boxed();
+        Ok(GetResult::Stream(s))
     }
 
     async fn delete(&self, location: &Self::Path) -> Result<()> {

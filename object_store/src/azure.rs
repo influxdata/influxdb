@@ -2,7 +2,7 @@
 //! the object store.
 use crate::{
     path::{cloud::CloudPath, DELIMITER},
-    ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
+    GetResult, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
 };
 use async_trait::async_trait;
 use azure_core::prelude::*;
@@ -88,10 +88,10 @@ impl ObjectStoreApi for MicrosoftAzure {
         Ok(())
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
+    async fn get(&self, location: &Self::Path) -> Result<GetResult<Error>> {
         let container_client = Arc::clone(&self.container_client);
         let location = location.to_raw();
-        Ok(async move {
+        let s = async move {
             container_client
                 .as_blob_client(&location)
                 .get()
@@ -103,7 +103,9 @@ impl ObjectStoreApi for MicrosoftAzure {
                 })
         }
         .into_stream()
-        .boxed())
+        .boxed();
+
+        Ok(GetResult::Stream(s))
     }
 
     async fn delete(&self, location: &Self::Path) -> Result<()> {

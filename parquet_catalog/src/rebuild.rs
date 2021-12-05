@@ -136,8 +136,7 @@ async fn read_parquet(
         .get_parquet_file(path)
         .await
         .context(ReadFailure)?
-        .map_ok(|bytes| bytes.to_vec())
-        .try_concat()
+        .bytes()
         .await
         .context(ReadFailure)?;
 

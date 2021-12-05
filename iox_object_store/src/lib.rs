@@ -14,10 +14,10 @@
     clippy::clone_on_ref_ptr
 )]
 
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 use data_types::server_id::ServerId;
 use futures::{stream::BoxStream, StreamExt, TryStreamExt};
-use object_store::{path::Path, ObjectStore, ObjectStoreApi, Result};
+use object_store::{path::Path, GetResult, ObjectStore, ObjectStoreApi, Result};
 use observability_deps::tracing::warn;
 use snafu::{ensure, ResultExt, Snafu};
 use std::sync::Arc;
@@ -65,7 +65,7 @@ impl IoxObjectStore {
     /// config is not found.
     pub async fn get_server_config_file(inner: &ObjectStore, server_id: ServerId) -> Result<Bytes> {
         let path = paths::server_config_path(inner, server_id);
-        let mut stream = match inner.get(&path).await {
+        let result = match inner.get(&path).await {
             Err(object_store::Error::NotFound { .. }) => {
                 use object_store::path::ObjectStorePath;
                 let mut legacy_path = inner.new_path();
@@ -76,13 +76,8 @@ impl IoxObjectStore {
             }
             other => other,
         }?;
-        let mut bytes = BytesMut::new();
 
-        while let Some(buf) = stream.next().await {
-            bytes.extend(buf?);
-        }
-
-        Ok(bytes.freeze())
+        Ok(result.bytes().await?.into())
     }
 
     /// Store the data for the server config with the names and locations of the databases
@@ -195,14 +190,7 @@ impl IoxObjectStore {
     pub async fn get_owner_file(&self) -> Result<Bytes> {
         let owner_path = self.root_path.owner_path();
 
-        let mut stream = self.inner.get(&owner_path).await?;
-        let mut bytes = BytesMut::new();
-
-        while let Some(buf) = stream.next().await {
-            bytes.extend(buf?);
-        }
-
-        Ok(bytes.freeze())
+        Ok(self.inner.get(&owner_path).await?.bytes().await?.into())
     }
 
     /// The location in object storage for all files for this database, suitable for logging or
@@ -241,7 +229,7 @@ impl IoxObjectStore {
     pub async fn get_catalog_transaction_file(
         &self,
         location: &TransactionFilePath,
-    ) -> Result<BoxStream<'static, Result<Bytes>>> {
+    ) -> Result<GetResult<object_store::Error>> {
         let full_path = self.transactions_path.join(location);
 
         self.inner.get(&full_path).await
@@ -303,7 +291,7 @@ impl IoxObjectStore {
     pub async fn get_parquet_file(
         &self,
         location: &ParquetFilePath,
-    ) -> Result<BoxStream<'static, Result<Bytes>>> {
+    ) -> Result<GetResult<object_store::Error>> {
         let full_path = self.data_path.join(location);
 
         self.inner.get(&full_path).await
@@ -334,14 +322,8 @@ impl IoxObjectStore {
 
     /// Get the data for the database rules
     pub async fn get_database_rules_file(&self) -> Result<Bytes> {
-        let mut stream = self.inner.get(&self.db_rules_path()).await?;
-        let mut bytes = BytesMut::new();
-
-        while let Some(buf) = stream.next().await {
-            bytes.extend(buf?);
-        }
-
-        Ok(bytes.freeze())
+        let path = &self.db_rules_path();
+        Ok(self.inner.get(path).await?.bytes().await?.into())
     }
 
     /// Return the database rules file content without creating an IoxObjectStore instance. Useful
@@ -352,14 +334,7 @@ impl IoxObjectStore {
         let root_path = Self::root_path_for(&inner, uuid);
         let db_rules_path = root_path.rules_path().inner;
 
-        let mut stream = inner.get(&db_rules_path).await?;
-        let mut bytes = BytesMut::new();
-
-        while let Some(buf) = stream.next().await {
-            bytes.extend(buf?);
-        }
-
-        Ok(bytes.freeze())
+        Ok(inner.get(&db_rules_path).await?.bytes().await?.into())
     }
 
     /// Store the data for the database rules
@@ -626,9 +601,8 @@ mod tests {
             .get(&rules_path)
             .await
             .unwrap()
-            .next()
+            .bytes()
             .await
-            .unwrap()
             .unwrap();
 
         assert_eq!(original_file_content, actual_content);
@@ -687,9 +661,8 @@ mod tests {
             .get(&owner_path)
             .await
             .unwrap()
-            .next()
+            .bytes()
             .await
-            .unwrap()
             .unwrap();
 
         assert_eq!(original_file_content, actual_content);

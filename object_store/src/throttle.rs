@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for wrapping existing object store types into an artificial "sleep" wrapper.
 use std::{convert::TryInto, sync::Mutex};
 
-use crate::{ListResult, ObjectStoreApi, Result};
+use crate::{GetResult, ListResult, ObjectStoreApi, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{stream::BoxStream, StreamExt};
@@ -129,18 +129,20 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
         self.inner.put(location, bytes).await
     }
 
-    async fn get(
-        &self,
-        location: &Self::Path,
-    ) -> Result<BoxStream<'static, Result<Bytes, Self::Error>>, Self::Error> {
+    async fn get(&self, location: &Self::Path) -> Result<GetResult<Self::Error>, Self::Error> {
         sleep(self.config().wait_get_per_call).await;
 
         // need to copy to avoid moving / referencing `self`
         let wait_get_per_byte = self.config().wait_get_per_byte;
 
-        self.inner.get(location).await.map(|stream| {
-            stream
-                .then(move |bytes_result| async move {
+        self.inner.get(location).await.map(|result| {
+            let s = match result {
+                GetResult::Stream(s) => s,
+                GetResult::File(_, _) => unimplemented!(),
+            };
+
+            GetResult::Stream(
+                s.then(move |bytes_result| async move {
                     match bytes_result {
                         Ok(bytes) => {
                             let bytes_len: u32 = usize_to_u32_saturate(bytes.len());
@@ -150,7 +152,8 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
                         Err(err) => Err(err),
                     }
                 })
-                .boxed()
+                .boxed(),
+            )
         })
     }
 
@@ -420,8 +423,12 @@ mod tests {
         let res = store.get(&path).await;
         if n_bytes.is_some() {
             // need to consume bytes to provoke sleep times
-            res.unwrap()
-                .map_ok(|b| bytes::BytesMut::from(&b[..]))
+            let s = match res.unwrap() {
+                GetResult::Stream(s) => s,
+                GetResult::File(_, _) => unimplemented!(),
+            };
+
+            s.map_ok(|b| bytes::BytesMut::from(&b[..]))
                 .try_concat()
                 .await
                 .unwrap();
