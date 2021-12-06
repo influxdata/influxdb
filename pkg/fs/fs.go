@@ -30,11 +30,7 @@ type DiskStatus struct {
 	Avail uint64
 }
 
-// MoveFileWithReplacement copies the file contents at `src` to `dst`.
-//
-// If the file at `dst` already exists, it will be truncated and its contents
-// overwritten.
-func MoveFileWithReplacement(src, dst string) (err error) {
+func copyFile(src, dst string) (err error) {
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
@@ -53,11 +49,16 @@ func MoveFileWithReplacement(src, dst string) (err error) {
 		return err
 	}
 
-	if err := out.Sync(); err != nil {
-		return err
-	}
+	return out.Sync()
+}
 
-	if err := out.Close(); err != nil {
+// MoveFileWithReplacement copies the file contents at `src` to `dst`.
+// and deletes `src` on success.
+//
+// If the file at `dst` already exists, it will be truncated and its contents
+// overwritten.
+func MoveFileWithReplacement(src, dst string) error {
+	if err := copyFile(src, dst); err != nil {
 		return err
 	}
 
