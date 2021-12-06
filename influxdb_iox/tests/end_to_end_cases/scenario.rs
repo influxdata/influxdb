@@ -1,38 +1,39 @@
-use std::collections::HashMap;
-use std::num::NonZeroU32;
-use std::path::Path;
-use std::time::Duration;
-use std::{convert::TryInto, str, u32};
-use std::{sync::Arc, time::SystemTime};
-
+use crate::common::server_fixture::{ServerFixture, ServerType, TestConfig, DEFAULT_SERVER_ID};
 use arrow::{
     array::{ArrayRef, Float64Array, StringArray, TimestampNanosecondArray},
     record_batch::RecordBatch,
 };
-use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
-use futures::prelude::*;
-use influxdb_iox_client::management::generated_types::partition_template;
-use influxdb_iox_client::management::generated_types::WriteBufferConnection;
+use data_types::{
+    chunk_metadata::{ChunkStorage, ChunkSummary},
+    names::org_and_bucket_to_database,
+    DatabaseName,
+};
+use generated_types::{
+    google::protobuf::Empty,
+    influxdata::iox::{management::v1::*, write_buffer::v1::WriteBufferCreationConfig},
+    ReadSource, TimestampRange,
+};
+use influxdb_iox_client::{
+    connection::Connection,
+    flight::PerformQuery,
+    management::generated_types::{partition_template, WriteBufferConnection},
+};
 use prost::Message;
 use rand::{
     distributions::{Alphanumeric, Standard},
     thread_rng, Rng,
 };
+use std::{
+    collections::HashMap, convert::TryInto, num::NonZeroU32, path::Path, str, sync::Arc,
+    time::Duration, time::SystemTime, u32,
+};
 use tempfile::TempDir;
 use test_helpers::assert_contains;
-
-use data_types::{names::org_and_bucket_to_database, DatabaseName};
-use generated_types::google::protobuf::Empty;
-use generated_types::{
-    influxdata::iox::{management::v1::*, write_buffer::v1::WriteBufferCreationConfig},
-    ReadSource, TimestampRange,
-};
-use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
 use time::SystemProvider;
-use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
-use write_buffer::file::{FileBufferConsumer, FileBufferProducer};
-
-use crate::common::server_fixture::{ServerFixture, ServerType, TestConfig, DEFAULT_SERVER_ID};
+use write_buffer::{
+    core::{WriteBufferReading, WriteBufferWriting},
+    file::{FileBufferConsumer, FileBufferProducer},
+};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -127,70 +128,42 @@ impl Scenario {
             .unwrap();
     }
 
-    pub async fn load_data(&self, influxdb2: &influxdb2_client::Client) -> Vec<String> {
+    pub async fn load_data(&self, client: &mut influxdb_iox_client::write::Client) -> Vec<String> {
         // TODO: make a more extensible way to manage data for tests, such as in
         // external fixture files or with factories.
         let points = vec![
-            influxdb2_client::models::DataPoint::builder("cpu_load_short")
-                .tag("host", "server01")
-                .tag("region", "us-west")
-                .field("value", 0.64)
-                .timestamp(self.ns_since_epoch())
-                .build()
-                .unwrap(),
-            influxdb2_client::models::DataPoint::builder("cpu_load_short")
-                .tag("host", "server01")
-                .field("value", 27.99)
-                .timestamp(self.ns_since_epoch() + 1)
-                .build()
-                .unwrap(),
-            influxdb2_client::models::DataPoint::builder("cpu_load_short")
-                .tag("host", "server02")
-                .tag("region", "us-west")
-                .field("value", 3.89)
-                .timestamp(self.ns_since_epoch() + 2)
-                .build()
-                .unwrap(),
-            influxdb2_client::models::DataPoint::builder("cpu_load_short")
-                .tag("host", "server01")
-                .tag("region", "us-east")
-                .field("value", 1234567.891011)
-                .timestamp(self.ns_since_epoch() + 3)
-                .build()
-                .unwrap(),
-            influxdb2_client::models::DataPoint::builder("cpu_load_short")
-                .tag("host", "server01")
-                .tag("region", "us-west")
-                .field("value", 0.000003)
-                .timestamp(self.ns_since_epoch() + 4)
-                .build()
-                .unwrap(),
-            influxdb2_client::models::DataPoint::builder("system")
-                .tag("host", "server03")
-                .field("uptime", 1303385)
-                .timestamp(self.ns_since_epoch() + 5)
-                .build()
-                .unwrap(),
-            influxdb2_client::models::DataPoint::builder("swap")
-                .tag("host", "server01")
-                .tag("name", "disk0")
-                .field("in", 3)
-                .field("out", 4)
-                .timestamp(self.ns_since_epoch() + 6)
-                .build()
-                .unwrap(),
-            influxdb2_client::models::DataPoint::builder("status")
-                .field("active", true)
-                .timestamp(self.ns_since_epoch() + 7)
-                .build()
-                .unwrap(),
-            influxdb2_client::models::DataPoint::builder("attributes")
-                .field("color", "blue")
-                .timestamp(self.ns_since_epoch() + 8)
-                .build()
-                .unwrap(),
+            format!(
+                "cpu_load_short,host=server01,region=us-west value=0.64 {}",
+                self.ns_since_epoch()
+            ),
+            format!(
+                "cpu_load_short,host=server01 value=27.99 {}",
+                self.ns_since_epoch() + 1
+            ),
+            format!(
+                "cpu_load_short,host=server02,region=us-west value=3.89 {}",
+                self.ns_since_epoch() + 2
+            ),
+            format!(
+                "cpu_load_short,host=server01,region=us-east value=1234567.891011 {}",
+                self.ns_since_epoch() + 3
+            ),
+            format!(
+                "cpu_load_short,host=server01,region=us-west value=0.000003 {}",
+                self.ns_since_epoch() + 4
+            ),
+            format!(
+                "system,host=server03 uptime=1303385i {}",
+                self.ns_since_epoch() + 5
+            ),
+            format!(
+                "swap,host=server01,name=disk0 in=3i,out=4i {}",
+                self.ns_since_epoch() + 6
+            ),
+            format!("status active=true {}", self.ns_since_epoch() + 7),
+            format!("attributes color=\"blue\" {}", self.ns_since_epoch() + 8),
         ];
-        self.write_data(influxdb2, points).await.unwrap();
+        self.write_data(client, points.join("\n")).await.unwrap();
 
         let host_array = StringArray::from(vec![
             Some("server01"),
@@ -234,17 +207,13 @@ impl Scenario {
             .collect()
     }
 
-    async fn write_data(
+    pub async fn write_data(
         &self,
-        client: &influxdb2_client::Client,
-        points: Vec<influxdb2_client::models::DataPoint>,
+        client: &mut influxdb_iox_client::write::Client,
+        lp_data: impl AsRef<str> + Send,
     ) -> Result<()> {
         client
-            .write(
-                self.org_id_str(),
-                self.bucket_id_str(),
-                stream::iter(points),
-            )
+            .write_lp(&*self.database_name(), lp_data, self.ns_since_epoch())
             .await?;
         Ok(())
     }

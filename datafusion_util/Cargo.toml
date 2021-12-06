@@ -8,6 +8,6 @@ description = "Datafusion utilities"
 [dependencies]
 datafusion = { path = "../datafusion" }
 futures = "0.3"
-tokio = { version = "1.13", features = ["macros"] }
-tokio-stream = "0.1.8"
+tokio = { version = "1.13", features = ["parking_lot", "sync"] }
+tokio-stream = "0.1"
 workspace-hack = { path = "../workspace-hack"}

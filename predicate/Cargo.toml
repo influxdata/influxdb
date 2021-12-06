@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 arrow = { version = "6.0", features = ["prettyprint"] }
-chrono = "0.4"
+chrono = { version = "0.4", default-features = false }
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
@@ -20,4 +20,4 @@ workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 test_helpers = { path = "../test_helpers" }
-tokio = { version = "1.13", features = ["macros"] }
+tokio = { version = "1.13", features = ["macros", "parking_lot"] }

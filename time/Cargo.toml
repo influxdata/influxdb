@@ -5,8 +5,7 @@ edition = "2021"
 description = "Time functionality for IOx"
 
 [dependencies]
-
-chrono = "0.4"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 parking_lot = "0.11"
 workspace-hack = { path = "../workspace-hack"}
 

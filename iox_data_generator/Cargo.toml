@@ -6,14 +6,13 @@ edition = "2021"
 default-run = "iox_data_generator"
 
 [dependencies]
-chrono = "0.4.13"
+chrono = { version = "0.4", default-features = false }
 chrono-english = "0.1.4"
 clap = "2.34.0"
-futures = "0.3.5"
+futures = "0.3"
 handlebars = "4.1.6"
 humantime = "2.1.0"
 data_types = { path = "../data_types" }
-generated_types = { path = "../generated_types" }
 influxdb2_client = { path = "../influxdb2_client" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 itertools = "0.10.0"
@@ -21,10 +20,10 @@ rand = { version = "0.8.3", features = ["small_rng"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.72"
 snafu = "0.6.8"
-tokio = { version = "1.13", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 toml = "0.5.6"
 tracing = "0.1"
-tracing-subscriber = "0.3.3"
+tracing-subscriber = "0.3"
 uuid = { version = "0.8.1", default_features = false }
 
 [dev-dependencies]

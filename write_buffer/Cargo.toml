@@ -21,11 +21,11 @@ pin-project = "1.0"
 prost = "0.8"
 rdkafka = "0.28.0"
 time = { path = "../time" }
-tokio = { version = "1.13", features = ["macros", "fs"] }
+tokio = { version = "1.13", features = ["fs", "macros", "parking_lot", "rt", "sync", "time"] }
 tokio-util = "0.6.9"
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
-uuid = { version = "0.8", features = ["serde", "v4"] }
+uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

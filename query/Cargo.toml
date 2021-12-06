@@ -17,7 +17,7 @@ description = "IOx Query Interface and Executor"
 arrow = { version = "6.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
-chrono = "0.4"
+chrono = { version = "0.4", default-features = false }
 croaring = "0.5"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
@@ -30,13 +30,12 @@ pin-project = "1.0"
 regex = "1"
 schema = { path = "../schema" }
 snafu = "0.6.9"
-tokio = { version = "1.13", features = ["macros"] }
-tokio-stream = "0.1.8"
+tokio = { version = "1.13", features = ["macros", "parking_lot"] }
+tokio-stream = "0.1"
 tokio-util = { version = "0.6.9" }
 trace = { path = "../trace" }
 predicate = { path = "../predicate" }
 workspace-hack = { path = "../workspace-hack"}
-
 
 # use libc on unix like platforms to set worker priority in DedicatedExecutor
 [target."cfg(unix)".dependencies.libc]
