@@ -348,6 +348,7 @@ jobs:
 
             docker buildx build \
               --build-arg RUSTFLAGS="-C target-feature=+avx2" \
+              --progress plain \
               --tag quay.io/influxdb/iox:"$COMMIT_SHA" \
               --tag quay.io/influxdb/iox:"$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')" \
               .
