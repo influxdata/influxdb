@@ -699,8 +699,8 @@ impl Server {
     /// * No database with this UUID can be found
     /// * There's already an active database with this name
     /// * This database is already owned by this server
-    /// * This database is already owned by a different server
-    pub async fn claim_database(&self, uuid: Uuid) -> Result<DatabaseName<'static>> {
+    /// * This database is already owned by a different server (unless force is true)
+    pub async fn claim_database(&self, uuid: Uuid, force: bool) -> Result<DatabaseName<'static>> {
         // Wait for exclusive access to mutate server state
         let handle_fut = self.shared.state.read().freeze();
         let handle = handle_fut.await;
@@ -742,6 +742,7 @@ impl Server {
             &db_name,
             uuid,
             server_id,
+            force,
         )
         .await
         .context(CannotClaimDatabase)?;
@@ -2079,7 +2080,7 @@ mod tests {
         let released_uuid = server.release_database(&foo_db_name, None).await.unwrap();
 
         // claim database by UUID
-        server.claim_database(released_uuid).await.unwrap();
+        server.claim_database(released_uuid, false).await.unwrap();
 
         let claimed = server.database(&foo_db_name).unwrap();
         claimed.wait_for_init().await.unwrap();
@@ -2104,13 +2105,13 @@ mod tests {
         server.wait_for_init().await.unwrap();
 
         assert_error!(
-            server.claim_database(invalid_uuid).await,
+            server.claim_database(invalid_uuid, false).await,
             Error::DatabaseUuidNotFound { .. },
         );
     }
 
-    #[tokio::test]
-    async fn cant_claim_database_owned_by_another_server() {
+    /// create servers (1 and 2) with a database on server 1
+    async fn make_2_servers() -> (Arc<Server>, Arc<Server>, DatabaseName<'static>, Uuid) {
         let application = make_application();
         let server_id1 = ServerId::try_from(1).unwrap();
         let server_id2 = ServerId::try_from(2).unwrap();
@@ -2132,19 +2133,49 @@ mod tests {
         server2.set_id(server_id2).unwrap();
         server2.wait_for_init().await.unwrap();
 
+        (server1, server2, foo_db_name, uuid)
+    }
+
+    #[tokio::test]
+    async fn cant_claim_database_owned_by_another_server() {
+        let (server1, server2, db_name, db_uuid) = make_2_servers().await;
+
         // Attempting to claim on server 2 will fail
         assert_error!(
-            server2.claim_database(uuid).await,
+            server2.claim_database(db_uuid, false).await,
             Error::CannotClaimDatabase {
                 source: database::InitError::CantClaimDatabaseCurrentlyOwned { server_id, .. }
-            } if server_id == server_id1.get_u32()
+            } if server_id == server1.server_id().unwrap().get_u32()
         );
 
         // Have to release from server 1 first
-        server1.release_database(&foo_db_name, None).await.unwrap();
+        server1.release_database(&db_name, None).await.unwrap();
 
         // Then claiming on server 2 will work
-        server2.claim_database(uuid).await.unwrap();
+        server2.claim_database(db_uuid, false).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn can_force_claim_database_owned_by_another_server() {
+        let (server1, server2, _db_name, db_uuid) = make_2_servers().await;
+
+        // shutdown server 1
+        server1.shutdown();
+        server1
+            .join()
+            .await
+            .expect("Server successfully terminated");
+
+        // Attempting to claim on server 2 will fail
+        assert_error!(
+            server2.claim_database(db_uuid, false).await,
+            Error::CannotClaimDatabase {
+                source: database::InitError::CantClaimDatabaseCurrentlyOwned { server_id, .. }
+            } if server_id == server1.server_id().unwrap().get_u32()
+        );
+
+        // Then claiming on server 2 with `force=true` will work
+        server2.claim_database(db_uuid, true).await.unwrap();
     }
 
     #[tokio::test]

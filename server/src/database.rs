@@ -252,15 +252,20 @@ impl Database {
         Ok(uuid)
     }
 
-    /// Create an claimed database without any state. Returns its location in object storage
-    /// for saving in the server config file.
+    /// Create an claimed database without any state. Returns its
+    /// location in object storage for saving in the server config
+    /// file.
+    ///
+    /// if `force` is true, a missing owner info or owner info that is
+    /// for the wrong server id are ignored (do not cause errors)
     pub async fn claim(
         application: Arc<ApplicationState>,
         db_name: &DatabaseName<'static>,
         uuid: Uuid,
         server_id: ServerId,
+        force: bool,
     ) -> Result<String, InitError> {
-        info!(%db_name, %uuid, "claiming database");
+        info!(%db_name, %uuid, %force, "claiming database");
 
         let iox_object_store = IoxObjectStore::load(Arc::clone(application.object_store()), uuid)
             .await
@@ -268,15 +273,42 @@ impl Database {
 
         let owner_info = fetch_owner_info(&iox_object_store)
             .await
-            .context(FetchingOwnerInfo)?;
+            .context(FetchingOwnerInfo);
 
-        ensure!(
-            owner_info.id == 0,
-            CantClaimDatabaseCurrentlyOwned {
-                uuid,
-                server_id: owner_info.id
+        // try to recreate owner_info if force is specified
+        let owner_info = match owner_info {
+            Err(_) if force => {
+                warn!("Attempting to recreate missing owner info due to force");
+
+                let server_location =
+                    IoxObjectStore::server_config_path(application.object_store(), server_id)
+                        .to_string();
+
+                create_owner_info(server_id, server_location, &iox_object_store)
+                    .await
+                    .context(CreatingOwnerInfo)?;
+
+                fetch_owner_info(&iox_object_store)
+                    .await
+                    .context(FetchingOwnerInfo)
             }
-        );
+            t => t,
+        }?;
+
+        if owner_info.id != 0 {
+            if !force {
+                return CantClaimDatabaseCurrentlyOwned {
+                    uuid,
+                    server_id: owner_info.id,
+                }
+                .fail();
+            } else {
+                warn!(
+                    owner_id = owner_info.id,
+                    "Ignoring owner info mismatch due to force"
+                );
+            }
+        }
 
         let database_location = iox_object_store.root_path();
         let server_location =
@@ -1608,7 +1640,7 @@ mod tests {
                 .to_string();
         let uuid = database.release().await.unwrap();
 
-        Database::claim(application, db_name, uuid, new_server_id)
+        Database::claim(application, db_name, uuid, new_server_id, false)
             .await
             .unwrap();
 
