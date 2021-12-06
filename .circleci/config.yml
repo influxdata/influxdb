@@ -342,6 +342,8 @@ jobs:
       - run:
           name: Cargo release build with target arch set for CRoaring
           command: cargo build --release --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc"
+          # linking might take a while and doesn't produce CLI output
+          no_output_timeout: 20m
       - run:
           name: Compress debug symbols
           command: objcopy --compress-debug-sections target/release/influxdb_iox
