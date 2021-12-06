@@ -182,13 +182,18 @@ func (s *Shard) WithLogger(log *zap.Logger) {
 // writes and queries return an error and compactions are stopped for the shard.
 func (s *Shard) SetEnabled(enabled bool) {
 	s.mu.Lock()
+	s.setEnabledNoLock(enabled)
+	s.mu.Unlock()
+}
+
+//! setEnabledNoLock performs actual work of SetEnabled. Must hold s.mu before calling.
+func (s *Shard) setEnabledNoLock(enabled bool) {
 	// Prevent writes and queries
 	s.enabled = enabled
 	if s._engine != nil && !s.CompactionDisabled {
 		// Disable background compactions and snapshotting
 		s._engine.SetEnabled(enabled)
 	}
-	s.mu.Unlock()
 }
 
 // ScheduleFullCompaction forces a full compaction to be schedule on the shard.
@@ -356,10 +361,24 @@ func (s *Shard) Path() string { return s.path }
 
 // Open initializes and opens the shard's store.
 func (s *Shard) Open(ctx context.Context) error {
-	if err := func() error {
-		s.mu.Lock()
-		defer s.mu.Unlock()
+	s.mu.Lock()
+	closeWaitNeeded, err := s.openNoLock(ctx)
+	s.mu.Unlock()
+	if closeWaitNeeded {
+		werr := s.closeWait()
+		// We want the first error we get returned to the caller
+		if err == nil {
+			err = werr
+		}
+	}
+	return err
+}
 
+// openNoLock performs work of Open. Must hold s.mu before calling. The first return
+// value is true if the caller should call closeWait after unlocking s.mu in order
+// to clean up a failed open operation.
+func (s *Shard) openNoLock(ctx context.Context) (bool, error) {
+	if err := func() error {
 		// Return if the shard is already open
 		if s._engine != nil {
 			return nil
@@ -450,16 +469,16 @@ func (s *Shard) Open(ctx context.Context) error {
 
 		return nil
 	}(); err != nil {
-		s.close()
-		return NewShardError(s.id, err)
+		s.closeNoLock()
+		return true, NewShardError(s.id, err)
 	}
 
 	if s.EnableOnOpen {
 		// enable writes, queries and compactions
-		s.SetEnabled(true)
+		s.setEnabledNoLock(true)
 	}
 
-	return nil
+	return false, nil
 }
 
 // Close shuts down the shard's store.
@@ -467,16 +486,21 @@ func (s *Shard) Close() error {
 	err := func() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		return s.close()
+		return s.closeNoLock()
 	}()
-	// make sure not to hold a lock while waiting for the metric updater to finish
-	s.metricUpdater.wg.Wait()
-	return err
+	// make sure not to hold a lock while waiting for close to finish
+	werr := s.closeWait()
+
+	if err != nil {
+		return err
+	}
+	return werr
 }
 
-// close closes the shard an removes reference to the shard from associated
-// indexes, unless clean is false.
-func (s *Shard) close() error {
+// closeNoLock closes the shard an removes reference to the shard from associated
+// indexes. The s.mu mutex must be held before calling closeNoLock. closeWait should always
+// be called after calling closeNoLock.
+func (s *Shard) closeNoLock() error {
 	if s._engine == nil {
 		return nil
 	}
@@ -494,6 +518,18 @@ func (s *Shard) close() error {
 		s.index = nil
 	}
 	return err
+}
+
+// closeWait waits for goroutines and other background operations associated with this
+// shard to complete after closeNoLock is called. Must only be called after calling
+// closeNoLock. closeWait should always be called after calling closeNoLock.
+// Public methods which close the shard should call closeWait after closeNoLock before
+// returning. Must be called without holding shard locks to avoid deadlocking.
+func (s *Shard) closeWait() error {
+	if s.metricUpdater != nil {
+		s.metricUpdater.wg.Wait()
+	}
+	return nil
 }
 
 // IndexType returns the index version being used for this shard.
@@ -1158,29 +1194,45 @@ func (s *Shard) Export(w io.Writer, basePath string, start time.Time, end time.T
 // Restore restores data to the underlying engine for the shard.
 // The shard is reopened after restore.
 func (s *Shard) Restore(ctx context.Context, r io.Reader, basePath string) error {
-	if err := func() error {
+	closeWaitNeeded, err := func() (bool, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+
+		closeWaitNeeded := false
 
 		// Special case - we can still restore to a disabled shard, so we should
 		// only check if the engine is closed and not care if the shard is
 		// disabled.
 		if s._engine == nil {
-			return ErrEngineClosed
+			return closeWaitNeeded, ErrEngineClosed
 		}
 
 		// Restore to engine.
-		return s._engine.Restore(r, basePath)
-	}(); err != nil {
+		if err := s._engine.Restore(r, basePath); err != nil {
+			return closeWaitNeeded, nil
+		}
+
+		// Close shard.
+		closeWaitNeeded = true // about to call closeNoLock, closeWait will be needed
+		if err := s.closeNoLock(); err != nil {
+			return closeWaitNeeded, err
+		}
+		return closeWaitNeeded, nil
+	}()
+
+	// Now that we've unlocked, we can call closeWait if needed
+	if closeWaitNeeded {
+		werr := s.closeWait()
+		// Return the first error encountered to the caller
+		if err == nil {
+			err = werr
+		}
+	}
+	if err != nil {
 		return err
 	}
 
-	// Close shard.
-	if err := s.Close(); err != nil {
-		return err
-	}
-
-	// Reopen engine.
+	// Reopen engine. Need locked method since we had to unlock for closeWait.
 	return s.Open(ctx)
 }
 
