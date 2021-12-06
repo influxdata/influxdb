@@ -4,7 +4,6 @@
 package fs
 
 import (
-	"fmt"
 	"os"
 	"syscall"
 
@@ -34,15 +33,6 @@ func SyncDir(dirName string) error {
 	return dir.Close()
 }
 
-func getDevFromPath(path string) (uint64, error) {
-	var stat syscall.Stat_t
-	if err := syscall.Stat(path, &stat); err != nil {
-		return 0, fmt.Errorf("stat: %w", err)
-	}
-
-	return stat.Dev, nil
-}
-
 // RenameFileWithReplacement will replace any existing file at newpath with the contents
 // of oldpath.
 //
@@ -50,22 +40,14 @@ func getDevFromPath(path string) (uint64, error) {
 // of oldpath. If this function returns successfully, the contents of newpath will
 // be identical to oldpath, and oldpath will be removed.
 func RenameFileWithReplacement(oldpath, newpath string) error {
-	oldDev, err := getDevFromPath(oldpath)
-	if err != nil {
-		return err
+	if err := os.Rename(oldpath, newpath); err == nil {
+		return nil
 	}
 
-	newDev, err := getDevFromPath(newpath)
-	if err != nil {
-		return err
-	}
+	// probably move over filesystem boundaries, we have to copy.
+	// (if there was another error, it will likely fail a second time)
+	return MoveFileWithReplacement(oldpath, newpath)
 
-	if oldDev != newDev {
-		// move over filesystem boundaries, we have to copy.
-		return MoveFileWithReplacement(oldpath, newpath)
-	}
-
-	return os.Rename(oldpath, newpath)
 }
 
 // RenameFile renames oldpath to newpath, returning an error if newpath already
