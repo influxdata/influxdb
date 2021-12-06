@@ -16,7 +16,10 @@ use generated_types::{
 use influxdb_iox_client::{
     connection::Connection,
     flight::PerformQuery,
-    management::generated_types::{partition_template, WriteBufferConnection},
+    management::{
+        self,
+        generated_types::{partition_template, WriteBufferConnection},
+    },
 };
 use prost::Message;
 use rand::{
@@ -24,12 +27,20 @@ use rand::{
     thread_rng, Rng,
 };
 use std::{
-    collections::HashMap, convert::TryInto, num::NonZeroU32, path::Path, str, sync::Arc,
-    time::Duration, time::SystemTime, u32,
+    collections::HashMap,
+    convert::TryInto,
+    num::NonZeroU32,
+    path::{Path, PathBuf},
+    str,
+    sync::Arc,
+    time::Duration,
+    time::SystemTime,
+    u32,
 };
 use tempfile::TempDir;
 use test_helpers::assert_contains;
 use time::SystemProvider;
+use uuid::Uuid;
 use write_buffer::{
     core::{WriteBufferReading, WriteBufferWriting},
     file::{FileBufferConsumer, FileBufferProducer},
@@ -116,16 +127,24 @@ impl Scenario {
         })
     }
 
-    /// Creates the database on the server for this scenario
-    pub async fn create_database(&self, client: &mut influxdb_iox_client::management::Client) {
-        client
+    /// Creates the database on the server for this scenario,
+    /// returning (name, uuid)
+    pub async fn create_database(
+        &self,
+        client: &mut management::Client,
+    ) -> (DatabaseName<'_>, Uuid) {
+        let db_name = self.database_name();
+
+        let db_uuid = client
             .create_database(DatabaseRules {
-                name: self.database_name().to_string(),
+                name: db_name.to_string(),
                 lifecycle_rules: Some(Default::default()),
                 ..Default::default()
             })
             .await
             .unwrap();
+
+        (db_name, db_uuid)
     }
 
     pub async fn load_data(&self, client: &mut influxdb_iox_client::write::Client) -> Vec<String> {
@@ -269,6 +288,24 @@ pub fn rand_id() -> String {
         .collect()
 }
 
+/// Return the path that the database stores data for all databases:
+/// `<server_path>/dbs`
+pub fn data_dir(server_path: impl AsRef<Path>) -> PathBuf {
+    // Assume data layout is <dir>/dbs/<uuid>
+    let mut data_dir: PathBuf = server_path.as_ref().into();
+    data_dir.push("dbs");
+    data_dir
+}
+
+/// Return the path that the database with <uuid> stores its data:
+/// `<server_path>/dbs/<uuid>`
+pub fn db_data_dir(server_path: impl AsRef<Path>, db_uuid: Uuid) -> PathBuf {
+    // Assume data layout is <dir>/dbs/<uuid>
+    let mut data_dir = data_dir(server_path);
+    data_dir.push(db_uuid.to_string());
+    data_dir
+}
+
 pub struct DatabaseBuilder {
     name: String,
     partition_template: PartitionTemplate,
@@ -345,7 +382,7 @@ impl DatabaseBuilder {
         self,
         channel: Connection,
     ) -> Result<(), influxdb_iox_client::error::Error> {
-        let mut management_client = influxdb_iox_client::management::Client::new(channel);
+        let mut management_client = management::Client::new(channel);
 
         management_client
             .create_database(DatabaseRules {
@@ -377,7 +414,7 @@ pub async fn create_readable_database(db_name: impl Into<String>, channel: Conne
 /// given a channel to talk with the management api, create a new
 /// database with no mutable buffer configured, no partitioning rules
 pub async fn create_unreadable_database(db_name: impl Into<String>, channel: Connection) {
-    let mut management_client = influxdb_iox_client::management::Client::new(channel);
+    let mut management_client = management::Client::new(channel);
 
     let rules = DatabaseRules {
         name: db_name.into(),
