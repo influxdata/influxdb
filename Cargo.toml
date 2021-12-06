@@ -85,3 +85,8 @@ lto = "thin"
 
 [profile.bench]
 debug = true
+
+[profile.quick-release]
+inherits = "release"
+codegen-units = 16
+lto = false
