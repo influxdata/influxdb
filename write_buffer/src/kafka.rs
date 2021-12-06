@@ -504,10 +504,15 @@ impl Drop for KafkaBufferConsumer {
     }
 }
 
+/// Get partition IDs for the database-specific Kafka topic.
+///
+/// Will return `None` if the topic is unknown and has to be created.
+///
+/// This will check that the partition is is non-empty.
 async fn get_partitions<C, D>(
     database_name: &str,
     consumer: &Arc<C>,
-) -> Result<BTreeSet<u32>, KafkaError>
+) -> Result<Option<BTreeSet<u32>>, WriteBufferError>
 where
     C: Consumer<D> + Send + Sync + 'static,
     D: ConsumerContext,
@@ -526,13 +531,30 @@ where
 
     let topic_metadata = metadata.topics().get(0).expect("requested a single topic");
 
-    let partitions: BTreeSet<_> = topic_metadata
-        .partitions()
-        .iter()
-        .map(|partition_metdata| partition_metdata.id().try_into().unwrap())
-        .collect();
+    match topic_metadata.error() {
+        None => {
+            let partitions: BTreeSet<_> = topic_metadata
+                .partitions()
+                .iter()
+                .map(|partition_metdata| partition_metdata.id().try_into().unwrap())
+                .collect();
 
-    Ok(partitions)
+            if partitions.is_empty() {
+                Err("Topic exists but has no partitions".to_string().into())
+            } else {
+                Ok(Some(partitions))
+            }
+        }
+        Some(error_code) => {
+            let error_code: RDKafkaErrorCode = error_code.into();
+            match error_code {
+                RDKafkaErrorCode::UnknownTopic | RDKafkaErrorCode::UnknownTopicOrPartition => {
+                    Ok(None)
+                }
+                _ => Err(KafkaError::MetadataFetch(error_code).into()),
+            }
+        }
+    }
 }
 
 fn admin_client(kafka_connection: &str) -> Result<AdminClient<DefaultClientContext>, KafkaError> {
@@ -590,8 +612,11 @@ where
     C: Consumer<D> + Send + Sync + 'static,
     D: ConsumerContext,
 {
-    let mut partitions = get_partitions(database_name, consumer).await?;
-    if partitions.is_empty() {
+    loop {
+        if let Some(partitions) = get_partitions(database_name, consumer).await? {
+            return Ok(partitions);
+        }
+
         if let Some(creation_config) = creation_config {
             create_kafka_topic(
                 kafka_connection,
@@ -600,21 +625,12 @@ where
                 &creation_config.options,
             )
             .await?;
-            partitions = get_partitions(database_name, consumer).await?;
-
-            // while the number of partitions might be different than `creation_cfg.n_sequencers` due to a
-            // conflicting, concurrent topic creation, it must not be empty at this point
-            if partitions.is_empty() {
-                return Err("Cannot create non-empty topic".to_string().into());
-            }
         } else {
             return Err("no partitions found and auto-creation not requested"
                 .to_string()
                 .into());
         }
     }
-
-    Ok(partitions)
 }
 
 /// Our own implementation of [`ClientContext`] to overwrite certain logging behavior.
