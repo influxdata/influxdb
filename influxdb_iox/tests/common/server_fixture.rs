@@ -1,26 +1,24 @@
-use std::collections::HashMap;
-use std::net::SocketAddrV4;
-use std::num::NonZeroU32;
-use std::sync::atomic::{AtomicU16, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use std::{
-    path::Path,
-    process::{Child, Command},
-    str,
-    sync::Weak,
-    time::Instant,
-};
-
 use assert_cmd::prelude::*;
 use futures::prelude::*;
 use generated_types::influxdata::iox::management::v1::{
     database_status::DatabaseState, ServerStatus,
 };
-use http::header::HeaderName;
-use http::HeaderValue;
+use http::{header::HeaderName, HeaderValue};
 use influxdb_iox_client::connection::Connection;
 use once_cell::sync::OnceCell;
+use std::{
+    collections::HashMap,
+    net::SocketAddrV4,
+    num::NonZeroU32,
+    path::Path,
+    process::{Child, Command},
+    str,
+    sync::{
+        atomic::{AtomicU16, Ordering},
+        Arc, Weak,
+    },
+    time::{Duration, Instant},
+};
 use tempfile::{NamedTempFile, TempDir};
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -80,8 +78,6 @@ impl Default for BindAddresses {
         }
     }
 }
-
-const TOKEN: &str = "InfluxDB IOx doesn't have authentication yet";
 
 /// Represents a server that has been started and is available for
 /// testing.
@@ -211,12 +207,6 @@ impl ServerFixture {
     /// server
     pub fn deployment_client(&self) -> influxdb_iox_client::deployment::Client {
         influxdb_iox_client::deployment::Client::new(self.grpc_channel())
-    }
-
-    /// Return an a http client suitable suitable for communicating with this
-    /// server
-    pub fn influxdb2_client(&self) -> influxdb2_client::Client {
-        influxdb2_client::Client::new(self.http_base(), TOKEN)
     }
 
     /// Return a management client suitable for communicating with this

@@ -13,11 +13,10 @@ serde_json = "1.0.72"
 snafu = "0.6.6"
 url = "2.1.1"
 uuid = { version = "0.8", features = ["v4"] }
-workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
 mockito = "0.30"
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
 parking_lot = "0.11.2"
-tokio = { version = "1.13", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 test_helpers = { path = "../test_helpers" }

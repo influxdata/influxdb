@@ -5,12 +5,12 @@ use crate::common::server_fixture::{ServerFixture, ServerType};
 pub async fn test() {
     let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management_client = server_fixture.management_client();
-    let influxdb2 = server_fixture.influxdb2_client();
+    let mut write_client = server_fixture.write_client();
 
     let scenario = Scenario::new();
     scenario.create_database(&mut management_client).await;
 
-    let mut expected_read_data = scenario.load_data(&influxdb2).await;
+    let mut expected_read_data = scenario.load_data(&mut write_client).await;
     let sql_query = "select * from cpu_load_short";
 
     let client = reqwest::Client::new();
