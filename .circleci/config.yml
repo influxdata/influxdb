@@ -323,8 +323,10 @@ jobs:
   # To change the contents of the build container, modify docker/Dockerfile.ci
   # To change the final release container, modify docker/Dockerfile.iox
   perf_image:
-    docker:
-      - image: quay.io/influxdb/rust:ci
+    # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
+    # kinda small node)
+    machine:
+      image: ubuntu-2004:202111-01
     resource_class: xlarge  # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
@@ -337,49 +339,27 @@ jobs:
       RUSTFLAGS: "-C target-feature=+avx2"
     steps:
       - checkout
-      - rust_components
-      - cache_restore
-      - run:
-          name: Cargo release build with target arch set for CRoaring
-          command: cargo build --release --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc"
-          # linking might take a while and doesn't produce CLI output
-          no_output_timeout: 20m
-      - run:
-          name: Compress debug symbols
-          command: objcopy --compress-debug-sections target/release/influxdb_iox
-      - run: |
-          echo "binary sha256sum after build is (not to be confused w/ the GIT SHA and the resulting image SHA!)"
-          sha256sum target/release/influxdb_iox
-      - run:
-          name: Print rustc target CPU options
-          command: target/release/influxdb_iox debug print-cpu
-      - setup_remote_docker:
-          # There seems to be a cache invalidation bug in docker
-          # or in the way that circleci implements layer caching.
-          # Disabling for now, and tracked further investigations
-          # in https://github.com/influxdata/k8s-idpe/issues/3038
-          docker_layer_caching: false
-          version: 20.10.7
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y docker.io
-          docker --version
       - run: |
           echo "$QUAY_INFLUXDB_IOX_PASS" | docker login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
       - run:
-          # Docker has functionality to support per-Dockerfile .dockerignore
-          # This was added in https://github.com/moby/buildkit/pull/901
-          # And included in 19.03 - https://docs.docker.com/engine/release-notes/19.03/#19030
-          # Unfortunately CircleCI only seems to understand a root-level .dockerignore
-          # So we need to move it into position for it to not send ~10GB of build context
-          name: Fudge CircleCI Docker Context
-          command: mv docker/Dockerfile.iox.dockerignore .dockerignore
-      - run: |
-          BRANCH=$(git rev-parse --abbrev-ref HEAD | tr '/' '.')
-          COMMIT_SHA=$(git rev-parse --short HEAD)
-          docker build -t quay.io/influxdb/iox:$COMMIT_SHA -t quay.io/influxdb/iox:main -f docker/Dockerfile.iox .
-          docker push --all-tags quay.io/influxdb/iox
-          echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
+          name: Cargo release build with target arch set for CRoaring
+          command: |
+            BRANCH=$(git rev-parse --abbrev-ref HEAD | tr '/' '.')
+            COMMIT_SHA=$(git rev-parse --short HEAD)
+
+            docker buildx build \
+              --build-arg RUSTFLAGS="-C target-feature=+avx2" \
+              --tag quay.io/influxdb/iox:$COMMIT_SHA \
+              --tag quay.io/influxdb/iox:main \
+              .
+
+            docker run -it --rm quay.io/influxdb/iox:$COMMIT_SHA debug print-cpu
+
+            docker push --all-tags quay.io/influxdb/iox
+
+            echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
+          # linking might take a while and doesn't produce CLI output
+          no_output_timeout: 20m
       - run:
           name: Deploy tags
           command: |
