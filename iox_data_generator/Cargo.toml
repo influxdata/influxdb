@@ -8,7 +8,7 @@ default-run = "iox_data_generator"
 [dependencies]
 chrono = "0.4.13"
 chrono-english = "0.1.4"
-clap = "2.33.1"
+clap = "2.34.0"
 futures = "0.3.5"
 handlebars = "4.1.6"
 humantime = "2.1.0"
