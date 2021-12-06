@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/influxdata/influxdb/v2/pkg/errors"
 )
 
 // A FileExistsError is returned when an operation cannot be completed due to a
@@ -32,27 +34,26 @@ type DiskStatus struct {
 //
 // If the file at `dst` already exists, it will be truncated and its contents
 // overwritten.
-func MoveFileWithReplacement(src, dst string) error {
+func MoveFileWithReplacement(src, dst string) (err error) {
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 
+	defer errors.Capture(&err, out.Close)
+
 	in, err := os.Open(src)
 	if err != nil {
-		out.Close()
 		return err
 	}
 
-	defer in.Close()
+	defer errors.Capture(&err, in.Close)
 
 	if _, err = io.Copy(out, in); err != nil {
-		out.Close()
 		return err
 	}
 
 	if err := out.Sync(); err != nil {
-		out.Close()
 		return err
 	}
 
