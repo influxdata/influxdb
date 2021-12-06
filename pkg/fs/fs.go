@@ -36,14 +36,14 @@ func copyFile(src, dst string) (err error) {
 		return err
 	}
 
-	defer errors.Capture(&err, out.Close)
+	defer errors.Capture(&err, out.Close)()
 
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 
-	defer errors.Capture(&err, in.Close)
+	defer errors.Capture(&err, in.Close)()
 
 	if _, err = io.Copy(out, in); err != nil {
 		return err
