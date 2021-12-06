@@ -504,16 +504,13 @@ impl Client {
         table_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
         chunk_ids: Vec<Bytes>,
-    ) -> Result<(), Error> {
+    ) -> Result<IoxOperation, Error> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
         let table_name = table_name.into();
-        // let chunk_ids = chunk_ids
-        //         .iter()
-        //         .map(|chunk_id| chunk_id.as_bytes().to_vec())
-        //         .collect();
 
-        self.inner
+        let response = self
+            .inner
             .compact_object_store_chunks(CompactObjectStoreChunksRequest {
                 db_name,
                 partition_key,
@@ -522,6 +519,10 @@ impl Client {
             })
             .await?;
 
-        Ok(())
+        Ok(response
+            .into_inner()
+            .operation
+            .unwrap_field("operation")?
+            .try_into()?)
     }
 }

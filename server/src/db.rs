@@ -663,19 +663,15 @@ impl Db {
     }
 
     /// Compact all provided persisted chunks
-    pub async fn compact_object_store_chunks(
+    pub fn compact_object_store_chunks(
         self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
         chunk_ids: Vec<ChunkId>,
-    ) -> Result<Option<Arc<DbChunk>>> {
-        if chunk_ids.is_empty() {
-            return Ok(None);
-        }
-
+    ) -> Result<TaskTracker<Job>> {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
-        let fut = {
+        let (tracker, fut) = {
             // Lock for read
             let partition = self.lockable_partition(table_name, partition_key)?;
             let partition = partition.read();
@@ -696,13 +692,15 @@ impl Db {
             let chunks = chunks.iter().map(|c| c.write()).collect();
 
             // invoke compact
-            let (_, fut) =
+            let (tracker, fut) =
                 lifecycle::compact_object_store::compact_object_store_chunks(partition, chunks)
                     .context(LifecycleError)?;
-            fut
+            (tracker, fut)
         };
 
-        fut.await.context(TaskCancelled)?.context(LifecycleError)
+        let _ =
+            tokio::spawn(async move { fut.await.context(TaskCancelled)?.context(LifecycleError) });
+        Ok(tracker)
     }
 
     /// Persist given partition.

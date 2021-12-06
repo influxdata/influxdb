@@ -69,8 +69,7 @@ struct Persist {
 
 /// Compact Object Store Chunks
 ///
-/// Errors if the chunks are not yet compacted and not contiguous. If successful it returns the
-/// compacted chunk or None if no data after compacted due to rows eliminated from deletes and deduplication
+/// Errors if the chunks are not yet compacted and not contiguous.
 #[derive(Debug, StructOpt)]
 struct CompactObjectStoreChunks {
     /// The name of the database
@@ -173,8 +172,7 @@ enum Command {
 
     /// Compact Object Store Chunks
     ///
-    /// Errors if the chunks are not yet compacted and not contiguous. If successful it returns the
-    /// compacted chunk or None if no data after compacted due to rows eliminated from deletes and deduplication
+    /// Errors if the chunks are not yet compacted and not contiguous.
     CompactObjectStoreChunks(CompactObjectStoreChunks),
 
     /// Drop partition from memory and (if persisted) from object store.
@@ -251,10 +249,11 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 .map(|chunk_id| chunk_id.as_bytes().to_vec().into())
                 .collect();
 
-            client
+            let operation = client
                 .compact_object_store_chunks(db_name, table_name, partition_key, chunk_ids)
                 .await?;
-            println!("Ok");
+
+            serde_json::to_writer_pretty(std::io::stdout(), &operation)?;
         }
         Command::Drop(drop_partition) => {
             let DropPartition {

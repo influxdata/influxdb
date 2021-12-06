@@ -485,5 +485,7 @@ message CompactObjectStoreChunksRequest {
 }
 
 message CompactObjectStoreChunksResponse {
+  // The operation that tracks the work for compacting object store chunks
+  google.longrunning.Operation operation = 1;
 }
 

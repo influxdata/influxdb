@@ -560,11 +560,15 @@ impl management_service_server::ManagementService for ManagementService {
             chunk_id_ids.push(chunk_id);
         }
 
-        db.compact_object_store_chunks(&table_name, &partition_key, chunk_id_ids)
-            .await
+        let tracker = db
+            .compact_object_store_chunks(&table_name, &partition_key, chunk_id_ids)
             .map_err(default_db_error_handler)?;
 
-        Ok(Response::new(CompactObjectStoreChunksResponse {}))
+        let operation = Some(super::operations::encode_tracker(tracker)?);
+
+        Ok(Response::new(CompactObjectStoreChunksResponse {
+            operation,
+        }))
     }
 }
 
