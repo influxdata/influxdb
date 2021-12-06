@@ -344,13 +344,12 @@ jobs:
       - run:
           name: Cargo release build with target arch set for CRoaring
           command: |
-            BRANCH=$(git rev-parse --abbrev-ref HEAD | tr '/' '.')
             COMMIT_SHA=$(git rev-parse --short HEAD)
 
             docker buildx build \
               --build-arg RUSTFLAGS="-C target-feature=+avx2" \
-              --tag quay.io/influxdb/iox:$COMMIT_SHA \
-              --tag quay.io/influxdb/iox:main \
+              --tag quay.io/influxdb/iox:"$COMMIT_SHA" \
+              --tag quay.io/influxdb/iox:"$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')" \
               .
 
             docker run -it --rm quay.io/influxdb/iox:$COMMIT_SHA debug print-cpu
@@ -395,8 +394,12 @@ jobs:
 
 
 parameters:
-  # Trigger build of CI image
   ci_image:
+    description: "Trigger build of CI image"
+    type: boolean
+    default: false
+  perf_image:
+    description: "Trigger build of perf image"
     type: boolean
     default: false
 
@@ -438,6 +441,12 @@ workflows:
     when: << pipeline.parameters.ci_image >>
     jobs:
       - ci_image
+
+  # Manual build of perf image
+  perf_image:
+    when: << pipeline.parameters.perf_image >>
+    jobs:
+      - perf_image
 
   # Nightly rebuild of the build container
   ci_image_nightly:
