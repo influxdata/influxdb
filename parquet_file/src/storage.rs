@@ -72,6 +72,11 @@ pub enum Error {
 
     #[snafu(display("Cannot encode metadata: {}", source))]
     MetadataEncodeFailure { source: prost::EncodeError },
+
+    #[snafu(display("Error reading parquet: {}", source))]
+    ParquetReader {
+        source: parquet::errors::ParquetError,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -220,11 +225,11 @@ impl Storage {
             }
         };
 
-        let file_reader = SerializedFileReader::new(file).unwrap();
+        let file_reader = SerializedFileReader::new(file).context(ParquetReader)?;
         let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
         let record_batch_reader = arrow_reader
             .get_record_reader_by_columns(projection, batch_size)
-            .unwrap();
+            .context(ParquetReader)?;
 
         for batch in record_batch_reader {
             if tx.blocking_send(batch).is_err() {
