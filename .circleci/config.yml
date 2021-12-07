@@ -346,7 +346,10 @@ jobs:
           command: |
             COMMIT_SHA=$(git rev-parse --short HEAD)
 
+            RUST_VERSION=$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)
+
             docker buildx build \
+              --build-arg RUST_VERSION="$RUST_VERSION" \
               --build-arg RUSTFLAGS="-C target-feature=+avx2" \
               --progress plain \
               --tag quay.io/influxdb/iox:"$COMMIT_SHA" \
