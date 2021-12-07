@@ -117,6 +117,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         .build(&[
             ".influxdata.iox",
             ".influxdata.pbdata",
+            ".influxdata.platform.storage",
             ".google.longrunning",
             ".google.rpc",
         ])?;
