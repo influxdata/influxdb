@@ -628,13 +628,16 @@ impl TestServer {
 
                     let mut health = influxdb_iox_client::health::Client::new(channel);
 
-                    match health.check_deployment().await.unwrap() {
-                        true => {
+                    match health.check_deployment().await {
+                        Ok(true) => {
                             println!("Deployment service is running");
                             return;
                         }
-                        false => {
+                        Ok(false) => {
                             println!("Deployment service is not running");
+                        }
+                        Err(e) => {
+                            println!("Waiting for gRPC API to be up: {}", e);
                         }
                     }
                 }
