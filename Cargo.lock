@@ -2757,9 +2757,9 @@ dependencies = [
 
 [[package]]
 name = "pbjson-build"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64eb98c480df4f6ea0f4befb7b6b61be8de3098337016acec79d3dd7d6d219ff"
+checksum = "e6ecce43eac422349043f399860c6aa5d0823f900127ea499f89259f58f9cd96"
 dependencies = [
  "heck",
  "itertools",
