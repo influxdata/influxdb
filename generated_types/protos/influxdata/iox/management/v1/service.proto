@@ -90,6 +90,11 @@ service ManagementService {
 
   // Drop partition from memory and (if persisted) from object store.
   rpc DropPartition(DropPartitionRequest) returns (DropPartitionResponse);
+
+  // Compact given object store chunks 
+  //
+  // Errors if the chunks are not compacted yet and not contiguous
+  rpc CompactObjectStoreChunks(CompactObjectStoreChunksRequest) returns (CompactObjectStoreChunksResponse);
 }
 
 message ListDatabasesRequest {
@@ -472,3 +477,24 @@ message DropPartitionRequest {
 
 message DropPartitionResponse {
 }
+
+// Request to commpact given object store chunks
+message CompactObjectStoreChunksRequest {
+  // the name of the database
+  string db_name = 1;
+
+  // the partition key
+  string partition_key = 2;
+
+  // the table name
+  string table_name = 3;
+
+  // the chunk ids
+  repeated bytes chunk_ids = 4;
+}
+
+message CompactObjectStoreChunksResponse {
+  // The operation that tracks the work for compacting object store chunks
+  google.longrunning.Operation operation = 1;
+}
+
