@@ -796,12 +796,26 @@ mod tests {
         assert_eq!(summary_chunks[3].storage, ChunkStorage::ObjectStoreOnly);
         assert_eq!(summary_chunks[3].row_count, 3); // chunk_id_2
 
+        // Get min partition checkpoint which is the checkpoint of the first chunk
+        let min_partition_checkpoint = {
+            let chunk = chunks[0].clone().chunk;
+            let chunk = chunk.read();
+            let parquet_chunk = chunk.parquet_chunk().unwrap();
+            let iox_parquet_metadata = parquet_chunk.parquet_metadata();
+            let iox_metadata = iox_parquet_metadata
+                .decode()
+                .unwrap()
+                .read_iox_metadata()
+                .unwrap();
+            iox_metadata.partition_checkpoint
+        };
+
         // compact 3 contiguous chunks 1, 2, 3
         let partition = partition.upgrade();
         let chunk1 = chunks[0].write();
         let chunk2 = chunks[1].write();
         let chunk3 = chunks[2].write();
-        let _compacted_chunk = compact_object_store_chunks(partition, vec![chunk1, chunk2, chunk3])
+        let compacted_chunk = compact_object_store_chunks(partition, vec![chunk1, chunk2, chunk3])
             .unwrap()
             .1
             .await
@@ -819,6 +833,18 @@ mod tests {
         // OS: the result of compacting all 3 persisted chunks
         assert_eq!(summary_chunks[1].storage, ChunkStorage::ObjectStoreOnly);
         assert_eq!(summary_chunks[1].row_count, 2);
+
+        // verify partition checkpoint of the compacted chunk
+        let chunk = compacted_chunk.unwrap();
+        let parquet_chunk = chunk.parquet_chunk().unwrap();
+        let iox_parquet_metadata = parquet_chunk.parquet_metadata();
+        let iox_metadata = iox_parquet_metadata
+            .decode()
+            .unwrap()
+            .read_iox_metadata()
+            .unwrap();
+        let compacted_partition_checkpoint = iox_metadata.partition_checkpoint;
+        assert_eq!(min_partition_checkpoint, compacted_partition_checkpoint);
     }
 
     #[ignore]
@@ -891,7 +917,5 @@ mod tests {
 
     // todo: add tests
     //  . compact with deletes happening during compaction
-    //  . verify checkpoints
     //   . replay
-    //  . end-to-end tests to not only verify row num but also data
 }
