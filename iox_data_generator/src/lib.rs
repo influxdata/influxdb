@@ -89,6 +89,16 @@ pub enum Error {
         /// Underlying `tag_set` module error
         source: tag_set::Error,
     },
+
+    /// Error splitting input buckets to agents that write to them
+    #[snafu(display(
+        "Error splitting input buckets into agents that write to them: {}",
+        source
+    ))]
+    CouldNotAssignAgents {
+        /// Underlying `specification` module error
+        source: specification::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -102,6 +112,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 #[allow(clippy::too_many_arguments)]
 pub async fn generate(
     spec: &specification::DataSpec,
+    buckets: Vec<specification::OrgBucket>,
     points_writer_builder: &mut write::PointsWriterBuilder,
     start_datetime: Option<i64>,
     end_datetime: Option<i64>,
@@ -112,45 +123,60 @@ pub async fn generate(
 ) -> Result<usize> {
     let mut handles = vec![];
 
+    let bucket_agents = spec
+        .bucket_split_to_agents(&buckets)
+        .context(CouldNotAssignAgents)?;
+
     let generated_tag_sets = GeneratedTagSets::from_spec(spec).context(CouldNotGenerateTagSets)?;
 
     let lock = Arc::new(tokio::sync::Mutex::new(()));
 
     let start = std::time::Instant::now();
 
-    let agents = spec
-        .agents
-        .iter()
-        .map(|spec| {
-            Agent::from_spec(
-                spec,
+    for bucket_agents in &bucket_agents {
+        for agent_assignment in bucket_agents.agent_assignments.iter() {
+            let agents = Agent::from_spec(
+                agent_assignment.spec,
+                agent_assignment.count,
+                agent_assignment.sampling_interval,
                 start_datetime,
                 end_datetime,
                 execution_start_time,
                 continue_on,
                 &generated_tag_sets,
             )
-            .context(CouldNotCreateAgent)
-        })
-        .collect::<Result<Vec<Vec<Agent>>>>()?;
-    let agents = agents.into_iter().flatten();
+            .context(CouldNotCreateAgent)?;
 
-    for mut agent in agents {
-        let agent_points_writer = points_writer_builder
-            .build_for_agent(&agent.name)
-            .context(CouldNotCreateAgentWriter)?;
+            info!(
+                "Configuring {} agents of \"{}\" to write data to org {} and bucket {}",
+                agent_assignment.count,
+                agent_assignment.spec.name,
+                bucket_agents.org_bucket.org,
+                bucket_agents.org_bucket.bucket
+            );
 
-        let lock_ref = Arc::clone(&lock);
+            for mut agent in agents.into_iter() {
+                let agent_points_writer = points_writer_builder
+                    .build_for_agent(
+                        &agent_assignment.spec.name,
+                        &bucket_agents.org_bucket.org,
+                        &bucket_agents.org_bucket.bucket,
+                    )
+                    .context(CouldNotCreateAgentWriter)?;
 
-        handles.push(tokio::task::spawn(async move {
-            // did this weird hack because otherwise the stdout outputs would be jumbled together garbage
-            if one_agent_at_a_time {
-                let _l = lock_ref.lock().await;
-                agent.generate_all(agent_points_writer, batch_size).await
-            } else {
-                agent.generate_all(agent_points_writer, batch_size).await
+                let lock_ref = Arc::clone(&lock);
+
+                handles.push(tokio::task::spawn(async move {
+                    // did this weird hack because otherwise the stdout outputs would be jumbled together garbage
+                    if one_agent_at_a_time {
+                        let _l = lock_ref.lock().await;
+                        agent.generate_all(agent_points_writer, batch_size).await
+                    } else {
+                        agent.generate_all(agent_points_writer, batch_size).await
+                    }
+                }));
             }
-        }));
+        }
     }
 
     let mut total_points = 0;
@@ -190,6 +216,7 @@ mod test {
     use crate::specification::*;
     use influxdb2_client::models::WriteDataPoint;
     use std::str::FromStr;
+    use std::time::Duration;
 
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
@@ -201,14 +228,18 @@ name = "demo_schema"
 
 [[agents]]
 name = "foo"
-sampling_interval = "10s" # seconds
 
 [[agents.measurements]]
 name = "cpu"
 
 [[agents.measurements.fields]]
 name = "val"
-i64_range = [1, 1]"#;
+i64_range = [1, 1]
+
+[[bucket_writers]]
+percent = 1.0
+agents = [{name = "foo", sampling_interval = "10s"}]
+"#;
         let data_spec = DataSpec::from_str(toml).unwrap();
         let agent_spec = &data_spec.agents[0];
 
@@ -224,6 +255,8 @@ i64_range = [1, 1]"#;
 
         let mut agent = agent::Agent::from_spec(
             agent_spec,
+            1,
+            Duration::from_secs(10),
             start_datetime,
             end_datetime,
             execution_start_time,

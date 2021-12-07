@@ -8,7 +8,6 @@ use crate::{
 };
 
 use crate::tag_set::GeneratedTagSets;
-use humantime::parse_duration;
 use serde_json::json;
 use snafu::{ResultExt, Snafu};
 use std::time::{Duration, Instant};
@@ -37,12 +36,6 @@ pub enum Error {
     CouldNotWritePoints {
         /// Underlying `write` module error that caused this problem
         source: crate::write::Error,
-    },
-
-    #[snafu(display("Sampling interval must be valid string: {}", source))]
-    InvalidSamplingInterval {
-        /// Underlying `parse` error
-        source: humantime::DurationError,
     },
 
     #[snafu(display("Error creating agent tag pairs: {}", source))]
@@ -77,17 +70,18 @@ pub struct Agent {
 impl Agent {
     /// Create agents that will generate data points according to these
     /// specs.
+    #[allow(clippy::too_many_arguments)]
     pub fn from_spec(
         agent_spec: &specification::AgentSpec,
+        count: usize,
+        sampling_interval: Duration,
         start_datetime: Option<i64>, // in nanoseconds since the epoch, defaults to now
         end_datetime: Option<i64>,   // also in nanoseconds since the epoch, defaults to now
         execution_start_time: i64,
         continue_on: bool, // If true, run in "continue" mode after historical data is generated
         generated_tag_sets: &GeneratedTagSets,
     ) -> Result<Vec<Self>> {
-        let agent_count = agent_spec.count.unwrap_or(1);
-
-        let agents: Vec<_> = (1..agent_count + 1)
+        let agents: Vec<_> = (1..count + 1)
             .into_iter()
             .map(|agent_id| {
                 let data = json!({"agent": {"id": agent_id, "name": agent_spec.name}});
@@ -114,17 +108,11 @@ impl Agent {
                 let current_datetime = start_datetime.unwrap_or_else(now_ns);
                 let end_datetime = end_datetime.unwrap_or_else(now_ns);
 
-                // Convert to nanoseconds
-                let sampling_interval = match &agent_spec.sampling_interval {
-                    None => None,
-                    Some(s) => Some(parse_duration(s).context(InvalidSamplingInterval)?),
-                };
-
                 Ok(Self {
                     id: agent_id,
                     name: agent_spec.name.to_string(),
                     measurement_generators,
-                    sampling_interval,
+                    sampling_interval: Some(sampling_interval),
                     current_datetime,
                     end_datetime,
                     continue_on,

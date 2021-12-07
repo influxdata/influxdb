@@ -58,11 +58,12 @@ for_each = [
     "partition_id",
 ]
 
+[[bucket_writers]]
+percent = 1.0
+agents = [{name = "sender", sampling_interval = "10s"}]
+
 [[agents]]
 name = "sender"
-# create this many agents
-count = 1
-sampling_interval = "10s"
 
 [[agents.measurements]]
 name = "storage_usage_bucket_cardinality"
