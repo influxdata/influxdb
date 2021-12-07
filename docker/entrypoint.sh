@@ -7,4 +7,4 @@ for i in "${!args[@]}"; do
     args[$i]="$(echo "${args[$i]}" | envsubst)"
 done
 
-exec influxdb_iox "${args[@]}"
+exec "$PACKAGE" "${args[@]}"
