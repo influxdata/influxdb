@@ -483,12 +483,13 @@ pub struct IoxParquetMetaData {
 impl IoxParquetMetaData {
     /// Read parquet metadata from a parquet file.
     pub fn from_file_bytes(data: Vec<u8>) -> Result<Option<Self>> {
+        if data.is_empty() {
+            return Ok(None);
+        }
+
         let cursor = SliceableCursor::new(data);
         let reader = SerializedFileReader::new(cursor).context(ParquetMetaDataRead {})?;
         let parquet_md = reader.metadata().clone();
-        if parquet_md.num_row_groups() == 0 {
-            return Ok(None);
-        }
 
         let data = Self::parquet_md_to_thrift(parquet_md)?;
         Ok(Some(Self::from_thrift_bytes(data)))

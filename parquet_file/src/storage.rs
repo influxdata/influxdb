@@ -109,16 +109,16 @@ impl Storage {
 
         let schema = stream.schema();
         let data = Self::parquet_stream_to_bytes(stream, schema, metadata).await?;
+        // no data
+        if data.is_empty() {
+            return Ok(None);
+        }
+
         // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
 
         let file_size_bytes = data.len();
         let md =
             IoxParquetMetaData::from_file_bytes(data.clone()).context(ExtractingMetadataFailure)?;
-
-        // No data
-        if md.is_none() {
-            return Ok(None);
-        }
 
         self.to_object_store(data, &path).await?;
 
@@ -149,9 +149,14 @@ impl Storage {
         {
             let mut writer = ArrowWriter::try_new(mem_writer.clone(), schema, Some(props))
                 .context(OpeningParquetWriter)?;
+            let mut no_stream_data = true;
             while let Some(batch) = stream.next().await {
+                no_stream_data = false;
                 let batch = batch.context(ReadingStream)?;
                 writer.write(&batch).context(WritingParquetToMemory)?;
+            }
+            if no_stream_data {
+                return Ok(vec![]);
             }
             writer.close().context(ClosingParquetWriter)?;
         } // drop the reference to the MemWriter that the SerializedFileWriter has
