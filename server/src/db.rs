@@ -2119,7 +2119,9 @@ mod tests {
                 .await
                 .unwrap();
 
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone())
+            .unwrap()
+            .unwrap();
         // Read metadata at file level
         let schema = parquet_metadata.decode().unwrap().read_schema().unwrap();
         // Read data
@@ -2246,7 +2248,9 @@ mod tests {
             load_parquet_from_store_for_path(&path_list[0], Arc::clone(&db.iox_object_store))
                 .await
                 .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone())
+            .unwrap()
+            .unwrap();
         // Read metadata at file level
         let schema = parquet_metadata.decode().unwrap().read_schema().unwrap();
         // Read data
