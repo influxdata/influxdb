@@ -536,6 +536,7 @@ mod test {
             for_each = ["foo"]
 
             [[agents]]
+            name = "foo"
 
             [[agents.measurements]]
             name = "m1"
@@ -594,6 +595,7 @@ mod test {
             for_each = ["foo"]
 
             [[agents]]
+            name = "foo"
 
             [[agents.measurements]]
             name = "m1"

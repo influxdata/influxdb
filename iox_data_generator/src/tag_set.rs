@@ -484,6 +484,7 @@ name = "testage"
 for_each = ["foo"]
 
 [[agents]]
+name = "foo"
 
 [[agents.measurements]]
 name = "cpu"
@@ -528,6 +529,7 @@ for_each = [
 ]
 
 [[agents]]
+name = "foo"
 
 [[agents.measurements]]
 name = "cpu"
@@ -593,6 +595,7 @@ for_each = [
 ]
 
 [[agents]]
+name = "foo"
 
 [[agents.measurements]]
 name = "cpu"

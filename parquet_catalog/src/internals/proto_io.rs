@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use futures::TryStreamExt;
 use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, TransactionFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
@@ -54,8 +53,7 @@ pub async fn load_transaction_proto(
         .get_catalog_transaction_file(path)
         .await
         .context(Read {})?
-        .map_ok(|bytes| bytes.to_vec())
-        .try_concat()
+        .bytes()
         .await
         .context(Read {})?;
     let proto = proto::Transaction::decode(&data[..]).context(Deserialization {})?;

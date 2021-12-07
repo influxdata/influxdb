@@ -55,6 +55,8 @@ pub enum Error {
 pub struct Agent {
     /// identifier for the agent. This can be used in generated tags and fields
     pub id: usize,
+    /// name for the agent. This can be used in generated tags and fields
+    pub name: String,
     measurement_generators: Vec<MeasurementGenerator>,
     sampling_interval: Option<Duration>,
     /// nanoseconds since the epoch, used as the timestamp for the next
@@ -88,7 +90,7 @@ impl Agent {
         let agents: Vec<_> = (1..agent_count + 1)
             .into_iter()
             .map(|agent_id| {
-                let data = json!({"agent": {"id": agent_id}});
+                let data = json!({"agent": {"id": agent_id, "name": agent_spec.name}});
 
                 let agent_tag_pairs = TagPair::pairs_from_specs(&agent_spec.tag_pairs, data)
                     .context(CouldNotCreateAgentTagPairs)?;
@@ -120,6 +122,7 @@ impl Agent {
 
                 Ok(Self {
                     id: agent_id,
+                    name: agent_spec.name.to_string(),
                     measurement_generators,
                     sampling_interval,
                     current_datetime,
@@ -289,6 +292,7 @@ mod test {
 
             Self {
                 id: 0,
+                name: "foo".to_string(),
                 finished: false,
                 interval: None,
 

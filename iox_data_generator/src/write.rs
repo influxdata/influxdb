@@ -104,7 +104,7 @@ enum PointsWriterConfig {
         perform_write: bool,
     },
     #[cfg(test)]
-    Vector(BTreeMap<usize, Arc<Mutex<Vec<u8>>>>),
+    Vector(BTreeMap<String, Arc<Mutex<Vec<u8>>>>),
     Stdout,
 }
 
@@ -172,7 +172,7 @@ impl PointsWriterBuilder {
 
     /// Create a writer out of this writer's configuration for a particular
     /// agent that runs in a separate thread/task.
-    pub fn build_for_agent(&mut self, id: usize) -> Result<PointsWriter> {
+    pub fn build_for_agent(&mut self, name: impl Into<String>) -> Result<PointsWriter> {
         let inner_writer = match &mut self.config {
             PointsWriterConfig::Api {
                 client,
@@ -185,7 +185,7 @@ impl PointsWriterBuilder {
             },
             PointsWriterConfig::Directory(dir_path) => {
                 let mut filename = dir_path.clone();
-                filename.push(format!("agent_{}", id));
+                filename.push(name.into());
                 filename.set_extension("txt");
 
                 let file = OpenOptions::new()
@@ -204,7 +204,7 @@ impl PointsWriterBuilder {
             #[cfg(test)]
             PointsWriterConfig::Vector(ref mut agents_by_name) => {
                 let v = agents_by_name
-                    .entry(id)
+                    .entry(name.into())
                     .or_insert_with(|| Arc::new(Mutex::new(Vec::new())));
                 InnerPointsWriter::Vec(Arc::clone(v))
             }
@@ -321,11 +321,11 @@ mod test {
             }
         }
 
-        fn written_data(self, agent_id: usize) -> String {
+        fn written_data(self, agent_name: &str) -> String {
             match self.config {
                 PointsWriterConfig::Vector(agents_by_name) => {
                     let bytes_ref =
-                        Arc::clone(agents_by_name.get(&agent_id).expect(
+                        Arc::clone(agents_by_name.get(agent_name).expect(
                             "Should have written some data, did not find any for this agent",
                         ));
                     let bytes = bytes_ref
@@ -344,6 +344,7 @@ mod test {
 name = "demo_schema"
 
 [[agents]]
+name = "foo"
 
 [[agents.measurements]]
 name = "cpu"
@@ -369,7 +370,7 @@ i64_range = [3,3]"#;
         )
         .await?;
 
-        let line_protocol = points_writer_builder.written_data(1);
+        let line_protocol = points_writer_builder.written_data("foo");
 
         let expected_line_protocol = format!(
             r#"cpu val=3i {}
@@ -387,6 +388,7 @@ i64_range = [3,3]"#;
 name = "demo_schema"
 
 [[agents]]
+name = "foo"
 sampling_interval = "1s" # seconds
 
 [[agents.measurements]]
@@ -413,7 +415,7 @@ i64_range = [2, 2]"#;
         )
         .await?;
 
-        let line_protocol = points_writer_builder.written_data(1);
+        let line_protocol = points_writer_builder.written_data("foo");
 
         let expected_line_protocol = format!(
             r#"cpu val=2i {}
