@@ -549,6 +549,7 @@ where
             let error_code: RDKafkaErrorCode = error_code.into();
             match error_code {
                 RDKafkaErrorCode::UnknownTopic | RDKafkaErrorCode::UnknownTopicOrPartition => {
+                    // The caller is responsible for creating the topic, so this is somewhat OK.
                     Ok(None)
                 }
                 _ => Err(KafkaError::MetadataFetch(error_code).into()),
@@ -612,9 +613,17 @@ where
     C: Consumer<D> + Send + Sync + 'static,
     D: ConsumerContext,
 {
-    loop {
+    const N_TRIES: usize = 10;
+
+    for i in 0..N_TRIES {
         if let Some(partitions) = get_partitions(database_name, consumer).await? {
             return Ok(partitions);
+        }
+
+        // debounce after first round
+        if i > 0 {
+            info!(topic=%database_name, "Topic does not have partitions after creating it, wait a bit and try again.");
+            tokio::time::sleep(Duration::from_millis(250)).await;
         }
 
         if let Some(creation_config) = creation_config {
@@ -631,6 +640,8 @@ where
                 .into());
         }
     }
+
+    Err(format!("Could not auto-create topic after {} tries.", N_TRIES).into())
 }
 
 /// Our own implementation of [`ClientContext`] to overwrite certain logging behavior.

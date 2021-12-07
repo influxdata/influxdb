@@ -1854,9 +1854,10 @@ mod tests {
 
         // wait for a bit so the database fails because the mock is missing
         let database_captured = Arc::clone(&database);
-        tokio::time::timeout(Duration::from_millis(100), async move {
-            database_captured.wait_for_init().await.unwrap();
-        })
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            database_captured.wait_for_init(),
+        )
         .await
         .unwrap_err();
 
@@ -1867,11 +1868,10 @@ mod tests {
             .write_buffer_factory()
             .register_mock("my_mock".to_string(), state.clone());
 
-        tokio::time::timeout(Duration::from_secs(10), async move {
-            database.wait_for_init().await.unwrap();
-        })
-        .await
-        .unwrap();
+        tokio::time::timeout(Duration::from_secs(10), database.wait_for_init())
+            .await
+            .unwrap()
+            .unwrap();
     }
 
     /// Normally database rules are provided as grpc messages, but in
