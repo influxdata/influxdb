@@ -59,6 +59,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{stream::BoxStream, StreamExt, TryFutureExt, TryStreamExt};
 use snafu::{ResultExt, Snafu};
+use std::fmt::Formatter;
 use std::{path::PathBuf, sync::Arc};
 
 /// Universal API to multiple object store services.
@@ -80,10 +81,7 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error>;
 
     /// Return the bytes that are stored at the specified location.
-    async fn get(
-        &self,
-        location: &Self::Path,
-    ) -> Result<BoxStream<'static, Result<Bytes, Self::Error>>, Self::Error>;
+    async fn get(&self, location: &Self::Path) -> Result<GetResult<Self::Error>, Self::Error>;
 
     /// Delete the object at the specified location.
     async fn delete(&self, location: &Self::Path) -> Result<(), Self::Error>;
@@ -277,26 +275,22 @@ impl ObjectStoreApi for ObjectStore {
         Ok(())
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
+    async fn get(&self, location: &Self::Path) -> Result<GetResult<Error>> {
         use ObjectStoreIntegration::*;
         Ok(match (&self.integration, location) {
-            (AmazonS3(s3), path::Path::AmazonS3(location)) => {
-                s3.get(location).await?.err_into().boxed()
-            }
+            (AmazonS3(s3), path::Path::AmazonS3(location)) => s3.get(location).await?.err_into(),
             (GoogleCloudStorage(gcs), path::Path::GoogleCloudStorage(location)) => {
-                gcs.get(location).await?.err_into().boxed()
+                gcs.get(location).await?.err_into()
             }
             (InMemory(in_mem), path::Path::InMemory(location)) => {
-                in_mem.get(location).await?.err_into().boxed()
+                in_mem.get(location).await?.err_into()
             }
             (InMemoryThrottled(in_mem_throttled), path::Path::InMemory(location)) => {
-                in_mem_throttled.get(location).await?.err_into().boxed()
+                in_mem_throttled.get(location).await?.err_into()
             }
-            (File(file), path::Path::File(location)) => {
-                file.get(location).await?.err_into().boxed()
-            }
+            (File(file), path::Path::File(location)) => file.get(location).await?.err_into(),
             (MicrosoftAzure(azure), path::Path::MicrosoftAzure(location)) => {
-                azure.get(location).await?.err_into().boxed()
+                azure.get(location).await?.err_into()
             }
             _ => unreachable!(),
         })
@@ -582,6 +576,65 @@ impl<P: ObjectStorePath> ObjectMeta<P> {
     }
 }
 
+/// Result for a get request
+pub enum GetResult<E> {
+    /// A file
+    File(tokio::fs::File, std::path::PathBuf),
+    /// An asynchronous stream
+    Stream(BoxStream<'static, Result<Bytes, E>>),
+}
+
+impl<E> std::fmt::Debug for GetResult<E> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GetResult::File(_, _) => write!(f, "GetResult(File)"),
+            GetResult::Stream(_) => write!(f, "GetResult(Stream)"),
+        }
+    }
+}
+
+impl GetResult<Error> {
+    /// Collects the data into a [`Vec<u8>`]
+    pub async fn bytes(self) -> Result<Vec<u8>, Error> {
+        let mut stream = self.into_stream();
+        let mut bytes = Vec::new();
+
+        while let Some(next) = stream.next().await {
+            bytes.extend_from_slice(next?.as_ref())
+        }
+
+        Ok(bytes)
+    }
+
+    /// Converts this into a byte stream
+    pub fn into_stream(self) -> BoxStream<'static, Result<Bytes, Error>> {
+        match self {
+            Self::File(file, path) => {
+                tokio_util::codec::FramedRead::new(file, tokio_util::codec::BytesCodec::new())
+                    .map_ok(|b| b.freeze())
+                    .map_err(move |source| Error::FileObjectStoreError {
+                        source: disk::Error::UnableToReadBytes {
+                            source,
+                            path: path.clone(),
+                        },
+                    })
+                    .boxed()
+            }
+            Self::Stream(s) => s,
+        }
+    }
+}
+
+impl<E: 'static> GetResult<E> {
+    /// Maps the error
+    fn err_into<T: From<E> + 'static>(self) -> GetResult<T> {
+        match self {
+            Self::File(f, p) => GetResult::File(f, p),
+            Self::Stream(s) => GetResult::Stream(s.err_into().boxed()),
+        }
+    }
+}
+
 /// A specialized `Result` for object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -734,12 +787,7 @@ mod tests {
         let content_list = flatten_list_stream(storage, Some(&prefix)).await?;
         assert!(content_list.is_empty());
 
-        let read_data = storage
-            .get(&location)
-            .await?
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
-            .await?;
+        let read_data = storage.get(&location).await?.bytes().await?;
         assert_eq!(&*read_data, expected_data);
 
         storage.delete(&location).await?;
@@ -841,7 +889,7 @@ mod tests {
     pub(crate) async fn get_nonexistent_object(
         storage: &ObjectStore,
         location: Option<<ObjectStore as ObjectStoreApi>::Path>,
-    ) -> Result<Bytes> {
+    ) -> Result<Vec<u8>> {
         let location = location.unwrap_or_else(|| {
             let mut loc = storage.new_path();
             loc.set_file_name("this_file_should_not_exist");
@@ -851,13 +899,7 @@ mod tests {
         let content_list = flatten_list_stream(storage, Some(&location)).await?;
         assert!(content_list.is_empty());
 
-        Ok(storage
-            .get(&location)
-            .await?
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
-            .await?
-            .freeze())
+        Ok(storage.get(&location).await?.bytes().await?)
     }
 
     /// Parse a str as a `CloudPath` into a `DirAndFileName`, even though the

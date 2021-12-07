@@ -11,6 +11,7 @@ pub async fn test_row_timestamp() {
     let server_fixture = ServerFixture::create_single_use_with_config(test_config).await;
     let mut deployment_client = server_fixture.deployment_client();
     let mut management_client = server_fixture.management_client();
+    let mut write_client = server_fixture.write_client();
 
     deployment_client
         .update_server_id(NonZeroU32::new(1).unwrap())
@@ -20,7 +21,7 @@ pub async fn test_row_timestamp() {
 
     let scenario = Scenario::new();
     scenario.create_database(&mut management_client).await;
-    scenario.load_data(&server_fixture.influxdb2_client()).await;
+    scenario.load_data(&mut write_client).await;
 
     let client = reqwest::Client::new();
     let url = format!("{}/metrics", server_fixture.http_base());

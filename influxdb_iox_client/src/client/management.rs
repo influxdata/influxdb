@@ -503,4 +503,35 @@ impl Client {
 
         Ok(())
     }
+
+    /// Compact given object store chunks (db, table, partition, chunks)
+    ///
+    /// Error if the chunks are not yet compacted and not contiguous
+    pub async fn compact_object_store_chunks(
+        &mut self,
+        db_name: impl Into<String> + Send,
+        table_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
+        chunk_ids: Vec<Bytes>,
+    ) -> Result<IoxOperation, Error> {
+        let db_name = db_name.into();
+        let partition_key = partition_key.into();
+        let table_name = table_name.into();
+
+        let response = self
+            .inner
+            .compact_object_store_chunks(CompactObjectStoreChunksRequest {
+                db_name,
+                partition_key,
+                table_name,
+                chunk_ids,
+            })
+            .await?;
+
+        Ok(response
+            .into_inner()
+            .operation
+            .unwrap_field("operation")?
+            .try_into()?)
+    }
 }

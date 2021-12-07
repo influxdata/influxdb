@@ -10,6 +10,7 @@ impl DatabaseState {
             DatabaseState::CatalogLoaded => "CatalogLoaded",
             DatabaseState::RulesLoadError => "RulesLoadError",
             DatabaseState::CatalogLoadError => "CatalogLoadError",
+            DatabaseState::WriteBufferCreationError => "WriteBufferCreationError",
             DatabaseState::ReplayError => "ReplayError",
             DatabaseState::Initialized => "Initialized",
             DatabaseState::DatabaseObjectStoreFound => "DatabaseObjectStoreFound",

@@ -2,7 +2,7 @@
 //! store.
 use crate::{
     path::{cloud::CloudPath, parsed::DirsAndFileName},
-    ListResult, ObjectMeta, ObjectStoreApi,
+    GetResult, ListResult, ObjectMeta, ObjectStoreApi,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -55,7 +55,7 @@ impl ObjectStoreApi for InMemory {
         Ok(())
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
+    async fn get(&self, location: &Self::Path) -> Result<GetResult<Self::Error>> {
         let data = self
             .storage
             .read()
@@ -66,7 +66,9 @@ impl ObjectStoreApi for InMemory {
                 location: location.to_string(),
             })?;
 
-        Ok(futures::stream::once(async move { Ok(data) }).boxed())
+        Ok(GetResult::Stream(
+            futures::stream::once(async move { Ok(data) }).boxed(),
+        ))
     }
 
     async fn delete(&self, location: &Self::Path) -> Result<()> {
@@ -162,7 +164,6 @@ mod tests {
         tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
         Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
-    use futures::TryStreamExt;
 
     #[tokio::test]
     async fn in_memory_test() {
@@ -188,8 +189,7 @@ mod tests {
             .get(&location)
             .await
             .unwrap()
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
+            .bytes()
             .await
             .unwrap();
         assert_eq!(&*read_data, expected_data);

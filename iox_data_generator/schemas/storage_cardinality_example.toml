@@ -59,6 +59,7 @@ for_each = [
 ]
 
 [[agents]]
+name = "sender"
 # create this many agents
 count = 1
 sampling_interval = "10s"

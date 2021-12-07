@@ -2,18 +2,17 @@
 //! object store.
 use crate::cache::Cache;
 use crate::path::Path;
-use crate::{path::file::FilePath, ListResult, ObjectMeta, ObjectStore, ObjectStoreApi};
+use crate::{path::file::FilePath, GetResult, ListResult, ObjectMeta, ObjectStore, ObjectStoreApi};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{
     stream::{self, BoxStream},
-    StreamExt, TryStreamExt,
+    StreamExt,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use std::{collections::BTreeSet, convert::TryFrom, io, path::PathBuf};
 use tokio::fs;
-use tokio_util::codec::{BytesCodec, FramedRead};
 use walkdir::WalkDir;
 
 /// A specialized `Result` for filesystem object store-related errors
@@ -131,7 +130,7 @@ impl ObjectStoreApi for File {
         Ok(())
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
+    async fn get(&self, location: &Self::Path) -> Result<GetResult<Error>> {
         let path = self.path(location);
 
         let file = fs::File::open(&path).await.map_err(|e| {
@@ -148,13 +147,7 @@ impl ObjectStoreApi for File {
             }
         })?;
 
-        let s = FramedRead::new(file, BytesCodec::new())
-            .map_ok(|b| b.freeze())
-            .map_err(move |source| Error::UnableToReadBytes {
-                source,
-                path: path.clone(),
-            });
-        Ok(s.boxed())
+        Ok(GetResult::File(file, path))
     }
 
     async fn delete(&self, location: &Self::Path) -> Result<()> {
@@ -365,8 +358,7 @@ mod tests {
             .get(&location)
             .await
             .unwrap()
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
+            .bytes()
             .await
             .unwrap();
         assert_eq!(&*read_data, expected_data);
@@ -389,8 +381,7 @@ mod tests {
             .get(&location)
             .await
             .unwrap()
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
+            .bytes()
             .await
             .unwrap();
         assert_eq!(&*read_data, expected_data);

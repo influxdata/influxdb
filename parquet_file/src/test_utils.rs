@@ -14,7 +14,6 @@ use data_types::{
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
     server_id::ServerId,
 };
-use futures::TryStreamExt;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::ObjectStore;
 use parquet::{
@@ -88,8 +87,7 @@ pub async fn load_parquet_from_store_for_path(
         .get_parquet_file(path)
         .await
         .context(GettingDataFromObjectStore)?
-        .map_ok(|bytes| bytes.to_vec())
-        .try_concat()
+        .bytes()
         .await
         .context(GettingDataFromObjectStore)?;
 

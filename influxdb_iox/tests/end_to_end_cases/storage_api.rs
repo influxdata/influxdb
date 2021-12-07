@@ -24,13 +24,13 @@ use std::str;
 pub async fn test() {
     let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
 
-    let influxdb2 = server_fixture.influxdb2_client();
+    let mut write_client = server_fixture.write_client();
     let mut storage_client = StorageClient::new(server_fixture.grpc_channel());
     let mut management_client = server_fixture.management_client();
 
     let scenario = Scenario::new();
     scenario.create_database(&mut management_client).await;
-    scenario.load_data(&influxdb2).await;
+    scenario.load_data(&mut write_client).await;
 
     read_filter_endpoint(&mut storage_client, &scenario).await;
     tag_keys_endpoint(&mut storage_client, &scenario).await;
@@ -321,12 +321,12 @@ pub async fn regex_operator_test() {
     let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management = fixture.management_client();
     let mut storage_client = StorageClient::new(fixture.grpc_channel());
-    let influxdb2 = fixture.influxdb2_client();
+    let mut write = fixture.write_client();
 
     let scenario = Scenario::new();
     scenario.create_database(&mut management).await;
 
-    load_read_group_data(&influxdb2, &scenario).await;
+    load_read_group_data(&mut write, &scenario).await;
 
     let read_source = scenario.read_source();
 
@@ -362,16 +362,19 @@ pub async fn regex_operator_test() {
 async fn read_group_setup() -> (ServerFixture, Scenario) {
     let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management = fixture.management_client();
-    let influxdb2 = fixture.influxdb2_client();
+    let mut write = fixture.write_client();
 
     let scenario = Scenario::new();
     scenario.create_database(&mut management).await;
 
-    load_read_group_data(&influxdb2, &scenario).await;
+    load_read_group_data(&mut write, &scenario).await;
     (fixture, scenario)
 }
 
-async fn load_read_group_data(client: &influxdb2_client::Client, scenario: &Scenario) {
+async fn load_read_group_data(
+    client: &mut influxdb_iox_client::write::Client,
+    scenario: &Scenario,
+) {
     let line_protocol = vec![
         "cpu,cpu=cpu1,host=foo  usage_user=71.0,usage_system=10.0 1000",
         "cpu,cpu=cpu1,host=foo  usage_user=72.0,usage_system=11.0 2000",
@@ -384,12 +387,8 @@ async fn load_read_group_data(client: &influxdb2_client::Client, scenario: &Scen
     ]
     .join("\n");
 
-    client
-        .write_line_protocol(
-            scenario.org_id_str(),
-            scenario.bucket_id_str(),
-            line_protocol,
-        )
+    scenario
+        .write_data(client, line_protocol)
         .await
         .expect("Wrote cpu line protocol data");
 }
@@ -652,7 +651,7 @@ pub async fn read_window_aggregate_test() {
     let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut management = fixture.management_client();
     let mut storage_client = StorageClient::new(fixture.grpc_channel());
-    let influxdb2 = fixture.influxdb2_client();
+    let mut write = fixture.write_client();
 
     let scenario = Scenario::new();
     let read_source = scenario.read_source();
@@ -678,12 +677,8 @@ pub async fn read_window_aggregate_test() {
     ]
     .join("\n");
 
-    influxdb2
-        .write_line_protocol(
-            scenario.org_id_str(),
-            scenario.bucket_id_str(),
-            line_protocol,
-        )
+    write
+        .write_lp(&*scenario.database_name(), line_protocol, 0)
         .await
         .expect("Wrote h20 line protocol");
 

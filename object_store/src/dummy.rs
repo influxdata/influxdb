@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use snafu::Snafu;
 
-use crate::{path::cloud::CloudPath, ObjectStoreApi};
+use crate::{path::cloud::CloudPath, GetResult, ObjectStoreApi};
 
 /// A specialized `Error` for Azure object store-related errors
 #[derive(Debug, Snafu, Clone)]
@@ -54,10 +54,7 @@ impl ObjectStoreApi for DummyObjectStore {
     async fn get(
         &self,
         _location: &Self::Path,
-    ) -> crate::Result<
-        futures::stream::BoxStream<'static, crate::Result<bytes::Bytes, Self::Error>>,
-        Self::Error,
-    > {
+    ) -> crate::Result<GetResult<Self::Error>, Self::Error> {
         NotSupported { name: &self.name }.fail()
     }
 

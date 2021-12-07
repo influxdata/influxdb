@@ -12,6 +12,7 @@ pub fn single_agent(c: &mut Criterion) {
         values: vec![],
         tag_sets: vec![],
         agents: vec![AgentSpec {
+            name: "foo".to_string(),
             count: None,
             sampling_interval: Some("1s".to_string()),
             measurements: vec![MeasurementSpec {
@@ -123,6 +124,7 @@ for_each = [
 ]
 
 [[agents]]
+name = "foo"
 # create this many agents
 count = 3
 
@@ -170,7 +172,7 @@ i64_range = [1, 8147240]
     group.bench_function("single agent with basic configuration", |b| {
         b.iter(|| {
             agent.reset_current_date_time(0);
-            let points_writer = points_writer.build_for_agent(1).unwrap();
+            let points_writer = points_writer.build_for_agent("foo").unwrap();
             let r = block_on(agent.generate_all(points_writer, 1));
             let n_points = r.expect("Could not generate data");
             assert_eq!(n_points, expected_points as usize);

@@ -16,6 +16,7 @@ name = "host_services"
 for_each = ["host", "host.service"]
 
 [[agents]]
+name = "tracing_agent"
 count = 1
 sampling_interval = "1s"
 

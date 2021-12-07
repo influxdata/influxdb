@@ -1,3 +1,4 @@
+mod database_migration;
 mod debug_cli;
 mod delete_api;
 mod deletes;

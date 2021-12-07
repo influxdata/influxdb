@@ -104,6 +104,7 @@ for_each = [
 ]
 
 [[agents]]
+name = "first_agent"
 # Create this many agents. Agents are single threaded so the way to get more paralellism is to
 # increase the number of agents.
 count = 2
@@ -160,7 +161,8 @@ name = "uptime_format"
 uptime = "telegraf"
 
 [[agents]]
-tag_pairs = [{key = "agent-name", template = "another_example"}]
+name = "another_example"
+tag_pairs = [{key = "agent_name", template = "agent.name"}]
 
 [[agents.measurements]]
 name = "new_agent_measurement-{{measurement.id}}"

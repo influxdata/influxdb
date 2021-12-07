@@ -137,7 +137,7 @@ pub async fn generate(
 
     for mut agent in agents {
         let agent_points_writer = points_writer_builder
-            .build_for_agent(agent.id)
+            .build_for_agent(&agent.name)
             .context(CouldNotCreateAgentWriter)?;
 
         let lock_ref = Arc::clone(&lock);
@@ -200,6 +200,7 @@ mod test {
 name = "demo_schema"
 
 [[agents]]
+name = "foo"
 sampling_interval = "10s" # seconds
 
 [[agents.measurements]]

@@ -1837,8 +1837,7 @@ mod tests {
             .get_catalog_transaction_file(path)
             .await
             .unwrap()
-            .map_ok(|bytes| bytes.to_vec())
-            .try_concat()
+            .bytes()
             .await
             .unwrap();
 

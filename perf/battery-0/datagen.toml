@@ -1,6 +1,7 @@
 name = "example"
 
 [[agents]]
+name = "foo"
 count = 3
 sampling_interval = "10s"
 

@@ -1,5 +1,3 @@
-use std::num::NonZeroU32;
-
 use super::scenario::{collect_query, Scenario};
 use crate::common::{
     server_fixture::{ServerFixture, ServerType, TestConfig},
@@ -7,6 +5,7 @@ use crate::common::{
 };
 use futures::TryStreamExt;
 use generated_types::{storage_client::StorageClient, ReadFilterRequest};
+use std::num::NonZeroU32;
 
 async fn setup() -> (UdpCapture, ServerFixture) {
     let udp_capture = UdpCapture::new().await;
@@ -39,7 +38,7 @@ async fn run_sql_query(server_fixture: &ServerFixture) {
     scenario
         .create_database(&mut server_fixture.management_client())
         .await;
-    scenario.load_data(&server_fixture.influxdb2_client()).await;
+    scenario.load_data(&mut server_fixture.write_client()).await;
 
     // run a query, ensure we get traces
     let sql_query = "select * from cpu_load_short";
@@ -80,7 +79,7 @@ pub async fn test_tracing_storage_api() {
     scenario
         .create_database(&mut server_fixture.management_client())
         .await;
-    scenario.load_data(&server_fixture.influxdb2_client()).await;
+    scenario.load_data(&mut server_fixture.write_client()).await;
 
     // run a query via gRPC, ensure we get traces
     let read_source = scenario.read_source();
