@@ -77,6 +77,9 @@ pub enum Error {
     ParquetReader {
         source: parquet::errors::ParquetError,
     },
+
+    #[snafu(display("No data to convert to parquet"))]
+    NoData {},
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -115,14 +118,13 @@ impl Storage {
         }
 
         // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
-
         let file_size_bytes = data.len();
-        let md =
-            IoxParquetMetaData::from_file_bytes(data.clone()).context(ExtractingMetadataFailure)?;
-
+        let md = IoxParquetMetaData::from_file_bytes(data.clone())
+            .context(ExtractingMetadataFailure)?
+            .context(NoData)?;
         self.to_object_store(data, &path).await?;
 
-        Ok(Some((path, file_size_bytes, md.unwrap())))
+        Ok(Some((path, file_size_bytes, md)))
     }
 
     fn writer_props(metadata_bytes: &[u8]) -> WriterProperties {
