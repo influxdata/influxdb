@@ -91,7 +91,7 @@ service ManagementService {
   // Drop partition from memory and (if persisted) from object store.
   rpc DropPartition(DropPartitionRequest) returns (DropPartitionResponse);
 
-  // Compact given object store chunks 
+  // Compact given object store chunks
   //
   // Errors if the chunks are not compacted yet and not contiguous
   rpc CompactObjectStoreChunks(CompactObjectStoreChunksRequest) returns (CompactObjectStoreChunksResponse);
@@ -397,6 +397,9 @@ message DatabaseStatus {
 
     // Error during catalog load
     DATABASE_STATE_CATALOG_LOAD_ERROR = 6;
+
+    // Error during write buffer creation
+    DATABASE_STATE_WRITE_BUFFER_CREATION_ERROR = 13;
 
     // Error during replay
     DATABASE_STATE_REPLAY_ERROR = 7;

@@ -503,6 +503,7 @@ impl Database {
                 | DatabaseState::OwnerInfoLoadError(_, e)
                 | DatabaseState::RulesLoadError(_, e)
                 | DatabaseState::CatalogLoadError(_, e)
+                | DatabaseState::WriteBufferCreationError(_, e)
                 | DatabaseState::ReplayError(_, e) => return Err(Arc::clone(e)),
             }
 
@@ -817,7 +818,8 @@ async fn initialize_database(shared: &DatabaseShared) {
                 | DatabaseState::DatabaseObjectStoreFound(_)
                 | DatabaseState::OwnerInfoLoaded(_)
                 | DatabaseState::RulesLoaded(_)
-                | DatabaseState::CatalogLoaded(_) => {
+                | DatabaseState::CatalogLoaded(_)
+                | DatabaseState::WriteBufferCreationError(_, _) => {
                     match state.try_freeze() {
                         Some(handle) => Some((DatabaseState::clone(&state), handle)),
                         None => {
@@ -882,15 +884,18 @@ async fn initialize_database(shared: &DatabaseShared) {
                 Ok(state) => DatabaseState::CatalogLoaded(state),
                 Err(e) => DatabaseState::CatalogLoadError(state, Arc::new(e)),
             },
-            DatabaseState::CatalogLoaded(state) => match state.advance(shared).await {
-                Ok(state) => DatabaseState::Initialized(state),
-                Err(InitError::CreateWriteBuffer { source }) => {
-                    info!(%db_name, e=%source, "cannot create write buffer, wait a bit and try again");
-                    tokio::time::sleep(INIT_BACKOFF).await;
-                    DatabaseState::CatalogLoaded(state)
+            DatabaseState::CatalogLoaded(state)
+            | DatabaseState::WriteBufferCreationError(state, _) => {
+                match state.advance(shared).await {
+                    Ok(state) => DatabaseState::Initialized(state),
+                    Err(e @ InitError::CreateWriteBuffer { .. }) => {
+                        info!(%db_name, %e, "cannot create write buffer, wait a bit and try again");
+                        tokio::time::sleep(INIT_BACKOFF).await;
+                        DatabaseState::WriteBufferCreationError(state, Arc::new(e))
+                    }
+                    Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
                 }
-                Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
-            },
+            }
             state => unreachable!("{:?}", state),
         };
 
@@ -994,6 +999,7 @@ enum DatabaseState {
     OwnerInfoLoadError(DatabaseStateDatabaseObjectStoreFound, Arc<InitError>),
     RulesLoadError(DatabaseStateOwnerInfoLoaded, Arc<InitError>),
     CatalogLoadError(DatabaseStateRulesLoaded, Arc<InitError>),
+    WriteBufferCreationError(DatabaseStateCatalogLoaded, Arc<InitError>),
     ReplayError(DatabaseStateCatalogLoaded, Arc<InitError>),
 }
 
@@ -1021,6 +1027,9 @@ impl DatabaseState {
             DatabaseState::OwnerInfoLoadError(_, _) => DatabaseStateCode::OwnerInfoLoadError,
             DatabaseState::RulesLoadError(_, _) => DatabaseStateCode::RulesLoadError,
             DatabaseState::CatalogLoadError(_, _) => DatabaseStateCode::CatalogLoadError,
+            DatabaseState::WriteBufferCreationError(_, _) => {
+                DatabaseStateCode::WriteBufferCreationError
+            }
             DatabaseState::ReplayError(_, _) => DatabaseStateCode::ReplayError,
         }
     }
@@ -1038,6 +1047,7 @@ impl DatabaseState {
             | DatabaseState::OwnerInfoLoadError(_, e)
             | DatabaseState::RulesLoadError(_, e)
             | DatabaseState::CatalogLoadError(_, e)
+            | DatabaseState::WriteBufferCreationError(_, e)
             | DatabaseState::ReplayError(_, e) => Some(e),
         }
     }
@@ -1054,9 +1064,9 @@ impl DatabaseState {
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
                 Some(Arc::clone(&state.provided_rules))
             }
-            DatabaseState::CatalogLoaded(state) | DatabaseState::ReplayError(state, _) => {
-                Some(Arc::clone(&state.provided_rules))
-            }
+            DatabaseState::CatalogLoaded(state)
+            | DatabaseState::WriteBufferCreationError(state, _)
+            | DatabaseState::ReplayError(state, _) => Some(Arc::clone(&state.provided_rules)),
             DatabaseState::Initialized(state) => Some(Arc::clone(&state.provided_rules)),
         }
     }
@@ -1073,9 +1083,9 @@ impl DatabaseState {
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
                 Some(state.uuid)
             }
-            DatabaseState::CatalogLoaded(state) | DatabaseState::ReplayError(state, _) => {
-                Some(state.uuid)
-            }
+            DatabaseState::CatalogLoaded(state)
+            | DatabaseState::WriteBufferCreationError(state, _)
+            | DatabaseState::ReplayError(state, _) => Some(state.uuid),
             DatabaseState::Initialized(state) => Some(state.uuid),
         }
     }
@@ -1092,9 +1102,9 @@ impl DatabaseState {
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
                 Some(state.owner_info.clone())
             }
-            DatabaseState::CatalogLoaded(state) | DatabaseState::ReplayError(state, _) => {
-                Some(state.owner_info.clone())
-            }
+            DatabaseState::CatalogLoaded(state)
+            | DatabaseState::WriteBufferCreationError(state, _)
+            | DatabaseState::ReplayError(state, _) => Some(state.owner_info.clone()),
             DatabaseState::Initialized(state) => Some(state.owner_info.clone()),
         }
     }
@@ -1114,9 +1124,9 @@ impl DatabaseState {
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
                 Some(Arc::clone(&state.iox_object_store))
             }
-            DatabaseState::CatalogLoaded(state) | DatabaseState::ReplayError(state, _) => {
-                Some(state.db.iox_object_store())
-            }
+            DatabaseState::CatalogLoaded(state)
+            | DatabaseState::WriteBufferCreationError(state, _)
+            | DatabaseState::ReplayError(state, _) => Some(state.db.iox_object_store()),
             DatabaseState::Initialized(state) => Some(state.db.iox_object_store()),
         }
     }
@@ -1850,16 +1860,10 @@ mod tests {
             wipe_catalog_on_error: false,
             skip_replay: false,
         };
-        let database = Arc::new(Database::new(Arc::clone(&application), db_config.clone()));
+        let database = Database::new(Arc::clone(&application), db_config.clone());
 
         // wait for a bit so the database fails because the mock is missing
-        let database_captured = Arc::clone(&database);
-        tokio::time::timeout(
-            Duration::from_millis(100),
-            database_captured.wait_for_init(),
-        )
-        .await
-        .unwrap_err();
+        database.wait_for_init().await.unwrap_err();
 
         // create write buffer
         let state =
@@ -1868,10 +1872,17 @@ mod tests {
             .write_buffer_factory()
             .register_mock("my_mock".to_string(), state.clone());
 
-        tokio::time::timeout(Duration::from_secs(10), database.wait_for_init())
-            .await
-            .unwrap()
-            .unwrap();
+        tokio::time::timeout(Duration::from_secs(10), async move {
+            loop {
+                if database.wait_for_init().await.is_ok() {
+                    return;
+                }
+
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        })
+        .await
+        .unwrap();
     }
 
     /// Normally database rules are provided as grpc messages, but in
