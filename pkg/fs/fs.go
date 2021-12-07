@@ -31,17 +31,17 @@ type DiskStatus struct {
 }
 
 func copyFile(src, dst string) (err error) {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 
 	defer errors.Capture(&err, out.Close)()
-
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
 
 	defer errors.Capture(&err, in.Close)()
 
@@ -59,7 +59,7 @@ func copyFile(src, dst string) (err error) {
 // overwritten.
 func MoveFileWithReplacement(src, dst string) error {
 	if err := copyFile(src, dst); err != nil {
-		return err
+		return fmt.Errorf("copy: %w", err)
 	}
 
 	return os.Remove(src)

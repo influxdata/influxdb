@@ -68,6 +68,7 @@ func testFileMoveOrRename(t *testing.T, name string, testFunc func(src string, d
 
 		root := filepath.Dir(oldpath)
 		newpath := filepath.Join(root, "foo")
+
 		if err := testFunc(oldpath, newpath); err != nil {
 			t.Fatalf("%s returned an error: %s", name, err)
 		}
