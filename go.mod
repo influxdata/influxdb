@@ -37,7 +37,7 @@ require (
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe
-	github.com/influxdata/flux v0.140.0
+	github.com/influxdata/flux v0.145.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v1.1.1-0.20211004132434-7e7d61973256
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839
@@ -137,7 +137,6 @@ require (
 	github.com/bonitoo-io/go-sql-bigquery v0.3.4-1.4.0 // indirect
 	github.com/c-bata/go-prompt v0.2.2 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
-	github.com/daixiang0/gci v0.2.8 // indirect
 	github.com/deepmap/oapi-codegen v1.6.0 // indirect
 	github.com/denisenkom/go-mssqldb v0.10.0 // indirect
 	github.com/dimchansky/utfbom v1.1.0 // indirect
