@@ -19,6 +19,7 @@ mod read_cli;
 mod remote_api;
 mod remote_cli;
 mod router_api;
+mod router_cli;
 mod run_cli;
 pub mod scenario;
 mod sql_cli;
