@@ -519,7 +519,10 @@ pub async fn make_os_chunks_and_then_compact_with_different_scenarios_with_delet
         db.delete(table_name, Arc::new((*pred).clone())).unwrap();
     }
     db.compact_object_store_chunks(table_name, partition_key, chunk_ids)
-        .unwrap();
+        .unwrap()
+        .join()
+        .await;
+
     let scenario_name = "Deletes and then compact all OS chunks".to_string();
     let scenario_1 = DbScenario { scenario_name, db };
 
@@ -527,7 +530,9 @@ pub async fn make_os_chunks_and_then_compact_with_different_scenarios_with_delet
     let (db, chunk_ids) =
         make_contiguous_os_chunks(lp_lines_vec.clone(), table_name, partition_key).await;
     db.compact_object_store_chunks(table_name, partition_key, chunk_ids)
-        .unwrap();
+        .unwrap()
+        .join()
+        .await;
     for pred in &preds {
         db.delete(table_name, Arc::new((*pred).clone())).unwrap();
     }
@@ -542,7 +547,9 @@ pub async fn make_os_chunks_and_then_compact_with_different_scenarios_with_delet
     }
     let (_last_chunk_id, chunk_ids_but_last) = chunk_ids.split_last().unwrap();
     db.compact_object_store_chunks(table_name, partition_key, chunk_ids_but_last.to_vec())
-        .unwrap();
+        .unwrap()
+        .join()
+        .await;
     let scenario_name = "Deletes and then compact all but last OS chunk".to_string();
     let scenario_3 = DbScenario { scenario_name, db };
 
@@ -551,7 +558,9 @@ pub async fn make_os_chunks_and_then_compact_with_different_scenarios_with_delet
         make_contiguous_os_chunks(lp_lines_vec.clone(), table_name, partition_key).await;
     let (_last_chunk_id, chunk_ids_but_last) = chunk_ids.split_last().unwrap();
     db.compact_object_store_chunks(table_name, partition_key, chunk_ids_but_last.to_vec())
-        .unwrap();
+        .unwrap()
+        .join()
+        .await;
     for pred in &preds {
         db.delete(table_name, Arc::new((*pred).clone())).unwrap();
     }

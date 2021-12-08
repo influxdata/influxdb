@@ -401,8 +401,9 @@ impl DbSetup for ThreeDeleteThreeChunks {
         .await;
 
         // ----------------------
-        // 1 OS chunk after compacting all 3 OS chunks
-        let mut compact_os_scenarios =
+        // A few more scenarios to compact all 3 OS chunk or the fist 2 OS chunks
+        // with delete before or after the os_compaction
+        let compact_os_scenarios =
             make_os_chunks_and_then_compact_with_different_scenarios_with_delete(
                 vec![lp_lines_1.clone(), lp_lines_2.clone(), lp_lines_3.clone()],
                 preds.clone(),
@@ -421,7 +422,7 @@ impl DbSetup for ThreeDeleteThreeChunks {
             scenario_3os,
         ];
 
-        scenarios.append(&mut compact_os_scenarios);
+        scenarios.extend(compact_os_scenarios.into_iter());
 
         scenarios
     }
