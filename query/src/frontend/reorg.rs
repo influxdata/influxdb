@@ -48,6 +48,38 @@ impl ReorgPlanner {
         Self::default()
     }
 
+    /// Creates an execution plan for a full scan of a single chunk.
+    /// This plan is primarilty used to load chunks from one storage medium to
+    /// another.
+    pub fn scan_single_chunk_plan<C>(
+        &self,
+        schema: Arc<Schema>,
+        chunk: Arc<C>,
+    ) -> Result<LogicalPlan>
+    where
+        C: QueryChunk + 'static,
+    {
+        let table_name = chunk.table_name();
+        // Prepare the plan for the table
+        let mut builder = ProviderBuilder::new(table_name, schema);
+
+        // There are no predicates in these plans, so no need to prune them
+        builder = builder.add_no_op_pruner();
+        builder = builder.add_chunk(Arc::clone(&chunk));
+
+        let provider = builder.build().context(CreatingProvider { table_name })?;
+
+        // Logical plan to scan all columns with no predicates
+        let plan = LogicalPlanBuilder::scan(table_name, Arc::new(provider) as _, None)
+            .context(BuildingPlan)?
+            .build()
+            .context(BuildingPlan)?;
+
+        debug!(%table_name, plan=%plan.display_indent_schema(),
+               "created single chunk scan plan");
+        Ok(plan)
+    }
+
     /// Creates an execution plan for the COMPACT operations which does the following:
     ///
     /// 1. Merges chunks together into a single stream
@@ -186,12 +218,13 @@ impl ReorgPlanner {
     }
 
     /// Creates a scan plan for the given set of chunks.
-    /// Output data of the scan will be deduplicated and sorted
-    /// on the optimal sort order of the chunks' PK columns (tags and time).
+    /// Output data of the scan will be deduplicated sorted if `sort=true` on
+    /// the optimal sort order of the chunks' PK columns (tags and time).
+    ///
     /// The optimal sort order is computed based on the PK columns cardinality
     /// that will be best for RLE encoding.
     ///
-    /// Prefer to query::provider::build_scan_plan for the detail of the plan
+    /// Refer to query::provider::build_scan_plan for the detail of the plan
     ///
     fn sorted_scan_plan<C, I>(&self, schema: Arc<Schema>, chunks: I) -> Result<ScanPlan<C>>
     where
@@ -207,7 +240,6 @@ impl ReorgPlanner {
 
         // Prepare the plan for the table
         let mut builder = ProviderBuilder::new(table_name, schema);
-
         // Tell the scan of this provider to sort its output on the chunks' PK
         builder.ensure_pk_sort();
 
@@ -316,6 +348,45 @@ mod test {
             .build();
 
         (Arc::new(schema), vec![chunk1, chunk2])
+    }
+
+    #[tokio::test]
+    async fn test_sorted_scan_plan() {
+        test_helpers::maybe_start_logging();
+
+        let (schema, chunks) = get_test_chunks().await;
+        let scan_plan = ReorgPlanner::new()
+            .scan_single_chunk_plan(schema, chunks.into_iter().next().unwrap())
+            .expect("created compact plan");
+
+        let executor = Executor::new(1);
+        let physical_plan = executor
+            .new_context(ExecutorType::Reorg)
+            .prepare_plan(&scan_plan)
+            .await
+            .unwrap();
+
+        // single chunk processed
+        assert_eq!(physical_plan.output_partitioning().partition_count(), 1);
+
+        let batches = datafusion::physical_plan::collect(physical_plan)
+            .await
+            .unwrap();
+
+        // all data from chunk
+        let expected = vec![
+            "+-----------+------------+------+--------------------------------+",
+            "| field_int | field_int2 | tag1 | time                           |",
+            "+-----------+------------+------+--------------------------------+",
+            "| 1000      |            | MT   | 1970-01-01T00:00:00.000001Z    |",
+            "| 10        |            | MT   | 1970-01-01T00:00:00.000007Z    |",
+            "| 70        |            | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 100       |            | AL   | 1970-01-01T00:00:00.000000050Z |",
+            "| 5         |            | MT   | 1970-01-01T00:00:00.000005Z    |",
+            "+-----------+------------+------+--------------------------------+",
+        ];
+
+        assert_batches_eq!(&expected, &batches);
     }
 
     #[tokio::test]
