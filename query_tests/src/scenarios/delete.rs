@@ -10,6 +10,7 @@ use crate::scenarios::util::{
     ChunkStage,
 };
 
+use super::util::make_os_chunks_and_then_compact_with_different_scenarios_with_delete;
 use super::{DbScenario, DbSetup};
 
 // =========================================================================================================================
@@ -379,30 +380,50 @@ impl DbSetup for ThreeDeleteThreeChunks {
         // 3 chunks:  3 OS
         let lp = vec![
             ChunkData {
-                lp_lines: lp_lines_1,
+                lp_lines: lp_lines_1.clone(),
                 chunk_stage: ChunkStage::Os,
             },
             ChunkData {
-                lp_lines: lp_lines_2,
+                lp_lines: lp_lines_2.clone(),
                 chunk_stage: ChunkStage::Os,
             },
             ChunkData {
-                lp_lines: lp_lines_3,
+                lp_lines: lp_lines_3.clone(),
                 chunk_stage: ChunkStage::Os,
             },
         ];
-        let scenario_3os =
-            make_different_stage_chunks_with_deletes_scenario(lp, preds, table_name, partition_key)
-                .await;
+        let scenario_3os = make_different_stage_chunks_with_deletes_scenario(
+            lp,
+            preds.clone(),
+            table_name,
+            partition_key,
+        )
+        .await;
+
+        // ----------------------
+        // A few more scenarios to compact all 3 OS chunk or the fist 2 OS chunks
+        // with delete before or after the os_compaction
+        let compact_os_scenarios =
+            make_os_chunks_and_then_compact_with_different_scenarios_with_delete(
+                vec![lp_lines_1.clone(), lp_lines_2.clone(), lp_lines_3.clone()],
+                preds.clone(),
+                table_name,
+                partition_key,
+            )
+            .await;
 
         // return scenarios to run queries
-        vec![
+        let mut scenarios = vec![
             scenario_mub_rub_os,
             scenario_2mub_rub,
             scenario_2mub_os,
             scenario_2rub_os,
             scenario_rub_2os,
             scenario_3os,
-        ]
+        ];
+
+        scenarios.extend(compact_os_scenarios.into_iter());
+
+        scenarios
     }
 }

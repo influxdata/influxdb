@@ -201,6 +201,14 @@ impl DbChunk {
         }
     }
 
+    /// Returns the contained `ParquetChunk`, if this chunk is stored as parquet
+    pub fn parquet_chunk(&self) -> Option<&Arc<ParquetChunk>> {
+        match &self.state {
+            State::ParquetFile { chunk } => Some(chunk),
+            _ => None,
+        }
+    }
+
     /// Return the address of this chunk
     pub fn addr(&self) -> &ChunkAddr {
         &self.addr
