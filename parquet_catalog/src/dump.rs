@@ -241,7 +241,7 @@ mod tests {
         // build catalog with some data
         let catalog = PreservedCatalog::new_empty(config.clone()).await.unwrap();
         {
-            let (chunk, _) = generator.generate().await;
+            let (chunk, _) = generator.generate().await.unwrap();
             let mut transaction = catalog.open_transaction().await;
             transaction.add_parquet(&CatalogParquetInfo::from_chunk(&chunk));
             transaction.commit().await.unwrap();
@@ -352,7 +352,7 @@ File {
         // build catalog with some data
         let catalog = PreservedCatalog::new_empty(config.clone()).await.unwrap();
         {
-            let (chunk, _) = generator.generate().await;
+            let (chunk, _) = generator.generate().await.unwrap();
             let mut transaction = catalog.open_transaction().await;
             transaction.add_parquet(&CatalogParquetInfo::from_chunk(&chunk));
             transaction.commit().await.unwrap();

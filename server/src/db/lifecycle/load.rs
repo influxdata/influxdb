@@ -8,7 +8,7 @@ use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
 use query::exec::ExecutorType;
 use query::frontend::reorg::ReorgPlanner;
-use query::{compute_sort_key, QueryChunkMeta};
+use query::QueryChunkMeta;
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use crate::db::lifecycle::collect_rub;
@@ -43,14 +43,8 @@ pub fn load_chunk(
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     let fut = async move {
-        let key = compute_sort_key(std::iter::once(db_chunk.summary()));
-
-        // Cannot move query_chunks as the sort key borrows the column names
-        let (_, plan) = ReorgPlanner::new().compact_plan(
-            db_chunk.schema(),
-            std::iter::once(Arc::clone(&db_chunk)),
-            key,
-        )?;
+        let plan =
+            ReorgPlanner::new().scan_single_chunk_plan(db_chunk.schema(), Arc::clone(&db_chunk))?;
 
         let physical_plan = ctx.prepare_plan(&plan).await?;
         let stream = ctx.execute_stream(physical_plan).await?;

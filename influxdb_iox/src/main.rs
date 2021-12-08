@@ -22,6 +22,7 @@ mod commands {
     pub mod database;
     pub mod debug;
     pub mod operations;
+    pub mod router;
     pub mod run;
     pub mod server;
     pub mod server_remote;
@@ -147,6 +148,7 @@ enum Command {
     Database(commands::database::Config),
     // Clippy recommended boxing this variant because it's much larger than the others
     Run(Box<commands::run::Config>),
+    Router(commands::router::Config),
     Server(commands::server::Config),
     Operation(commands::operations::Config),
     Sql(commands::sql::Config),
@@ -213,6 +215,14 @@ fn main() -> Result<(), std::io::Error> {
                 let connection = connection().await;
                 if let Err(e) = commands::server::command(connection, config).await {
                     eprintln!("Server command failed: {}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Command::Router(config) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                let connection = connection().await;
+                if let Err(e) = commands::router::command(connection, config).await {
+                    eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
