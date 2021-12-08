@@ -112,8 +112,14 @@ pub mod test_utils {
     use futures::{StreamExt, TryStreamExt};
     use time::{Time, TimeProvider};
     use trace::{ctx::SpanContext, RingBufferTraceCollector, TraceCollector};
+    use uuid::Uuid;
 
     use super::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
+
+    /// Generated random topic name for testing.
+    pub fn random_topic_name() -> String {
+        format!("test_topic_{}", Uuid::new_v4())
+    }
 
     /// Adapter to make a concrete write buffer implementation work w/ [`perform_generic_tests`].
     #[async_trait]

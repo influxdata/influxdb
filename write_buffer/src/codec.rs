@@ -100,11 +100,13 @@ impl IoxHeaders {
     }
 
     /// Gets the content type
+    #[allow(dead_code)] // this function is only used in optionally-compiled kafka code
     pub fn content_type(&self) -> ContentType {
         self.content_type
     }
 
     /// Gets the span context if any
+    #[allow(dead_code)] // this function is only used in optionally-compiled kafka code
     pub fn span_context(&self) -> Option<&SpanContext> {
         self.span_context.as_ref()
     }

@@ -748,7 +748,6 @@ pub mod test_utils {
     use std::{collections::BTreeMap, time::Duration};
 
     use rdkafka::admin::{AdminOptions, AlterConfig, ResourceSpecifier};
-    use uuid::Uuid;
 
     use super::admin_client;
 
@@ -829,11 +828,6 @@ pub mod test_utils {
         let result = results.pop().expect("just checked the vector length");
         result.unwrap();
     }
-
-    /// Generated random topic name for testing.
-    pub fn random_kafka_topic() -> String {
-        format!("test_topic_{}", Uuid::new_v4())
-    }
 }
 
 /// Kafka tests (only run when in integration test mode and kafka is running).
@@ -850,11 +844,11 @@ mod tests {
 
     use crate::codec::HEADER_CONTENT_TYPE;
     use crate::{
+        core::test_utils::random_topic_name,
         core::test_utils::{
             map_pop_first, perform_generic_tests, set_pop_first, write as write_to_writer,
             TestAdapter, TestContext,
         },
-        kafka::test_utils::random_kafka_topic,
         maybe_skip_kafka_integration,
     };
 
@@ -881,7 +875,7 @@ mod tests {
         ) -> Self::Context {
             KafkaTestContext {
                 conn: self.conn.clone(),
-                database_name: random_kafka_topic(),
+                database_name: random_topic_name(),
                 server_id_counter: AtomicU32::new(1),
                 n_sequencers,
                 time_provider,
@@ -964,7 +958,7 @@ mod tests {
     #[tokio::test]
     async fn topic_create_twice() {
         let conn = maybe_skip_kafka_integration!();
-        let database_name = random_kafka_topic();
+        let database_name = random_topic_name();
 
         create_kafka_topic(
             &conn,
