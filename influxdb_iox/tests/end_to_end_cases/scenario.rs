@@ -585,7 +585,41 @@ pub async fn wait_for_operations_to_complete(
                 db_name, wait_time, operations
             );
         }
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+}
+
+pub async fn wait_for_database_initialized(
+    fixture: &ServerFixture,
+    db_name: &str,
+    wait_time: std::time::Duration,
+) {
+    use generated_types::influxdata::iox::management::v1::database_status::DatabaseState;
+
+    let t_start = std::time::Instant::now();
+    let mut management_client = fixture.management_client();
+
+    loop {
+        let status = management_client.get_server_status().await.unwrap();
+        if status
+            .database_statuses
+            .iter()
+            .filter(|status| status.db_name == db_name)
+            .all(|status| {
+                DatabaseState::from_i32(status.state).unwrap() == DatabaseState::Initialized
+            })
+        {
+            println!("Database {} is initialized", db_name);
+            return;
+        }
+
+        if t_start.elapsed() >= wait_time {
+            panic!(
+                "Database {} was not initialized in {:?}:\n\n{:#?}",
+                db_name, wait_time, status
+            );
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
 }
 
