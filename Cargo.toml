@@ -94,3 +94,4 @@ debug = true
 inherits = "release"
 codegen-units = 16
 lto = false
+incremental = true
