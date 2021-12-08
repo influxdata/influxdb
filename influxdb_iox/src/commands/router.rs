@@ -1,4 +1,4 @@
-//! This module implements the `database` CLI command
+//! This module implements the `router` CLI command
 
 use influxdb_iox_client::{
     connection::Connection,
@@ -53,7 +53,7 @@ struct Delete {
     name: String,
 }
 
-/// All possible subcommands for database
+/// All possible subcommands for router
 #[derive(Debug, StructOpt)]
 enum Command {
     Update(Update),
