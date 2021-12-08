@@ -1949,3 +1949,175 @@ async fn test_compact_os_chunks() {
     assert_ne!(new_chunk_id, chunk_id_1);
     assert_ne!(new_chunk_id, chunk_id_2);
 }
+
+#[tokio::test]
+async fn test_compact_os_partition() {
+    use data_types::chunk_metadata::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let mut write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+    let mut operations_client = fixture.operations_client();
+
+    let db_name = rand_name();
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1_000)
+        .late_arrive_window_seconds(1)
+        .build(fixture.grpc_channel())
+        .await;
+
+    // Chunk 1
+    let lp_lines = vec!["cpu,tag1=cupcakes bar=1 10", "cpu,tag1=cookies bar=2 10"];
+
+    let num_lines_written = write_client
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
+        .await
+        .expect("write succeded");
+    assert_eq!(num_lines_written, 2);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::OpenMutableBuffer],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    let partition_key = &chunks[0].partition_key;
+
+    management_client
+        .persist_partition(&db_name, "cpu", &partition_key[..], true)
+        .await
+        .unwrap();
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(
+        chunks[0].storage,
+        generated_types::influxdata::iox::management::v1::ChunkStorage::ReadBufferAndObjectStore
+            as i32
+    );
+
+    // chunk 2
+    let lp_lines = vec![
+        "cpu,tag1=cookies bar=2 20",
+        "cpu,tag1=cookies bar=3 30", // duplicate
+        "cpu,tag1=cupcakes bar=2 20",
+    ];
+
+    let num_lines_written = write_client
+        .write_lp(&db_name, lp_lines.join("\n"), 0)
+        .await
+        .expect("write succeded");
+    assert_eq!(num_lines_written, 3);
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 2);
+    let partition_key = &chunks[0].partition_key;
+
+    management_client
+        .persist_partition(&db_name, "cpu", &partition_key[..], true)
+        .await
+        .unwrap();
+
+    let mut chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    // ensure chunk in deterministic order
+    chunks.sort_by(|c1, c2| c1.id.cmp(&c2.id));
+    assert_eq!(chunks.len(), 2);
+    assert_eq!(
+        chunks[0].storage,
+        generated_types::influxdata::iox::management::v1::ChunkStorage::ReadBufferAndObjectStore
+            as i32
+    );
+    assert_eq!(
+        chunks[1].storage,
+        generated_types::influxdata::iox::management::v1::ChunkStorage::ReadBufferAndObjectStore
+            as i32
+    );
+
+    let chunk_id_1 = chunks[0].id.clone();
+    let partition_key_1 = &chunks[0].partition_key;
+    let chunk_id_2 = chunks[1].id.clone();
+    let partition_key_2 = &chunks[1].partition_key;
+    assert_eq!(partition_key_1, partition_key_2);
+
+    // unload both RUBs
+    management_client
+        .unload_partition_chunk(&db_name, "cpu", &partition_key_1[..], chunk_id_1.clone())
+        .await
+        .unwrap();
+    management_client
+        .unload_partition_chunk(&db_name, "cpu", &partition_key_2[..], chunk_id_2.clone())
+        .await
+        .unwrap();
+
+    // verify chunk status again
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 2);
+    assert_eq!(
+        chunks[0].storage,
+        generated_types::influxdata::iox::management::v1::ChunkStorage::ObjectStoreOnly as i32
+    );
+    assert_eq!(
+        chunks[1].storage,
+        generated_types::influxdata::iox::management::v1::ChunkStorage::ObjectStoreOnly as i32
+    );
+
+    // Compact all 2 OS chunks of the partition
+    let iox_operation = management_client
+        .compact_object_store_partition(&db_name, "cpu", &partition_key_1[..])
+        .await
+        .unwrap();
+
+    let operation_id = iox_operation.operation.id();
+
+    // ensure we got a legit job description back
+    // note that since compact_object_store_partition invokes compact_object_store_chunks,
+    // its job is recorded as CompactObjectStoreChunks
+    match iox_operation.metadata.job {
+        Some(Job::CompactObjectStoreChunks(job)) => {
+            assert_eq!(&job.db_name, &db_name);
+            assert_eq!(job.partition_key.as_str(), partition_key_1);
+            assert_eq!(job.table_name.as_str(), "cpu");
+        }
+        job => panic!("unexpected job returned {:#?}", job),
+    }
+
+    // wait for the job to be done
+    operations_client
+        .wait_operation(operation_id, Some(std::time::Duration::from_secs(1)))
+        .await
+        .expect("failed to wait operation");
+
+    // verify chunks after compaction
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(
+        chunks[0].storage,
+        generated_types::influxdata::iox::management::v1::ChunkStorage::ObjectStoreOnly as i32
+    );
+    let new_chunk_id = chunks[0].id.clone();
+    assert_ne!(new_chunk_id, chunk_id_1);
+    assert_ne!(new_chunk_id, chunk_id_2);
+}

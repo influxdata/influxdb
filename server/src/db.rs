@@ -675,6 +675,37 @@ impl Db {
         fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
+    /// Compact all persisted chunks in this partition
+    /// Return error if the persisted chunks are not contiguous. This means
+    /// there are chunks in between those OS chunks are not yet persisted
+    pub fn compact_object_store_partition(
+        self: &Arc<Self>,
+        table_name: &str,
+        partition_key: &str,
+    ) -> Result<TaskTracker<Job>> {
+        // acquire partition read lock to get OS chunk ids
+        let partition = self.lockable_partition(table_name, partition_key)?;
+        let partition = partition.read();
+        let chunks = partition.chunks();
+
+        // Get all OS chunk IDs
+        let mut chunk_ids = vec![];
+        for chunk in chunks {
+            let chunk = chunk.read();
+            if chunk.is_persisted() {
+                chunk_ids.push(chunk.id());
+            }
+        }
+
+        // drop partition lock
+        partition.into_data();
+
+        // Compact all the OS chunks
+        // Error will return if those OS chunks are not contiguous which means
+        // a chunk in between those OS chunks are not yet persisted
+        self.compact_object_store_chunks(table_name, partition_key, chunk_ids)
+    }
+
     /// Compact all provided persisted chunks
     pub fn compact_object_store_chunks(
         self: &Arc<Self>,
@@ -2135,7 +2166,6 @@ mod tests {
             load_parquet_from_store_for_path(&path_list[0], Arc::clone(&db.iox_object_store))
                 .await
                 .unwrap();
-
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone())
             .unwrap()
             .unwrap();

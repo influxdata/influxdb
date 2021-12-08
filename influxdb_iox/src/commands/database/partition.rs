@@ -85,6 +85,19 @@ struct CompactObjectStoreChunks {
     chunk_ids: Vec<Uuid>,
 }
 
+/// Compact all Object Store Chunks of a partition
+#[derive(Debug, StructOpt)]
+struct CompactObjectStorePartition {
+    /// The name of the database
+    db_name: String,
+
+    /// The partition key
+    partition_key: String,
+
+    /// The table name
+    table_name: String,
+}
+
 /// lists all chunks in this partition
 #[derive(Debug, StructOpt)]
 struct ListChunks {
@@ -175,6 +188,9 @@ enum Command {
     /// Errors if the chunks are not yet compacted and not contiguous.
     CompactObjectStoreChunks(CompactObjectStoreChunks),
 
+    // Compact all object store cunks of a given partition
+    CompactObjectStorePartition(CompactObjectStorePartition),
+
     /// Drop partition from memory and (if persisted) from object store.
     Drop(DropPartition),
 
@@ -251,6 +267,19 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
             let operation = client
                 .compact_object_store_chunks(db_name, table_name, partition_key, chunk_ids)
+                .await?;
+
+            serde_json::to_writer_pretty(std::io::stdout(), &operation)?;
+        }
+        Command::CompactObjectStorePartition(compact) => {
+            let CompactObjectStorePartition {
+                db_name,
+                partition_key,
+                table_name,
+            } = compact;
+
+            let operation = client
+                .compact_object_store_partition(db_name, table_name, partition_key)
                 .await?;
 
             serde_json::to_writer_pretty(std::io::stdout(), &operation)?;
