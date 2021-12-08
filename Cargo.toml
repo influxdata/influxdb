@@ -78,6 +78,8 @@ exclude = [
     "tools/",
 ]
 
+# This profile optimizes for runtime performance and small binary size at the expense of longer
+# build times. It's most suitable for final release builds.
 [profile.release]
 codegen-units = 1
 debug = true
@@ -85,3 +87,11 @@ lto = "thin"
 
 [profile.bench]
 debug = true
+
+# This profile optimizes for short build times at the expense of larger binary size and slower
+# runtime performance. It's most suitable for development iterations.
+[profile.quick-release]
+inherits = "release"
+codegen-units = 16
+lto = false
+incremental = true
