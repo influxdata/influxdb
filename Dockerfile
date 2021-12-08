@@ -30,8 +30,8 @@ RUN \
   --mount=type=cache,id=influxdb_iox_target,sharing=locked,target=/influxdb_iox/target \
     du -cshx /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target && \
     cargo build --target-dir /influxdb_iox/target --profile="$PROFILE" --no-default-features --features="$FEATURES" && \
-    objcopy --compress-debug-sections target/release/influxdb_iox && \
-    cp /influxdb_iox/target/release/influxdb_iox /root/influxdb_iox && \
+    objcopy --compress-debug-sections "target/$PROFILE/influxdb_iox" && \
+    cp "/influxdb_iox/target/$PROFILE/influxdb_iox" /root/influxdb_iox && \
     du -cshx /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target
 
 
