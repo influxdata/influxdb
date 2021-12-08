@@ -90,6 +90,13 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
             error!(%source, "Unexpected error while wiping catalog");
             InternalError {}.into()
         }
+        Error::InvalidStateForRebuild { .. } => {
+            PreconditionViolation::DatabaseInvalidState(error.to_string()).into()
+        }
+        Error::UnexpectedTransitionForRebuild { .. } => {
+            error!(%error, "Unexpected error during rebuild catalog");
+            InternalError {}.into()
+        }
         Error::RebuildPreservedCatalog { source, .. } => {
             error!(%source, "Unexpected error while rebuilding catalog");
             InternalError {}.into()

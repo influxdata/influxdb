@@ -85,7 +85,7 @@ Created database imported_db
 
 ### Copy parquet files into the new database
 
-IOx stores data files in `<db_uuid>/data/<table_name>/<partition>`,
+IOx stores parquet files in `<db_uuid>/data/<table_name>/<partition>`,
 and the imported data files must be in the same structure.
 
 For example, if you are running IOx with data directory of `~/.influxdb_iox` the data
@@ -106,43 +106,20 @@ my_awesome_table
 Copy that directory structure into the the database's catalog:
 
 ```shell
+mkdir -p ~/.influxdb_iox/dbs/4fc2236c-7ab8-4200-83c7-f29cd0c2385f/data
 cp -R 'my_awesome_table' ~/.influxdb_iox/dbs/4fc2236c-7ab8-4200-83c7-f29cd0c2385f/data/
 ```
 
-### Break the catalog
+### WARNING
 
-At the time of writing, in order to rebuild a catalog from parquet
-files the catalog must be corrupted. One way to do so manually is to
-find a transaction file, and write some junk into it. For example:
+Note that If you create/move/copy files into the domain of a running database, the database's background cleanup worker thread may delete these files prior to the catalog rebuild; You can check the logs to see if this happened.
 
-```shell
-find  ~/.influxdb_iox/dbs/4fc2236c-7ab8-4200-83c7-f29cd0c2385f/transactions -type f
-/Users/alamb/.influxdb_iox/dbs/4fc2236c-7ab8-4200-83c7-f29cd0c2385f/transactions/00000000000000000000/8dda6fb8-6907-4d89-b133-85536ccd9bd3.txn
+### Rebuild catalog with the `recover rebuild --force` command
 
-# write something bad into the txn file
-echo "JUNK" > /Users/alamb/.influxdb_iox/dbs/4fc2236c-7ab8-4200-83c7-f29cd0c2385f/transactions/00000000000000000000/8dda6fb8-6907-4d89-b133-85536ccd9bd3.txn
-```
-
-### Restart IOx (with `--wipe-catalog-on-error=false`):
-
-In another terminal, restart the IOx server with `--wipe-catalog-on-error=false` (which is critical).
+Now, tell IOx to rebuild the catalog from parquet files:
 
 ```shell
-cargo run -- run -v --object-store=file --data-dir=$HOME/.influxdb_iox --server-id=42 --wipe-catalog-on-error=false
-```
-
-The database should enter into the `CatalogLoadError` state.
-
-```text
-2021-11-30T15:44:43.784118Z ERROR server::database: database in error state - operator intervention required db_name=imported_db e=error loading catalog: Cannot load preserved catalog: ...  state=CatalogLoadError
-```
-
-### Use the `recover rebuild` command
-
-Now, rebuild the catalog:
-
-```shell
-./target/debug/influxdb_iox  database recover rebuild imported_db
+./target/debug/influxdb_iox  database recover rebuild imported_db --force
 {
   "operation": {
     "name": "0",

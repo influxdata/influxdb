@@ -187,19 +187,19 @@ mod tests {
             let mut transaction = catalog.open_transaction().await;
 
             // an ordinary tracked parquet file => keep
-            let (chunk, _) = generator.generate().await;
+            let (chunk, _) = generator.generate().await.unwrap();
             transaction.add_parquet(&CatalogParquetInfo::from_chunk(&chunk));
             paths_keep.push(chunk.path().clone());
 
             // another ordinary tracked parquet file that was added and removed => keep (for time
             // travel)
-            let (chunk, _) = generator.generate().await;
+            let (chunk, _) = generator.generate().await.unwrap();
             transaction.add_parquet(&CatalogParquetInfo::from_chunk(&chunk));
             transaction.remove_parquet(chunk.path());
             paths_keep.push(chunk.path().clone());
 
             // an untracked parquet file => delete
-            let (chunk, _) = generator.generate().await;
+            let (chunk, _) = generator.generate().await.unwrap();
             paths_delete.push(chunk.path().clone());
 
             transaction.commit().await.unwrap();
@@ -240,14 +240,14 @@ mod tests {
             // not trick the cleanup logic to remove the actual file because file paths contains a
             // UUIDv4 part.
             if i % 2 == 0 {
-                generator.generate_id(i).await;
+                generator.generate_id(i).await.unwrap();
             }
 
             let (chunk, _) = tokio::join!(
                 async {
                     let guard = lock.read().await;
 
-                    let (chunk, _) = generator.generate_id(i).await;
+                    let (chunk, _) = generator.generate_id(i).await.unwrap();
 
                     let mut transaction = catalog.open_transaction().await;
                     transaction.add_parquet(&CatalogParquetInfo::from_chunk(&chunk));
@@ -284,7 +284,7 @@ mod tests {
         // create some files
         let mut to_remove = HashSet::default();
         for _ in 0..3 {
-            let (chunk, _) = generator.generate().await;
+            let (chunk, _) = generator.generate().await.unwrap();
             to_remove.insert(chunk.path().clone());
         }
 

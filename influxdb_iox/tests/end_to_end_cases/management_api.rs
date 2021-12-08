@@ -1204,7 +1204,7 @@ async fn test_rebuild_preserved_catalog() {
     let mut management_client = fixture.management_client();
     let mut operations_client = fixture.operations_client();
     let iox_operation = management_client
-        .rebuild_preserved_catalog(&db_name)
+        .rebuild_preserved_catalog(&db_name, false)
         .await
         .unwrap();
 

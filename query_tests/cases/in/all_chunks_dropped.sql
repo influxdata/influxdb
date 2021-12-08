@@ -1,8 +1,4 @@
--- Test for predicate push down explains
 -- IOX_SETUP: OneMeasurementAllChunksDropped
 
--- list information schema
-SELECT * from information_schema.tables;
-
--- same but shorter
-SHOW TABLES;
+-- list information schema (show that all the chunks were dropped)
+SELECT * from information_schema.tables where table_schema = 'iox';

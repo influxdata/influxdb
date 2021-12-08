@@ -274,7 +274,7 @@ where
     // add files
     {
         for chunk_id in 1..5 {
-            let (chunk, _) = generator.generate_id(chunk_id).await;
+            let (chunk, _) = generator.generate_id(chunk_id).await.unwrap();
             state
                 .add(
                     Arc::clone(iox_object_store),
@@ -295,7 +295,7 @@ where
 
     // add and remove in the same transaction
     {
-        let (chunk, _) = generator.generate_id(5).await;
+        let (chunk, _) = generator.generate_id(5).await.unwrap();
         state
             .add(
                 Arc::clone(iox_object_store),
@@ -321,7 +321,7 @@ where
 
     // add, remove, add in the same transaction
     {
-        let (chunk, _) = generator.generate_id(6).await;
+        let (chunk, _) = generator.generate_id(6).await.unwrap();
         state
             .add(
                 Arc::clone(iox_object_store),
@@ -358,7 +358,7 @@ where
         // TODO: Error handling should disambiguate between chunk collision and filename collision
 
         // chunk with same ID already exists (should also not change the metadata)
-        let (chunk, _) = generator.generate_id(2).await;
+        let (chunk, _) = generator.generate_id(2).await.unwrap();
         let err = state
             .add(
                 Arc::clone(iox_object_store),
@@ -375,7 +375,7 @@ where
     // error handling, still something works
     {
         // already exists (should also not change the metadata)
-        let (chunk, _) = generator.generate_id(2).await;
+        let (chunk, _) = generator.generate_id(2).await.unwrap();
         let err = state
             .add(
                 Arc::clone(iox_object_store),
@@ -388,7 +388,7 @@ where
         ));
 
         // this transaction will still work
-        let (chunk, _) = generator.generate_id(7).await;
+        let (chunk, _) = generator.generate_id(7).await.unwrap();
         let info = CatalogParquetInfo::from_chunk(&chunk);
         state
             .add(Arc::clone(iox_object_store), info.clone())
@@ -418,7 +418,7 @@ where
     // add predicates
     {
         // create two chunks that we can use for delete predicate
-        let (chunk, metadata) = generator.generate_id(8).await;
+        let (chunk, metadata) = generator.generate_id(8).await.unwrap();
         let chunk_addr_1 = ChunkAddr::new(generator.partition(), metadata.chunk_id);
 
         state
@@ -429,7 +429,7 @@ where
             .unwrap();
         expected_chunks.insert(8, chunk);
 
-        let (chunk, metadata) = generator.generate_id(9).await;
+        let (chunk, metadata) = generator.generate_id(9).await.unwrap();
         let chunk_addr_2 = ChunkAddr::new(generator.partition(), metadata.chunk_id);
 
         state
@@ -453,7 +453,7 @@ where
         expected_predicates.insert(predicate_2, chunks_2.into_iter().collect());
 
         // chunks created afterwards are unaffected
-        let (chunk, _) = generator.generate_id(10).await;
+        let (chunk, _) = generator.generate_id(10).await.unwrap();
         state
             .add(
                 Arc::clone(iox_object_store),

@@ -73,7 +73,7 @@ service ManagementService {
   // Get server status
   rpc GetServerStatus(GetServerStatusRequest) returns (GetServerStatusResponse);
 
-  // Rebuild preserved catalog for given DB
+  // Rebuild preserved catalog from parquet files for given DB
   rpc RebuildPreservedCatalog(RebuildPreservedCatalogRequest) returns (RebuildPreservedCatalogResponse);
 
   // Wipe preserved catalog for given DB.
@@ -432,6 +432,10 @@ message WipePreservedCatalogResponse {
 message RebuildPreservedCatalogRequest {
   // the name of the database
   string db_name = 1;
+
+  // force the catalog to be rebuilt, even if the database has started
+  // successfully
+  bool force = 2;
 }
 
 message RebuildPreservedCatalogResponse {

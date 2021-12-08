@@ -429,12 +429,13 @@ impl Client {
     pub async fn rebuild_preserved_catalog(
         &mut self,
         db_name: impl Into<String> + Send,
+        force: bool,
     ) -> Result<IoxOperation, Error> {
         let db_name = db_name.into();
 
         let response = self
             .inner
-            .rebuild_preserved_catalog(RebuildPreservedCatalogRequest { db_name })
+            .rebuild_preserved_catalog(RebuildPreservedCatalogRequest { db_name, force })
             .await?;
 
         Ok(response

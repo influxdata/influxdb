@@ -13,7 +13,16 @@ pub mod influxdata {
                 env!("OUT_DIR"),
                 "/influxdata.platform.storage.read.rs"
             ));
+            include!(concat!(
+                env!("OUT_DIR"),
+                "/influxdata.platform.storage.read.serde.rs"
+            ));
+
             include!(concat!(env!("OUT_DIR"), "/influxdata.platform.storage.rs"));
+            include!(concat!(
+                env!("OUT_DIR"),
+                "/influxdata.platform.storage.serde.rs"
+            ));
 
             // Can't implement `Default` because `prost::Message` implements `Default`
             impl TimestampRange {

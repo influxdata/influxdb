@@ -77,6 +77,9 @@ pub enum Error {
     ParquetReader {
         source: parquet::errors::ParquetError,
     },
+
+    #[snafu(display("No data to convert to parquet"))]
+    NoData {},
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -109,14 +112,16 @@ impl Storage {
 
         let schema = stream.schema();
         let data = Self::parquet_stream_to_bytes(stream, schema, metadata).await?;
-        // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
+        // no data
         if data.is_empty() {
             return Ok(None);
         }
 
+        // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
         let file_size_bytes = data.len();
-        let md =
-            IoxParquetMetaData::from_file_bytes(data.clone()).context(ExtractingMetadataFailure)?;
+        let md = IoxParquetMetaData::from_file_bytes(data.clone())
+            .context(ExtractingMetadataFailure)?
+            .context(NoData)?;
         self.to_object_store(data, &path).await?;
 
         Ok(Some((path, file_size_bytes, md)))
@@ -146,9 +151,14 @@ impl Storage {
         {
             let mut writer = ArrowWriter::try_new(mem_writer.clone(), schema, Some(props))
                 .context(OpeningParquetWriter)?;
+            let mut no_stream_data = true;
             while let Some(batch) = stream.next().await {
+                no_stream_data = false;
                 let batch = batch.context(ReadingStream)?;
                 writer.write(&batch).context(WritingParquetToMemory)?;
+            }
+            if no_stream_data {
+                return Ok(vec![]);
             }
             writer.close().context(ClosingParquetWriter)?;
         } // drop the reference to the MemWriter that the SerializedFileWriter has
@@ -362,10 +372,10 @@ mod tests {
         };
 
         // create parquet file
-        let (_record_batches, schema, _column_summaries, _num_rows) =
-            make_record_batch("foo", TestSize::Full);
+        let (record_batches, schema, _column_summaries, _num_rows) =
+            make_record_batch("foo", TestSize::Minimal);
         let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new_with_schema(
-            vec![],
+            record_batches,
             Arc::clone(schema.inner()),
         ));
         let bytes =
@@ -374,7 +384,7 @@ mod tests {
                 .unwrap();
 
         // extract metadata
-        let md = IoxParquetMetaData::from_file_bytes(bytes).unwrap();
+        let md = IoxParquetMetaData::from_file_bytes(bytes).unwrap().unwrap();
         let metadata_roundtrip = md.decode().unwrap().read_iox_metadata().unwrap();
 
         // compare with input
@@ -485,7 +495,7 @@ mod tests {
         // Store the data as a chunk and write it to in the object store
         // This tests Storage::write_to_object_store
         let mut generator = ChunkGenerator::new().await;
-        let (chunk, _) = generator.generate().await;
+        let (chunk, _) = generator.generate().await.unwrap();
         let key_value_metadata = chunk.schema().as_arrow().metadata().clone();
 
         ////////////////////
@@ -494,7 +504,9 @@ mod tests {
         let parquet_data = load_parquet_from_store(&chunk, Arc::clone(generator.store()))
             .await
             .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone())
+            .unwrap()
+            .unwrap();
         let decoded = parquet_metadata.decode().unwrap();
         //
         // 1. Check metadata at file level: Everything is correct

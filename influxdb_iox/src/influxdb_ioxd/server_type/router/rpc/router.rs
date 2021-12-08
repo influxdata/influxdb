@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use generated_types::{google::FromOptionalField, influxdata::iox::router::v1::*};
+use generated_types::{
+    google::{FromOptionalField, NotFound, ResourceType},
+    influxdata::iox::router::v1::*,
+};
 use router::server::RouterServer;
 use tonic::{Request, Response, Status};
 
@@ -10,6 +13,20 @@ struct RouterService {
 
 #[tonic::async_trait]
 impl router_service_server::RouterService for RouterService {
+    async fn get_router(
+        &self,
+        request: Request<GetRouterRequest>,
+    ) -> Result<Response<GetRouterResponse>, Status> {
+        let GetRouterRequest { router_name } = request.into_inner();
+        let router = self
+            .server
+            .router(&router_name)
+            .ok_or_else(|| NotFound::new(ResourceType::Router, router_name))?;
+        Ok(Response::new(GetRouterResponse {
+            router: Some(router.config().clone().into()),
+        }))
+    }
+
     async fn list_routers(
         &self,
         _: Request<ListRoutersRequest>,
