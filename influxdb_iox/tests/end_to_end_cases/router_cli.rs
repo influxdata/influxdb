@@ -28,14 +28,14 @@ async fn test_router_crud() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("router")
-        .arg("update")
+        .arg("create-or-update")
         .arg(&router_name)
         .arg("--host")
         .arg(addr)
         .assert()
         .success()
         .stdout(predicate::str::contains(format!(
-            "Updated router {}",
+            "Created/Updated router {}",
             router_name
         )));
 

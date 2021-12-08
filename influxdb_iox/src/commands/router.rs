@@ -26,9 +26,9 @@ pub struct Config {
     command: Command,
 }
 
-/// Create a new router
+/// Create a new router or update an existing one.
 #[derive(Debug, StructOpt)]
-struct Update {
+struct CreateOrUpdate {
     /// The name of the router
     name: String,
 }
@@ -50,15 +50,19 @@ struct Delete {
 /// All possible subcommands for router
 #[derive(Debug, StructOpt)]
 enum Command {
-    Update(Update),
+    CreateOrUpdate(CreateOrUpdate),
+
+    /// List routers
     List,
+
     Get(Get),
+
     Delete(Delete),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
     match config.command {
-        Command::Update(command) => {
+        Command::CreateOrUpdate(command) => {
             let mut client = router::Client::new(connection);
             let config = RouterConfig {
                 name: command.name.clone(),
@@ -67,7 +71,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
             client.update_router(config).await?;
 
-            println!("Updated router {}", command.name);
+            println!("Created/Updated router {}", command.name);
         }
         Command::List => {
             let mut client = router::Client::new(connection);
