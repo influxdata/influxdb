@@ -1,5 +1,5 @@
 //! CLI handling for object store config (via CLI arguments and environment variables).
-use std::{convert::TryFrom, fs, path::PathBuf, time::Duration};
+use std::{convert::TryFrom, fs, num::NonZeroUsize, path::PathBuf, time::Duration};
 
 use clap::arg_enum;
 use futures::TryStreamExt;
@@ -172,6 +172,14 @@ Possible values (case insensitive):
     /// environments.
     #[structopt(long = "--azure-storage-access-key", env = "AZURE_STORAGE_ACCESS_KEY")]
     pub azure_storage_access_key: Option<String>,
+
+    /// When using a network-based object store, limit the number of connection to this value.
+    #[structopt(
+        long = "--object-store-connection-limit",
+        env = "OBJECT_STORE_CONNECTION_LIMIT",
+        default_value = "16"
+    )]
+    pub object_store_connection_limit: NonZeroUsize,
 }
 
 arg_enum! {
@@ -267,6 +275,7 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
                             bucket,
                             endpoint,
                             session_token,
+                            config.object_store_connection_limit,
                         )
                         .context(InvalidS3Config)
                     }
