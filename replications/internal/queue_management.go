@@ -174,6 +174,9 @@ func (rq *replicationQueue) SendWrite() bool {
 			return false
 		}
 
+		// TODO: As a potential future optimization, Advance() could be called only if a certain amount of time has passed
+		// since an Advance(), a certain amount of data has been transferred, a certain number of writes, etc. to avoid an
+		// fsync after every remote write.
 		if _, err = scan.Advance(); err != nil {
 			if err != io.EOF {
 				rq.logger.Error("Error in replication queue scanner", zap.Error(err))
