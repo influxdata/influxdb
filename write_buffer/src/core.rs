@@ -99,6 +99,10 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
 
 pub mod test_utils {
     //! Generic tests for all write buffer implementations.
+    use super::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
+    use async_trait::async_trait;
+    use dml::{test_util::assert_write_op_eq, DmlMeta, DmlOperation, DmlWrite};
+    use futures::{StreamExt, TryStreamExt};
     use std::{
         collections::{BTreeMap, BTreeSet},
         convert::TryFrom,
@@ -106,15 +110,9 @@ pub mod test_utils {
         sync::Arc,
         time::Duration,
     };
-
-    use async_trait::async_trait;
-    use dml::{test_util::assert_write_op_eq, DmlMeta, DmlOperation, DmlWrite};
-    use futures::{StreamExt, TryStreamExt};
     use time::{Time, TimeProvider};
     use trace::{ctx::SpanContext, RingBufferTraceCollector, TraceCollector};
     use uuid::Uuid;
-
-    use super::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
 
     /// Generated random topic name for testing.
     pub fn random_topic_name() -> String {

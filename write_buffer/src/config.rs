@@ -1,14 +1,3 @@
-use parking_lot::RwLock;
-use std::{
-    collections::{btree_map::Entry, BTreeMap},
-    path::PathBuf,
-    sync::Arc,
-};
-
-use data_types::{server_id::ServerId, write_buffer::WriteBufferConnection};
-use time::TimeProvider;
-use trace::TraceCollector;
-
 use crate::{
     core::{WriteBufferError, WriteBufferReading, WriteBufferWriting},
     file::{FileBufferConsumer, FileBufferProducer},
@@ -17,6 +6,15 @@ use crate::{
         MockBufferForWritingThatAlwaysErrors, MockBufferSharedState,
     },
 };
+use data_types::{server_id::ServerId, write_buffer::WriteBufferConnection};
+use parking_lot::RwLock;
+use std::{
+    collections::{btree_map::Entry, BTreeMap},
+    path::PathBuf,
+    sync::Arc,
+};
+use time::TimeProvider;
+use trace::TraceCollector;
 
 #[derive(Debug)]
 pub enum WriteBufferConfig {
@@ -244,14 +242,11 @@ impl WriteBufferConfigFactory {
 
 #[cfg(test)]
 mod tests {
-    use std::{convert::TryFrom, num::NonZeroU32};
-
-    use data_types::{write_buffer::WriteBufferCreationConfig, DatabaseName};
-    use tempfile::TempDir;
-
-    use crate::{core::test_utils::random_topic_name, mock::MockBufferSharedState};
-
     use super::*;
+    use crate::{core::test_utils::random_topic_name, mock::MockBufferSharedState};
+    use data_types::{write_buffer::WriteBufferCreationConfig, DatabaseName};
+    use std::{convert::TryFrom, num::NonZeroU32};
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_writing_file() {

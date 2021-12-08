@@ -1,11 +1,3 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    convert::{TryFrom, TryInto},
-    num::NonZeroU32,
-    sync::Arc,
-    time::Duration,
-};
-
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
 use metric::{Metric, U64Gauge, U64Histogram, U64HistogramOptions};
@@ -23,15 +15,13 @@ use rdkafka::{
     util::Timeout,
     ClientConfig, ClientContext, Message, Offset, TopicPartitionList,
 };
-
-use data_types::{
-    sequence::Sequence, server_id::ServerId, write_buffer::WriteBufferCreationConfig,
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    convert::{TryFrom, TryInto},
+    num::NonZeroU32,
+    sync::Arc,
+    time::Duration,
 };
-use dml::{DmlMeta, DmlOperation};
-use observability_deps::tracing::{debug, info};
-use time::{Time, TimeProvider};
-use tokio::task::JoinHandle;
-use trace::TraceCollector;
 
 use crate::{
     codec::{ContentType, IoxHeaders},
@@ -40,6 +30,14 @@ use crate::{
         WriteBufferWriting, WriteStream,
     },
 };
+use data_types::{
+    sequence::Sequence, server_id::ServerId, write_buffer::WriteBufferCreationConfig,
+};
+use dml::{DmlMeta, DmlOperation};
+use observability_deps::tracing::{debug, info};
+use time::{Time, TimeProvider};
+use tokio::task::JoinHandle;
+use trace::TraceCollector;
 
 /// Default timeout supplied to rdkafka client for kafka operations.
 ///
@@ -745,11 +743,9 @@ impl ClientContext for ClientContextImpl {
 impl ConsumerContext for ClientContextImpl {}
 
 pub mod test_utils {
-    use std::{collections::BTreeMap, time::Duration};
-
-    use rdkafka::admin::{AdminOptions, AlterConfig, ResourceSpecifier};
-
     use super::admin_client;
+    use rdkafka::admin::{AdminOptions, AlterConfig, ResourceSpecifier};
+    use std::{collections::BTreeMap, time::Duration};
 
     /// Get the testing Kafka connection string or return current scope.
     ///
@@ -834,25 +830,21 @@ pub mod test_utils {
 /// see [`crate::maybe_skip_kafka_integration`] for more details.
 #[cfg(test)]
 mod tests {
+    use super::{test_utils::kafka_sequencer_options, *};
+    use crate::{
+        codec::HEADER_CONTENT_TYPE,
+        core::test_utils::{
+            map_pop_first, perform_generic_tests, random_topic_name, set_pop_first,
+            write as write_to_writer, TestAdapter, TestContext,
+        },
+        maybe_skip_kafka_integration,
+    };
     use std::{
         num::NonZeroU32,
         sync::atomic::{AtomicU32, Ordering},
     };
-
     use time::TimeProvider;
     use trace::{RingBufferTraceCollector, TraceCollector};
-
-    use crate::codec::HEADER_CONTENT_TYPE;
-    use crate::{
-        core::test_utils::random_topic_name,
-        core::test_utils::{
-            map_pop_first, perform_generic_tests, set_pop_first, write as write_to_writer,
-            TestAdapter, TestContext,
-        },
-        maybe_skip_kafka_integration,
-    };
-
-    use super::{test_utils::kafka_sequencer_options, *};
 
     struct KafkaTestAdapter {
         conn: String,
