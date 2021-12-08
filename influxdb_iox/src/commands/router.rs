@@ -10,12 +10,6 @@ use thiserror::Error;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error formatting: {0}")]
-    FormattingError(#[from] influxdb_iox_client::format::Error),
-
-    #[error("Error querying: {0}")]
-    Query(#[from] influxdb_iox_client::flight::Error),
-
     #[error("JSON Serialization error: {0}")]
     Serde(#[from] serde_json::Error),
 
