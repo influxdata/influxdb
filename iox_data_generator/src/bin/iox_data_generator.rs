@@ -13,7 +13,12 @@
 use chrono::prelude::*;
 use chrono_english::{parse_date_string, Dialect};
 use clap::{crate_authors, crate_version, App, Arg};
-use iox_data_generator::{specification::DataSpec, write::PointsWriterBuilder};
+use iox_data_generator::{
+    specification::{DataSpec, OrgBucket},
+    write::PointsWriterBuilder,
+};
+use std::fs::File;
+use std::io::{self, BufRead};
 use tracing::info;
 
 #[tokio::main]
@@ -89,6 +94,12 @@ Logging:
             Arg::with_name("BUCKET")
                 .long("bucket")
                 .help("The bucket name to write to")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("BUCKET_LIST")
+                .long("bucket_list")
+                .help("File name with a list of databases. 1 per line with <org>_<bucket> format")
                 .takes_value(true),
         )
         .arg(
@@ -176,21 +187,11 @@ Logging:
     {
         PointsWriterBuilder::new_file(line_protocol_filename)?
     } else if let Some(host) = matches.value_of("HOST") {
-        let (host, org, bucket, token) = validate_api_arguments(
-            host,
-            matches.value_of("ORG"),
-            matches.value_of("BUCKET"),
-            matches.value_of("TOKEN"),
-        );
+        let token = matches
+            .value_of("TOKEN")
+            .expect("--token must be specified");
 
-        PointsWriterBuilder::new_api(
-            host,
-            org,
-            bucket,
-            token,
-            matches.value_of("jaeger_debug_header"),
-        )
-        .await?
+        PointsWriterBuilder::new_api(host, token, matches.value_of("jaeger_debug_header")).await?
     } else if matches.is_present("PRINT") {
         PointsWriterBuilder::new_std_out()
     } else if matches.is_present("NOOP") {
@@ -199,8 +200,42 @@ Logging:
         panic!("One of --print or --output or --host must be provided.");
     };
 
+    let buckets = match (
+        matches.value_of("ORG"),
+        matches.value_of("BUCKET"),
+        matches.value_of("BUCKET_LIST"),
+    ) {
+        (Some(org), Some(bucket), None) => {
+            vec![OrgBucket {
+                org: org.to_string(),
+                bucket: bucket.to_string(),
+            }]
+        }
+        (None, None, Some(bucket_list)) => {
+            let f = File::open(bucket_list).expect("unable to open bucket_list file");
+
+            io::BufReader::new(f)
+                .lines()
+                .map(|l| {
+                    let l = l.expect("unable to read line from bucket list");
+                    let parts = l.split('_').collect::<Vec<_>>();
+                    if parts.len() != 2 {
+                        panic!("error parsing org and bucket from {}", l);
+                    }
+
+                    let org = parts[0].to_string();
+                    let bucket = parts[1].to_string();
+
+                    OrgBucket { org, bucket }
+                })
+                .collect::<Vec<_>>()
+        }
+        _ => panic!("must specify either --org AND --bucket OR --bucket_list"),
+    };
+
     let result = iox_data_generator::generate(
         &data_spec,
+        buckets,
         &mut points_writer_builder,
         start_datetime,
         end_datetime,
@@ -228,36 +263,6 @@ fn datetime_nanoseconds(arg: Option<&str>, now: DateTime<Local>) -> Option<i64> 
         let datetime = parse_date_string(s, now, Dialect::Us).expect("Could not parse time");
         datetime.timestamp_nanos()
     })
-}
-
-fn validate_api_arguments<'a>(
-    host: &'a str,
-    org: Option<&'a str>,
-    bucket: Option<&'a str>,
-    token: Option<&'a str>,
-) -> (&'a str, &'a str, &'a str, &'a str) {
-    let mut errors = vec![];
-
-    if org.is_none() {
-        errors.push("`--org` is missing");
-    }
-    if bucket.is_none() {
-        errors.push("`--bucket` is missing");
-    }
-    if token.is_none() {
-        errors.push("`--token` is missing");
-    }
-
-    if errors.is_empty() {
-        // These `unwrap`s are safe because otherwise errors wouldn't be empty
-        (host, org.unwrap(), bucket.unwrap(), token.unwrap())
-    } else {
-        panic!(
-            "When `--host` is specified, `--org`, `--bucket`, and `--token` are required, \
-                but {}",
-            errors.join(", ")
-        );
-    }
 }
 
 #[cfg(test)]

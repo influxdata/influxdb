@@ -103,14 +103,10 @@ for_each = [
     "foo_bar"
 ]
 
+# Agent specs can be referenced later on by bucket writers, which specify how frequently
+# data should be written and by how many different agents.
 [[agents]]
 name = "first_agent"
-# Create this many agents. Agents are single threaded so the way to get more paralellism is to
-# increase the number of agents.
-count = 2
-# each agent will generate a sampling of data every 10ms. If running from a historical point in
-# time, the agents will push data as quickly as they can until they catch up to now.
-sampling_interval = "10ms"
 # if specifying tag_pairs at the agent level, every line that the agent generates will have these
 # tag pairs added to it. Note that the template has the same helpers as those in value (except for id).
 # In addition, it has an accessor for the agent id.
@@ -172,3 +168,21 @@ count = 2
 [[agents.measurements.fields]]
 name = "f1"
 bool = true
+
+# bucket_writers specify how to split up the list of supplied buckets to write to. If
+# only a single one is specified via the CLI flags, then you'd want only a single bucket_writer
+# with a percent of 1.0.
+#
+# These make it possible to split up a large list of buckets to write to and send different
+# amounts of write load as well as different schemas through specifying different agents.
+[[bucket_writers]]
+# 20% of the buckets specified in the --bucket_list file will have these agents writing to them
+ratio = 0.2
+# for each of those buckets, have 3 of the first_agent writing every 10s, and 1 of the another_example writing every minute.
+agents = [{name = "first_agent", count = 3, sampling_interval = "10s"}, {name = "another_example", sampling_interval = "1m"}]
+
+[[bucket_writers]]
+# the remaining 80% of the buckeets specified will write using these agents
+ratio = 0.8
+# we'll only have a single agent of another_example for each database
+agents = [{name = "another_example", sampling_interval = "1s"}]

@@ -7,6 +7,7 @@ use std::{any::Any, sync::Arc};
 use super::{
     catalog::{Catalog, TableNameFilter},
     chunk::DbChunk,
+    query_log::QueryLog,
     Error, Result,
 };
 
@@ -32,6 +33,10 @@ use query::{
     pruning::{prune_chunks, PruningObserver},
     QueryDatabase,
 };
+use time::TimeProvider;
+
+/// The number of entries to store in the circular query buffer log
+const QUERY_LOG_SIZE: usize = 100;
 
 /// Metrics related to chunk access (pruning specifically)
 #[derive(Debug)]
@@ -105,6 +110,9 @@ pub(crate) struct QueryCatalogAccess {
     /// Handles finding / pruning chunks based on predicates
     chunk_access: Arc<ChunkAccess>,
 
+    /// Stores queries which have been executed
+    query_log: Arc<QueryLog>,
+
     /// Provides access to system tables
     system_tables: Arc<SystemSchemaProvider>,
 
@@ -117,25 +125,28 @@ impl QueryCatalogAccess {
         db_name: impl Into<String>,
         catalog: Arc<Catalog>,
         jobs: Arc<JobRegistry>,
+        time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
     ) -> Self {
         let db_name = Arc::from(db_name.into());
         let access_metrics = AccessMetrics::new(metric_registry, Arc::clone(&db_name));
         let chunk_access = Arc::new(ChunkAccess::new(Arc::clone(&catalog), access_metrics));
+        let query_log = Arc::new(QueryLog::new(QUERY_LOG_SIZE, time_provider));
 
         let system_tables = Arc::new(SystemSchemaProvider::new(
             db_name.as_ref(),
             Arc::clone(&catalog),
             jobs,
+            Arc::clone(&query_log),
         ));
         let user_tables = Arc::new(DbSchemaProvider::new(
             Arc::clone(&catalog),
             Arc::clone(&chunk_access),
         ));
-
         Self {
             catalog,
             chunk_access,
+            query_log,
             system_tables,
             user_tables,
         }
@@ -228,6 +239,10 @@ impl QueryDatabase for QueryCatalogAccess {
             .table(table_name)
             .ok()
             .map(|table| Arc::clone(&table.schema().read()))
+    }
+
+    fn record_query(&self, query_type: impl Into<String>, query_text: impl Into<String>) {
+        self.query_log.push(query_type, query_text)
     }
 }
 

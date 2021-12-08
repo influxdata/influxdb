@@ -48,7 +48,7 @@ enum Command {
     /// Skip replay
     SkipReplay(SkipReplay),
 
-    /// Rebuild preserved catalog
+    /// Rebuild catalog from parquet fles
     Rebuild(Rebuild),
 }
 
@@ -63,9 +63,13 @@ struct Wipe {
     db_name: String,
 }
 
-/// Rebuild preserved catalog.
+/// Rebuild catalog from parquet files
 #[derive(Debug, StructOpt)]
 struct Rebuild {
+    /// Force rebuild, even if the database has already successfully started
+    #[structopt(long)]
+    force: bool,
+
     /// The name of the database
     db_name: String,
 }
@@ -104,7 +108,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Rebuild(rebuild) => {
             let operation = client
-                .rebuild_preserved_catalog(rebuild.db_name)
+                .rebuild_preserved_catalog(rebuild.db_name, rebuild.force)
                 .await
                 .context(RebuildCatalog)?;
 

@@ -2,7 +2,7 @@
 //! implemented in terms of the [`QueryDatabase`](query::QueryDatabase) and
 //! [`DatabaseStore`]
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::mpsc;
@@ -20,8 +20,12 @@ use generated_types::{
 };
 use observability_deps::tracing::{error, info, trace};
 use predicate::predicate::PredicateBuilder;
-use query::exec::{
-    fieldlist::FieldList, seriesset::converter::Error as SeriesSetError, ExecutionContextProvider,
+use query::{
+    exec::{
+        fieldlist::FieldList, seriesset::converter::Error as SeriesSetError,
+        ExecutionContextProvider,
+    },
+    QueryDatabase,
 };
 use server::DatabaseStore;
 
@@ -213,20 +217,21 @@ where
     ) -> Result<tonic::Response<Self::ReadFilterStream>, Status> {
         let span_ctx = req.extensions().get().cloned();
 
-        let read_filter_request = req.into_inner();
-        let db_name = get_database_name(&read_filter_request)?;
-        info!(%db_name, ?read_filter_request.range, predicate=%read_filter_request.predicate.loggable(), "read filter");
+        let req = req.into_inner();
+        let db_name = get_database_name(&req)?;
+        info!(%db_name, ?req.range, predicate=%req.predicate.loggable(), "read filter");
 
-        let results = read_filter_impl(
-            self.db_store.as_ref(),
-            db_name,
-            read_filter_request,
-            span_ctx,
-        )
-        .await?
-        .into_iter()
-        .map(Ok)
-        .collect::<Vec<_>>();
+        let db = self
+            .db_store
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+        db.record_query("read_filter", defer_json(&req));
+
+        let results = read_filter_impl(db, db_name, req, span_ctx)
+            .await?
+            .into_iter()
+            .map(Ok)
+            .collect::<Vec<_>>();
 
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
@@ -238,9 +243,14 @@ where
         req: tonic::Request<ReadGroupRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
         let span_ctx = req.extensions().get().cloned();
-        let read_group_request = req.into_inner();
+        let req = req.into_inner();
 
-        let db_name = get_database_name(&read_group_request)?;
+        let db_name = get_database_name(&req)?;
+        let db = self
+            .db_store
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+        db.record_query("read_group", defer_json(&req));
 
         let ReadGroupRequest {
             read_source: _read_source,
@@ -249,7 +259,7 @@ where
             group_keys,
             group,
             aggregate,
-        } = read_group_request;
+        } = req;
 
         info!(%db_name, ?range, ?group_keys, ?group, ?aggregate,predicate=%predicate.loggable(),"read_group");
 
@@ -265,19 +275,12 @@ where
         let gby_agg = expr::make_read_group_aggregate(aggregate, group, group_keys)
             .context(ConvertingReadGroupAggregate { aggregate_string })?;
 
-        let results = query_group_impl(
-            self.db_store.as_ref(),
-            db_name,
-            range,
-            predicate,
-            gby_agg,
-            span_ctx,
-        )
-        .await
-        .map_err(|e| e.to_status())?
-        .into_iter()
-        .map(Ok)
-        .collect::<Vec<_>>();
+        let results = query_group_impl(db, db_name, range, predicate, gby_agg, span_ctx)
+            .await
+            .map_err(|e| e.to_status())?
+            .into_iter()
+            .map(Ok)
+            .collect::<Vec<_>>();
 
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
@@ -290,9 +293,14 @@ where
         req: tonic::Request<ReadWindowAggregateRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
         let span_ctx = req.extensions().get().cloned();
-        let read_window_aggregate_request = req.into_inner();
+        let req = req.into_inner();
 
-        let db_name = get_database_name(&read_window_aggregate_request)?;
+        let db_name = get_database_name(&req)?;
+        let db = self
+            .db_store
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+        db.record_query("read_window_aggregate", defer_json(&req));
 
         let ReadWindowAggregateRequest {
             read_source: _read_source,
@@ -302,7 +310,7 @@ where
             offset,
             aggregate,
             window,
-        } = read_window_aggregate_request;
+        } = req;
 
         info!(%db_name, ?range, ?window_every, ?offset, ?aggregate, ?window, predicate=%predicate.loggable(),"read_window_aggregate");
 
@@ -314,19 +322,12 @@ where
         let gby_agg = expr::make_read_window_aggregate(aggregate, window_every, offset, window)
             .context(ConvertingWindowAggregate { aggregate_string })?;
 
-        let results = query_group_impl(
-            self.db_store.as_ref(),
-            db_name,
-            range,
-            predicate,
-            gby_agg,
-            span_ctx,
-        )
-        .await
-        .map_err(|e| e.to_status())?
-        .into_iter()
-        .map(Ok)
-        .collect::<Vec<_>>();
+        let results = query_group_impl(db, db_name, range, predicate, gby_agg, span_ctx)
+            .await
+            .map_err(|e| e.to_status())?
+            .into_iter()
+            .map(Ok)
+            .collect::<Vec<_>>();
 
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
@@ -340,30 +341,28 @@ where
         let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
-        let tag_keys_request = req.into_inner();
+        let req = req.into_inner();
 
-        let db_name = get_database_name(&tag_keys_request)?;
+        let db_name = get_database_name(&req)?;
+        let db = self
+            .db_store
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+        db.record_query("tag_keys", defer_json(&req));
 
         let TagKeysRequest {
             tags_source: _tag_source,
             range,
             predicate,
-        } = tag_keys_request;
+        } = req;
 
         info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_keys");
 
         let measurement = None;
 
-        let response = tag_keys_impl(
-            self.db_store.as_ref(),
-            db_name,
-            measurement,
-            range,
-            predicate,
-            span_ctx,
-        )
-        .await
-        .map_err(|e| e.to_status());
+        let response = tag_keys_impl(db, db_name, measurement, range, predicate, span_ctx)
+            .await
+            .map_err(|e| e.to_status());
 
         tx.send(response)
             .await
@@ -381,16 +380,21 @@ where
         let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
-        let tag_values_request = req.into_inner();
+        let req = req.into_inner();
 
-        let db_name = get_database_name(&tag_values_request)?;
+        let db_name = get_database_name(&req)?;
+        let db = self
+            .db_store
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+        db.record_query("tag_values", defer_json(&req));
 
         let TagValuesRequest {
             tags_source: _tag_source,
             range,
             predicate,
             tag_key,
-        } = tag_values_request;
+        } = req;
 
         let measurement = None;
 
@@ -406,19 +410,11 @@ where
                 .to_status());
             }
 
-            measurement_name_impl(self.db_store.as_ref(), db_name, range, span_ctx).await
+            measurement_name_impl(db, db_name, range, span_ctx).await
         } else if tag_key.is_field() {
             info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[xff] (field name)");
 
-            let fieldlist = field_names_impl(
-                self.db_store.as_ref(),
-                db_name,
-                None,
-                range,
-                predicate,
-                span_ctx,
-            )
-            .await?;
+            let fieldlist = field_names_impl(db, db_name, None, range, predicate, span_ctx).await?;
 
             // Pick out the field names into a Vec<Vec<u8>>for return
             let values = fieldlist
@@ -434,7 +430,7 @@ where
             info!(%db_name, ?range, %tag_key, predicate=%predicate.loggable(), "tag_values",);
 
             tag_values_impl(
-                self.db_store.as_ref(),
+                db,
                 db_name,
                 tag_key,
                 measurement,
@@ -460,7 +456,7 @@ where
         &self,
         _req: tonic::Request<ReadSeriesCardinalityRequest>,
     ) -> Result<tonic::Response<Self::ReadSeriesCardinalityStream>, Status> {
-        unimplemented!("read_series_cardinality not yet implemented");
+        unimplemented!("read_series_cardinality not yet implemented. https://github.com/influxdata/influxdb_iox/issues/447");
     }
 
     async fn capabilities(
@@ -508,15 +504,20 @@ where
         let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
-        let measurement_names_request = req.into_inner();
+        let req = req.into_inner();
 
-        let db_name = get_database_name(&measurement_names_request)?;
+        let db_name = get_database_name(&req)?;
+        let db = self
+            .db_store
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+        db.record_query("measurement_names", defer_json(&req));
 
         let MeasurementNamesRequest {
             source: _source,
             range,
             predicate,
-        } = measurement_names_request;
+        } = req;
 
         if let Some(predicate) = predicate {
             return NotYetImplemented {
@@ -531,7 +532,7 @@ where
 
         info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_names");
 
-        let response = measurement_name_impl(self.db_store.as_ref(), db_name, range, span_ctx)
+        let response = measurement_name_impl(db, db_name, range, span_ctx)
             .await
             .map_err(|e| e.to_status());
 
@@ -551,31 +552,29 @@ where
         let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
-        let measurement_tag_keys_request = req.into_inner();
+        let req = req.into_inner();
 
-        let db_name = get_database_name(&measurement_tag_keys_request)?;
+        let db_name = get_database_name(&req)?;
+        let db = self
+            .db_store
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+        db.record_query("measurement_tag_keys", defer_json(&req));
 
         let MeasurementTagKeysRequest {
             source: _source,
             measurement,
             range,
             predicate,
-        } = measurement_tag_keys_request;
+        } = req;
 
         info!(%db_name, ?range, %measurement, predicate=%predicate.loggable(), "measurement_tag_keys");
 
         let measurement = Some(measurement);
 
-        let response = tag_keys_impl(
-            self.db_store.as_ref(),
-            db_name,
-            measurement,
-            range,
-            predicate,
-            span_ctx,
-        )
-        .await
-        .map_err(|e| e.to_status());
+        let response = tag_keys_impl(db, db_name, measurement, range, predicate, span_ctx)
+            .await
+            .map_err(|e| e.to_status());
 
         tx.send(response)
             .await
@@ -593,9 +592,14 @@ where
         let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
-        let measurement_tag_values_request = req.into_inner();
+        let req = req.into_inner();
 
-        let db_name = get_database_name(&measurement_tag_values_request)?;
+        let db_name = get_database_name(&req)?;
+        let db = self
+            .db_store
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+        db.record_query("measurement_tag_values", defer_json(&req));
 
         let MeasurementTagValuesRequest {
             source: _source,
@@ -603,14 +607,14 @@ where
             range,
             predicate,
             tag_key,
-        } = measurement_tag_values_request;
+        } = req;
 
         info!(%db_name, ?range, %measurement, %tag_key, predicate=%predicate.loggable(), "measurement_tag_values");
 
         let measurement = Some(measurement);
 
         let response = tag_values_impl(
-            self.db_store.as_ref(),
+            db,
             db_name,
             tag_key,
             measurement,
@@ -637,36 +641,34 @@ where
         let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
-        let measurement_fields_request = req.into_inner();
+        let req = req.into_inner();
 
-        let db_name = get_database_name(&measurement_fields_request)?;
+        let db_name = get_database_name(&req)?;
+        let db = self
+            .db_store
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+        db.record_query("measurement_fields", defer_json(&req));
 
         let MeasurementFieldsRequest {
             source: _source,
             measurement,
             range,
             predicate,
-        } = measurement_fields_request;
+        } = req;
 
         info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_fields");
 
         let measurement = Some(measurement);
 
-        let response = field_names_impl(
-            self.db_store.as_ref(),
-            db_name,
-            measurement,
-            range,
-            predicate,
-            span_ctx,
-        )
-        .await
-        .map(|fieldlist| {
-            fieldlist_to_measurement_fields_response(fieldlist)
-                .context(ConvertingFieldList)
-                .map_err(|e| e.to_status())
-        })
-        .map_err(|e| e.to_status())?;
+        let response = field_names_impl(db, db_name, measurement, range, predicate, span_ctx)
+            .await
+            .map(|fieldlist| {
+                fieldlist_to_measurement_fields_response(fieldlist)
+                    .context(ConvertingFieldList)
+                    .map_err(|e| e.to_status())
+            })
+            .map_err(|e| e.to_status())?;
 
         tx.send(response)
             .await
@@ -714,19 +716,18 @@ fn get_database_name(input: &impl GrpcInputs) -> Result<DatabaseName<'static>, S
 
 /// Gathers all measurement names that have data in the specified
 /// (optional) range
-async fn measurement_name_impl<T>(
-    db_store: &T,
+async fn measurement_name_impl<D>(
+    db: Arc<D>,
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     span_ctx: Option<SpanContext>,
 ) -> Result<StringValuesResponse>
 where
-    T: DatabaseStore + 'static,
+    D: QueryDatabase + ExecutionContextProvider + 'static,
 {
     let predicate = PredicateBuilder::default().set_range(range).build();
-    let db_name = db_name.as_ref();
+    let db_name = db_name.as_str();
 
-    let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let ctx = db.new_query_context(span_ctx);
 
     let plan = Planner::new(&ctx)
@@ -753,8 +754,8 @@ where
 
 /// Return tag keys with optional measurement, timestamp and arbitratry
 /// predicates
-async fn tag_keys_impl<T>(
-    db_store: &T,
+async fn tag_keys_impl<D>(
+    db: Arc<D>,
     db_name: DatabaseName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
@@ -762,9 +763,10 @@ async fn tag_keys_impl<T>(
     span_ctx: Option<SpanContext>,
 ) -> Result<StringValuesResponse>
 where
-    T: DatabaseStore + 'static,
+    D: QueryDatabase + ExecutionContextProvider + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
+    let db_name = db_name.as_str();
 
     let predicate = PredicateBuilder::default()
         .set_range(range)
@@ -775,27 +777,19 @@ where
         })?
         .build();
 
-    let db = db_store.db(&db_name).context(DatabaseNotFound {
-        db_name: db_name.as_str(),
-    })?;
-
     let ctx = db.new_query_context(span_ctx);
 
     let tag_key_plan = Planner::new(&ctx)
         .tag_keys(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
-        .context(ListingColumns {
-            db_name: db_name.as_str(),
-        })?;
+        .context(ListingColumns { db_name })?;
 
     let tag_keys = ctx
         .to_string_set(tag_key_plan)
         .await
         .map_err(|e| Box::new(e) as _)
-        .context(ListingColumns {
-            db_name: db_name.as_str(),
-        })?;
+        .context(ListingColumns { db_name })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
     let values = tag_keys_to_byte_vecs(tag_keys);
@@ -806,8 +800,8 @@ where
 
 /// Return tag values for tag_name, with optional measurement, timestamp and
 /// arbitratry predicates
-async fn tag_values_impl<T>(
-    db_store: &T,
+async fn tag_values_impl<D>(
+    db: Arc<D>,
     db_name: DatabaseName<'static>,
     tag_name: String,
     measurement: Option<String>,
@@ -816,7 +810,7 @@ async fn tag_values_impl<T>(
     span_ctx: Option<SpanContext>,
 ) -> Result<StringValuesResponse>
 where
-    T: DatabaseStore + 'static,
+    D: QueryDatabase + ExecutionContextProvider + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
@@ -832,7 +826,6 @@ where
     let db_name = db_name.as_str();
     let tag_name = &tag_name;
 
-    let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let ctx = db.new_query_context(span_ctx);
 
     let tag_value_plan = Planner::new(&ctx)
@@ -858,15 +851,19 @@ where
 }
 
 /// Launch async tasks that materialises the result of executing read_filter.
-async fn read_filter_impl<T>(
-    db_store: &T,
+async fn read_filter_impl<D>(
+    db: Arc<D>,
     db_name: DatabaseName<'static>,
     req: ReadFilterRequest,
     span_ctx: Option<SpanContext>,
 ) -> Result<Vec<ReadResponse>, Error>
 where
-    T: DatabaseStore + 'static,
+    D: QueryDatabase + ExecutionContextProvider + 'static,
 {
+    let db_name = db_name.as_str();
+
+    let ctx = db.new_query_context(span_ctx);
+
     let rpc_predicate_string = format!("{:?}", req.predicate);
 
     let predicate = PredicateBuilder::default()
@@ -876,10 +873,6 @@ where
             rpc_predicate_string,
         })?
         .build();
-
-    let db_name = db_name.as_str();
-    let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db.new_query_context(span_ctx);
 
     // PERF - This used to send responses to the client before execution had
     // completed, but now it doesn't. We may need to revisit this in the future
@@ -907,8 +900,8 @@ where
 }
 
 /// Launch async tasks that send the result of executing read_group to `tx`
-async fn query_group_impl<T>(
-    db_store: &T,
+async fn query_group_impl<D>(
+    db: Arc<D>,
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
@@ -916,8 +909,11 @@ async fn query_group_impl<T>(
     span_ctx: Option<SpanContext>,
 ) -> Result<Vec<ReadResponse>, Error>
 where
-    T: DatabaseStore + 'static,
+    D: QueryDatabase + ExecutionContextProvider + 'static,
 {
+    let db_name = db_name.as_str();
+    let ctx = db.new_query_context(span_ctx);
+
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
     let predicate = PredicateBuilder::default()
@@ -927,14 +923,6 @@ where
             rpc_predicate_string,
         })?
         .build();
-
-    // keep original name so we can transfer ownership
-    // to closure below
-    let owned_db_name = db_name;
-    let db_name = owned_db_name.as_str();
-
-    let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db.new_query_context(span_ctx);
 
     let planner = Planner::new(&ctx);
     let grouped_series_set_plan = match gby_agg {
@@ -960,9 +948,7 @@ where
         .to_series_and_groups(grouped_series_set_plan)
         .await
         .map_err(|e| Box::new(e) as _)
-        .context(GroupingSeries {
-            db_name: owned_db_name.as_str(),
-        })
+        .context(GroupingSeries { db_name })
         .log_if_error("Running Grouped SeriesSet Plan")?;
 
     // ReadGroupRequest does not have a field to control the format of
@@ -974,8 +960,8 @@ where
 
 /// Return field names, restricted via optional measurement, timestamp and
 /// predicate
-async fn field_names_impl<T>(
-    db_store: &T,
+async fn field_names_impl<D>(
+    db: Arc<D>,
     db_name: DatabaseName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
@@ -983,7 +969,7 @@ async fn field_names_impl<T>(
     span_ctx: Option<SpanContext>,
 ) -> Result<FieldList>
 where
-    T: DatabaseStore + 'static,
+    D: QueryDatabase + ExecutionContextProvider + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
@@ -997,7 +983,6 @@ where
         .build();
 
     let db_name = db_name.as_str();
-    let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let ctx = db.new_query_context(span_ctx);
 
     let field_list_plan = Planner::new(&ctx)
@@ -1014,6 +999,35 @@ where
 
     trace!(field_names=?field_list, "Field names response");
     Ok(field_list)
+}
+
+/// Return something which can be formatted as json ("pbjson"
+/// specifically)
+fn defer_json<S>(s: &S) -> impl Into<String> + '_
+where
+    S: serde::Serialize,
+{
+    /// Defers conversion into a String
+    struct DeferredToJson<'a, S>
+    where
+        S: serde::Serialize,
+    {
+        s: &'a S,
+    }
+
+    impl<S> From<DeferredToJson<'_, S>> for String
+    where
+        S: serde::Serialize,
+    {
+        fn from(w: DeferredToJson<'_, S>) -> Self {
+            match serde_json::to_string_pretty(&w.s) {
+                Ok(json) => json,
+                Err(e) => e.to_string(),
+            }
+        }
+    }
+
+    DeferredToJson { s }
 }
 
 #[cfg(test)]

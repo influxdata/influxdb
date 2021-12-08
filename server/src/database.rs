@@ -75,6 +75,28 @@ pub enum Error {
     },
 
     #[snafu(display(
+        "database ({}) in invalid state for catalog rebuild ({:?}). Expected {}",
+        db_name,
+        state,
+        expected
+    ))]
+    InvalidStateForRebuild {
+        db_name: String,
+        expected: String,
+        state: DatabaseStateCode,
+    },
+
+    #[snafu(display(
+        "Internal error during rebuild. Database ({}) transitioned to unexpected state ({:?})",
+        db_name,
+        state,
+    ))]
+    UnexpectedTransitionForRebuild {
+        db_name: String,
+        state: DatabaseStateCode,
+    },
+
+    #[snafu(display(
         "failed to rebuild preserved catalog of database ({}): {}",
         db_name,
         source
@@ -548,13 +570,28 @@ impl Database {
         Ok(tracker)
     }
 
-    /// Recover from a CatalogLoadError by wiping and rebuilding the catalog
-    pub async fn rebuild_preserved_catalog(&self) -> Result<TaskTracker<Job>, Error> {
+    /// Rebuilding the catalog from parquet files. This can be used to
+    /// recover from a CatalogLoadError, or if new parquet files are
+    /// added to the data directory
+    pub async fn rebuild_preserved_catalog(&self, force: bool) -> Result<TaskTracker<Job>, Error> {
         let handle = self.shared.state.read().freeze();
         let handle = handle.await;
 
         let db_name = &self.shared.config.name;
-        let current_state = error_state!(self, "RebuildPreservedCatalog", CatalogLoadError);
+
+        {
+            // If the force flag is not specified, can only rebuild
+            // the catalog if it is in ended up in an error loading
+            let state = self.shared.state.read();
+            if !force && !matches!(&**state, DatabaseState::CatalogLoadError { .. }) {
+                return InvalidStateForRebuild {
+                    db_name,
+                    state: state.state_code(),
+                    expected: "(CatalogLoadError)",
+                }
+                .fail();
+            }
+        }
 
         let registry = self.shared.application.job_registry();
         let (tracker, registration) = registry.register(Job::RebuildPreservedCatalog {
@@ -562,19 +599,59 @@ impl Database {
         });
 
         let shared = Arc::clone(&self.shared);
+        let iox_object_store = self.iox_object_store().context(InvalidStateForRebuild {
+            db_name,
+            state: shared.state.read().state_code(),
+            expected: "Object store initialized",
+        })?;
 
         tokio::spawn(
             async move {
                 let db_name = &shared.config.name;
 
-                // First attempt to wipe the catalog
-                PreservedCatalog::wipe(&current_state.iox_object_store)
+                // shutdown / stop the DB if it is running so it can't
+                // be read / written to, while also preventing
+                // anything else from driving the state machine
+                // forward.
+                info!(%db_name, "rebuilding catalog, resetting database state");
+                {
+                    let mut state = shared.state.write();
+                    // Dropping the state here also terminates the
+                    // LifeCycleWorker and WriteBufferConsumer so all
+                    // background work should have completed.
+                    *state.unfreeze(handle) = DatabaseState::Known(DatabaseStateKnown {});
+                    // tell existing db background tasks, if any, to start shutting down
+                    shared.state_notify.notify_waiters();
+                };
+
+                // get another freeze handle to prevent anything else
+                // from messing with the state while we rebuild the
+                // catalog (is there a better way??)
+                let handle = shared.state.read().freeze();
+                let _handle = handle.await;
+
+                // check that during lock gap the state has not changed
+                {
+                    let state = shared.state.read();
+                    ensure!(
+                        matches!(&**state, DatabaseState::Known(_)),
+                        UnexpectedTransitionForRebuild {
+                            db_name,
+                            state: state.state_code()
+                        }
+                    );
+                }
+
+                info!(%db_name, "rebuilding catalog from parquet files");
+
+                // Now wipe the catalog and rebuild it from parquet files
+                PreservedCatalog::wipe(iox_object_store.as_ref())
                     .await
                     .map_err(Box::new)
                     .context(WipePreservedCatalog { db_name })?;
 
                 let config = PreservedCatalogConfig::new(
-                    Arc::clone(&current_state.iox_object_store),
+                    Arc::clone(&iox_object_store),
                     db_name.to_string(),
                     Arc::clone(shared.application.time_provider()),
                 );
@@ -583,10 +660,11 @@ impl Database {
                     .map_err(Box::new)
                     .context(RebuildPreservedCatalog { db_name })?;
 
-                {
-                    let mut state = shared.state.write();
-                    *state.unfreeze(handle) = DatabaseState::RulesLoaded(current_state);
-                }
+                // Double check the state hasn't changed (we hold the
+                // freeze handle to make sure it does not)
+                assert!(matches!(&**shared.state.read(), DatabaseState::Known(_)));
+
+                info!(%db_name, "catalog rebuilt successfully");
 
                 Ok::<_, Error>(())
             }

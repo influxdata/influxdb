@@ -99,6 +99,7 @@ write_buffer = { path = "../write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
 assert_cmd = "2.0.2"
+base64 = "0.13"
 hex = "0.4.2"
 predicates = "2.1.0"
 rand = "0.8.3"

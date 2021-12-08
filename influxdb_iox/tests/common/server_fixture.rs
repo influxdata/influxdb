@@ -286,7 +286,11 @@ impl ServerFixture {
             {
                 return status;
             }
-            assert!(t_0.elapsed() < Duration::from_secs(10));
+            assert!(
+                t_0.elapsed() < Duration::from_secs(10),
+                "Server and all databases are not initialized. Status:\n\n {:#?}",
+                status
+            );
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
     }

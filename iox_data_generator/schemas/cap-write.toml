@@ -2,10 +2,12 @@
 # https://github.com/influxdata/idpe/tree/e493a8e9b6b773e9374a8542ddcab7d8174d320d/performance/capacity/write
 name = "cap_write"
 
+[[bucket_writers]]
+ratio = 1.0
+agents = [{name = "telegraf", count = 3, sampling_interval = "10s"}]
+
 [[agents]]
 name = "telegraf"
-count = 3
-sampling_interval = "10s"
 tag_pairs = [
     {key = "host", template = "host-{{agent.id}}"}
 ]

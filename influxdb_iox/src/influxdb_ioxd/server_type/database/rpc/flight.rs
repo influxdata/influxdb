@@ -17,6 +17,7 @@ use arrow_flight::{
 use datafusion::physical_plan::ExecutionPlan;
 use futures::{SinkExt, Stream, StreamExt};
 use pin_project::{pin_project, pinned_drop};
+use query::QueryDatabase;
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
 use tokio::task::JoinHandle;
@@ -169,6 +170,8 @@ impl Flight for FlightService {
             .server
             .db(&database)
             .map_err(default_server_error_handler)?;
+
+        db.record_query("sql", &read_info.sql_query);
 
         let ctx = db.new_query_context(span_ctx);
 

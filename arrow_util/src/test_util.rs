@@ -1,5 +1,8 @@
 //! A collection of testing functions for arrow based code
+use std::sync::Arc;
+
 use arrow::{
+    array::{ArrayRef, StringArray},
     compute::kernels::sort::{lexsort, SortColumn, SortOptions},
     record_batch::RecordBatch,
 };
@@ -88,4 +91,43 @@ pub fn sort_record_batch(batch: RecordBatch) -> RecordBatch {
     let sort_output = lexsort(&sort_input, None).expect("Sorting to complete");
 
     RecordBatch::try_new(batch.schema(), sort_output).unwrap()
+}
+
+/// Return a new `StringArray` where each element had a normalization
+/// function `norm` applied.
+pub fn normalize_string_array<N>(arr: &StringArray, norm: N) -> ArrayRef
+where
+    N: Fn(&str) -> String,
+{
+    let normalized: StringArray = arr.iter().map(|s| s.map(&norm)).collect();
+    Arc::new(normalized)
+}
+
+/// Return a new set of `RecordBatch`es where the function `norm` has
+/// applied to all `StringArray` rows.
+pub fn normalize_batches<N>(batches: Vec<RecordBatch>, norm: N) -> Vec<RecordBatch>
+where
+    N: Fn(&str) -> String,
+{
+    // The idea here is is to get a function that normalizes strings
+    // and apply it to each StringArray element by element
+    batches
+        .into_iter()
+        .map(|batch| {
+            let new_columns: Vec<_> = batch
+                .columns()
+                .iter()
+                .map(|array| {
+                    if let Some(array) = array.as_any().downcast_ref::<StringArray>() {
+                        normalize_string_array(array, &norm)
+                    } else {
+                        Arc::clone(array)
+                    }
+                })
+                .collect();
+
+            RecordBatch::try_new(batch.schema(), new_columns)
+                .expect("error occured during normalization")
+        })
+        .collect()
 }

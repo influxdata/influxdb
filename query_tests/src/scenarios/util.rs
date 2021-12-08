@@ -1,7 +1,9 @@
 //! This module contains util functions for testing scenarios
 
+use data_types::chunk_metadata::ChunkId;
 use data_types::delete_predicate::DeletePredicate;
 use query::{QueryChunk, QueryDatabase};
+use server::Db;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -502,4 +504,111 @@ pub async fn make_different_stage_chunks_with_deletes_scenario(
         preds.len()
     );
     DbScenario { scenario_name, db }
+}
+
+pub async fn make_os_chunks_and_then_compact_with_different_scenarios_with_delete(
+    lp_lines_vec: Vec<Vec<&str>>,
+    preds: Vec<&DeletePredicate>,
+    table_name: &str,
+    partition_key: &str,
+) -> Vec<DbScenario> {
+    // Scenario 1: apply deletes and then compact all 3 chunks
+    let (db, chunk_ids) =
+        make_contiguous_os_chunks(lp_lines_vec.clone(), table_name, partition_key).await;
+    for pred in &preds {
+        db.delete(table_name, Arc::new((*pred).clone())).unwrap();
+    }
+    db.compact_object_store_chunks(table_name, partition_key, chunk_ids)
+        .unwrap()
+        .join()
+        .await;
+
+    let scenario_name = "Deletes and then compact all OS chunks".to_string();
+    let scenario_1 = DbScenario { scenario_name, db };
+
+    // Scenario 2: compact all 3 chunks and apply deletes
+    let (db, chunk_ids) =
+        make_contiguous_os_chunks(lp_lines_vec.clone(), table_name, partition_key).await;
+    db.compact_object_store_chunks(table_name, partition_key, chunk_ids)
+        .unwrap()
+        .join()
+        .await;
+    for pred in &preds {
+        db.delete(table_name, Arc::new((*pred).clone())).unwrap();
+    }
+    let scenario_name = "Compact all OS chunks and then deletes".to_string();
+    let scenario_2 = DbScenario { scenario_name, db };
+
+    // Scenario 3: apply deletes then compact the first n-1 chunks
+    let (db, chunk_ids) =
+        make_contiguous_os_chunks(lp_lines_vec.clone(), table_name, partition_key).await;
+    for pred in &preds {
+        db.delete(table_name, Arc::new((*pred).clone())).unwrap();
+    }
+    let (_last_chunk_id, chunk_ids_but_last) = chunk_ids.split_last().unwrap();
+    db.compact_object_store_chunks(table_name, partition_key, chunk_ids_but_last.to_vec())
+        .unwrap()
+        .join()
+        .await;
+    let scenario_name = "Deletes and then compact all but last OS chunk".to_string();
+    let scenario_3 = DbScenario { scenario_name, db };
+
+    // Scenario 4: compact the first n-1 chunks then apply deletes
+    let (db, chunk_ids) =
+        make_contiguous_os_chunks(lp_lines_vec.clone(), table_name, partition_key).await;
+    let (_last_chunk_id, chunk_ids_but_last) = chunk_ids.split_last().unwrap();
+    db.compact_object_store_chunks(table_name, partition_key, chunk_ids_but_last.to_vec())
+        .unwrap()
+        .join()
+        .await;
+    for pred in &preds {
+        db.delete(table_name, Arc::new((*pred).clone())).unwrap();
+    }
+    let scenario_name = "Compact all but last OS chunk and then deletes".to_string();
+    let scenario_4 = DbScenario { scenario_name, db };
+
+    vec![scenario_1, scenario_2, scenario_3, scenario_4]
+}
+
+pub async fn make_contiguous_os_chunks(
+    lp_lines_vec: Vec<Vec<&str>>,
+    table_name: &str,
+    partition_key: &str,
+) -> (Arc<Db>, Vec<ChunkId>) {
+    // This test is aimed for at least 3 chunks
+    assert!(lp_lines_vec.len() >= 3);
+
+    // First make all OS chunks fot the lp_lins_vec
+    // Define they are OS
+    let mut chunk_data_vec = vec![];
+    for lp_lines in lp_lines_vec {
+        let chunk_data = ChunkData {
+            lp_lines: lp_lines.clone(),
+            chunk_stage: ChunkStage::Os,
+        };
+        chunk_data_vec.push(chunk_data);
+    }
+    // Make db with those OS chunks
+    let scenario = make_different_stage_chunks_with_deletes_scenario(
+        chunk_data_vec,
+        vec![], // not delete anything yet
+        table_name,
+        partition_key,
+    )
+    .await;
+
+    // Get chunk ids in contiguous order
+    let db = scenario.db;
+    let partition = db.partition(table_name, partition_key).unwrap();
+    let partition = partition.read();
+    let mut keyed_chunks: Vec<(_, _)> = partition
+        .keyed_chunks()
+        .into_iter()
+        .map(|(id, order, _chunk)| (id, order))
+        .collect();
+    keyed_chunks.sort_by(|(_id1, order1), (_id2, order2)| order1.cmp(order2));
+
+    let chunk_ids: Vec<_> = keyed_chunks.iter().map(|(id, _order)| *id).collect();
+
+    (db, chunk_ids)
 }

@@ -75,6 +75,7 @@ mod chunk;
 mod lifecycle;
 pub mod load;
 pub mod pred;
+mod query_log;
 mod replay;
 mod streams;
 mod system_tables;
@@ -278,19 +279,31 @@ pub(crate) struct DatabaseToCommit {
 
 impl Db {
     pub(crate) fn new(database_to_commit: DatabaseToCommit, jobs: Arc<JobRegistry>) -> Self {
-        let name = Arc::from(database_to_commit.rules.name.as_str());
+        let DatabaseToCommit {
+            server_id,
+            iox_object_store,
+            exec,
+            preserved_catalog,
+            catalog,
+            rules,
+            time_provider,
+            metric_registry,
+        } = database_to_commit;
 
-        let rules = RwLock::new(database_to_commit.rules);
-        let server_id = database_to_commit.server_id;
-        let iox_object_store = Arc::clone(&database_to_commit.iox_object_store);
+        let name = Arc::from(rules.name.as_str());
 
-        let catalog = Arc::new(database_to_commit.catalog);
+        let rules = RwLock::new(rules);
+        let server_id = server_id;
+        let iox_object_store = Arc::clone(&iox_object_store);
+
+        let catalog = Arc::new(catalog);
 
         let catalog_access = QueryCatalogAccess::new(
             &*name,
             Arc::clone(&catalog),
             Arc::clone(&jobs),
-            database_to_commit.metric_registry.as_ref(),
+            Arc::clone(&time_provider),
+            metric_registry.as_ref(),
         );
         let catalog_access = Arc::new(catalog_access);
 
@@ -299,16 +312,16 @@ impl Db {
             name,
             server_id,
             iox_object_store,
-            exec: database_to_commit.exec,
-            preserved_catalog: Arc::new(database_to_commit.preserved_catalog),
+            exec,
+            preserved_catalog: Arc::new(preserved_catalog),
             catalog,
             jobs,
-            metric_registry: database_to_commit.metric_registry,
+            metric_registry,
             catalog_access,
             worker_iterations_cleanup: AtomicUsize::new(0),
             worker_iterations_delete_predicate_preservation: AtomicUsize::new(0),
             cleanup_lock: Default::default(),
-            time_provider: database_to_commit.time_provider,
+            time_provider,
             delete_predicates_mailbox: Default::default(),
             persisted_chunk_id_override: Default::default(),
         }
@@ -1169,6 +1182,10 @@ impl QueryDatabase for Db {
 
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
         self.catalog_access.table_schema(table_name)
+    }
+
+    fn record_query(&self, query_type: impl Into<String>, query_text: impl Into<String>) {
+        self.catalog_access.record_query(query_type, query_text)
     }
 }
 

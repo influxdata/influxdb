@@ -545,7 +545,11 @@ mod test {
 
             [[agents.measurements.fields]]
             name = "val"
-            i64_range = [3, 3]"#,
+            i64_range = [3, 3]
+
+            [[bucket_writers]]
+            ratio = 1.0
+            agents = [{name = "foo", sampling_interval = "10s"}]"#,
         )
             .unwrap();
 
@@ -604,7 +608,11 @@ mod test {
 
             [[agents.measurements.fields]]
             name = "val"
-            i64_range = [3, 3]"#,
+            i64_range = [3, 3]
+
+            [[bucket_writers]]
+            ratio = 1.0
+            agents = [{name = "foo", sampling_interval = "10s"}]"#,
         )
         .unwrap();
 

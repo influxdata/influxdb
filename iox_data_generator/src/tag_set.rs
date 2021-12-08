@@ -492,7 +492,10 @@ name = "cpu"
 [[agents.measurements.fields]]
 name = "f1"
 i64_range = [0, 23]
-"#;
+
+[[bucket_writers]]
+ratio = 1.0
+agents = [{name = "foo", sampling_interval = "10s"}]"#;
 
         let spec = DataSpec::from_str(toml).unwrap();
         let tag_sets = GeneratedTagSets::from_spec(&spec).unwrap();
@@ -537,7 +540,10 @@ name = "cpu"
 [[agents.measurements.fields]]
 name = "f1"
 i64_range = [0, 23]
-"#;
+
+[[bucket_writers]]
+ratio = 1.0
+agents = [{name = "foo", sampling_interval = "10s"}]"#;
 
         let spec = DataSpec::from_str(toml).unwrap();
         let tag_sets = GeneratedTagSets::from_spec(&spec).unwrap();
@@ -603,7 +609,10 @@ name = "cpu"
 [[agents.measurements.fields]]
 name = "f1"
 i64_range = [0, 23]
-"#;
+
+[[bucket_writers]]
+ratio = 1.0
+agents = [{name = "foo", sampling_interval = "10s"}]"#;
 
         let spec = DataSpec::from_str(toml).unwrap();
         let tag_sets = GeneratedTagSets::from_spec(&spec).unwrap();

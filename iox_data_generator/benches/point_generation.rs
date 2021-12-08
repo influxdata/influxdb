@@ -1,10 +1,12 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use iox_data_generator::agent::Agent;
+use iox_data_generator::specification::{AgentAssignmentSpec, BucketWriterSpec, OrgBucket};
 use iox_data_generator::{
     specification::{AgentSpec, DataSpec, FieldSpec, FieldValueSpec, MeasurementSpec},
     tag_set::GeneratedTagSets,
     write::PointsWriterBuilder,
 };
+use std::time::Duration;
 
 pub fn single_agent(c: &mut Criterion) {
     let spec = DataSpec {
@@ -13,8 +15,6 @@ pub fn single_agent(c: &mut Criterion) {
         tag_sets: vec![],
         agents: vec![AgentSpec {
             name: "foo".to_string(),
-            count: None,
-            sampling_interval: Some("1s".to_string()),
             measurements: vec![MeasurementSpec {
                 name: "measurement-1".into(),
                 count: None,
@@ -28,6 +28,14 @@ pub fn single_agent(c: &mut Criterion) {
             }],
             has_one: vec![],
             tag_pairs: vec![],
+        }],
+        bucket_writers: vec![BucketWriterSpec {
+            ratio: 1.0,
+            agents: vec![AgentAssignmentSpec {
+                name: "foo".to_string(),
+                count: None,
+                sampling_interval: "1s".to_string(),
+            }],
         }],
     };
 
@@ -47,6 +55,10 @@ pub fn single_agent(c: &mut Criterion) {
         b.iter(|| {
             let r = block_on(iox_data_generator::generate(
                 &spec,
+                vec![OrgBucket {
+                    org: "foo".to_string(),
+                    bucket: "bar".to_string(),
+                }],
                 &mut points_writer,
                 start_datetime,
                 end_datetime,
@@ -125,8 +137,6 @@ for_each = [
 
 [[agents]]
 name = "foo"
-# create this many agents
-count = 3
 
 [[agents.measurements]]
 name = "storage_usage_bucket_cardinality"
@@ -142,6 +152,10 @@ tag_pairs = [
 [[agents.measurements.fields]]
 name = "gauge"
 i64_range = [1, 8147240]
+
+[[bucket_writers]]
+ratio = 1.0
+agents = [{name = "foo", sampling_interval = "1s", count = 3}]
 "#).unwrap();
 
     let generated_tag_sets = GeneratedTagSets::from_spec(&spec).unwrap();
@@ -155,6 +169,8 @@ i64_range = [1, 8147240]
 
     let mut agents = Agent::from_spec(
         &spec.agents[0],
+        3,
+        Duration::from_millis(10),
         start_datetime,
         end_datetime,
         0,
@@ -172,7 +188,7 @@ i64_range = [1, 8147240]
     group.bench_function("single agent with basic configuration", |b| {
         b.iter(|| {
             agent.reset_current_date_time(0);
-            let points_writer = points_writer.build_for_agent("foo").unwrap();
+            let points_writer = points_writer.build_for_agent("foo", "foo", "foo").unwrap();
             let r = block_on(agent.generate_all(points_writer, 1));
             let n_points = r.expect("Could not generate data");
             assert_eq!(n_points, expected_points as usize);
