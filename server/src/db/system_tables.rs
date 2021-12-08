@@ -7,7 +7,7 @@
 //!
 //! For example `SELECT * FROM system.chunks`
 
-use super::catalog::Catalog;
+use super::{catalog::Catalog, query_log::QueryLog};
 use crate::JobRegistry;
 use arrow::{
     datatypes::{Field, Schema, SchemaRef},
@@ -27,6 +27,7 @@ mod chunks;
 mod columns;
 mod operations;
 mod persistence;
+mod queries;
 
 // The IOx system schema
 pub const SYSTEM_SCHEMA: &str = "system";
@@ -36,6 +37,7 @@ const COLUMNS: &str = "columns";
 const CHUNK_COLUMNS: &str = "chunk_columns";
 const OPERATIONS: &str = "operations";
 const PERSISTENCE_WINDOWS: &str = "persistence_windows";
+const QUERIES: &str = "queries";
 
 pub struct SystemSchemaProvider {
     chunks: Arc<dyn TableProvider>,
@@ -43,6 +45,7 @@ pub struct SystemSchemaProvider {
     chunk_columns: Arc<dyn TableProvider>,
     operations: Arc<dyn TableProvider>,
     persistence_windows: Arc<dyn TableProvider>,
+    queries: Arc<dyn TableProvider>,
 }
 
 impl std::fmt::Debug for SystemSchemaProvider {
@@ -54,7 +57,12 @@ impl std::fmt::Debug for SystemSchemaProvider {
 }
 
 impl SystemSchemaProvider {
-    pub fn new(db_name: impl Into<String>, catalog: Arc<Catalog>, jobs: Arc<JobRegistry>) -> Self {
+    pub fn new(
+        db_name: impl Into<String>,
+        catalog: Arc<Catalog>,
+        jobs: Arc<JobRegistry>,
+        query_log: Arc<QueryLog>,
+    ) -> Self {
         let db_name = db_name.into();
         let chunks = Arc::new(SystemTableProvider {
             inner: chunks::ChunksTable::new(Arc::clone(&catalog)),
@@ -71,22 +79,27 @@ impl SystemSchemaProvider {
         let persistence_windows = Arc::new(SystemTableProvider {
             inner: persistence::PersistenceWindowsTable::new(catalog),
         });
+        let queries = Arc::new(SystemTableProvider {
+            inner: queries::QueriesTable::new(query_log),
+        });
         Self {
             chunks,
             columns,
             chunk_columns,
             operations,
             persistence_windows,
+            queries,
         }
     }
 }
 
-const ALL_SYSTEM_TABLES: [&str; 5] = [
+const ALL_SYSTEM_TABLES: [&str; 6] = [
     CHUNKS,
     COLUMNS,
     CHUNK_COLUMNS,
     OPERATIONS,
     PERSISTENCE_WINDOWS,
+    QUERIES,
 ];
 
 impl SchemaProvider for SystemSchemaProvider {
@@ -108,6 +121,7 @@ impl SchemaProvider for SystemSchemaProvider {
             CHUNK_COLUMNS => Some(Arc::clone(&self.chunk_columns)),
             OPERATIONS => Some(Arc::clone(&self.operations)),
             PERSISTENCE_WINDOWS => Some(Arc::clone(&self.persistence_windows)),
+            QUERIES => Some(Arc::clone(&self.queries)),
             _ => None,
         }
     }

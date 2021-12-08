@@ -13,7 +13,7 @@
 // Influx crates
 use data_types::{names::OrgBucketMappingError, DatabaseName};
 use influxdb_iox_client::format::QueryOutputFormat;
-use query::exec::ExecutionContextProvider;
+use query::{exec::ExecutionContextProvider, QueryDatabase};
 use server::Error;
 
 // External crates
@@ -251,6 +251,8 @@ async fn query(
     debug!(uri = ?req.uri(), %q, ?format, %db_name, "running SQL query");
 
     let db = server.db(&db_name)?;
+
+    db.record_query("sql", &q);
 
     let ctx = db.new_query_context(req.extensions().get().cloned());
     let physical_plan = Planner::new(&ctx).sql(&q).await.context(Planning)?;

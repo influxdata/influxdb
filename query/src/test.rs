@@ -134,6 +134,8 @@ impl QueryDatabase for TestDatabase {
 
         found_one.then(|| Arc::new(merger.build()))
     }
+
+    fn record_query(&self, _query_type: impl Into<String>, _query_text: impl Into<String>) {}
 }
 
 impl ExecutionContextProvider for TestDatabase {

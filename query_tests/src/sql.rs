@@ -140,6 +140,7 @@ async fn sql_select_from_information_schema_tables() {
         "| public        | system             | columns             | BASE TABLE |",
         "| public        | system             | operations          | BASE TABLE |",
         "| public        | system             | persistence_windows | BASE TABLE |",
+        "| public        | system             | queries             | BASE TABLE |",
         "+---------------+--------------------+---------------------+------------+",
     ];
     run_sql_test_case(

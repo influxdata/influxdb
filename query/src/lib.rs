@@ -99,6 +99,9 @@ pub trait QueryDatabase: Debug + Send + Sync {
 
     /// Return a summary of all chunks in this database, in all partitions
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>, Self::Error>;
+
+    /// Record that particular type of query was run / planned
+    fn record_query(&self, query_type: impl Into<String>, query_text: impl Into<String>);
 }
 
 /// Collection of data that shares the same partition key

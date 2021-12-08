@@ -1,5 +1,8 @@
-use crate::common::server_fixture::{ServerFixture, ServerType};
-use arrow_util::assert_batches_eq;
+use crate::{
+    common::server_fixture::{ServerFixture, ServerType},
+    end_to_end_cases::scenario::Scenario,
+};
+use arrow_util::{assert_batches_eq, test_util::normalize_batches};
 
 use super::scenario::{collect_query, create_readable_database, list_chunks, rand_name};
 
@@ -71,5 +74,66 @@ async fn test_operations() {
         "+--------+-------------+",
     ];
 
+    assert_batches_eq!(expected_read_data, &batches);
+}
+
+#[tokio::test]
+async fn test_queries() {
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
+
+    let scenario = Scenario::new();
+    let (db_name, _db_uuid) = scenario
+        .create_database(&mut fixture.management_client())
+        .await;
+
+    // issue a storage gRPC query as well (likewise will error, but we
+    // are just checking that things are hooked up here).
+    let read_source = scenario.read_source();
+    let range = Some(generated_types::TimestampRange {
+        start: 111111,
+        end: 222222,
+    });
+
+    let read_filter_request = tonic::Request::new(generated_types::ReadFilterRequest {
+        read_source,
+        range,
+        ..Default::default()
+    });
+    fixture
+        .storage_client()
+        .read_filter(read_filter_request)
+        .await
+        .unwrap();
+
+    // Note: don't select issue_time as that changes from run to run
+    let query = "select query_type, query_text from system.queries";
+
+    // Query system.queries and should have an entry for the storage rpc
+    let query_results = fixture
+        .flight_client()
+        .perform_query(&db_name, query)
+        .await
+        .unwrap();
+
+    let batches = collect_query(query_results).await;
+    let batches = normalize_batches(batches, scenario.normalizer());
+
+    let expected_read_data = vec![
+        "+-------------+---------------------------------------------------+",
+        "| query_type  | query_text                                        |",
+        "+-------------+---------------------------------------------------+",
+        "| read_filter | {                                                 |",
+        "|             |   \"ReadSource\": {                                 |",
+        "|             |     \"typeUrl\": \"/TODO\",                           |",
+        "|             |     \"value\": \"ZZZZZZZZZZZZZZZZ\"                   |",
+        "|             |   },                                              |",
+        "|             |   \"range\": {                                      |",
+        "|             |     \"start\": \"111111\",                            |",
+        "|             |     \"end\": \"222222\"                               |",
+        "|             |   }                                               |",
+        "|             | }                                                 |",
+        "| sql         | select query_type, query_text from system.queries |",
+        "+-------------+---------------------------------------------------+",
+    ];
     assert_batches_eq!(expected_read_data, &batches);
 }

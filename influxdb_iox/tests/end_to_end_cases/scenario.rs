@@ -127,6 +127,28 @@ impl Scenario {
         })
     }
 
+    /// returns a function suitable for normalizing output that
+    /// contains org and bucket ids.
+    ///
+    /// Specifically, the function will replace all instances of
+    /// `org_id` with `XXXXXXXXXXXXXXXX` and the `bucket_id` with a
+    /// `YYYYYYYYYYYYYY`, and the read source with `ZZZZZZZZZZZZZZZZ`
+    pub fn normalizer(&self) -> impl Fn(&str) -> String {
+        let org_id = self.org_id.clone();
+        let bucket_id = self.bucket_id.clone();
+
+        // also, the actual gRPC request has the org id encoded in the ReadSource,
+        // \"value\": \"CLmSwbj3opLLdRCWrJ2bgoeRw5kBGP////8P\" |",
+        let read_source_value = self.read_source().unwrap().value;
+        let read_source_value = base64::encode(&read_source_value);
+
+        move |s: &str| {
+            s.replace(&org_id, "XXXXXXXXXXXXXXXX")
+                .replace(&bucket_id, "YYYYYYYYYYYYYY")
+                .replace(&read_source_value, "ZZZZZZZZZZZZZZZZ")
+        }
+    }
+
     /// Creates the database on the server for this scenario,
     /// returning (name, uuid)
     pub async fn create_database(
