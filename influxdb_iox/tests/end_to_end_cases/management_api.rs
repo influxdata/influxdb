@@ -1,3 +1,10 @@
+use crate::{
+    common::server_fixture::{ServerFixture, ServerType, TestConfig, DEFAULT_SERVER_ID},
+    end_to_end_cases::scenario::{
+        create_readable_database, create_two_partition_database, create_unreadable_database,
+        fixture_broken_catalog, rand_name, wait_for_exact_chunk_states, DatabaseBuilder,
+    },
+};
 use data_types::chunk_metadata::ChunkId;
 use generated_types::google::protobuf::{Duration, Empty};
 use influxdb_iox_client::{
@@ -8,20 +15,8 @@ use influxdb_iox_client::{
         Client,
     },
 };
-use std::{fs::set_permissions, num::NonZeroU32, os::unix::fs::PermissionsExt};
+use std::{fs::set_permissions, num::NonZeroU32, os::unix::fs::PermissionsExt, time::Instant};
 use test_helpers::{assert_contains, assert_error};
-
-use super::scenario::{
-    create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
-};
-use crate::common::server_fixture::{TestConfig, DEFAULT_SERVER_ID};
-use crate::{
-    common::server_fixture::{ServerFixture, ServerType},
-    end_to_end_cases::scenario::{
-        fixture_broken_catalog, wait_for_exact_chunk_states, DatabaseBuilder,
-    },
-};
-use std::time::Instant;
 use uuid::Uuid;
 
 #[tokio::test]
