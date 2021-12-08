@@ -314,9 +314,9 @@ pub struct DatabaseBuilder {
 }
 
 impl DatabaseBuilder {
-    pub fn new(name: String) -> Self {
+    pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name,
+            name: name.into(),
             partition_template: PartitionTemplate {
                 parts: vec![partition_template::Part {
                     part: Some(partition_template::part::Part::Table(Empty {})),
@@ -377,11 +377,11 @@ impl DatabaseBuilder {
         self
     }
 
-    // Build a database
+    // Build a database, returning the UUID of the created database
     pub async fn try_build(
         self,
         channel: Connection,
-    ) -> Result<(), influxdb_iox_client::error::Error> {
+    ) -> Result<Uuid, influxdb_iox_client::error::Error> {
         let mut management_client = management::Client::new(channel);
 
         management_client
@@ -392,22 +392,21 @@ impl DatabaseBuilder {
                 worker_cleanup_avg_sleep: None,
                 write_buffer_connection: self.write_buffer,
             })
-            .await?;
-        Ok(())
+            .await
     }
 
     // Build a database
-    pub async fn build(self, channel: Connection) {
+    pub async fn build(self, channel: Connection) -> Uuid {
         self.try_build(channel)
             .await
-            .expect("create database failed");
+            .expect("create database failed")
     }
 }
 
 /// given a channel to talk with the management api, create a new
 /// database with the specified name configured with a 10MB mutable
-/// buffer, partitioned on table
-pub async fn create_readable_database(db_name: impl Into<String>, channel: Connection) {
+/// buffer, partitioned on table, returning the UUID of the created database
+pub async fn create_readable_database(db_name: impl Into<String>, channel: Connection) -> Uuid {
     DatabaseBuilder::new(db_name.into()).build(channel).await
 }
 
@@ -518,6 +517,52 @@ where
             )
         }
 
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+}
+
+// Wait for up to `wait_time` all operations to be complete
+pub async fn wait_for_operations_to_complete(
+    fixture: &ServerFixture,
+    db_name: &str,
+    wait_time: std::time::Duration,
+) {
+    let t_start = std::time::Instant::now();
+    let mut operations_client = fixture.operations_client();
+
+    loop {
+        let mut operations = operations_client.list_operations().await.unwrap();
+        operations.sort_by(|a, b| a.operation.name.cmp(&b.operation.name));
+
+        // if all operations are complete, great!
+        let all_ops_done = operations
+            .iter()
+            .filter(|op| {
+                // job name matches
+                op.metadata
+                    .job
+                    .as_ref()
+                    .map(|job| job.db_name() == db_name)
+                    .unwrap_or(false)
+            })
+            .all(|op| op.operation.done);
+
+        if all_ops_done {
+            println!(
+                "All operations for {} complete after {:?}:\n\n{:#?}",
+                db_name,
+                t_start.elapsed(),
+                operations
+            );
+            return;
+        }
+
+        if t_start.elapsed() >= wait_time {
+            panic!(
+                "Operations for {} did not complete in {:?}:\n\n{:#?}",
+                db_name, wait_time, operations
+            );
+        }
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
 }

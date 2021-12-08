@@ -1,6 +1,29 @@
 use crate::influxdata::iox::management::v1 as management;
 use data_types::job::Job;
 
+impl management::operation_metadata::Job {
+    /// Return the db_name for this job
+    pub fn db_name(&self) -> &str {
+        match self {
+            Self::Dummy(management::Dummy { db_name, .. }) => db_name,
+            Self::WriteChunk(management::WriteChunk { db_name, .. }) => db_name,
+            Self::WipePreservedCatalog(management::WipePreservedCatalog { db_name, .. }) => db_name,
+            Self::CompactChunks(management::CompactChunks { db_name, .. }) => db_name,
+            Self::PersistChunks(management::PersistChunks { db_name, .. }) => db_name,
+            Self::DropChunk(management::DropChunk { db_name, .. }) => db_name,
+            Self::DropPartition(management::DropPartition { db_name, .. }) => db_name,
+            Self::LoadReadBufferChunk(management::LoadReadBufferChunk { db_name, .. }) => db_name,
+            Self::RebuildPreservedCatalog(management::RebuildPreservedCatalog {
+                db_name, ..
+            }) => db_name,
+            Self::CompactObjectStoreChunks(management::CompactObjectStoreChunks {
+                db_name,
+                ..
+            }) => db_name,
+        }
+    }
+}
+
 impl From<Job> for management::operation_metadata::Job {
     fn from(job: Job) -> Self {
         match job {
