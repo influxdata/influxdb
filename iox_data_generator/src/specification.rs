@@ -1,6 +1,7 @@
 //! Reading and interpreting data generation specifications.
 
 use humantime::parse_duration;
+use regex::Regex;
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{fs, ops::Range, str::FromStr, sync::Arc, time::Duration};
@@ -32,6 +33,17 @@ pub enum Error {
         agent
     ))]
     AgentNotFound { agent: String },
+
+    #[snafu(display("bucket_writers can only use ratio or regex, not both"))]
+    BucketWritersConfig,
+
+    #[snafu(display(
+        "bucket_writer missing regex. If one uses a regex, all others must also use it"
+    ))]
+    RegexMissing,
+
+    #[snafu(display("bucket_writers regex {} failed with error: {}", regex, source))]
+    RegexCompile { regex: String, source: regex::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -76,25 +88,10 @@ impl DataSpec {
         let mut bucket_agents = Vec::with_capacity(buckets.len());
 
         let mut start = 0;
+        let use_ratio =
+            self.bucket_writers[0].ratio.is_some() || self.bucket_writers[0].regex.is_none();
+
         for w in &self.bucket_writers {
-            if start >= buckets.len() {
-                warn!(
-                    "Bucket_writers percentages > 1.0. Writer {:?} and later skipped.",
-                    w
-                );
-                break;
-            }
-
-            // validate the agents actually exist in the spec
-            for a in &w.agents {
-                let _ = self.agent_by_name(&a.name).unwrap_or_else(|| {
-                    panic!(
-                        "agent {} referenced in bucket writers, but isn't in the spec",
-                        a.name
-                    )
-                });
-            }
-
             let agents: Vec<_> = w
                 .agents
                 .iter()
@@ -115,19 +112,43 @@ impl DataSpec {
                 .collect::<Result<Vec<_>>>()?;
             let agents = Arc::new(agents);
 
-            let mut end = (buckets.len() as f64 * w.ratio).ceil() as usize + start;
-            if end > buckets.len() {
-                end = buckets.len();
-            }
+            let selected_buckets = if use_ratio {
+                if w.regex.is_some() {
+                    return BucketWritersConfig.fail();
+                }
 
-            for org_bucket in &buckets[start..end] {
+                if start >= buckets.len() {
+                    warn!(
+                        "Bucket_writers percentages > 1.0. Writer {:?} and later skipped.",
+                        w
+                    );
+                    break;
+                }
+
+                let mut end =
+                    (buckets.len() as f64 * w.ratio.unwrap_or(1.0)).ceil() as usize + start;
+                if end > buckets.len() {
+                    end = buckets.len();
+                }
+
+                let selected_buckets = &buckets[start..end];
+                start = end;
+                selected_buckets.iter().collect::<Vec<_>>()
+            } else {
+                let p = w.regex.as_ref().context(RegexMissing)?;
+                let re = Regex::new(p).context(RegexCompile { regex: p })?;
+                buckets
+                    .iter()
+                    .filter(|b| re.is_match(&b.database_name()))
+                    .collect::<Vec<_>>()
+            };
+
+            for org_bucket in selected_buckets {
                 bucket_agents.push(BucketAgents {
                     org_bucket,
                     agent_assignments: Arc::clone(&agents),
                 })
             }
-
-            start = end;
         }
 
         Ok(bucket_agents)
@@ -152,6 +173,12 @@ pub struct OrgBucket {
     pub org: String,
     /// The bucket name
     pub bucket: String,
+}
+
+impl OrgBucket {
+    fn database_name(&self) -> String {
+        format!("{}_{}", self.org, self.bucket)
+    }
 }
 
 #[derive(Debug)]
@@ -236,8 +263,12 @@ pub struct TagSetsSpec {
 #[serde(deny_unknown_fields)]
 pub struct BucketWriterSpec {
     /// The ratio of buckets from the provided list that should use these agents. The
-    /// ratios of the collection of bucket writer specs should add up to 1.0.
-    pub ratio: f64,
+    /// ratios of the collection of bucket writer specs should add up to 1.0. If it
+    /// is not provided, ratio will be 1.0.
+    pub ratio: Option<f64>,
+    /// Regex to select buckets from the provided list. If regex is used in any one
+    /// of the bucket_writers, ratio will be ignored for all. So use either ratio or regex.
+    pub regex: Option<String>,
     /// The agents that should be used to write to these databases.
     pub agents: Vec<AgentAssignmentSpec>,
 }
@@ -659,7 +690,7 @@ agents = [{name = "foo", sampling_interval = "10s"}]
     }
 
     #[test]
-    fn split_buckets_by_writer_spec() {
+    fn split_buckets_by_writer_spec_ratio() {
         let toml = r#"
 name = "demo_schema"
 
@@ -731,5 +762,184 @@ agents = [{name = "bar", sampling_interval = "1m", count = 3}]
         );
         assert_eq!(b.agent_assignments[0].count, 3);
         assert_eq!(b.agent_assignments[0].spec.name, "bar");
+    }
+
+    #[test]
+    fn split_buckets_by_writer_spec_regex() {
+        let toml = r#"
+name = "demo_schema"
+
+[[agents]]
+name = "foo"
+[[agents.measurements]]
+name = "cpu"
+[[agents.measurements.fields]]
+name = "host"
+template = "server"
+
+[[agents]]
+name = "bar"
+[[agents.measurements]]
+name = "whatevs"
+[[agents.measurements.fields]]
+name = "val"
+i64_range = [0, 10]
+
+[[bucket_writers]]
+regex = "foo.*"
+agents = [{name = "foo", sampling_interval = "10s"}]
+
+[[bucket_writers]]
+regex = ".*_bar"
+agents = [{name = "bar", sampling_interval = "1m", count = 3}]
+"#;
+
+        let spec = DataSpec::from_str(toml).unwrap();
+        let buckets = vec![
+            OrgBucket {
+                org: "foo".to_string(),
+                bucket: "1".to_string(),
+            },
+            OrgBucket {
+                org: "foo".to_string(),
+                bucket: "2".to_string(),
+            },
+            OrgBucket {
+                org: "asdf".to_string(),
+                bucket: "bar".to_string(),
+            },
+        ];
+
+        let bucket_agents = spec.bucket_split_to_agents(&buckets).unwrap();
+
+        let b = &bucket_agents[0];
+        assert_eq!(b.org_bucket, &buckets[0]);
+        assert_eq!(
+            b.agent_assignments[0].sampling_interval,
+            Duration::from_secs(10)
+        );
+        assert_eq!(b.agent_assignments[0].count, 1);
+        assert_eq!(b.agent_assignments[0].spec.name, "foo");
+
+        let b = &bucket_agents[1];
+        assert_eq!(b.org_bucket, &buckets[1]);
+        assert_eq!(
+            b.agent_assignments[0].sampling_interval,
+            Duration::from_secs(10)
+        );
+        assert_eq!(b.agent_assignments[0].count, 1);
+        assert_eq!(b.agent_assignments[0].spec.name, "foo");
+
+        let b = &bucket_agents[2];
+        assert_eq!(b.org_bucket, &buckets[2]);
+        assert_eq!(
+            b.agent_assignments[0].sampling_interval,
+            Duration::from_secs(60)
+        );
+        assert_eq!(b.agent_assignments[0].count, 3);
+        assert_eq!(b.agent_assignments[0].spec.name, "bar");
+    }
+
+    #[test]
+    fn split_buckets_by_writer_regex_and_ratio_error() {
+        let toml = r#"
+name = "demo_schema"
+
+[[agents]]
+name = "foo"
+[[agents.measurements]]
+name = "cpu"
+[[agents.measurements.fields]]
+name = "host"
+template = "server"
+
+[[agents]]
+name = "bar"
+[[agents.measurements]]
+name = "whatevs"
+[[agents.measurements.fields]]
+name = "val"
+i64_range = [0, 10]
+
+[[bucket_writers]]
+ratio = 0.8
+agents = [{name = "foo", sampling_interval = "10s"}]
+
+[[bucket_writers]]
+regex = "foo.*"
+agents = [{name = "bar", sampling_interval = "1m", count = 3}]
+"#;
+
+        let spec = DataSpec::from_str(toml).unwrap();
+        let buckets = vec![
+            OrgBucket {
+                org: "a".to_string(),
+                bucket: "1".to_string(),
+            },
+            OrgBucket {
+                org: "a".to_string(),
+                bucket: "2".to_string(),
+            },
+            OrgBucket {
+                org: "b".to_string(),
+                bucket: "1".to_string(),
+            },
+        ];
+
+        let bucket_agents = spec.bucket_split_to_agents(&buckets);
+        assert!(matches!(
+            bucket_agents.unwrap_err(),
+            Error::BucketWritersConfig
+        ));
+    }
+
+    #[test]
+    fn split_buckets_by_writer_ratio_defaults() {
+        let toml = r#"
+name = "demo_schema"
+
+[[agents]]
+name = "foo"
+[[agents.measurements]]
+name = "cpu"
+[[agents.measurements.fields]]
+name = "host"
+template = "server"
+
+[[bucket_writers]]
+agents = [{name = "foo", sampling_interval = "10s"}]
+"#;
+
+        let spec = DataSpec::from_str(toml).unwrap();
+        let buckets = vec![
+            OrgBucket {
+                org: "a".to_string(),
+                bucket: "1".to_string(),
+            },
+            OrgBucket {
+                org: "a".to_string(),
+                bucket: "2".to_string(),
+            },
+        ];
+
+        let bucket_agents = spec.bucket_split_to_agents(&buckets).unwrap();
+
+        let b = &bucket_agents[0];
+        assert_eq!(b.org_bucket, &buckets[0]);
+        assert_eq!(
+            b.agent_assignments[0].sampling_interval,
+            Duration::from_secs(10)
+        );
+        assert_eq!(b.agent_assignments[0].count, 1);
+        assert_eq!(b.agent_assignments[0].spec.name, "foo");
+
+        let b = &bucket_agents[1];
+        assert_eq!(b.org_bucket, &buckets[1]);
+        assert_eq!(
+            b.agent_assignments[0].sampling_interval,
+            Duration::from_secs(10)
+        );
+        assert_eq!(b.agent_assignments[0].count, 1);
+        assert_eq!(b.agent_assignments[0].spec.name, "foo");
     }
 }

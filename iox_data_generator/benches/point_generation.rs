@@ -30,7 +30,8 @@ pub fn single_agent(c: &mut Criterion) {
             tag_pairs: vec![],
         }],
         bucket_writers: vec![BucketWriterSpec {
-            ratio: 1.0,
+            ratio: Some(1.0),
+            regex: None,
             agents: vec![AgentAssignmentSpec {
                 name: "foo".to_string(),
                 count: None,

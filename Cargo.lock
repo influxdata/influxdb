@@ -1725,6 +1725,7 @@ dependencies = [
  "influxdb_iox_client",
  "itertools",
  "rand",
+ "regex",
  "serde",
  "serde_json",
  "snafu",
