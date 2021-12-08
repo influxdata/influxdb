@@ -87,7 +87,8 @@ func TestEnqueueScan(t *testing.T) {
 			}
 
 			// Check queue position
-			closeRq(rq)
+			close(rq.done)
+			rq.wg.Wait()
 			scan, err := rq.queue.NewScanner()
 
 			if tt.writeFuncReturn == nil {
@@ -370,7 +371,7 @@ func TestEnqueueData(t *testing.T) {
 	// close the scanner goroutine to specifically test EnqueueData()
 	rq, ok := qm.replicationQueues[id1]
 	require.True(t, ok)
-	closeRq(rq)
+	close(rq.done)
 	go func() { <-rq.receive }() // absorb the receive to avoid testcase deadlock
 
 	require.NoError(t, qm.EnqueueData(id1, []byte(data), 1))
@@ -395,7 +396,7 @@ func TestEnqueueData_WithMetrics(t *testing.T) {
 	// close the scanner goroutine to specifically test EnqueueData()
 	rq, ok := qm.replicationQueues[id1]
 	require.True(t, ok)
-	closeRq(rq)
+	close(rq.done)
 
 	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(qm.metrics.PrometheusCollectors()...)
@@ -470,7 +471,7 @@ func TestGoroutineReceives(t *testing.T) {
 	rq, ok := qm.replicationQueues[id1]
 	require.True(t, ok)
 	require.NotNil(t, rq)
-	closeRq(rq) // atypical from normal behavior, but lets us receive channels to test
+	close(rq.done) // atypical from normal behavior, but lets us receive channels to test
 
 	go func() { require.NoError(t, qm.EnqueueData(id1, []byte("1234"), 1)) }()
 	select {
@@ -498,11 +499,4 @@ func TestGoroutineCloses(t *testing.T) {
 	// wg should be zero here, indicating that the goroutine has closed
 	// if this does not panic, then the routine is still active
 	require.Panics(t, func() { rq.wg.Add(-1) })
-}
-
-// closeRq closes the done channel of a replication queue so that the run() function returns, but keeps the underlying
-// queue open for testing purposes.
-func closeRq(rq *replicationQueue) {
-	close(rq.done)
-	rq.wg.Wait() // wait for run() function to return
 }
