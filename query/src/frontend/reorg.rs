@@ -103,7 +103,7 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.scan_plan(schema, chunks, true)?;
+        } = self.sorted_scan_plan(schema, chunks)?;
 
         let mut schema = provider.iox_schema();
 
@@ -186,7 +186,7 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.scan_plan(schema, chunks, true)?;
+        } = self.sorted_scan_plan(schema, chunks)?;
 
         let mut schema = provider.iox_schema();
 
@@ -226,7 +226,7 @@ impl ReorgPlanner {
     ///
     /// Refer to query::provider::build_scan_plan for the detail of the plan
     ///
-    fn scan_plan<C, I>(&self, schema: Arc<Schema>, chunks: I, sort: bool) -> Result<ScanPlan<C>>
+    fn sorted_scan_plan<C, I>(&self, schema: Arc<Schema>, chunks: I) -> Result<ScanPlan<C>>
     where
         C: QueryChunk + 'static,
         I: IntoIterator<Item = Arc<C>>,
@@ -240,10 +240,8 @@ impl ReorgPlanner {
 
         // Prepare the plan for the table
         let mut builder = ProviderBuilder::new(table_name, schema);
-        if sort {
-            // Tell the scan of this provider to sort its output on the chunks' PK
-            builder.ensure_pk_sort();
-        }
+        // Tell the scan of this provider to sort its output on the chunks' PK
+        builder.ensure_pk_sort();
 
         // There are no predicates in these plans, so no need to prune them
         builder = builder.add_no_op_pruner();
@@ -353,7 +351,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_scan_plan() {
+    async fn test_sorted_scan_plan() {
         test_helpers::maybe_start_logging();
 
         let (schema, chunks) = get_test_chunks().await;
