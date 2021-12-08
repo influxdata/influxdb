@@ -1,11 +1,14 @@
 //! Reading and interpreting data generation specifications.
 
+use humantime::parse_duration;
 use serde::Deserialize;
-use snafu::{ResultExt, Snafu};
-use std::{fs, ops::Range, str::FromStr};
+use snafu::{OptionExt, ResultExt, Snafu};
+use std::{fs, ops::Range, str::FromStr, sync::Arc, time::Duration};
+use tracing::warn;
 
 /// Errors that may happen while reading a TOML specification.
 #[derive(Snafu, Debug)]
+#[allow(missing_docs)]
 pub enum Error {
     /// File-related error that may happen while reading a specification
     #[snafu(display(r#"Error reading data spec from TOML file: {}"#, source))]
@@ -20,6 +23,15 @@ pub enum Error {
         /// Underlying TOML error that caused this problem
         source: toml::de::Error,
     },
+
+    #[snafu(display("Sampling interval must be valid string: {}", source))]
+    InvalidSamplingInterval { source: humantime::DurationError },
+
+    #[snafu(display(
+        "Agent {} referenced in bucket_writers, but not present in spec",
+        agent
+    ))]
+    AgentNotFound { agent: String },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -43,8 +55,10 @@ pub struct DataSpec {
     /// set of tags that appear.
     #[serde(default)]
     pub tag_sets: Vec<TagSetsSpec>,
-    /// The specification for the data-generating agents in this data set.
+    /// The specification for the agents that can be used to write data to databases.
     pub agents: Vec<AgentSpec>,
+    /// The specification for writing to the provided list of buckets.
+    pub bucket_writers: Vec<BucketWriterSpec>,
 }
 
 impl DataSpec {
@@ -53,6 +67,111 @@ impl DataSpec {
         let spec_toml = fs::read_to_string(file_name).context(ReadFile)?;
         Self::from_str(&spec_toml)
     }
+
+    /// Given a collection of OrgBuckets, assign each a set of agents based on the spec
+    pub fn bucket_split_to_agents<'a>(
+        &'a self,
+        buckets: &'a [OrgBucket],
+    ) -> Result<Vec<BucketAgents<'a>>> {
+        let mut bucket_agents = Vec::with_capacity(buckets.len());
+
+        let mut start = 0;
+        for w in &self.bucket_writers {
+            if start >= buckets.len() {
+                warn!(
+                    "Bucket_writers percentages > 1.0. Writer {:?} and later skipped.",
+                    w
+                );
+                break;
+            }
+
+            // validate the agents actually exist in the spec
+            for a in &w.agents {
+                let _ = self.agent_by_name(&a.name).unwrap_or_else(|| {
+                    panic!(
+                        "agent {} referenced in bucket writers, but isn't in the spec",
+                        a.name
+                    )
+                });
+            }
+
+            let agents: Vec<_> = w
+                .agents
+                .iter()
+                .map(|a| {
+                    let count = a.count.unwrap_or(1);
+                    let sampling_interval =
+                        parse_duration(&a.sampling_interval).context(InvalidSamplingInterval)?;
+                    let spec = self
+                        .agent_by_name(&a.name)
+                        .context(AgentNotFound { agent: &a.name })?;
+
+                    Ok(AgentAssignment {
+                        spec,
+                        count,
+                        sampling_interval,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let agents = Arc::new(agents);
+
+            let mut end = (buckets.len() as f64 * w.ratio).ceil() as usize + start;
+            if end > buckets.len() {
+                end = buckets.len();
+            }
+
+            for org_bucket in &buckets[start..end] {
+                bucket_agents.push(BucketAgents {
+                    org_bucket,
+                    agent_assignments: Arc::clone(&agents),
+                })
+            }
+
+            start = end;
+        }
+
+        Ok(bucket_agents)
+    }
+
+    /// Get the agent spec by its name
+    pub fn agent_by_name(&self, name: &str) -> Option<&AgentSpec> {
+        for a in &self.agents {
+            if a.name == name {
+                return Some(a);
+            }
+        }
+
+        None
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+/// Specifies an org and a bucket to write data to
+pub struct OrgBucket {
+    /// The organization name
+    pub org: String,
+    /// The bucket name
+    pub bucket: String,
+}
+
+#[derive(Debug)]
+/// Assignment info for an agent to a bucket
+pub struct AgentAssignment<'a> {
+    /// The agent specification for writing to the assigned bucket
+    pub spec: &'a AgentSpec,
+    /// The number of these agents that should be writing to the bucket
+    pub count: usize,
+    /// The sampling interval agents will generate data on
+    pub sampling_interval: Duration,
+}
+
+#[derive(Debug)]
+/// Agent assignments mapped to a bucket
+pub struct BucketAgents<'a> {
+    /// The organization and bucket data will get written to
+    pub org_bucket: &'a OrgBucket,
+    /// The agents specifications that will be writing to the bucket
+    pub agent_assignments: Arc<Vec<AgentAssignment<'a>>>,
 }
 
 impl FromStr for DataSpec {
@@ -110,6 +229,33 @@ pub struct TagSetsSpec {
     pub for_each: Vec<String>,
 }
 
+/// The specification for what should be written to the list of provided org buckets.
+/// Buckets will be written to by one or more agents with the given sampling interval and
+/// agent count.
+#[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct BucketWriterSpec {
+    /// The ratio of buckets from the provided list that should use these agents. The
+    /// ratios of the collection of bucket writer specs should add up to 1.0.
+    pub ratio: f64,
+    /// The agents that should be used to write to these databases.
+    pub agents: Vec<AgentAssignmentSpec>,
+}
+
+/// The specification for the specific configuration of how an agent should write to a database.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct AgentAssignmentSpec {
+    /// The name of the `AgentSpec` to use
+    pub name: String,
+    /// The number of these agents that should write to the database
+    pub count: Option<usize>,
+    /// How frequently each agent will write to the database. This is applicable when using the
+    /// --continue flag. Otherwise, if doing historical backfill, timestamps of generated data
+    /// will be this far apart and data will be written in as quickly as possible.
+    pub sampling_interval: String,
+}
+
 /// The specification of the behavior of an agent, the entity responsible for
 /// generating a number of data points according to its configuration.
 #[derive(Deserialize, Debug)]
@@ -118,12 +264,6 @@ pub struct TagSetsSpec {
 pub struct AgentSpec {
     /// The name of the agent, which can be referenced in templates with `agent.name`.
     pub name: String,
-    /// Specifies the number of agents that should be created with this spec.
-    /// Default value is 1.
-    pub count: Option<usize>,
-    /// How often this agent should generate samples, in a duration string. If
-    /// not specified, this agent will only generate one sample.
-    pub sampling_interval: Option<String>,
     /// The specifications for the measurements for the agent to generate.
     pub measurements: Vec<MeasurementSpec>,
     /// A collection of strings that reference other `Values` collections. Each agent will have one
@@ -493,6 +633,10 @@ name = "cpu"
 [[agents.measurements.fields]]
 name = "host"
 template = "server"
+
+[[bucket_writers]]
+ratio = 1.0
+agents = [{name = "foo", sampling_interval = "10s"}]
 "#;
         let spec = DataSpec::from_str(toml).unwrap();
 
@@ -512,5 +656,80 @@ template = "server"
             "expected a String field with empty replacements; was {:?}",
             field_spec
         );
+    }
+
+    #[test]
+    fn split_buckets_by_writer_spec() {
+        let toml = r#"
+name = "demo_schema"
+
+[[agents]]
+name = "foo"
+[[agents.measurements]]
+name = "cpu"
+[[agents.measurements.fields]]
+name = "host"
+template = "server"
+
+[[agents]]
+name = "bar"
+[[agents.measurements]]
+name = "whatevs"
+[[agents.measurements.fields]]
+name = "val"
+i64_range = [0, 10]
+
+[[bucket_writers]]
+ratio = 0.6
+agents = [{name = "foo", sampling_interval = "10s"}]
+
+[[bucket_writers]]
+ratio = 0.4
+agents = [{name = "bar", sampling_interval = "1m", count = 3}]
+"#;
+        let spec = DataSpec::from_str(toml).unwrap();
+        let buckets = vec![
+            OrgBucket {
+                org: "a".to_string(),
+                bucket: "1".to_string(),
+            },
+            OrgBucket {
+                org: "a".to_string(),
+                bucket: "2".to_string(),
+            },
+            OrgBucket {
+                org: "b".to_string(),
+                bucket: "1".to_string(),
+            },
+        ];
+
+        let bucket_agents = spec.bucket_split_to_agents(&buckets).unwrap();
+
+        let b = &bucket_agents[0];
+        assert_eq!(b.org_bucket, &buckets[0]);
+        assert_eq!(
+            b.agent_assignments[0].sampling_interval,
+            Duration::from_secs(10)
+        );
+        assert_eq!(b.agent_assignments[0].count, 1);
+        assert_eq!(b.agent_assignments[0].spec.name, "foo");
+
+        let b = &bucket_agents[1];
+        assert_eq!(b.org_bucket, &buckets[1]);
+        assert_eq!(
+            b.agent_assignments[0].sampling_interval,
+            Duration::from_secs(10)
+        );
+        assert_eq!(b.agent_assignments[0].count, 1);
+        assert_eq!(b.agent_assignments[0].spec.name, "foo");
+
+        let b = &bucket_agents[2];
+        assert_eq!(b.org_bucket, &buckets[2]);
+        assert_eq!(
+            b.agent_assignments[0].sampling_interval,
+            Duration::from_secs(60)
+        );
+        assert_eq!(b.agent_assignments[0].count, 3);
+        assert_eq!(b.agent_assignments[0].spec.name, "bar");
     }
 }

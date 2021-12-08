@@ -94,11 +94,7 @@ pub struct PointsWriterBuilder {
 
 #[derive(Debug)]
 enum PointsWriterConfig {
-    Api {
-        client: influxdb2_client::Client,
-        org: String,
-        bucket: String,
-    },
+    Api(influxdb2_client::Client),
     Directory(PathBuf),
     NoOp {
         perform_write: bool,
@@ -113,8 +109,6 @@ impl PointsWriterBuilder {
     /// specified org and bucket.
     pub async fn new_api(
         host: impl Into<String> + Send,
-        org: impl Into<String> + Send,
-        bucket: impl Into<String> + Send,
         token: impl Into<String> + Send,
         jaeger_debug: Option<&str>,
     ) -> Result<Self> {
@@ -133,15 +127,9 @@ impl PointsWriterBuilder {
         if let Some(header) = jaeger_debug {
             client = client.with_jaeger_debug(header.to_string());
         }
-        let org = org.into();
-        let bucket = bucket.into();
 
         Ok(Self {
-            config: PointsWriterConfig::Api {
-                client,
-                org,
-                bucket,
-            },
+            config: PointsWriterConfig::Api(client),
         })
     }
 
@@ -172,16 +160,17 @@ impl PointsWriterBuilder {
 
     /// Create a writer out of this writer's configuration for a particular
     /// agent that runs in a separate thread/task.
-    pub fn build_for_agent(&mut self, name: impl Into<String>) -> Result<PointsWriter> {
+    pub fn build_for_agent(
+        &mut self,
+        name: impl Into<String>,
+        org: impl Into<String>,
+        bucket: impl Into<String>,
+    ) -> Result<PointsWriter> {
         let inner_writer = match &mut self.config {
-            PointsWriterConfig::Api {
-                client,
-                org,
-                bucket,
-            } => InnerPointsWriter::Api {
+            PointsWriterConfig::Api(client) => InnerPointsWriter::Api {
                 client: client.clone(),
-                org: org.clone(),
-                bucket: bucket.clone(),
+                org: org.into(),
+                bucket: bucket.into(),
             },
             PointsWriterConfig::Directory(dir_path) => {
                 let mut filename = dir_path.clone();
@@ -351,7 +340,12 @@ name = "cpu"
 
 [[agents.measurements.fields]]
 name = "val"
-i64_range = [3,3]"#;
+i64_range = [3,3]
+
+[[bucket_writers]]
+ratio = 1.0
+agents = [{name = "foo", sampling_interval = "1s"}]
+"#;
 
         let data_spec = DataSpec::from_str(toml).unwrap();
         let mut points_writer_builder = PointsWriterBuilder::new_vec();
@@ -360,6 +354,10 @@ i64_range = [3,3]"#;
 
         generate(
             &data_spec,
+            vec![OrgBucket {
+                org: "foo".to_string(),
+                bucket: "bar".to_string(),
+            }],
             &mut points_writer_builder,
             Some(now),
             Some(now),
@@ -389,14 +387,18 @@ name = "demo_schema"
 
 [[agents]]
 name = "foo"
-sampling_interval = "1s" # seconds
 
 [[agents.measurements]]
 name = "cpu"
 
 [[agents.measurements.fields]]
 name = "val"
-i64_range = [2, 2]"#;
+i64_range = [2, 2]
+
+[[bucket_writers]]
+ratio = 1.0
+agents = [{name = "foo", sampling_interval = "1s"}]
+"#;
 
         let data_spec = DataSpec::from_str(toml).unwrap();
         let mut points_writer_builder = PointsWriterBuilder::new_vec();
@@ -405,6 +407,10 @@ i64_range = [2, 2]"#;
 
         generate(
             &data_spec,
+            vec![OrgBucket {
+                org: "foo".to_string(),
+                bucket: "bar".to_string(),
+            }],
             &mut points_writer_builder,
             Some(now - 1_000_000_000),
             Some(now),
