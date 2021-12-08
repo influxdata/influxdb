@@ -8,6 +8,10 @@ mod flight_api;
 mod freeze;
 mod http;
 mod influxdb_ioxd;
+
+#[cfg(feature = "kafka")]
+mod kafka;
+
 mod management_api;
 mod management_cli;
 mod metrics;
