@@ -115,7 +115,7 @@ impl DataSpec {
                 .collect::<Result<Vec<_>>>()?;
             let agents = Arc::new(agents);
 
-            let mut end = (buckets.len() as f64 * w.percent).ceil() as usize + start;
+            let mut end = (buckets.len() as f64 * w.ratio).ceil() as usize + start;
             if end > buckets.len() {
                 end = buckets.len();
             }
@@ -235,9 +235,9 @@ pub struct TagSetsSpec {
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct BucketWriterSpec {
-    /// The percentage of buckets from the provided list that should use these agents. The
-    /// percent should add up to 1.0 (100%).
-    pub percent: f64,
+    /// The ratio of buckets from the provided list that should use these agents. The
+    /// ratios of the collection of bucket writer specs should add up to 1.0.
+    pub ratio: f64,
     /// The agents that should be used to write to these databases.
     pub agents: Vec<AgentAssignmentSpec>,
 }
@@ -635,7 +635,7 @@ name = "host"
 template = "server"
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "foo", sampling_interval = "10s"}]
 "#;
         let spec = DataSpec::from_str(toml).unwrap();
@@ -680,11 +680,11 @@ name = "val"
 i64_range = [0, 10]
 
 [[bucket_writers]]
-percent = 0.6
+ratio = 0.6
 agents = [{name = "foo", sampling_interval = "10s"}]
 
 [[bucket_writers]]
-percent = 0.4
+ratio = 0.4
 agents = [{name = "bar", sampling_interval = "1m", count = 3}]
 "#;
         let spec = DataSpec::from_str(toml).unwrap();

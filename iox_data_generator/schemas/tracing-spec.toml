@@ -31,5 +31,5 @@ name = "timing"
 f64_range = [0.0, 500.0]
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "tracing_agent", sampling_interval = "1s"}]

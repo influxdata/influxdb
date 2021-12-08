@@ -548,7 +548,7 @@ mod test {
             i64_range = [3, 3]
 
             [[bucket_writers]]
-            percent = 1.0
+            ratio = 1.0
             agents = [{name = "foo", sampling_interval = "10s"}]"#,
         )
             .unwrap();
@@ -611,7 +611,7 @@ mod test {
             i64_range = [3, 3]
 
             [[bucket_writers]]
-            percent = 1.0
+            ratio = 1.0
             agents = [{name = "foo", sampling_interval = "10s"}]"#,
         )
         .unwrap();

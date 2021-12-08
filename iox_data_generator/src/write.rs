@@ -343,7 +343,7 @@ name = "val"
 i64_range = [3,3]
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "foo", sampling_interval = "1s"}]
 "#;
 
@@ -396,7 +396,7 @@ name = "val"
 i64_range = [2, 2]
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "foo", sampling_interval = "1s"}]
 "#;
 

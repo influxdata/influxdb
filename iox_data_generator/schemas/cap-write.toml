@@ -3,7 +3,7 @@
 name = "cap_write"
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "telegraf", count = 3, sampling_interval = "10s"}]
 
 [[agents]]

@@ -237,7 +237,7 @@ name = "val"
 i64_range = [1, 1]
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "foo", sampling_interval = "10s"}]
 "#;
         let data_spec = DataSpec::from_str(toml).unwrap();

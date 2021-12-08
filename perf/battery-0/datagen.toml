@@ -14,5 +14,5 @@ name = "usage_user"
 f64_range = [0.0, 100.0]
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "foo", count = 3, sampling_interval = "10s"}]

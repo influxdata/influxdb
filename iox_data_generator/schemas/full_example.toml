@@ -177,12 +177,12 @@ bool = true
 # amounts of write load as well as different schemas through specifying different agents.
 [[bucket_writers]]
 # 20% of the buckets specified in the --bucket_list file will have these agents writing to them
-percent = 0.2
+ratio = 0.2
 # for each of those buckets, have 3 of the first_agent writing every 10s, and 1 of the another_example writing every minute.
 agents = [{name = "first_agent", count = 3, sampling_interval = "10s"}, {name = "another_example", sampling_interval = "1m"}]
 
 [[bucket_writers]]
 # the remaining 80% of the buckeets specified will write using these agents
-percent = 0.8
+ratio = 0.8
 # we'll only have a single agent of another_example for each database
 agents = [{name = "another_example", sampling_interval = "1s"}]

@@ -494,7 +494,7 @@ name = "f1"
 i64_range = [0, 23]
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "foo", sampling_interval = "10s"}]"#;
 
         let spec = DataSpec::from_str(toml).unwrap();
@@ -542,7 +542,7 @@ name = "f1"
 i64_range = [0, 23]
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "foo", sampling_interval = "10s"}]"#;
 
         let spec = DataSpec::from_str(toml).unwrap();
@@ -611,7 +611,7 @@ name = "f1"
 i64_range = [0, 23]
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "foo", sampling_interval = "10s"}]"#;
 
         let spec = DataSpec::from_str(toml).unwrap();

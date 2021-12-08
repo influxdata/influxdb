@@ -59,7 +59,7 @@ for_each = [
 ]
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "sender", sampling_interval = "10s"}]
 
 [[agents]]

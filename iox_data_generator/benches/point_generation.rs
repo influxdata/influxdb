@@ -30,7 +30,7 @@ pub fn single_agent(c: &mut Criterion) {
             tag_pairs: vec![],
         }],
         bucket_writers: vec![BucketWriterSpec {
-            percent: 1.0,
+            ratio: 1.0,
             agents: vec![AgentAssignmentSpec {
                 name: "foo".to_string(),
                 count: None,
@@ -154,7 +154,7 @@ name = "gauge"
 i64_range = [1, 8147240]
 
 [[bucket_writers]]
-percent = 1.0
+ratio = 1.0
 agents = [{name = "foo", sampling_interval = "1s", count = 3}]
 "#).unwrap();
 
