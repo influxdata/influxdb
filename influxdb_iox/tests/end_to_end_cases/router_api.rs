@@ -45,6 +45,7 @@ async fn test_router_crud() {
 
     // no routers
     assert_eq!(client.list_routers().await.unwrap().len(), 0);
+    assert_error!(client.get_router(&cfg_foo_1.name).await, Error::NotFound(_));
     client.delete_router(&router_name_b).await.unwrap();
 
     // add routers
@@ -54,6 +55,8 @@ async fn test_router_crud() {
     assert_eq!(routers.len(), 2);
     assert_eq!(&routers[0], &cfg_bar);
     assert_eq!(&routers[1], &cfg_foo_1);
+    assert_eq!(client.get_router(&cfg_bar.name).await.unwrap(), cfg_bar);
+    assert_eq!(client.get_router(&cfg_foo_1.name).await.unwrap(), cfg_foo_1);
 
     // update router
     client.update_router(cfg_foo_2.clone()).await.unwrap();
@@ -61,12 +64,18 @@ async fn test_router_crud() {
     assert_eq!(routers.len(), 2);
     assert_eq!(&routers[0], &cfg_bar);
     assert_eq!(&routers[1], &cfg_foo_2);
+    assert_eq!(client.get_router(&cfg_bar.name).await.unwrap(), cfg_bar);
+    assert_eq!(client.get_router(&cfg_foo_2.name).await.unwrap(), cfg_foo_2);
 
     // delete routers
     client.delete_router(&router_name_b).await.unwrap();
     let routers = client.list_routers().await.unwrap();
     assert_eq!(routers.len(), 1);
     assert_eq!(&routers[0], &cfg_bar);
+    assert_eq!(client.get_router(&cfg_bar.name).await.unwrap(), cfg_bar);
+    assert_error!(client.get_router(&cfg_foo_2.name).await, Error::NotFound(_));
+
+    // deleting router a second time is a no-op
     client.delete_router(&router_name_b).await.unwrap();
 }
 

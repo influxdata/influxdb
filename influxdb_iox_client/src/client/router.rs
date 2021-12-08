@@ -1,3 +1,5 @@
+use ::generated_types::google::OptionalField;
+
 use self::generated_types::{router_service_client::RouterServiceClient, *};
 
 use crate::connection::Connection;
@@ -47,6 +49,21 @@ impl Client {
         Self {
             inner: RouterServiceClient::new(channel),
         }
+    }
+
+    /// Get router
+    pub async fn get_router(
+        &mut self,
+        router_name: &str,
+    ) -> Result<generated_types::Router, Error> {
+        let response = self
+            .inner
+            .get_router(GetRouterRequest {
+                router_name: router_name.to_string(),
+            })
+            .await?;
+
+        Ok(response.into_inner().router.unwrap_field("router")?)
     }
 
     /// List routers.
