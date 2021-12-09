@@ -154,10 +154,11 @@ impl WriteBufferConfigFactory {
         _db_name: &str,
         _cfg: &WriteBufferConnection,
     ) -> Result<Arc<dyn WriteBufferWriting>, WriteBufferError> {
-        panic!(
+        Err(String::from(
             "`WriteBufferWriting` of type `kafka` requested, but Kafka support was not included \
-                in this build by enabling the `kafka` feature"
-        );
+                in this build by enabling the `kafka` feature",
+        )
+        .into())
     }
 
     /// Returns a new [`WriteBufferReading`] for the provided [`WriteBufferConnection`]
@@ -233,10 +234,11 @@ impl WriteBufferConfigFactory {
         _trace_collector: Option<&Arc<dyn TraceCollector>>,
         _cfg: &WriteBufferConnection,
     ) -> Result<Box<dyn WriteBufferReading>, WriteBufferError> {
-        panic!(
+        Err(String::from(
             "`WriteBufferReading` of type `kafka` requested, but Kafka support was not included \
-                in this build by enabling the `kafka` feature"
-        );
+                in this build by enabling the `kafka` feature",
+        )
+        .into())
     }
 }
 
@@ -487,6 +489,55 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(conn.type_name(), "kafka");
+        }
+    }
+
+    #[cfg(not(feature = "kafka"))]
+    mod no_kafka {
+        use super::*;
+
+        #[tokio::test]
+        async fn writing_to_kafka_without_kafka_feature_returns_error() {
+            let factory = factory();
+            let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
+            let cfg = WriteBufferConnection {
+                type_: "kafka".to_string(),
+                creation_config: Some(WriteBufferCreationConfig::default()),
+                ..Default::default()
+            };
+
+            let err = factory
+                .new_config_write(db_name.as_str(), &cfg)
+                .await
+                .unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "`WriteBufferWriting` of type `kafka` requested, but Kafka support was not \
+                included in this build by enabling the `kafka` feature"
+            );
+        }
+
+        #[tokio::test]
+        async fn reading_from_kafka_without_kafka_feature_returns_error() {
+            let factory = factory();
+            let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
+            let server_id = ServerId::try_from(1).unwrap();
+            let cfg = WriteBufferConnection {
+                type_: "kafka".to_string(),
+                creation_config: Some(WriteBufferCreationConfig::default()),
+                ..Default::default()
+            };
+
+            let err = factory
+                .new_config_read(server_id, db_name.as_str(), None, &cfg)
+                .await
+                .unwrap_err();
+
+            assert_eq!(
+                err.to_string(),
+                "`WriteBufferReading` of type `kafka` requested, but Kafka support was not \
+                included in this build by enabling the `kafka` feature"
+            );
         }
     }
 }
