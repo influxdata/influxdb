@@ -1061,10 +1061,21 @@ pub enum InitError {
 /// The Database startup state machine
 ///
 /// A Database starts in DatabaseState::Known and advances through the
-/// states in sequential order until it reaches Initialized or an error
-/// is encountered.
+/// non error states in sequential order until either:
+///
+/// 1. It reaches `Initialized`
+///
+/// 2. It is reset to `Known` and starts initialization again
+///
+/// 3. An error is encountered, in which case it transitions to one of
+/// the error states. Most are Terminal (and thus require operator
+/// intervention) but some (such as `WriteBufferCreationError` may
+/// resolve after some time to the basic initialization sequence
+/// (e.g. `Initialized`)
+///
 #[derive(Debug, Clone)]
 enum DatabaseState {
+    // Basic initialization sequence states:
     Known(DatabaseStateKnown),
     DatabaseObjectStoreFound(DatabaseStateDatabaseObjectStoreFound),
     OwnerInfoLoaded(DatabaseStateOwnerInfoLoaded),
@@ -1072,12 +1083,23 @@ enum DatabaseState {
     CatalogLoaded(DatabaseStateCatalogLoaded),
     Initialized(DatabaseStateInitialized),
 
+    // Error states
+    /// Terminal State
     DatabaseObjectStoreLookupError(DatabaseStateKnown, Arc<InitError>),
+    /// Terminal State
     NoActiveDatabase(DatabaseStateKnown, Arc<InitError>),
+    /// Terminal State
     OwnerInfoLoadError(DatabaseStateDatabaseObjectStoreFound, Arc<InitError>),
+    /// Terminal State
     RulesLoadError(DatabaseStateOwnerInfoLoaded, Arc<InitError>),
+    /// Terminal State
     CatalogLoadError(DatabaseStateRulesLoaded, Arc<InitError>),
+    /// Non Terminal State: There was an error creating a connction to
+    /// the WriteBuffer, but the connection will be retried. If a
+    /// connection is successfully created, the database will
+    /// transition to `Initialized`
     WriteBufferCreationError(DatabaseStateCatalogLoaded, Arc<InitError>),
+    /// Terminal State
     ReplayError(DatabaseStateCatalogLoaded, Arc<InitError>),
 }
 
