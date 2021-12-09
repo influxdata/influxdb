@@ -3,7 +3,7 @@ use crate::{
     common::server_fixture::{ServerFixture, ServerType},
     end_to_end_cases::scenario::{
         fixture_broken_catalog, fixture_replay_broken, list_chunks, wait_for_exact_chunk_states,
-        DatabaseBuilder,
+        wait_for_operations_to_complete, DatabaseBuilder,
     },
 };
 use assert_cmd::Command;
@@ -1546,4 +1546,139 @@ async fn test_persist_partition_error() {
         .stderr(predicate::str::contains(
             "Cannot persist partition because it cannot be flushed at the moment",
         ));
+}
+
+#[tokio::test]
+async fn test_compact_os_partition() {
+    // Make 2 persisted chunks for a partition
+    let (fixture, db_name, addr, _chunk_ids) = setup_load_and_persist_two_partition_chunks().await;
+
+    // Compact the partition which will compact those 2 chunks
+    let iox_operation: IoxOperation = serde_json::from_slice(
+        &Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("partition")
+            .arg("compact-object-store-partition")
+            .arg(&db_name)
+            .arg("cpu") // partition key
+            .arg("cpu") // table name
+            //.arg(chunk_ids)
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .get_output()
+            .stdout,
+    )
+    .expect("Expected JSON output");
+
+    // Ensure we got a legit job description back
+    match iox_operation.metadata.job {
+        Some(Job::CompactObjectStoreChunks(job)) => {
+            assert_eq!(job.chunks.len(), 2);
+            assert_eq!(&job.db_name, &db_name);
+            assert_eq!(job.partition_key.as_str(), "cpu");
+            assert_eq!(job.table_name.as_str(), "cpu");
+        }
+        job => panic!("unexpected job returned {:#?}", job),
+    }
+    // Wait for the compaction to complete
+    wait_for_operations_to_complete(&fixture, &db_name, Duration::from_secs(5)).await;
+
+    // Verify chunk the DB now only has one OS-only  chunk
+    let chunks = list_chunks(&fixture, &db_name).await;
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].storage, ChunkStorage::ObjectStoreOnly);
+}
+
+#[tokio::test]
+async fn test_compact_os_chunks() {
+    // Make 2 persisted chunks for a partition
+    let (fixture, db_name, addr, chunk_ids) = setup_load_and_persist_two_partition_chunks().await;
+
+    // Compact the partition which will compact those 2 chunks
+    let iox_operation: IoxOperation = serde_json::from_slice(
+        &Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("partition")
+            .arg("compact-object-store-chunks")
+            .arg(&db_name)
+            .arg("cpu") // partition key
+            .arg("cpu") // table name
+            .arg(chunk_ids[0].clone())
+            .arg(chunk_ids[1].clone())
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .get_output()
+            .stdout,
+    )
+    .expect("Expected JSON output");
+
+    // Ensure we got a legit job description back
+    match iox_operation.metadata.job {
+        Some(Job::CompactObjectStoreChunks(job)) => {
+            assert_eq!(job.chunks.len(), 2);
+            assert_eq!(&job.db_name, &db_name);
+            assert_eq!(job.partition_key.as_str(), "cpu");
+            assert_eq!(job.table_name.as_str(), "cpu");
+        }
+        job => panic!("unexpected job returned {:#?}", job),
+    }
+    // Wait for the compaction to complete
+    wait_for_operations_to_complete(&fixture, &db_name, Duration::from_secs(5)).await;
+
+    // Verify chunk the DB now only has one OS-only  chunk
+    let chunks = list_chunks(&fixture, &db_name).await;
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].storage, ChunkStorage::ObjectStoreOnly);
+}
+
+async fn setup_load_and_persist_two_partition_chunks(
+) -> (Arc<ServerFixture>, String, String, Vec<String>) {
+    let fixture = Arc::from(ServerFixture::create_shared(ServerType::Database).await);
+    let addr = fixture.grpc_base();
+    let db_name = rand_name();
+
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1)
+        .late_arrive_window_seconds(1)
+        .build(fixture.grpc_channel())
+        .await;
+
+    // Load first chunk and wait for it to get persisted
+    let lp_data = vec!["cpu,region=west user=23.2 10"];
+    load_lp(addr, &db_name, lp_data);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
+        std::time::Duration::from_secs(10),
+    )
+    .await;
+
+    // Load second chunk and wait for it to get persisted, too
+    let lp_data = vec!["cpu,region=east user=79 30"];
+    load_lp(addr, &db_name, lp_data);
+
+    let chunks = wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![
+            ChunkStorage::ReadBufferAndObjectStore,
+            ChunkStorage::ReadBufferAndObjectStore,
+        ],
+        std::time::Duration::from_secs(10),
+    )
+    .await;
+
+    // collect chunk ids
+    let chunk_ids: Vec<_> = chunks.iter().map(|c| c.id.get().to_string()).collect();
+
+    (Arc::clone(&fixture), db_name, String::from(addr), chunk_ids)
 }

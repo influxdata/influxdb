@@ -188,7 +188,7 @@ enum Command {
     /// Errors if the chunks are not yet compacted and not contiguous.
     CompactObjectStoreChunks(CompactObjectStoreChunks),
 
-    // Compact all object store cunks of a given partition
+    /// Compact all object store chunks of a given partition
     CompactObjectStorePartition(CompactObjectStorePartition),
 
     /// Drop partition from memory and (if persisted) from object store.
