@@ -1069,7 +1069,7 @@ pub enum InitError {
 ///
 /// 3. An error is encountered, in which case it transitions to one of
 /// the error states. Most are Terminal (and thus require operator
-/// intervention) but some (such as `WriteBufferCreationError` may
+/// intervention) but some (such as `WriteBufferCreationError`) may
 /// resolve after some time to the basic initialization sequence
 /// (e.g. `Initialized`)
 ///
