@@ -112,7 +112,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 #[allow(clippy::too_many_arguments)]
 pub async fn generate(
     spec: &specification::DataSpec,
-    buckets: Vec<specification::OrgBucket>,
+    databases: Vec<String>,
     points_writer_builder: &mut write::PointsWriterBuilder,
     start_datetime: Option<i64>,
     end_datetime: Option<i64>,
@@ -123,8 +123,8 @@ pub async fn generate(
 ) -> Result<usize> {
     let mut handles = vec![];
 
-    let bucket_agents = spec
-        .bucket_split_to_agents(&buckets)
+    let database_agents = spec
+        .database_split_to_agents(&databases)
         .context(CouldNotAssignAgents)?;
 
     let generated_tag_sets = GeneratedTagSets::from_spec(spec).context(CouldNotGenerateTagSets)?;
@@ -133,8 +133,10 @@ pub async fn generate(
 
     let start = std::time::Instant::now();
 
-    for bucket_agents in &bucket_agents {
-        for agent_assignment in bucket_agents.agent_assignments.iter() {
+    for database_assignments in &database_agents {
+        let (org, bucket) = org_and_bucket_from_database(database_assignments.database);
+
+        for agent_assignment in database_assignments.agent_assignments.iter() {
             let agents = Agent::from_spec(
                 agent_assignment.spec,
                 agent_assignment.count,
@@ -148,20 +150,16 @@ pub async fn generate(
             .context(CouldNotCreateAgent)?;
 
             info!(
-                "Configuring {} agents of \"{}\" to write data to org {} and bucket {}",
+                "Configuring {} agents of \"{}\" to write data to org {} and bucket {} (database {})", database_assignments.database,
                 agent_assignment.count,
                 agent_assignment.spec.name,
-                bucket_agents.org_bucket.org,
-                bucket_agents.org_bucket.bucket
+                org,
+                bucket,
             );
 
             for mut agent in agents.into_iter() {
                 let agent_points_writer = points_writer_builder
-                    .build_for_agent(
-                        &agent_assignment.spec.name,
-                        &bucket_agents.org_bucket.org,
-                        &bucket_agents.org_bucket.bucket,
-                    )
+                    .build_for_agent(&agent_assignment.spec.name, org, bucket)
                     .context(CouldNotCreateAgentWriter)?;
 
                 let lock_ref = Arc::clone(&lock);
@@ -210,6 +208,15 @@ pub fn now_ns() -> i64 {
     i64::try_from(since_the_epoch.as_nanos()).expect("Time does not fit")
 }
 
+fn org_and_bucket_from_database(database: &str) -> (&str, &str) {
+    let parts = database.split('_').collect::<Vec<_>>();
+    if parts.len() != 2 {
+        panic!("error parsing org and bucket from {}", database);
+    }
+
+    (parts[0], parts[1])
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -236,8 +243,7 @@ name = "cpu"
 name = "val"
 i64_range = [1, 1]
 
-[[bucket_writers]]
-ratio = 1.0
+[[database_writers]]
 agents = [{name = "foo", sampling_interval = "10s"}]
 "#;
         let data_spec = DataSpec::from_str(toml).unwrap();

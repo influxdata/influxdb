@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use iox_data_generator::agent::Agent;
-use iox_data_generator::specification::{AgentAssignmentSpec, BucketWriterSpec, OrgBucket};
+use iox_data_generator::specification::{AgentAssignmentSpec, DatabaseWriterSpec};
 use iox_data_generator::{
     specification::{AgentSpec, DataSpec, FieldSpec, FieldValueSpec, MeasurementSpec},
     tag_set::GeneratedTagSets,
@@ -29,9 +29,9 @@ pub fn single_agent(c: &mut Criterion) {
             has_one: vec![],
             tag_pairs: vec![],
         }],
-        bucket_writers: vec![BucketWriterSpec {
-            ratio: Some(1.0),
-            regex: None,
+        database_writers: vec![DatabaseWriterSpec {
+            database_ratio: Some(1.0),
+            database_regex: None,
             agents: vec![AgentAssignmentSpec {
                 name: "foo".to_string(),
                 count: None,
@@ -56,10 +56,7 @@ pub fn single_agent(c: &mut Criterion) {
         b.iter(|| {
             let r = block_on(iox_data_generator::generate(
                 &spec,
-                vec![OrgBucket {
-                    org: "foo".to_string(),
-                    bucket: "bar".to_string(),
-                }],
+                vec!["foo_bar".to_string()],
                 &mut points_writer,
                 start_datetime,
                 end_datetime,
@@ -154,8 +151,7 @@ tag_pairs = [
 name = "gauge"
 i64_range = [1, 8147240]
 
-[[bucket_writers]]
-ratio = 1.0
+[[database_writers]]
 agents = [{name = "foo", sampling_interval = "1s", count = 3}]
 "#).unwrap();
 

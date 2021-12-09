@@ -169,20 +169,20 @@ count = 2
 name = "f1"
 bool = true
 
-# bucket_writers specify how to split up the list of supplied buckets to write to. If
+# database_writers specify how to split up the list of supplied buckets to write to. If
 # only a single one is specified via the CLI flags, then you'd want only a single bucket_writer
 # with a percent of 1.0.
 #
 # These make it possible to split up a large list of buckets to write to and send different
 # amounts of write load as well as different schemas through specifying different agents.
-[[bucket_writers]]
-# 20% of the buckets specified in the --bucket_list file will have these agents writing to them
-ratio = 0.2
-# for each of those buckets, have 3 of the first_agent writing every 10s, and 1 of the another_example writing every minute.
+[[database_writers]]
+# the first 20% of the databases specified in the --bucket_list file will have these agents writing to them
+database_ratio = 0.2
+# for each of those databases, have 3 of the first_agent writing every 10s, and 1 of the another_example writing every minute.
 agents = [{name = "first_agent", count = 3, sampling_interval = "10s"}, {name = "another_example", sampling_interval = "1m"}]
 
-[[bucket_writers]]
-# the remaining 80% of the buckeets specified will write using these agents
-ratio = 0.8
+[[database_writers]]
+# the remaining 80% of the databases specified will write using these agents
+database_ratio = 0.8
 # we'll only have a single agent of another_example for each database
 agents = [{name = "another_example", sampling_interval = "1s"}]

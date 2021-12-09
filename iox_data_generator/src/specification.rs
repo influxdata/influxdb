@@ -29,20 +29,20 @@ pub enum Error {
     InvalidSamplingInterval { source: humantime::DurationError },
 
     #[snafu(display(
-        "Agent {} referenced in bucket_writers, but not present in spec",
+        "Agent {} referenced in database_writers, but not present in spec",
         agent
     ))]
     AgentNotFound { agent: String },
 
-    #[snafu(display("bucket_writers can only use ratio or regex, not both"))]
-    BucketWritersConfig,
+    #[snafu(display("database_writers can only use database_ratio or database_regex, not both"))]
+    DatabaseWritersConfig,
 
     #[snafu(display(
-        "bucket_writer missing regex. If one uses a regex, all others must also use it"
+        "database_writer missing database_regex. If one uses a regex, all others must also use it"
     ))]
     RegexMissing,
 
-    #[snafu(display("bucket_writers regex {} failed with error: {}", regex, source))]
+    #[snafu(display("database_writers regex {} failed with error: {}", regex, source))]
     RegexCompile { regex: String, source: regex::Error },
 }
 
@@ -69,8 +69,8 @@ pub struct DataSpec {
     pub tag_sets: Vec<TagSetsSpec>,
     /// The specification for the agents that can be used to write data to databases.
     pub agents: Vec<AgentSpec>,
-    /// The specification for writing to the provided list of buckets.
-    pub bucket_writers: Vec<BucketWriterSpec>,
+    /// The specification for writing to the provided list of databases.
+    pub database_writers: Vec<DatabaseWriterSpec>,
 }
 
 impl DataSpec {
@@ -80,18 +80,25 @@ impl DataSpec {
         Self::from_str(&spec_toml)
     }
 
-    /// Given a collection of OrgBuckets, assign each a set of agents based on the spec
-    pub fn bucket_split_to_agents<'a>(
+    /// Given a collection of database names, assign each a set of agents based on the spec
+    pub fn database_split_to_agents<'a>(
         &'a self,
-        buckets: &'a [OrgBucket],
-    ) -> Result<Vec<BucketAgents<'a>>> {
-        let mut bucket_agents = Vec::with_capacity(buckets.len());
+        databases: &'a [String],
+    ) -> Result<Vec<DatabaseAgents<'a>>> {
+        let mut database_agents = Vec::with_capacity(databases.len());
 
         let mut start = 0;
-        let use_ratio =
-            self.bucket_writers[0].ratio.is_some() || self.bucket_writers[0].regex.is_none();
 
-        for w in &self.bucket_writers {
+        // either all database writers must use regex or none of them can. It's either ratio or regex
+        // for assignment
+        let use_ratio = self.database_writers[0].database_regex.is_none();
+        for b in &self.database_writers {
+            if use_ratio && b.database_regex.is_some() {
+                return DatabaseWritersConfig.fail();
+            }
+        }
+
+        for w in &self.database_writers {
             let agents: Vec<_> = w
                 .agents
                 .iter()
@@ -112,46 +119,43 @@ impl DataSpec {
                 .collect::<Result<Vec<_>>>()?;
             let agents = Arc::new(agents);
 
-            let selected_buckets = if use_ratio {
-                if w.regex.is_some() {
-                    return BucketWritersConfig.fail();
-                }
-
-                if start >= buckets.len() {
+            let selected_databases = if use_ratio {
+                if start >= databases.len() {
                     warn!(
-                        "Bucket_writers percentages > 1.0. Writer {:?} and later skipped.",
+                        "database_writers percentages > 1.0. Writer {:?} and later skipped.",
                         w
                     );
                     break;
                 }
 
-                let mut end =
-                    (buckets.len() as f64 * w.ratio.unwrap_or(1.0)).ceil() as usize + start;
-                if end > buckets.len() {
-                    end = buckets.len();
+                let mut end = (databases.len() as f64 * w.database_ratio.unwrap_or(1.0)).ceil()
+                    as usize
+                    + start;
+                if end > databases.len() {
+                    end = databases.len();
                 }
 
-                let selected_buckets = &buckets[start..end];
+                let selected_databases = databases[start..end].iter().collect::<Vec<_>>();
                 start = end;
-                selected_buckets.iter().collect::<Vec<_>>()
+                selected_databases
             } else {
-                let p = w.regex.as_ref().context(RegexMissing)?;
+                let p = w.database_regex.as_ref().context(RegexMissing)?;
                 let re = Regex::new(p).context(RegexCompile { regex: p })?;
-                buckets
+                databases
                     .iter()
-                    .filter(|b| re.is_match(&b.database_name()))
+                    .filter(|name| re.is_match(name))
                     .collect::<Vec<_>>()
             };
 
-            for org_bucket in selected_buckets {
-                bucket_agents.push(BucketAgents {
-                    org_bucket,
+            for database in selected_databases {
+                database_agents.push(DatabaseAgents {
+                    database,
                     agent_assignments: Arc::clone(&agents),
                 })
             }
         }
 
-        Ok(bucket_agents)
+        Ok(database_agents)
     }
 
     /// Get the agent spec by its name
@@ -166,38 +170,23 @@ impl DataSpec {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-/// Specifies an org and a bucket to write data to
-pub struct OrgBucket {
-    /// The organization name
-    pub org: String,
-    /// The bucket name
-    pub bucket: String,
-}
-
-impl OrgBucket {
-    fn database_name(&self) -> String {
-        format!("{}_{}", self.org, self.bucket)
-    }
-}
-
 #[derive(Debug)]
-/// Assignment info for an agent to a bucket
+/// Assignment info for an agent to a database
 pub struct AgentAssignment<'a> {
-    /// The agent specification for writing to the assigned bucket
+    /// The agent specification for writing to the assigned database
     pub spec: &'a AgentSpec,
-    /// The number of these agents that should be writing to the bucket
+    /// The number of these agents that should be writing to the database
     pub count: usize,
     /// The sampling interval agents will generate data on
     pub sampling_interval: Duration,
 }
 
 #[derive(Debug)]
-/// Agent assignments mapped to a bucket
-pub struct BucketAgents<'a> {
-    /// The organization and bucket data will get written to
-    pub org_bucket: &'a OrgBucket,
-    /// The agents specifications that will be writing to the bucket
+/// Agent assignments mapped to a database
+pub struct DatabaseAgents<'a> {
+    /// The database data will get written to
+    pub database: &'a str,
+    /// The agents specifications that will be writing to the database
     pub agent_assignments: Arc<Vec<AgentAssignment<'a>>>,
 }
 
@@ -256,19 +245,28 @@ pub struct TagSetsSpec {
     pub for_each: Vec<String>,
 }
 
-/// The specification for what should be written to the list of provided org buckets.
-/// Buckets will be written to by one or more agents with the given sampling interval and
+/// The specification for what should be written to the list of provided databases.
+/// Databases will be written to by one or more agents with the given sampling interval and
 /// agent count.
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
-pub struct BucketWriterSpec {
-    /// The ratio of buckets from the provided list that should use these agents. The
-    /// ratios of the collection of bucket writer specs should add up to 1.0. If it
-    /// is not provided, ratio will be 1.0.
-    pub ratio: Option<f64>,
-    /// Regex to select buckets from the provided list. If regex is used in any one
-    /// of the bucket_writers, ratio will be ignored for all. So use either ratio or regex.
-    pub regex: Option<String>,
+pub struct DatabaseWriterSpec {
+    /// The ratio of databases from the provided list that should use these agents. The
+    /// ratios of the collection of database_writer specs should add up to 1.0. If ratio
+    /// is not provided it will default to 1.0 (useful for when you specify only a single
+    /// database_writer.
+    ///
+    /// The interval over the provided list of databases is the cumulative sum of the
+    /// previous ratios to this ratio. So if you have 10 input databases and 3 database_writers
+    /// with ratios (in order) of `[0.2, 0.4, and 0.6]` you would have the input list of
+    /// 10 databases split into these three based on their index in the list: `[0, 1]`,
+    /// `[2, 5]`, and `[6, 9]`. The first 2 databases, then the next 4, then the remaining 6.
+    ///
+    /// The list isn't shuffled as ratios are applied.
+    pub database_ratio: Option<f64>,
+    /// Regex to select databases from the provided list. If regex is used in any one
+    /// of the database_writers, it must be used for all of them.
+    pub database_regex: Option<String>,
     /// The agents that should be used to write to these databases.
     pub agents: Vec<AgentAssignmentSpec>,
 }
@@ -665,8 +663,8 @@ name = "cpu"
 name = "host"
 template = "server"
 
-[[bucket_writers]]
-ratio = 1.0
+[[database_writers]]
+database_ratio = 1.0
 agents = [{name = "foo", sampling_interval = "10s"}]
 "#;
         let spec = DataSpec::from_str(toml).unwrap();
@@ -690,7 +688,7 @@ agents = [{name = "foo", sampling_interval = "10s"}]
     }
 
     #[test]
-    fn split_buckets_by_writer_spec_ratio() {
+    fn split_databases_by_writer_spec_ratio() {
         let toml = r#"
 name = "demo_schema"
 
@@ -710,34 +708,21 @@ name = "whatevs"
 name = "val"
 i64_range = [0, 10]
 
-[[bucket_writers]]
-ratio = 0.6
+[[database_writers]]
+database_ratio = 0.6
 agents = [{name = "foo", sampling_interval = "10s"}]
 
-[[bucket_writers]]
-ratio = 0.4
+[[database_writers]]
+database_ratio = 0.4
 agents = [{name = "bar", sampling_interval = "1m", count = 3}]
 "#;
         let spec = DataSpec::from_str(toml).unwrap();
-        let buckets = vec![
-            OrgBucket {
-                org: "a".to_string(),
-                bucket: "1".to_string(),
-            },
-            OrgBucket {
-                org: "a".to_string(),
-                bucket: "2".to_string(),
-            },
-            OrgBucket {
-                org: "b".to_string(),
-                bucket: "1".to_string(),
-            },
-        ];
+        let databases = vec!["a_1".to_string(), "a_2".to_string(), "b_1".to_string()];
 
-        let bucket_agents = spec.bucket_split_to_agents(&buckets).unwrap();
+        let database_agents = spec.database_split_to_agents(&databases).unwrap();
 
-        let b = &bucket_agents[0];
-        assert_eq!(b.org_bucket, &buckets[0]);
+        let b = &database_agents[0];
+        assert_eq!(b.database, &databases[0]);
         assert_eq!(
             b.agent_assignments[0].sampling_interval,
             Duration::from_secs(10)
@@ -745,8 +730,8 @@ agents = [{name = "bar", sampling_interval = "1m", count = 3}]
         assert_eq!(b.agent_assignments[0].count, 1);
         assert_eq!(b.agent_assignments[0].spec.name, "foo");
 
-        let b = &bucket_agents[1];
-        assert_eq!(b.org_bucket, &buckets[1]);
+        let b = &database_agents[1];
+        assert_eq!(b.database, &databases[1]);
         assert_eq!(
             b.agent_assignments[0].sampling_interval,
             Duration::from_secs(10)
@@ -754,8 +739,8 @@ agents = [{name = "bar", sampling_interval = "1m", count = 3}]
         assert_eq!(b.agent_assignments[0].count, 1);
         assert_eq!(b.agent_assignments[0].spec.name, "foo");
 
-        let b = &bucket_agents[2];
-        assert_eq!(b.org_bucket, &buckets[2]);
+        let b = &database_agents[2];
+        assert_eq!(b.database, &databases[2]);
         assert_eq!(
             b.agent_assignments[0].sampling_interval,
             Duration::from_secs(60)
@@ -765,7 +750,7 @@ agents = [{name = "bar", sampling_interval = "1m", count = 3}]
     }
 
     #[test]
-    fn split_buckets_by_writer_spec_regex() {
+    fn split_databases_by_writer_spec_regex() {
         let toml = r#"
 name = "demo_schema"
 
@@ -785,35 +770,26 @@ name = "whatevs"
 name = "val"
 i64_range = [0, 10]
 
-[[bucket_writers]]
-regex = "foo.*"
+[[database_writers]]
+database_regex = "foo.*"
 agents = [{name = "foo", sampling_interval = "10s"}]
 
-[[bucket_writers]]
-regex = ".*_bar"
+[[database_writers]]
+database_regex = ".*_bar"
 agents = [{name = "bar", sampling_interval = "1m", count = 3}]
 "#;
 
         let spec = DataSpec::from_str(toml).unwrap();
-        let buckets = vec![
-            OrgBucket {
-                org: "foo".to_string(),
-                bucket: "1".to_string(),
-            },
-            OrgBucket {
-                org: "foo".to_string(),
-                bucket: "2".to_string(),
-            },
-            OrgBucket {
-                org: "asdf".to_string(),
-                bucket: "bar".to_string(),
-            },
+        let databases = vec![
+            "foo_1".to_string(),
+            "foo_2".to_string(),
+            "asdf_bar".to_string(),
         ];
 
-        let bucket_agents = spec.bucket_split_to_agents(&buckets).unwrap();
+        let database_agents = spec.database_split_to_agents(&databases).unwrap();
 
-        let b = &bucket_agents[0];
-        assert_eq!(b.org_bucket, &buckets[0]);
+        let b = &database_agents[0];
+        assert_eq!(b.database, &databases[0]);
         assert_eq!(
             b.agent_assignments[0].sampling_interval,
             Duration::from_secs(10)
@@ -821,8 +797,8 @@ agents = [{name = "bar", sampling_interval = "1m", count = 3}]
         assert_eq!(b.agent_assignments[0].count, 1);
         assert_eq!(b.agent_assignments[0].spec.name, "foo");
 
-        let b = &bucket_agents[1];
-        assert_eq!(b.org_bucket, &buckets[1]);
+        let b = &database_agents[1];
+        assert_eq!(b.database, &databases[1]);
         assert_eq!(
             b.agent_assignments[0].sampling_interval,
             Duration::from_secs(10)
@@ -830,8 +806,8 @@ agents = [{name = "bar", sampling_interval = "1m", count = 3}]
         assert_eq!(b.agent_assignments[0].count, 1);
         assert_eq!(b.agent_assignments[0].spec.name, "foo");
 
-        let b = &bucket_agents[2];
-        assert_eq!(b.org_bucket, &buckets[2]);
+        let b = &database_agents[2];
+        assert_eq!(b.database, &databases[2]);
         assert_eq!(
             b.agent_assignments[0].sampling_interval,
             Duration::from_secs(60)
@@ -841,7 +817,7 @@ agents = [{name = "bar", sampling_interval = "1m", count = 3}]
     }
 
     #[test]
-    fn split_buckets_by_writer_regex_and_ratio_error() {
+    fn split_databases_by_writer_regex_and_ratio_error() {
         let toml = r#"
 name = "demo_schema"
 
@@ -861,40 +837,27 @@ name = "whatevs"
 name = "val"
 i64_range = [0, 10]
 
-[[bucket_writers]]
-ratio = 0.8
+[[database_writers]]
+database_ratio = 0.8
 agents = [{name = "foo", sampling_interval = "10s"}]
 
-[[bucket_writers]]
-regex = "foo.*"
+[[database_writers]]
+database_regex = "foo.*"
 agents = [{name = "bar", sampling_interval = "1m", count = 3}]
 "#;
 
         let spec = DataSpec::from_str(toml).unwrap();
-        let buckets = vec![
-            OrgBucket {
-                org: "a".to_string(),
-                bucket: "1".to_string(),
-            },
-            OrgBucket {
-                org: "a".to_string(),
-                bucket: "2".to_string(),
-            },
-            OrgBucket {
-                org: "b".to_string(),
-                bucket: "1".to_string(),
-            },
-        ];
+        let databases = vec!["a_1".to_string(), "a_2".to_string(), "b_1".to_string()];
 
-        let bucket_agents = spec.bucket_split_to_agents(&buckets);
+        let database_agents = spec.database_split_to_agents(&databases);
         assert!(matches!(
-            bucket_agents.unwrap_err(),
-            Error::BucketWritersConfig
+            database_agents.unwrap_err(),
+            Error::DatabaseWritersConfig
         ));
     }
 
     #[test]
-    fn split_buckets_by_writer_ratio_defaults() {
+    fn split_databases_by_writer_ratio_defaults() {
         let toml = r#"
 name = "demo_schema"
 
@@ -906,26 +869,17 @@ name = "cpu"
 name = "host"
 template = "server"
 
-[[bucket_writers]]
+[[database_writers]]
 agents = [{name = "foo", sampling_interval = "10s"}]
 "#;
 
         let spec = DataSpec::from_str(toml).unwrap();
-        let buckets = vec![
-            OrgBucket {
-                org: "a".to_string(),
-                bucket: "1".to_string(),
-            },
-            OrgBucket {
-                org: "a".to_string(),
-                bucket: "2".to_string(),
-            },
-        ];
+        let databases = vec!["a_1".to_string(), "a_2".to_string()];
 
-        let bucket_agents = spec.bucket_split_to_agents(&buckets).unwrap();
+        let database_agents = spec.database_split_to_agents(&databases).unwrap();
 
-        let b = &bucket_agents[0];
-        assert_eq!(b.org_bucket, &buckets[0]);
+        let b = &database_agents[0];
+        assert_eq!(b.database, &databases[0]);
         assert_eq!(
             b.agent_assignments[0].sampling_interval,
             Duration::from_secs(10)
@@ -933,8 +887,8 @@ agents = [{name = "foo", sampling_interval = "10s"}]
         assert_eq!(b.agent_assignments[0].count, 1);
         assert_eq!(b.agent_assignments[0].spec.name, "foo");
 
-        let b = &bucket_agents[1];
-        assert_eq!(b.org_bucket, &buckets[1]);
+        let b = &database_agents[1];
+        assert_eq!(b.database, &databases[1]);
         assert_eq!(
             b.agent_assignments[0].sampling_interval,
             Duration::from_secs(10)
