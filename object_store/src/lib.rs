@@ -59,7 +59,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{stream::BoxStream, StreamExt, TryFutureExt, TryStreamExt};
 use snafu::{ResultExt, Snafu};
-use std::fmt::Formatter;
+use std::{fmt::Formatter, num::NonZeroUsize};
 use std::{path::PathBuf, sync::Arc};
 
 /// Universal API to multiple object store services.
@@ -118,6 +118,7 @@ impl ObjectStore {
         bucket_name: impl Into<String>,
         endpoint: Option<impl Into<String>>,
         session_token: Option<impl Into<String>>,
+        max_connections: NonZeroUsize,
     ) -> Result<Self> {
         let s3 = aws::new_s3(
             access_key_id,
@@ -126,6 +127,7 @@ impl ObjectStore {
             bucket_name,
             endpoint,
             session_token,
+            max_connections,
         )?;
         Ok(Self {
             integration: ObjectStoreIntegration::AmazonS3(s3),
