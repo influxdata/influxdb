@@ -1,3 +1,10 @@
+use crate::{
+    common::server_fixture::{ServerFixture, ServerType, TestConfig, DEFAULT_SERVER_ID},
+    end_to_end_cases::scenario::{
+        create_readable_database, create_two_partition_database, create_unreadable_database,
+        fixture_broken_catalog, rand_name, wait_for_exact_chunk_states, DatabaseBuilder,
+    },
+};
 use data_types::chunk_metadata::ChunkId;
 use generated_types::google::protobuf::{Duration, Empty};
 use influxdb_iox_client::{
@@ -7,22 +14,9 @@ use influxdb_iox_client::{
         generated_types::{database_status::DatabaseState, operation_metadata::Job, *},
         Client,
     },
-    router::generated_types::WriteBufferConnection,
 };
-use std::{fs::set_permissions, num::NonZeroU32, os::unix::fs::PermissionsExt};
+use std::{fs::set_permissions, num::NonZeroU32, os::unix::fs::PermissionsExt, time::Instant};
 use test_helpers::{assert_contains, assert_error};
-
-use super::scenario::{
-    create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
-};
-use crate::common::server_fixture::{TestConfig, DEFAULT_SERVER_ID};
-use crate::{
-    common::server_fixture::{ServerFixture, ServerType},
-    end_to_end_cases::scenario::{
-        fixture_broken_catalog, wait_for_exact_chunk_states, DatabaseBuilder,
-    },
-};
-use std::time::Instant;
 use uuid::Uuid;
 
 #[tokio::test]
@@ -83,36 +77,6 @@ async fn test_create_database_invalid_name() {
         }
         _ => panic!("unexpected response: {:?}", r),
     }
-}
-
-#[tokio::test]
-async fn test_create_database_invalid_kafka() {
-    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
-    let mut client = server_fixture.management_client();
-
-    let rules = DatabaseRules {
-        name: "db_with_bad_kafka_address".into(),
-        write_buffer_connection: Some(WriteBufferConnection {
-            r#type: "kafka".into(),
-            connection: "i_am_not_a_kafka_server:1234".into(),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let start = Instant::now();
-    let err = client
-        .create_database(rules)
-        .await
-        .expect_err("expected request to fail");
-
-    println!("Failed after {:?}", Instant::now() - start);
-
-    // expect that this error has a useful error related to kafka (not "timeout")
-    assert_contains!(
-        err.to_string(),
-        "error creating write buffer: Meta data fetch error: BrokerTransportFailure"
-    );
 }
 
 #[tokio::test]
