@@ -10,7 +10,7 @@ use crate::{
     end_to_end_cases::scenario::{list_chunks, wait_for_exact_chunk_states},
 };
 
-use super::scenario::{collect_query, create_readable_database, rand_name, DatabaseBuilder};
+use super::scenario::{create_readable_database, rand_name, DatabaseBuilder};
 use crate::common::server_fixture::DEFAULT_SERVER_ID;
 use generated_types::influxdata::iox::management::v1::{operation_metadata::Job, CompactChunks};
 
@@ -310,9 +310,14 @@ async fn assert_chunk_query_works(fixture: &ServerFixture, db_name: &str) {
     let mut client = fixture.flight_client();
     let sql_query = "select region, user, time from cpu";
 
-    let query_results = client.perform_query(db_name, sql_query).await.unwrap();
+    let batches = client
+        .perform_query(db_name, sql_query)
+        .await
+        .unwrap()
+        .collect()
+        .await
+        .unwrap();
 
-    let batches = collect_query(query_results).await;
     let expected_read_data = vec![
         "+--------+------+--------------------------------+",
         "| region | user | time                           |",

@@ -470,6 +470,15 @@ impl Server {
         let mut state = self.shared.state.write();
         let startup = match &**state {
             ServerState::Startup(startup) => startup.clone(),
+            state
+                if state
+                    .server_id()
+                    .map(|existing| existing == server_id)
+                    .unwrap_or_default() =>
+            {
+                // already set to same ID
+                return Ok(());
+            }
             _ => return Err(Error::IdAlreadySet),
         };
 
@@ -2458,5 +2467,21 @@ mod tests {
                 ("db_name", "some_db"),
             ])
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn set_server_id_twice() {
+        test_helpers::maybe_start_logging();
+        let server = make_server(make_application());
+
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+
+        assert_error!(
+            server.set_id(ServerId::try_from(2).unwrap()),
+            Error::IdAlreadySet
+        );
     }
 }

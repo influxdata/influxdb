@@ -11,12 +11,15 @@ use futures::{
     stream::{self, BoxStream},
     Future, StreamExt, TryStreamExt,
 };
+use hyper::client::Builder as HyperBuilder;
+use hyper_tls::HttpsConnector;
 use observability_deps::tracing::{debug, warn};
 use rusoto_core::ByteStream;
 use rusoto_credential::{InstanceMetadataProvider, StaticProvider};
 use rusoto_s3::S3;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::{convert::TryFrom, fmt, time::Duration};
+use std::{convert::TryFrom, fmt, num::NonZeroUsize, ops::Deref, sync::Arc, time::Duration};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 /// A specialized `Result` for object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -140,7 +143,15 @@ pub enum Error {
 
 /// Configuration for connecting to [Amazon S3](https://aws.amazon.com/s3/).
 pub struct AmazonS3 {
-    client: rusoto_s3::S3Client,
+    /// S3 client w/o any connection limit.
+    ///
+    /// You should normally use [`Self::client`] instead.
+    client_unrestricted: rusoto_s3::S3Client,
+
+    /// Semaphore that limits the usage of [`client_unrestricted`](Self::client_unrestricted).
+    connection_semaphore: Arc<Semaphore>,
+
+    /// Bucket name used by this object store client.
     bucket_name: String,
 }
 
@@ -185,7 +196,7 @@ impl ObjectStoreApi for AmazonS3 {
             }
         };
 
-        let s3 = self.client.clone();
+        let s3 = self.client().await;
 
         s3_request(move || {
             let (s3, request_factory) = (s3.clone(), request_factory.clone());
@@ -210,7 +221,8 @@ impl ObjectStoreApi for AmazonS3 {
         };
         let bucket_name = self.bucket_name.clone();
         let s = self
-            .client
+            .client()
+            .await
             .get_object(get_request)
             .await
             .map_err(|e| match e {
@@ -252,7 +264,7 @@ impl ObjectStoreApi for AmazonS3 {
             ..Default::default()
         };
 
-        let s3 = self.client.clone();
+        let s3 = self.client().await;
 
         s3_request(move || {
             let (s3, request_factory) = (s3.clone(), request_factory.clone());
@@ -357,6 +369,7 @@ pub(crate) fn new_s3(
     bucket_name: impl Into<String>,
     endpoint: Option<impl Into<String>>,
     session_token: Option<impl Into<String>>,
+    max_connections: NonZeroUsize,
 ) -> Result<AmazonS3> {
     let region = region.into();
     let region: rusoto_core::Region = match endpoint {
@@ -367,8 +380,10 @@ pub(crate) fn new_s3(
         },
     };
 
-    let http_client = rusoto_core::request::HttpClient::new()
-        .expect("Current implementation of rusoto_core has no way for this to fail");
+    let mut builder = HyperBuilder::default();
+    builder.pool_max_idle_per_host(max_connections.get());
+    let connector = HttpsConnector::new();
+    let http_client = rusoto_core::request::HttpClient::from_builder(builder, connector);
 
     let client = match (access_key_id, secret_access_key, session_token) {
         (Some(access_key_id), Some(secret_access_key), Some(session_token)) => {
@@ -394,7 +409,8 @@ pub(crate) fn new_s3(
     };
 
     Ok(AmazonS3 {
-        client,
+        client_unrestricted: client,
+        connection_semaphore: Arc::new(Semaphore::new(max_connections.get())),
         bucket_name: bucket_name.into(),
     })
 }
@@ -407,10 +423,43 @@ pub(crate) fn new_failing_s3() -> Result<AmazonS3> {
         "bucket",
         None as Option<&str>,
         None as Option<&str>,
+        NonZeroUsize::new(16).unwrap(),
     )
 }
 
+/// S3 client bundled w/ a semaphore permit.
+#[derive(Clone)]
+struct SemaphoreClient {
+    /// Permit for this specific use of the client.
+    ///
+    /// Note that this field is never read and therefore considered "dead code" by rustc.
+    #[allow(dead_code)]
+    permit: Arc<OwnedSemaphorePermit>,
+
+    inner: rusoto_s3::S3Client,
+}
+
+impl Deref for SemaphoreClient {
+    type Target = rusoto_s3::S3Client;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
 impl AmazonS3 {
+    /// Get a client according to the current connection limit.
+    async fn client(&self) -> SemaphoreClient {
+        let permit = Arc::clone(&self.connection_semaphore)
+            .acquire_owned()
+            .await
+            .expect("semaphore shouldn't be closed yet");
+        SemaphoreClient {
+            permit: Arc::new(permit),
+            inner: self.client_unrestricted.clone(),
+        }
+    }
+
     async fn list_objects_v2(
         &self,
         prefix: Option<&CloudPath>,
@@ -433,10 +482,11 @@ impl AmazonS3 {
             delimiter,
             ..Default::default()
         };
+        let s3 = self.client().await;
 
         Ok(stream::unfold(ListState::Start, move |state| {
             let request_factory = request_factory.clone();
-            let s3 = self.client.clone();
+            let s3 = s3.clone();
 
             async move {
                 let continuation_token = match state.clone() {
@@ -685,6 +735,7 @@ mod tests {
             config.bucket,
             config.endpoint,
             config.token,
+            NonZeroUsize::new(16).unwrap(),
         )
         .expect("Valid S3 config");
 
@@ -705,6 +756,7 @@ mod tests {
             &config.bucket,
             config.endpoint,
             config.token,
+            NonZeroUsize::new(16).unwrap(),
         )
         .expect("Valid S3 config");
 
@@ -735,6 +787,7 @@ mod tests {
             &config.bucket,
             config.endpoint,
             config.token,
+            NonZeroUsize::new(16).unwrap(),
         )
         .expect("Valid S3 config");
 
@@ -776,6 +829,7 @@ mod tests {
             &config.bucket,
             config.endpoint,
             config.token,
+            NonZeroUsize::new(16).unwrap(),
         )
         .expect("Valid S3 config");
 
@@ -812,6 +866,7 @@ mod tests {
             &config.bucket,
             config.endpoint,
             config.token,
+            NonZeroUsize::new(16).unwrap(),
         )
         .expect("Valid S3 config");
 
@@ -850,6 +905,7 @@ mod tests {
             &config.bucket,
             config.endpoint,
             config.token,
+            NonZeroUsize::new(16).unwrap(),
         )
         .expect("Valid S3 config");
 
@@ -886,6 +942,7 @@ mod tests {
             config.bucket,
             config.endpoint,
             config.token,
+            NonZeroUsize::new(16).unwrap(),
         )
         .expect("Valid S3 config");
 
@@ -910,6 +967,7 @@ mod tests {
             &config.bucket,
             config.endpoint,
             config.token,
+            NonZeroUsize::new(16).unwrap(),
         )
         .expect("Valid S3 config");
 
@@ -946,6 +1004,7 @@ mod tests {
             &config.bucket,
             config.endpoint,
             config.token,
+            NonZeroUsize::new(16).unwrap(),
         )
         .expect("Valid S3 config");
 
