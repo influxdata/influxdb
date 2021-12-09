@@ -1637,7 +1637,7 @@ async fn test_compact_os_chunks() {
     assert_eq!(chunks[0].storage, ChunkStorage::ObjectStoreOnly);
 }
 
-async fn setup_load_and_persist_two_partition_chunks(
+pub async fn setup_load_and_persist_two_partition_chunks(
 ) -> (Arc<ServerFixture>, String, String, Vec<String>) {
     let fixture = Arc::from(ServerFixture::create_shared(ServerType::Database).await);
     let addr = fixture.grpc_base();
