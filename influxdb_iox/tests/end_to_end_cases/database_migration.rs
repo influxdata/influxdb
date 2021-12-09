@@ -17,9 +17,8 @@ use uuid::Uuid;
 use crate::{
     common::server_fixture::{ServerFixture, ServerType},
     end_to_end_cases::scenario::{
-        collect_query, create_readable_database, data_dir, db_data_dir, rand_name,
-        wait_for_database_initialized, wait_for_exact_chunk_states,
-        wait_for_operations_to_complete,
+        create_readable_database, data_dir, db_data_dir, rand_name, wait_for_database_initialized,
+        wait_for_exact_chunk_states, wait_for_operations_to_complete,
     },
 };
 
@@ -234,12 +233,13 @@ async fn migrate_table_files_from_one_server_to_another() {
     wait_for_database_initialized(&fixture, &db_name, Duration::from_secs(5)).await;
 
     // Now the data shoudl be available for the_table
-    let query_results = flight_client
+    let batches = flight_client
         .perform_query(&db_name, sql_query)
         .await
+        .unwrap()
+        .collect()
+        .await
         .unwrap();
-
-    let batches = collect_query(query_results).await;
 
     let expected = vec![
         "+-----------------+",

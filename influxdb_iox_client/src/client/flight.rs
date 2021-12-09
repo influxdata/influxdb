@@ -218,8 +218,8 @@ impl PerformQuery {
         )?))
     }
 
-    /// Return all record batches of it
-    pub async fn to_batches(&mut self) -> Result<Vec<RecordBatch>, Error> {
+    /// Collect and return all `RecordBatch`es into a `Vec`
+    pub async fn collect(&mut self) -> Result<Vec<RecordBatch>, Error> {
         let mut batches = Vec::new();
         while let Some(data) = self.next().await? {
             batches.push(data);
