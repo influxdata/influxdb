@@ -4,7 +4,7 @@ use crate::{
 };
 use arrow_util::{assert_batches_eq, test_util::normalize_batches};
 
-use super::scenario::{collect_query, create_readable_database, list_chunks, rand_name};
+use super::scenario::{create_readable_database, list_chunks, rand_name};
 
 #[tokio::test]
 async fn test_operations() {
@@ -47,9 +47,13 @@ async fn test_operations() {
     let mut client = fixture.flight_client();
     let sql_query = "select status, description from system.operations";
 
-    let query_results = client.perform_query(&db_name1, sql_query).await.unwrap();
-
-    let batches = collect_query(query_results).await;
+    let batches = client
+        .perform_query(&db_name1, sql_query)
+        .await
+        .unwrap()
+        .collect()
+        .await
+        .unwrap();
 
     // parameterize on db_name1
 
@@ -64,9 +68,14 @@ async fn test_operations() {
     assert_batches_eq!(expected_read_data, &batches);
 
     // Should not see jobs from db1 when querying db2
-    let query_results = client.perform_query(&db_name2, sql_query).await.unwrap();
+    let batches = client
+        .perform_query(&db_name2, sql_query)
+        .await
+        .unwrap()
+        .collect()
+        .await
+        .unwrap();
 
-    let batches = collect_query(query_results).await;
     let expected_read_data = vec![
         "+--------+-------------+",
         "| status | description |",
@@ -109,13 +118,14 @@ async fn test_queries() {
     let query = "select query_type, query_text from system.queries";
 
     // Query system.queries and should have an entry for the storage rpc
-    let query_results = fixture
+    let batches = fixture
         .flight_client()
         .perform_query(&db_name, query)
         .await
+        .unwrap()
+        .collect()
+        .await
         .unwrap();
-
-    let batches = collect_query(query_results).await;
     let batches = normalize_batches(batches, scenario.normalizer());
 
     let expected_read_data = vec![

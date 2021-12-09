@@ -693,7 +693,8 @@ mod tests {
         let partition = partition.upgrade();
         let chunk1 = chunks[0].write();
         let chunk2 = chunks[1].write();
-        let _compacted_chunk = compact_object_store_chunks(partition, vec![chunk1, chunk2])
+        // Provide the chunk ids in reverse contiguous order to see if we handle it well
+        let _compacted_chunk = compact_object_store_chunks(partition, vec![chunk2, chunk1])
             .unwrap()
             .1
             .await

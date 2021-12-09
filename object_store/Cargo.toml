@@ -15,6 +15,10 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # Google Cloud Storage integration
 cloud-storage = {version = "0.10.3", optional = true}
 futures = "0.3"
+# for rusoto
+hyper = { version = "0.14", optional = true, default-features = false }
+# for rusoto
+hyper-tls = { version = "0.5.0", optional = true, default-features = false }
 indexmap = { version = "1.7", optional = true, features = ["std"] }
 itertools = "0.10.1"
 observability_deps = { path = "../observability_deps" }
@@ -36,7 +40,7 @@ workspace-hack = { path = "../workspace-hack"}
 [features]
 azure = ["azure_core", "azure_storage", "indexmap", "reqwest"]
 gcp = ["cloud-storage"]
-aws = ["rusoto_core", "rusoto_credential", "rusoto_s3"]
+aws = ["rusoto_core", "rusoto_credential", "rusoto_s3", "hyper", "hyper-tls"]
 
 [dev-dependencies] # In alphabetical order
 dotenv = "0.15.0"
