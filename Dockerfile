@@ -14,14 +14,12 @@ COPY . /influxdb_iox
 WORKDIR /influxdb_iox
 
 ARG CARGO_INCREMENTAL=yes
-ARG CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
-ARG CARGO_PROFILE_RELEASE_LTO=thin
+ARG PROFILE=release
 ARG FEATURES=aws,gcp,azure,jemalloc_replacing_malloc
 ARG ROARING_ARCH="haswell"
 ARG RUSTFLAGS=""
 ENV CARGO_INCREMENTAL=$CARGO_INCREMENTAL \
-    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=$CARGO_PROFILE_RELEASE_CODEGEN_UNITS \
-    CARGO_PROFILE_RELEASE_LTO=$CARGO_PROFILE_RELEASE_LTO \
+    PROFILE=$PROFILE \
     FEATURES=$FEATURES \
     ROARING_ARCH=$ROARING_ARCH \
     RUSTFLAGS=$RUSTFLAGS
@@ -31,9 +29,9 @@ RUN \
   --mount=type=cache,id=influxdb_iox_git,sharing=locked,target=/usr/local/cargo/git \
   --mount=type=cache,id=influxdb_iox_target,sharing=locked,target=/influxdb_iox/target \
     du -cshx /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target && \
-    cargo build --target-dir /influxdb_iox/target --release --no-default-features --features="$FEATURES" && \
-    objcopy --compress-debug-sections target/release/influxdb_iox && \
-    cp /influxdb_iox/target/release/influxdb_iox /root/influxdb_iox && \
+    cargo build --target-dir /influxdb_iox/target --profile="$PROFILE" --no-default-features --features="$FEATURES" && \
+    objcopy --compress-debug-sections "target/$PROFILE/influxdb_iox" && \
+    cp "/influxdb_iox/target/$PROFILE/influxdb_iox" /root/influxdb_iox && \
     du -cshx /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target
 
 
