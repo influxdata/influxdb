@@ -1992,7 +1992,7 @@ async fn test_compact_os_partition() {
     let partition_key = &chunks[0].partition_key;
 
     management_client
-        .persist_partition(&db_name, "cpu", &partition_key[..], true)
+        .persist_partition(&db_name, "cpu", partition_key.as_ref(), true)
         .await
         .unwrap();
 
