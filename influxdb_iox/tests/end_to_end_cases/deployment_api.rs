@@ -129,7 +129,16 @@ async fn assert_set_get_server_id(server_fixture: ServerFixture) {
     let got = client.get_server_id().await.expect("get ID failed");
     assert_eq!(got, Some(test_id));
 
-    // setting server ID a second time should fail
+    // setting server ID to same ID should be OK
+    client
+        .update_server_id(test_id)
+        .await
+        .expect("set ID again failed");
+
+    let got = client.get_server_id().await.expect("get ID failed");
+    assert_eq!(got, Some(test_id));
+
+    // setting server ID to a different ID should fail
     let result = client
         .update_server_id(NonZeroU32::try_from(13).unwrap())
         .await;
