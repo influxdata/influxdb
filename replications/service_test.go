@@ -689,23 +689,46 @@ disk,host=C value=1.3 1000000000`)
 func TestWritePointsBatches(t *testing.T) {
 	t.Parallel()
 
-	svc, mocks := newTestService(t)
-
-	// Set batch size to smaller size for testing (should result in 3 batches sized 93, 93, and 63 - total size 249)
-	svc.maxRemoteWriteBatchSize = 100
-
-	// Define metadata for two replications
-	list := &influxdb.Replications{
-		Replications: []influxdb.Replication{replication1, replication2},
+	tests := []struct {
+		name    string
+		setupFn func(*testing.T, *service)
+	}{
+		{
+			name: "batch bytes size",
+			setupFn: func(t *testing.T, svc *service) {
+				t.Helper()
+				// Set batch size to smaller size for testing (should result in 3 batches sized 93, 93, and 63 - total size 249)
+				svc.maxRemoteWriteBatchSize = 100
+			},
+		},
+		{
+			name: "batch point size",
+			setupFn: func(t *testing.T, svc *service) {
+				t.Helper()
+				// Set point size to smaller size for testing (should result in 3 batches with 3 points, 3 points, and 2 points)
+				svc.maxRemoteWritePointSize = 3
+			},
+		},
 	}
 
-	mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
-		OrgID:         orgID,
-		LocalBucketID: &id1,
-	}).Return(list, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mocks := newTestService(t)
 
-	// Define some points of line protocol, parse string --> []Point
-	points, err := models.ParsePointsString(`
+			tt.setupFn(t, svc)
+
+			// Define metadata for two replications
+			list := &influxdb.Replications{
+				Replications: []influxdb.Replication{replication1, replication2},
+			}
+
+			mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
+				OrgID:         orgID,
+				LocalBucketID: &id1,
+			}).Return(list, nil)
+
+			// Define some points of line protocol, parse string --> []Point
+			points, err := models.ParsePointsString(`
 cpu,host=0 value=1.1 6000000000
 cpu,host=A value=1.2 2000000000
 cpu,host=A value=1.3 3000000000
@@ -714,42 +737,44 @@ cpu,host=B value=1.3 5000000000
 cpu,host=C value=1.3 1000000000
 mem,host=C value=1.3 1000000000
 disk,host=C value=1.3 1000000000`)
-	require.NoError(t, err)
+			require.NoError(t, err)
 
-	// Points should successfully write to local TSM.
-	mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), orgID, id1, points).Return(nil)
+			// Points should successfully write to local TSM.
+			mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), orgID, id1, points).Return(nil)
 
-	// Points should successfully be enqueued in the 2 replications associated with the local bucket.
-	for _, id := range []platform.ID{replication1.ID, replication2.ID} {
-		// Check batch 1
-		mocks.durableQueueManager.EXPECT().
-			EnqueueData(id, gomock.Any(), 3).
-			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
-				require.Equal(t, 3, numPoints)
-				checkCompressedData(t, data, points[:3])
-				return nil
-			})
+			// Points should successfully be enqueued in the 2 replications associated with the local bucket.
+			for _, id := range []platform.ID{replication1.ID, replication2.ID} {
+				// Check batch 1
+				mocks.durableQueueManager.EXPECT().
+					EnqueueData(id, gomock.Any(), 3).
+					DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
+						require.Equal(t, 3, numPoints)
+						checkCompressedData(t, data, points[:3])
+						return nil
+					})
 
-		// Check batch 2
-		mocks.durableQueueManager.EXPECT().
-			EnqueueData(id, gomock.Any(), 3).
-			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
-				require.Equal(t, 3, numPoints)
-				checkCompressedData(t, data, points[3:6])
-				return nil
-			})
+				// Check batch 2
+				mocks.durableQueueManager.EXPECT().
+					EnqueueData(id, gomock.Any(), 3).
+					DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
+						require.Equal(t, 3, numPoints)
+						checkCompressedData(t, data, points[3:6])
+						return nil
+					})
 
-		// Check batch 3
-		mocks.durableQueueManager.EXPECT().
-			EnqueueData(id, gomock.Any(), 2).
-			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
-				require.Equal(t, 2, numPoints)
-				checkCompressedData(t, data, points[6:])
-				return nil
-			})
+				// Check batch 3
+				mocks.durableQueueManager.EXPECT().
+					EnqueueData(id, gomock.Any(), 2).
+					DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
+						require.Equal(t, 2, numPoints)
+						checkCompressedData(t, data, points[6:])
+						return nil
+					})
+			}
+
+			require.NoError(t, svc.WritePoints(ctx, orgID, id1, points))
+		})
 	}
-
-	require.NoError(t, svc.WritePoints(ctx, orgID, id1, points))
 }
 
 func TestWritePoints_LocalFailure(t *testing.T) {
@@ -897,6 +922,7 @@ func newTestService(t *testing.T) (*service, mocks) {
 		durableQueueManager:     mocks.durableQueueManager,
 		localWriter:             mocks.pointWriter,
 		maxRemoteWriteBatchSize: maxRemoteWriteBatchSize,
+		maxRemoteWritePointSize: maxRemoteWritePointSize,
 	}
 
 	return &svc, mocks

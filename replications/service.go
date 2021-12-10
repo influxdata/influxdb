@@ -21,9 +21,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// This is the same batch size limit used by the influx write command
-// https://github.com/influxdata/influx-cli/blob/a408c02bd462946ac6ebdedf6f62f5e3d81c1f6f/clients/write/buffer_batcher.go#L14
-const maxRemoteWriteBatchSize = 500000
+// InfluxDB docs suggest a batch size of 5000 lines for optimal write performance.
+// https://docs.influxdata.com/influxdb/v2.1/write-data/best-practices/optimize-writes/
+const maxRemoteWritePointSize = 5000
+
+// Uncompressed size (bytes) is used as a secondary limit to prevent network issues and stay below cloud maximum payload
+// limitations. 2.5 MB is about 50% of the limit on a basic cloud plan.
+// https://docs.influxdata.com/influxdb/cloud/account-management/pricing-plans/#data-limits
+const maxRemoteWriteBatchSize = 2500000
 
 func errLocalBucketNotFound(id platform.ID, cause error) error {
 	return &ierrors.Error{
@@ -51,6 +56,7 @@ func NewService(sqlStore *sqlite.SqlStore, bktSvc BucketService, localWriter sto
 			store,
 		),
 		maxRemoteWriteBatchSize: maxRemoteWriteBatchSize,
+		maxRemoteWritePointSize: maxRemoteWritePointSize,
 	}, metrs
 }
 
@@ -96,6 +102,7 @@ type service struct {
 	localWriter             storage.PointsWriter
 	log                     *zap.Logger
 	maxRemoteWriteBatchSize int
+	maxRemoteWritePointSize int
 }
 
 func (s service) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
@@ -337,9 +344,9 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 		gzw := gzip.NewWriter(batches[0].data)
 
 		// Iterate through points and compress in batches
-		for _, p := range points {
+		for count, p := range points {
 			// If current point will cause this batch to exceed max size, start a new batch for it first
-			if currentBatchSize+p.StringSize() > s.maxRemoteWriteBatchSize {
+			if s.startNewBatch(currentBatchSize, p.StringSize(), count) {
 				batches = append(batches, &batch{
 					data:      &bytes.Buffer{},
 					numPoints: 0,
@@ -415,4 +422,9 @@ func (s service) Close() error {
 		return err
 	}
 	return nil
+}
+
+func (s service) startNewBatch(currentSize, nextSize, pointCount int) bool {
+	return currentSize+nextSize > s.maxRemoteWriteBatchSize ||
+		pointCount > 0 && pointCount%s.maxRemoteWritePointSize == 0
 }
