@@ -16,8 +16,9 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * May 2021: Catalogs - Turning a Set of Parquet Files into a Data Set [recording](https://www.youtube.com/watch?v=Zaei3l3qk0c), [slides](https://www.slideshare.net/influxdata/catalogs-turning-a-set-of-parquet-files-into-a-data-set)
 * June 2021: Performance Profiling in Rust  [recording](https://www.youtube.com/watch?v=_ZNcg-nAVTM), [slides](https://www.slideshare.net/influxdata/performance-profiling-in-rust)
 * July 2021: Impacts of Sharding, Partitioning, Encoding & Sorting on Distributed Query Performance [recording](https://www.youtube.com/watch?v=VHYMpItvBZQ), [slides](https://www.slideshare.net/influxdata/impacts-of-sharding-partitioning-encoding-and-sorting-on-distributed-query-performance)
-* September 2021: Observability of InfluxDB IOx Tracing, Metrics and System Tables [recording](https://www.youtube.com/watch?v=tB-umdJCJQc)
-* October 2021: Query Processing in InfluxDB IOx [recording](https://www.youtube.com/watch?v=9DYkWuM8xco)
+* September 2021: Observability of InfluxDB IOx Tracing, Metrics and System Tables [recording](https://www.youtube.com/watch?v=tB-umdJCJQc), [slides](https://www.slideshare.net/influxdata/observability-of-influxdb-iox-tracing-metrics-and-system-tables)
+* October 2021: Query Processing in InfluxDB IOx [recording](https://www.youtube.com/watch?v=9DYkWuM8xco), [slides](https://www.slideshare.net/influxdata/influxdb-iox-tech-talks-query-processing-in-influxdb-iox)
+* November 2021: The Impossible Dream: Easy-to-Use, Super Fast Software and Simple Implementation [recording](https://www.youtube.com/watch?v=kK_7t24dQ-Q&list=PLYt2jfZorkDp-PKBS05kf2Yx2NrRyPAAz&index=2&t=122s), [slides](https://www.slideshare.net/influxdata/influxdb-iox-tech-talks-the-impossible-dream-easytouse-super-fast-software-and-simple-implementation)
 
 
 ## Table of Contents:
