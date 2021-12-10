@@ -2486,6 +2486,8 @@ dependencies = [
  "dotenv",
  "futures",
  "futures-test",
+ "hyper",
+ "hyper-tls",
  "indexmap",
  "itertools",
  "observability_deps",

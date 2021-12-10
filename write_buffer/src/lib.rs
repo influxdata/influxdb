@@ -12,5 +12,8 @@ pub(crate) mod codec;
 pub mod config;
 pub mod core;
 pub mod file;
+
+#[cfg(feature = "kafka")]
 pub mod kafka;
+
 pub mod mock;

@@ -1,4 +1,4 @@
-use super::scenario::{collect_query, Scenario};
+use super::scenario::Scenario;
 use crate::common::{
     server_fixture::{ServerFixture, ServerType, TestConfig},
     udp_listener::UdpCapture,
@@ -33,6 +33,7 @@ async fn setup() -> (UdpCapture, ServerFixture) {
     (udp_capture, server_fixture)
 }
 
+/// Runs a query, discarding the results
 async fn run_sql_query(server_fixture: &ServerFixture) {
     let scenario = Scenario::new();
     scenario
@@ -44,12 +45,13 @@ async fn run_sql_query(server_fixture: &ServerFixture) {
     let sql_query = "select * from cpu_load_short";
     let mut client = server_fixture.flight_client();
 
-    let query_results = client
+    client
         .perform_query(scenario.database_name(), sql_query)
         .await
+        .unwrap()
+        .collect()
+        .await
         .unwrap();
-
-    collect_query(query_results).await;
 }
 
 #[tokio::test]

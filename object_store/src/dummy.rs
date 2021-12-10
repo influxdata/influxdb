@@ -1,5 +1,7 @@
 //! Crate that mimics the interface of the the various object stores
 //! but does nothing if they are not enabled.
+use std::num::NonZeroUsize;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use snafu::Snafu;
@@ -89,6 +91,7 @@ pub(crate) fn new_s3(
     _bucket_name: impl Into<String>,
     _endpoint: Option<impl Into<String>>,
     _session_token: Option<impl Into<String>>,
+    _max_connections: NonZeroUsize,
 ) -> Result<DummyObjectStore> {
     NotSupported { name: "aws" }.fail()
 }

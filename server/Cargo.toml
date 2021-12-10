@@ -65,5 +65,8 @@ test_helpers = { path = "../test_helpers" }
 
 [features]
 default = []
+
 # Enable features for benchmarking
 bench = ["mutable_buffer/nocache"]
+
+kafka = ["write_buffer/kafka"]

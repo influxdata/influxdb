@@ -52,7 +52,7 @@ async fn test_delete_on_database() {
         .perform_query(db_name.clone(), "select * from cpu")
         .await
         .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
+    let batches = query_results.collect().await.unwrap();
     let expected = [
         "+--------+--------------------------------+------+",
         "| region | time                           | user |",
@@ -86,7 +86,7 @@ async fn test_delete_on_database() {
         .perform_query(db_name.clone(), "select * from cpu")
         .await
         .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
+    let batches = query_results.collect().await.unwrap();
     let expected = [
         "+--------+--------------------------------+------+",
         "| region | time                           | user |",
@@ -104,7 +104,7 @@ async fn test_delete_on_database() {
         )
         .await
         .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
+    let batches = query_results.collect().await.unwrap();
     // result should be as above
     assert_batches_sorted_eq!(&expected, &batches);
 
@@ -113,7 +113,7 @@ async fn test_delete_on_database() {
         .perform_query(db_name.clone(), "select * from cpu where user!=21")
         .await
         .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
+    let batches = query_results.collect().await.unwrap();
     // result should be nothing
     let expected = ["++", "++"];
     assert_batches_sorted_eq!(&expected, &batches);
@@ -135,7 +135,7 @@ async fn test_delete_on_database() {
         .perform_query(db_name.clone(), "select * from cpu")
         .await
         .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
+    let batches = query_results.collect().await.unwrap();
     let cpu_expected = [
         "+--------+--------------------------------+------+",
         "| region | time                           | user |",
@@ -149,7 +149,7 @@ async fn test_delete_on_database() {
         .perform_query(db_name.clone(), "select * from disk")
         .await
         .unwrap();
-    let batches = query_results.to_batches().await.unwrap();
+    let batches = query_results.collect().await.unwrap();
     let disk_expected = [
         "+-------+--------+--------------------------------+",
         "| bytes | region | time                           |",

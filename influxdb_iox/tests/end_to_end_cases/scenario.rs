@@ -15,7 +15,6 @@ use generated_types::{
 };
 use influxdb_iox_client::{
     connection::Connection,
-    flight::PerformQuery,
     management::{
         self,
         generated_types::{partition_template, WriteBufferConnection},
@@ -466,15 +465,6 @@ pub async fn create_two_partition_database(db_name: impl Into<String>, channel: 
         .write_lp(&db_name, lp_lines.join("\n"), 0)
         .await
         .expect("write succeded");
-}
-
-/// Collect the results of a query into a vector of record batches
-pub async fn collect_query(mut query_results: PerformQuery) -> Vec<RecordBatch> {
-    let mut batches = vec![];
-    while let Some(data) = query_results.next().await.unwrap() {
-        batches.push(data);
-    }
-    batches
 }
 
 /// Wait for the chunks to be in exactly `desired_storages` states

@@ -535,4 +535,31 @@ impl Client {
             .unwrap_field("operation")?
             .try_into()?)
     }
+
+    /// Compact all object store of a give partition
+    pub async fn compact_object_store_partition(
+        &mut self,
+        db_name: impl Into<String> + Send,
+        table_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
+    ) -> Result<IoxOperation, Error> {
+        let db_name = db_name.into();
+        let partition_key = partition_key.into();
+        let table_name = table_name.into();
+
+        let response = self
+            .inner
+            .compact_object_store_partition(CompactObjectStorePartitionRequest {
+                db_name,
+                partition_key,
+                table_name,
+            })
+            .await?;
+
+        Ok(response
+            .into_inner()
+            .operation
+            .unwrap_field("operation")?
+            .try_into()?)
+    }
 }
