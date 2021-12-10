@@ -20,6 +20,10 @@ impl management::operation_metadata::Job {
                 db_name,
                 ..
             }) => db_name,
+            Self::CompactObjectStorePartition(management::CompactObjectStorePartition {
+                db_name,
+                ..
+            }) => db_name,
         }
     }
 }

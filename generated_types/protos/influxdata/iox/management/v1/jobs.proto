@@ -42,6 +42,7 @@ message OperationMetadata {
     CompactObjectStoreChunks compact_object_store_chunks = 18;
     LoadReadBufferChunk load_read_buffer_chunk = 19;
     RebuildPreservedCatalog rebuild_preserved_catalog = 20;
+    CompactObjectStorePartition compact_object_store_partition = 21;
   }
 }
 
@@ -108,6 +109,18 @@ message CompactObjectStoreChunks {
   // chunk_id
   // UUID is stored as 16 bytes in big-endian order.
   repeated bytes chunks = 4;
+}
+
+// Compact OS chunks of a partition into a single chunk
+message CompactObjectStorePartition {
+  // name of the database
+  string db_name = 1;
+
+  // partition key
+  string partition_key = 2;
+
+  // table name
+  string table_name = 3;
 }
 
 

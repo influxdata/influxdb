@@ -1,4 +1,4 @@
-use super::scenario::{collect_query, create_readable_database, rand_name, Scenario};
+use super::scenario::{create_readable_database, rand_name, Scenario};
 use crate::common::server_fixture::{ServerFixture, ServerType};
 use arrow_util::assert_batches_sorted_eq;
 
@@ -20,12 +20,13 @@ pub async fn test() {
     // This does nothing except test the client handshake implementation.
     client.handshake().await.unwrap();
 
-    let query_results = client
+    let batches = client
         .perform_query(scenario.database_name(), sql_query)
         .await
+        .unwrap()
+        .collect()
+        .await
         .unwrap();
-
-    let batches = collect_query(query_results).await;
 
     let expected_read_data: Vec<_> = expected_read_data.iter().map(|s| s.as_str()).collect();
     assert_batches_sorted_eq!(expected_read_data, &batches);

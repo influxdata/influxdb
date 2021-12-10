@@ -535,6 +535,7 @@ impl management_service_server::ManagementService for ManagementService {
         Ok(Response::new(DropPartitionResponse {}))
     }
 
+    /// Compact all given object store chunks
     async fn compact_object_store_chunks(
         &self,
         request: Request<CompactObjectStoreChunksRequest>,
@@ -567,6 +568,36 @@ impl management_service_server::ManagementService for ManagementService {
         let operation = Some(super::operations::encode_tracker(tracker)?);
 
         Ok(Response::new(CompactObjectStoreChunksResponse {
+            operation,
+        }))
+    }
+
+    // Compact all object store chunks of the given partition
+    async fn compact_object_store_partition(
+        &self,
+        request: Request<CompactObjectStorePartitionRequest>,
+    ) -> Result<Response<CompactObjectStorePartitionResponse>, Status> {
+        let CompactObjectStorePartitionRequest {
+            db_name,
+            partition_key,
+            table_name,
+        } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).scope("db_name")?;
+
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
+
+        let tracker = db
+            .compact_object_store_partition(&table_name, &partition_key)
+            .map_err(default_db_error_handler)?;
+
+        let operation = Some(super::operations::encode_tracker(tracker)?);
+
+        Ok(Response::new(CompactObjectStorePartitionResponse {
             operation,
         }))
     }
