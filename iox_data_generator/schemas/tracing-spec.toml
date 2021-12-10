@@ -30,6 +30,6 @@ tag_pairs = [
 name = "timing"
 f64_range = [0.0, 500.0]
 
-[[bucket_writers]]
-ratio = 1.0
+[[database_writers]]
+database_ratio = 1.0
 agents = [{name = "tracing_agent", sampling_interval = "1s"}]

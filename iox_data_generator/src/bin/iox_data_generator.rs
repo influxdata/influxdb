@@ -13,10 +13,7 @@
 use chrono::prelude::*;
 use chrono_english::{parse_date_string, Dialect};
 use clap::{crate_authors, crate_version, App, Arg};
-use iox_data_generator::{
-    specification::{DataSpec, OrgBucket},
-    write::PointsWriterBuilder,
-};
+use iox_data_generator::{specification::DataSpec, write::PointsWriterBuilder};
 use std::fs::File;
 use std::io::{self, BufRead};
 use tracing::info;
@@ -97,8 +94,8 @@ Logging:
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("BUCKET_LIST")
-                .long("bucket_list")
+            Arg::with_name("DATABASE_LIST")
+                .long("database_list")
                 .help("File name with a list of databases. 1 per line with <org>_<bucket> format")
                 .takes_value(true),
         )
@@ -203,34 +200,20 @@ Logging:
     let buckets = match (
         matches.value_of("ORG"),
         matches.value_of("BUCKET"),
-        matches.value_of("BUCKET_LIST"),
+        matches.value_of("DATABASE_LIST"),
     ) {
         (Some(org), Some(bucket), None) => {
-            vec![OrgBucket {
-                org: org.to_string(),
-                bucket: bucket.to_string(),
-            }]
+            vec![format!("{}_{}", org, bucket)]
         }
         (None, None, Some(bucket_list)) => {
-            let f = File::open(bucket_list).expect("unable to open bucket_list file");
+            let f = File::open(bucket_list).expect("unable to open database_list file");
 
             io::BufReader::new(f)
                 .lines()
-                .map(|l| {
-                    let l = l.expect("unable to read line from bucket list");
-                    let parts = l.split('_').collect::<Vec<_>>();
-                    if parts.len() != 2 {
-                        panic!("error parsing org and bucket from {}", l);
-                    }
-
-                    let org = parts[0].to_string();
-                    let bucket = parts[1].to_string();
-
-                    OrgBucket { org, bucket }
-                })
+                .map(|l| l.expect("unable to read database from database_list file"))
                 .collect::<Vec<_>>()
         }
-        _ => panic!("must specify either --org AND --bucket OR --bucket_list"),
+        _ => panic!("must specify either --org AND --bucket OR --database_list"),
     };
 
     let result = iox_data_generator::generate(

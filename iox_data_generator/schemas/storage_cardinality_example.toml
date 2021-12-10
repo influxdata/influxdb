@@ -58,8 +58,8 @@ for_each = [
     "partition_id",
 ]
 
-[[bucket_writers]]
-ratio = 1.0
+[[database_writers]]
+database_ratio = 1.0
 agents = [{name = "sender", sampling_interval = "10s"}]
 
 [[agents]]

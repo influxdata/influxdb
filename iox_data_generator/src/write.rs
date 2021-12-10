@@ -342,8 +342,7 @@ name = "cpu"
 name = "val"
 i64_range = [3,3]
 
-[[bucket_writers]]
-ratio = 1.0
+[[database_writers]]
 agents = [{name = "foo", sampling_interval = "1s"}]
 "#;
 
@@ -354,10 +353,7 @@ agents = [{name = "foo", sampling_interval = "1s"}]
 
         generate(
             &data_spec,
-            vec![OrgBucket {
-                org: "foo".to_string(),
-                bucket: "bar".to_string(),
-            }],
+            vec!["foo_bar".to_string()],
             &mut points_writer_builder,
             Some(now),
             Some(now),
@@ -395,8 +391,7 @@ name = "cpu"
 name = "val"
 i64_range = [2, 2]
 
-[[bucket_writers]]
-ratio = 1.0
+[[database_writers]]
 agents = [{name = "foo", sampling_interval = "1s"}]
 "#;
 
@@ -407,10 +402,7 @@ agents = [{name = "foo", sampling_interval = "1s"}]
 
         generate(
             &data_spec,
-            vec![OrgBucket {
-                org: "foo".to_string(),
-                bucket: "bar".to_string(),
-            }],
+            vec!["foo_bar".to_string()],
             &mut points_writer_builder,
             Some(now - 1_000_000_000),
             Some(now),
