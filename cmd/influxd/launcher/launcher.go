@@ -359,23 +359,21 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	ts.BucketService = replications.NewBucketService(
 		m.log.With(zap.String("service", "replication_buckets")), ts.BucketService, replicationSvc)
 
-	if feature.ReplicationStreamBackend().Enabled(ctx, m.flagger) {
-		m.reg.MustRegister(replicationsMetrics.PrometheusCollectors()...)
+	m.reg.MustRegister(replicationsMetrics.PrometheusCollectors()...)
 
-		if err = replicationSvc.Open(ctx); err != nil {
-			m.log.Error("Failed to open replications service", zap.Error(err))
-			return err
-		}
-
-		m.closers = append(m.closers, labeledCloser{
-			label: "replications",
-			closer: func(context.Context) error {
-				return replicationSvc.Close()
-			},
-		})
-
-		pointsWriter = replicationSvc
+	if err = replicationSvc.Open(ctx); err != nil {
+		m.log.Error("Failed to open replications service", zap.Error(err))
+		return err
 	}
+
+	m.closers = append(m.closers, labeledCloser{
+		label: "replications",
+		closer: func(context.Context) error {
+			return replicationSvc.Close()
+		},
+	})
+
+	pointsWriter = replicationSvc
 
 	deps, err := influxdb.NewDependencies(
 		storageflux.NewReader(storage2.NewStore(m.engine.TSDBStore(), m.engine.MetaClient())),

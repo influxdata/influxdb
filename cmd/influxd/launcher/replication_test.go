@@ -14,14 +14,11 @@ import (
 	"github.com/influxdata/influx-cli/v2/api"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
-	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/stretchr/testify/require"
 )
 
 func TestValidateReplication_Valid(t *testing.T) {
-	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
-		o.FeatureFlags = map[string]string{feature.ReplicationStreamBackend().Key(): "true"}
-	})
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 	client := l.APIClient(t)
 
@@ -84,9 +81,7 @@ func TestValidateReplication_Valid(t *testing.T) {
 }
 
 func TestValidateReplication_Invalid(t *testing.T) {
-	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
-		o.FeatureFlags = map[string]string{feature.ReplicationStreamBackend().Key(): "true"}
-	})
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 	client := l.APIClient(t)
 
@@ -200,9 +195,7 @@ func TestReplicationStreamEndToEnd(t *testing.T) {
 		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,300,f,m,v3` + "\r\n" +
 		`,_result,1,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,400,f,m,v4` + "\r\n\r\n"
 
-	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
-		o.FeatureFlags = map[string]string{feature.ReplicationStreamBackend().Key(): "true"}
-	})
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 	client := l.APIClient(t)
 
@@ -312,9 +305,7 @@ func TestReplicationStreamEndToEnd(t *testing.T) {
 }
 
 func TestReplicationsLocalWriteAndShutdownBlocking(t *testing.T) {
-	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
-		o.FeatureFlags = map[string]string{feature.ReplicationStreamBackend().Key(): "true"}
-	})
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	client := l.APIClient(t)
 
 	// Server that only returns an error will cause the remote write to retry on loop.
