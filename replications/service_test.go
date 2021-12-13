@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/replications/tracked"
+
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -227,7 +229,7 @@ func TestCreateReplication(t *testing.T) {
 			mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), tt.create.LocalBucketID).Return(nil, tt.bucketErr)
 
 			if tt.bucketErr == nil {
-				mocks.durableQueueManager.EXPECT().InitializeQueue(id1, tt.create.MaxQueueSizeBytes).Return(tt.queueManagerErr)
+				mocks.durableQueueManager.EXPECT().InitializeQueue(id1, tt.create.MaxQueueSizeBytes, tt.create.OrgID, tt.create.LocalBucketID).Return(tt.queueManagerErr)
 			}
 
 			if tt.queueManagerErr == nil && tt.bucketErr == nil {
@@ -652,6 +654,7 @@ func TestWritePoints(t *testing.T) {
 	list := &influxdb.Replications{
 		Replications: []influxdb.Replication{replication1, replication2},
 	}
+	mocks.durableQueueManager.EXPECT().IfReplicationsExist(orgID, id1)
 
 	mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
 		OrgID:         orgID,
@@ -818,14 +821,22 @@ func TestOpen(t *testing.T) {
 		name            string
 		storeErr        error
 		queueManagerErr error
-		replicationsMap map[platform.ID]int64
+		replicationsMap map[platform.ID]*tracked.Replication
 		list            *influxdb.Replications
 	}{
 		{
 			name: "no error, multiple replications from storage",
-			replicationsMap: map[platform.ID]int64{
-				replication1.ID: replication1.MaxQueueSizeBytes,
-				replication2.ID: replication2.MaxQueueSizeBytes,
+			replicationsMap: map[platform.ID]*tracked.Replication{
+				replication1.ID: {
+					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
+					OrgID:             replication1.OrgID,
+					LocalBucketID:     replication1.LocalBucketID,
+				},
+				replication2.ID: {
+					MaxQueueSizeBytes: replication2.MaxQueueSizeBytes,
+					OrgID:             replication2.OrgID,
+					LocalBucketID:     replication2.LocalBucketID,
+				},
 			},
 			list: &influxdb.Replications{
 				Replications: []influxdb.Replication{replication1, replication2},
@@ -833,8 +844,12 @@ func TestOpen(t *testing.T) {
 		},
 		{
 			name: "no error, one stored replication",
-			replicationsMap: map[platform.ID]int64{
-				replication1.ID: replication1.MaxQueueSizeBytes,
+			replicationsMap: map[platform.ID]*tracked.Replication{
+				replication1.ID: {
+					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
+					OrgID:             replication1.OrgID,
+					LocalBucketID:     replication1.LocalBucketID,
+				},
 			},
 			list: &influxdb.Replications{
 				Replications: []influxdb.Replication{replication1},
@@ -846,8 +861,12 @@ func TestOpen(t *testing.T) {
 		},
 		{
 			name: "queue manager error",
-			replicationsMap: map[platform.ID]int64{
-				replication1.ID: replication1.MaxQueueSizeBytes,
+			replicationsMap: map[platform.ID]*tracked.Replication{
+				replication1.ID: {
+					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
+					OrgID:             replication1.OrgID,
+					LocalBucketID:     replication1.LocalBucketID,
+				},
 			},
 			list: &influxdb.Replications{
 				Replications: []influxdb.Replication{replication1},

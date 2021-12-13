@@ -9,7 +9,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	"github.com/influxdata/influxdb/v2"
+	influxdb "github.com/influxdata/influxdb/v2"
 )
 
 // MockReplicationValidator is a mock of ReplicationValidator interface.

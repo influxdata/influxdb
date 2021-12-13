@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/replications/tracked"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom"
@@ -23,6 +25,8 @@ var (
 	id1               = platform.ID(1)
 	id2               = platform.ID(2)
 	maxQueueSizeBytes = 3 * influxdb.DefaultReplicationMaxQueueSizeBytes
+	orgID             = platform.ID(500)
+	localBucketID     = platform.ID(999)
 )
 
 func TestCreateNewQueueDirExists(t *testing.T) {
@@ -31,7 +35,7 @@ func TestCreateNewQueueDirExists(t *testing.T) {
 	queuePath, qm := initQueueManager(t)
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
-	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
+	err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID)
 
 	require.NoError(t, err)
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
@@ -75,7 +79,7 @@ func TestEnqueueScan(t *testing.T) {
 			defer os.RemoveAll(filepath.Dir(queuePath))
 
 			// Create new queue
-			err := qm.InitializeQueue(id1, maxQueueSizeBytes)
+			err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID)
 			require.NoError(t, err)
 			rq := qm.replicationQueues[id1]
 			rq.remoteWriter = getTestRemoteWriter(t, data, tt.writeFuncReturn)
@@ -111,11 +115,11 @@ func TestCreateNewQueueDuplicateID(t *testing.T) {
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create a valid new queue
-	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
+	err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID)
 	require.NoError(t, err)
 
 	// Try to initialize another queue with the same replication ID
-	err = qm.InitializeQueue(id1, maxQueueSizeBytes)
+	err = qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID)
 	require.EqualError(t, err, "durable queue already exists for replication ID \"0000000000000001\"")
 }
 
@@ -126,7 +130,7 @@ func TestDeleteQueueDirRemoved(t *testing.T) {
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create a valid new queue
-	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
+	err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID)
 	require.NoError(t, err)
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
@@ -165,13 +169,17 @@ func TestStartReplicationQueue(t *testing.T) {
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create new queue
-	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
+	err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID)
 	require.NoError(t, err)
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	// Represents the replications tracked in sqlite, this one is tracked
-	trackedReplications := make(map[platform.ID]int64)
-	trackedReplications[id1] = maxQueueSizeBytes
+	trackedReplications := make(map[platform.ID]*tracked.Replication)
+	trackedReplications[id1] = &tracked.Replication{
+		MaxQueueSizeBytes: maxQueueSizeBytes,
+		OrgID:             orgID,
+		LocalBucketID:     localBucketID,
+	}
 
 	// Simulate server shutdown by closing all queues and clearing replicationQueues map
 	shutdown(t, qm)
@@ -195,12 +203,12 @@ func TestStartReplicationQueuePartialDelete(t *testing.T) {
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create new queue
-	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
+	err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID)
 	require.NoError(t, err)
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	// Represents the replications tracked in sqlite, replication above is not tracked (not present in map)
-	trackedReplications := make(map[platform.ID]int64)
+	trackedReplications := make(map[platform.ID]*tracked.Replication)
 
 	// Simulate server shutdown by closing all queues and clearing replicationQueues map
 	shutdown(t, qm)
@@ -223,19 +231,27 @@ func TestStartReplicationQueuesMultiple(t *testing.T) {
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create queue1
-	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
+	err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID)
 	require.NoError(t, err)
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	// Create queue2
-	err = qm.InitializeQueue(id2, maxQueueSizeBytes)
+	err = qm.InitializeQueue(id2, maxQueueSizeBytes, orgID, localBucketID)
 	require.NoError(t, err)
 	require.DirExists(t, filepath.Join(queuePath, id2.String()))
 
 	// Represents the replications tracked in sqlite, both replications above are tracked
-	trackedReplications := make(map[platform.ID]int64)
-	trackedReplications[id1] = maxQueueSizeBytes
-	trackedReplications[id2] = maxQueueSizeBytes
+	trackedReplications := make(map[platform.ID]*tracked.Replication)
+	trackedReplications[id1] = &tracked.Replication{
+		MaxQueueSizeBytes: maxQueueSizeBytes,
+		OrgID:             orgID,
+		LocalBucketID:     localBucketID,
+	}
+	trackedReplications[id2] = &tracked.Replication{
+		MaxQueueSizeBytes: maxQueueSizeBytes,
+		OrgID:             orgID,
+		LocalBucketID:     localBucketID,
+	}
 
 	// Simulate server shutdown by closing all queues and clearing replicationQueues map
 	shutdown(t, qm)
@@ -266,18 +282,22 @@ func TestStartReplicationQueuesMultipleWithPartialDelete(t *testing.T) {
 	defer os.RemoveAll(filepath.Dir(queuePath))
 
 	// Create queue1
-	err := qm.InitializeQueue(id1, maxQueueSizeBytes)
+	err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID)
 	require.NoError(t, err)
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	// Create queue2
-	err = qm.InitializeQueue(id2, maxQueueSizeBytes)
+	err = qm.InitializeQueue(id2, maxQueueSizeBytes, orgID, localBucketID)
 	require.NoError(t, err)
 	require.DirExists(t, filepath.Join(queuePath, id2.String()))
 
 	// Represents the replications tracked in sqlite, queue1 is tracked and queue2 is not
-	trackedReplications := make(map[platform.ID]int64)
-	trackedReplications[id1] = maxQueueSizeBytes
+	trackedReplications := make(map[platform.ID]*tracked.Replication)
+	trackedReplications[id1] = &tracked.Replication{
+		MaxQueueSizeBytes: maxQueueSizeBytes,
+		OrgID:             orgID,
+		LocalBucketID:     localBucketID,
+	}
 
 	// Simulate server shutdown by closing all queues and clearing replicationQueues map
 	shutdown(t, qm)
@@ -357,7 +377,7 @@ func TestEnqueueData(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	qm := NewDurableQueueManager(logger, queuePath, metrics.NewReplicationsMetrics(), replicationsMock.NewMockHttpConfigStore(nil))
 
-	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID))
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	sizes, err := qm.CurrentQueueSizes([]platform.ID{id1})
@@ -389,7 +409,7 @@ func TestEnqueueData_WithMetrics(t *testing.T) {
 
 	path, qm := initQueueManager(t)
 	defer os.RemoveAll(path)
-	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID))
 	require.DirExists(t, filepath.Join(path, id1.String()))
 
 	// close the scanner goroutine to specifically test EnqueueData()
@@ -431,7 +451,7 @@ func TestEnqueueData_EnqueueFailure(t *testing.T) {
 
 	path, qm := initQueueManager(t)
 	defer os.RemoveAll(path)
-	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID))
 	require.DirExists(t, filepath.Join(path, id1.String()))
 
 	rq, ok := qm.replicationQueues[id1]
@@ -464,7 +484,7 @@ func TestGoroutineReceives(t *testing.T) {
 
 	path, qm := initQueueManager(t)
 	defer os.RemoveAll(path)
-	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID))
 	require.DirExists(t, filepath.Join(path, id1.String()))
 
 	rq, ok := qm.replicationQueues[id1]
@@ -487,7 +507,7 @@ func TestGoroutineCloses(t *testing.T) {
 
 	path, qm := initQueueManager(t)
 	defer os.RemoveAll(path)
-	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes))
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes, orgID, localBucketID))
 	require.DirExists(t, filepath.Join(path, id1.String()))
 
 	rq, ok := qm.replicationQueues[id1]

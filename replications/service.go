@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/influxdata/influxdb/v2/replications/tracked"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -71,13 +73,14 @@ type BucketService interface {
 }
 
 type DurableQueueManager interface {
-	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error
+	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64, orgID platform.ID, localBucketID platform.ID) error
 	DeleteQueue(replicationID platform.ID) error
 	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
 	CurrentQueueSizes(ids []platform.ID) (map[platform.ID]int64, error)
-	StartReplicationQueues(trackedReplications map[platform.ID]int64) error
+	StartReplicationQueues(trackedReplications map[platform.ID]*tracked.Replication) error
 	CloseAll() error
 	EnqueueData(replicationID platform.ID, data []byte, numPoints int) error
+	IfReplicationsExist(orgId platform.ID, localBucketID platform.ID) bool
 }
 
 type ServiceStore interface {
@@ -142,7 +145,7 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 	}
 
 	newID := s.idGenerator.ID()
-	if err := s.durableQueueManager.InitializeQueue(newID, request.MaxQueueSizeBytes); err != nil {
+	if err := s.durableQueueManager.InitializeQueue(newID, request.MaxQueueSizeBytes, request.OrgID, request.LocalBucketID); err != nil {
 		return nil, err
 	}
 
@@ -309,17 +312,19 @@ type batch struct {
 }
 
 func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
+	replicationsExist := s.durableQueueManager.IfReplicationsExist(orgID, bucketID)
+
+	// If there are no registered replications, all we need to do is a local write.
+	if !replicationsExist {
+		return s.localWriter.WritePoints(ctx, orgID, bucketID, points)
+	}
+
 	repls, err := s.store.ListReplications(ctx, influxdb.ReplicationListFilter{
 		OrgID:         orgID,
 		LocalBucketID: &bucketID,
 	})
 	if err != nil {
 		return err
-	}
-
-	// If there are no registered replications, all we need to do is a local write.
-	if len(repls.Replications) == 0 {
-		return s.localWriter.WritePoints(ctx, orgID, bucketID, points)
 	}
 
 	// Concurrently...
@@ -405,9 +410,13 @@ func (s service) Open(ctx context.Context) error {
 		return err
 	}
 
-	trackedReplicationsMap := make(map[platform.ID]int64)
+	trackedReplicationsMap := make(map[platform.ID]*tracked.Replication)
 	for _, r := range trackedReplications.Replications {
-		trackedReplicationsMap[r.ID] = r.MaxQueueSizeBytes
+		trackedReplicationsMap[r.ID] = &tracked.Replication{
+			MaxQueueSizeBytes: r.MaxQueueSizeBytes,
+			OrgID:             r.OrgID,
+			LocalBucketID:     r.LocalBucketID,
+		}
 	}
 
 	// Queue manager completes startup tasks
