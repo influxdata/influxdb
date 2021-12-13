@@ -410,7 +410,7 @@ where
                 .to_status());
             }
 
-            measurement_name_impl(db, db_name, range, span_ctx).await
+            measurement_name_impl(db, db_name, range, predicate, span_ctx).await
         } else if tag_key.is_field() {
             info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[xff] (field name)");
 
@@ -519,20 +519,9 @@ where
             predicate,
         } = req;
 
-        if let Some(predicate) = predicate {
-            return NotYetImplemented {
-                operation: format!(
-                    "measurement_names request with a predicate: {:?}",
-                    predicate
-                ),
-            }
-            .fail()
-            .map_err(|e| e.to_status());
-        }
-
         info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_names");
 
-        let response = measurement_name_impl(db, db_name, range, span_ctx)
+        let response = measurement_name_impl(db, db_name, range, predicate, span_ctx)
             .await
             .map_err(|e| e.to_status());
 
@@ -720,13 +709,22 @@ async fn measurement_name_impl<D>(
     db: Arc<D>,
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
+    rpc_predicate: Option<Predicate>,
     span_ctx: Option<SpanContext>,
 ) -> Result<StringValuesResponse>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
 {
-    let predicate = PredicateBuilder::default().set_range(range).build();
+    let rpc_predicate_string = format!("{:?}", rpc_predicate);
     let db_name = db_name.as_str();
+
+    let predicate = PredicateBuilder::default()
+        .set_range(range)
+        .rpc_predicate(rpc_predicate)
+        .context(ConvertingPredicate {
+            rpc_predicate_string,
+        })?
+        .build();
 
     let ctx = db.new_query_context(span_ctx);
 
@@ -1200,7 +1198,25 @@ mod tests {
             expected_predicate
         );
 
-        grpc_request_metric_has_count(&fixture, "MeasurementNames", "ok", 2);
+        // --- general predicate
+        let request = MeasurementNamesRequest {
+            source: Some(StorageClient::read_source(&db_info, 1)),
+            range: Some(TimestampRange {
+                start: 150,
+                end: 200,
+            }),
+            predicate: Some(make_state_ma_predicate()),
+        };
+
+        let actual_measurements = fixture
+            .storage_client
+            .measurement_names(request)
+            .await
+            .unwrap();
+        let expected_measurements = to_string_vec(&["h2o", "o2"]);
+        assert_eq!(actual_measurements, expected_measurements);
+
+        grpc_request_metric_has_count(&fixture, "MeasurementNames", "ok", 3);
     }
 
     /// test the plumbing of the RPC layer for tag_keys -- specifically that
