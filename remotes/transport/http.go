@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -80,7 +79,6 @@ func newRemoteConnectionHandler(log *zap.Logger, svc RemoteConnectionService) *R
 		middleware.Recoverer,
 		middleware.RequestID,
 		middleware.RealIP,
-		h.mwRemotesFlag, // Temporary, remove when feature flag for remote connections is perma-enabled.
 	)
 
 	r.Route("/", func(r chi.Router) {
@@ -100,19 +98,6 @@ func newRemoteConnectionHandler(log *zap.Logger, svc RemoteConnectionService) *R
 
 func (h *RemoteConnectionHandler) Prefix() string {
 	return prefixRemotes
-}
-
-func (h *RemoteConnectionHandler) mwRemotesFlag(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		flags := feature.FlagsFromContext(r.Context())
-
-		if flagVal, ok := flags[feature.ReplicationStreamBackend().Key()]; !ok || !flagVal.(bool) {
-			h.api.Respond(w, r, http.StatusNotFound, nil)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 func (h *RemoteConnectionHandler) handleGetRemotes(w http.ResponseWriter, r *http.Request) {

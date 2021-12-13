@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -102,7 +101,6 @@ func newReplicationHandler(log *zap.Logger, svc ReplicationService) *Replication
 		middleware.Recoverer,
 		middleware.RequestID,
 		middleware.RealIP,
-		h.mwReplicationsFlag,
 	)
 
 	r.Route("/", func(r chi.Router) {
@@ -123,19 +121,6 @@ func newReplicationHandler(log *zap.Logger, svc ReplicationService) *Replication
 
 func (h *ReplicationHandler) Prefix() string {
 	return prefixReplications
-}
-
-func (h *ReplicationHandler) mwReplicationsFlag(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		flags := feature.FlagsFromContext(r.Context())
-
-		if flagVal, ok := flags[feature.ReplicationStreamBackend().Key()]; !ok || !flagVal.(bool) {
-			h.api.Respond(w, r, http.StatusNotFound, nil)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 func (h *ReplicationHandler) handleGetReplications(w http.ResponseWriter, r *http.Request) {

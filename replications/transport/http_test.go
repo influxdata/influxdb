@@ -9,13 +9,11 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/replications/mock"
 	"github.com/stretchr/testify/assert"
 	tmock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -316,19 +314,8 @@ func TestReplicationHandler(t *testing.T) {
 func newTestServer(t *testing.T) (*httptest.Server, *mock.MockReplicationService) {
 	ctrl := gomock.NewController(t)
 	svc := mock.NewMockReplicationService(ctrl)
-	server := annotatedTestServer(newReplicationHandler(zaptest.NewLogger(t), svc))
+	server := newReplicationHandler(zaptest.NewLogger(t), svc)
 	return httptest.NewServer(server), svc
-}
-
-func annotatedTestServer(serv http.Handler) http.Handler {
-	replicationFlag := feature.MakeFlag("", feature.ReplicationStreamBackend().Key(), "", true, 0, true)
-
-	return feature.NewHandler(
-		zap.NewNop(),
-		feature.DefaultFlagger(),
-		[]feature.Flag{replicationFlag},
-		serv,
-	)
 }
 
 func newTestRequest(t *testing.T, method, path string, body interface{}) *http.Request {
