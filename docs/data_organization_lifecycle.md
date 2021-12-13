@@ -47,6 +47,11 @@
 Figure 1: Data organization in an IOx Server
 ```
 
-Chunk is considered the smallest unit of blocks of data in IOx and the central discussion of the rest of this document. 
+Chunk is considered the smallest unit of blocks of data in IOx and the central discussion of the rest of this document. Chunks can include duplicate rows identified by its table primary key. Duplicated rows will be deduplicated at Query and Compaction time[^1]. 
+[^1]: Duplication and deduplication are parts of a large topic that are out of this document scope.
+
+### Chunk Types
+
+### Chunk Stages
 
 ## Data Life Cycle
