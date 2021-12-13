@@ -36,6 +36,7 @@ import (
 )
 
 func TestAnalyticalStore(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/22920")
 	servicetest.TestTaskService(
 		t,
 		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
