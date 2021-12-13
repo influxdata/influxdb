@@ -6,6 +6,8 @@ use iox_data_generator::{
     tag_set::GeneratedTagSets,
     write::PointsWriterBuilder,
 };
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 use std::time::Duration;
 
 pub fn single_agent(c: &mut Criterion) {
@@ -178,6 +180,7 @@ agents = [{name = "foo", sampling_interval = "1s", count = 3}]
     let agent = agents.first_mut().unwrap();
     let expected_points = 30000;
 
+    let counter = Arc::new(AtomicU64::new(0));
     let mut group = c.benchmark_group("agent_pre_generated");
     group.measurement_time(std::time::Duration::from_secs(50));
     group.throughput(Throughput::Elements(expected_points));
@@ -186,7 +189,7 @@ agents = [{name = "foo", sampling_interval = "1s", count = 3}]
         b.iter(|| {
             agent.reset_current_date_time(0);
             let points_writer = points_writer.build_for_agent("foo", "foo", "foo").unwrap();
-            let r = block_on(agent.generate_all(points_writer, 1));
+            let r = block_on(agent.generate_all(points_writer, 1, Arc::clone(&counter)));
             let n_points = r.expect("Could not generate data");
             assert_eq!(n_points, expected_points as usize);
         })
