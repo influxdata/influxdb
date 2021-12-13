@@ -1027,8 +1027,4 @@ mod tests {
         assert_eq!(summary_chunks[0].storage, ChunkStorage::OpenMutableBuffer);
         assert_eq!(summary_chunks[0].row_count, 1);
     }
-
-    // todo: add tests
-    //  . compact with deletes happening during compaction
-    //   . replay
 }

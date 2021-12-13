@@ -521,6 +521,11 @@ mod tests {
         /// The partitions are by table name and partition key.
         Persist(Vec<(&'static str, &'static str)>),
 
+        /// Compact object store chunks of partitions.
+        ///
+        /// The partitions are by table name and partition key.
+        CompactObjectStore(Vec<(&'static str, &'static str)>),
+
         /// Drop partitions.
         ///
         /// Note that this only works for fully persisted partitions if
@@ -689,6 +694,17 @@ mod tests {
                                     }
                                 }
                             }
+                        }
+                    }
+                    Step::CompactObjectStore(partitions) => {
+                        let db = &test_db.db;
+
+                        for (table_name, partition_key) in partitions {
+                            println!("Compact Object Store {}:{}", table_name, partition_key);
+                            db.compact_object_store_partition(table_name, partition_key)
+                                .unwrap()
+                                .join()
+                                .await;
                         }
                     }
                     Step::Drop(partitions) => {
@@ -2724,6 +2740,169 @@ mod tests {
                         "+-----+------------------+--------------------------------+",
                     ],
                 )]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
+    }
+
+    // This test replay compact os chunks with deletes and duplicates
+    #[tokio::test]
+    async fn replay_delete_compact_os_chunks() {
+        ReplayTest {
+            steps: vec![
+                // --------------------------
+                // Create and persist chunk 1
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 0,
+                    lp: "table_1,tag_partition_by=a,tag1=cupcake bar=1 10\ntable_1,tag_partition_by=a,tag1=cupcake bar=2 20",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+---------+------------------+--------------------------------+",
+                        "| bar | tag1    | tag_partition_by | time                           |",
+                        "+-----+---------+------------------+--------------------------------+",
+                        "| 1   | cupcake | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 2   | cupcake | a                | 1970-01-01T00:00:00.000000020Z |",
+                        "+-----+---------+------------------+--------------------------------+",
+                    ],
+                )]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                // --------------------------
+                // Create and persist chunk 2
+                // First row of chunk 2 is a duplicate of first row of chunk 1
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 1,
+                    lp: "table_1,tag_partition_by=a,tag1=cupcake bar=100 10\ntable_1,tag_partition_by=a,tag1=cookie bar=4 30",
+                }]),
+                // There are 4 rows in two chunks be only 3 rows are return due to duplicate elimination
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+---------+------------------+--------------------------------+",
+                        "| bar | tag1    | tag_partition_by | time                           |",
+                        "+-----+---------+------------------+--------------------------------+",
+                        "| 2   | cupcake | a                | 1970-01-01T00:00:00.000000020Z |",
+                        "| 4   | cookie  | a                | 1970-01-01T00:00:00.000000030Z |",
+                        "| 100 | cupcake | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "+-----+---------+------------------+--------------------------------+",
+                    ],
+                )]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                // --------------------------
+                // Verify chunks and rows in system table
+                Step::Assert(vec![
+                    Check::Query(
+                        "select storage, min_value, max_value, row_count from system.chunk_columns where table_name = 'table_1' and column_name = 'time' order by storage, max_value",
+                        vec![
+                            "+--------------------------+-----------+-----------+-----------+",
+                            "| storage                  | min_value | max_value | row_count |",
+                            "+--------------------------+-----------+-----------+-----------+",
+                            "| ReadBufferAndObjectStore | 10        | 20        | 2         |",
+                            "| ReadBufferAndObjectStore | 10        | 30        | 2         |",
+                            "+--------------------------+-----------+-----------+-----------+",
+                        ],
+                    ),
+                ]),
+                // --------------------------
+                // Delete second row of chunk 1
+                Step::Delete(vec![TestDelete {
+                    sequencer_id: 0,
+                    sequence_number: 2,
+                    table_name: Some("table_1"),
+                    predicate: DeletePredicate {
+                        range: TimestampRange { start: 19, end: 21 },
+                        exprs: vec![],
+                    },
+                }]),
+                // There are 4 rows in two chunks but only 2 rows are return due to duplicate and soft-delete elimination
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+---------+------------------+--------------------------------+",
+                        "| bar | tag1    | tag_partition_by | time                           |",
+                        "+-----+---------+------------------+--------------------------------+",
+                        "| 4   | cookie  | a                | 1970-01-01T00:00:00.000000030Z |",
+                        "| 100 | cupcake | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "+-----+---------+------------------+--------------------------------+",
+                    ],
+                )]),
+                // System table still includes 4 rows
+                Step::Assert(vec![
+                    Check::Query(
+                        "select storage, min_value, max_value, row_count from system.chunk_columns where table_name = 'table_1' and column_name = 'time' order by storage, max_value",
+                        vec![
+                            "+--------------------------+-----------+-----------+-----------+",
+                            "| storage                  | min_value | max_value | row_count |",
+                            "+--------------------------+-----------+-----------+-----------+",
+                            "| ReadBufferAndObjectStore | 10        | 20        | 2         |",
+                            "| ReadBufferAndObjectStore | 10        | 30        | 2         |",
+                            "+--------------------------+-----------+-----------+-----------+",
+                        ],
+                    ),
+                ]),
+                // --------------------------
+                // Compact those 2 chunks
+                Step::CompactObjectStore(vec![("table_1", "tag_partition_by_a")]),
+                // Still has 2 rows returned
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+---------+------------------+--------------------------------+",
+                        "| bar | tag1    | tag_partition_by | time                           |",
+                        "+-----+---------+------------------+--------------------------------+",
+                        "| 4   | cookie  | a                | 1970-01-01T00:00:00.000000030Z |",
+                        "| 100 | cupcake | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "+-----+---------+------------------+--------------------------------+",
+                    ],
+                )]),
+                // But only one OS-only chunk with 2 rows now. The duplicated and deleted rows were purged
+                Step::Assert(vec![
+                    Check::Query(
+                        "select storage, min_value, max_value, row_count from system.chunk_columns where table_name = 'table_1' and column_name = 'time' order by storage, max_value",
+                        vec![
+                            "+-----------------+-----------+-----------+-----------+",
+                            "| storage         | min_value | max_value | row_count |",
+                            "+-----------------+-----------+-----------+-----------+",
+                            "| ObjectStoreOnly | 10        | 30        | 2         |",
+                            "+-----------------+-----------+-----------+-----------+",
+                        ],
+                    ),
+                ]),
+                // --------------------------
+                // Restart and replay the preserved catalog
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+---------+------------------+--------------------------------+",
+                        "| bar | tag1    | tag_partition_by | time                           |",
+                        "+-----+---------+------------------+--------------------------------+",
+                        "| 4   | cookie  | a                | 1970-01-01T00:00:00.000000030Z |",
+                        "| 100 | cupcake | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "+-----+---------+------------------+--------------------------------+",
+                    ],
+                )]),
+                // Should have one OS-only chunk
+                Step::Assert(vec![
+                    Check::Query(
+                        "select storage, min_value, max_value, row_count from system.chunk_columns where table_name = 'table_1' and column_name = 'time' order by storage, max_value",
+                        vec![
+                            "+-----------------+-----------+-----------+-----------+",
+                            "| storage         | min_value | max_value | row_count |",
+                            "+-----------------+-----------+-----------+-----------+",
+                            "| ObjectStoreOnly | 10        | 30        | 2         |",
+                            "+-----------------+-----------+-----------+-----------+",
+                        ],
+                    ),
+                ]),
             ],
             ..Default::default()
         }
