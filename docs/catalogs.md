@@ -2,7 +2,7 @@
 
 ## Roles of Catalogs
 
-```text hl_;ines="3 10"
+```text hl_lines="3 10"
                                                                  ┌───────────┐                                    
                                                                  │IOx Server │                        IOx Server  
                                                                  └───────────┘                                    
