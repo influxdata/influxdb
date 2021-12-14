@@ -24,6 +24,7 @@ futures-task = { version = "0.3", default-features = false, features = ["alloc",
 futures-util = { version = "0.3", features = ["alloc", "async-await", "async-await-macro", "channel", "futures-channel", "futures-io", "futures-macro", "futures-sink", "io", "memchr", "sink", "slab", "std"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hashbrown = { version = "0.11", features = ["ahash", "inline-more", "raw"] }
+hyper = { version = "0.14", features = ["client", "full", "h2", "http1", "http2", "runtime", "server", "socket2", "stream", "tcp"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
 memchr = { version = "2", features = ["std"] }

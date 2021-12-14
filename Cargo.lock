@@ -4988,6 +4988,7 @@ dependencies = [
  "futures-util",
  "getrandom",
  "hashbrown",
+ "hyper",
  "indexmap",
  "log",
  "memchr",
