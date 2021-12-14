@@ -641,7 +641,7 @@ var (
 		// "reporting-disabled" is valid in both 1x and 2x configs
 		"bind-address", // global setting is called "http-bind-address" on 2x
 
-		// the rest of these would have a "." after them
+		// Remaining flags, when parsed from a 1.x config file, will be in sub-sections prefixed by these headers:
 		"collectd.",
 		"continuous_queries.",
 		"coordinator.",
