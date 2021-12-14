@@ -1011,10 +1011,7 @@ async fn initialize_database(shared: &DatabaseShared) {
                     Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
                 }
             }
-            DatabaseState::ReplayError(state, _) => {
-                warn!(%db_name, "throwing away loaded catalog to recover from replay error");
-                DatabaseState::RulesLoaded(state.rollback())
-            }
+            DatabaseState::ReplayError(state, _) => DatabaseState::RulesLoaded(state.rollback()),
             DatabaseState::Initialized(_) | DatabaseState::NoActiveDatabase(_, _) => {
                 unreachable!("{:?}", state)
             }
@@ -1654,6 +1651,7 @@ impl DatabaseStateCatalogLoaded {
 
     /// Rolls back state to an unloaded catalog.
     fn rollback(&self) -> DatabaseStateRulesLoaded {
+        warn!(db_name=%self.db.name(), "throwing away loaded catalog to recover from replay error");
         DatabaseStateRulesLoaded {
             provided_rules: Arc::clone(&self.provided_rules),
             uuid: self.uuid,
