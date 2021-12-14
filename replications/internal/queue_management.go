@@ -40,13 +40,12 @@ type replicationQueue struct {
 }
 
 type durableQueueManager struct {
-	replicationQueues   map[platform.ID]*replicationQueue
-	trackedReplications map[platform.ID]*tracked.Replication
-	logger              *zap.Logger
-	queuePath           string
-	mutex               sync.RWMutex
-	metrics             *metrics.ReplicationsMetrics
-	configStore         remotewrite.HttpConfigStore
+	replicationQueues map[platform.ID]*replicationQueue
+	logger            *zap.Logger
+	queuePath         string
+	mutex             sync.RWMutex
+	metrics           *metrics.ReplicationsMetrics
+	configStore       remotewrite.HttpConfigStore
 }
 
 var errStartup = errors.New("startup tasks for replications durable queue management failed, see server logs for details")
