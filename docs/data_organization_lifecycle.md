@@ -44,7 +44,7 @@ Figure 1: Data organization in an IOx Server
 ```
 
 Chunk is considered the smallest unit of block of data in IOx and the central discussion of the rest of this document. IOx does not (yet) support direct data modification but does allow deletion[^del] which means a modification can be done through a deletion and an ingestion. Another way to modify values of non-primary-key columns in IOx is to reload data of that row using same key values but different non-key ones. These duplicated rows will be deduplicated during compaction (see next section) and/or eliminated at Query time.[^dup]
-[^del]: `Deletion` is large topic that deserves its own document.
+[^del]: `Deletion` is a large topic that deserves its own document.
 [^dup]: The detail of `duplication` and `deduplication` during compaction and query are parts of a large topic that deserve another document.
 
 ### Chunk Types
@@ -87,3 +87,59 @@ Figure 2: Stages of a C hunk
 Now let us see how data of chunks are transformed in IOx's Data LifeCycle.
 
 ## Data Life Cycle
+
+```text
+               
+                                                                                                                                                                        
+  Time                                                                                                                                                                  
+                                                                                                                                                                        
+  ─────────────────────────  T1  ──────────  T3  ────────────────  T3  ─────  T4  ────────────────  T5  ───────────────  T6  ────────────────────────  T7  ────────────▶
+                                                                                                                                                                        
+                                                                                                                                                                        
+                                                                                                                                                                        
+     Ingest    ┌───────┐    T1:   ┌───────┐ Continue ┌─────┐                                                                                                            
+  ────────────▶│O-MUB 1│─────────▶│F-MUB 1│─────────▶│RUB 1│───┐                                                                                                        
+   before T1   └───────┘  Compact └───────┘compacting└─────┘   │                                                                                                        
+                                                               │                                                                                                        
+                                                               │                                                                                                        
+                                                               │                                                                                                        
+                                                               │                                                                                                        
+                      Ingest      ┌───────┐  T2:    ┌───────┐  │   T3:     ┌─────┐                                                                                      
+                 ────────────────▶│O-MUB 2│────────▶│F-MUB 2│──┼──────────▶│RUB 2│───────────────────────────────────┐                                                  
+                between T1 and T2 └───────┘ Delete  └───────┘  │ Compact   └─────┘                                   │                                                  
+                                                               │      ▲                                              │                                                  
+                                                               │      │                                              │                                                  
+                                                               │      │                                              │                                                  
+                                       Ingest       ┌───────┐  │  ┌───────┐                                          │                                                  
+                                 ──────────────────▶│O-MUB 3│──┴─▶│F-MUB 3│                                          │                                                  
+                                 between T2 and T3  └───────┘     └───────┘                                          │                                                  
+                                                                                                                     │                                                  
+                                                                                                                     │                                                  
+                                                                                                                     │                 ┌─────┐                          
+                                                     Ingest       ┌───────┐  T4:    ┌───────┐                        │             ┌──▶│OS 1 │                          
+                                               ──────────────────▶│O-MUB 3│────────▶│F-MUB 2│───┐                    │             │   └─────┘                          
+                                               between T3 and T4  └───────┘ Delete  └──────T1:  │    T5:    ┌─────┐  │      T6:    │                                    
+                                                                                                ├──────────▶│RUB 3│──┼─────────────│                                    
+                                                                                         Compact│  Compact  └─────┘  │    Persist  │                                    
+                                                                                                │     ▲              │      ▲      │   ┌─────┐                          
+                                                                                                │     │              │      │      └──▶│RUB 4│───┐                      
+                                                                       Ingest       ┌───────┐   │ ┌───────┐          │      │          └─────┘   │               ┌─────┐
+                                                                 ──────────────────▶│O-MUB 4│───┴▶│F-MUB 4│          │      │                    │           ┌──▶│OS 2 │
+                                                                 between T4 and T5  └───────┘     └───────┘          │      │                    │           │   └─────┘
+                                                                                                                     │      │                    │    T7:    │          
+                                                                                                                     │      │                    ├───────────│          
+                                                                                                                     │      │                    │  Persist  │          
+                                                                                     Ingest       ┌───────┐          │  ┌───────┐                │     ▲     │   ┌─────┐
+                                                                               ──────────────────▶│O-MUB 5│──────────┴─▶│F-MUB 5│                │     │     └──▶│RUB 5│
+                                                                               between T5 and T6  └───────┘             └───────┘                │     │         └─────┘
+                                                                                                                                                 │     │                
+                                                                                                                                                 │     │                
+                                                                                                           Ingest       ┌───────┐                │ ┌───────┐            
+                                                                                                     ──────────────────▶│O-MUB 6│────────────────┴▶│F-MUB 6│            
+                                                                                                     between T6 and T7  └───────┘                  └───────┘            
+                                                                                                                                                                        
+                                                                                                                                      Ingest       ┌───────┐            
+                                                                                                                                ──────────────────▶│O-MUB 7│            
+                                                                                                                                between T7 and T8  └───────┘            
+                                                                                                                                                                                                    
+```
