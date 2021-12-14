@@ -29,7 +29,7 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * Handling Observability Context: [`observability.md`](observability.md)
 * Profiling Guide: [profiling.md](profiling.md)
 * Protobuf tips and tricks: [Protobuf](protobuf.md).
-* [Testing documentation](testing.md) for developers of IOx.
+* [Testing documentation](testing.md) for developers of IOx
 * SQL command line tips and tricks: [SQL](sql.md).
 * Notes on server startup and error recovery: [`server_startup.md`](server_startup.md)
 * IOx Architecture
