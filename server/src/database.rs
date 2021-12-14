@@ -911,14 +911,6 @@ async fn initialize_database(shared: &DatabaseShared) {
                 // Already initialized
                 DatabaseState::Initialized(_) => break,
 
-                // No active database found, was probably deleted
-                DatabaseState::NoActiveDatabase(_, _) => {
-                    info!(%db_name, "no active database found");
-
-                    // no exponential / jitter sleep
-                    TransactionOrWait::Wait(INIT_BACKOFF)
-                }
-
                 // Can perform work
                 _ if state.error().is_none() || (state.error().is_some() && throttled_error) => {
                     match state.try_freeze() {
@@ -974,16 +966,14 @@ async fn initialize_database(shared: &DatabaseShared) {
         // Try to advance to the next state
         let next_state = match state {
             DatabaseState::Known(state)
-            | DatabaseState::DatabaseObjectStoreLookupError(state, _) => {
-                match state.advance(shared).await {
-                    Ok(state) => DatabaseState::DatabaseObjectStoreFound(state),
-                    Err(InitError::NoActiveDatabase) => DatabaseState::NoActiveDatabase(
-                        state,
-                        Arc::new(InitError::NoActiveDatabase),
-                    ),
-                    Err(e) => DatabaseState::DatabaseObjectStoreLookupError(state, Arc::new(e)),
+            | DatabaseState::DatabaseObjectStoreLookupError(state, _)
+            | DatabaseState::NoActiveDatabase(state, _) => match state.advance(shared).await {
+                Ok(state) => DatabaseState::DatabaseObjectStoreFound(state),
+                Err(InitError::NoActiveDatabase) => {
+                    DatabaseState::NoActiveDatabase(state, Arc::new(InitError::NoActiveDatabase))
                 }
-            }
+                Err(e) => DatabaseState::DatabaseObjectStoreLookupError(state, Arc::new(e)),
+            },
             DatabaseState::DatabaseObjectStoreFound(state)
             | DatabaseState::OwnerInfoLoadError(state, _) => match state.advance(shared).await {
                 Ok(state) => DatabaseState::OwnerInfoLoaded(state),
@@ -1012,7 +1002,7 @@ async fn initialize_database(shared: &DatabaseShared) {
                 }
             }
             DatabaseState::ReplayError(state, _) => DatabaseState::RulesLoaded(state.rollback()),
-            DatabaseState::Initialized(_) | DatabaseState::NoActiveDatabase(_, _) => {
+            DatabaseState::Initialized(_) => {
                 unreachable!("{:?}", state)
             }
         };
@@ -1109,56 +1099,51 @@ pub enum InitError {
 /// The Database startup state machine
 ///
 /// ```text
-///                      (end)
-///                        ^
-///                        |
-///                 [NoActiveDatabase]
-///                        ^
-///                        |
-///                        |
-/// (start)------------>[Known]------------->[DatabaseObjectStoreLookupError]
-///                        |                           |
-///                        +---------------------------o
-///                        |
-///                        |
-///                        V
-///             [DatabaseObjectStoreFound]------>[OwnerInfoLoadError]
-///                        |                           |
-///                        +---------------------------o
-///                        |
-///                        |
-///                        V
-///                 [OwnerInfoLoaded]----------->[RulesLoadError]
-///                        |                           |
-///                        +---------------------------o
-///                        |
-///                        |
-///                        V
-///       o--------->[RulesLoaded]-------------->[CatalogLoadError]
-///       |                |                           |
-///       |                +---------------------------o
-///       |                |
-///       |                |
-///       |                V
-/// [ReplayError]<--[CatalogLoaded]---------->[WriteBufferCreationError]
-///                        |                           |
-///                        +---------------------------o
-///                        |
-///                        |
-///                        V
-///                  [Initialized]
-///                        |
-///                        V
-///                      (end)
+///                      (start)
+///                         |
+///  o-o                    |                                             o-o
+///  | V                    V                                             V |
+/// [NoActiveDatabase]<--[Known]------------->[DatabaseObjectStoreLookupError]
+///        |                |                           |
+///        o----------------+---------------------------o
+///                         |
+///                         |                                     o-o
+///                         V                                     V |
+///              [DatabaseObjectStoreFound]------>[OwnerInfoLoadError]
+///                         |                           |
+///                         +---------------------------o
+///                         |
+///                         |                                 o-o
+///                         V                                 V |
+///                  [OwnerInfoLoaded]----------->[RulesLoadError]
+///                         |                           |
+///                         +---------------------------o
+///                         |
+///                         |                                   o-o
+///                         V                                   V |
+///        o--------->[RulesLoaded]-------------->[CatalogLoadError]
+///        |                |                           |
+///        |                +---------------------------o
+///        |                |
+///        |                |                                        o-o
+///        |                V                                        V |
+///  [ReplayError]<--[CatalogLoaded]---------->[WriteBufferCreationError]
+///                         |                           |
+///                         +---------------------------o
+///                         |
+///                         |
+///                         V
+///                   [Initialized]
+///                         |
+///                         V
+///                       (end)
 /// ```
 ///
 /// A Database starts in [`DatabaseState::Known`] and advances through the
 /// non error states in sequential order until either:
 ///
 /// 1. It reaches [`DatabaseState::Initialized`]: Database is initialized
-/// 2. It reaches [`DatabaseState::NoActiveDatabase`]: We cannot setup this database because we are not aware of any
-///    active claim with this name.
-/// 3. An error is encountered, in which case it transitions to one of
+/// 2. An error is encountered, in which case it transitions to one of
 ///    the error states. We try to recover from all of them. For all except [`DatabaseState::ReplayError`] this is a
 ///    rather cheap operation since we can just retry the actual operation. For [`DatabaseState::ReplayError`] we need
 ///    to dump the potentially half-modified in-memory catalog before retrying.
@@ -1174,10 +1159,8 @@ enum DatabaseState {
     // Terminal state (success)
     Initialized(DatabaseStateInitialized),
 
-    // Terminal state (failure)
-    NoActiveDatabase(DatabaseStateKnown, Arc<InitError>),
-
     // Error states, we'll try to recover from them
+    NoActiveDatabase(DatabaseStateKnown, Arc<InitError>),
     DatabaseObjectStoreLookupError(DatabaseStateKnown, Arc<InitError>),
     OwnerInfoLoadError(DatabaseStateDatabaseObjectStoreFound, Arc<InitError>),
     RulesLoadError(DatabaseStateOwnerInfoLoaded, Arc<InitError>),
@@ -1871,15 +1854,22 @@ mod tests {
                 .to_string();
         let uuid = database.release().await.unwrap();
 
-        Database::claim(application, db_name, uuid, new_server_id, false)
-            .await
-            .unwrap();
-
+        // database is in error state
         assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
         assert!(matches!(
             database.init_error().unwrap().as_ref(),
             InitError::NoActiveDatabase
         ));
+
+        Database::claim(
+            Arc::clone(&application),
+            db_name,
+            uuid,
+            new_server_id,
+            false,
+        )
+        .await
+        .unwrap();
 
         let owner_info = fetch_owner_info(&iox_object_store).await.unwrap();
         assert_eq!(owner_info.id, new_server_id.get_u32());
@@ -1893,6 +1883,31 @@ mod tests {
         let claim_transaction = &owner_info.transactions[1];
         assert_eq!(claim_transaction.id, 0);
         assert_eq!(claim_transaction.location, "");
+
+        // put it back to first DB
+        let db_config = DatabaseConfig {
+            server_id: new_server_id,
+            ..database.shared.config.read().clone()
+        };
+        let new_database = Database::new(Arc::clone(&application), db_config.clone());
+        new_database.wait_for_init().await.unwrap();
+        new_database.release().await.unwrap();
+        Database::claim(application, db_name, uuid, server_id, false)
+            .await
+            .unwrap();
+
+        // database should recover
+        tokio::time::timeout(Duration::from_secs(10), async move {
+            loop {
+                if database.wait_for_init().await.is_ok() {
+                    return;
+                }
+
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        })
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
