@@ -1115,26 +1115,41 @@ pub enum InitError {
 ///                 [NoActiveDatabase]
 ///                        ^
 ///                        |
-/// (start)------------>[Known]<------------>[DatabaseObjectStoreLookupError]
-///                         |
-///                         V
-///             [DatabaseObjectStoreFound]<----->[OwnerInfoLoadError]
-///                         |
-///                         V
-///                 [OwnerInfoLoaded]<---------->[RulesLoadError]
-///                         |
-///                         V
-///       o--------->[RulesLoaded]<------------->[CatalogLoadError]
-///       |                 |
-///       |                 V
-/// [ReplayError]<--[CatalogLoaded]<--------->[WriteBufferCreationError]
-///                         |
-///                         |
-///                         V
+///                        |
+/// (start)------------>[Known]------------->[DatabaseObjectStoreLookupError]
+///                        |                           |
+///                        +---------------------------o
+///                        |
+///                        |
+///                        V
+///             [DatabaseObjectStoreFound]------>[OwnerInfoLoadError]
+///                        |                           |
+///                        +---------------------------o
+///                        |
+///                        |
+///                        V
+///                 [OwnerInfoLoaded]----------->[RulesLoadError]
+///                        |                           |
+///                        +---------------------------o
+///                        |
+///                        |
+///                        V
+///       o--------->[RulesLoaded]-------------->[CatalogLoadError]
+///       |                |                           |
+///       |                +---------------------------o
+///       |                |
+///       |                |
+///       |                V
+/// [ReplayError]<--[CatalogLoaded]---------->[WriteBufferCreationError]
+///                        |                           |
+///                        +---------------------------o
+///                        |
+///                        |
+///                        V
 ///                  [Initialized]
-///                         |
-///                         V
-///                       (end)
+///                        |
+///                        V
+///                      (end)
 /// ```
 ///
 /// A Database starts in [`DatabaseState::Known`] and advances through the
