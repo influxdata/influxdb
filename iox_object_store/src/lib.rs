@@ -193,6 +193,13 @@ impl IoxObjectStore {
         Ok(self.inner.get(&owner_path).await?.bytes().await?.into())
     }
 
+    /// Delete owner file for testing
+    pub async fn delete_owner_file_for_testing(&self) -> Result<()> {
+        let owner_path = self.root_path.owner_path();
+
+        self.inner.delete(&owner_path).await
+    }
+
     /// The location in object storage for all files for this database, suitable for logging or
     /// debugging purposes only. Do not parse this, as its format is subject to change!
     pub fn debug_database_path(&self) -> String {

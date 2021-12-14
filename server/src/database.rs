@@ -2101,6 +2101,41 @@ mod tests {
         .unwrap();
     }
 
+    #[tokio::test]
+    async fn database_init_recovery() {
+        let (application, database) = initialized_database().await;
+        let iox_object_store = database.iox_object_store().unwrap();
+        let config = database.shared.config.read().clone();
+
+        // shutdown first database
+        database.shutdown();
+        database.join().await.unwrap();
+
+        // mess up owner file
+        let owner_backup = iox_object_store.get_owner_file().await.unwrap();
+        iox_object_store
+            .delete_owner_file_for_testing()
+            .await
+            .unwrap();
+
+        // create second database
+        let database = Database::new(Arc::clone(&application), config);
+        database.wait_for_init().await.unwrap_err();
+
+        // recover database by fixing owner file
+        iox_object_store.put_owner_file(owner_backup).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(10), async move {
+            loop {
+                if database.wait_for_init().await.is_ok() {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+    }
+
     /// Normally database rules are provided as grpc messages, but in
     /// tests they are constructed from database rules structures
     /// themselves.
