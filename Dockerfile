@@ -6,7 +6,7 @@ FROM rust:${RUST_VERSION}-slim-bullseye as build
 USER root
 
 RUN apt update \
-    && apt install --yes binutils build-essential pkg-config libssl-dev clang \
+    && apt install --yes binutils build-essential pkg-config libssl-dev clang lld \
     && rm -rf /var/lib/{apt,dpkg,cache,log}
 
 # Build influxdb_iox
@@ -16,11 +16,13 @@ WORKDIR /influxdb_iox
 ARG CARGO_INCREMENTAL=yes
 ARG PROFILE=release
 ARG FEATURES=aws,gcp,azure,jemalloc_replacing_malloc,kafka
+ARG PACKAGE=influxdb_iox
 ARG ROARING_ARCH="haswell"
 ARG RUSTFLAGS=""
 ENV CARGO_INCREMENTAL=$CARGO_INCREMENTAL \
     PROFILE=$PROFILE \
     FEATURES=$FEATURES \
+    PACKAGE=$PACKAGE \
     ROARING_ARCH=$ROARING_ARCH \
     RUSTFLAGS=$RUSTFLAGS
 
@@ -29,9 +31,9 @@ RUN \
   --mount=type=cache,id=influxdb_iox_git,sharing=locked,target=/usr/local/cargo/git \
   --mount=type=cache,id=influxdb_iox_target,sharing=locked,target=/influxdb_iox/target \
     du -cshx /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target && \
-    cargo build --target-dir /influxdb_iox/target --profile="$PROFILE" --no-default-features --features="$FEATURES" && \
-    objcopy --compress-debug-sections "target/$PROFILE/influxdb_iox" && \
-    cp "/influxdb_iox/target/$PROFILE/influxdb_iox" /root/influxdb_iox && \
+    cargo build --target-dir /influxdb_iox/target --package="$PACKAGE" --profile="$PROFILE" --no-default-features --features="$FEATURES" && \
+    objcopy --compress-debug-sections "target/$PROFILE/$PACKAGE" && \
+    cp "/influxdb_iox/target/$PROFILE/$PACKAGE" /root/$PACKAGE && \
     du -cshx /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target
 
 
@@ -50,7 +52,10 @@ USER iox
 RUN mkdir ~/.influxdb_iox
 RUN ls -la ~/.influxdb_iox
 
-COPY --from=build /root/influxdb_iox /usr/bin/influxdb_iox
+ARG PACKAGE=influxdb_iox
+ENV PACKAGE=$PACKAGE
+
+COPY --from=build "/root/$PACKAGE" "/usr/bin/$PACKAGE"
 COPY docker/entrypoint.sh /usr/bin/entrypoint.sh
 
 ENV INFLUXDB_IOX_SERVER_MODE=database

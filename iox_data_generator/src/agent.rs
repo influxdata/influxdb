@@ -10,6 +10,10 @@ use crate::{
 use crate::tag_set::GeneratedTagSets;
 use serde_json::json;
 use snafu::{ResultExt, Snafu};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 use std::time::{Duration, Instant};
 use tracing::{debug, info};
 
@@ -132,6 +136,7 @@ impl Agent {
         &mut self,
         mut points_writer: PointsWriter,
         batch_size: usize,
+        counter: Arc<AtomicU64>,
     ) -> Result<usize> {
         let mut points_this_batch = 1;
         let mut total_points = 0;
@@ -161,13 +166,17 @@ impl Agent {
                 .context(CouldNotWritePoints)?;
 
             info!("wrote {} in {:?}", points_this_batch, batch_start.elapsed());
+            let total = counter.fetch_add(points_this_batch as u64, Ordering::SeqCst);
             let secs = start.elapsed().as_secs();
             if secs != 0 {
                 info!(
-                    "written {} in {:?} for {}/sec",
+                    "Agent {} written {} in {:?} for {}/sec. Aggregate {} in {}/sec",
+                    self.id,
                     total_points,
                     start.elapsed(),
-                    total_points / secs as usize
+                    total_points / secs as usize,
+                    total,
+                    total / secs,
                 )
             }
         }

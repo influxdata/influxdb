@@ -414,14 +414,14 @@ async fn persist_stream_to_chunk<'a>(
 /// Update the preserved catalog : replace compacted chunks with a newly persisted chunk
 async fn update_preserved_catalog(
     db: &Db,
-    commpated_parquet_file_paths: &[ParquetFilePath],
+    compacted_parquet_file_paths: &[ParquetFilePath],
     parquet_chunk: &Option<Arc<ParquetChunk>>,
 ) -> Result<()> {
     // Open transaction
     let mut transaction = db.preserved_catalog.open_transaction().await;
 
     // Remove compacted chunks
-    for parquet_file_path in commpated_parquet_file_paths {
+    for parquet_file_path in compacted_parquet_file_paths {
         transaction.remove_parquet(parquet_file_path);
     }
 

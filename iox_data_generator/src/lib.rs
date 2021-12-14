@@ -29,7 +29,7 @@
 
 use crate::{agent::Agent, tag_set::GeneratedTagSets};
 use snafu::{ResultExt, Snafu};
-use std::sync::Arc;
+use std::sync::{atomic::AtomicU64, Arc};
 use std::{
     convert::TryFrom,
     time::{SystemTime, UNIX_EPOCH},
@@ -132,6 +132,7 @@ pub async fn generate(
     let lock = Arc::new(tokio::sync::Mutex::new(()));
 
     let start = std::time::Instant::now();
+    let total_rows = Arc::new(AtomicU64::new(0));
 
     for database_assignments in &database_agents {
         let (org, bucket) = org_and_bucket_from_database(database_assignments.database);
@@ -150,11 +151,12 @@ pub async fn generate(
             .context(CouldNotCreateAgent)?;
 
             info!(
-                "Configuring {} agents of \"{}\" to write data to org {} and bucket {} (database {})", database_assignments.database,
+                "Configuring {} agents of \"{}\" to write data to org {} and bucket {} (database {})",
                 agent_assignment.count,
                 agent_assignment.spec.name,
                 org,
                 bucket,
+                database_assignments.database,
             );
 
             for mut agent in agents.into_iter() {
@@ -164,13 +166,18 @@ pub async fn generate(
 
                 let lock_ref = Arc::clone(&lock);
 
+                let total_rows = Arc::clone(&total_rows);
                 handles.push(tokio::task::spawn(async move {
                     // did this weird hack because otherwise the stdout outputs would be jumbled together garbage
                     if one_agent_at_a_time {
                         let _l = lock_ref.lock().await;
-                        agent.generate_all(agent_points_writer, batch_size).await
+                        agent
+                            .generate_all(agent_points_writer, batch_size, total_rows)
+                            .await
                     } else {
-                        agent.generate_all(agent_points_writer, batch_size).await
+                        agent
+                            .generate_all(agent_points_writer, batch_size, total_rows)
+                            .await
                     }
                 }));
             }
