@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/bolt"
@@ -31,6 +32,14 @@ const (
 	MaxInt = 1<<uint(strconv.IntSize-1) - 1
 )
 
+func errInvalidFlags(flags []string, configFile string) error {
+	return fmt.Errorf(
+		"Error: unknown flags from config file at %s (see https://docs.influxdata.com/influxdb/latest/reference/config-options/ for supported flags): %s",
+		configFile,
+		strings.Join(flags, ","),
+	)
+}
+
 // NewInfluxdCommand constructs the root of the influxd CLI, along with a `run` subcommand.
 // The `run` subcommand is set as the default to execute.
 func NewInfluxdCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
@@ -44,6 +53,11 @@ func NewInfluxdCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, err
 	cmd, err := cli.NewCommand(o.Viper, &prog)
 	if err != nil {
 		return nil, err
+	}
+
+	// Error out if invalid flags are found in the config file. This may indicate trying to launch 2.x using a 1.x config.
+	if invalidFlags := invalidFlags(v, cliOpts); len(invalidFlags) > 0 {
+		return nil, errInvalidFlags(invalidFlags, v.ConfigFileUsed())
 	}
 
 	runCmd := &cobra.Command{
@@ -65,6 +79,22 @@ func NewInfluxdCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, err
 	cmd.AddCommand(printCmd)
 
 	return cmd, nil
+}
+
+func invalidFlags(v *viper.Viper, opts []cli.Opt) []string {
+	valid := make(map[string]struct{})
+	for _, o := range opts {
+		valid[o.Flag] = struct{}{}
+	}
+
+	var invalid []string
+	for _, k := range v.AllKeys() {
+		if _, ok := valid[k]; !ok {
+			invalid = append(invalid, k)
+		}
+	}
+
+	return invalid
 }
 
 func setCmdDescriptions(cmd *cobra.Command) {
