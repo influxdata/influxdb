@@ -4,22 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
 
 func TestInvalidFlags(t *testing.T) {
 	t.Parallel()
-
-	testOpts := []cli.Opt{
-		{
-			Flag: "validflag1",
-		},
-		{
-			Flag: "validflag2",
-		},
-	}
 
 	tests := []struct {
 		name   string
@@ -32,29 +22,29 @@ func TestInvalidFlags(t *testing.T) {
 			want:   []string(nil),
 		},
 		{
-			name:   "one invalid flag",
-			config: "invalidflag: invalidValue",
-			want:   []string{"invalidflag"},
+			name:   "invalid flag with a dot",
+			config: "meta.something: value",
+			want:   []string{"meta.something"},
 		},
 		{
-			name:   "one valid flag",
-			config: "validflag1: value",
+			name:   "invalid global flag",
+			config: "bind-address: value",
+			want:   []string{"bind-address"},
+		},
+		{
+			name:   "invalid global and dot",
+			config: "bind-address: value\nmeta.something: value",
+			want:   []string{"meta.something", "bind-address"},
+		},
+		{
+			name:   "no invalid flags",
+			config: "flag1: value\nflag2: value",
 			want:   []string(nil),
-		},
-		{
-			name:   "multiple valid flags",
-			config: "validflag1: value\nvalidflag2: value",
-			want:   []string(nil),
-		},
-		{
-			name:   "multiple invalid flags",
-			config: "invalid1: value\ninvalid2: value",
-			want:   []string{"invalid1", "invalid2"},
 		},
 		{
 			name:   "mix of valid/invalid flags",
-			config: "invalid1: value\ninvalid2: value\nvalidflag1: value\nvalidflag2: value",
-			want:   []string{"invalid1", "invalid2"},
+			config: "bind-address: value\nmeta.something: value\nflag1: value\nflag2: value",
+			want:   []string{"meta.something", "bind-address"},
 		},
 	}
 
@@ -64,7 +54,7 @@ func TestInvalidFlags(t *testing.T) {
 			v := viper.GetViper()
 			v.SetConfigType("yaml")
 			require.NoError(t, v.ReadConfig(r))
-			got := invalidFlags(v, testOpts)
+			got := invalidFlags(v)
 			require.ElementsMatch(t, tt.want, got)
 		})
 	}

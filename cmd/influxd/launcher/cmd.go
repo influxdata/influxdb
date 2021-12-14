@@ -34,7 +34,7 @@ const (
 
 func errInvalidFlags(flags []string, configFile string) error {
 	return fmt.Errorf(
-		"error: unknown flags from config file at %s (see https://docs.influxdata.com/influxdb/latest/reference/config-options/ for supported flags): %s",
+		"error: found flags from an InfluxDB 1.x configuration in config file at %s - see https://docs.influxdata.com/influxdb/latest/reference/config-options/ for flags supported on this version of InfluxDB: %s",
 		configFile,
 		strings.Join(flags, ","),
 	)
@@ -56,7 +56,7 @@ func NewInfluxdCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, err
 	}
 
 	// Error out if invalid flags are found in the config file. This may indicate trying to launch 2.x using a 1.x config.
-	if invalidFlags := invalidFlags(v, cliOpts); len(invalidFlags) > 0 {
+	if invalidFlags := invalidFlags(v); len(invalidFlags) > 0 {
 		return nil, errInvalidFlags(invalidFlags, v.ConfigFileUsed())
 	}
 
@@ -81,15 +81,10 @@ func NewInfluxdCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, err
 	return cmd, nil
 }
 
-func invalidFlags(v *viper.Viper, opts []cli.Opt) []string {
-	valid := make(map[string]struct{})
-	for _, o := range opts {
-		valid[o.Flag] = struct{}{}
-	}
-
+func invalidFlags(v *viper.Viper) []string {
 	var invalid []string
 	for _, k := range v.AllKeys() {
-		if _, ok := valid[k]; !ok {
+		if inOneDotExFlagsList(k) {
 			invalid = append(invalid, k)
 		}
 	}
@@ -639,4 +634,48 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Desc:    "Disable the InfluxDB UI",
 		},
 	}
+}
+
+var (
+	oneDotExFlagsList = []string{
+		// "reporting-disabled" is valid in both 1x and 2x configs
+		"bind-address", // global setting is called "http-bind-address" on 2x
+
+		// the rest of these would have a "." after them
+		"collectd.",
+		"continuous_queries.",
+		"coordinator.",
+		"data.",
+		"graphite.",
+		"http.",
+		"logging.",
+		"meta.",
+		"monitor.",
+		"opentsdb.",
+		"retention.",
+		"shard-precreation.",
+		"subscriber.",
+		"tls.",
+		"udp.",
+	}
+)
+
+// compareFlags checks if a given flag from the read configuration matches one from the list. If the value from the list
+// ends in a ".", the given flag is check for that prefix. Otherwise, the flag is checked for equality.
+func compareFlags(key, fromList string) bool {
+	if strings.HasSuffix(fromList, ".") {
+		return strings.HasPrefix(key, fromList)
+	}
+
+	return strings.EqualFold(key, fromList)
+}
+
+func inOneDotExFlagsList(key string) bool {
+	for _, f := range oneDotExFlagsList {
+		if compareFlags(key, f) {
+			return true
+		}
+	}
+
+	return false
 }
