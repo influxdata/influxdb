@@ -201,6 +201,23 @@ impl Client {
         Ok(Self::collect_strings(responses))
     }
 
+    /// Make a request to query::tag_values_grouped_by_measurement_and_tag_key
+    /// and do the required async dance to flatten the resulting stream
+    pub async fn tag_values_grouped_by_measurement_and_tag_key(
+        &mut self,
+        request: TagValuesGroupedByMeasurementAndTagKeyRequest,
+    ) -> Result<Vec<TagValuesResponse>, tonic::Status> {
+        let responses: Vec<_> = self
+            .inner
+            .tag_values_grouped_by_measurement_and_tag_key(request)
+            .await?
+            .into_inner()
+            .try_collect()
+            .await?;
+
+        Ok(responses)
+    }
+
     /// Make a request to query::measurement_tag_values and do the
     /// required async dance to flatten the resulting stream to Strings
     pub async fn measurement_tag_values(
