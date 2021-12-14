@@ -12,12 +12,13 @@ use tonic::Status;
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
     google::protobuf::Empty, offsets_response::PartitionOffsetResponse, storage_server::Storage,
-    CapabilitiesResponse, Capability, Int64ValuesResponse, MeasurementFieldsRequest,
-    MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, OffsetsResponse, Predicate, ReadFilterRequest, ReadGroupRequest,
-    ReadResponse, ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse,
-    TagKeyMetaNames, TagKeysRequest, TagValuesGroupedByMeasurementAndTagKeyRequest,
-    TagValuesRequest, TagValuesResponse, TimestampRange,
+    CapabilitiesResponse, Capability, Int64ValuesResponse, LiteralOrRegex,
+    MeasurementFieldsRequest, MeasurementFieldsResponse, MeasurementNamesRequest,
+    MeasurementTagKeysRequest, MeasurementTagValuesRequest, OffsetsResponse, Predicate,
+    ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
+    ReadWindowAggregateRequest, StringValuesResponse, TagKeyMetaNames, TagKeyPredicate,
+    TagKeysRequest, TagValuesGroupedByMeasurementAndTagKeyRequest, TagValuesRequest,
+    TagValuesResponse, TimestampRange,
 };
 use observability_deps::tracing::{error, info, trace};
 use predicate::predicate::PredicateBuilder;
@@ -458,25 +459,44 @@ where
         &self,
         req: tonic::Request<TagValuesGroupedByMeasurementAndTagKeyRequest>,
     ) -> Result<tonic::Response<Self::TagValuesGroupedByMeasurementAndTagKeyStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
+
         let req = req.into_inner();
+
+        let db_name = get_database_name(&req)?;
+        let db = self
+            .db_store
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+        db.record_query(
+            "tag_values_grouped_by_measurement_and_tag_key",
+            defer_json(&req),
+        );
 
         let TagValuesGroupedByMeasurementAndTagKeyRequest {
             measurement_patterns,
             tag_key_predicate,
             condition,
-            source,
+            ..
         } = req;
 
-        Err(Error::NotYetImplemented {
-            operation: format!(
-                "tag_values_grouped_by_measurement_and_tag_key. Measurement patterns: {:?} tag key predicates: {:?} condition: {:?}, source: {:?}",
-                measurement_patterns,
-                tag_key_predicate,
-                condition,
-                source,
-            ),
-        }
-        .to_status())
+        info!(%db_name, ?measurement_patterns, ?tag_key_predicate, predicate=%condition.loggable(), "tag_values_grouped_by_measurement_and_tag_key");
+
+        let results = tag_values_grouped_by_measurement_and_tag_key_impl(
+            db,
+            db_name,
+            measurement_patterns,
+            tag_key_predicate,
+            condition,
+            span_ctx,
+        )
+        .await
+        .map_err(|e| e.to_status())?
+        .into_iter()
+        .map(Ok)
+        .collect::<Vec<_>>();
+
+        Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
     type ReadSeriesCardinalityStream = ReceiverStream<Result<Int64ValuesResponse, Status>>;
@@ -875,6 +895,24 @@ where
 
     trace!(tag_values=?values.iter().map(|k| String::from_utf8_lossy(k)).collect::<Vec<_>>(), "Tag values response");
     Ok(StringValuesResponse { values })
+}
+
+/// Return tag values for grouped by one or more measurements with optional
+/// filtering predicate and optionally scoped to one or more tag keys.
+async fn tag_values_grouped_by_measurement_and_tag_key_impl<D>(
+    _db: Arc<D>,
+    _db_name: DatabaseName<'static>,
+    _measurement_patterns: Vec<LiteralOrRegex>,
+    _rpc_tag_key_predicate: Option<TagKeyPredicate>,
+    _rpc_predicate: Option<Predicate>,
+    _span_ctx: Option<SpanContext>,
+) -> Result<Vec<TagValuesResponse>, Error>
+where
+    D: QueryDatabase + ExecutionContextProvider + 'static,
+{
+    Err(Error::NotYetImplemented {
+        operation: "tag_values_grouped_by_measurement_and_tag_key_impl not implemented".into(),
+    })
 }
 
 /// Launch async tasks that materialises the result of executing read_filter.
