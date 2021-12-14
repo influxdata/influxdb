@@ -1,7 +1,6 @@
 package launcher
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -44,17 +43,17 @@ func TestInvalidFlags(t *testing.T) {
 		},
 		{
 			name:   "multiple valid flags",
-			config: fmt.Sprintf("validflag1: value\nvalidflag2: value"),
+			config: "validflag1: value\nvalidflag2: value",
 			want:   []string(nil),
 		},
 		{
 			name:   "multiple invalid flags",
-			config: fmt.Sprintf("invalid1: value\ninvalid2: value"),
+			config: "invalid1: value\ninvalid2: value",
 			want:   []string{"invalid1", "invalid2"},
 		},
 		{
 			name:   "mix of valid/invalid flags",
-			config: fmt.Sprintf("invalid1: value\ninvalid2: value\nvalidflag1: value\nvalidflag2: value"),
+			config: "invalid1: value\ninvalid2: value\nvalidflag1: value\nvalidflag2: value",
 			want:   []string{"invalid1", "invalid2"},
 		},
 	}

@@ -34,7 +34,7 @@ const (
 
 func errInvalidFlags(flags []string, configFile string) error {
 	return fmt.Errorf(
-		"Error: unknown flags from config file at %s (see https://docs.influxdata.com/influxdb/latest/reference/config-options/ for supported flags): %s",
+		"error: unknown flags from config file at %s (see https://docs.influxdata.com/influxdb/latest/reference/config-options/ for supported flags): %s",
 		configFile,
 		strings.Join(flags, ","),
 	)
