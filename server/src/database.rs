@@ -898,7 +898,7 @@ async fn initialize_database(shared: &DatabaseShared) {
     let db_name = shared.config.read().name.clone();
     info!(%db_name, "database initialization started");
 
-    // error throttle controshared.config.name.l
+    // error throttle
     let mut throttled_error = false;
     let mut sleep = INIT_BACKOFF;
 
