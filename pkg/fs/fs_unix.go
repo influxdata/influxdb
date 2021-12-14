@@ -4,6 +4,7 @@
 package fs
 
 import (
+	"errors"
 	"os"
 	"syscall"
 
@@ -34,13 +35,21 @@ func SyncDir(dirName string) error {
 }
 
 // RenameFileWithReplacement will replace any existing file at newpath with the contents
-// of oldpath.
+// of oldpath. It works also if it the rename spans over several file systems.
 //
 // If no file already exists at newpath, newpath will be created using the contents
 // of oldpath. If this function returns successfully, the contents of newpath will
 // be identical to oldpath, and oldpath will be removed.
 func RenameFileWithReplacement(oldpath, newpath string) error {
-	return os.Rename(oldpath, newpath)
+	if err := os.Rename(oldpath, newpath); !errors.Is(err, syscall.EXDEV) {
+		// note: also includes err == nil
+		return err
+	}
+
+	// move over filesystem boundaries, we have to copy.
+	// (if there was another error, it will likely fail a second time)
+	return MoveFileWithReplacement(oldpath, newpath)
+
 }
 
 // RenameFile renames oldpath to newpath, returning an error if newpath already
@@ -51,7 +60,7 @@ func RenameFile(oldpath, newpath string) error {
 		return newFileExistsError(newpath)
 	}
 
-	return os.Rename(oldpath, newpath)
+	return RenameFileWithReplacement(oldpath, newpath)
 }
 
 // CreateFile creates a new file at newpath, returning an error if newpath already
