@@ -216,6 +216,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	)
 	m.initTracing(opts)
 
+	if p := opts.Viper.ConfigFileUsed(); p != "" {
+		m.log.Debug("loaded config file", zap.String("path", p))
+	}
+
 	// Parse feature flags.
 	// These flags can be used to modify the remaining setup logic in this method.
 	// They will also be injected into the contexts of incoming HTTP requests at runtime,
