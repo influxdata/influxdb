@@ -887,8 +887,16 @@ async fn background_worker(shared: Arc<DatabaseShared>) {
     info!(%db_name, "database worker finished");
 }
 
+/// Determine what the init loop should do next.
 enum TransactionOrWait {
+    /// We can transition from one state into another.
     Transaction(DatabaseState, internal_types::freezable::FreezeHandle),
+
+    /// We have to wait.
+    ///
+    /// This can have multiple reasons:
+    /// - there's another transaction in progress and we wait until we can try again
+    /// - error backoff
     Wait(Duration),
 }
 
@@ -898,9 +906,11 @@ async fn initialize_database(shared: &DatabaseShared) {
     let db_name = shared.config.read().name.clone();
     info!(%db_name, "database initialization started");
 
-    // error throttle
+    // error throttling
+    // - checks if the current error was already throttled
+    // - keeps a backoff duration that will change over the curse of multiple errors
     let mut throttled_error = false;
-    let mut sleep = INIT_BACKOFF;
+    let mut backoff = INIT_BACKOFF;
 
     while !shared.shutdown.is_cancelled() {
         // Acquire locks and determine if work to be done
@@ -943,10 +953,10 @@ async fn initialize_database(shared: &DatabaseShared) {
                     // exponential backoff w/ jitter, decorrelated
                     // see https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
                     let mut rng = thread_rng();
-                    sleep = Duration::from_secs_f64(MAX_BACKOFF.as_secs_f64().min(
-                        rng.gen_range(INIT_BACKOFF.as_secs_f64()..(sleep.as_secs_f64() * 3.0)),
+                    backoff = Duration::from_secs_f64(MAX_BACKOFF.as_secs_f64().min(
+                        rng.gen_range(INIT_BACKOFF.as_secs_f64()..(backoff.as_secs_f64() * 3.0)),
                     ));
-                    TransactionOrWait::Wait(sleep)
+                    TransactionOrWait::Wait(backoff)
                 }
             }
         };
@@ -1012,7 +1022,7 @@ async fn initialize_database(shared: &DatabaseShared) {
             throttled_error = false;
         } else {
             // reset backoff
-            sleep = INIT_BACKOFF;
+            backoff = INIT_BACKOFF;
         }
 
         // Commit the next state
