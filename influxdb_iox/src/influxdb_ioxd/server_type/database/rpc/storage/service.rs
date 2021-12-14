@@ -1071,7 +1071,6 @@ mod tests {
     use tokio_stream::wrappers::TcpListenerStream;
 
     use datafusion::logical_plan::{col, lit, Expr};
-    use generated_types::i_ox_testing_client::IOxTestingClient;
     use influxdb_storage_client::{
         connection::{Builder as ConnectionBuilder, Connection},
         generated_types::*,
