@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/replications/tracked"
-
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -17,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
 	replicationsMock "github.com/influxdata/influxdb/v2/replications/mock"
+	"github.com/influxdata/influxdb/v2/replications/tracked"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -651,15 +650,11 @@ func TestWritePoints(t *testing.T) {
 
 	svc, mocks := newTestService(t)
 
-	list := &influxdb.Replications{
-		Replications: []influxdb.Replication{replication1, replication2},
-	}
-	mocks.durableQueueManager.EXPECT().IfReplicationsExist(orgID, id1)
+	replications := make([]platform.ID, 2)
+	replications[0] = replication1.ID
+	replications[1] = replication2.ID
 
-	mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
-		OrgID:         orgID,
-		LocalBucketID: &id1,
-	}).Return(list, nil)
+	mocks.durableQueueManager.EXPECT().GetReplications(orgID, id1).Return(replications)
 
 	points, err := models.ParsePointsString(`
 cpu,host=0 value=1.1 6000000000
@@ -676,7 +671,7 @@ disk,host=C value=1.3 1000000000`)
 	mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), orgID, id1, points).Return(nil)
 
 	// Points should successfully be enqueued in the 2 replications associated with the local bucket.
-	for _, id := range []platform.ID{replication1.ID, replication2.ID} {
+	for _, id := range replications {
 		mocks.durableQueueManager.EXPECT().
 			EnqueueData(id, gomock.Any(), len(points)).
 			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
@@ -721,14 +716,11 @@ func TestWritePointsBatches(t *testing.T) {
 			tt.setupFn(t, svc)
 
 			// Define metadata for two replications
-			list := &influxdb.Replications{
-				Replications: []influxdb.Replication{replication1, replication2},
-			}
+			replications := make([]platform.ID, 2)
+			replications[0] = replication1.ID
+			replications[1] = replication2.ID
 
-			mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
-				OrgID:         orgID,
-				LocalBucketID: &id1,
-			}).Return(list, nil)
+			mocks.durableQueueManager.EXPECT().GetReplications(orgID, id1).Return(replications)
 
 			// Define some points of line protocol, parse string --> []Point
 			points, err := models.ParsePointsString(`
@@ -746,7 +738,7 @@ disk,host=C value=1.3 1000000000`)
 			mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), orgID, id1, points).Return(nil)
 
 			// Points should successfully be enqueued in the 2 replications associated with the local bucket.
-			for _, id := range []platform.ID{replication1.ID, replication2.ID} {
+			for _, id := range replications {
 				// Check batch 1
 				mocks.durableQueueManager.EXPECT().
 					EnqueueData(id, gomock.Any(), 3).
@@ -785,14 +777,11 @@ func TestWritePoints_LocalFailure(t *testing.T) {
 
 	svc, mocks := newTestService(t)
 
-	list := &influxdb.Replications{
-		Replications: []influxdb.Replication{replication1, replication2},
-	}
+	replications := make([]platform.ID, 2)
+	replications[0] = replication1.ID
+	replications[1] = replication2.ID
 
-	mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
-		OrgID:         orgID,
-		LocalBucketID: &id1,
-	}).Return(list, nil)
+	mocks.durableQueueManager.EXPECT().GetReplications(orgID, id1).Return(replications)
 
 	points, err := models.ParsePointsString(`
 cpu,host=0 value=1.1 6000000000

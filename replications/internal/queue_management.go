@@ -422,11 +422,15 @@ func (qm *durableQueueManager) newReplicationQueue(id platform.ID, orgID platfor
 	}
 }
 
-func (qm *durableQueueManager) IfReplicationsExist(orgId platform.ID, localBucketID platform.ID) bool {
+// GetReplications returns the ids of all currently registered replication streams matching the provided orgID
+// and localBucketID
+func (qm *durableQueueManager) GetReplications(orgID platform.ID, localBucketID platform.ID) []platform.ID {
+	replications := make([]platform.ID, len(qm.replicationQueues))
+
 	for _, repl := range qm.replicationQueues {
-		if repl.orgID == orgId && repl.localBucketID == localBucketID {
-			return true
+		if repl.orgID == orgID && repl.localBucketID == localBucketID {
+			replications = append(replications, repl.id)
 		}
 	}
-	return false
+	return replications
 }

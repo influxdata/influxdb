@@ -92,18 +92,18 @@ func (mr *MockDurableQueueManagerMockRecorder) EnqueueData(arg0, arg1, arg2 inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueData", reflect.TypeOf((*MockDurableQueueManager)(nil).EnqueueData), arg0, arg1, arg2)
 }
 
-// IfReplicationsExist mocks base method.
-func (m *MockDurableQueueManager) IfReplicationsExist(arg0, arg1 platform.ID) bool {
+// GetReplications mocks base method.
+func (m *MockDurableQueueManager) GetReplications(arg0, arg1 platform.ID) []platform.ID {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IfReplicationsExist", arg0, arg1)
-	ret0, _ := ret[0].(bool)
+	ret := m.ctrl.Call(m, "GetReplications", arg0, arg1)
+	ret0, _ := ret[0].([]platform.ID)
 	return ret0
 }
 
-// IfReplicationsExist indicates an expected call of IfReplicationsExist.
-func (mr *MockDurableQueueManagerMockRecorder) IfReplicationsExist(arg0, arg1 interface{}) *gomock.Call {
+// GetReplications indicates an expected call of GetReplications.
+func (mr *MockDurableQueueManagerMockRecorder) GetReplications(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IfReplicationsExist", reflect.TypeOf((*MockDurableQueueManager)(nil).IfReplicationsExist), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplications", reflect.TypeOf((*MockDurableQueueManager)(nil).GetReplications), arg0, arg1)
 }
 
 // InitializeQueue mocks base method.

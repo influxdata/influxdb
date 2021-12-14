@@ -80,7 +80,7 @@ type DurableQueueManager interface {
 	StartReplicationQueues(trackedReplications map[platform.ID]*tracked.Replication) error
 	CloseAll() error
 	EnqueueData(replicationID platform.ID, data []byte, numPoints int) error
-	IfReplicationsExist(orgId platform.ID, localBucketID platform.ID) bool
+	GetReplications(orgId platform.ID, localBucketID platform.ID) []platform.ID
 }
 
 type ServiceStore interface {
@@ -312,19 +312,11 @@ type batch struct {
 }
 
 func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
-	replicationsExist := s.durableQueueManager.IfReplicationsExist(orgID, bucketID)
+	replications := s.durableQueueManager.GetReplications(orgID, bucketID)
 
 	// If there are no registered replications, all we need to do is a local write.
-	if !replicationsExist {
+	if len(replications) == 0 {
 		return s.localWriter.WritePoints(ctx, orgID, bucketID, points)
-	}
-
-	repls, err := s.store.ListReplications(ctx, influxdb.ReplicationListFilter{
-		OrgID:         orgID,
-		LocalBucketID: &bucketID,
-	})
-	if err != nil {
-		return err
 	}
 
 	// Concurrently...
@@ -385,9 +377,9 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 
 	// Enqueue the data into all registered replications.
 	var wg sync.WaitGroup
-	wg.Add(len(repls.Replications))
+	wg.Add(len(replications))
 
-	for _, rep := range repls.Replications {
+	for _, id := range replications {
 		go func(id platform.ID) {
 			defer wg.Done()
 
@@ -397,7 +389,7 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 					s.log.Error("Failed to enqueue points for replication", zap.String("id", id.String()), zap.Error(err))
 				}
 			}
-		}(rep.ID)
+		}(id)
 	}
 	wg.Wait()
 
