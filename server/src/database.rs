@@ -948,7 +948,7 @@ async fn initialize_database(shared: &DatabaseShared) {
                     );
                     throttled_error = true;
 
-                    // exponential backup w/ jitter, decorrelated
+                    // exponential backoff w/ jitter, decorrelated
                     // see https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
                     let mut rng = thread_rng();
                     sleep = Duration::from_secs_f64(MAX_BACKOFF.as_secs_f64().min(
@@ -1159,10 +1159,10 @@ enum DatabaseState {
     RulesLoaded(DatabaseStateRulesLoaded),
     CatalogLoaded(DatabaseStateCatalogLoaded),
 
-    // Terminal state (positive)
+    // Terminal state (success)
     Initialized(DatabaseStateInitialized),
 
-    // Terminal state (negative)
+    // Terminal state (failure)
     NoActiveDatabase(DatabaseStateKnown, Arc<InitError>),
 
     // Error states, we'll try to recover from them
