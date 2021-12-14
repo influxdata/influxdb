@@ -344,21 +344,32 @@ jobs:
       - run:
           name: Cargo release build with target arch set for CRoaring
           command: |
-            COMMIT_SHA=$(git rev-parse --short HEAD)
+            COMMIT_SHA="$(git rev-parse --short HEAD)"
 
-            RUST_VERSION=$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)
+            RUST_VERSION="$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)"
+            BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
 
             docker buildx build \
               --build-arg RUST_VERSION="$RUST_VERSION" \
-              --build-arg RUSTFLAGS="-C target-feature=+avx2" \
+              --build-arg RUSTFLAGS="-C target-feature=+avx2 -C link-arg=-fuse-ld=lld" \
               --progress plain \
               --tag quay.io/influxdb/iox:"$COMMIT_SHA" \
-              --tag quay.io/influxdb/iox:"$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')" \
+              --tag quay.io/influxdb/iox:"$BRANCH" \
+              .
+            docker buildx build \
+              --build-arg FEATURES="" \
+              --build-arg PACKAGE="iox_data_generator" \
+              --build-arg RUST_VERSION="$RUST_VERSION" \
+              --build-arg RUSTFLAGS="-C target-feature=+avx2 -C link-arg=-fuse-ld=lld" \
+              --progress plain \
+              --tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" \
+              --tag quay.io/influxdb/iox_data_generator:"$BRANCH" \
               .
 
             docker run -it --rm quay.io/influxdb/iox:$COMMIT_SHA debug print-cpu
 
             docker push --all-tags quay.io/influxdb/iox
+            docker push --all-tags quay.io/influxdb/iox_data_generator
 
             echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
           # linking might take a while and doesn't produce CLI output
