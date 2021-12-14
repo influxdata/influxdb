@@ -108,14 +108,13 @@ Figure 3 illustrates an example of IOx Data LifeCycle with 8 events happening at
 * **Before T1**: There is only `O-MUB 1` in the system to accept eligible writes for its partition.
 * **At T1**: a `Compact` event happens and triggers a process to compact the only `O-MUB 1` into `RUB 1`. In order ot do that, `O-MUB 1` needs to get frozen to `F-MUB 1` first and then compacted into `RUB 1`. If more ingest data comes after T2, a new `O-MUB 2` is created to accept new writes.
 * **At T2**: a `Delete` is issued that freezes `O-MUB 2` to `F-MUB 2`. Since new data keeps coming, `O-MUB 3` is created to accept new data.
-* **At T3**: a `Compact` is requested on `RUB 1`, `F-MUB 2`, and `O-MUB 2`. As always, the `O-MUB 3` must be first frozen to `F-MUB 3` and then compacted with `RUB 1` and `F-MUB 2` to produce `RUB 2`, while `O-MUB 4` is created to accept ingesting data.
+* **At T3**: a `Compact` is requested on `RUB 1`, `F-MUB 2`, and `O-MUB 3`. As always, the `O-MUB 3` must be first frozen to `F-MUB 3` and then compacted with `RUB 1` and `F-MUB 2` to produce `RUB 2`, while `O-MUB 4` is created to accept ingesting data.
 * **At T4**: a `Delete` triggers `O-MUB 4` frozen to `F-MUB 4` and `O-MUB 5` created.
 * **At T5**: a `Compact` on `F-MUB 4` and `O-MUB 5` to produce `RUB 3` and triggers the creation of `O-MUB 6`.
 * **At T6**: a `Persist` is issued on `RUB 2`, `RUB 3` and `O-MUB 6` to produce `OS 1` and `RUB 4`, and triggers the creation of `O-MUB 7`.
 * **At T7**: a `Persist` is issued on `RUB 4` and `O-MUB 7` to produce `OS 2` and `RUB 5`, and triggers the creation of `O-MUB 8`.
 * **AT T8**: a `Compact OS` is issued on `OS 1` and `OS 2` to produce `OS 3`.
 
-* Compact: 
 ```text
                                                                                                                                                                                            
                                                                                                                                                                                              
@@ -172,3 +171,5 @@ Figure 3 illustrates an example of IOx Data LifeCycle with 8 events happening at
                                                                                                                                                                                            
 Figure 3: Example of                                                                                                                                                                                                   
 ```
+
+Now we understand chunks and their life cycle, let us move to next topic: **IOX In-Memory and Preserved Catalogs - The metadata for operating the Data Lifecycle & accessing needed chunks quickly** (to be linked)
