@@ -72,7 +72,8 @@ check = {_check_id: "000000000000000a", _check_name: "moo", _type: "deadman", ta
 info = (r) => r["dead"]
 messageFn = (r) => "whoa! {r[\"dead\"]}"
 
-data |> v1["fieldsAsCols"]() |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
+data
+    |> v1["fieldsAsCols"]() |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
     |> monitor["check"](data: check, messageFn: messageFn, info: info)`,
 			},
 		},
@@ -124,7 +125,8 @@ check = {_check_id: "000000000000000a", _check_name: "moo", _type: "deadman", ta
 info = (r) => r["dead"]
 messageFn = (r) => "whoa! {r[\"dead\"]}"
 
-data |> v1["fieldsAsCols"]() |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
+data
+    |> v1["fieldsAsCols"]() |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
     |> monitor["check"](data: check, messageFn: messageFn, info: info)`,
 			},
 		},
@@ -176,7 +178,8 @@ check = {_check_id: "000000000000000a", _check_name: "moo", _type: "deadman", ta
 info = (r) => r["dead"]
 messageFn = (r) => "whoa! {r[\"dead\"]}"
 
-data |> v1["fieldsAsCols"]() |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
+data
+    |> v1["fieldsAsCols"]() |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
     |> monitor["check"](data: check, messageFn: messageFn, info: info)`,
 			},
 		},

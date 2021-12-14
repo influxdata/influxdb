@@ -80,8 +80,13 @@ func TestThreshold_GenerateFlux(t *testing.T) {
 				script: `import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
-data = from(bucket: "foo") |> range(start: -1h) |> filter(fn: (r) => r._field == "usage_user")
-    |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+data =
+    from(bucket: "foo")
+        |> range(start: -1h) |> filter(fn: (r) => r._field == "usage_user") |> aggregateWindow(
+            every: 1h,
+            fn: mean,
+            createEmpty: false,
+        )
 
 option task = {name: "moo", every: 1h}
 
@@ -92,14 +97,15 @@ warn = (r) => r["usage_user"] < 40.0 and r["usage_user"] > 10.0
 crit = (r) => r["usage_user"] < 10.0 or r["usage_user"] > 40.0
 messageFn = (r) => "whoa! {r[\"usage_user\"]}"
 
-data |> v1["fieldsAsCols"]() |> monitor["check"](
-    data: check,
-    messageFn: messageFn,
-    ok: ok,
-    info: info,
-    warn: warn,
-    crit: crit,
-)`,
+data
+    |> v1["fieldsAsCols"]() |> monitor["check"](
+        data: check,
+        messageFn: messageFn,
+        ok: ok,
+        info: info,
+        warn: warn,
+        crit: crit,
+    )`,
 			},
 		},
 		{
@@ -155,8 +161,13 @@ data |> v1["fieldsAsCols"]() |> monitor["check"](
 				script: `import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
-data = from(bucket: "foo") |> range(start: -1h) |> filter(fn: (r) => r._field == "usage_user")
-    |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+data =
+    from(bucket: "foo")
+        |> range(start: -1h) |> filter(fn: (r) => r._field == "usage_user") |> aggregateWindow(
+            every: 1h,
+            fn: mean,
+            createEmpty: false,
+        )
 
 option task = {name: "moo", every: 1h}
 
@@ -167,14 +178,15 @@ warn = (r) => r["usage_user"] < 40.0 and r["usage_user"] > 10.0
 crit = (r) => r["usage_user"] < 10.0 or r["usage_user"] > 40.0
 messageFn = (r) => "whoa! {r[\"usage_user\"]}"
 
-data |> v1["fieldsAsCols"]() |> monitor["check"](
-    data: check,
-    messageFn: messageFn,
-    ok: ok,
-    info: info,
-    warn: warn,
-    crit: crit,
-)`,
+data
+    |> v1["fieldsAsCols"]() |> monitor["check"](
+        data: check,
+        messageFn: messageFn,
+        ok: ok,
+        info: info,
+        warn: warn,
+        crit: crit,
+    )`,
 			},
 		},
 		{
@@ -230,8 +242,13 @@ data |> v1["fieldsAsCols"]() |> monitor["check"](
 				script: `import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
-data = from(bucket: "foo") |> range(start: -1h) |> filter(fn: (r) => r._field == "usage user")
-    |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+data =
+    from(bucket: "foo")
+        |> range(start: -1h) |> filter(fn: (r) => r._field == "usage user") |> aggregateWindow(
+            every: 1h,
+            fn: mean,
+            createEmpty: false,
+        )
 
 option task = {name: "moo", every: 1h}
 
@@ -242,14 +259,15 @@ warn = (r) => r["usage user"] < 40.0 and r["usage user"] > 10.0
 crit = (r) => r["usage user"] < 10.0 or r["usage user"] > 40.0
 messageFn = (r) => "whoa! {r[\"usage user\"]}"
 
-data |> v1["fieldsAsCols"]() |> monitor["check"](
-    data: check,
-    messageFn: messageFn,
-    ok: ok,
-    info: info,
-    warn: warn,
-    crit: crit,
-)`,
+data
+    |> v1["fieldsAsCols"]() |> monitor["check"](
+        data: check,
+        messageFn: messageFn,
+        ok: ok,
+        info: info,
+        warn: warn,
+        crit: crit,
+    )`,
 			},
 		},
 		{
@@ -305,8 +323,13 @@ data |> v1["fieldsAsCols"]() |> monitor["check"](
 				script: `import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
-data = from(bucket: "foo") |> range(start: -1h) |> filter(fn: (r) => r._field == "usage_user")
-    |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+data =
+    from(bucket: "foo")
+        |> range(start: -1h) |> filter(fn: (r) => r._field == "usage_user") |> aggregateWindow(
+            every: 1h,
+            fn: mean,
+            createEmpty: false,
+        )
 
 option task = {name: "moo", every: 1h}
 
@@ -317,14 +340,15 @@ warn = (r) => r["usage_user"] < 40.0 and r["usage_user"] > 10.0
 crit = (r) => r["usage_user"] < 40.0 and r["usage_user"] > 10.0
 messageFn = (r) => "whoa! {r[\"usage_user\"]}"
 
-data |> v1["fieldsAsCols"]() |> monitor["check"](
-    data: check,
-    messageFn: messageFn,
-    ok: ok,
-    info: info,
-    warn: warn,
-    crit: crit,
-)`,
+data
+    |> v1["fieldsAsCols"]() |> monitor["check"](
+        data: check,
+        messageFn: messageFn,
+        ok: ok,
+        info: info,
+        warn: warn,
+        crit: crit,
+    )`,
 			},
 		},
 	}
