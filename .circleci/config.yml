@@ -154,10 +154,18 @@ jobs:
       - cache_restore
       - run:
           name: Check that the workspace hack crate contains all features in use
-          command: cargo hakari generate --diff || echo "If this fails, fix it by running \`cargo hakari generate\` locally and committing the changes"
+          command: |
+            cargo hakari generate --diff || {
+              echo "If this fails, fix it by running \`cargo hakari generate\` locally and committing the changes"
+              exit 1
+            }
       - run:
           name: Check that all crates in the workspace depend on the workspace hack crate
-          command: cargo hakari manage-deps --dry-run || echo "If this fails, fix it by running \`cargo hakari manage-deps\` locally and committing the changes"
+          command: |
+            cargo hakari manage-deps --dry-run || {
+              echo "If this fails, fix it by running \`cargo hakari manage-deps\` locally and committing the changes"
+              exit 1
+            }
 
   test:
     docker:
