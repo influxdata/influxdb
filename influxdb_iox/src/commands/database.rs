@@ -6,7 +6,7 @@ use influxdb_iox_client::{
     connection::Connection,
     flight,
     format::QueryOutputFormat,
-    management::{self, generated_types::*},
+    management::{self, generated_types::database_status::DatabaseState, generated_types::*},
     write,
 };
 use std::{fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr, time::Duration};
@@ -254,19 +254,53 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         Command::List(list) => {
             let mut client = management::Client::new(connection);
             if list.detailed {
-                let databases = client.list_detailed_databases().await?;
+                let ServerStatus {
+                    initialized,
+                    error,
+                    database_statuses,
+                } = client.get_server_status().await?;
+                if !initialized {
+                    eprintln!("Can not list databases. Server is not yet initialized");
+                    if let Some(err) = error {
+                        println!("WARNING: Server is in error state: {}", err.message);
+                    }
+                    return Ok(());
+                }
 
-                if !databases.is_empty() {
+                if !database_statuses.is_empty() {
                     let mut table = Table::new();
                     table.load_preset(TABLE_STYLE_SINGLE_LINE_BORDERS);
-                    table.set_header(vec![Cell::new("Name"), Cell::new("UUID")]);
+                    table.set_header(vec![
+                        Cell::new("Name"),
+                        Cell::new("UUID"),
+                        Cell::new("State"),
+                        Cell::new("Error"),
+                    ]);
 
-                    for database in databases {
-                        let uuid = Uuid::from_slice(&database.uuid)
-                            .map(|u| u.to_string())
-                            .unwrap_or_else(|_| String::from("<UUID parsing failed>"));
+                    for database in database_statuses {
+                        let uuid = if !database.uuid.is_empty() {
+                            Uuid::from_slice(&database.uuid)
+                                .map(|uuid| uuid.to_string())
+                                .unwrap_or_else(|_| String::from("<UUID parsing failed>"))
+                        } else {
+                            String::from("<UUID not yet known>")
+                        };
 
-                        table.add_row(vec![Cell::new(&database.db_name), Cell::new(&uuid)]);
+                        let state = DatabaseState::from_i32(database.state)
+                            .map(|state| state.description())
+                            .unwrap_or("UNKNOWN STATE");
+
+                        let error = database
+                            .error
+                            .map(|e| e.message)
+                            .unwrap_or_else(|| String::from("<none>"));
+
+                        table.add_row(vec![
+                            Cell::new(&database.db_name),
+                            Cell::new(&uuid),
+                            Cell::new(&state),
+                            Cell::new(&error),
+                        ]);
                     }
 
                     print!("{}", table);
