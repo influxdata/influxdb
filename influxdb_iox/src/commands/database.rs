@@ -303,7 +303,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                         ]);
                     }
 
-                    print!("{}", table);
+                    println!("{}", table);
                 }
             } else {
                 let names = client.list_database_names().await?;
