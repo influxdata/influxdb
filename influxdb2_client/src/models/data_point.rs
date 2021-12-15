@@ -149,6 +149,8 @@ pub enum FieldValue {
     F64(f64),
     /// A 64-bit signed integer number
     I64(i64),
+    /// A 64-bit unsigned integer number
+    U64(u64),
     /// A string value
     String(String),
 }
@@ -168,6 +170,12 @@ impl From<f64> for FieldValue {
 impl From<i64> for FieldValue {
     fn from(other: i64) -> Self {
         Self::I64(other)
+    }
+}
+
+impl From<u64> for FieldValue {
+    fn from(other: u64) -> Self {
+        Self::U64(other)
     }
 }
 
@@ -281,6 +289,7 @@ impl WriteFieldValue for FieldValue {
             Bool(v) => write!(w, "{}", if *v { "t" } else { "f" }),
             F64(v) => write!(w, "{}", v),
             I64(v) => write!(w, "{}i", v),
+            U64(v) => write!(w, "{}u", v),
             String(v) => {
                 w.write_all(br#"""#)?;
                 escape_and_write_value(v, FIELD_VALUE_STRING_DELIMITERS, &mut w)?;
@@ -458,9 +467,15 @@ mod tests {
     }
 
     #[test]
-    fn field_value_of_integer() {
+    fn field_value_of_signed_integer() {
         let e = FieldValue::from(42_i64);
         assert_utf8_strings_eq(&e.field_value_to_vec().unwrap(), b"42i");
+    }
+
+    #[test]
+    fn field_value_of_unsigned_integer() {
+        let e = FieldValue::from(42_u64);
+        assert_utf8_strings_eq(&e.field_value_to_vec().unwrap(), b"42u");
     }
 
     #[test]

@@ -131,15 +131,6 @@ impl Client {
         Ok(names)
     }
 
-    /// List databases and detailed metadata
-    pub async fn list_detailed_databases(&mut self) -> Result<Vec<DetailedDatabase>, Error> {
-        let response = self
-            .inner
-            .list_detailed_databases(ListDetailedDatabasesRequest {})
-            .await?;
-        Ok(response.into_inner().databases)
-    }
-
     /// Get database configuration
     ///
     /// If `omit_defaults` is false, return the current configuration
