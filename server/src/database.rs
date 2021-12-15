@@ -680,19 +680,9 @@ impl Database {
 
     /// Recover from a ReplayError by skipping replay
     pub async fn skip_replay(&self) -> Result<(), Error> {
-        self.shared.config.write().skip_replay = true;
+        error_state!(self, "SkipReplay", ReplayError);
 
-        match &**self.shared.state.read() {
-            DatabaseState::ReplayError(_, _) | DatabaseState::RulesLoaded(_) => {}
-            state => {
-                return InvalidState {
-                    db_name: &self.shared.config.read().name,
-                    state: state.state_code(),
-                    transition: "SkipReplay",
-                }
-                .fail()
-            }
-        }
+        self.shared.config.write().skip_replay = true;
 
         // wait for DB to leave a potential `ReplayError` state
         loop {
@@ -700,7 +690,7 @@ impl Database {
             let notify = self.shared.state_notify.notified();
 
             match &**self.shared.state.read() {
-                DatabaseState::ReplayError(_, _) | DatabaseState::RulesLoaded(_) => {}
+                DatabaseState::ReplayError(_, _) => {}
                 _ => break,
             }
 
@@ -892,11 +882,7 @@ enum TransactionOrWait {
     /// We can transition from one state into another.
     Transaction(DatabaseState, internal_types::freezable::FreezeHandle),
 
-    /// We have to wait.
-    ///
-    /// This can have multiple reasons:
-    /// - there's another transaction in progress and we wait until we can try again
-    /// - error backoff
+    /// We have to wait to backoff from an error.
     Wait(Duration),
 }
 
@@ -915,6 +901,9 @@ async fn initialize_database(shared: &DatabaseShared) {
     while !shared.shutdown.is_cancelled() {
         // Acquire locks and determine if work to be done
         let maybe_transaction = {
+            // lock-dance to make this future `Send`
+            let handle = shared.state.read().freeze();
+            let handle = handle.await;
             let state = shared.state.read();
 
             match &**state {
@@ -923,18 +912,7 @@ async fn initialize_database(shared: &DatabaseShared) {
 
                 // Can perform work
                 _ if state.error().is_none() || (state.error().is_some() && throttled_error) => {
-                    match state.try_freeze() {
-                        Some(handle) => {
-                            TransactionOrWait::Transaction(DatabaseState::clone(&state), handle)
-                        }
-                        None => {
-                            // Backoff if there is already an in-progress initialization action (e.g. recovery)
-                            info!(%db_name, %state, "init transaction already in progress");
-
-                            // no exponential / jitter sleep
-                            TransactionOrWait::Wait(INIT_BACKOFF)
-                        }
-                    }
+                    TransactionOrWait::Transaction(DatabaseState::clone(&state), handle)
                 }
 
                 // Unthrottled error state, need to wait
@@ -1011,7 +989,16 @@ async fn initialize_database(shared: &DatabaseShared) {
                     Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
                 }
             }
-            DatabaseState::ReplayError(state, _) => DatabaseState::RulesLoaded(state.rollback()),
+            DatabaseState::ReplayError(state, _) => {
+                let state2 = state.rollback();
+                match state2.advance(shared).await {
+                    Ok(state2) => match state2.advance(shared).await {
+                        Ok(state2) => DatabaseState::Initialized(state2),
+                        Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
+                    },
+                    Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
+                }
+            }
             DatabaseState::Initialized(_) => {
                 unreachable!("{:?}", state)
             }
@@ -1111,8 +1098,8 @@ pub enum InitError {
 /// ```text
 ///                      (start)
 ///                         |
-///  o-o                    |                                             o-o
-///  | V                    V                                             V |
+///  o-o           o--------|-------------------o                         o-o
+///  | V           V        V                   V                         V |
 /// [NoActiveDatabase]<--[Known]------------->[DatabaseObjectStoreLookupError]
 ///        |                |                           |
 ///        o----------------+---------------------------o
@@ -1131,15 +1118,19 @@ pub enum InitError {
 ///                         |
 ///                         |                                   o-o
 ///                         V                                   V |
-///        o--------->[RulesLoaded]-------------->[CatalogLoadError]
-///        |                |                           |
-///        |                +---------------------------o
-///        |                |
-///        |                |                                        o-o
-///        |                V                                        V |
-///  [ReplayError]<--[CatalogLoaded]---------->[WriteBufferCreationError]
+///                   [RulesLoaded]-------------->[CatalogLoadError]
 ///                         |                           |
 ///                         +---------------------------o
+///                         |
+///                         |                                        o-o
+///                         V                                        V |
+///                  [CatalogLoaded]---------->[WriteBufferCreationError]
+///                         |    |               |       |
+///                         |    |               |       |    o-o
+///                         |    |               |       V    V |
+///                         |    o---------------|-->[ReplayError]
+///                         |                    |       |
+///                         +--------------------+-------o
 ///                         |
 ///                         |
 ///                         V
