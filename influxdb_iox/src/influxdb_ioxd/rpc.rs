@@ -102,6 +102,7 @@ pub(crate) use add_gated_service;
 /// be used w/ [`serve_builder`].
 macro_rules! setup_builder {
     ($input:ident, $server_type:ident) => {{
+        #[allow(unused_imports)]
         use $crate::influxdb_ioxd::{
             rpc::{add_service, testing, RpcBuilder},
             server_type::ServerType,

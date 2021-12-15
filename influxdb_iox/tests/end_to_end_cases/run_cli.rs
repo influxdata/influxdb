@@ -1,6 +1,6 @@
 use std::{
     io::Read,
-    process::Command,
+    process::{Command, Stdio},
     time::{Duration, Instant},
 };
 
@@ -92,4 +92,55 @@ fn test_deprecated_cli_without_server_type() {
     // kill process
     process.kill().unwrap();
     process.wait().unwrap();
+}
+
+#[test]
+fn test_early_return_from_grpc_worker() {
+    assert_early_exit_return_code("early-return-from-grpc-worker");
+}
+
+#[test]
+fn test_early_return_from_server_worker() {
+    assert_early_exit_return_code("early-return-from-server-worker");
+}
+
+#[test]
+fn test_panic_in_grpc_worker() {
+    assert_early_exit_return_code("panic-in-grpc-worker");
+}
+
+#[test]
+fn test_panic_in_server_worker() {
+    assert_early_exit_return_code("panic-in-server-worker");
+}
+
+fn assert_early_exit_return_code(test_action: &str) {
+    let addrs = BindAddresses::default();
+    let mut process = Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("run")
+        .arg("test")
+        .arg("--test-action")
+        .arg(test_action)
+        .env("INFLUXDB_IOX_BIND_ADDR", addrs.http_bind_addr())
+        .env("INFLUXDB_IOX_GRPC_BIND_ADDR", addrs.grpc_bind_addr())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+
+    let t_start = Instant::now();
+    loop {
+        if t_start.elapsed() > Duration::from_secs(10) {
+            process.kill().unwrap();
+            panic!("Server process did not exit!");
+        }
+
+        if let Some(status) = process.try_wait().unwrap() {
+            assert!(!status.success());
+            break;
+        }
+
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
