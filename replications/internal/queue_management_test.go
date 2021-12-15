@@ -545,16 +545,15 @@ func TestGetReplications(t *testing.T) {
 	require.DirExists(t, filepath.Join(path, id1.String()))
 
 	// Should return one matching replication queue (repl ID 1)
+	expectedRepls := []platform.ID{id1}
 	repls := qm.GetReplications(orgID1, localBucketID1)
-	require.Equal(t, 1, len(repls))
-	require.Contains(t, repls, id1)
+	require.ElementsMatch(t, expectedRepls, repls)
 
 	// Should return no matching replication queues
 	require.Equal(t, 0, len(qm.GetReplications(orgID1, localBucketID2)))
 
 	// Should return two matching replication queues (repl IDs 2 and 3)
+	expectedRepls = []platform.ID{id2, id3}
 	repls = qm.GetReplications(orgID2, localBucketID2)
-	require.Equal(t, 2, len(repls))
-	require.Contains(t, repls, id2)
-	require.Contains(t, repls, id3)
+	require.ElementsMatch(t, expectedRepls, repls)
 }
