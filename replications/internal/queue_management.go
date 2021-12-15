@@ -3,13 +3,12 @@ package internal
 import (
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/influxdata/influxdb/v2/replications/tracked"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
@@ -282,7 +281,7 @@ func (qm *durableQueueManager) CurrentQueueSizes(ids []platform.ID) (map[platfor
 
 // StartReplicationQueues updates the durableQueueManager.replicationQueues map, fully removing any partially deleted
 // queues (present on disk, but not tracked in sqlite), opening all current queues, and logging info for each.
-func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[platform.ID]*tracked.Replication) error {
+func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[platform.ID]*influxdb.TrackedReplication) error {
 	errOccurred := false
 
 	for id, repl := range trackedReplications {

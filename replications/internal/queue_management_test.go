@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/replications/tracked"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom"
@@ -30,7 +28,6 @@ var (
 	localBucketID1     = platform.ID(999)
 	orgID2			   = platform.ID(123)
 	localBucketID2     = platform.ID(456)
-	localBucketID3     = platform.ID(789)
 )
 
 func TestCreateNewQueueDirExists(t *testing.T) {
@@ -179,8 +176,8 @@ func TestStartReplicationQueue(t *testing.T) {
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	// Represents the replications tracked in sqlite, this one is tracked
-	trackedReplications := make(map[platform.ID]*tracked.Replication)
-	trackedReplications[id1] = &tracked.Replication{
+	trackedReplications := make(map[platform.ID]*influxdb.TrackedReplication)
+	trackedReplications[id1] = &influxdb.TrackedReplication{
 		MaxQueueSizeBytes: maxQueueSizeBytes,
 		OrgID:             orgID1,
 		LocalBucketID:     localBucketID1,
@@ -213,7 +210,7 @@ func TestStartReplicationQueuePartialDelete(t *testing.T) {
 	require.DirExists(t, filepath.Join(queuePath, id1.String()))
 
 	// Represents the replications tracked in sqlite, replication above is not tracked (not present in map)
-	trackedReplications := make(map[platform.ID]*tracked.Replication)
+	trackedReplications := make(map[platform.ID]*influxdb.TrackedReplication)
 
 	// Simulate server shutdown by closing all queues and clearing replicationQueues map
 	shutdown(t, qm)
@@ -246,13 +243,13 @@ func TestStartReplicationQueuesMultiple(t *testing.T) {
 	require.DirExists(t, filepath.Join(queuePath, id2.String()))
 
 	// Represents the replications tracked in sqlite, both replications above are tracked
-	trackedReplications := make(map[platform.ID]*tracked.Replication)
-	trackedReplications[id1] = &tracked.Replication{
+	trackedReplications := make(map[platform.ID]*influxdb.TrackedReplication)
+	trackedReplications[id1] = &influxdb.TrackedReplication{
 		MaxQueueSizeBytes: maxQueueSizeBytes,
 		OrgID:             orgID1,
 		LocalBucketID:     localBucketID1,
 	}
-	trackedReplications[id2] = &tracked.Replication{
+	trackedReplications[id2] = &influxdb.TrackedReplication{
 		MaxQueueSizeBytes: maxQueueSizeBytes,
 		OrgID:             orgID2,
 		LocalBucketID:     localBucketID2,
@@ -297,8 +294,8 @@ func TestStartReplicationQueuesMultipleWithPartialDelete(t *testing.T) {
 	require.DirExists(t, filepath.Join(queuePath, id2.String()))
 
 	// Represents the replications tracked in sqlite, queue1 is tracked and queue2 is not
-	trackedReplications := make(map[platform.ID]*tracked.Replication)
-	trackedReplications[id1] = &tracked.Replication{
+	trackedReplications := make(map[platform.ID]*influxdb.TrackedReplication)
+	trackedReplications[id1] = &influxdb.TrackedReplication{
 		MaxQueueSizeBytes: maxQueueSizeBytes,
 		OrgID:             orgID1,
 		LocalBucketID:     localBucketID1,

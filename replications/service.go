@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/influxdata/influxdb/v2/replications/tracked"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -77,7 +75,7 @@ type DurableQueueManager interface {
 	DeleteQueue(replicationID platform.ID) error
 	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
 	CurrentQueueSizes(ids []platform.ID) (map[platform.ID]int64, error)
-	StartReplicationQueues(trackedReplications map[platform.ID]*tracked.Replication) error
+	StartReplicationQueues(trackedReplications map[platform.ID]*influxdb.TrackedReplication) error
 	CloseAll() error
 	EnqueueData(replicationID platform.ID, data []byte, numPoints int) error
 	GetReplications(orgId platform.ID, localBucketID platform.ID) []platform.ID
@@ -402,9 +400,9 @@ func (s service) Open(ctx context.Context) error {
 		return err
 	}
 
-	trackedReplicationsMap := make(map[platform.ID]*tracked.Replication)
+	trackedReplicationsMap := make(map[platform.ID]*influxdb.TrackedReplication)
 	for _, r := range trackedReplications.Replications {
-		trackedReplicationsMap[r.ID] = &tracked.Replication{
+		trackedReplicationsMap[r.ID] = &influxdb.TrackedReplication{
 			MaxQueueSizeBytes: r.MaxQueueSizeBytes,
 			OrgID:             r.OrgID,
 			LocalBucketID:     r.LocalBucketID,

@@ -8,8 +8,8 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+	influxdb "github.com/influxdata/influxdb/v2"
 	platform "github.com/influxdata/influxdb/v2/kit/platform"
-	tracked "github.com/influxdata/influxdb/v2/replications/tracked"
 )
 
 // MockDurableQueueManager is a mock of DurableQueueManager interface.
@@ -121,7 +121,7 @@ func (mr *MockDurableQueueManagerMockRecorder) InitializeQueue(arg0, arg1, arg2,
 }
 
 // StartReplicationQueues mocks base method.
-func (m *MockDurableQueueManager) StartReplicationQueues(arg0 map[platform.ID]*tracked.Replication) error {
+func (m *MockDurableQueueManager) StartReplicationQueues(arg0 map[platform.ID]*influxdb.TrackedReplication) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StartReplicationQueues", arg0)
 	ret0, _ := ret[0].(error)

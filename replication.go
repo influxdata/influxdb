@@ -46,6 +46,13 @@ type Replications struct {
 	Replications []Replication `json:"replications"`
 }
 
+// TrackedReplication defines a replication stream which is currently being tracked via sqlite.
+type TrackedReplication struct {
+	MaxQueueSizeBytes int64
+	OrgID             platform.ID
+	LocalBucketID     platform.ID
+}
+
 // CreateReplicationRequest contains all info needed to establish a new replication
 // to a remote InfluxDB bucket.
 type CreateReplicationRequest struct {

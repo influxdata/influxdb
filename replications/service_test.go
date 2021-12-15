@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
 	replicationsMock "github.com/influxdata/influxdb/v2/replications/mock"
-	"github.com/influxdata/influxdb/v2/replications/tracked"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -810,12 +809,12 @@ func TestOpen(t *testing.T) {
 		name            string
 		storeErr        error
 		queueManagerErr error
-		replicationsMap map[platform.ID]*tracked.Replication
+		replicationsMap map[platform.ID]*influxdb.TrackedReplication
 		list            *influxdb.Replications
 	}{
 		{
 			name: "no error, multiple replications from storage",
-			replicationsMap: map[platform.ID]*tracked.Replication{
+			replicationsMap: map[platform.ID]*influxdb.TrackedReplication{
 				replication1.ID: {
 					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
 					OrgID:             replication1.OrgID,
@@ -833,7 +832,7 @@ func TestOpen(t *testing.T) {
 		},
 		{
 			name: "no error, one stored replication",
-			replicationsMap: map[platform.ID]*tracked.Replication{
+			replicationsMap: map[platform.ID]*influxdb.TrackedReplication{
 				replication1.ID: {
 					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
 					OrgID:             replication1.OrgID,
@@ -850,7 +849,7 @@ func TestOpen(t *testing.T) {
 		},
 		{
 			name: "queue manager error",
-			replicationsMap: map[platform.ID]*tracked.Replication{
+			replicationsMap: map[platform.ID]*influxdb.TrackedReplication{
 				replication1.ID: {
 					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
 					OrgID:             replication1.OrgID,
