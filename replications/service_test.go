@@ -227,7 +227,7 @@ func TestCreateReplication(t *testing.T) {
 			mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), tt.create.LocalBucketID).Return(nil, tt.bucketErr)
 
 			if tt.bucketErr == nil {
-				mocks.durableQueueManager.EXPECT().InitializeQueue(id1, tt.create.MaxQueueSizeBytes).Return(tt.queueManagerErr)
+				mocks.durableQueueManager.EXPECT().InitializeQueue(id1, tt.create.MaxQueueSizeBytes, tt.create.OrgID, tt.create.LocalBucketID).Return(tt.queueManagerErr)
 			}
 
 			if tt.queueManagerErr == nil && tt.bucketErr == nil {
@@ -649,14 +649,11 @@ func TestWritePoints(t *testing.T) {
 
 	svc, mocks := newTestService(t)
 
-	list := &influxdb.Replications{
-		Replications: []influxdb.Replication{replication1, replication2},
-	}
+	replications := make([]platform.ID, 2)
+	replications[0] = replication1.ID
+	replications[1] = replication2.ID
 
-	mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
-		OrgID:         orgID,
-		LocalBucketID: &id1,
-	}).Return(list, nil)
+	mocks.durableQueueManager.EXPECT().GetReplications(orgID, id1).Return(replications)
 
 	points, err := models.ParsePointsString(`
 cpu,host=0 value=1.1 6000000000
@@ -673,7 +670,7 @@ disk,host=C value=1.3 1000000000`)
 	mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), orgID, id1, points).Return(nil)
 
 	// Points should successfully be enqueued in the 2 replications associated with the local bucket.
-	for _, id := range []platform.ID{replication1.ID, replication2.ID} {
+	for _, id := range replications {
 		mocks.durableQueueManager.EXPECT().
 			EnqueueData(id, gomock.Any(), len(points)).
 			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
@@ -718,14 +715,11 @@ func TestWritePointsBatches(t *testing.T) {
 			tt.setupFn(t, svc)
 
 			// Define metadata for two replications
-			list := &influxdb.Replications{
-				Replications: []influxdb.Replication{replication1, replication2},
-			}
+			replications := make([]platform.ID, 2)
+			replications[0] = replication1.ID
+			replications[1] = replication2.ID
 
-			mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
-				OrgID:         orgID,
-				LocalBucketID: &id1,
-			}).Return(list, nil)
+			mocks.durableQueueManager.EXPECT().GetReplications(orgID, id1).Return(replications)
 
 			// Define some points of line protocol, parse string --> []Point
 			points, err := models.ParsePointsString(`
@@ -743,7 +737,7 @@ disk,host=C value=1.3 1000000000`)
 			mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), orgID, id1, points).Return(nil)
 
 			// Points should successfully be enqueued in the 2 replications associated with the local bucket.
-			for _, id := range []platform.ID{replication1.ID, replication2.ID} {
+			for _, id := range replications {
 				// Check batch 1
 				mocks.durableQueueManager.EXPECT().
 					EnqueueData(id, gomock.Any(), 3).
@@ -782,14 +776,11 @@ func TestWritePoints_LocalFailure(t *testing.T) {
 
 	svc, mocks := newTestService(t)
 
-	list := &influxdb.Replications{
-		Replications: []influxdb.Replication{replication1, replication2},
-	}
+	replications := make([]platform.ID, 2)
+	replications[0] = replication1.ID
+	replications[1] = replication2.ID
 
-	mocks.serviceStore.EXPECT().ListReplications(gomock.Any(), influxdb.ReplicationListFilter{
-		OrgID:         orgID,
-		LocalBucketID: &id1,
-	}).Return(list, nil)
+	mocks.durableQueueManager.EXPECT().GetReplications(orgID, id1).Return(replications)
 
 	points, err := models.ParsePointsString(`
 cpu,host=0 value=1.1 6000000000
@@ -818,14 +809,22 @@ func TestOpen(t *testing.T) {
 		name            string
 		storeErr        error
 		queueManagerErr error
-		replicationsMap map[platform.ID]int64
+		replicationsMap map[platform.ID]*influxdb.TrackedReplication
 		list            *influxdb.Replications
 	}{
 		{
 			name: "no error, multiple replications from storage",
-			replicationsMap: map[platform.ID]int64{
-				replication1.ID: replication1.MaxQueueSizeBytes,
-				replication2.ID: replication2.MaxQueueSizeBytes,
+			replicationsMap: map[platform.ID]*influxdb.TrackedReplication{
+				replication1.ID: {
+					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
+					OrgID:             replication1.OrgID,
+					LocalBucketID:     replication1.LocalBucketID,
+				},
+				replication2.ID: {
+					MaxQueueSizeBytes: replication2.MaxQueueSizeBytes,
+					OrgID:             replication2.OrgID,
+					LocalBucketID:     replication2.LocalBucketID,
+				},
 			},
 			list: &influxdb.Replications{
 				Replications: []influxdb.Replication{replication1, replication2},
@@ -833,8 +832,12 @@ func TestOpen(t *testing.T) {
 		},
 		{
 			name: "no error, one stored replication",
-			replicationsMap: map[platform.ID]int64{
-				replication1.ID: replication1.MaxQueueSizeBytes,
+			replicationsMap: map[platform.ID]*influxdb.TrackedReplication{
+				replication1.ID: {
+					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
+					OrgID:             replication1.OrgID,
+					LocalBucketID:     replication1.LocalBucketID,
+				},
 			},
 			list: &influxdb.Replications{
 				Replications: []influxdb.Replication{replication1},
@@ -846,8 +849,12 @@ func TestOpen(t *testing.T) {
 		},
 		{
 			name: "queue manager error",
-			replicationsMap: map[platform.ID]int64{
-				replication1.ID: replication1.MaxQueueSizeBytes,
+			replicationsMap: map[platform.ID]*influxdb.TrackedReplication{
+				replication1.ID: {
+					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
+					OrgID:             replication1.OrgID,
+					LocalBucketID:     replication1.LocalBucketID,
+				},
 			},
 			list: &influxdb.Replications{
 				Replications: []influxdb.Replication{replication1},

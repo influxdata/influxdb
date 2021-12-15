@@ -71,13 +71,14 @@ type BucketService interface {
 }
 
 type DurableQueueManager interface {
-	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error
+	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64, orgID platform.ID, localBucketID platform.ID) error
 	DeleteQueue(replicationID platform.ID) error
 	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
 	CurrentQueueSizes(ids []platform.ID) (map[platform.ID]int64, error)
-	StartReplicationQueues(trackedReplications map[platform.ID]int64) error
+	StartReplicationQueues(trackedReplications map[platform.ID]*influxdb.TrackedReplication) error
 	CloseAll() error
 	EnqueueData(replicationID platform.ID, data []byte, numPoints int) error
+	GetReplications(orgId platform.ID, localBucketID platform.ID) []platform.ID
 }
 
 type ServiceStore interface {
@@ -142,7 +143,7 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 	}
 
 	newID := s.idGenerator.ID()
-	if err := s.durableQueueManager.InitializeQueue(newID, request.MaxQueueSizeBytes); err != nil {
+	if err := s.durableQueueManager.InitializeQueue(newID, request.MaxQueueSizeBytes, request.OrgID, request.LocalBucketID); err != nil {
 		return nil, err
 	}
 
@@ -309,16 +310,10 @@ type batch struct {
 }
 
 func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
-	repls, err := s.store.ListReplications(ctx, influxdb.ReplicationListFilter{
-		OrgID:         orgID,
-		LocalBucketID: &bucketID,
-	})
-	if err != nil {
-		return err
-	}
+	replications := s.durableQueueManager.GetReplications(orgID, bucketID)
 
 	// If there are no registered replications, all we need to do is a local write.
-	if len(repls.Replications) == 0 {
+	if len(replications) == 0 {
 		return s.localWriter.WritePoints(ctx, orgID, bucketID, points)
 	}
 
@@ -380,9 +375,9 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 
 	// Enqueue the data into all registered replications.
 	var wg sync.WaitGroup
-	wg.Add(len(repls.Replications))
+	wg.Add(len(replications))
 
-	for _, rep := range repls.Replications {
+	for _, id := range replications {
 		go func(id platform.ID) {
 			defer wg.Done()
 
@@ -392,7 +387,7 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 					s.log.Error("Failed to enqueue points for replication", zap.String("id", id.String()), zap.Error(err))
 				}
 			}
-		}(rep.ID)
+		}(id)
 	}
 	wg.Wait()
 
@@ -405,9 +400,13 @@ func (s service) Open(ctx context.Context) error {
 		return err
 	}
 
-	trackedReplicationsMap := make(map[platform.ID]int64)
+	trackedReplicationsMap := make(map[platform.ID]*influxdb.TrackedReplication)
 	for _, r := range trackedReplications.Replications {
-		trackedReplicationsMap[r.ID] = r.MaxQueueSizeBytes
+		trackedReplicationsMap[r.ID] = &influxdb.TrackedReplication{
+			MaxQueueSizeBytes: r.MaxQueueSizeBytes,
+			OrgID:             r.OrgID,
+			LocalBucketID:     r.LocalBucketID,
+		}
 	}
 
 	// Queue manager completes startup tasks

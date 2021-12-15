@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
 	"github.com/influxdata/influxdb/v2/replications/metrics"
@@ -25,14 +26,16 @@ type remoteWriter interface {
 }
 
 type replicationQueue struct {
-	id           platform.ID
-	queue        *durablequeue.Queue
-	wg           sync.WaitGroup
-	done         chan struct{}
-	receive      chan struct{}
-	logger       *zap.Logger
-	metrics      *metrics.ReplicationsMetrics
-	remoteWriter remoteWriter
+	id            platform.ID
+	orgID         platform.ID
+	localBucketID platform.ID
+	queue         *durablequeue.Queue
+	wg            sync.WaitGroup
+	done          chan struct{}
+	receive       chan struct{}
+	logger        *zap.Logger
+	metrics       *metrics.ReplicationsMetrics
+	remoteWriter  remoteWriter
 }
 
 type durableQueueManager struct {
@@ -64,7 +67,7 @@ func NewDurableQueueManager(log *zap.Logger, queuePath string, metrics *metrics.
 }
 
 // InitializeQueue creates and opens a new durable queue which is associated with a replication stream.
-func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error {
+func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64, orgID platform.ID, localBucketID platform.ID) error {
 	qm.mutex.Lock()
 	defer qm.mutex.Unlock()
 
@@ -104,7 +107,7 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 	}
 
 	// Map new durable queue and scanner to its corresponding replication stream via replication ID
-	rq := qm.newReplicationQueue(replicationID, newQueue)
+	rq := qm.newReplicationQueue(replicationID, orgID, localBucketID, newQueue)
 	qm.replicationQueues[replicationID] = rq
 	rq.Open()
 
@@ -278,14 +281,14 @@ func (qm *durableQueueManager) CurrentQueueSizes(ids []platform.ID) (map[platfor
 
 // StartReplicationQueues updates the durableQueueManager.replicationQueues map, fully removing any partially deleted
 // queues (present on disk, but not tracked in sqlite), opening all current queues, and logging info for each.
-func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[platform.ID]int64) error {
+func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[platform.ID]*influxdb.TrackedReplication) error {
 	errOccurred := false
 
-	for id, size := range trackedReplications {
+	for id, repl := range trackedReplications {
 		// Re-initialize a queue struct for each replication stream from sqlite
 		queue, err := durablequeue.NewQueue(
 			filepath.Join(qm.queuePath, id.String()),
-			size,
+			repl.MaxQueueSizeBytes,
 			durablequeue.DefaultSegmentSize,
 			&durablequeue.SharedCount{},
 			durablequeue.MaxWritesPending,
@@ -306,7 +309,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 			errOccurred = true
 			continue
 		} else {
-			qm.replicationQueues[id] = qm.newReplicationQueue(id, queue)
+			qm.replicationQueues[id] = qm.newReplicationQueue(id, repl.OrgID, repl.LocalBucketID, queue)
 			qm.replicationQueues[id].Open()
 			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
 		}
@@ -400,17 +403,32 @@ func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byt
 	return nil
 }
 
-func (qm *durableQueueManager) newReplicationQueue(id platform.ID, queue *durablequeue.Queue) *replicationQueue {
+func (qm *durableQueueManager) newReplicationQueue(id platform.ID, orgID platform.ID, localBucketID platform.ID, queue *durablequeue.Queue) *replicationQueue {
 	logger := qm.logger.With(zap.String("replication_id", id.String()))
 	done := make(chan struct{})
 
 	return &replicationQueue{
-		id:           id,
-		queue:        queue,
-		done:         done,
-		receive:      make(chan struct{}, 1),
-		logger:       logger,
-		metrics:      qm.metrics,
-		remoteWriter: remotewrite.NewWriter(id, qm.configStore, qm.metrics, logger, done),
+		id:            id,
+		orgID:         orgID,
+		localBucketID: localBucketID,
+		queue:         queue,
+		done:          done,
+		receive:       make(chan struct{}, 1),
+		logger:        logger,
+		metrics:       qm.metrics,
+		remoteWriter:  remotewrite.NewWriter(id, qm.configStore, qm.metrics, logger, done),
 	}
+}
+
+// GetReplications returns the ids of all currently registered replication streams matching the provided orgID
+// and localBucketID
+func (qm *durableQueueManager) GetReplications(orgID platform.ID, localBucketID platform.ID) []platform.ID {
+	replications := make([]platform.ID, 0, len(qm.replicationQueues))
+
+	for _, repl := range qm.replicationQueues {
+		if repl.orgID == orgID && repl.localBucketID == localBucketID {
+			replications = append(replications, repl.id)
+		}
+	}
+	return replications
 }
