@@ -73,8 +73,8 @@ Each object of the catalog contains information for us to operate the chunk life
 
 Another example of information we handle is the `Partition`'s `PersistenceWindows` that  keep track of ingested data within a partition to determine when it can be persisted. This allows IOx to receive out of order writes in their timestamps while persisting mostly in non-time overlapping Object Store files. The `CatalogChunk`'s `LifecycleAction` is another example that keeps track of on-going action of a chunk (e.g. `compacting`, `persisting`) to avoid running the same job on the chunk. 
 
-[^prop]: To make Figure 3 easy to read, the properties listed in each object are just some examples. Click on the corresponding link to see the full set of properties in the code.
-[^lock]: Transaction and locks will be described more in a separate document.
+[^prop]: Not all properties are listed in each object of Figure 3. Click on the corresponding link to see the full set of properties.
+[^lock]: Transaction and locks will be described in a separate document.
 
 ```text
                                                           ┌──────────────────┐                             
@@ -143,7 +143,7 @@ If a database is still running but in an inconsistent state, it will be rebuilt 
 
 Since Preserved Catalog only saves data to a consistent state and includes the well-known slow IO reads and writes, their transactions and related locks on persisting objects will impact the data lifecycle workload, especially if a lot of data continues getting persisted. This is another reason for us to monitor transaction and locking contention to adjust our `Data LifeCycle Policy` to ensure ingesting data flow smoothly until persisted. 
 
-[^write]: currently InfluxDB ingests data to IOx from Kafka so we know which writes to start (re)ingesting.
+[^write]: InfluxDB ingests data to IOx from Kafka so we know which writes to start (re)ingesting.
 
 ## Query Catalog
 [`Query Catalog`](https://github.com/influxdata/influxdb_iox/blob/218042784fdb3bd0aa2c13dcaaf2f39190d42329/server/src/db/access.rs#L123) shown in Figure 4 is an `In-Memory Catalog` plus extra information to access the right chunks and their statistics quickly for running queries, logging necessary information or metrics, and reporting the results back to users. For instance, since IOx uses [DataFusion](https://github.com/apache/arrow-datafusion) to plan and run queries, `UserTables` provide the required interface to DataFusion for doing so. Similarly, since we want to query our own catalog data such as number of tables, partitions, chunks types and so on, we construct `SystemTables` interface to send to DataFusion for that purpose. `ChunkAccess` helps find and prune chunks of the query table that do not include data needed by the query[^query]. `QueryLog` logs necessary information such as times and types the queries are run.
