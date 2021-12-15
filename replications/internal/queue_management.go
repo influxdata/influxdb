@@ -3,12 +3,13 @@ package internal
 import (
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/influxdata/influxdb/v2"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/pkg/durablequeue"

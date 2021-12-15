@@ -24,10 +24,10 @@ var (
 	id2               = platform.ID(2)
 	id3               = platform.ID(3)
 	maxQueueSizeBytes = 3 * influxdb.DefaultReplicationMaxQueueSizeBytes
-	orgID1             = platform.ID(500)
-	localBucketID1     = platform.ID(999)
-	orgID2			   = platform.ID(123)
-	localBucketID2     = platform.ID(456)
+	orgID1            = platform.ID(500)
+	localBucketID1    = platform.ID(999)
+	orgID2            = platform.ID(123)
+	localBucketID2    = platform.ID(456)
 )
 
 func TestCreateNewQueueDirExists(t *testing.T) {
