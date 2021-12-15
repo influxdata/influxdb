@@ -1,1 +1,0 @@
-SELECT top(f3, 2), f3 FROM m 

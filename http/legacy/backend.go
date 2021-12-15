@@ -8,7 +8,6 @@ import (
 	"github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -33,7 +32,6 @@ type Backend struct {
 	BucketService         influxdb.BucketService
 	PointsWriter          storage.PointsWriter
 	DBRPMappingService    influxdb.DBRPMappingService
-	ProxyQueryService     query.ProxyQueryService
 	InfluxqldQueryService influxql.ProxyQueryService
 }
 

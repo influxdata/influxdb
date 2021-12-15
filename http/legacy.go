@@ -10,13 +10,12 @@ func newLegacyBackend(b *APIBackend) *legacy.Backend {
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Logger:           b.Logger,
 		// TODO(sgc): /write support
-		//MaxBatchSizeBytes:     b.APIBackend.MaxBatchSizeBytes,
+		// MaxBatchSizeBytes:     b.APIBackend.MaxBatchSizeBytes,
 		AuthorizationService:  b.AuthorizationService,
 		OrganizationService:   b.OrganizationService,
 		BucketService:         b.BucketService,
 		PointsWriter:          b.PointsWriter,
 		DBRPMappingService:    b.DBRPService,
-		ProxyQueryService:     b.InfluxQLService,
 		InfluxqldQueryService: b.InfluxqldService,
 		WriteEventRecorder:    b.WriteEventRecorder,
 	}

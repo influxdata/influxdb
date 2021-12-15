@@ -17,7 +17,6 @@ import (
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/query"
-	"github.com/influxdata/influxdb/v2/query/influxql"
 )
 
 type SourceProxyQueryService struct {
@@ -30,8 +29,6 @@ type SourceProxyQueryService struct {
 
 func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
 	switch req.Request.Compiler.CompilerType() {
-	case influxql.CompilerType:
-		return s.influxQuery(ctx, w, req)
 	case lang.FluxCompilerType:
 		return s.fluxQuery(ctx, w, req)
 	}
@@ -100,63 +97,6 @@ func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, re
 	}
 
 	if _, err = io.Copy(w, resp.Body); err != nil {
-		return flux.Statistics{}, tracing.LogError(span, err)
-	}
-	return flux.Statistics{}, nil
-}
-
-func (s *SourceProxyQueryService) influxQuery(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-	if len(s.URL) == 0 {
-		return flux.Statistics{}, tracing.LogError(span, fmt.Errorf("URL from source cannot be empty if the compiler type is influxql"))
-	}
-
-	u, err := newURL(s.URL, "/query")
-	if err != nil {
-		return flux.Statistics{}, tracing.LogError(span, err)
-	}
-
-	hreq, err := http.NewRequest("POST", u.String(), nil)
-	if err != nil {
-		return flux.Statistics{}, tracing.LogError(span, err)
-	}
-
-	// TODO(fntlnz): configure authentication methods username/password and stuff
-	hreq = hreq.WithContext(ctx)
-
-	params := hreq.URL.Query()
-	compiler, ok := req.Request.Compiler.(*influxql.Compiler)
-	if !ok {
-		return flux.Statistics{}, tracing.LogError(span, fmt.Errorf("passed compiler is not of type 'influxql'"))
-	}
-	params.Set("q", compiler.Query)
-	params.Set("db", compiler.DB)
-	params.Set("rp", compiler.RP)
-
-	hreq.URL.RawQuery = params.Encode()
-
-	hc := newTraceClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(hreq)
-	if err != nil {
-		return flux.Statistics{}, tracing.LogError(span, err)
-	}
-	defer resp.Body.Close()
-	if err := platformhttp.CheckError(resp); err != nil {
-		return flux.Statistics{}, tracing.LogError(span, err)
-	}
-
-	res := &influxql.Response{}
-	if err := json.NewDecoder(resp.Body).Decode(res); err != nil {
-		return flux.Statistics{}, tracing.LogError(span, err)
-	}
-
-	csvDialect, ok := req.Dialect.(csv.Dialect)
-	if !ok {
-		return flux.Statistics{}, tracing.LogError(span, fmt.Errorf("unsupported dialect %T", req.Dialect))
-	}
-
-	if _, err = csv.NewMultiResultEncoder(csvDialect.ResultEncoderConfig).Encode(w, influxql.NewResponseIterator(res)); err != nil {
 		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 	return flux.Statistics{}, nil
