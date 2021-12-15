@@ -908,7 +908,7 @@ async fn initialize_database(shared: &DatabaseShared) {
 
     // error throttling
     // - checks if the current error was already throttled
-    // - keeps a backoff duration that will change over the curse of multiple errors
+    // - keeps a backoff duration that will change over the course of multiple errors
     let mut throttled_error = false;
     let mut backoff = INIT_BACKOFF;
 
