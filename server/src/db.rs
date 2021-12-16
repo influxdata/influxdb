@@ -2734,7 +2734,7 @@ mod tests {
                 id: chunk_summaries[0].id,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 4079,       // size of RB and OS chunks
+                memory_bytes: 4078,       // size of RB and OS chunks
                 object_store_bytes: 1557, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
@@ -2785,7 +2785,7 @@ mod tests {
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 1335);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2550);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 1529);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 1528);
     }
 
     #[tokio::test]
