@@ -2,24 +2,26 @@ package http
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/spf13/pflag"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const prefixConfig = "/api/v2/config"
 
-type parsedOpt struct {
-	Option string   `json:"option"`
-	Value  optValue `json:"value"`
-}
+type parsedOpt map[string]optValue
 
 type optValue []byte
 
@@ -31,7 +33,7 @@ type ConfigHandler struct {
 	log *zap.Logger
 	api *kithttp.API
 
-	config []parsedOpt
+	config parsedOpt
 }
 
 // NewConfigHandler creates a handler that will return a JSON object with key/value pairs for the configuration values
@@ -52,7 +54,7 @@ func NewConfigHandler(log *zap.Logger, opts []cli.Opt) (*ConfigHandler, error) {
 		middleware.Recoverer,
 		middleware.RequestID,
 		middleware.RealIP,
-		h.mwRequireOperPermissions,
+		h.mwAuthorize,
 	)
 
 	r.Get("/", h.handleGetConfig)
@@ -65,24 +67,26 @@ func (h *ConfigHandler) Prefix() string {
 }
 
 func (h *ConfigHandler) parseOptions(opts []cli.Opt) error {
-	config := make([]parsedOpt, len(opts))
+	h.config = make(parsedOpt)
 
-	// Ensure that there are no errors encountered while obtaining the JSON encoding of the config values obtained from
-	// the destination pointers. If the value can be successfully encoded, its bytes will be stored in optValue for future
-	// marshalling calls.
-	for i, o := range opts {
-		b, err := json.Marshal(o.DestP)
-		if err != nil {
-			return err
+	for _, o := range opts {
+		var b []byte
+		switch o.DestP.(type) {
+		// Known types for configuration values. Currently, these can all be encoded directly with json.Marshal.
+		case *string, *int, *int32, *int64, *bool, *time.Duration, *[]string, *map[string]string, pflag.Value, *platform.ID, *zapcore.Level:
+			var err error
+			b, err = json.Marshal(o.DestP)
+			if err != nil {
+				return err
+			}
+		default:
+			// Return an error if we don't know how to marshal this type.
+			return fmt.Errorf("unknown destination type %t", o.DestP)
 		}
 
-		config[i] = parsedOpt{
-			Option: o.Flag,
-			Value:  b,
-		}
+		h.config[o.Flag] = b
 	}
 
-	h.config = config
 	return nil
 }
 
@@ -90,14 +94,14 @@ func (h *ConfigHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) 
 	h.api.Respond(w, r, http.StatusOK, h.config)
 }
 
-func (h *ConfigHandler) mwRequireOperPermissions(next http.Handler) http.Handler {
+func (h *ConfigHandler) mwAuthorize(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
 		if err := authorizer.IsAllowedAll(ctx, influxdb.OperPermissions()); err != nil {
 			h.api.Err(w, r, &errors.Error{
 				Code: errors.EUnauthorized,
-				Msg:  "access to /config requires operator permissions",
+				Msg:  fmt.Sprintf("access to %s requires operator permissions", h.Prefix()),
 			})
 			return
 		}
