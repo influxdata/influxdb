@@ -301,7 +301,7 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
                     config.azure_storage_access_key.as_ref(),
                 ) {
                     (Some(bucket), Some(storage_account), Some(access_key)) => {
-                        Self::new_microsoft_azure(storage_account, access_key, bucket)
+                        Self::new_microsoft_azure(storage_account, access_key, bucket, false)
                             .context(InvalidAzureConfig)
                     }
                     (bucket, storage_account, access_key) => {

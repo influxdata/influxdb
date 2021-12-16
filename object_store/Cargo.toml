@@ -39,6 +39,7 @@ workspace-hack = { path = "../workspace-hack"}
 
 [features]
 azure = ["azure_core", "azure_storage", "indexmap", "reqwest"]
+azure_test = ["azure", "azure_core/azurite_workaround", "azure_storage/azurite_workaround"]
 gcp = ["cloud-storage"]
 aws = ["rusoto_core", "rusoto_credential", "rusoto_s3", "hyper", "hyper-tls"]
 
