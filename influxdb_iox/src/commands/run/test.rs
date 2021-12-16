@@ -50,7 +50,9 @@ pub struct Config {
     #[structopt(
         long = "--test-action",
         env = "IOX_TEST_ACTION",
-        default_value = "none"
+        default_value = "None",
+        possible_values = &TestAction::variants(),
+        case_insensitive = true,
     )]
     test_action: TestAction,
 }

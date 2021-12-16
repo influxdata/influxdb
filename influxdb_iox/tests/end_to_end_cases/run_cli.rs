@@ -96,22 +96,22 @@ fn test_deprecated_cli_without_server_type() {
 
 #[test]
 fn test_early_return_from_grpc_worker() {
-    assert_early_exit_return_code("early-return-from-grpc-worker");
+    assert_early_exit_return_code("EarlyReturnFromGrpcWorker");
 }
 
 #[test]
 fn test_early_return_from_server_worker() {
-    assert_early_exit_return_code("early-return-from-server-worker");
+    assert_early_exit_return_code("EarlyReturnFromServerWorker");
 }
 
 #[test]
 fn test_panic_in_grpc_worker() {
-    assert_early_exit_return_code("panic-in-grpc-worker");
+    assert_early_exit_return_code("PanicInGrpcWorker");
 }
 
 #[test]
 fn test_panic_in_server_worker() {
-    assert_early_exit_return_code("panic-in-server-worker");
+    assert_early_exit_return_code("PanicInServerWorker");
 }
 
 fn assert_early_exit_return_code(test_action: &str) {

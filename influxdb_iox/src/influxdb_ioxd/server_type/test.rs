@@ -1,10 +1,11 @@
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use crate::influxdb_ioxd::{
     http::error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
     rpc::{serve_builder, setup_builder, RpcBuilderInput},
 };
 use async_trait::async_trait;
+use clap::arg_enum;
 use hyper::{Body, Method, Request, Response};
 use metric::Registry;
 use snafu::Snafu;
@@ -27,27 +28,14 @@ impl HttpApiErrorSource for ApplicationError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TestAction {
-    None,
-    EarlyReturnFromGrpcWorker,
-    EarlyReturnFromServerWorker,
-    PanicInGrpcWorker,
-    PanicInServerWorker,
-}
-
-impl FromStr for TestAction {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_ref() {
-            "none" => Ok(Self::None),
-            "early-return-from-grpc-worker" => Ok(Self::EarlyReturnFromGrpcWorker),
-            "early-return-from-server-worker" => Ok(Self::EarlyReturnFromServerWorker),
-            "panic-in-grpc-worker" => Ok(Self::PanicInGrpcWorker),
-            "panic-in-server-worker" => Ok(Self::PanicInServerWorker),
-            _ => Err(format!("Invalid test action: {}", s)),
-        }
+arg_enum! {
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum TestAction {
+        None,
+        EarlyReturnFromGrpcWorker,
+        EarlyReturnFromServerWorker,
+        PanicInGrpcWorker,
+        PanicInServerWorker,
     }
 }
 
