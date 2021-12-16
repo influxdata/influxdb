@@ -159,22 +159,6 @@ impl management_service_server::ManagementService for ManagementService {
         }))
     }
 
-    async fn list_detailed_databases(
-        &self,
-        _: Request<ListDetailedDatabasesRequest>,
-    ) -> Result<Response<ListDetailedDatabasesResponse>, Status> {
-        let databases = self
-            .server
-            .list_detailed_databases()
-            .await
-            .map_err(default_server_error_handler)?
-            .into_iter()
-            .map(Into::into)
-            .collect();
-
-        Ok(Response::new(ListDetailedDatabasesResponse { databases }))
-    }
-
     async fn list_chunks(
         &self,
         request: Request<ListChunksRequest>,
@@ -404,12 +388,16 @@ impl management_service_server::ManagementService for ManagementService {
                             message: e.to_string(),
                         }),
                         state: database.state_code().into(),
+                        uuid: database
+                            .uuid()
+                            .map(|uuid| uuid.as_bytes().to_vec())
+                            .unwrap_or_default(),
                     })
                     .collect()
             })
             .unwrap_or_default();
 
-        // Sort output by database name
+        // Sort output by database name to ensure a nice output order
         database_statuses.sort_unstable_by(|a, b| a.db_name.cmp(&b.db_name));
 
         Ok(Response::new(GetServerStatusResponse {

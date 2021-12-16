@@ -15,7 +15,7 @@ use generated_types::{
 use predicates::prelude::*;
 use std::{path::PathBuf, sync::Arc, time::Duration};
 use tempfile::TempDir;
-use test_helpers::make_temp_file;
+use test_helpers::{assert_contains, make_temp_file};
 use uuid::Uuid;
 
 #[tokio::test]
@@ -749,6 +749,50 @@ async fn force_claim_database() {
             "Claimed database {}",
             db_name
         )));
+}
+
+#[tokio::test]
+async fn list_database_detailed() {
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+    let db = &db_name;
+    let uuid = create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    // Listing the databases includes the db name, and status
+    let output = String::from_utf8(
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("list")
+            .arg("--detailed")
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .expect("non utf8 in output");
+
+    // Output looks like:
+    // +------------+--------------------------------------+-------------+--------+
+    // | Name       | UUID                                 | State       | Error  |
+    // +------------+--------------------------------------+-------------+--------+
+    // | ie9HrfSBQB | 299b541d-e3fb-47ef-bdd4-98f94ad1f1b3 | Initialized | <none> |
+    // +------------+--------------------------------------+-------------+--------+
+
+    println!("looking for {} in", db);
+    println!("{}", output);
+    let line = output
+        .split('\n')
+        .find(|line| line.contains(db))
+        .expect("can't find db name");
+
+    assert_contains!(line, uuid.to_string());
+    assert_contains!(line, "Initialized"); // state
+    assert_contains!(line, "<none>"); // error
 }
 
 #[tokio::test]

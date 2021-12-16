@@ -37,7 +37,7 @@ regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cac
 regex-automata = { version = "0.1", features = ["regex-syntax", "std"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 reqwest = { version = "0.11", features = ["__tls", "default-tls", "hyper-tls", "json", "native-tls-crate", "serde_json", "tokio-native-tls"] }
-serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
+serde = { version = "1", features = ["derive", "serde_derive", "std"] }
 serde_json = { version = "1", features = ["indexmap", "preserve_order", "std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 tokio = { version = "1", features = ["bytes", "fs", "full", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "process", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "sync", "time", "tokio-macros", "winapi"] }
@@ -61,7 +61,7 @@ memchr = { version = "2", features = ["std"] }
 rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "rand_hc", "small_rng", "std", "std_rng"] }
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
-serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
+serde = { version = "1", features = ["derive", "serde_derive", "std"] }
 syn = { version = "1", features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "quote", "visit", "visit-mut"] }
 
 ### END HAKARI SECTION
