@@ -2,7 +2,10 @@
 //! implemented in terms of the [`QueryDatabase`](query::QueryDatabase) and
 //! [`DatabaseStore`]
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::mpsc;
@@ -11,14 +14,15 @@ use tonic::Status;
 
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
-    google::protobuf::Empty, offsets_response::PartitionOffsetResponse, storage_server::Storage,
-    CapabilitiesResponse, Capability, Int64ValuesResponse, LiteralOrRegex,
-    MeasurementFieldsRequest, MeasurementFieldsResponse, MeasurementNamesRequest,
-    MeasurementTagKeysRequest, MeasurementTagValuesRequest, OffsetsResponse, Predicate,
-    ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
-    ReadWindowAggregateRequest, StringValuesResponse, TagKeyMetaNames, TagKeyPredicate,
-    TagKeysRequest, TagValuesGroupedByMeasurementAndTagKeyRequest, TagValuesRequest,
-    TagValuesResponse, TimestampRange,
+    google::protobuf::Empty, literal_or_regex::Value as RegexOrLiteralValue,
+    offsets_response::PartitionOffsetResponse, storage_server::Storage, CapabilitiesResponse,
+    Capability, Int64ValuesResponse, LiteralOrRegex, MeasurementFieldsRequest,
+    MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
+    MeasurementTagValuesRequest, OffsetsResponse, Predicate, ReadFilterRequest, ReadGroupRequest,
+    ReadResponse, ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse,
+    TagKeyMetaNames, TagKeyPredicate, TagKeysRequest,
+    TagValuesGroupedByMeasurementAndTagKeyRequest, TagValuesRequest, TagValuesResponse,
+    TimestampRange,
 };
 use observability_deps::tracing::{error, info, trace};
 use predicate::predicate::PredicateBuilder;
@@ -44,6 +48,8 @@ use crate::influxdb_ioxd::{
     },
 };
 use trace::ctx::SpanContext;
+
+use super::TAG_KEY_MEASUREMENT;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -145,6 +151,9 @@ pub enum Error {
     #[snafu(display("Converting field information series into gRPC response:  {}", source))]
     ConvertingFieldList { source: super::data::Error },
 
+    #[snafu(display("Error processing measurement constraint {:?}", pred))]
+    MeasurementLiteralOrRegex { pred: LiteralOrRegex },
+
     #[snafu(display("Error sending results via channel:  {}", source))]
     SendingResults {
         source: Box<dyn std::error::Error + Send + Sync>,
@@ -201,6 +210,7 @@ impl Error {
             Self::SendingResults { .. } => Status::internal(self.to_string()),
             Self::InternalHintsFieldNotSupported { .. } => Status::internal(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
+            Self::MeasurementLiteralOrRegex { .. } => Status::invalid_argument(self.to_string()),
         }
     }
 }
@@ -473,28 +483,15 @@ where
             defer_json(&req),
         );
 
-        let TagValuesGroupedByMeasurementAndTagKeyRequest {
-            measurement_patterns,
-            tag_key_predicate,
-            condition,
-            ..
-        } = req;
+        info!(%db_name, ?req.measurement_patterns, ?req.tag_key_predicate, predicate=%req.condition.loggable(), "tag_values_grouped_by_measurement_and_tag_key");
 
-        info!(%db_name, ?measurement_patterns, ?tag_key_predicate, predicate=%condition.loggable(), "tag_values_grouped_by_measurement_and_tag_key");
-
-        let results = tag_values_grouped_by_measurement_and_tag_key_impl(
-            db,
-            db_name,
-            measurement_patterns,
-            tag_key_predicate,
-            condition,
-            span_ctx,
-        )
-        .await
-        .map_err(|e| e.to_status())?
-        .into_iter()
-        .map(Ok)
-        .collect::<Vec<_>>();
+        let results =
+            tag_values_grouped_by_measurement_and_tag_key_impl(db, db_name, req, span_ctx)
+                .await
+                .map_err(|e| e.to_status())?
+                .into_iter()
+                .map(Ok)
+                .collect::<Vec<_>>();
 
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
@@ -749,7 +746,7 @@ fn get_database_name(input: &impl GrpcInputs) -> Result<DatabaseName<'static>, S
 
 // The following code implements the business logic of the requests as
 // methods that return Results with module specific Errors (and thus
-// can use ?, etc). The trait implemententations then handle mapping
+// can use ?, etc). The trait implementations then handle mapping
 // to the appropriate tonic Status
 
 /// Gathers all measurement names that have data in the specified
@@ -766,6 +763,8 @@ where
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
     let db_name = db_name.as_str();
+
+    println!("PREDICATE {:?}", &rpc_predicate_string);
 
     let predicate = PredicateBuilder::default()
         .set_range(range)
@@ -799,7 +798,7 @@ where
     Ok(StringValuesResponse { values })
 }
 
-/// Return tag keys with optional measurement, timestamp and arbitratry
+/// Return tag keys with optional measurement, timestamp and arbitrary
 /// predicates
 async fn tag_keys_impl<D>(
     db: Arc<D>,
@@ -897,22 +896,51 @@ where
     Ok(StringValuesResponse { values })
 }
 
-/// Return tag values for grouped by one or more measurements with optional
+/// Return tag values grouped by one or more measurements with optional
 /// filtering predicate and optionally scoped to one or more tag keys.
 async fn tag_values_grouped_by_measurement_and_tag_key_impl<D>(
-    _db: Arc<D>,
-    _db_name: DatabaseName<'static>,
-    _measurement_patterns: Vec<LiteralOrRegex>,
-    _rpc_tag_key_predicate: Option<TagKeyPredicate>,
-    _rpc_predicate: Option<Predicate>,
-    _span_ctx: Option<SpanContext>,
+    db: Arc<D>,
+    db_name: DatabaseName<'static>,
+    req: TagValuesGroupedByMeasurementAndTagKeyRequest,
+    span_ctx: Option<SpanContext>,
 ) -> Result<Vec<TagValuesResponse>, Error>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
 {
-    Err(Error::NotYetImplemented {
-        operation: "tag_values_grouped_by_measurement_and_tag_key_impl not implemented".into(),
-    })
+    let db_name = db_name.as_str();
+    let ctx = db.new_query_context(span_ctx);
+
+    let rpc_predicate_string = format!("{:?}", req.condition);
+    let predicate = PredicateBuilder::default()
+        .rpc_predicate(req.condition)
+        .context(ConvertingPredicate {
+            rpc_predicate_string,
+        })?
+        .build();
+
+    // materialise possible measurement names
+    // let measurement_predicate = match req.measurement_patterns {};
+
+    // let tag_value_plan = Planner::new(&ctx)
+    //     .tag_values(db, tag_name, predicate)
+    //     .await
+    //     .map_err(|e| Box::new(e) as _)
+    //     .context(ListingTagValues { db_name, tag_name })?;
+
+    // let tag_values = ctx
+    //     .to_string_set(tag_value_plan)
+    //     .await
+    //     .map_err(|e| Box::new(e) as _)
+    //     .context(ListingTagValues { db_name, tag_name })?;
+
+    // // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
+    // let values: Vec<Vec<u8>> = tag_values
+    //     .iter()
+    //     .map(|name| name.bytes().collect())
+    //     .collect();
+
+    // trace!(tag_values=?values.iter().map(|k| String::from_utf8_lossy(k)).collect::<Vec<_>>(), "Tag values response");
+    todo!()
 }
 
 /// Launch async tasks that materialises the result of executing read_filter.
@@ -1064,6 +1092,70 @@ where
 
     trace!(field_names=?field_list, "Field names response");
     Ok(field_list)
+}
+
+/// Materialises a collection of measurement names. Typically used as part of
+/// a plan to scope and group multiple plans by measurement name.
+async fn materialise_measurement_names<D>(
+    db: Arc<D>,
+    db_name: DatabaseName<'static>,
+    measurement_exprs: Vec<LiteralOrRegex>,
+    span_ctx: Option<SpanContext>,
+) -> Result<BTreeSet<String>, Error>
+where
+    D: QueryDatabase + ExecutionContextProvider + 'static,
+{
+    use generated_types::{
+        node::{Comparison, Type, Value},
+        Node,
+    };
+
+    let mut names = BTreeSet::new();
+    for expr in measurement_exprs {
+        match expr.value {
+            Some(expr) => match expr {
+                RegexOrLiteralValue::LiteralValue(lit) => {
+                    names.insert(lit);
+                }
+                RegexOrLiteralValue::RegexValue(pattern) => {
+                    let regex_node = Node {
+                        node_type: Type::ComparisonExpression as i32,
+                        children: vec![
+                            Node {
+                                node_type: Type::TagRef as i32,
+                                children: vec![],
+                                value: Some(Value::TagRefValue(TAG_KEY_MEASUREMENT.to_vec())),
+                            },
+                            Node {
+                                node_type: Type::Literal as i32,
+                                children: vec![],
+                                value: Some(Value::RegexValue(pattern)),
+                            },
+                        ],
+                        value: Some(Value::Comparison(Comparison::Regex as i32)),
+                    };
+                    let resp = measurement_name_impl(
+                        Arc::clone(&db),
+                        db_name.clone(),
+                        None,
+                        Some(Predicate {
+                            root: Some(regex_node),
+                        }),
+                        span_ctx.clone(),
+                    )
+                    .await?;
+                    for name in resp.values {
+                        names.insert(
+                            String::from_utf8(name)
+                                .expect("table/measurement name to be valid UTF-8"),
+                        );
+                    }
+                }
+            },
+            None => return MeasurementLiteralOrRegex { pred: expr }.fail(),
+        }
+    }
+    Ok(names)
 }
 
 /// Return something which can be formatted as json ("pbjson"
