@@ -5,14 +5,19 @@ use crate::structopt_blocks::run_config::RunConfig;
 
 pub mod database;
 pub mod router;
+pub mod test;
 
 #[derive(Debug, Snafu)]
+#[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[snafu(display("Error in database subcommand: {}", source))]
     DatabaseError { source: database::Error },
 
     #[snafu(display("Error in router subcommand: {}", source))]
     RouterError { source: router::Error },
+
+    #[snafu(display("Error in test subcommand: {}", source))]
+    TestError { source: test::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -34,6 +39,7 @@ impl Config {
             None => &self.database_config.run_config,
             Some(Command::Database(config)) => &config.run_config,
             Some(Command::Router(config)) => &config.run_config,
+            Some(Command::Test(config)) => &config.run_config,
         }
     }
 }
@@ -42,6 +48,7 @@ impl Config {
 enum Command {
     Database(database::Config),
     Router(router::Config),
+    Test(test::Config),
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -56,5 +63,6 @@ pub async fn command(config: Config) -> Result<()> {
         }
         Some(Command::Database(config)) => database::command(config).await.context(DatabaseError),
         Some(Command::Router(config)) => router::command(config).await.context(RouterError),
+        Some(Command::Test(config)) => test::command(config).await.context(TestError),
     }
 }
