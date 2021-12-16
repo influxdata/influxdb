@@ -41,6 +41,7 @@ impl ObjectStorePath for CloudPath {
                 if !path.is_empty() {
                     path.push_str(DELIMITER);
                 }
+
                 if let Some(file_name) = &dirs_and_file_name.file_name {
                     path.push_str(file_name.encoded());
                 }
@@ -58,6 +59,15 @@ impl CloudPath {
         let path = path.into();
         Self {
             inner: CloudPathRepresentation::Raw(path),
+        }
+    }
+
+    // Only being use d by some features
+    #[allow(dead_code)]
+    pub(crate) fn is_dir(&self) -> bool {
+        match &self.inner {
+            CloudPathRepresentation::Raw(s) => s.ends_with(DELIMITER),
+            CloudPathRepresentation::Parsed(p) => p.file_name.is_none(),
         }
     }
 }
@@ -149,13 +159,10 @@ impl From<CloudPathRepresentation> for DirsAndFileName {
                     .split_terminator(DELIMITER)
                     .map(|s| PathPart(s.to_string()))
                     .collect();
-                let maybe_file_name = match parts.pop() {
-                    Some(file) if file.encoded().contains('.') => Some(file),
-                    Some(dir) => {
-                        parts.push(dir);
-                        None
-                    }
-                    None => None,
+                let maybe_file_name = if path.ends_with(DELIMITER) {
+                    None
+                } else {
+                    parts.pop()
                 };
                 Self {
                     directories: parts,
@@ -224,8 +231,16 @@ mod tests {
 
         assert_eq!(built, cloud);
 
-        // dir, no file_name
-        let cloud = CloudPath::raw("test_dir");
+        // dir and file_name w/o dot
+        let cloud = CloudPath::raw("test_dir/test_file");
+        let mut built = CloudPath::default();
+        built.push_dir("test_dir");
+        built.set_file_name("test_file");
+
+        assert_eq!(built, cloud);
+
+        // dir, no file
+        let cloud = CloudPath::raw("test_dir/");
         let mut built = CloudPath::default();
         built.push_dir("test_dir");
 
@@ -258,8 +273,16 @@ mod tests {
 
         assert_eq!(cloud_parts, expected_parts);
 
+        // dir, filename w/o dot
+        let cloud = CloudPath::raw("foo/bar/blah");
+        let cloud_parts: DirsAndFileName = cloud.into();
+
+        expected_parts.file_name = Some("blah".into());
+
+        assert_eq!(cloud_parts, expected_parts);
+
         // dir, no file name
-        let cloud = CloudPath::raw("foo/bar");
+        let cloud = CloudPath::raw("foo/bar/");
         let cloud_parts: DirsAndFileName = cloud.into();
 
         expected_parts.file_name = None;

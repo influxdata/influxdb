@@ -326,7 +326,10 @@ impl File {
 mod tests {
     use super::*;
     use crate::{
-        tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
+        tests::{
+            get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
+            put_get_delete_list,
+        },
         Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
     use std::{fs::set_permissions, os::unix::prelude::PermissionsExt};
@@ -338,6 +341,7 @@ mod tests {
         let integration = ObjectStore::new_file(root.path());
 
         put_get_delete_list(&integration).await.unwrap();
+        list_uses_directories_correctly(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
     }
 

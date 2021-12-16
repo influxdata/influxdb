@@ -216,7 +216,7 @@ mod tests {
     use crate::{
         memory::InMemory,
         path::ObjectStorePath,
-        tests::{list_with_delimiter, put_get_delete_list},
+        tests::{list_uses_directories_correctly, list_with_delimiter, put_get_delete_list},
         ObjectStore,
     };
     use bytes::Bytes;
@@ -246,6 +246,7 @@ mod tests {
         let integration = ObjectStore::new_in_memory_throttled(config);
 
         put_get_delete_list(&integration).await.unwrap();
+        list_uses_directories_correctly(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
     }
 
