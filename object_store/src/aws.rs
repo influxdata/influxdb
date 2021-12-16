@@ -744,40 +744,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn s3_test_get_nonexistent_region() {
-        let mut config = maybe_skip_integration!();
-        // Assumes environment variables do not provide credentials to AWS US West 1
-        config.region = "us-west-1".into();
-
-        let integration = ObjectStore::new_amazon_s3(
-            Some(config.access_key_id),
-            Some(config.secret_access_key),
-            config.region,
-            &config.bucket,
-            config.endpoint,
-            config.token,
-            NonZeroUsize::new(16).unwrap(),
-        )
-        .expect("Valid S3 config");
-
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
-
-        let err = get_nonexistent_object(&integration, Some(location))
-            .await
-            .unwrap_err();
-        if let Some(ObjectStoreError::AwsObjectStoreError {
-            source: Error::UnableToListData { source, bucket },
-        }) = err.downcast_ref::<ObjectStoreError>()
-        {
-            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, &config.bucket);
-        } else {
-            panic!("unexpected error type: {:?}", err);
-        }
-    }
-
-    #[tokio::test]
     async fn s3_test_get_nonexistent_location() {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_amazon_s3(
@@ -854,46 +820,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn s3_test_put_nonexistent_region() {
-        let mut config = maybe_skip_integration!();
-        // Assumes environment variables do not provide credentials to AWS US West 1
-        config.region = "us-west-1".into();
-
-        let integration = ObjectStore::new_amazon_s3(
-            Some(config.access_key_id),
-            Some(config.secret_access_key),
-            config.region,
-            &config.bucket,
-            config.endpoint,
-            config.token,
-            NonZeroUsize::new(16).unwrap(),
-        )
-        .expect("Valid S3 config");
-
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
-        let data = Bytes::from("arbitrary data");
-
-        let err = integration.put(&location, data).await.unwrap_err();
-
-        if let ObjectStoreError::AwsObjectStoreError {
-            source:
-                Error::UnableToPutData {
-                    source,
-                    bucket,
-                    location,
-                },
-        } = err
-        {
-            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, config.bucket);
-            assert_eq!(location, NON_EXISTENT_NAME);
-        } else {
-            panic!("unexpected error type: {:?}", err);
-        }
-    }
-
-    #[tokio::test]
     async fn s3_test_put_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
@@ -952,44 +878,6 @@ mod tests {
         let result = integration.delete(&location).await;
 
         assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn s3_test_delete_nonexistent_region() {
-        let mut config = maybe_skip_integration!();
-        // Assumes environment variables do not provide credentials to AWS US West 1
-        config.region = "us-west-1".into();
-
-        let integration = ObjectStore::new_amazon_s3(
-            Some(config.access_key_id),
-            Some(config.secret_access_key),
-            config.region,
-            &config.bucket,
-            config.endpoint,
-            config.token,
-            NonZeroUsize::new(16).unwrap(),
-        )
-        .expect("Valid S3 config");
-
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
-
-        let err = integration.delete(&location).await.unwrap_err();
-        if let ObjectStoreError::AwsObjectStoreError {
-            source:
-                Error::UnableToDeleteData {
-                    source,
-                    bucket,
-                    location,
-                },
-        } = err
-        {
-            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, config.bucket);
-            assert_eq!(location, NON_EXISTENT_NAME);
-        } else {
-            panic!("unexpected error type: {:?}", err);
-        }
     }
 
     #[tokio::test]
