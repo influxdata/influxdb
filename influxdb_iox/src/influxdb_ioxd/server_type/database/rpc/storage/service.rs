@@ -20,9 +20,8 @@ use generated_types::{
     MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
     MeasurementTagValuesRequest, OffsetsResponse, Predicate, ReadFilterRequest, ReadGroupRequest,
     ReadResponse, ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse,
-    TagKeyMetaNames, TagKeyPredicate, TagKeysRequest,
-    TagValuesGroupedByMeasurementAndTagKeyRequest, TagValuesRequest, TagValuesResponse,
-    TimestampRange,
+    TagKeyMetaNames, TagKeysRequest, TagValuesGroupedByMeasurementAndTagKeyRequest,
+    TagValuesRequest, TagValuesResponse, TimestampRange,
 };
 use observability_deps::tracing::{error, info, trace};
 use predicate::predicate::PredicateBuilder;
@@ -154,6 +153,9 @@ pub enum Error {
     #[snafu(display("Error processing measurement constraint {:?}", pred))]
     MeasurementLiteralOrRegex { pred: LiteralOrRegex },
 
+    #[snafu(display("Missing tag key predicate"))]
+    MissingTagKeyPredicate {},
+
     #[snafu(display("Error sending results via channel:  {}", source))]
     SendingResults {
         source: Box<dyn std::error::Error + Send + Sync>,
@@ -211,6 +213,7 @@ impl Error {
             Self::InternalHintsFieldNotSupported { .. } => Status::internal(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
             Self::MeasurementLiteralOrRegex { .. } => Status::invalid_argument(self.to_string()),
+            Self::MissingTagKeyPredicate {} => Status::invalid_argument(self.to_string()),
         }
     }
 }
@@ -907,40 +910,66 @@ async fn tag_values_grouped_by_measurement_and_tag_key_impl<D>(
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
 {
-    let db_name = db_name.as_str();
-    let ctx = db.new_query_context(span_ctx);
+    use generated_types::tag_key_predicate::Value;
 
-    let rpc_predicate_string = format!("{:?}", req.condition);
-    let predicate = PredicateBuilder::default()
-        .rpc_predicate(req.condition)
-        .context(ConvertingPredicate {
-            rpc_predicate_string,
-        })?
-        .build();
+    // Extract the tag key string literal.
+    // TODO - currently only eq operation supported, as in `WITH KEY = 'foo'`.
+    // See https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-tag-values
+    // for more details.
+    let tag_key_op = req
+        .tag_key_predicate
+        .context(MissingTagKeyPredicate {})?
+        .value
+        .context(MissingTagKeyPredicate {})?;
+    let tag_key_lit = if let Value::Eq(lit) = tag_key_op {
+        lit
+    } else {
+        return NotYetImplemented {
+            operation: format!(
+                "tag key predicate operation not supported: {:?}",
+                tag_key_op
+            ),
+        }
+        .fail();
+    };
 
-    // materialise possible measurement names
-    // let measurement_predicate = match req.measurement_patterns {};
+    // Because we need to return tag values grouped by measurements and tag
+    // keys we will materialise the measurements up front, so we can build up
+    // groups of tag values grouped by a measurement and tag key.
+    let measurements = materialise_measurement_names(
+        Arc::clone(&db),
+        db_name.clone(),
+        req.measurement_patterns,
+        span_ctx.clone(),
+    )
+    .await?;
 
-    // let tag_value_plan = Planner::new(&ctx)
-    //     .tag_values(db, tag_name, predicate)
-    //     .await
-    //     .map_err(|e| Box::new(e) as _)
-    //     .context(ListingTagValues { db_name, tag_name })?;
+    let mut responses = vec![];
+    for name in measurements.into_iter() {
+        // get all the tag values associated with this measurement name and tag key
+        let values = tag_values_impl(
+            Arc::clone(&db),
+            db_name.clone(),
+            tag_key_lit.clone(),
+            Some(name.clone()),
+            None,
+            req.condition.clone(),
+            span_ctx.clone(),
+        )
+        .await?;
 
-    // let tag_values = ctx
-    //     .to_string_set(tag_value_plan)
-    //     .await
-    //     .map_err(|e| Box::new(e) as _)
-    //     .context(ListingTagValues { db_name, tag_name })?;
+        responses.push(TagValuesResponse {
+            measurement: name,
+            key: tag_key_lit.clone(),
+            values: values
+                .values
+                .into_iter()
+                .map(|v| String::from_utf8(v).expect("tag values should be UTF-8 valid"))
+                .collect(),
+        });
+    }
 
-    // // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
-    // let values: Vec<Vec<u8>> = tag_values
-    //     .iter()
-    //     .map(|name| name.bytes().collect())
-    //     .collect();
-
-    // trace!(tag_values=?values.iter().map(|k| String::from_utf8_lossy(k)).collect::<Vec<_>>(), "Tag values response");
-    todo!()
+    Ok(responses)
 }
 
 /// Launch async tasks that materialises the result of executing read_filter.
