@@ -168,6 +168,7 @@ jobs:
             }
 
   test:
+    # setup multiple docker images (see https://circleci.com/docs/2.0/configuration-reference/#docker)
     docker:
       - image: quay.io/influxdb/rust:ci
       - image: localstack/localstack
