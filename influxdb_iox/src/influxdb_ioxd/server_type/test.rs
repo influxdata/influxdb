@@ -97,17 +97,16 @@ impl ServerType for TestServerType {
     }
 
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
-        if self.test_action == TestAction::PanicInGrpcWorker {
-            panic!("Test panic in gRPC worker");
-        }
-        if self.test_action == TestAction::EarlyReturnFromGrpcWorker {
-            return Ok(());
-        }
+        match self.test_action {
+            TestAction::PanicInGrpcWorker => panic!("Test panic in gRPC worker"),
+            TestAction::EarlyReturnFromGrpcWorker => Ok(()),
+            _ => {
+                let builder = setup_builder!(builder_input, self);
+                serve_builder!(builder);
 
-        let builder = setup_builder!(builder_input, self);
-        serve_builder!(builder);
-
-        Ok(())
+                Ok(())
+            }
+        }
     }
 
     async fn join(self: Arc<Self>) {
