@@ -892,6 +892,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		),
 	)
 
+	configHandler, err := http.NewConfigHandler(m.log.With(zap.String("handler", "config")), opts.BindCliOpts())
+	if err != nil {
+		return err
+	}
+
 	platformHandler := http.NewPlatformHandler(
 		m.apibackend,
 		http.WithResourceHandler(stacksHTTPServer),
@@ -911,6 +916,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		http.WithResourceHandler(annotationServer),
 		http.WithResourceHandler(remotesServer),
 		http.WithResourceHandler(replicationServer),
+		http.WithResourceHandler(configHandler),
 	)
 
 	httpLogger := m.log.With(zap.String("service", "http"))
