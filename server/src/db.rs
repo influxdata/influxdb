@@ -902,7 +902,8 @@ impl Db {
         self: &Arc<Self>,
         shutdown: tokio_util::sync::CancellationToken,
     ) {
-        info!("started background worker");
+        let db_name = self.name();
+        info!(db_name=%db_name,"started background worker");
 
         // object store cleanup loop
         let object_store_cleanup_loop = async {
@@ -925,7 +926,7 @@ impl Db {
                 let dist =
                     Poisson::new(avg_sleep_secs).expect("parameter should be positive and finite");
                 let duration = Duration::from_secs_f32(dist.sample(&mut rand::thread_rng()));
-                debug!(?duration, "cleanup worker sleeps");
+                debug!(?duration, db_name=%db_name, "cleanup worker sleeps");
                 tokio::time::sleep(duration).await;
 
                 if let Err(e) = prune_catalog_transaction_history(
@@ -934,11 +935,11 @@ impl Db {
                 )
                 .await
                 {
-                    error!(%e, "error while pruning catalog transactions");
+                    error!(%e, db_name=%db_name, "error while pruning catalog transactions");
                 }
 
                 if let Err(e) = self.cleanup_unreferenced_parquet_files().await {
-                    error!(%e, "error while cleaning unreferenced parquet files");
+                    error!(%e, db_name=%db_name, "error while cleaning unreferenced parquet files");
                 }
             }
         };
@@ -949,7 +950,7 @@ impl Db {
                 let handle = self.delete_predicates_mailbox.consume().await;
                 match self.preserve_delete_predicates(handle.outbox()).await {
                     Ok(()) => handle.flush(),
-                    Err(e) => error!(%e, "cannot preserve delete predicates"),
+                    Err(e) => error!(%e, db_name=%db_name, "cannot preserve delete predicates"),
                 }
 
                 self.worker_iterations_delete_predicate_preservation
@@ -962,12 +963,12 @@ impl Db {
         // None of the futures need to perform drain logic on shutdown.
         // When the first one finishes, all of them are dropped
         tokio::select! {
-            _ = object_store_cleanup_loop => error!("object store cleanup loop exited - db worker bailing out"),
-            _ = delete_predicate_persistence_loop => error!("delete predicate persistence loop exited - db worker bailing out"),
-            _ = shutdown.cancelled() => info!("db worker shutting down"),
+            _ = object_store_cleanup_loop => error!(db_name=%db_name, "object store cleanup loop exited - db worker bailing out"),
+            _ = delete_predicate_persistence_loop => error!(db_name=%db_name, "delete predicate persistence loop exited - db worker bailing out"),
+            _ = shutdown.cancelled() => info!(db_name=%db_name, "db worker shutting down"),
         }
 
-        info!("finished db background worker");
+        info!(db_name=%db_name, "finished db background worker");
     }
 
     async fn cleanup_unreferenced_parquet_files(
