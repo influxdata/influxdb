@@ -1,0 +1,61 @@
+# This schema tests what load looks like with many measurements (2,000). If pointed at a single database
+# with the configured 20 agents at 10s sampling, it will send an average of 2 requests/second (representing
+# 16k rows) with 4.1MB/second of LP being written. Each agent writes 8k lines per request.
+name = "many_measurements"
+
+[[values]]
+name = "some_tag"
+cardinality = 2
+template = "id_{{id}}_{{random 15}}"
+has_one = ["extra_static"]
+
+[[values]]
+name = "child_tag"
+cardinality = 2
+belongs_to = "some_tag"
+has_one = ["rotation"]
+template = "id_{{id}}_{{random 10}}"
+
+[[values]]
+name = "rotation"
+cardinality = 3
+template = "id_{{id}}_{{guid}}"
+
+[[values]]
+name = "extra_static"
+cardinality = 1
+template = "whatever-constant-value"
+
+[[tag_sets]]
+name = "first_set"
+for_each = [
+    "some_tag",
+    "some_tag.extra_static",
+    "some_tag.child_tag",
+    "child_tag.rotation",
+]
+
+[[agents]]
+name = "first_agent"
+tag_pairs = [
+    {key = "agent_id", template = "{{agent.id}}"}
+]
+
+[[agents.measurements]]
+name = "main_measurement_{{measurement.id}}"
+count = 2000
+tag_set = "first_set"
+tag_pairs = [
+    {key = "measurement_id", template = "{{measurement.id}}"}
+]
+
+[[agents.measurements.fields]]
+name = "intfield"
+i64_range = [1, 100000]
+
+[[agents.measurements.fields]]
+name = "floatfield"
+f64_range = [0.0, 1.0]
+
+[[database_writers]]
+agents = [{name = "first_agent", sampling_interval = "10s", count = 20}]

@@ -72,7 +72,6 @@ use ::lifecycle::{LockableChunk, LockablePartition};
 use async_trait::async_trait;
 use data_types::{
     chunk_metadata::ChunkId,
-    detailed_database::ActiveDatabase,
     error::ErrorLogger,
     job::Job,
     server_id::ServerId,
@@ -786,20 +785,6 @@ impl Server {
         database.wait_for_init().await.context(DatabaseInit)?;
 
         Ok(db_name)
-    }
-
-    /// List active databases owned by this server, including their UUIDs.
-    pub async fn list_detailed_databases(&self) -> Result<Vec<ActiveDatabase>> {
-        Ok(self
-            .databases()?
-            .iter()
-            .filter_map(|db| {
-                db.uuid().map(|uuid| ActiveDatabase {
-                    name: db.config().name.clone(),
-                    uuid,
-                })
-            })
-            .collect())
     }
 
     /// Write this server's databases out to the server config in object storage.

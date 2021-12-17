@@ -301,7 +301,7 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
                     config.azure_storage_access_key.as_ref(),
                 ) {
                     (Some(bucket), Some(storage_account), Some(access_key)) => {
-                        Self::new_microsoft_azure(storage_account, access_key, bucket)
+                        Self::new_microsoft_azure(storage_account, access_key, bucket, false)
                             .context(InvalidAzureConfig)
                     }
                     (bucket, storage_account, access_key) => {
@@ -422,8 +422,11 @@ mod tests {
 
     #[test]
     fn s3_config_missing_params() {
-        let config =
+        let mut config =
             ObjectStoreConfig::from_iter_safe(&["server", "--object-store", "s3"]).unwrap();
+
+        // clean out eventual leaks via env variables
+        config.bucket = None;
 
         let err = ObjectStore::try_from(&config).unwrap_err().to_string();
 
@@ -458,8 +461,11 @@ mod tests {
 
     #[test]
     fn google_config_missing_params() {
-        let config =
+        let mut config =
             ObjectStoreConfig::from_iter_safe(&["server", "--object-store", "google"]).unwrap();
+
+        // clean out eventual leaks via env variables
+        config.bucket = None;
 
         let err = ObjectStore::try_from(&config).unwrap_err().to_string();
 
@@ -497,8 +503,11 @@ mod tests {
 
     #[test]
     fn azure_config_missing_params() {
-        let config =
+        let mut config =
             ObjectStoreConfig::from_iter_safe(&["server", "--object-store", "azure"]).unwrap();
+
+        // clean out eventual leaks via env variables
+        config.bucket = None;
 
         let err = ObjectStore::try_from(&config).unwrap_err().to_string();
 

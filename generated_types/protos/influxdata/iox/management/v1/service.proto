@@ -34,9 +34,6 @@ service ManagementService {
   // Claim a released database.
   rpc ClaimDatabase(ClaimDatabaseRequest) returns (ClaimDatabaseResponse);
 
-  // List databases with their metadata.
-  rpc ListDetailedDatabases(ListDetailedDatabasesRequest) returns (ListDetailedDatabasesResponse);
-
   // List chunks available on this database
   rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
 
@@ -177,29 +174,6 @@ message ClaimDatabaseRequest {
 
 message ClaimDatabaseResponse {
   string db_name = 1;
-}
-
-message ListDetailedDatabasesRequest {}
-
-message ListDetailedDatabasesResponse {
-  repeated DetailedDatabase databases = 1;
-}
-
-// This resource represents detailed information about a database.
-message DetailedDatabase {
-  // Was the generation ID of the database.
-  reserved 1;
-  reserved "generation_id";
-
-  // Was the datetime at which this database was deleted, if applicable.
-  reserved 2;
-  reserved "deleted_at";
-
-  // The name of the database.
-  string db_name = 3;
-
-  // The UUID of the database.
-  bytes uuid = 4;
 }
 
 message ListChunksRequest {
@@ -414,6 +388,9 @@ message DatabaseStatus {
 
   // Current initialization state of the database.
   DatabaseState state = 3;
+
+  // The UUID of the database, if known, empty otherwise
+  bytes uuid = 4;
 }
 
 message Error {

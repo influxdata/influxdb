@@ -166,6 +166,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
         &'a self,
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
+        let prefix_is_dir = prefix.map(|path| path.is_dir()).unwrap_or(true);
         let converted_prefix = prefix.map(|p| p.to_raw());
         let list_request = cloud_storage::ListRequest {
             prefix: converted_prefix,
@@ -182,10 +183,13 @@ impl ObjectStoreApi for GoogleCloudStorage {
 
         let bucket_name = self.bucket_name.clone();
         let objects = object_lists
-            .map_ok(|list| {
+            .map_ok(move |list| {
                 list.items
                     .into_iter()
                     .map(|o| CloudPath::raw(o.name))
+                    .filter(move |path| {
+                        prefix_is_dir || prefix.map(|prefix| prefix == path).unwrap_or_default()
+                    })
                     .collect::<Vec<_>>()
             })
             .map_err(move |source| Error::UnableToStreamListData {
@@ -197,6 +201,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
     }
 
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
+        let prefix_is_dir = prefix.is_dir();
         let converted_prefix = prefix.to_raw();
         let list_request = cloud_storage::ListRequest {
             prefix: Some(converted_prefix),
@@ -241,6 +246,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
                                 size,
                             }
                         })
+                        .filter(move |object| prefix_is_dir || prefix == &object.location)
                         .collect(),
                     common_prefixes: list_response.prefixes.iter().map(CloudPath::raw).collect(),
                     next_token: list_response.next_page_token,
@@ -271,7 +277,10 @@ pub fn new_gcs(
 mod test {
     use super::*;
     use crate::{
-        tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
+        tests::{
+            get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
+            put_get_delete_list,
+        },
         Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
     use bytes::Bytes;
@@ -336,6 +345,7 @@ mod test {
             ObjectStore::new_google_cloud_storage(config.service_account, config.bucket).unwrap();
 
         put_get_delete_list(&integration).await.unwrap();
+        list_uses_directories_correctly(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
     }
 

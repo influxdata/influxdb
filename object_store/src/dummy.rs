@@ -116,6 +116,7 @@ pub(crate) fn new_azure(
     _account: impl Into<String>,
     _access_key: impl Into<String>,
     _container_name: impl Into<String>,
+    _use_emulator: bool,
 ) -> Result<DummyObjectStore> {
     NotSupported { name: "azure" }.fail()
 }

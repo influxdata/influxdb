@@ -3,7 +3,8 @@ use tonic::Status;
 use generated_types::{
     google::protobuf::Any, MeasurementFieldsRequest, MeasurementNamesRequest,
     MeasurementTagKeysRequest, MeasurementTagValuesRequest, ReadFilterRequest, ReadGroupRequest,
-    ReadSource, ReadWindowAggregateRequest, TagKeysRequest, TagValuesRequest,
+    ReadSource, ReadWindowAggregateRequest, TagKeysRequest,
+    TagValuesGroupedByMeasurementAndTagKeyRequest, TagValuesRequest,
 };
 
 use super::id::Id;
@@ -67,6 +68,12 @@ impl GrpcInputs for TagKeysRequest {
 impl GrpcInputs for TagValuesRequest {
     fn read_source_field(&self) -> Option<&Any> {
         self.tags_source.as_ref()
+    }
+}
+
+impl GrpcInputs for TagValuesGroupedByMeasurementAndTagKeyRequest {
+    fn read_source_field(&self) -> Option<&Any> {
+        self.source.as_ref()
     }
 }
 

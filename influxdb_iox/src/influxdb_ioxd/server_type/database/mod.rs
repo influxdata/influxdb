@@ -126,6 +126,7 @@ mod tests {
     use server::rules::ProvidedDatabaseRules;
     use std::{convert::TryInto, net::SocketAddr, num::NonZeroU64};
     use structopt::StructOpt;
+    use test_helpers::assert_error;
     use tokio::task::JoinHandle;
     use trace::{
         span::{Span, SpanStatus},
@@ -149,7 +150,7 @@ mod tests {
         config: RunConfig,
         application: Arc<ApplicationState>,
         server: Arc<Server>,
-    ) {
+    ) -> Result<(), crate::influxdb_ioxd::Error> {
         let grpc_listener = grpc_listener(config.grpc_bind_address.into())
             .await
             .unwrap();
@@ -160,9 +161,7 @@ mod tests {
         let common_state = CommonServerState::from_config(config).unwrap();
         let server_type = Arc::new(DatabaseServerType::new(application, server, &common_state));
 
-        serve(common_state, grpc_listener, http_listener, server_type)
-            .await
-            .unwrap()
+        serve(common_state, grpc_listener, http_listener, server_type).await
     }
 
     #[tokio::test]
@@ -438,8 +437,11 @@ mod tests {
         assert!(spans[2].end.is_some());
 
         assert_ne!(spans[0].ctx.span_id, spans[1].ctx.span_id);
+
+        // shutdown server early
         server.shutdown();
-        join.await.unwrap().unwrap();
+        let res = join.await.unwrap();
+        assert_error!(res, crate::influxdb_ioxd::Error::LostServer);
     }
 
     /// Ensure that query is fully executed.
@@ -507,8 +509,10 @@ mod tests {
             .await
             .unwrap();
 
+        // early shutdown
         server.shutdown();
-        join.await.unwrap().unwrap();
+        let res = join.await.unwrap();
+        assert_error!(res, crate::influxdb_ioxd::Error::LostServer);
 
         // Check generated traces
 
@@ -577,8 +581,10 @@ mod tests {
 
         collector.drain().await.unwrap();
 
+        // early shutdown
         server.shutdown();
-        join.await.unwrap().unwrap();
+        let res = join.await.unwrap();
+        assert_error!(res, crate::influxdb_ioxd::Error::LostServer);
 
         let span = receiver.recv().await.unwrap();
         assert_eq!(span.ctx.trace_id.get(), 0x34f8495);

@@ -26,6 +26,8 @@ service Storage {
     // TagValues performs a read operation for tag values
     rpc TagValues (TagValuesRequest) returns (stream StringValuesResponse);
 
+    rpc TagValuesGroupedByMeasurementAndTagKey (TagValuesGroupedByMeasurementAndTagKeyRequest) returns (stream TagValuesResponse);
+
     // ReadSeriesCardinality performs a read operation for series cardinality
     rpc ReadSeriesCardinality (ReadSeriesCardinalityRequest) returns (stream Int64ValuesResponse);
 

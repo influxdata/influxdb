@@ -284,21 +284,28 @@ impl ObjectStoreApi for AmazonS3 {
         &'a self,
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
+        let prefix_is_dir = prefix.map(|path| path.is_dir()).unwrap_or(true);
+
         Ok(self
             .list_objects_v2(prefix, None)
             .await?
-            .map_ok(|list_objects_v2_result| {
+            .map_ok(move |list_objects_v2_result| {
                 let contents = list_objects_v2_result.contents.unwrap_or_default();
 
                 contents
                     .into_iter()
                     .flat_map(|object| object.key.map(CloudPath::raw))
+                    .filter(move |path| {
+                        prefix_is_dir || prefix.map(|prefix| prefix == path).unwrap_or_default()
+                    })
                     .collect()
             })
             .boxed())
     }
 
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
+        let prefix_is_dir = prefix.is_dir();
+
         Ok(self
             .list_objects_v2(Some(prefix), Some(DELIMITER.to_string()))
             .await?
@@ -333,6 +340,10 @@ impl ObjectStoreApi for AmazonS3 {
                                 last_modified,
                                 size,
                             })
+                        })
+                        .filter(move |meta_res| match meta_res {
+                            Ok(meta) => prefix_is_dir || prefix == &meta.location,
+                            Err(_) => true,
                         })
                         .collect::<Result<Vec<_>>>()?;
 
@@ -633,7 +644,10 @@ impl Error {
 mod tests {
     use super::*;
     use crate::{
-        tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
+        tests::{
+            get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
+            put_get_delete_list,
+        },
         Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
     use bytes::Bytes;
@@ -740,41 +754,8 @@ mod tests {
         .expect("Valid S3 config");
 
         check_credentials(put_get_delete_list(&integration).await).unwrap();
+        check_credentials(list_uses_directories_correctly(&integration).await).unwrap();
         check_credentials(list_with_delimiter(&integration).await).unwrap();
-    }
-
-    #[tokio::test]
-    async fn s3_test_get_nonexistent_region() {
-        let mut config = maybe_skip_integration!();
-        // Assumes environment variables do not provide credentials to AWS US West 1
-        config.region = "us-west-1".into();
-
-        let integration = ObjectStore::new_amazon_s3(
-            Some(config.access_key_id),
-            Some(config.secret_access_key),
-            config.region,
-            &config.bucket,
-            config.endpoint,
-            config.token,
-            NonZeroUsize::new(16).unwrap(),
-        )
-        .expect("Valid S3 config");
-
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
-
-        let err = get_nonexistent_object(&integration, Some(location))
-            .await
-            .unwrap_err();
-        if let Some(ObjectStoreError::AwsObjectStoreError {
-            source: Error::UnableToListData { source, bucket },
-        }) = err.downcast_ref::<ObjectStoreError>()
-        {
-            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, &config.bucket);
-        } else {
-            panic!("unexpected error type: {:?}", err);
-        }
     }
 
     #[tokio::test]
@@ -854,46 +835,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn s3_test_put_nonexistent_region() {
-        let mut config = maybe_skip_integration!();
-        // Assumes environment variables do not provide credentials to AWS US West 1
-        config.region = "us-west-1".into();
-
-        let integration = ObjectStore::new_amazon_s3(
-            Some(config.access_key_id),
-            Some(config.secret_access_key),
-            config.region,
-            &config.bucket,
-            config.endpoint,
-            config.token,
-            NonZeroUsize::new(16).unwrap(),
-        )
-        .expect("Valid S3 config");
-
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
-        let data = Bytes::from("arbitrary data");
-
-        let err = integration.put(&location, data).await.unwrap_err();
-
-        if let ObjectStoreError::AwsObjectStoreError {
-            source:
-                Error::UnableToPutData {
-                    source,
-                    bucket,
-                    location,
-                },
-        } = err
-        {
-            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, config.bucket);
-            assert_eq!(location, NON_EXISTENT_NAME);
-        } else {
-            panic!("unexpected error type: {:?}", err);
-        }
-    }
-
-    #[tokio::test]
     async fn s3_test_put_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
@@ -952,44 +893,6 @@ mod tests {
         let result = integration.delete(&location).await;
 
         assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn s3_test_delete_nonexistent_region() {
-        let mut config = maybe_skip_integration!();
-        // Assumes environment variables do not provide credentials to AWS US West 1
-        config.region = "us-west-1".into();
-
-        let integration = ObjectStore::new_amazon_s3(
-            Some(config.access_key_id),
-            Some(config.secret_access_key),
-            config.region,
-            &config.bucket,
-            config.endpoint,
-            config.token,
-            NonZeroUsize::new(16).unwrap(),
-        )
-        .expect("Valid S3 config");
-
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
-
-        let err = integration.delete(&location).await.unwrap_err();
-        if let ObjectStoreError::AwsObjectStoreError {
-            source:
-                Error::UnableToDeleteData {
-                    source,
-                    bucket,
-                    location,
-                },
-        } = err
-        {
-            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, config.bucket);
-            assert_eq!(location, NON_EXISTENT_NAME);
-        } else {
-            panic!("unexpected error type: {:?}", err);
-        }
     }
 
     #[tokio::test]

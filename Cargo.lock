@@ -84,9 +84,9 @@ dependencies = [
 
 [[package]]
 name = "arrow"
-version = "6.3.0"
+version = "6.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46cb449d481a6b13ea4e82e9fc662ea3e29cb5dc0a310fc42e27592cef3cb611"
+checksum = "5754504883d2a0f193df3a60565819be37ae4c2d9fc3bac898c6eb722dc2806e"
 dependencies = [
  "bitflags",
  "chrono",
@@ -108,9 +108,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-flight"
-version = "6.3.0"
+version = "6.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05d23fc7a10d2cd2d2252e1ea6cc4a6c8abbffd132dd51a4d4d86eaf4bc33eab"
+checksum = "b630a6684e9405fbce5c5e596a0eaaac675643d2045bb43c88d27a7555c52228"
 dependencies = [
  "arrow",
  "base64 0.13.0",
@@ -781,7 +781,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "6.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=0338b7336d257bdbdc5eefceda5846e3a5b31409#0338b7336d257bdbdc5eefceda5846e3a5b31409"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=0052667afae33ba9e549256d0d5d47e2f45e6ffb#0052667afae33ba9e549256d0d5d47e2f45e6ffb"
 dependencies = [
  "ahash",
  "arrow",
@@ -2642,9 +2642,9 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "6.3.0"
+version = "6.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "479de475fbb7abf51e39cde69da3cc902d13a6fcb9259993f98688325e6a1ee7"
+checksum = "5d2d0c2246b313009213b7f45718d0617ccc1fc12208a872ff547df969bd3a03"
 dependencies = [
  "arrow",
  "base64 0.13.0",
@@ -4021,9 +4021,9 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "760e624412a15d5838ae04fad01037beeff1047781431d74360cddd6b3c1c784"
+checksum = "b9907f54bd0f7b6ce72c2be1e570a614819ee08e3deb66d90480df341d8a12a8"
 dependencies = [
  "log",
 ]
@@ -4988,6 +4988,7 @@ dependencies = [
  "futures-util",
  "getrandom",
  "hashbrown",
+ "hyper",
  "indexmap",
  "log",
  "memchr",
