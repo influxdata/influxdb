@@ -133,6 +133,8 @@ impl ObjectStoreApi for MicrosoftAzure {
         &'a self,
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
+        let prefix_is_dir = prefix.map(|path| path.is_dir()).unwrap_or(true);
+
         #[derive(Clone)]
         enum ListState {
             Start,
@@ -143,8 +145,8 @@ impl ObjectStoreApi for MicrosoftAzure {
         Ok(stream::unfold(ListState::Start, move |state| async move {
             let mut request = self.container_client.list_blobs();
 
-            let prefix = prefix.map(|p| p.to_raw());
-            if let Some(ref p) = prefix {
+            let prefix_raw = prefix.map(|p| p.to_raw());
+            if let Some(ref p) = prefix_raw {
                 request = request.prefix(p as &str);
             }
 
@@ -174,6 +176,9 @@ impl ObjectStoreApi for MicrosoftAzure {
                 .blobs
                 .into_iter()
                 .map(|blob| CloudPath::raw(blob.name))
+                .filter(move |path| {
+                    prefix_is_dir || prefix.map(|prefix| prefix == path).unwrap_or_default()
+                })
                 .collect();
 
             Some((Ok(names), next_state))
@@ -182,12 +187,13 @@ impl ObjectStoreApi for MicrosoftAzure {
     }
 
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
+        let prefix_is_dir = prefix.is_dir();
         let mut request = self.container_client.list_blobs();
 
-        let prefix = prefix.to_raw();
+        let prefix_raw = prefix.to_raw();
 
         request = request.delimiter(Delimiter::new(DELIMITER));
-        request = request.prefix(&*prefix);
+        request = request.prefix(&*prefix_raw);
 
         let resp = request.execute().await.context(List)?;
 
@@ -223,6 +229,7 @@ impl ObjectStoreApi for MicrosoftAzure {
                     size,
                 }
             })
+            .filter(move |object| prefix_is_dir || prefix == &object.location)
             .collect();
 
         Ok(ListResult {
@@ -279,7 +286,7 @@ pub fn new_azure(
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::{list_with_delimiter, put_get_delete_list};
+    use crate::tests::{list_uses_directories_correctly, list_with_delimiter, put_get_delete_list};
     use crate::ObjectStore;
     use std::env;
 
@@ -355,6 +362,7 @@ mod tests {
         .unwrap();
 
         put_get_delete_list(&integration).await.unwrap();
+        list_uses_directories_correctly(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
     }
 }
