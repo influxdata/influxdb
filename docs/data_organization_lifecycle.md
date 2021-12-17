@@ -3,7 +3,7 @@
 
 
 ## Data Organization
-Figure 1 illustrates an `IOx Server` which is a columnar database management system (DBMS). An IOx Serves includes many `databases`, each represents an isolated dataset from an organization or user. The IOx Server in Figure 1 consists of `p` databases. Each database has as many `tables` as needed. Data of each table is partitioned on a specified partition key which is an expression of the table column(s). In the example of Figure 1, `Table 1` is partitioned by date which is an expression on a time column of `Table 1`. `Partition` data is physically split into many chunks depending on the table's flow of ingested data which will be described in the next section, Data Life Cycle. Each chunk contains a subset of rows of its table partition on a subset of columns of the table. For example, `Chunk 1` has 2 rows of data on columns `col1`, `col2`, and `col3` while `Chunk 2` includes 3 rows on `col1` and `col4`. Since every chunk can consist of data of the same or different columns, a chunk has it own `schema` defined with it. `Chunk 1`'s schema is {`col1`, `col2`, `col3`} (and their corresponding data types) and `Chunk 2`'s schema is {`col1`, `col4`}. Same name column, `col1`, represents the same column of the table and must have the same data type. 
+Figure 1 illustrates an `IOx Server` which is a columnar database management system (DBMS). An IOx Serves includes many `databases`, each represents an isolated dataset from an organization or user. The IOx Server in Figure 1 consists of `p` databases. Each database has as many `tables` as needed. Data of each table is partitioned on a specified partition key which is an expression of the table column(s). In the example of Figure 1, `Table 1` is partitioned by date which is an expression on a time column of `Table 1`. `Partition` data is physically split into many chunks depending on the table's flow of ingested data which will be described in the next section, Data Life Cycle. Each chunk contains a subset of rows of its table partition on a subset of columns of the table. For example, `Chunk 1` has 2 rows of data on columns `col1`, `col2`, and `col3` while `Chunk 2` includes 3 rows on `col1` and `col4`. Since every chunk can consist of data of the same or different columns, a chunk has it own `schema` defined with it. `Chunk 1`'s schema is {`col1`, `col2`, `col3`} (and their corresponding data types) and `Chunk 2`'s schema is {`col1`, `col4`}. Columns with the same name, such as `col1`, represent the same column and must have the same data type across all chunks within the table. 
 
 ```text  
                                                                  ┌───────────┐                                    
@@ -43,7 +43,7 @@ Figure 1 illustrates an `IOx Server` which is a columnar database management sys
 Figure 1: Data organization in an IOx Server
 ```
 
-Chunk is considered the smallest unit of block of data in IOx and the central discussion of the rest of this document. IOx does not (yet) support direct data modification but does allow deletion[^del] which means a modification can be done through a deletion and an ingestion. Another way to modify values of non-primary-key columns in IOx is to reload data of that row using same key values but different non-key ones. These duplicated rows will be deduplicated during compaction (see next section) and/or eliminated at Query time.[^dup]
+Chunk is considered the smallest block of data in IOx and the central discussion of the rest of this document. IOx does not (yet) support direct data modification but does allow deletion[^del] which means a modification can be done through a deletion and an ingestion. Another way to modify values of non-primary-key columns in IOx is to reload data of that row using same key values but different non-key ones. These duplicated rows will be deduplicated during compaction (see next section) and/or eliminated at Query time.[^dup]
 [^del]: `Deletion` is a large topic that deserves its own document.
 [^dup]: The detail of `duplication` and `deduplication` during compaction and query are parts of a large topic that deserve another document.
 
@@ -52,7 +52,7 @@ A `Chunk` in IOx is an abstract object defined in the code as a [DbChunk](https:
 
 1. O-MUB: **O**pen **MU**table **B**uffer chunk is optimized for writes and the only chunk type that accepts ingesting data. O-MUB is an in-memory chunk but its data is neither sorted nor encoded.[^type]
 1. F-MUB: **F**rozen **MU**table **B**uffer chunk has the same format as O-MUB (in memory, not sorted, not encoded) but it no longer accepts writes. It is used as a transition chunk while its data is being moved from optimized-for-writes to optimized-for-reads.
-1. RUB: **R**ead **B**uffer chunk is optimized for reads and does not accept writes. RUB is kept in memory and its data is sorted and encoded on the chunk's primary key. Note that since a chunk stores data of a subset of its table columns, Chunk's primary key can also be a subset of its table's primary key.
+1. RUB: **R**ead **B**uffer chunk is optimized for reads and does not accept writes. RUB is kept in memory and its data is sorted and encoded on the chunk's primary key. Note that since a chunk may store data of a subset of its table columns, Chunk's primary key can also be a subset of its table's primary key.
 1. OS: **O**bject **S**tore chunk is a parquet file of a chunk stored in a durable cloud storage such as Amazon S3 (IOx also supports Azure and Google Clouds). Because an OS is always created from a RUB, it inherits all sorting and encoding properties of the corresponding RUB and Parquet.
 1. L-OS: **L**ocal-cached **O**bject **S**tore chunk is an OS cached on local non volatile memory of IOx Server. 
 
@@ -88,7 +88,7 @@ Now let us see how data of chunks are transformed in IOx's Data LifeCycle.
 
 ## Data Life Cycle
 
-IOx Data LifeCycle is a sophisticated combination of **background** and **manual** processes that transform chunks from one stage to another to manage a smooth flow of non-stop ingesting data to their final durable storage while keeping query performance high. The processes are triggered by some events such as `compact`, `delete`, `persist`, `compact OS`, `load RUB`, and `cache OS`. These events are invoked by either users manually or automatically by a `Data LifeCycle Policy`. In this document, we first define the events listed above and the go over examples of those events in Figure 3 to have basic understanding of IOx Data Life Cycle. The `Data LifeCycle Policy` is an advanced topic that will be discussed in future document. 
+The IOx Data LifeCycle is the set of processes that transform chunks from one stage to another. These processes are triggered by some events such as `compact`, `delete`, `persist`, `compact OS`, `load RUB`, and `cache OS` . These events are invoked by either users manually or automatically by a `Data LifeCycle Policy`. In this document, we first define the events listed above and the go over examples of those events in Figure 3 to have basic understanding of IOx Data Life Cycle. The `Data LifeCycle Policy` is an advanced topic that will be discussed in a future document, it aims to maintain a smooth, uninterrupted flow of data from ingest to their final durable storage, all whilst keeping query performance high.
 
 ### Data LifeCycle Events
 To trigger chunks moving from one stage to another, IOx creates some events. Since IOx keeps chunks inside their (virtual) partition as defined in the previous Section, all chunks described in this section are in the context of one partition. By designed, there is at most one `O-MUB` at a time.
@@ -99,14 +99,14 @@ To trigger chunks moving from one stage to another, IOx creates some events. Sin
 * **Load RUB**: is an event to load OS chunks without RUB back in in-memory RUBs.
 * **Cache OS**: is an event to cache OS chunks into the IOx server's NVM.
 
-The `Compact`, `Persist` and `Compact OS` can only compact/persist contiguous chunks which are chunks contain time-window next to each other. They also eliminate permanently duplicated and deleted data. When a new chunk is created, the compacted/persisted ones will be dropped in the same transaction/locking.
+The `Compact`, `Persist` and `Compact OS` can only compact/persist contiguous chunks.  Contiguous chunks contain time-windows of *insert* time (not data timestamp) next to each other. They also eliminate permanently duplicated and deleted data. When a new chunk is created, the compacted/persisted ones will be dropped in the same transaction.
 
 
 ### Data LifeCycle Example
 Figure 3 illustrates an example of IOx Data LifeCycle with 8 events happening at time T1 to time T8. The number (1, 2, 3, ...) at the end of each chunk name is just for us to identify them easily. They are not the real UUID identifiers of the chunks.
 
 * **Before T1**: There is only `O-MUB 1` in the system to accept eligible writes for its partition.
-* **At T1**: a `Compact` event happens and triggers a process to compact the only `O-MUB 1` into `RUB 1`. In order ot do that, `O-MUB 1` needs to get frozen to `F-MUB 1` first and then compacted into `RUB 1`. If more ingest data comes after T2, a new `O-MUB 2` is created to accept new writes.
+* **At T1**: a `Compact` event happens and triggers a process to compact the only `O-MUB 1` into `RUB 1`. In order to do that, `O-MUB 1` needs to get frozen to `F-MUB 1` first and then compacted into `RUB 1`. If more ingest data comes after T2, a new `O-MUB 2` is created to accept new writes.
 * **At T2**: a `Delete` is issued that freezes `O-MUB 2` to `F-MUB 2`. Since new data keeps coming, `O-MUB 3` is created to accept new data.
 * **At T3**: a `Compact` is requested on `RUB 1`, `F-MUB 2`, and `O-MUB 3`. As always, the `O-MUB 3` must be first frozen to `F-MUB 3` and then compacted with `RUB 1` and `F-MUB 2` to produce `RUB 2`, while `O-MUB 4` is created to accept ingesting data.
 * **At T4**: a `Delete` triggers `O-MUB 4` frozen to `F-MUB 4` and `O-MUB 5` created.
