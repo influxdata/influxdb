@@ -196,8 +196,9 @@ impl ObjectStore {
         account: impl Into<String>,
         access_key: impl Into<String>,
         container_name: impl Into<String>,
+        use_emulator: bool,
     ) -> Result<Self> {
-        let azure = azure::new_azure(account, access_key, container_name)?;
+        let azure = azure::new_azure(account, access_key, container_name, use_emulator)?;
         Ok(Self {
             integration: ObjectStoreIntegration::MicrosoftAzure(Box::new(azure)),
             cache: None,

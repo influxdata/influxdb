@@ -48,6 +48,12 @@ pub enum Error {
     List {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+
+    #[cfg(not(feature = "azure_test"))]
+    #[snafu(display(
+        "Azurite (azure emulator) support not compiled in, please add `azure_test` feature"
+    ))]
+    NoEmulatorFeature,
 }
 
 /// Configuration for connecting to [Microsoft Azure Blob Storage](https://azure.microsoft.com/en-us/services/storage/blobs/).
@@ -234,6 +240,16 @@ impl ObjectStoreApi for MicrosoftAzure {
     }
 }
 
+#[cfg(feature = "azure_test")]
+fn check_if_emulator_works() -> Result<()> {
+    Ok(())
+}
+
+#[cfg(not(feature = "azure_test"))]
+fn check_if_emulator_works() -> Result<()> {
+    Err(Error::NoEmulatorFeature)
+}
+
 /// Configure a connection to container with given name on Microsoft Azure
 /// Blob store.
 ///
@@ -243,13 +259,18 @@ pub fn new_azure(
     account: impl Into<String>,
     access_key: impl Into<String>,
     container_name: impl Into<String>,
+    use_emulator: bool,
 ) -> Result<MicrosoftAzure> {
     let account = account.into();
     let access_key = access_key.into();
     let http_client: Arc<dyn HttpClient> = Arc::new(reqwest::Client::new());
 
-    let storage_account_client =
-        StorageAccountClient::new_access_key(Arc::clone(&http_client), &account, &access_key);
+    let storage_account_client = if use_emulator {
+        check_if_emulator_works()?;
+        StorageAccountClient::new_emulator_default()
+    } else {
+        StorageAccountClient::new_access_key(Arc::clone(&http_client), &account, &access_key)
+    };
 
     let storage_client = storage_account_client.as_storage_client();
 
@@ -274,6 +295,7 @@ mod tests {
         storage_account: String,
         access_key: String,
         bucket: String,
+        use_emulator: bool,
     }
 
     // Helper macro to skip tests if TEST_INTEGRATION and the Azure environment
@@ -282,11 +304,13 @@ mod tests {
         () => {{
             dotenv::dotenv().ok();
 
-            let required_vars = [
-                "AZURE_STORAGE_ACCOUNT",
-                "INFLUXDB_IOX_BUCKET",
-                "AZURE_STORAGE_ACCESS_KEY",
-            ];
+            let use_emulator = std::env::var("AZURE_USE_EMULATOR").is_ok();
+
+            let mut required_vars = vec!["INFLUXDB_IOX_BUCKET"];
+            if !use_emulator {
+                required_vars.push("AZURE_STORAGE_ACCOUNT");
+                required_vars.push("AZURE_STORAGE_ACCESS_KEY");
+            }
             let unset_vars: Vec<_> = required_vars
                 .iter()
                 .filter_map(|&name| match env::var(name) {
@@ -316,12 +340,11 @@ mod tests {
                 return;
             } else {
                 AzureConfig {
-                    storage_account: env::var("AZURE_STORAGE_ACCOUNT")
-                        .expect("already checked AZURE_STORAGE_ACCOUNT"),
-                    access_key: env::var("AZURE_STORAGE_ACCESS_KEY")
-                        .expect("already checked AZURE_STORAGE_ACCESS_KEY"),
+                    storage_account: env::var("AZURE_STORAGE_ACCOUNT").unwrap_or_default(),
+                    access_key: env::var("AZURE_STORAGE_ACCESS_KEY").unwrap_or_default(),
                     bucket: env::var("INFLUXDB_IOX_BUCKET")
                         .expect("already checked INFLUXDB_IOX_BUCKET"),
+                    use_emulator,
                 }
             }
         }};
@@ -334,6 +357,7 @@ mod tests {
             config.storage_account,
             config.access_key,
             config.bucket,
+            config.use_emulator,
         )
         .unwrap();
 
