@@ -28,13 +28,17 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * Logging Guide: [logging.md](logging.md)
 * Handling Observability Context: [`observability.md`](observability.md)
 * Profiling Guide: [profiling.md](profiling.md)
+* Protobuf tips and tricks: [Protobuf](protobuf.md).
+* [Testing documentation](testing.md) for developers of IOx
+* SQL command line tips and tricks: [SQL](sql.md).
+* Notes on server startup and error recovery: [`server_startup.md`](server_startup.md)
+* IOx Architecture
+    * IOx Data Organization and Data LifeCycle: [`data_organization_lifecycle.md`](data_organization_lifecycle.md)
+    * IOX In-Memory and Preserved Catalogs - The metadata for operating the Data Lifecycle & accessing needed chunks quickly (to be written & linked)
+    * IOx transactions ang locks. (to be written & linked)
 * How InfluxDB IOx manages the lifecycle of time series data: [data_management.md](data_management.md)
 * Thoughts on parquet encoding and compression for timeseries data: [encoding_thoughts.md](encoding_thoughts.md)
 * Thoughts on using multiple cores / thread pools: [multi_core_tasks.md](multi_core_tasks.md)
 * [Query Engine Docs](../query/README.md)
-* [Testing documentation](testing.md) for developers of IOx
-* Protobuf tips and tricks: [Protobuf](protobuf.md).
 * Catalog Persistence: [`catalog_persistence.md`](catalog_persistence.md).
-* SQL command line tips and tricks: [SQL](sql.md).
-* Notes on server startup and error recovery: [`server_startup.md`](server_startup.md)
 * Notes on the use of local filesystems: [`local_filesystems.md`](local_filesystems.md)
