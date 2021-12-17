@@ -87,6 +87,9 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     async fn delete(&self, location: &Self::Path) -> Result<(), Self::Error>;
 
     /// List all the objects with the given prefix.
+    ///
+    /// Prefixes are evaluated on a path segment basis, i.e. `foo/bar/` is a prefix of `foo/bar/x` but not of
+    /// `foo/bar_baz/x`.
     async fn list<'a>(
         &'a self,
         prefix: Option<&'a Self::Path>,
@@ -95,6 +98,9 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     /// List objects with the given prefix and an implementation specific
     /// delimiter. Returns common prefixes (directories) in addition to object
     /// metadata.
+    ///
+    /// Prefixes are evaluated on a path segment basis, i.e. `foo/bar/` is a prefix of `foo/bar/x` but not of
+    /// `foo/bar_baz/x`.
     async fn list_with_delimiter(
         &self,
         prefix: &Self::Path,
@@ -190,8 +196,9 @@ impl ObjectStore {
         account: impl Into<String>,
         access_key: impl Into<String>,
         container_name: impl Into<String>,
+        use_emulator: bool,
     ) -> Result<Self> {
-        let azure = azure::new_azure(account, access_key, container_name)?;
+        let azure = azure::new_azure(account, access_key, container_name, use_emulator)?;
         Ok(Self {
             integration: ObjectStoreIntegration::MicrosoftAzure(Box::new(azure)),
             cache: None,
@@ -800,6 +807,42 @@ mod tests {
         Ok(())
     }
 
+    pub(crate) async fn list_uses_directories_correctly(storage: &ObjectStore) -> Result<()> {
+        delete_fixtures(storage).await;
+
+        let content_list = flatten_list_stream(storage, None).await?;
+        assert!(
+            content_list.is_empty(),
+            "Expected list to be empty; found: {:?}",
+            content_list
+        );
+
+        let mut location1 = storage.new_path();
+        location1.push_dir("foo");
+        location1.set_file_name("x.json");
+
+        let mut location2 = storage.new_path();
+        location2.push_dir("foo.bar");
+        location2.set_file_name("y.json");
+
+        let data = Bytes::from("arbitrary data");
+        storage.put(&location1, data.clone()).await?;
+        storage.put(&location2, data).await?;
+
+        let mut prefix = storage.new_path();
+        prefix.push_dir("foo");
+        let content_list = flatten_list_stream(storage, Some(&prefix)).await?;
+        assert_eq!(content_list, &[location1.clone()]);
+
+        let mut prefix = storage.new_path();
+        prefix.push_dir("foo");
+        prefix.set_file_name("x");
+        let content_list = flatten_list_stream(storage, Some(&prefix)).await?;
+        assert_eq!(content_list, &[]);
+
+        Ok(())
+    }
+
     pub(crate) async fn list_with_delimiter(storage: &ObjectStore) -> Result<()> {
         delete_fixtures(storage).await;
 
@@ -850,7 +893,7 @@ mod tests {
         assert_eq!(object.location, expected_location);
         assert_eq!(object.size, data.len());
 
-        // ==================== check: prefix-list `mydb/wb/000/000/001` (partial filename) ====================
+        // ==================== check: prefix-list `mydb/wb/000/000/001` (partial filename doesn't match) ====================
         let mut prefix = storage.new_path();
         prefix.push_all_dirs(&["mydb", "wb", "000", "000"]);
         prefix.set_file_name("001");
@@ -861,11 +904,7 @@ mod tests {
 
         let result = storage.list_with_delimiter(&prefix).await.unwrap();
         assert!(result.common_prefixes.is_empty());
-        assert_eq!(result.objects.len(), 1);
-
-        let object = &result.objects[0];
-
-        assert_eq!(object.location, expected_location);
+        assert_eq!(result.objects.len(), 0);
 
         // ==================== check: prefix-list `not_there` (non-existing prefix) ====================
         let mut prefix = storage.new_path();
@@ -926,12 +965,16 @@ mod tests {
     async fn delete_fixtures(storage: &ObjectStore) {
         let files: Vec<_> = [
             "test_file",
+            "test_dir/test_file.json",
             "mydb/wb/000/000/000.segment",
             "mydb/wb/000/000/001.segment",
             "mydb/wb/000/000/002.segment",
             "mydb/wb/001/001/000.segment",
             "mydb/wb/foo.json",
             "mydb/data/whatevs",
+            "mydb/wbwbwb/111/222/333.segment",
+            "foo/x.json",
+            "foo.bar/y.json",
         ]
         .iter()
         .map(|&s| str_to_path(storage, s))

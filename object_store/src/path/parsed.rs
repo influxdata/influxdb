@@ -64,37 +64,27 @@ impl DirsAndFileName {
 
         use itertools::Diff;
         match diff {
+            // directories match perfectly, now we need to look at the filenames
             None => match (self.file_name.as_ref(), prefix.file_name.as_ref()) {
-                (Some(self_file), Some(prefix_file)) => {
-                    self_file.encoded().starts_with(prefix_file.encoded())
-                }
+                // both `self` and the prefix have a filename, they have to match
+                (Some(self_file), Some(prefix_file)) => self_file == prefix_file,
+
+                // `self` has a file name but the prefix doesn't, that's a match
                 (Some(_self_file), None) => true,
+
+                // `self` doesn't have a file name but the prefix has, so it's not really a prefix
                 (None, Some(_prefix_file)) => false,
+
+                // both `self` and the prefix have no filename, perfect match
                 (None, None) => true,
             },
-            Some(Diff::Shorter(_, mut remaining_self)) => {
-                let next_dir = remaining_self
-                    .next()
-                    .expect("must have at least one mismatch to be in this case");
-                match prefix.file_name.as_ref() {
-                    Some(prefix_file) => next_dir.encoded().starts_with(prefix_file.encoded()),
-                    None => true,
-                }
-            }
-            Some(Diff::FirstMismatch(_, mut remaining_self, mut remaining_prefix)) => {
-                let first_prefix = remaining_prefix
-                    .next()
-                    .expect("must have at least one mismatch to be in this case");
 
-                // There must not be any other remaining parts in the prefix
-                remaining_prefix.next().is_none()
-                // and the next item in self must start with the last item in the prefix
-                    && remaining_self
-                        .next()
-                        .expect("must be at least one value")
-                        .encoded()
-                        .starts_with(first_prefix.encoded())
-            }
+            // the prefix directories are a prefix of `self.directories` (or in other words "prefix is shorter than
+            // self"), it's a prefix if the prefix doesn't have a file (because we don't wanna match a filename w/ a
+            // directory element)
+            Some(Diff::Shorter(_, _remaining_self)) => prefix.file_name.is_none(),
+
+            // no real match
             _ => false,
         }
     }
@@ -271,22 +261,22 @@ mod tests {
             needle
         );
 
-        // partial dir prefix matches
+        // partial dir prefix doesn't match
         let mut needle = DirsAndFileName::default();
         needle.push_dir("f");
         assert!(
-            haystack.prefix_matches(&needle),
-            "{:?} should have started with {:?}",
+            !haystack.prefix_matches(&needle),
+            "{:?} should not have started with {:?}",
             haystack,
             needle
         );
 
-        // one dir and one partial dir matches
+        // one dir and one partial dir doesn't match
         let mut needle = DirsAndFileName::default();
         needle.push_all_dirs(&["foo/bar", "baz"]);
         assert!(
-            haystack.prefix_matches(&needle),
-            "{:?} should have started with {:?}",
+            !haystack.prefix_matches(&needle),
+            "{:?} should not have started with {:?}",
             haystack,
             needle
         );
@@ -304,8 +294,8 @@ mod tests {
         needle.set_file_name("foo");
 
         assert!(
-            haystack.prefix_matches(&needle),
-            "{:?} should have started with {:?}",
+            !haystack.prefix_matches(&needle),
+            "{:?} should not have started with {:?}",
             haystack,
             needle
         );
@@ -321,14 +311,14 @@ mod tests {
         );
 
         // Not all directories match; file name is a prefix of the next directory; this
-        // matches
+        // does not match
         let mut needle = DirsAndFileName::default();
         needle.push_all_dirs(&["foo/bar", "baz%2Ftest"]);
         needle.set_file_name("s");
 
         assert!(
-            haystack.prefix_matches(&needle),
-            "{:?} should have started with {:?}",
+            !haystack.prefix_matches(&needle),
+            "{:?} should not have started with {:?}",
             haystack,
             needle
         );

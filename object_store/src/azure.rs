@@ -48,6 +48,12 @@ pub enum Error {
     List {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+
+    #[cfg(not(feature = "azure_test"))]
+    #[snafu(display(
+        "Azurite (azure emulator) support not compiled in, please add `azure_test` feature"
+    ))]
+    NoEmulatorFeature,
 }
 
 /// Configuration for connecting to [Microsoft Azure Blob Storage](https://azure.microsoft.com/en-us/services/storage/blobs/).
@@ -127,6 +133,8 @@ impl ObjectStoreApi for MicrosoftAzure {
         &'a self,
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
+        let prefix_is_dir = prefix.map(|path| path.is_dir()).unwrap_or(true);
+
         #[derive(Clone)]
         enum ListState {
             Start,
@@ -137,8 +145,8 @@ impl ObjectStoreApi for MicrosoftAzure {
         Ok(stream::unfold(ListState::Start, move |state| async move {
             let mut request = self.container_client.list_blobs();
 
-            let prefix = prefix.map(|p| p.to_raw());
-            if let Some(ref p) = prefix {
+            let prefix_raw = prefix.map(|p| p.to_raw());
+            if let Some(ref p) = prefix_raw {
                 request = request.prefix(p as &str);
             }
 
@@ -168,6 +176,9 @@ impl ObjectStoreApi for MicrosoftAzure {
                 .blobs
                 .into_iter()
                 .map(|blob| CloudPath::raw(blob.name))
+                .filter(move |path| {
+                    prefix_is_dir || prefix.map(|prefix| prefix == path).unwrap_or_default()
+                })
                 .collect();
 
             Some((Ok(names), next_state))
@@ -176,12 +187,13 @@ impl ObjectStoreApi for MicrosoftAzure {
     }
 
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
+        let prefix_is_dir = prefix.is_dir();
         let mut request = self.container_client.list_blobs();
 
-        let prefix = prefix.to_raw();
+        let prefix_raw = prefix.to_raw();
 
         request = request.delimiter(Delimiter::new(DELIMITER));
-        request = request.prefix(&*prefix);
+        request = request.prefix(&*prefix_raw);
 
         let resp = request.execute().await.context(List)?;
 
@@ -217,6 +229,7 @@ impl ObjectStoreApi for MicrosoftAzure {
                     size,
                 }
             })
+            .filter(move |object| prefix_is_dir || prefix == &object.location)
             .collect();
 
         Ok(ListResult {
@@ -225,6 +238,16 @@ impl ObjectStoreApi for MicrosoftAzure {
             objects,
         })
     }
+}
+
+#[cfg(feature = "azure_test")]
+fn check_if_emulator_works() -> Result<()> {
+    Ok(())
+}
+
+#[cfg(not(feature = "azure_test"))]
+fn check_if_emulator_works() -> Result<()> {
+    Err(Error::NoEmulatorFeature)
 }
 
 /// Configure a connection to container with given name on Microsoft Azure
@@ -236,13 +259,18 @@ pub fn new_azure(
     account: impl Into<String>,
     access_key: impl Into<String>,
     container_name: impl Into<String>,
+    use_emulator: bool,
 ) -> Result<MicrosoftAzure> {
     let account = account.into();
     let access_key = access_key.into();
     let http_client: Arc<dyn HttpClient> = Arc::new(reqwest::Client::new());
 
-    let storage_account_client =
-        StorageAccountClient::new_access_key(Arc::clone(&http_client), &account, &access_key);
+    let storage_account_client = if use_emulator {
+        check_if_emulator_works()?;
+        StorageAccountClient::new_emulator_default()
+    } else {
+        StorageAccountClient::new_access_key(Arc::clone(&http_client), &account, &access_key)
+    };
 
     let storage_client = storage_account_client.as_storage_client();
 
@@ -258,7 +286,7 @@ pub fn new_azure(
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::{list_with_delimiter, put_get_delete_list};
+    use crate::tests::{list_uses_directories_correctly, list_with_delimiter, put_get_delete_list};
     use crate::ObjectStore;
     use std::env;
 
@@ -267,6 +295,7 @@ mod tests {
         storage_account: String,
         access_key: String,
         bucket: String,
+        use_emulator: bool,
     }
 
     // Helper macro to skip tests if TEST_INTEGRATION and the Azure environment
@@ -275,11 +304,13 @@ mod tests {
         () => {{
             dotenv::dotenv().ok();
 
-            let required_vars = [
-                "AZURE_STORAGE_ACCOUNT",
-                "INFLUXDB_IOX_BUCKET",
-                "AZURE_STORAGE_ACCESS_KEY",
-            ];
+            let use_emulator = std::env::var("AZURE_USE_EMULATOR").is_ok();
+
+            let mut required_vars = vec!["INFLUXDB_IOX_BUCKET"];
+            if !use_emulator {
+                required_vars.push("AZURE_STORAGE_ACCOUNT");
+                required_vars.push("AZURE_STORAGE_ACCESS_KEY");
+            }
             let unset_vars: Vec<_> = required_vars
                 .iter()
                 .filter_map(|&name| match env::var(name) {
@@ -309,12 +340,11 @@ mod tests {
                 return;
             } else {
                 AzureConfig {
-                    storage_account: env::var("AZURE_STORAGE_ACCOUNT")
-                        .expect("already checked AZURE_STORAGE_ACCOUNT"),
-                    access_key: env::var("AZURE_STORAGE_ACCESS_KEY")
-                        .expect("already checked AZURE_STORAGE_ACCESS_KEY"),
+                    storage_account: env::var("AZURE_STORAGE_ACCOUNT").unwrap_or_default(),
+                    access_key: env::var("AZURE_STORAGE_ACCESS_KEY").unwrap_or_default(),
                     bucket: env::var("INFLUXDB_IOX_BUCKET")
                         .expect("already checked INFLUXDB_IOX_BUCKET"),
+                    use_emulator,
                 }
             }
         }};
@@ -327,10 +357,12 @@ mod tests {
             config.storage_account,
             config.access_key,
             config.bucket,
+            config.use_emulator,
         )
         .unwrap();
 
         put_get_delete_list(&integration).await.unwrap();
+        list_uses_directories_correctly(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
     }
 }

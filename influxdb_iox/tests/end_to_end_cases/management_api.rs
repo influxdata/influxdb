@@ -274,17 +274,7 @@ async fn test_create_get_update_release_claim_database() {
         42
     );
 
-    let databases: Vec<_> = client
-        .list_detailed_databases()
-        .await
-        .expect("list detailed databases failed")
-        .into_iter()
-        // names may contain the names of other databases created by
-        // concurrent tests as well
-        .filter(|db| db.db_name == db_name)
-        .collect();
-    assert_eq!(databases.len(), 1);
-    assert_eq!(Uuid::from_slice(&databases[0].uuid).unwrap(), created_uuid);
+    assert_eq!(get_uuid(&mut client, &db_name).await, Some(created_uuid));
 
     let released_uuid = client.release_database(&db_name, None).await.unwrap();
     assert_eq!(created_uuid, released_uuid);
@@ -346,6 +336,35 @@ async fn test_create_get_update_release_claim_database() {
     );
 }
 
+/// queries the server and returns the uuid, if any, for the specified database
+async fn get_uuid(client: &mut Client, db_name: &str) -> Option<Uuid> {
+    let databases: Vec<_> = client
+        .get_server_status()
+        .await
+        .expect("get_server_status failed")
+        .database_statuses
+        .into_iter()
+        // names may contain the names of other databases created by
+        // concurrent tests as well
+        .filter(|db| db.db_name == db_name)
+        .collect();
+
+    assert!(
+        databases.len() <= 1,
+        "found more than one entry for {}: {:?}",
+        db_name,
+        databases
+    );
+
+    databases.into_iter().next().and_then(|db| {
+        if !db.uuid.is_empty() {
+            Some(Uuid::from_slice(&db.uuid).unwrap())
+        } else {
+            None
+        }
+    })
+}
+
 #[tokio::test]
 async fn release_database() {
     test_helpers::maybe_start_logging();
@@ -366,14 +385,7 @@ async fn release_database() {
     assert_eq!(created_uuid, released_uuid);
 
     // Released database is no longer in this server's database list
-    assert!(!client
-        .list_detailed_databases()
-        .await
-        .unwrap()
-        .into_iter()
-        // names may contain the names of other databases created by
-        // concurrent tests as well
-        .any(|db| db.db_name == db_name));
+    assert_eq!(get_uuid(&mut client, &db_name).await, None);
 
     // Releasing the same database again is an error
     let err = client.release_database(&db_name, None).await.unwrap_err();
@@ -429,18 +441,7 @@ async fn claim_database() {
     client.claim_database(deleted_uuid, false).await.unwrap();
 
     // Claimed database is back in this server's database list
-    assert_eq!(
-        client
-            .list_detailed_databases()
-            .await
-            .unwrap()
-            .into_iter()
-            // names may contain the names of other databases created by
-            // concurrent tests as well
-            .filter(|db| db.db_name == db_name)
-            .count(),
-        1
-    );
+    assert_eq!(get_uuid(&mut client, &db_name).await, Some(deleted_uuid));
 
     // Claiming the same database again is an error
     let err = client

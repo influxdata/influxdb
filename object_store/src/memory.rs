@@ -161,7 +161,10 @@ mod tests {
     use super::*;
 
     use crate::{
-        tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
+        tests::{
+            get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
+            put_get_delete_list,
+        },
         Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
 
@@ -170,6 +173,7 @@ mod tests {
         let integration = ObjectStore::new_in_memory();
 
         put_get_delete_list(&integration).await.unwrap();
+        list_uses_directories_correctly(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
     }
 

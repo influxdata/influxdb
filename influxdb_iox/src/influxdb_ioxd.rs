@@ -33,6 +33,15 @@ pub enum Error {
 
     #[snafu(display("Error serving RPC: {}", source))]
     ServingRpc { source: server_type::RpcError },
+
+    #[snafu(display("Early Http shutdown"))]
+    LostHttp,
+
+    #[snafu(display("Early RPC shutdown"))]
+    LostRpc,
+
+    #[snafu(display("Early server shutdown"))]
+    LostServer,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -276,19 +285,28 @@ where
             _ = signal => info!("Shutdown requested"),
             _ = server_handle => {
                 error!("server worker shutdown prematurely");
+                res = res.and(Err(Error::LostServer));
             },
             result = grpc_server => match result {
-                Ok(_) => info!("gRPC server shutdown"),
+                Ok(_) if frontend_shutdown.is_cancelled() => info!("gRPC server shutdown"),
+                Ok(_) => {
+                    error!("Early gRPC server exit");
+                    res = res.and(Err(Error::LostRpc));
+                }
                 Err(error) => {
                     error!(%error, "gRPC server error");
-                    res = res.and(Err(Error::ServingRpc{source: error}))
+                    res = res.and(Err(Error::ServingRpc{source: error}));
                 }
             },
             result = http_server => match result {
-                Ok(_) => info!("HTTP server shutdown"),
+                Ok(_) if frontend_shutdown.is_cancelled() => info!("HTTP server shutdown"),
+                Ok(_) => {
+                    error!("Early HTTP server exit");
+                    res = res.and(Err(Error::LostHttp));
+                }
                 Err(error) => {
                     error!(%error, "HTTP server error");
-                    res = res.and(Err(Error::ServingHttp{source: error}))
+                    res = res.and(Err(Error::ServingHttp{source: error}));
                 }
             },
         }
