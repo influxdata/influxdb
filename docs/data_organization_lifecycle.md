@@ -168,4 +168,4 @@ Figure 3 illustrates an example of IOx Data LifeCycle with 8 actions happening a
 Figure 3: Example of                                                                                                                                                                                                   
 ```
 
-Now we understand chunks and their life cycle, let us move to next topic: **IOX Catalogs - The metadata for operating the Data Lifecycle & querying chunks quickly** (to be linked)
+Now we understand chunks and their life cycle, let us move to next topic: [IOx Catalog: The Metadata for Operating a Database](catalogs.md)

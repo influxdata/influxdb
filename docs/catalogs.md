@@ -1,167 +1,88 @@
-# IOx Catalogs:  The Metadata for Operating a Database
+# IOx Catalog: The Metadata for Operating a Database
 
-To continue our architecture documentation series, this document explains how IOx uses **metadata** to organize its physical chunks and operate its Data Lifecycle described in previous document, [IOx Data Organization and LifeCycle](link). We also shows how metadata is incrementally saved and used to rebuild the database, as well as used to find the right physical chunks quickly to run queries.
+To continue our architecture documentation series, this document explains how IOx uses **metadata** to organize its physical chunks and operate its Data Lifecycle described in previous document, [IOx Data Organization and LifeCycle](data_organization_lifecycle.md). We also shows how metadata is incrementally saved and used to rebuild the database, as well as used to find the right physical chunks quickly to run queries.
 
-Figure 1 copied from previous [document](link) illustrates IOx Data organization. Since actual data is only stored in the bottom layer, `Chunks`, the other information in other layers needed to access and manage the chunks are considered as `metadata` and, in IOx, managed by Catalogs.
+Figure 1 of previous [document](data_organization_lifecycle.md) illustrates IOx Data organization. Since actual data is only stored in the bottom layer, `Chunks`, the other information in other layers needed to access and manage the chunks are considered as `metadata` and, in IOx, handled by a Catalogs.
+
+## Catalog
+Figure 1 below illustrated the organization of IOx Catalog and Data. The bottom layer `Data Chunks` are physical data described in previous [document](data_organization_lifecycle.md). All the layers from `Catalogs` to `Chunk Stages` are metadata managed by IOx `Catalog`. Each database has its own `Catalog`[^cat] that contains a set of `Tables`, each consists of a set of `Partitions`. A partition includes many `Chunks`, each is represented by a `ChunkStage` that point to their corresponding physical chunk data.
+
+[^cat]: this design might be changed in the future to meet other use cases.
+
+Since the catalog is the central information shared to all users of the database, it needs to keep consistent and integral. Each object of the catalog must be locked (shared or exclusive) when accessed or modified. Each catalog object also contains information for us to operate the chunk lifecycle, run queries, as well as measure the health of the system. 
+
+**Examples of information for operating the chunk lifecycle**
+* A chunk includes `LifecycleAction` that keeps track of on-going action of a chunk (e.g. `compacting`, `persisting`) to avoid running the same job on the chunk. 
+* A partition contains `PersistenceWindows` that  keep track of ingested data within a partition to determine when it can be persisted. his allows IOx to receive out of order writes in their timestamps while persisting mostly in non-time overlapping Object Store files.
+
+**Examples of information for measuring the health of the system**
+* A catalog consists of metrics that measure how often its tables, partitions, and chunks are locked, what kinds of locks (e.g. shared or exclusive), and their lock wait time.
+
+**Examples of information for running queries quickly**
+* A catalog chunk column includes statistics of its data such as `min`, `max`, `row count`, `null count`. If a query does not need data between the chunk column's min-max range, that chunk data will be pruned from read. If a query is to count the number of rows, the `row count` statistics of the chunk is good enough to answer the query without reading its chunk data.
+
 
 ```text
-                                                                 ┌───────────┐                                    
-                                                                 │IOx Server │                        IOx Server  
-                                                                 └───────────┘                                    
-                                                                       │                                          
-                                                        ┌──────────────┼────────────────┐                         
-                                                        ▼              ▼                ▼                         
-                                              ┌───────────┐                     ┌────────────┐                    
-                                              │Database 1 │           ...       │ Database p │        Databases   
-                                              └───────────┘                     └────────────┘                    
-                                                    │                                                             
-                                     ┌──────────────┼─────────────┐                                               
-                                     ▼              ▼             ▼                                               
-                               ┌──────────┐                 ┌──────────┐                                          
-                               │ Table 1  │       ...       │ Table n  │                                Tables    
-                               └──────────┘                 └──────────┘                                          
-                                     │                            │                                               
-                      ┌──────────────┼──────────────┐             │                                               
-                      ▼              ▼              ▼             ▼                                               
-               ┌────────────┐                ┌────────────┐                                                       
-               │Partition 1 │       ...      │Partition m │      ...                                 Partitions   
-               │(2021-12-10)│                │(2021-12-20)│                                                       
-               └────────────┘                └──────┬─────┘                                                       
-                      │                             │                                                             
-        ┌─────────────┼─────────────┐               │                                                             
-        ▼             ▼             ▼               ▼                                                             
-┌──────────────┐              ┌───────────┐                                                                       
-│    Chunk 1   │     ...      │  Chunk 2  │        ...                                                 Chunks     
-│              │              │           │                                                                       
-│col1 col2 col3│              │ col1 col4 │                                                                       
-│---- ---- ----│              │ ---- ---- │                                                                       
-│---- ---- ----│              │ ---- ---- │                                                                       
-└──────────────┘              │ ---- ---- │                                                                       
-                              └───────────┘                                                                       
-Figure 1: Data Organization in an IOx Server
-
+                                                             ┌───────────┐                                     
+                                                             │IOx Server │                        IOx Server   
+                                                             └───────────┘                                     
+                                                                   │                                           
+                                                    ┌──────────────┼───────────────┐                           
+                                                    ▼              ▼               ▼                           
+                                              ┌───────────┐                ┌────────────┐                      
+                                              │Database 1 │       ...      │ Database p │         Databases    
+                                              └───────────┘                └────────────┘                      
+                                                    │                              │                           
+                                                    ▼                              ▼                           
+                                              ┌───────────┐                                                    
+                                              │ Catalog 1 │                       ...             Catalogs     
+                                              └───────────┘                                                    
+                                                    │                                                          
+                                    ┌───────────────┼───────────────────┐                                      
+                                    ▼               ▼                   ▼                                      
+                              ┌──────────┐                        ┌──────────┐                                 
+                              │ Table 1  │         ...            │ Table n  │                       Tables    
+                              └──────────┘                        └──────────┘                                 
+                                    │                                   │                                      
+                 ┌──────────────────┼────────────────────┐              │                                      
+                 ▼                  ▼                    ▼              ▼                                      
+          ┌────────────┐                          ┌────────────┐                                               
+          │Partition 1 │           ...            │Partition m │       ...                        Partitions   
+          │(2021-12-10)│                          │(2021-12-20)│                                               
+          └────────────┘                          └────────────┘                                               
+                 │                                       │                                                     
+       ┌─────────▼───────┐               ┌───────────────┼─────────────────────┐                               
+       ▼                 ▼               ▼               ▼                     ▼                               
+   ┌───────┐         ┌───────┐       ┌───────┐       ┌───────┐             ┌───────┐                           
+   │Chunk 1│         │Chunk 2│       │Chunk 3│       │Chunk 4│             │Chunk 5│               Chunks      
+   └───────┘         └───────┘       └───────┘       └───────┘             └───────┘                           
+       │                 │               │               │                     │                               
+       ▼                 ▼               ▼               ▼                     ▼                               
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐┌──────────────┐     ┌──────────────┐                        
+│ ChunkStage 1 │ │ ChunkStage 2 │ │ ChunkStage 3 ││ ChunkStage 4 │     │ ChunkStage 5 │        Chunk Stages    
+│    (Open)    │ │   (Frozen)   │ │    (Open)    ││   (Frozen)   │     │ (Persisted)  │                        
+└──────────────┘ └──────────────┘ └──────────────┘└──────────────┘     └───────┬──────┘                        
+       │                 │               │               │              ┌──────▼──────┐                        
+       ▼                 ▼               ▼               ▼              ▼             ▼                        
+┌──────────────┐ ┌──────────────┐  ┌───────────┐ ┌────────────────┐┌───────────┐┌───────────┐                  
+│    O-MUB 1   │ │     RUB 2    │  │  O-MUB 3  │ │    F-MUB 4     ││    RUB 5  ││   OS 5    │                  
+│              │ │              │  │           │ │                ││           ││           │    Data Chunks   
+│col1 col2 col3│ │  col1 col4   │  │ col1 col2 │ │ col1 col2 col3 ││ col2 col3 ││ col2 col3 │                  
+│---- ---- ----│ │  ---- ----   │  │ ---- ---- │ │ ---- ---- ---- ││ ---- ---- ││ ---- ---- │                  
+│---- ---- ----│ │  ---- ----   │  │ ---- ---- │ │ ---- ---- ---- ││ ---- ---- ││ ---- ---- │                  
+└──────────────┘ │  ---- ----   │  └───────────┘ │ ---- ---- ---- ││ ---- ---- ││ ---- ---- │                  
+                 └──────────────┘                │ ---- ---- ---- │└───────────┘└───────────┘                  
+                                                 └────────────────┘                                            
+Figure 1: Catalog and Data Organization
 ```
 
 
-Each database of IOx owns three catalogs demonstrated in Figure 2. The `In-Memory Catalog` (or simply the `Catalog`), contains metadata to access all chunk types in both memory and Object Store described in [IOx Data Organization and LifeCycle](link). The `Preserved Catalog` is used to rebuild the database in case it is shutdown or unexpectedly destroyed by accidents or disasters. The `Query Catalog` includes extra information to access the right chunks and their statistics quickly for running queries, recording necessary logs, and reporting the results back to users. The `Other Properties` are a set of properties created/rebuilt with the database based on some default configuration parameters of the IOx Server or specified by the user who creates it.
+## Rebuild a Database from its Catalog
+Since the `Catalog` is the core of the database and is built up with the ingesting data (both inserts and deletes), it also needs to get saved in a durable storage in case of accidents or disasters, or in case we need to restart an IOx Server, or when we want to move a database to a different IOx Server. Basically, if an IOx server goes down unexpectedly, we will lose the in-memory catalog shown in Figure 1 and all of its in-memory data chunks `O-MUBs`, `F-MUBs`, and `RUBs`. Only data of `OS` chunks are not lost. As pointed out in [IOx Data Organization and LifeCycle](data_organization_lifecycle.md) that chunk data is persisted contiguously with their loading tine, `OS` chunks only include data ingested before the one in `MUBs` and `RUBs`. Thus, in principal, rebuilding the catalog includes two major steps: first rebuild the catalog that links to the already persisted `OS` chunks, then rerun ingesting data of `O-MUBs`, `F-MUBs` and `RUBs`. To perform those 2 steps, IOx saves `catalog transactions` that include minimal information of the latest stage of all valid `OS` chunks (e.g, chunks are not deleted), and `checkpoints` of when in the past to re-ingest data. At the beginning of the `Catalog rebuild`, those transactions will be read from the Object Store, and their information is used to rebuild the Catalog and rerun the necessary ingestion. Due to IOx `DataLifeCyclePolicy` that is responsible for when to trigger compacting chunk data, the rebuilt catalog may look different from the one before but as long as all the data in previous `O-MUBs`, `F-MUBs`, and `RUBs` are reloaded/recovered and tracked in the catalog, it does not matter which chunk types the data belong to.  Refer to [Catalog Persistence](catalog_persistence.md) for the original design of Catalog Persistence.
 
-```text
-                                     ┌───────────┐                   
-                                     │IOx Server │                   
-                                     └───────────┘                   
-                                           │                         
-                            ┌──────────────┼───────────────┐         
-                            ▼              ▼               ▼         
-                      ┌───────────┐                 ┌────────────┐   
-                      │Database 1 │       ...       │ Database p │   
-                      └───────────┘                 └────────────┘   
-                            │                              │         
-      ┌─────────────┬───────┴─────┬────────────┐           │         
-      ▼             ▼             ▼            ▼           ▼         
-┌──────────┐  ┌──────────┐  ┌──────────┐ ┌──────────┐                
-│In-Memory │  │Preserved │  │  Query   │ │  Other   │      ...       
-│ Catalog  │  │ Catalog  │  │ Catalog  │ │Properties│                
-└──────────┘  └──────────┘  └──────────┘ └──────────┘                
-
-Figure 2: Metadata of a Database
-```
-## In-memory Catalog
-
-`In-Memory Catalog` implemented in the code as [Catalog](https://github.com/influxdata/influxdb_iox/blob/8a2410e161996603a4147e319c71e5bb38ca9cb7/server/src/db/catalog.rs#L88) and shown in Figure 3 represents the structure of its actual `Data Organization` and hence looks similar to Figure 1. Note that the bottom layer of Figure 3 shows physical chunks of data (`O-MUB 1`, `RUB 2`, `O-MUB 3`, `F-MUB 4`, `RUB 5`, and `OS 5`) that the catalog does not store but points to. In short, the `In-Memory Catalog` contains a set of [`Tables`](https://github.com/influxdata/influxdb_iox/blob/8a2410e161996603a4147e319c71e5bb38ca9cb7/server/src/db/catalog/table.rs#L20), each of which consists of a set of [`Partitions`](https://github.com/influxdata/influxdb_iox/blob/8a2410e161996603a4147e319c71e5bb38ca9cb7/server/src/db/catalog/partition.rs#L116). A `Partition` includes a set of [`CatalogChunks`](https://github.com/influxdata/influxdb_iox/blob/76befe94ad14cd121d6fc5c58aa112997d9e211a/server/src/db/catalog/chunk.rs#L195), each of which is represented by a [`ChunkStage`](https://github.com/influxdata/influxdb_iox/blob/76befe94ad14cd121d6fc5c58aa112997d9e211a/server/src/db/catalog/chunk.rs#L130) that points to the corresponding Data Chunk(s). Please refer to the previous document, [IOx Data Organization and LifeCycle](link), for the description of chunk stages and chunk types supported in IOx. 
-
-Each object of the catalog contains information for us to operate the chunk lifecycle, run queries, as well as measure the health of the system[^prop]. For example, the `In-Memory Catalog` object itself includes [`CatalogMetrics`](https://github.com/influxdata/influxdb_iox/blob/873ce27b0c0c5e9da33e6f4fae8c5be7c163c16c/server/src/db/catalog/metrics.rs#L21) that measure how often its tables, partitions, and chunks are locked, what kinds of locks (e.g. shared or exclusive), and their lock wait time[^lock]. This information helps the IOx team to measure lock contention to adjust the database with a right setup. The `(L)` next to each object or property indicates they are modifiable but must be locked while doing so. Locking ensures the catalog consistency and integrity but will bring down the throughput and performance of the system, hence should be always measured for appropriate actions. 
-
-Another example of information we handle is the `Partition`'s `PersistenceWindows` that  keep track of ingested data within a partition to determine when it can be persisted. This allows IOx to receive out of order writes in their timestamps while persisting mostly in non-time overlapping Object Store files. The `CatalogChunk`'s `LifecycleAction` is another example that keeps track of on-going action of a chunk (e.g. `compacting`, `persisting`) to avoid running the same job on the chunk. 
-
-[^prop]: Not all properties are listed in each object of Figure 3. Click on the corresponding link to see the full set of properties.
-[^lock]: Transaction and locks will be described in a separate document.
-
-```text
-                                                          ┌──────────────────┐                             
-                                                          │In-Memory Catalog │                             
-                                                          │----------------- │                             
-                                                          │  CatalogMetrics  │                             
-                                                          └──────────────────┘                             
-                                                                    │                                      
-                                                                    │                                      
-                                            ┌───────────────────────┼──────────────────────────┐           
-                                            ▼                       │                          ▼           
-                                       ┌───────────┐                ▼                    ┌───────────┐     
-                                       │Table 1 (L)│                                     │Table n (L)│     
-                                       │-----------│               ...                   │-----------│     
-                                       │Schema (L) │                                     │Schema (L) │     
-                                       └───────────┘                                     └───────────┘     
-                    ┌────────────────────────┬─────────────────────────┐                       │           
-                    │                        │                         │                       │           
-                    ▼                        │                         ▼                       ▼           
-     ┌─────────────────────────────┐         ▼          ┌─────────────────────────────┐                    
-     │       Partition 1 (L)       │                    │       Partition m (L)       │       ...          
-     │ --------------------------- │        ...         │ --------------------------- │                    
-     │      PersistenceWindows     │                    │      PersistenceWindows     │                    
-     │ CreatedTime & LastWriteTime │                    │ CreatedTime & LastWriteTime │                    
-     │       NextChunkOrder        │                    │       NextChunkOrder        │                    
-     │      PartitionMetrics       │                    │      PartitionMetrics       │                    
-     └─────────────────────────────┘                    └─────────────────────────────┘                    
-                    │                                                  │                                   
-          ┌─────────▼─────────┐                    ┌───────────────────┼──────────────────────┐            
-          │                   │                    │                   │                      │            
-          ▼                   ▼                    ▼                   ▼                      ▼            
-┌──────────────────┐┌──────────────────┐  ┌──────────────────┐┌──────────────────┐  ┌──────────────────┐   
-│CatalogChunk 1 (L)││CatalogChunk 2 (L)│  │CatalogChunk 3 (L)││CatalogChunk 4 (L)│  │CatalogChunk 5 (L)│   
-│------------------││------------------│  │------------------││------------------│  │------------------│   
-│  FirstWriteTime  ││  FirstWriteTime  │  │  FirstWriteTime  ││  FirstWriteTime  │  │  FirstWriteTime  │   
-│  LastWriteTime   ││  LastWriteTime   │  │  LastWriteTime   ││  LastWriteTime   │  │  LastWriteTime   │   
-│ LifecycleAction  ││ LifecycleAction  │  │ LifecycleAction  ││ LifecycleAction  │  │ LifecycleAction  │   
-│   ChunkMetrics   ││   ChunkMetrics   │  │   ChunkMetrics   ││   ChunkMetrics   │  │   ChunkMetrics   │   
-└──────────────────┘└──────────────────┘  └──────────────────┘└──────────────────┘  └──────────────────┘   
-          │                   │                    │                   │                      │            
-          ▼                   ▼                    ▼                   ▼                      ▼            
-   ┌──────────────┐   ┌──────────────┐      ┌──────────────┐    ┌──────────────┐      ┌──────────────┐     
-   │ ChunkStage 1 │   │ ChunkStage 2 │      │ ChunkStage 3 │    │ ChunkStage 4 │      │ ChunkStage 5 │     
-   │    (Open)    │   │   (Frozen)   │      │    (Open)    │    │   (Frozen)   │      │ (Persisted)  │     
-   └──────────────┘   └──────────────┘      └──────────────┘    └──────────────┘      └──────┬───────┘     
-          │                   │                    │                   │               ┌─────▼──────┐      
-          ▼                   ▼                    ▼                   ▼               ▼            ▼      
-   ┌──────────────┐   ┌──────────────┐       ┌───────────┐     ┌────────────────┐┌───────────┐┌───────────┐
-   │    O-MUB 1   │   │     RUB 2    │       │  O-MUB 3  │     │    F-MUB 4     ││    RUB 5  ││   OS 5    │
-   │              │   │              │       │           │     │                ││           ││           │
-   │col1 col2 col3│   │  col1 col4   │       │ col1 col2 │     │ col1 col2 col3 ││ col2 col3 ││ col2 col3 │
-   │---- ---- ----│   │  ---- ----   │       │ ---- ---- │     │ ---- ---- ---- ││ ---- ---- ││ ---- ---- │
-   │---- ---- ----│   │  ---- ----   │       │ ---- ---- │     │ ---- ---- ---- ││ ---- ---- ││ ---- ---- │
-   └──────────────┘   │  ---- ----   │       └───────────┘     │ ---- ---- ---- ││ ---- ---- ││ ---- ---- │
-                      └──────────────┘                         │ ---- ---- ---- │└───────────┘└───────────┘
-                                                               └────────────────┘                          
-
-Figure 3: In-Memory Catalog
-```
-## Preserved Catalog
-Since the `In-Memory Catalog` is always in memory, we need a way to save it incrementally and rebuild it as quick as possible in case of accidents or disasters, or in case we need to restart an IOx Server, or when we want to move a database to different IOx Server. [`Preserved Catalog`](https://github.com/influxdata/influxdb_iox/blob/76befe94ad14cd121d6fc5c58aa112997d9e211a/parquet_catalog/src/core.rs#L212) is used for those purposes.  Like data, IOx's `Preserved Catalog` is saved as Parquet files in Object Store such as Amazon S3 and only the catalog information of persisted chunks are stored in the `Preserved Catalog`. This is the result of the data lifecycle design that all data must be saved in the durable object store and that we do not need to touch the `Preserved Catalog` if nothing is persisted. Every time we persist data to Object Store, we also incrementally update the `Preserved Catalog` accordingly.
-
-The `Preserved Catalog` keeps [`DatabaseCheckpoints`](https://github.com/influxdata/influxdb_iox/blob/b39e01f7ba4f5d19f92862c5e87b90a40879a6c9/persistence_windows/src/checkpoint.rs#L554) which represent a sequence number of writes before which all the writes are persisted. To restart a database, the `In-Memory Catalog` will be rebuilt to the state of the latest `DatabaseCheckpoint` found in the `PreservedCatalog`, then all the writes after that will be (re)ingested [^write].
-
-If a database is still running but in an inconsistent state, it will be rebuilt by momentarily stopping accepting writes and discarding all in-memory data of `O-MUBs`, `F-MUBs`, `RUBs`. Then the `In-Memory Catalog` will be brought back to the latest `DatabaseCheckpoint` found in the `PreservedCatalog` as above and then all the writes after that will be (re)ingested.
-
-Since Preserved Catalog only saves data to a consistent state and includes the well-known slow IO reads and writes, their transactions and related locks on persisting objects will impact the data lifecycle workload, especially if a lot of data continues getting persisted. This is another reason for us to monitor transaction and locking contention to adjust our `Data LifeCycle Policy` to ensure ingesting data flow smoothly until persisted. 
-
-[^write]: InfluxDB ingests data to IOx from Kafka so we know which writes to start (re)ingesting.
-
-## Query Catalog
-[`Query Catalog`](https://github.com/influxdata/influxdb_iox/blob/218042784fdb3bd0aa2c13dcaaf2f39190d42329/server/src/db/access.rs#L123) shown in Figure 4 is an `In-Memory Catalog` plus extra information to access the right chunks and their statistics quickly for running queries, logging necessary information or metrics, and reporting the results back to users. For instance, since IOx uses [DataFusion](https://github.com/apache/arrow-datafusion) to plan and run queries, `UserTables` provide the required interface to DataFusion for doing so. Similarly, since we want to query our own catalog data such as number of tables, partitions, chunks types and so on, we construct `SystemTables` interface to send to DataFusion for that purpose. `ChunkAccess` helps find and prune chunks of the query table that do not include data needed by the query[^query]. `QueryLog` logs necessary information such as times and types the queries are run.
+## Answer queries through the Catalog
+Catalog is essential to not only lead IOx to the right chunk data for answering user queries but also critical to help read the minimal possible data. Besides the catalog structure shown in Figure 1, chunk statistics (e.g. chunk column's min, max, null count, row count) are calculated while building up the catalog and included in corresponding catalog objects. This information enables IOx to answer some queries right after reading its catalog without scanning physical chunk data as in some examples above [^query]. In addition, IOx provides system tables to let users query their catalog data such as number of tables, number of partitions per database or table, number of chunks per database or tables or partition, number of each chunk type and so on.
 
 [^query]: Chunk pruning, query planning, optimization, and execution are beyond the scope of this document.
 
-```text
-┌────────────────┐
-│ Query Catalog  │
-│----------------│
-│In-MemoryCatalog│
-│   UserTables   │
-│  SystemTables  │
-│  ChunkAccess   │
-│    QueryLog    │
-└────────────────┘
-
-Figure 4: Query Catalog
-```
-
-Now we know [IOx Data Organization and LifeCycle](link) and Catalogs, let us move to next topics: **IOx Transactions and Locks** (to be written and linked)
+Now we know [IOx Data Organization and LifeCycle](data_organization_lifecycle.md) and Catalog, let us move to next topics: **IOx Transactions and Locks** (to be written and linked)

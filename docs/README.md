@@ -34,7 +34,7 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * Notes on server startup and error recovery: [`server_startup.md`](server_startup.md)
 * IOx Architecture
     * IOx Data Organization and Data LifeCycle: [`data_organization_lifecycle.md`](data_organization_lifecycle.md)
-    * IOX In-Memory and Preserved Catalogs - The metadata for operating the Data Lifecycle & accessing needed chunks quickly (to be written & linked)
+    * IOx Catalog: The Metadata for Operating a Database [`catalogs.md`](catalogs.md)
     * IOx transactions ang locks. (to be written & linked)
 * How InfluxDB IOx manages the lifecycle of time series data: [data_management.md](data_management.md)
 * Thoughts on parquet encoding and compression for timeseries data: [encoding_thoughts.md](encoding_thoughts.md)
