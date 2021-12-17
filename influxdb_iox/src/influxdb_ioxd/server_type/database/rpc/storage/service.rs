@@ -767,8 +767,6 @@ where
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
     let db_name = db_name.as_str();
 
-    println!("PREDICATE {:?}", &rpc_predicate_string);
-
     let predicate = PredicateBuilder::default()
         .set_range(range)
         .rpc_predicate(rpc_predicate)
@@ -956,16 +954,21 @@ where
             req.condition.clone(),
             span_ctx.clone(),
         )
-        .await?;
+        .await?
+        .values
+        .into_iter()
+        .map(|v| String::from_utf8(v).expect("tag values should be UTF-8 valid"))
+        .collect::<Vec<_>>();
+
+        // Don't emit a response if there are no matching tag values.
+        if values.is_empty() {
+            continue;
+        }
 
         responses.push(TagValuesResponse {
             measurement: name,
             key: tag_key_lit.clone(),
-            values: values
-                .values
-                .into_iter()
-                .map(|v| String::from_utf8(v).expect("tag values should be UTF-8 valid"))
-                .collect(),
+            values,
         });
     }
 
@@ -1140,6 +1143,25 @@ where
     };
 
     let mut names = BTreeSet::new();
+
+    // Materialise all measurements
+    if measurement_exprs.is_empty() {
+        let resp = measurement_name_impl(
+            Arc::clone(&db),
+            db_name.clone(),
+            None,
+            None,
+            span_ctx.clone(),
+        )
+        .await?;
+        for name in resp.values {
+            names
+                .insert(String::from_utf8(name).expect("table/measurement name to be valid UTF-8"));
+        }
+        return Ok(names);
+    }
+
+    // Materialise measurements that satisfy the provided predicates.
     for expr in measurement_exprs {
         match expr.value {
             Some(expr) => match expr {
@@ -1226,6 +1248,7 @@ mod tests {
     };
 
     use data_types::chunk_metadata::ChunkId;
+    use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
     use parking_lot::Mutex;
     use tokio_stream::wrappers::TcpListenerStream;
 
@@ -1392,7 +1415,7 @@ mod tests {
                 start: 150,
                 end: 200,
             }),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
         };
 
         let actual_measurements = fixture
@@ -1441,7 +1464,7 @@ mod tests {
         let request = TagKeysRequest {
             tags_source: source.clone(),
             range: Some(make_timestamp_range(150, 200)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
         };
 
         let actual_tag_keys = fixture.storage_client.tag_keys(request).await.unwrap();
@@ -1547,7 +1570,7 @@ mod tests {
             measurement: "m4".into(),
             source: source.clone(),
             range: Some(make_timestamp_range(150, 200)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
         };
 
         let actual_tag_keys = fixture
@@ -1654,7 +1677,7 @@ mod tests {
         let request = TagValuesRequest {
             tags_source: source.clone(),
             range: Some(make_timestamp_range(150, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             tag_key: "state".into(),
         };
 
@@ -1739,7 +1762,7 @@ mod tests {
         let request = TagValuesRequest {
             tags_source: source.clone(),
             range: Some(make_timestamp_range(0, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             tag_key: [255].into(),
         };
 
@@ -1817,6 +1840,165 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_storage_rpc_tag_values_grouped_by_measurement_and_tag_key() {
+        test_helpers::maybe_start_logging();
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = org_and_bucket();
+        let chunk1 = TestChunk::new("table_a")
+            .with_id(0)
+            .with_tag_column("state")
+            .with_one_row_of_data();
+        let chunk2 = TestChunk::new("table_b")
+            .with_id(1)
+            .with_tag_column("state")
+            .with_one_row_of_data();
+
+        fixture
+            .test_storage
+            .db_or_create(db_info.db_name())
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk1))
+            .add_chunk("my_partition_key", Arc::new(chunk2));
+
+        let source = Some(StorageClient::read_source(&db_info, 1));
+
+        let cases = vec![
+            (
+                "SHOW TAG VALUES WITH KEY = 'state'",
+                vec![],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                None,
+                vec![
+                    TagValuesResponse {
+                        measurement: "table_a".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                    TagValuesResponse {
+                        measurement: "table_b".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                ],
+            ),
+            (
+                "SHOW TAG VALUES FROM 'table_b' WITH KEY = 'state'",
+                vec![LiteralOrRegex {
+                    value: Some(RegexOrLiteralValue::LiteralValue("table_a".into())),
+                }],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                None,
+                vec![TagValuesResponse {
+                    measurement: "table_a".into(),
+                    key: "state".into(),
+                    values: vec!["MA".into()],
+                }],
+            ),
+            (
+                "SHOW TAG VALUES FROM /table.*/ WITH KEY = 'state'",
+                vec![LiteralOrRegex {
+                    value: Some(RegexOrLiteralValue::RegexValue("table.*".into())),
+                }],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                None,
+                vec![
+                    TagValuesResponse {
+                        measurement: "table_a".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                    TagValuesResponse {
+                        measurement: "table_b".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                ],
+            ),
+            (
+                "SHOW TAG VALUES FROM /.*a$/ WITH KEY = 'state'",
+                vec![LiteralOrRegex {
+                    value: Some(RegexOrLiteralValue::RegexValue(".*a$".into())),
+                }],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                None,
+                vec![TagValuesResponse {
+                    measurement: "table_a".into(),
+                    key: "state".into(),
+                    values: vec!["MA".into()],
+                }],
+            ),
+            (
+                "SHOW TAG VALUES FROM /.*a$/ WITH KEY = 'state' WHERE state != 'MA'",
+                vec![],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                Some(make_state_neq_ma_predicate()),
+                vec![],
+            ),
+            (
+                "SHOW TAG VALUES FROM /.*a$/ WITH KEY = 'state' WHERE state >= 'MA'",
+                vec![],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                Some(make_state_geq_ma_predicate()),
+                vec![
+                    TagValuesResponse {
+                        measurement: "table_a".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                    TagValuesResponse {
+                        measurement: "table_b".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                ],
+            ),
+        ];
+
+        for (
+            description,
+            measurement_patterns,
+            tag_key_predicate,
+            condition,
+            expected_tag_values,
+        ) in cases
+        {
+            let request = TagValuesGroupedByMeasurementAndTagKeyRequest {
+                source: source.clone(),
+                measurement_patterns,
+                tag_key_predicate,
+                condition,
+            };
+
+            let actual_tag_values = fixture
+                .storage_client
+                .tag_values_grouped_by_measurement_and_tag_key(request)
+                .await
+                .unwrap();
+
+            assert_eq!(
+                actual_tag_values, expected_tag_values,
+                "{} failed: got {:?}, wanted {:?}",
+                description, actual_tag_values, expected_tag_values
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn test_storage_rpc_tag_values_grouped_by_measurement_and_tag_key_error() {
         test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
@@ -1851,7 +2033,7 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        assert_contains!(response_string, "Operation not yet implemented");
+        assert_contains!(response_string, "Missing tag key predicate");
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_values
@@ -1881,7 +2063,7 @@ mod tests {
             measurement: "TheMeasurement".into(),
             source: source.clone(),
             range: Some(make_timestamp_range(150, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             tag_key: "state".into(),
         };
 
@@ -2024,7 +2206,7 @@ mod tests {
         let request = ReadFilterRequest {
             read_source: source.clone(),
             range: Some(make_timestamp_range(0, 10000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             ..Default::default()
         };
 
@@ -2104,7 +2286,7 @@ mod tests {
         let request = ReadGroupRequest {
             read_source: source.clone(),
             range: Some(make_timestamp_range(0, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             group_keys: vec!["state".into()],
             group,
             aggregate: Some(Aggregate {
@@ -2200,7 +2382,7 @@ mod tests {
         let request_window_every = ReadWindowAggregateRequest {
             read_source: source.clone(),
             range: Some(make_timestamp_range(0, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             window_every: 1122,
             offset: 15,
             aggregate: vec![Aggregate {
@@ -2254,7 +2436,7 @@ mod tests {
         let request_window = ReadWindowAggregateRequest {
             read_source: source.clone(),
             range: Some(make_timestamp_range(150, 200)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             window_every: 0,
             offset: 0,
             aggregate: vec![Aggregate {
@@ -2314,7 +2496,7 @@ mod tests {
         let request_window = ReadWindowAggregateRequest {
             read_source: source.clone(),
             range: Some(make_timestamp_range(0, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             window_every: 1122,
             offset: 15,
             aggregate: vec![Aggregate {
@@ -2365,7 +2547,7 @@ mod tests {
             source: source.clone(),
             measurement: "TheMeasurement".into(),
             range: Some(make_timestamp_range(0, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
         };
 
         let actual_fields = fixture
@@ -2428,11 +2610,29 @@ mod tests {
     /// return a gRPC predicate like
     ///
     /// state="MA"
-    fn make_state_ma_predicate() -> Predicate {
-        use node::{Comparison, Type, Value};
+    fn make_state_eq_ma_predicate() -> Predicate {
+        make_state_predicate(node::Comparison::Equal)
+    }
+
+    /// return a gRPC predicate like
+    ///
+    /// state != "MA"
+    fn make_state_neq_ma_predicate() -> Predicate {
+        make_state_predicate(node::Comparison::NotEqual)
+    }
+
+    /// return a gRPC predicate like
+    ///
+    /// state >= "MA"
+    fn make_state_geq_ma_predicate() -> Predicate {
+        make_state_predicate(node::Comparison::Gte)
+    }
+
+    fn make_state_predicate(op: node::Comparison) -> Predicate {
+        use node::{Type, Value};
         let root = Node {
             node_type: Type::ComparisonExpression as i32,
-            value: Some(Value::Comparison(Comparison::Equal as i32)),
+            value: Some(Value::Comparison(op as i32)),
             children: vec![
                 Node {
                     node_type: Type::TagRef as i32,
