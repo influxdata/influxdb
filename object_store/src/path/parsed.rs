@@ -75,7 +75,7 @@ impl DirsAndFileName {
                 // `self` doesn't have a file name but the prefix has, so it's not really a prefix
                 (None, Some(_prefix_file)) => false,
 
-                // both `self` and teh  prefix have not filename, perfect match
+                // both `self` and the prefix have no filename, perfect match
                 (None, None) => true,
             },
 
@@ -261,7 +261,7 @@ mod tests {
             needle
         );
 
-        // partial dir prefix matches
+        // partial dir prefix doesn't match
         let mut needle = DirsAndFileName::default();
         needle.push_dir("f");
         assert!(
@@ -271,7 +271,7 @@ mod tests {
             needle
         );
 
-        // one dir and one partial dir matches
+        // one dir and one partial dir doesn't match
         let mut needle = DirsAndFileName::default();
         needle.push_all_dirs(&["foo/bar", "baz"]);
         assert!(
@@ -311,7 +311,7 @@ mod tests {
         );
 
         // Not all directories match; file name is a prefix of the next directory; this
-        // matches
+        // does not match
         let mut needle = DirsAndFileName::default();
         needle.push_all_dirs(&["foo/bar", "baz%2Ftest"]);
         needle.set_file_name("s");

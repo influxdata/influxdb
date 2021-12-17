@@ -62,7 +62,7 @@ impl CloudPath {
         }
     }
 
-    // Only being use d by some features
+    // Only being used by some features
     #[allow(dead_code)]
     pub(crate) fn is_dir(&self) -> bool {
         match &self.inner {
