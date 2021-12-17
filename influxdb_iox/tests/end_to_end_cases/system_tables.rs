@@ -115,7 +115,15 @@ async fn test_queries() {
         .unwrap();
 
     // Note: don't select issue_time as that changes from run to run
-    let query = "select query_type, query_text from system.queries";
+    //
+    // Note 2: it is possible for another test to issue queries
+    // against this database concurrently and appear in the queries
+    // list (sql observer mode does it) so only select for what we
+    // expect
+    //
+    // See https://github.com/influxdata/influxdb_iox/issues/3396
+    let query =
+        "select query_type, query_text from system.queries where query_type = 'read_filter'";
 
     // Query system.queries and should have an entry for the storage rpc
     let batches = fixture
@@ -129,21 +137,43 @@ async fn test_queries() {
     let batches = normalize_batches(batches, scenario.normalizer());
 
     let expected_read_data = vec![
-        "+-------------+---------------------------------------------------+",
-        "| query_type  | query_text                                        |",
-        "+-------------+---------------------------------------------------+",
-        "| read_filter | {                                                 |",
-        "|             |   \"ReadSource\": {                                 |",
-        "|             |     \"typeUrl\": \"/TODO\",                           |",
-        "|             |     \"value\": \"ZZZZZZZZZZZZZZZZ\"                   |",
-        "|             |   },                                              |",
-        "|             |   \"range\": {                                      |",
-        "|             |     \"start\": \"111111\",                            |",
-        "|             |     \"end\": \"222222\"                               |",
-        "|             |   }                                               |",
-        "|             | }                                                 |",
-        "| sql         | select query_type, query_text from system.queries |",
-        "+-------------+---------------------------------------------------+",
+        "+-------------+---------------------------------+",
+        "| query_type  | query_text                      |",
+        "+-------------+---------------------------------+",
+        "| read_filter | {                               |",
+        "|             |   \"ReadSource\": {               |",
+        "|             |     \"typeUrl\": \"/TODO\",         |",
+        "|             |     \"value\": \"ZZZZZZZZZZZZZZZZ\" |",
+        "|             |   },                            |",
+        "|             |   \"range\": {                    |",
+        "|             |     \"start\": \"111111\",          |",
+        "|             |     \"end\": \"222222\"             |",
+        "|             |   }                             |",
+        "|             | }                               |",
+        "+-------------+---------------------------------+",
+    ];
+    assert_batches_eq!(expected_read_data, &batches);
+
+    // Query system.queries and should also have an entry for the sql
+    // we just wrote (and what we are about to write)
+    let query = "select query_type, query_text from system.queries where query_type = 'sql' and query_text like '%read_filter%'";
+    let batches = fixture
+        .flight_client()
+        .perform_query(&db_name, query)
+        .await
+        .unwrap()
+        .collect()
+        .await
+        .unwrap();
+    let batches = normalize_batches(batches, scenario.normalizer());
+
+    let expected_read_data = vec![
+        "+------------+----------------------------------------------------------------------------------------------------------------+",
+        "| query_type | query_text                                                                                                     |",
+        "+------------+----------------------------------------------------------------------------------------------------------------+",
+        "| sql        | select query_type, query_text from system.queries where query_type = 'read_filter'                             |",
+        "| sql        | select query_type, query_text from system.queries where query_type = 'sql' and query_text like '%read_filter%' |",
+        "+------------+----------------------------------------------------------------------------------------------------------------+",
     ];
     assert_batches_eq!(expected_read_data, &batches);
 }
