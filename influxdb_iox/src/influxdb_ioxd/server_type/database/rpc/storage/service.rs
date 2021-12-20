@@ -15,13 +15,14 @@ use tonic::Status;
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
     google::protobuf::Empty, literal_or_regex::Value as RegexOrLiteralValue,
-    offsets_response::PartitionOffsetResponse, storage_server::Storage, CapabilitiesResponse,
-    Capability, Int64ValuesResponse, LiteralOrRegex, MeasurementFieldsRequest,
-    MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, OffsetsResponse, Predicate, ReadFilterRequest, ReadGroupRequest,
-    ReadResponse, ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse,
-    TagKeyMetaNames, TagKeysRequest, TagValuesGroupedByMeasurementAndTagKeyRequest,
-    TagValuesRequest, TagValuesResponse, TimestampRange,
+    offsets_response::PartitionOffsetResponse, storage_server::Storage, tag_key_predicate,
+    CapabilitiesResponse, Capability, Int64ValuesResponse, LiteralOrRegex,
+    MeasurementFieldsRequest, MeasurementFieldsResponse, MeasurementNamesRequest,
+    MeasurementTagKeysRequest, MeasurementTagValuesRequest, OffsetsResponse, Predicate,
+    ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
+    ReadWindowAggregateRequest, StringValuesResponse, TagKeyMetaNames, TagKeysRequest,
+    TagValuesGroupedByMeasurementAndTagKeyRequest, TagValuesRequest, TagValuesResponse,
+    TimestampRange,
 };
 use observability_deps::tracing::{error, info, trace};
 use predicate::predicate::PredicateBuilder;
@@ -48,7 +49,7 @@ use crate::influxdb_ioxd::{
 };
 use trace::ctx::SpanContext;
 
-use super::TAG_KEY_MEASUREMENT;
+use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -156,6 +157,9 @@ pub enum Error {
     #[snafu(display("Missing tag key predicate"))]
     MissingTagKeyPredicate {},
 
+    #[snafu(display("Tag Key regex error: {}", source))]
+    InvalidTagKeyRegex { source: regex::Error },
+
     #[snafu(display("Error sending results via channel:  {}", source))]
     SendingResults {
         source: Box<dyn std::error::Error + Send + Sync>,
@@ -214,6 +218,7 @@ impl Error {
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
             Self::MeasurementLiteralOrRegex { .. } => Status::invalid_argument(self.to_string()),
             Self::MissingTagKeyPredicate {} => Status::invalid_argument(self.to_string()),
+            Self::InvalidTagKeyRegex { .. } => Status::invalid_argument(self.to_string()),
         }
     }
 }
@@ -908,28 +913,15 @@ async fn tag_values_grouped_by_measurement_and_tag_key_impl<D>(
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
 {
-    use generated_types::tag_key_predicate::Value;
-
     // Extract the tag key string literal.
     // TODO - currently only eq operation supported, as in `WITH KEY = 'foo'`.
     // See https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-tag-values
     // for more details.
-    let tag_key_op = req
+    let tag_key_pred = req
         .tag_key_predicate
         .context(MissingTagKeyPredicate {})?
         .value
         .context(MissingTagKeyPredicate {})?;
-    let tag_key_lit = if let Value::Eq(lit) = tag_key_op {
-        lit
-    } else {
-        return NotYetImplemented {
-            operation: format!(
-                "tag key predicate operation not supported: {:?}",
-                tag_key_op
-            ),
-        }
-        .fail();
-    };
 
     // Because we need to return tag values grouped by measurements and tag
     // keys we will materialise the measurements up front, so we can build up
@@ -944,32 +936,43 @@ where
 
     let mut responses = vec![];
     for name in measurements.into_iter() {
-        // get all the tag values associated with this measurement name and tag key
-        let values = tag_values_impl(
+        let tag_keys = materialise_tag_keys(
             Arc::clone(&db),
             db_name.clone(),
-            tag_key_lit.clone(),
-            Some(name.clone()),
-            None,
-            req.condition.clone(),
+            name.clone(),
+            tag_key_pred.clone(),
             span_ctx.clone(),
         )
-        .await?
-        .values
-        .into_iter()
-        .map(|v| String::from_utf8(v).expect("tag values should be UTF-8 valid"))
-        .collect::<Vec<_>>();
+        .await?;
 
-        // Don't emit a response if there are no matching tag values.
-        if values.is_empty() {
-            continue;
+        for key in tag_keys {
+            // get all the tag values associated with this measurement name and tag key
+            let values = tag_values_impl(
+                Arc::clone(&db),
+                db_name.clone(),
+                key.clone(),
+                Some(name.clone()),
+                None,
+                req.condition.clone(),
+                span_ctx.clone(),
+            )
+            .await?
+            .values
+            .into_iter()
+            .map(|v| String::from_utf8(v).expect("tag values should be UTF-8 valid"))
+            .collect::<Vec<_>>();
+
+            // Don't emit a response if there are no matching tag values.
+            if values.is_empty() {
+                continue;
+            }
+
+            responses.push(TagValuesResponse {
+                measurement: name.clone(),
+                key: key.clone(),
+                values,
+            });
         }
-
-        responses.push(TagValuesResponse {
-            measurement: name,
-            key: tag_key_lit.clone(),
-            values,
-        });
     }
 
     Ok(responses)
@@ -1128,6 +1131,9 @@ where
 
 /// Materialises a collection of measurement names. Typically used as part of
 /// a plan to scope and group multiple plans by measurement name.
+///
+/// TODO(edd): this might be better represented as a plan against the `tables`
+/// system table.
 async fn materialise_measurement_names<D>(
     db: Arc<D>,
     db_name: DatabaseName<'static>,
@@ -1207,6 +1213,70 @@ where
         }
     }
     Ok(names)
+}
+
+/// Materialises a collection of tag keys for a given measurement.
+///
+/// TODO(edd): this might be better represented as a plan against the `columns`
+/// system table.
+async fn materialise_tag_keys<D>(
+    db: Arc<D>,
+    db_name: DatabaseName<'static>,
+    measurement_name: String,
+    tag_key_predicate: tag_key_predicate::Value,
+    span_ctx: Option<SpanContext>,
+) -> Result<BTreeSet<String>, Error>
+where
+    D: QueryDatabase + ExecutionContextProvider + 'static,
+{
+    use generated_types::tag_key_predicate::Value;
+
+    if let Value::Eq(elem) = tag_key_predicate {
+        // If the predicate is a simple literal match then return that value
+        // regardless of whether or not the tag key exists.
+        return Ok(vec![elem].into_iter().collect::<BTreeSet<_>>());
+    } else if let Value::In(elem) = tag_key_predicate {
+        // If the predicate is a list of literal matches then return those
+        // regardless of whether or not those tag keys exist.
+        return Ok(elem.vals.into_iter().collect::<BTreeSet<_>>());
+    }
+
+    // Otherwise materialise the tag keys for this measurement and filter out
+    // any that don't pass the provided tag key predicate.
+    let mut tag_keys = tag_keys_impl(
+        Arc::clone(&db),
+        db_name.clone(),
+        Some(measurement_name),
+        None,
+        None,
+        span_ctx.clone(),
+    )
+    .await?
+    .values
+    .into_iter()
+    .filter_map(|v| match v.as_slice() {
+        // The tag_keys plan will yield the special measurement and field tag keys
+        // which are not real tag keys. Filter them out.
+        TAG_KEY_MEASUREMENT | TAG_KEY_FIELD => None,
+        _ => Some(String::from_utf8(v).expect("tag keys should be UTF-8 valid")),
+    })
+    .collect::<BTreeSet<_>>();
+
+    // Filter out tag keys according to the type of expression provided.
+    match tag_key_predicate {
+        Value::Neq(value) => tag_keys.retain(|elem| elem != &value),
+        Value::EqRegex(pattern) => {
+            let re = regex::Regex::new(&pattern).context(InvalidTagKeyRegex)?;
+            tag_keys.retain(|elem| re.is_match(elem));
+        }
+        Value::NeqRegex(pattern) => {
+            let re = regex::Regex::new(&pattern).context(InvalidTagKeyRegex)?;
+            tag_keys.retain(|elem| !re.is_match(elem));
+        }
+        x => unreachable!("predicate should have been handled already {:?}", x),
+    }
+
+    Ok(tag_keys)
 }
 
 /// Return something which can be formatted as json ("pbjson"
@@ -1967,6 +2037,71 @@ mod tests {
                     },
                 ],
             ),
+            (
+                "SHOW TAG VALUES FROM 'table_b' WITH KEY != 'foo'",
+                vec![LiteralOrRegex {
+                    value: Some(RegexOrLiteralValue::LiteralValue("table_b".into())),
+                }],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Neq("foo".into())),
+                }),
+                None,
+                vec![TagValuesResponse {
+                    measurement: "table_b".into(),
+                    key: "state".into(),
+                    values: vec!["MA".into()],
+                }],
+            ),
+            (
+                "SHOW TAG VALUES WITH KEY =~ /sta.*/",
+                vec![],
+                Some(TagKeyPredicate {
+                    value: Some(Value::EqRegex("sta.*".into())),
+                }),
+                Some(make_state_geq_ma_predicate()),
+                vec![
+                    TagValuesResponse {
+                        measurement: "table_a".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                    TagValuesResponse {
+                        measurement: "table_b".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                ],
+            ),
+            (
+                "SHOW TAG VALUES FROM 'table_b' WITH KEY !~ /$ab/",
+                vec![LiteralOrRegex {
+                    value: Some(RegexOrLiteralValue::LiteralValue("table_b".into())),
+                }],
+                Some(TagKeyPredicate {
+                    value: Some(Value::NeqRegex("$ab".into())),
+                }),
+                Some(make_state_geq_ma_predicate()),
+                vec![TagValuesResponse {
+                    measurement: "table_b".into(),
+                    key: "state".into(),
+                    values: vec!["MA".into()],
+                }],
+            ),
+            (
+                "SHOW TAG VALUES FROM 'table_a' WITH KEY in (\"state\", \"foo\")",
+                vec![LiteralOrRegex {
+                    value: Some(RegexOrLiteralValue::LiteralValue("table_a".into())),
+                }],
+                Some(TagKeyPredicate {
+                    value: Some(Value::NeqRegex("$ab".into())),
+                }),
+                Some(make_state_geq_ma_predicate()),
+                vec![TagValuesResponse {
+                    measurement: "table_a".into(),
+                    key: "state".into(),
+                    values: vec!["MA".into()],
+                }],
+            ),
         ];
 
         for (
@@ -1992,8 +2127,8 @@ mod tests {
 
             assert_eq!(
                 actual_tag_values, expected_tag_values,
-                "{} failed: got {:?}, wanted {:?}",
-                description, actual_tag_values, expected_tag_values
+                "{} failed",
+                description
             );
         }
     }
