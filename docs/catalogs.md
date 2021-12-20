@@ -9,7 +9,7 @@ Figure 1 below shows the organization of both IOx Catalog and Data. The bottom l
 
 [^cat]: This design might be changed in the future to meet other use cases.
 
-Since the catalog is the central information shared to all users of the database, it needs to keep consistent and integral. Each object of the catalog must be locked in either shared or exclusive mod when accessed or modified. Each catalog object also contains information for us to operate the chunk lifecycle, run queries, as well as measure the health of the system. 
+Since the catalog is the central information shared to all users of the database, it must be kept consistent. Each object of the catalog must be locked in either shared or exclusive mode when accessed or modified. Each catalog object also contains information to operate the chunk lifecycle, run queries, as well as measure the health of the system. 
 
 **Examples of information for operating the chunk lifecycle**
 * A chunk includes `LifecycleAction` that keeps track of on-going action of a chunk (e.g. `compacting`, `persisting`) to avoid running the same job on the chunk. 
