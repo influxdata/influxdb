@@ -90,10 +90,10 @@ func (h *OnboardHandler) handleInitialOnboardRequest(w http.ResponseWriter, r *h
 }
 
 type onboardingResponse struct {
-	User         *UserResponse   `json:"user"`
-	Bucket       *bucketResponse `json:"bucket"`
-	Organization orgResponse     `json:"org"`
-	Auth         *authResponse   `json:"auth"`
+	User         *influxdb.UserResponse `json:"user"`
+	Bucket       *bucketResponse        `json:"bucket"`
+	Organization orgResponse            `json:"org"`
+	Auth         *authResponse          `json:"auth"`
 }
 
 func NewOnboardingResponse(results *influxdb.OnboardingResults) *onboardingResponse {

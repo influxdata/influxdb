@@ -90,3 +90,9 @@ type UserFilter struct {
 	ID   *platform.ID
 	Name *string
 }
+
+// UserResponse is the response of user
+type UserResponse struct {
+	Links map[string]string `json:"links"`
+	User
+}

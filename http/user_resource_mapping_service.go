@@ -17,7 +17,17 @@ import (
 
 type resourceUserResponse struct {
 	Role influxdb.UserType `json:"role"`
-	*UserResponse
+	*influxdb.UserResponse
+}
+
+func newUserResponse(u *influxdb.User) *influxdb.UserResponse {
+	return &influxdb.UserResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
+			"logs": fmt.Sprintf("/api/v2/users/%s/logs", u.ID),
+		},
+		User: *u,
+	}
 }
 
 func newResourceUserResponse(u *influxdb.User, userType influxdb.UserType) *resourceUserResponse {

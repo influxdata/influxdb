@@ -352,8 +352,8 @@ func decodeDeleteUserRequest(ctx context.Context, r *http.Request) (*deleteUserR
 }
 
 type usersResponse struct {
-	Links map[string]string `json:"links"`
-	Users []*UserResponse   `json:"users"`
+	Links map[string]string        `json:"links"`
+	Users []*influxdb.UserResponse `json:"users"`
 }
 
 func (us usersResponse) ToInfluxdb() []*influxdb.User {
@@ -369,7 +369,7 @@ func newUsersResponse(users []*influxdb.User) *usersResponse {
 		Links: map[string]string{
 			"self": "/api/v2/users",
 		},
-		Users: []*UserResponse{},
+		Users: []*influxdb.UserResponse{},
 	}
 	for _, user := range users {
 		res.Users = append(res.Users, newUserResponse(user))
@@ -377,14 +377,8 @@ func newUsersResponse(users []*influxdb.User) *usersResponse {
 	return &res
 }
 
-// UserResponse is the response of user
-type UserResponse struct {
-	Links map[string]string `json:"links"`
-	influxdb.User
-}
-
-func newUserResponse(u *influxdb.User) *UserResponse {
-	return &UserResponse{
+func newUserResponse(u *influxdb.User) *influxdb.UserResponse {
+	return &influxdb.UserResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
 		},
