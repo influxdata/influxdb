@@ -5,7 +5,7 @@ To continue our architecture documentation series, this document explains how IO
 Figure 1 of previous [document](data_organization_lifecycle.md) illustrates IOx Data organization. Since actual data is only stored in the bottom layer, `Chunks`, the other information in other layers needed to access and manage the chunks are considered as `metadata` and, in IOx, handled by a Catalog.
 
 ## Catalog
-Figure 1 below shows the organization of both IOx Catalog and Data. The bottom layer `Data Chunks` are physical data described in previous [document](data_organization_lifecycle.md). All the layers from `Catalogs` to `Chunk Stages` are metadata managed by IOx `Catalog`. Each database has its own `Catalog`[^cat] that contains a set of `Tables`, each consists of a set of `Partitions`. A partition includes many `Chunks`, each is represented by a `ChunkStage` that points to their corresponding physical chunk data.
+Figure 1 below shows the organization of both IOx Catalog and Data. The bottom layer `Data Chunks` are physical data described in previous [document](data_organization_lifecycle.md). All the layers from `Catalogs` to `Chunks` are metadata managed by IOx `Catalog`. Each database has its own `Catalog`[^cat] that contains a set of `Tables`, each consists of a set of `Partitions`. A partition includes many `Chunks`, each is represented by a `ChunkStage` (either `Open`, `Frozen`, or`Persisted`) that points to their corresponding physical chunk data.
 
 [^cat]: This design might be changed in the future to meet other use cases.
 
@@ -53,13 +53,8 @@ Since the catalog is the central information shared to all users of the database
                  │                                       │                                                     
        ┌─────────▼───────┐               ┌───────────────┼─────────────────────┐                               
        ▼                 ▼               ▼               ▼                     ▼                               
-   ┌───────┐         ┌───────┐       ┌───────┐       ┌───────┐             ┌───────┐                           
-   │Chunk 1│         │Chunk 2│       │Chunk 3│       │Chunk 4│             │Chunk 5│               Chunks      
-   └───────┘         └───────┘       └───────┘       └───────┘             └───────┘                           
-       │                 │               │               │                     │                               
-       ▼                 ▼               ▼               ▼                     ▼                               
 ┌──────────────┐ ┌──────────────┐ ┌──────────────┐┌──────────────┐     ┌──────────────┐                        
-│ ChunkStage 1 │ │ ChunkStage 2 │ │ ChunkStage 3 ││ ChunkStage 4 │     │ ChunkStage 5 │        Chunk Stages    
+│   Chunk 1    │ │   Chunk 2    │ │   Chunk 3    ││   Chunk 4    │     │   Chunk 5    │            Chunks      
 │    (Open)    │ │   (Frozen)   │ │    (Open)    ││   (Frozen)   │     │ (Persisted)  │                        
 └──────────────┘ └──────────────┘ └──────────────┘└──────────────┘     └───────┬──────┘                        
        │                 │               │               │              ┌──────▼──────┐                        
@@ -73,12 +68,13 @@ Since the catalog is the central information shared to all users of the database
 └──────────────┘ │  ---- ----   │  └───────────┘ │ ---- ---- ---- ││ ---- ---- ││ ---- ---- │                  
                  └──────────────┘                │ ---- ---- ---- │└───────────┘└───────────┘                  
                                                  └────────────────┘                                            
+       
 Figure 1: Catalog and Data Organization
 ```
 
 
 ## Rebuild a Database from its Catalog
-Since the `Catalog` is the core of the database, losing the catalog means losing the database; or rebuilding a database means rebuilding its catalog. Thus to rebuild a catalog,  its information needs to saved in a durable storage.
+Since the `Catalog` is the core of the database, losing the catalog means losing the database; or rebuilding a database means rebuilding its catalog. Thus to rebuild a catalog,  its information needs to be saved in a durable storage.
 
 Basically, if an IOx server goes down unexpectedly, we will lose the in-memory catalog shown in Figure 1 and all of its in-memory data chunks `O-MUBs`, `F-MUBs`, and `RUBs`. Only data of `OS` chunks are not lost. As pointed out in [IOx Data Organization and LifeCycle](data_organization_lifecycle.md) that chunk data is persisted contiguously with their loading time, `OS` chunks only include data ingested before the one in `MUBs` and `RUBs`. Thus, in principal, rebuilding the catalog includes two major steps: first rebuild the catalog that links to the already persisted `OS` chunks, then rerun ingesting data of `O-MUBs`, `F-MUBs` and `RUBs`. To perform those 2 steps, IOx saves `catalog transactions` that include minimal information of the latest stage of all valid `OS` chunks (e.g, chunks are not deleted), and `checkpoints` of when in the past to re-ingest data. At the beginning of the `Catalog rebuild`, those transactions will be read from the Object Store, and their information is used to rebuild the Catalog and rerun the necessary ingestion. Due to IOx `DataLifeCyclePolicy` that is responsible for when to trigger compacting chunk data, the rebuilt catalog may look different from the one before but as long as all the data in previous `O-MUBs`, `F-MUBs`, and `RUBs` are reloaded/recovered and tracked in the catalog, it does not matter which chunk types the data belong to.  Refer to [Catalog Persistence](catalog_persistence.md) for the original design of Catalog Persistence and [CheckPoint](https://github.com/influxdata/influxdb_iox/blob/b39e01f7ba4f5d19f92862c5e87b90a40879a6c9/persistence_windows/src/checkpoint.rs) for the detailed implementation of IOx Checkpoints.
 
