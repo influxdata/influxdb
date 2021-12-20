@@ -12,19 +12,23 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
-	"github.com/influxdata/influxdb/v2/tenant"
 	"go.uber.org/zap"
 )
 
 type resourceUserResponse struct {
 	Role influxdb.UserType `json:"role"`
-	*tenant.UserResponse
+	*influxdb.UserResponse
 }
 
 func newResourceUserResponse(u *influxdb.User, userType influxdb.UserType) *resourceUserResponse {
 	return &resourceUserResponse{
-		Role:         userType,
-		UserResponse: tenant.NewUserResponse(u),
+		Role: userType,
+		UserResponse: &influxdb.UserResponse{
+			Links: map[string]string{
+				"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
+			},
+			User: *u,
+		},
 	}
 }
 

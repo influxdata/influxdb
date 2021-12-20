@@ -233,13 +233,13 @@ func (h *urmHandler) decodeDeleteRequest(ctx context.Context, r *http.Request) (
 
 type resourceUserResponse struct {
 	Role influxdb.UserType `json:"role"`
-	*UserResponse
+	*influxdb.UserResponse
 }
 
 func newResourceUserResponse(u *influxdb.User, userType influxdb.UserType) *resourceUserResponse {
 	return &resourceUserResponse{
 		Role:         userType,
-		UserResponse: NewUserResponse(u),
+		UserResponse: newUserResponse(u),
 	}
 }
 
