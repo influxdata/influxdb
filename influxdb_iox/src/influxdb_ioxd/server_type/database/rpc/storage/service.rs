@@ -2,7 +2,10 @@
 //! implemented in terms of the [`QueryDatabase`](query::QueryDatabase) and
 //! [`DatabaseStore`]
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::mpsc;
@@ -11,8 +14,9 @@ use tonic::Status;
 
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
-    google::protobuf::Empty, offsets_response::PartitionOffsetResponse, storage_server::Storage,
-    CapabilitiesResponse, Capability, Int64ValuesResponse, MeasurementFieldsRequest,
+    google::protobuf::Empty, literal_or_regex::Value as RegexOrLiteralValue,
+    offsets_response::PartitionOffsetResponse, storage_server::Storage, CapabilitiesResponse,
+    Capability, Int64ValuesResponse, LiteralOrRegex, MeasurementFieldsRequest,
     MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
     MeasurementTagValuesRequest, OffsetsResponse, Predicate, ReadFilterRequest, ReadGroupRequest,
     ReadResponse, ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse,
@@ -43,6 +47,8 @@ use crate::influxdb_ioxd::{
     },
 };
 use trace::ctx::SpanContext;
+
+use super::TAG_KEY_MEASUREMENT;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -144,6 +150,12 @@ pub enum Error {
     #[snafu(display("Converting field information series into gRPC response:  {}", source))]
     ConvertingFieldList { source: super::data::Error },
 
+    #[snafu(display("Error processing measurement constraint {:?}", pred))]
+    MeasurementLiteralOrRegex { pred: LiteralOrRegex },
+
+    #[snafu(display("Missing tag key predicate"))]
+    MissingTagKeyPredicate {},
+
     #[snafu(display("Error sending results via channel:  {}", source))]
     SendingResults {
         source: Box<dyn std::error::Error + Send + Sync>,
@@ -200,6 +212,8 @@ impl Error {
             Self::SendingResults { .. } => Status::internal(self.to_string()),
             Self::InternalHintsFieldNotSupported { .. } => Status::internal(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
+            Self::MeasurementLiteralOrRegex { .. } => Status::invalid_argument(self.to_string()),
+            Self::MissingTagKeyPredicate {} => Status::invalid_argument(self.to_string()),
         }
     }
 }
@@ -458,25 +472,31 @@ where
         &self,
         req: tonic::Request<TagValuesGroupedByMeasurementAndTagKeyRequest>,
     ) -> Result<tonic::Response<Self::TagValuesGroupedByMeasurementAndTagKeyStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
+
         let req = req.into_inner();
 
-        let TagValuesGroupedByMeasurementAndTagKeyRequest {
-            measurement_patterns,
-            tag_key_predicate,
-            condition,
-            source,
-        } = req;
+        let db_name = get_database_name(&req)?;
+        let db = self
+            .db_store
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+        db.record_query(
+            "tag_values_grouped_by_measurement_and_tag_key",
+            defer_json(&req),
+        );
 
-        Err(Error::NotYetImplemented {
-            operation: format!(
-                "tag_values_grouped_by_measurement_and_tag_key. Measurement patterns: {:?} tag key predicates: {:?} condition: {:?}, source: {:?}",
-                measurement_patterns,
-                tag_key_predicate,
-                condition,
-                source,
-            ),
-        }
-        .to_status())
+        info!(%db_name, ?req.measurement_patterns, ?req.tag_key_predicate, predicate=%req.condition.loggable(), "tag_values_grouped_by_measurement_and_tag_key");
+
+        let results =
+            tag_values_grouped_by_measurement_and_tag_key_impl(db, db_name, req, span_ctx)
+                .await
+                .map_err(|e| e.to_status())?
+                .into_iter()
+                .map(Ok)
+                .collect::<Vec<_>>();
+
+        Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
     type ReadSeriesCardinalityStream = ReceiverStream<Result<Int64ValuesResponse, Status>>;
@@ -729,7 +749,7 @@ fn get_database_name(input: &impl GrpcInputs) -> Result<DatabaseName<'static>, S
 
 // The following code implements the business logic of the requests as
 // methods that return Results with module specific Errors (and thus
-// can use ?, etc). The trait implemententations then handle mapping
+// can use ?, etc). The trait implementations then handle mapping
 // to the appropriate tonic Status
 
 /// Gathers all measurement names that have data in the specified
@@ -779,7 +799,7 @@ where
     Ok(StringValuesResponse { values })
 }
 
-/// Return tag keys with optional measurement, timestamp and arbitratry
+/// Return tag keys with optional measurement, timestamp and arbitrary
 /// predicates
 async fn tag_keys_impl<D>(
     db: Arc<D>,
@@ -875,6 +895,84 @@ where
 
     trace!(tag_values=?values.iter().map(|k| String::from_utf8_lossy(k)).collect::<Vec<_>>(), "Tag values response");
     Ok(StringValuesResponse { values })
+}
+
+/// Return tag values grouped by one or more measurements with optional
+/// filtering predicate and optionally scoped to one or more tag keys.
+async fn tag_values_grouped_by_measurement_and_tag_key_impl<D>(
+    db: Arc<D>,
+    db_name: DatabaseName<'static>,
+    req: TagValuesGroupedByMeasurementAndTagKeyRequest,
+    span_ctx: Option<SpanContext>,
+) -> Result<Vec<TagValuesResponse>, Error>
+where
+    D: QueryDatabase + ExecutionContextProvider + 'static,
+{
+    use generated_types::tag_key_predicate::Value;
+
+    // Extract the tag key string literal.
+    // TODO - currently only eq operation supported, as in `WITH KEY = 'foo'`.
+    // See https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-tag-values
+    // for more details.
+    let tag_key_op = req
+        .tag_key_predicate
+        .context(MissingTagKeyPredicate {})?
+        .value
+        .context(MissingTagKeyPredicate {})?;
+    let tag_key_lit = if let Value::Eq(lit) = tag_key_op {
+        lit
+    } else {
+        return NotYetImplemented {
+            operation: format!(
+                "tag key predicate operation not supported: {:?}",
+                tag_key_op
+            ),
+        }
+        .fail();
+    };
+
+    // Because we need to return tag values grouped by measurements and tag
+    // keys we will materialise the measurements up front, so we can build up
+    // groups of tag values grouped by a measurement and tag key.
+    let measurements = materialise_measurement_names(
+        Arc::clone(&db),
+        db_name.clone(),
+        req.measurement_patterns,
+        span_ctx.clone(),
+    )
+    .await?;
+
+    let mut responses = vec![];
+    for name in measurements.into_iter() {
+        // get all the tag values associated with this measurement name and tag key
+        let values = tag_values_impl(
+            Arc::clone(&db),
+            db_name.clone(),
+            tag_key_lit.clone(),
+            Some(name.clone()),
+            None,
+            req.condition.clone(),
+            span_ctx.clone(),
+        )
+        .await?
+        .values
+        .into_iter()
+        .map(|v| String::from_utf8(v).expect("tag values should be UTF-8 valid"))
+        .collect::<Vec<_>>();
+
+        // Don't emit a response if there are no matching tag values.
+        if values.is_empty() {
+            continue;
+        }
+
+        responses.push(TagValuesResponse {
+            measurement: name,
+            key: tag_key_lit.clone(),
+            values,
+        });
+    }
+
+    Ok(responses)
 }
 
 /// Launch async tasks that materialises the result of executing read_filter.
@@ -1028,6 +1126,89 @@ where
     Ok(field_list)
 }
 
+/// Materialises a collection of measurement names. Typically used as part of
+/// a plan to scope and group multiple plans by measurement name.
+async fn materialise_measurement_names<D>(
+    db: Arc<D>,
+    db_name: DatabaseName<'static>,
+    measurement_exprs: Vec<LiteralOrRegex>,
+    span_ctx: Option<SpanContext>,
+) -> Result<BTreeSet<String>, Error>
+where
+    D: QueryDatabase + ExecutionContextProvider + 'static,
+{
+    use generated_types::{
+        node::{Comparison, Type, Value},
+        Node,
+    };
+
+    let mut names = BTreeSet::new();
+
+    // Materialise all measurements
+    if measurement_exprs.is_empty() {
+        let resp = measurement_name_impl(
+            Arc::clone(&db),
+            db_name.clone(),
+            None,
+            None,
+            span_ctx.clone(),
+        )
+        .await?;
+        for name in resp.values {
+            names
+                .insert(String::from_utf8(name).expect("table/measurement name to be valid UTF-8"));
+        }
+        return Ok(names);
+    }
+
+    // Materialise measurements that satisfy the provided predicates.
+    for expr in measurement_exprs {
+        match expr.value {
+            Some(expr) => match expr {
+                RegexOrLiteralValue::LiteralValue(lit) => {
+                    names.insert(lit);
+                }
+                RegexOrLiteralValue::RegexValue(pattern) => {
+                    let regex_node = Node {
+                        node_type: Type::ComparisonExpression as i32,
+                        children: vec![
+                            Node {
+                                node_type: Type::TagRef as i32,
+                                children: vec![],
+                                value: Some(Value::TagRefValue(TAG_KEY_MEASUREMENT.to_vec())),
+                            },
+                            Node {
+                                node_type: Type::Literal as i32,
+                                children: vec![],
+                                value: Some(Value::RegexValue(pattern)),
+                            },
+                        ],
+                        value: Some(Value::Comparison(Comparison::Regex as i32)),
+                    };
+                    let resp = measurement_name_impl(
+                        Arc::clone(&db),
+                        db_name.clone(),
+                        None,
+                        Some(Predicate {
+                            root: Some(regex_node),
+                        }),
+                        span_ctx.clone(),
+                    )
+                    .await?;
+                    for name in resp.values {
+                        names.insert(
+                            String::from_utf8(name)
+                                .expect("table/measurement name to be valid UTF-8"),
+                        );
+                    }
+                }
+            },
+            None => return MeasurementLiteralOrRegex { pred: expr }.fail(),
+        }
+    }
+    Ok(names)
+}
+
 /// Return something which can be formatted as json ("pbjson"
 /// specifically)
 fn defer_json<S>(s: &S) -> impl Into<String> + '_
@@ -1067,11 +1248,11 @@ mod tests {
     };
 
     use data_types::chunk_metadata::ChunkId;
+    use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
     use parking_lot::Mutex;
     use tokio_stream::wrappers::TcpListenerStream;
 
     use datafusion::logical_plan::{col, lit, Expr};
-    use generated_types::i_ox_testing_client::IOxTestingClient;
     use influxdb_storage_client::{
         connection::{Builder as ConnectionBuilder, Connection},
         generated_types::*,
@@ -1234,7 +1415,7 @@ mod tests {
                 start: 150,
                 end: 200,
             }),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
         };
 
         let actual_measurements = fixture
@@ -1283,7 +1464,7 @@ mod tests {
         let request = TagKeysRequest {
             tags_source: source.clone(),
             range: Some(make_timestamp_range(150, 200)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
         };
 
         let actual_tag_keys = fixture.storage_client.tag_keys(request).await.unwrap();
@@ -1389,7 +1570,7 @@ mod tests {
             measurement: "m4".into(),
             source: source.clone(),
             range: Some(make_timestamp_range(150, 200)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
         };
 
         let actual_tag_keys = fixture
@@ -1496,7 +1677,7 @@ mod tests {
         let request = TagValuesRequest {
             tags_source: source.clone(),
             range: Some(make_timestamp_range(150, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             tag_key: "state".into(),
         };
 
@@ -1581,7 +1762,7 @@ mod tests {
         let request = TagValuesRequest {
             tags_source: source.clone(),
             range: Some(make_timestamp_range(0, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             tag_key: [255].into(),
         };
 
@@ -1659,6 +1840,165 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_storage_rpc_tag_values_grouped_by_measurement_and_tag_key() {
+        test_helpers::maybe_start_logging();
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = org_and_bucket();
+        let chunk1 = TestChunk::new("table_a")
+            .with_id(0)
+            .with_tag_column("state")
+            .with_one_row_of_data();
+        let chunk2 = TestChunk::new("table_b")
+            .with_id(1)
+            .with_tag_column("state")
+            .with_one_row_of_data();
+
+        fixture
+            .test_storage
+            .db_or_create(db_info.db_name())
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk1))
+            .add_chunk("my_partition_key", Arc::new(chunk2));
+
+        let source = Some(StorageClient::read_source(&db_info, 1));
+
+        let cases = vec![
+            (
+                "SHOW TAG VALUES WITH KEY = 'state'",
+                vec![],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                None,
+                vec![
+                    TagValuesResponse {
+                        measurement: "table_a".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                    TagValuesResponse {
+                        measurement: "table_b".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                ],
+            ),
+            (
+                "SHOW TAG VALUES FROM 'table_b' WITH KEY = 'state'",
+                vec![LiteralOrRegex {
+                    value: Some(RegexOrLiteralValue::LiteralValue("table_a".into())),
+                }],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                None,
+                vec![TagValuesResponse {
+                    measurement: "table_a".into(),
+                    key: "state".into(),
+                    values: vec!["MA".into()],
+                }],
+            ),
+            (
+                "SHOW TAG VALUES FROM /table.*/ WITH KEY = 'state'",
+                vec![LiteralOrRegex {
+                    value: Some(RegexOrLiteralValue::RegexValue("table.*".into())),
+                }],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                None,
+                vec![
+                    TagValuesResponse {
+                        measurement: "table_a".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                    TagValuesResponse {
+                        measurement: "table_b".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                ],
+            ),
+            (
+                "SHOW TAG VALUES FROM /.*a$/ WITH KEY = 'state'",
+                vec![LiteralOrRegex {
+                    value: Some(RegexOrLiteralValue::RegexValue(".*a$".into())),
+                }],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                None,
+                vec![TagValuesResponse {
+                    measurement: "table_a".into(),
+                    key: "state".into(),
+                    values: vec!["MA".into()],
+                }],
+            ),
+            (
+                "SHOW TAG VALUES FROM /.*a$/ WITH KEY = 'state' WHERE state != 'MA'",
+                vec![],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                Some(make_state_neq_ma_predicate()),
+                vec![],
+            ),
+            (
+                "SHOW TAG VALUES FROM /.*a$/ WITH KEY = 'state' WHERE state >= 'MA'",
+                vec![],
+                Some(TagKeyPredicate {
+                    value: Some(Value::Eq("state".into())),
+                }),
+                Some(make_state_geq_ma_predicate()),
+                vec![
+                    TagValuesResponse {
+                        measurement: "table_a".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                    TagValuesResponse {
+                        measurement: "table_b".into(),
+                        key: "state".into(),
+                        values: vec!["MA".into()],
+                    },
+                ],
+            ),
+        ];
+
+        for (
+            description,
+            measurement_patterns,
+            tag_key_predicate,
+            condition,
+            expected_tag_values,
+        ) in cases
+        {
+            let request = TagValuesGroupedByMeasurementAndTagKeyRequest {
+                source: source.clone(),
+                measurement_patterns,
+                tag_key_predicate,
+                condition,
+            };
+
+            let actual_tag_values = fixture
+                .storage_client
+                .tag_values_grouped_by_measurement_and_tag_key(request)
+                .await
+                .unwrap();
+
+            assert_eq!(
+                actual_tag_values, expected_tag_values,
+                "{} failed: got {:?}, wanted {:?}",
+                description, actual_tag_values, expected_tag_values
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn test_storage_rpc_tag_values_grouped_by_measurement_and_tag_key_error() {
         test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
@@ -1693,7 +2033,7 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        assert_contains!(response_string, "Operation not yet implemented");
+        assert_contains!(response_string, "Missing tag key predicate");
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_values
@@ -1723,7 +2063,7 @@ mod tests {
             measurement: "TheMeasurement".into(),
             source: source.clone(),
             range: Some(make_timestamp_range(150, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             tag_key: "state".into(),
         };
 
@@ -1866,7 +2206,7 @@ mod tests {
         let request = ReadFilterRequest {
             read_source: source.clone(),
             range: Some(make_timestamp_range(0, 10000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             ..Default::default()
         };
 
@@ -1946,7 +2286,7 @@ mod tests {
         let request = ReadGroupRequest {
             read_source: source.clone(),
             range: Some(make_timestamp_range(0, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             group_keys: vec!["state".into()],
             group,
             aggregate: Some(Aggregate {
@@ -2042,7 +2382,7 @@ mod tests {
         let request_window_every = ReadWindowAggregateRequest {
             read_source: source.clone(),
             range: Some(make_timestamp_range(0, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             window_every: 1122,
             offset: 15,
             aggregate: vec![Aggregate {
@@ -2096,7 +2436,7 @@ mod tests {
         let request_window = ReadWindowAggregateRequest {
             read_source: source.clone(),
             range: Some(make_timestamp_range(150, 200)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             window_every: 0,
             offset: 0,
             aggregate: vec![Aggregate {
@@ -2156,7 +2496,7 @@ mod tests {
         let request_window = ReadWindowAggregateRequest {
             read_source: source.clone(),
             range: Some(make_timestamp_range(0, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
             window_every: 1122,
             offset: 15,
             aggregate: vec![Aggregate {
@@ -2207,7 +2547,7 @@ mod tests {
             source: source.clone(),
             measurement: "TheMeasurement".into(),
             range: Some(make_timestamp_range(0, 2000)),
-            predicate: Some(make_state_ma_predicate()),
+            predicate: Some(make_state_eq_ma_predicate()),
         };
 
         let actual_fields = fixture
@@ -2270,11 +2610,29 @@ mod tests {
     /// return a gRPC predicate like
     ///
     /// state="MA"
-    fn make_state_ma_predicate() -> Predicate {
-        use node::{Comparison, Type, Value};
+    fn make_state_eq_ma_predicate() -> Predicate {
+        make_state_predicate(node::Comparison::Equal)
+    }
+
+    /// return a gRPC predicate like
+    ///
+    /// state != "MA"
+    fn make_state_neq_ma_predicate() -> Predicate {
+        make_state_predicate(node::Comparison::NotEqual)
+    }
+
+    /// return a gRPC predicate like
+    ///
+    /// state >= "MA"
+    fn make_state_geq_ma_predicate() -> Predicate {
+        make_state_predicate(node::Comparison::Gte)
+    }
+
+    fn make_state_predicate(op: node::Comparison) -> Predicate {
+        use node::{Type, Value};
         let root = Node {
             node_type: Type::ComparisonExpression as i32,
-            value: Some(Value::Comparison(Comparison::Equal as i32)),
+            value: Some(Value::Comparison(op as i32)),
             children: vec![
                 Node {
                     node_type: Type::TagRef as i32,
