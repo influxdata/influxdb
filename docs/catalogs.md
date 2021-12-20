@@ -16,7 +16,7 @@ Since the catalog is the central information shared to all users of the database
 * A partition contains `PersistenceWindows` that  keep track of ingested data within a partition to determine when it can be persisted. This allows IOx to receive out of order writes in their timestamps while persisting mostly in non-time overlapping Object Store files.
 
 **Examples of information for measuring the health of the system**
-* A catalog consists of metrics that measure how often its tables, partitions, and chunks are locked, what kinds of locks (e.g. shared or exclusive), and their lock wait time.
+* A catalog contains metrics that measure how often its tables, partitions, and chunks are locked, what kinds of locks (e.g. shared or exclusive), and their lock wait time.
 
 **Examples of information for running queries quickly**
 * A catalog chunk column includes statistics of its data such as `min`, `max`, `row count`, `null count`. If a query does not need data between the chunk column's [min,max] range, that chunk data will be pruned from reading. If a query is to count the number of rows, the `row count` statistics of the chunk is good enough to answer the query without reading its chunk data.
