@@ -20,15 +20,20 @@ type resourceUserResponse struct {
 	*influxdb.UserResponse
 }
 
+func newUserResponse(u *influxdb.User) *influxdb.UserResponse {
+	return &influxdb.UserResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
+			"logs": fmt.Sprintf("/api/v2/users/%s/logs", u.ID),
+		},
+		User: *u,
+	}
+}
+
 func newResourceUserResponse(u *influxdb.User, userType influxdb.UserType) *resourceUserResponse {
 	return &resourceUserResponse{
-		Role: userType,
-		UserResponse: &influxdb.UserResponse{
-			Links: map[string]string{
-				"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
-			},
-			User: *u,
-		},
+		Role:         userType,
+		UserResponse: newUserResponse(u),
 	}
 }
 
