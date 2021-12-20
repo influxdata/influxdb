@@ -135,9 +135,9 @@ const (
 var blacklistEndpoints = map[string]isValidMethodFn{
 	"/api/v2/signin":                 ignoreMethod(),
 	"/api/v2/signout":                ignoreMethod(),
-	prefixMe:                         ignoreMethod(),
-	mePasswordPath:                   ignoreMethod(),
-	usersPasswordPath:                ignoreMethod(),
+	"/api/v2/me":                     ignoreMethod(),
+	"/api/v2/me/password":            ignoreMethod(),
+	"/api/v2/users/:id/password":     ignoreMethod(),
 	"/api/v2/packages/apply":         ignoreMethod(),
 	prefixWrite:                      ignoreMethod("POST"),
 	"/write":                         ignoreMethod("POST"),
