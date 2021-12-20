@@ -20,6 +20,7 @@ package control
 import (
 	"context"
 	"fmt"
+	"math"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
@@ -120,6 +121,10 @@ type Config struct {
 // return the new Config.
 func (c *Config) complete(log *zap.Logger) (Config, error) {
 	config := *c
+	if config.MemoryBytesQuotaPerQuery == 0 {
+		// 0 means unlimited
+		config.MemoryBytesQuotaPerQuery = math.MaxInt64
+	}
 	if config.InitialMemoryBytesQuotaPerQuery == 0 {
 		config.InitialMemoryBytesQuotaPerQuery = config.MemoryBytesQuotaPerQuery
 	}
