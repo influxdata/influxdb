@@ -98,7 +98,7 @@ func (h *ConfigHandler) parseOptions(opts []cli.Opt) error {
 }
 
 func (h *ConfigHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
-	h.api.Respond(w, r, http.StatusOK, h.config)
+	h.api.Respond(w, r, http.StatusOK, map[string]parsedOpt{"config": h.config})
 }
 
 func (h *ConfigHandler) mwAuthorize(next http.Handler) http.Handler {

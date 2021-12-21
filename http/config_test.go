@@ -40,9 +40,11 @@ func TestConfigHandler(t *testing.T) {
 		}
 
 		want := map[string]interface{}{
-			"string-flag": stringFlag,
-			"bool-flag":   boolFlag,
-			"id-flag":     idFlag,
+			"config": map[string]interface{}{
+				"string-flag": stringFlag,
+				"bool-flag":   boolFlag,
+				"id-flag":     idFlag,
+			},
 		}
 		wantJsonBytes, err := json.Marshal(want)
 		require.NoError(t, err)
