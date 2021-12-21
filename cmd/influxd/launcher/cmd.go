@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -25,11 +24,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap/zapcore"
-)
-
-const (
-	// Max Integer
-	MaxInt = 1<<uint(strconv.IntSize-1) - 1
 )
 
 func errInvalidFlags(flags []string, configFile string) error {
@@ -239,7 +233,7 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 
 		ConcurrencyQuota:                1024,
 		InitialMemoryBytesQuotaPerQuery: 0,
-		MemoryBytesQuotaPerQuery:        MaxInt,
+		MemoryBytesQuotaPerQuery:        0,
 		MaxMemoryBytes:                  0,
 		QueueSize:                       1024,
 
