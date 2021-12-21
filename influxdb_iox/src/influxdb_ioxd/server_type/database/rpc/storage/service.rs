@@ -913,8 +913,7 @@ async fn tag_values_grouped_by_measurement_and_tag_key_impl<D>(
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
 {
-    // Extract the tag key string literal.
-    // TODO - currently only eq operation supported, as in `WITH KEY = 'foo'`.
+    // Extract the tag key predicate.
     // See https://docs.influxdata.com/influxdb/v1.8/query_language/explore-schema/#show-tag-values
     // for more details.
     let tag_key_pred = req
@@ -1131,9 +1130,6 @@ where
 
 /// Materialises a collection of measurement names. Typically used as part of
 /// a plan to scope and group multiple plans by measurement name.
-///
-/// TODO(edd): this might be better represented as a plan against the `tables`
-/// system table.
 async fn materialise_measurement_names<D>(
     db: Arc<D>,
     db_name: DatabaseName<'static>,
