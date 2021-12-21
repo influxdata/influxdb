@@ -21,6 +21,13 @@ import (
 
 const prefixConfig = "/api/v2/config"
 
+func errInvalidType(dest interface{}, flag string) error {
+	return &errors.Error{
+		Code: errors.EInternal,
+		Err:  fmt.Errorf("unknown destination type %T for %q", dest, flag),
+	}
+}
+
 type parsedOpt map[string]optValue
 
 type optValue []byte
@@ -81,7 +88,7 @@ func (h *ConfigHandler) parseOptions(opts []cli.Opt) error {
 			}
 		default:
 			// Return an error if we don't know how to marshal this type.
-			return fmt.Errorf("unknown destination type %t", o.DestP)
+			return errInvalidType(o.DestP, o.Flag)
 		}
 
 		h.config[o.Flag] = b
