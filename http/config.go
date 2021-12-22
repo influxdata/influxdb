@@ -103,9 +103,7 @@ func (h *ConfigHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) 
 
 func (h *ConfigHandler) mwAuthorize(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		if err := authorizer.IsAllowedAll(ctx, influxdb.OperPermissions()); err != nil {
+		if err := authorizer.IsAllowedAll(r.Context(), influxdb.OperPermissions()); err != nil {
 			h.api.Err(w, r, &errors.Error{
 				Code: errors.EUnauthorized,
 				Msg:  fmt.Sprintf("access to %s requires operator permissions", h.Prefix()),
