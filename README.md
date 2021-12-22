@@ -130,7 +130,7 @@ brew update && brew install protobuf
 Then set the following environment variables to point Prost at your system install:
 
 ```shell
-PROTOC=/opt/homebrew/bin/protoc 
+PROTOC=/opt/homebrew/bin/protoc
 PROTOC_INCLUDE=/opt/homebrew/include
 ```
 
@@ -234,16 +234,16 @@ DOCKER_BUILDKIT=1 docker build .
 
 ### Write and read data
 
-Each IOx instance requires a writer ID.
+Each IOx instance requires a server ID.
 This can be set one of 4 ways:
 
 * set an environment variable `INFLUXDB_IOX_ID=42`
-* set a flag `--writer-id 42`
+* set a flag `--server-id 42`
 * use the API (not convered here)
 * use the CLI
 
   ```shell
-  influxdb_iox writer set 42
+  influxdb_iox server set 42
   ```
 
 To write data, you need to create a database.

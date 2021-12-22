@@ -88,13 +88,13 @@ pub struct ServerFixture {
 
 /// Specifieds should we configure a server initially
 enum InitialConfig {
-    /// Set the writer id to something so it can accept writes
-    SetWriterId,
+    /// Set the server ID to something so it can accept writes
+    SetServerId,
 
     /// Server ID already set (e.g. via environment variable)
     ServerIdAlreadySet,
 
-    /// leave the writer id empty so the test can set it
+    /// Leave the server ID empty so the test can set it
     None,
 }
 
@@ -129,7 +129,7 @@ impl ServerFixture {
                 let server = Arc::new(server);
 
                 // ensure the server is ready
-                server.wait_until_ready(InitialConfig::SetWriterId).await;
+                server.wait_until_ready(InitialConfig::SetServerId).await;
                 // save a reference for other threads that may want to
                 // use this server, but don't prevent it from being
                 // destroyed when going out of scope
@@ -152,7 +152,7 @@ impl ServerFixture {
     }
 
     /// Create a new server fixture with the provided additional environment variables
-    /// and wait for it to be ready. The database is left unconfigured (no writer id)
+    /// and wait for it to be ready. The database is left unconfigured (no server id)
     /// and is not shared with any other tests.
     pub async fn create_single_use_with_config(test_config: TestConfig) -> Self {
         let initial_config = if test_config.server_id.is_some() {
@@ -257,7 +257,7 @@ impl ServerFixture {
     pub async fn restart_server(self) -> Self {
         self.server.restart().await;
         self.server
-            .wait_until_ready(InitialConfig::SetWriterId)
+            .wait_until_ready(InitialConfig::SetServerId)
             .await;
         let grpc_channel = self
             .server
@@ -575,7 +575,7 @@ impl TestServer {
 
         // Set the server id, if requested
         match initial_config {
-            InitialConfig::SetWriterId => {
+            InitialConfig::SetServerId => {
                 let id = DEFAULT_SERVER_ID;
 
                 deployment_client
@@ -583,7 +583,7 @@ impl TestServer {
                     .await
                     .expect("set ID failed");
 
-                println!("Set writer_id to {:?}", id);
+                println!("Set server ID to {:?}", id);
 
                 if self.test_config.server_type == ServerType::Database {
                     // if server ID was set, we can also wait until DBs are loaded
