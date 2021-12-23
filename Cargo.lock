@@ -781,7 +781,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "6.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=0052667afae33ba9e549256d0d5d47e2f45e6ffb#0052667afae33ba9e549256d0d5d47e2f45e6ffb"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=401271377cd84dc1546827f66bda1b242860a6a8#401271377cd84dc1546827f66bda1b242860a6a8"
 dependencies = [
  "ahash",
  "arrow",
@@ -4976,7 +4976,6 @@ dependencies = [
 name = "workspace-hack"
 version = "0.1.0"
 dependencies = [
- "ahash",
  "bytes",
  "cc",
  "chrono",

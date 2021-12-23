@@ -17,7 +17,7 @@ pub(crate) fn min_to_scalar(
     match stats {
         IOxStatistics::I64(v) => {
             if let Some(InfluxDbType::Timestamp) = *influx_type {
-                Some(ScalarValue::TimestampNanosecond(v.min))
+                Some(ScalarValue::TimestampNanosecond(v.min, None))
             } else {
                 v.min.map(ScalarValue::from)
             }
@@ -37,7 +37,7 @@ pub(crate) fn max_to_scalar(
     match stats {
         IOxStatistics::I64(v) => {
             if let Some(InfluxDbType::Timestamp) = *influx_type {
-                Some(ScalarValue::TimestampNanosecond(v.max))
+                Some(ScalarValue::TimestampNanosecond(v.max, None))
             } else {
                 v.max.map(ScalarValue::from)
             }

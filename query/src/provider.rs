@@ -2451,6 +2451,7 @@ mod test {
 
     #[tokio::test]
     async fn test_sorted_metadata() {
+        test_helpers::maybe_start_logging();
         let mut key = SortKey::default();
         key.push("time", Default::default());
 
@@ -2483,7 +2484,14 @@ mod test {
 
             let schema: Schema = batch.schema().try_into().unwrap();
             for field_idx in 0..schema.len() {
-                assert!(schema.field(field_idx).0.is_some());
+                let (influx_column_type, field) = schema.field(field_idx);
+                assert!(
+                    influx_column_type.is_some(),
+                    "Schema for field {}: {:?}, {:?}",
+                    field_idx,
+                    influx_column_type,
+                    field,
+                );
             }
         }
 

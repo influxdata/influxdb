@@ -119,14 +119,14 @@ macro_rules! make_first_selector {
             fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
                 Ok(vec![
                     $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::TimestampNanosecond(self.time),
+                    ScalarValue::TimestampNanosecond(self.time, None),
                 ])
             }
 
             fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time)),
+                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
                 }
             }
 
@@ -226,14 +226,14 @@ macro_rules! make_last_selector {
             fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
                 Ok(vec![
                     $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::TimestampNanosecond(self.time),
+                    ScalarValue::TimestampNanosecond(self.time, None),
                 ])
             }
 
             fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time)),
+                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
                 }
             }
 
@@ -357,14 +357,14 @@ macro_rules! make_min_selector {
             fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
                 Ok(vec![
                     $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::TimestampNanosecond(self.time),
+                    ScalarValue::TimestampNanosecond(self.time, None),
                 ])
             }
 
             fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time)),
+                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
                 }
             }
 
@@ -469,14 +469,14 @@ macro_rules! make_max_selector {
             fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
                 Ok(vec![
                     $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::TimestampNanosecond(self.time),
+                    ScalarValue::TimestampNanosecond(self.time, None),
                 ])
             }
 
             fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time)),
+                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
                 }
             }
 

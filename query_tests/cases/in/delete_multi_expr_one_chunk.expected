@@ -1,19 +1,19 @@
 -- Test Setup: OneDeleteMultiExprsOneChunk
--- SQL: SELECT * from cpu;
+-- SQL: SELECT * from cpu order by bar, foo, time;
 +-----+-----+--------------------------------+
 | bar | foo | time                           |
 +-----+-----+--------------------------------+
 | 1   | me  | 1970-01-01T00:00:00.000000040Z |
 | 2   | you | 1970-01-01T00:00:00.000000020Z |
 +-----+-----+--------------------------------+
--- SQL: SELECT time, bar from cpu;
+-- SQL: SELECT time, bar from cpu order by time, bar;
 +--------------------------------+-----+
 | time                           | bar |
 +--------------------------------+-----+
-| 1970-01-01T00:00:00.000000040Z | 1   |
 | 1970-01-01T00:00:00.000000020Z | 2   |
+| 1970-01-01T00:00:00.000000040Z | 1   |
 +--------------------------------+-----+
--- SQL: SELECT bar from cpu;
+-- SQL: SELECT bar from cpu order by bar;
 +-----+
 | bar |
 +-----+
@@ -63,18 +63,18 @@
 | me  |
 | you |
 +-----+
--- SQL: SELECT min(foo) from cpu;
-+--------------+
-| MIN(cpu.foo) |
-+--------------+
-| me           |
-+--------------+
--- SQL: SELECT max(foo) from cpu;
-+--------------+
-| MAX(cpu.foo) |
-+--------------+
-| you          |
-+--------------+
+-- SQL: SELECT min(foo) as min_foo from cpu order by min_foo;
++---------+
+| min_foo |
++---------+
+| me      |
++---------+
+-- SQL: SELECT max(foo) as max_foo from cpu order by max_foo;
++---------+
+| max_foo |
++---------+
+| you     |
++---------+
 -- SQL: SELECT min(foo) as min_foo from cpu group by time order by min_foo;
 +---------+
 | min_foo |
@@ -117,21 +117,21 @@
 | me      |
 | you     |
 +---------+
--- SQL: SELECT min(time) from cpu;
+-- SQL: SELECT min(time) as min_time from cpu order by min_time;
 +--------------------------------+
-| MIN(cpu.time)                  |
+| min_time                       |
 +--------------------------------+
 | 1970-01-01T00:00:00.000000020Z |
 +--------------------------------+
--- SQL: SELECT max(time) from cpu;
+-- SQL: SELECT max(time) as max_time from cpu order by max_time;
 +--------------------------------+
-| MAX(cpu.time)                  |
+| max_time                       |
 +--------------------------------+
 | 1970-01-01T00:00:00.000000040Z |
 +--------------------------------+
--- SQL: SELECT min(time) from cpu group by bar;
+-- SQL: SELECT min(time) as min_time from cpu group by bar order by min_time;
 +--------------------------------+
-| MIN(cpu.time)                  |
+| min_time                       |
 +--------------------------------+
 | 1970-01-01T00:00:00.000000020Z |
 | 1970-01-01T00:00:00.000000040Z |
@@ -164,7 +164,7 @@
 | 1970-01-01T00:00:00.000000040Z |
 | 1970-01-01T00:00:00.000000020Z |
 +--------------------------------+
--- SQL: SELECT max(bar) from cpu;
+-- SQL: SELECT max(bar) from cpu order by 1;
 +--------------+
 | MAX(cpu.bar) |
 +--------------+

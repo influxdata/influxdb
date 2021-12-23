@@ -204,7 +204,7 @@ impl ReorgPlanner {
         trace!(output_schema=?schema, "Setting sort key on schema for split plan");
 
         // time <= split_time
-        let ts_literal = Expr::Literal(ScalarValue::TimestampNanosecond(Some(split_time)));
+        let ts_literal = Expr::Literal(ScalarValue::TimestampNanosecond(Some(split_time), None));
         let split_expr = col(TIME_COLUMN_NAME).lt_eq(ts_literal);
 
         let plan = plan_builder.build().context(BuildingPlan)?;
