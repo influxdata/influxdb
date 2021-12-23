@@ -1,19 +1,17 @@
-use std::io::Read;
-
 use criterion::{BenchmarkId, Criterion};
 use datafusion::logical_plan::{col, lit};
+use std::io::Read;
 // This is a struct that tells Criterion.rs to use the "futures" crate's
 // current-thread executor
+use db::Db;
 use flate2::read::GzDecoder;
-use tokio::runtime::Runtime;
-
 use predicate::predicate::{Predicate, PredicateBuilder};
 use query::{
     exec::{Executor, ExecutorType},
     frontend::influxrpc::InfluxRpcPlanner,
 };
 use query_tests::scenarios::DbScenario;
-use server::db::Db;
+use tokio::runtime::Runtime;
 
 // Uses the `query_tests` module to generate some chunk scenarios, specifically
 // the scenarios where there are:

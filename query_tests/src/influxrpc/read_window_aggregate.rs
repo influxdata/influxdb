@@ -3,12 +3,10 @@ use crate::{
     influxrpc::util::run_series_set_plan,
     scenarios::{util::all_scenarios_for_one_chunk, *},
 };
-
-use data_types::{delete_predicate::DeletePredicate, timestamp::TimestampRange};
-use server::{db::test_helpers::write_lp, utils::make_db};
-
 use async_trait::async_trait;
+use data_types::{delete_predicate::DeletePredicate, timestamp::TimestampRange};
 use datafusion::prelude::*;
+use db::{test_helpers::write_lp, utils::make_db};
 use predicate::predicate::{Predicate, PredicateBuilder};
 use query::{
     frontend::influxrpc::InfluxRpcPlanner,

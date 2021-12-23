@@ -281,6 +281,7 @@ async fn query(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::influxdb_ioxd::{
         http::{
             dml::test_utils::{
@@ -295,20 +296,17 @@ mod tests {
         },
         server_type::common_state::CommonServerState,
     };
-
-    use super::*;
-    use std::convert::TryFrom;
-
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
+    use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
+    use db::Db;
     use dml::DmlWrite;
     use http::StatusCode;
-    use reqwest::Client;
-
-    use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
     use object_store::ObjectStore;
+    use reqwest::Client;
     use schema::selection::Selection;
-    use server::{db::Db, rules::ProvidedDatabaseRules, ApplicationState, Server};
+    use server::{rules::ProvidedDatabaseRules, ApplicationState, Server};
+    use std::convert::TryFrom;
     use trace::RingBufferTraceCollector;
 
     fn make_application() -> Arc<ApplicationState> {

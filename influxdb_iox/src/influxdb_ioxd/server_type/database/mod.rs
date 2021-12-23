@@ -1,27 +1,24 @@
-use std::sync::Arc;
-
-use async_trait::async_trait;
-use futures::{future::FusedFuture, FutureExt};
-use hyper::{Body, Request, Response};
-use metric::Registry;
-use observability_deps::tracing::{error, info};
-use server::{ApplicationState, Server};
-use tokio_util::sync::CancellationToken;
-use trace::TraceCollector;
-
 use crate::influxdb_ioxd::{
     http::metrics::LineProtocolMetrics,
     rpc::RpcBuilderInput,
     server_type::{RpcError, ServerType},
     serving_readiness::ServingReadiness,
 };
+use async_trait::async_trait;
+use futures::{future::FusedFuture, FutureExt};
+use hyper::{Body, Request, Response};
+use metric::Registry;
+use observability_deps::tracing::{error, info};
+use server::{ApplicationState, Server};
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
+use trace::TraceCollector;
 
 mod http;
 mod rpc;
 pub mod setup;
 
 pub use self::http::ApplicationError;
-
 use super::common_state::CommonServerState;
 
 #[derive(Debug)]
@@ -243,7 +240,7 @@ mod tests {
         }
 
         // Trigger a panic in the Server background worker
-        server::utils::register_panic_key("server background worker: 999999999");
+        db::utils::register_panic_key("server background worker: 999999999");
 
         // This should trigger shutdown
         futures::select! {
@@ -284,7 +281,7 @@ mod tests {
         }
 
         // Configure a panic in the worker of the database we're about to create
-        server::utils::register_panic_key("database background worker: panic_test");
+        db::utils::register_panic_key("database background worker: panic_test");
 
         // Spawn a dummy job that will delay shutdown as it runs to completion
         let task = application

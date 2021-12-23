@@ -13,16 +13,16 @@ criterion = { version = "0.3.4", features = ["async_tokio"] }
 chrono = { version = "0.4", default-features = false }
 datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
+db = { path = "../db" }
 flate2 = "1.0.20"
 influxdb_tsm = { path = "../influxdb_tsm" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-mutable_buffer = { path = "../mutable_buffer" }
+mutable_buffer = { path = "../mutable_buffer", features = ["nocache"] }
 object_store = { path = "../object_store" }
 predicate = { path = "../predicate" }
 query = { path = "../query" }
 query_tests = { path = "../query_tests" }
 rand = "0.8.3"
-server = { path = "../server" }
 test_helpers = { path = "../test_helpers" }
 tokio = { version = "1.13", features = ["macros", "parking_lot"] }
 

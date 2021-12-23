@@ -56,9 +56,9 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
     }
 }
 
-/// map common [`catalog::Error`](server::db::catalog::Error) errors to the appropriate tonic Status
-pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic::Status {
-    use server::db::catalog::Error;
+/// map common [`catalog::Error`](db::catalog::Error) errors to the appropriate tonic Status
+pub fn default_catalog_error_handler(error: db::catalog::Error) -> tonic::Status {
+    use db::catalog::Error;
     match error {
         Error::TableNotFound { table } => NotFound::new(ResourceType::Table, table).into(),
         Error::PartitionNotFound { partition, table } => {
@@ -117,9 +117,9 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
     }
 }
 
-/// map common [`db::Error`](server::db::Error) errors  to the appropriate tonic Status
-pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
-    use server::db::Error;
+/// map common [`db::Error`](db::Error) errors  to the appropriate tonic Status
+pub fn default_db_error_handler(error: db::Error) -> tonic::Status {
+    use db::Error;
     match error {
         Error::LifecycleError { source } => PreconditionViolation::ChunkInvalidState(format!(
             "Cannot perform operation due to wrong chunk lifecycle: {}",
@@ -142,9 +142,9 @@ pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
     }
 }
 
-/// map common [`server::db::DmlError`](server::db::DmlError) errors  to the appropriate tonic Status
-pub fn default_dml_error_handler(error: server::db::DmlError) -> tonic::Status {
-    use server::db::DmlError;
+/// map common [`db::DmlError`](db::DmlError) errors  to the appropriate tonic Status
+pub fn default_dml_error_handler(error: db::DmlError) -> tonic::Status {
+    use db::DmlError;
 
     match error {
         DmlError::HardLimitReached {} => QuotaFailure {

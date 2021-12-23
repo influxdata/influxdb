@@ -1,3 +1,11 @@
+use arrow_util::assert_batches_sorted_eq;
+use db::{test_helpers::write_lp, utils::TestDb};
+use object_store::{ObjectStore, ObjectStoreIntegration};
+use query::{
+    exec::{ExecutionContextProvider, IOxExecutionContext},
+    frontend::sql::SqlQueryPlanner,
+    QueryChunk,
+};
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -5,15 +13,6 @@ use std::{
     },
     time::Duration,
 };
-
-use arrow_util::assert_batches_sorted_eq;
-use object_store::{ObjectStore, ObjectStoreIntegration};
-use query::{
-    exec::{ExecutionContextProvider, IOxExecutionContext},
-    frontend::sql::SqlQueryPlanner,
-    QueryChunk,
-};
-use server::{db::test_helpers::write_lp, utils::TestDb};
 
 #[tokio::test]
 async fn test_query_cancellation_slow_store() {

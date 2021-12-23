@@ -815,6 +815,54 @@ dependencies = [
 ]
 
 [[package]]
+name = "db"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow_util",
+ "async-trait",
+ "bytes",
+ "data_types",
+ "datafusion 0.1.0",
+ "datafusion_util",
+ "dml",
+ "futures",
+ "hashbrown",
+ "internal_types",
+ "iox_object_store",
+ "itertools",
+ "job_registry",
+ "lifecycle",
+ "metric",
+ "mutable_batch",
+ "mutable_batch_lp",
+ "mutable_buffer",
+ "object_store",
+ "observability_deps",
+ "once_cell",
+ "parking_lot",
+ "parquet_catalog",
+ "parquet_file",
+ "persistence_windows",
+ "predicate",
+ "query",
+ "rand",
+ "rand_distr",
+ "read_buffer",
+ "schema",
+ "snafu",
+ "test_helpers",
+ "time 0.1.0",
+ "tokio",
+ "tokio-util",
+ "trace",
+ "tracker",
+ "uuid",
+ "workspace-hack",
+ "write_buffer",
+]
+
+[[package]]
 name = "debugid"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1537,6 +1585,7 @@ dependencies = [
  "csv",
  "data_types",
  "datafusion 0.1.0",
+ "db",
  "dml",
  "dotenv",
  "flate2",
@@ -1554,6 +1603,7 @@ dependencies = [
  "internal_types",
  "iox_object_store",
  "itertools",
+ "job_registry",
  "libc",
  "log",
  "logfmt",
@@ -1774,6 +1824,19 @@ name = "itoa"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b71991ff56294aa922b450139ee08b3bfc70982c6b2c7562771375cf73542dd4"
+
+[[package]]
+name = "job_registry"
+version = "0.1.0"
+dependencies = [
+ "data_types",
+ "metric",
+ "parking_lot",
+ "time 0.1.0",
+ "tokio",
+ "tracker",
+ "workspace-hack",
+]
 
 [[package]]
 name = "jobserver"
@@ -3173,13 +3236,13 @@ dependencies = [
  "async-trait",
  "data_types",
  "datafusion 0.1.0",
+ "db",
  "metric",
  "object_store",
  "once_cell",
  "predicate",
  "query",
  "schema",
- "server",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -3809,7 +3872,6 @@ dependencies = [
 name = "server"
 version = "0.1.0"
 dependencies = [
- "arrow",
  "arrow_util",
  "async-trait",
  "bytes",
@@ -3817,8 +3879,7 @@ dependencies = [
  "chrono",
  "crc32fast",
  "data_types",
- "datafusion 0.1.0",
- "datafusion_util",
+ "db",
  "dml",
  "futures",
  "futures-util",
@@ -3828,33 +3889,21 @@ dependencies = [
  "influxdb_line_protocol",
  "internal_types",
  "iox_object_store",
- "itertools",
+ "job_registry",
  "lifecycle",
  "metric",
- "mutable_batch",
  "mutable_batch_lp",
- "mutable_batch_pb",
- "mutable_buffer",
  "num_cpus",
  "object_store",
  "observability_deps",
- "once_cell",
  "parking_lot",
  "parquet_catalog",
- "parquet_file",
  "persistence_windows",
- "predicate",
  "query",
  "rand",
- "rand_distr",
- "read_buffer",
  "regex",
  "router",
- "schema",
- "serde",
- "serde_json",
  "snafu",
- "snap",
  "test_helpers",
  "time 0.1.0",
  "tokio",
@@ -3875,6 +3924,7 @@ dependencies = [
  "criterion",
  "data_types",
  "datafusion 0.1.0",
+ "db",
  "flate2",
  "influxdb_line_protocol",
  "influxdb_tsm",
@@ -3884,7 +3934,6 @@ dependencies = [
  "query",
  "query_tests",
  "rand",
- "server",
  "test_helpers",
  "tokio",
 ]

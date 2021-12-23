@@ -1,13 +1,11 @@
-use std::sync::Arc;
-
+use job_registry::JobRegistry;
 use object_store::ObjectStore;
 use observability_deps::tracing::info;
 use query::exec::Executor;
+use std::sync::Arc;
 use time::TimeProvider;
 use trace::TraceCollector;
 use write_buffer::config::WriteBufferConfigFactory;
-
-use crate::JobRegistry;
 
 /// A container for application-global resources
 /// shared between server and all DatabaseInstances

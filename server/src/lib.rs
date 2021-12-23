@@ -68,7 +68,6 @@
     clippy::future_not_send
 )]
 
-use ::lifecycle::{LockableChunk, LockablePartition};
 use async_trait::async_trait;
 use data_types::{
     chunk_metadata::ChunkId,
@@ -78,11 +77,13 @@ use data_types::{
     {DatabaseName, DatabaseNameError},
 };
 use database::{Database, DatabaseConfig};
+use db::Db;
 use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
 use generated_types::{google::FieldViolation, influxdata::iox::management};
 use hashbrown::HashMap;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
+use lifecycle::{LockableChunk, LockablePartition};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -93,23 +94,10 @@ use tracker::TaskTracker;
 use uuid::Uuid;
 
 pub use application::ApplicationState;
-pub use db::Db;
-pub use job::JobRegistry;
-
 mod application;
 pub mod database;
-pub mod db;
-mod job;
-
 pub mod rules;
 use rules::{PersistedDatabaseRules, ProvidedDatabaseRules};
-
-/// Utility modules used by benchmarks and tests
-pub mod utils;
-
-mod write_buffer;
-
-mod lifecycle;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -884,7 +872,7 @@ async fn background_worker(shared: Arc<ServerShared>) {
         maybe_initialize_server(shared.as_ref()).await;
         job_registry.reclaim();
 
-        crate::utils::panic_test(|| {
+        db::utils::panic_test(|| {
             let server_id = shared.state.read().initialized().ok()?.server_id;
             Some(format!("server background worker: {}", server_id))
         });

@@ -1,24 +1,20 @@
-use std::convert::TryInto;
-use std::sync::Arc;
-
 use bytes::BytesMut;
-use observability_deps::tracing::debug;
-use prost::Message;
-use tonic::Response;
-
 use data_types::job::Job;
-use generated_types::google::{FieldViolationExt, ResourceType};
 use generated_types::{
     google::{
         longrunning::*,
         protobuf::{Any, Empty},
         rpc::Status,
-        FieldViolation, InternalError, NotFound,
+        FieldViolation, FieldViolationExt, InternalError, NotFound, ResourceType,
     },
     influxdata::iox::management::v1 as management,
     protobuf_type_url,
 };
-use server::JobRegistry;
+use job_registry::JobRegistry;
+use observability_deps::tracing::debug;
+use prost::Message;
+use std::{convert::TryInto, sync::Arc};
+use tonic::Response;
 use tracker::{TaskId, TaskResult, TaskStatus, TaskTracker};
 
 /// Implementation of the write service

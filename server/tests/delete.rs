@@ -1,10 +1,3 @@
-use futures::TryStreamExt;
-use std::{
-    num::{NonZeroU32, NonZeroU64},
-    sync::Arc,
-    time::{Duration, Instant},
-};
-
 use arrow_util::assert_batches_sorted_eq;
 use data_types::{
     chunk_metadata::ChunkStorage,
@@ -14,12 +7,20 @@ use data_types::{
     timestamp::TimestampRange,
     DatabaseName,
 };
+use db::{
+    test_helpers::{run_query, write_lp},
+    Db,
+};
+use futures::TryStreamExt;
 use query::{QueryChunk, QueryChunkMeta, QueryDatabase};
 use server::{
-    db::test_helpers::{run_query, write_lp},
     rules::ProvidedDatabaseRules,
     test_utils::{make_application, make_initialized_server},
-    Db,
+};
+use std::{
+    num::{NonZeroU32, NonZeroU64},
+    sync::Arc,
+    time::{Duration, Instant},
 };
 use test_helpers::maybe_start_logging;
 

@@ -1,15 +1,13 @@
-use crate::lifecycle::LifecycleWorker;
-use crate::write_buffer::WriteBufferConsumer;
 use crate::{
-    db::{
-        load::{create_preserved_catalog, load_or_create_preserved_catalog},
-        DatabaseToCommit,
-    },
     rules::{PersistedDatabaseRules, ProvidedDatabaseRules},
-    ApplicationState, Db,
+    ApplicationState,
 };
-use data_types::job::Job;
-use data_types::{server_id::ServerId, DatabaseName};
+use data_types::{job::Job, server_id::ServerId, DatabaseName};
+use db::{
+    load::{create_preserved_catalog, load_or_create_preserved_catalog},
+    write_buffer::WriteBufferConsumer,
+    DatabaseToCommit, Db, LifecycleWorker,
+};
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
@@ -765,7 +763,7 @@ async fn background_worker(shared: Arc<DatabaseShared>) {
 
         info!(%db_name, "database finished initialization - starting Db worker");
 
-        crate::utils::panic_test(|| Some(format!("database background worker: {}", db_name,)));
+        db::utils::panic_test(|| Some(format!("database background worker: {}", db_name,)));
 
         let db_shutdown = CancellationToken::new();
         let db_worker = db.background_worker(db_shutdown.clone()).fuse();
@@ -1042,7 +1040,7 @@ pub enum InitError {
     RulesDatabaseNameMismatch { actual: String, expected: String },
 
     #[snafu(display("error loading catalog: {}", source))]
-    CatalogLoad { source: crate::db::load::Error },
+    CatalogLoad { source: db::load::Error },
 
     #[snafu(display("error creating write buffer: {}", source))]
     CreateWriteBuffer {
@@ -1050,7 +1048,7 @@ pub enum InitError {
     },
 
     #[snafu(display("error during replay: {}", source))]
-    Replay { source: crate::db::Error },
+    Replay { source: db::Error },
 
     #[snafu(display("error creating database owner info: {}", source))]
     CreatingOwnerInfo { source: OwnerInfoCreateError },
@@ -1090,7 +1088,7 @@ pub enum InitError {
     AlreadyActive { name: String, uuid: Uuid },
 
     #[snafu(display("cannot create preserved catalog: {}", source))]
-    CannotCreatePreservedCatalog { source: crate::db::load::Error },
+    CannotCreatePreservedCatalog { source: db::load::Error },
 }
 
 /// The Database startup state machine

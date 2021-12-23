@@ -1,21 +1,26 @@
-use futures_util::FutureExt;
-use std::num::{NonZeroU32, NonZeroUsize};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-
 use arrow_util::assert_batches_eq;
-use data_types::chunk_metadata::ChunkStorage;
-use data_types::database_rules::{DatabaseRules, LifecycleRules, PartitionTemplate, TemplatePart};
-use data_types::write_buffer::WriteBufferConnection;
-use data_types::{sequence::Sequence, server_id::ServerId, DatabaseName};
-use query::QueryDatabase;
-use server::db::test_helpers::wait_for_tables;
-use server::rules::PersistedDatabaseRules;
-use server::{
-    db::test_helpers::run_query,
-    rules::ProvidedDatabaseRules,
-    test_utils::{make_application, make_initialized_server},
+use data_types::{
+    chunk_metadata::ChunkStorage,
+    database_rules::{DatabaseRules, LifecycleRules, PartitionTemplate, TemplatePart},
+    sequence::Sequence,
+    server_id::ServerId,
+    write_buffer::WriteBufferConnection,
+    DatabaseName,
+};
+use db::{
+    test_helpers::{run_query, wait_for_tables},
     Db,
+};
+use futures_util::FutureExt;
+use query::QueryDatabase;
+use server::{
+    rules::{PersistedDatabaseRules, ProvidedDatabaseRules},
+    test_utils::{make_application, make_initialized_server},
+};
+use std::{
+    num::{NonZeroU32, NonZeroUsize},
+    sync::Arc,
+    time::{Duration, Instant},
 };
 use test_helpers::{assert_contains, tracing::TracingCapture};
 use write_buffer::mock::MockBufferSharedState;

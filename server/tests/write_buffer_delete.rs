@@ -1,30 +1,29 @@
-use std::collections::BTreeMap;
-use std::num::NonZeroU32;
-use std::sync::Arc;
-
 use arrow_util::assert_batches_eq;
-use data_types::delete_predicate::{DeleteExpr, DeletePredicate, Op, Scalar};
-use data_types::router::{
-    Matcher, MatcherToShard, QuerySinks, Router as RouterConfig, ShardConfig, ShardId, WriteSink,
-    WriteSinkSet, WriteSinkVariant,
+use data_types::{
+    delete_predicate::{DeleteExpr, DeletePredicate, Op, Scalar},
+    router::{
+        Matcher, MatcherToShard, QuerySinks, Router as RouterConfig, ShardConfig, ShardId,
+        WriteSink, WriteSinkSet, WriteSinkVariant,
+    },
+    server_id::ServerId,
+    timestamp::TimestampRange,
+    DatabaseName,
 };
-use data_types::server_id::ServerId;
-use data_types::timestamp::TimestampRange;
-use data_types::DatabaseName;
+use db::{test_helpers::wait_for_tables, Db};
 use dml::{DmlDelete, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::{
     management::v1::DatabaseRules, write_buffer::v1::WriteBufferConnection,
 };
 use mutable_batch_lp::lines_to_batches;
-use query::exec::ExecutionContextProvider;
-use query::frontend::sql::SqlQueryPlanner;
+use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner};
 use regex::Regex;
-use router::router::Router;
-use router::server::RouterServer;
-use server::db::test_helpers::wait_for_tables;
-use server::rules::ProvidedDatabaseRules;
-use server::test_utils::{make_application, make_initialized_server};
-use server::{Db, Server};
+use router::{router::Router, server::RouterServer};
+use server::{
+    rules::ProvidedDatabaseRules,
+    test_utils::{make_application, make_initialized_server},
+    Server,
+};
+use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
 use write_buffer::mock::MockBufferSharedState;
 
 /// A distributed IOx topology consisting of a router and a database, separated by a write buffer

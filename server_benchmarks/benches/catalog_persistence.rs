@@ -1,8 +1,8 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, SamplingMode};
 use data_types::{chunk_metadata::ChunkId, database_rules::LifecycleRules};
+use db::{test_helpers::write_lp, utils::TestDb};
 use object_store::{ObjectStore, ThrottleConfig};
 use query::QueryChunk;
-use server::{db::test_helpers::write_lp, utils::TestDb};
 use std::{
     convert::TryFrom,
     num::{NonZeroU32, NonZeroU64},

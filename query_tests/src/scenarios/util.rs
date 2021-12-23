@@ -1,18 +1,14 @@
 //! This module contains util functions for testing scenarios
 
-use data_types::chunk_metadata::ChunkId;
-use data_types::delete_predicate::DeletePredicate;
-use query::{QueryChunk, QueryDatabase};
-use server::Db;
-use std::fmt::Display;
-use std::sync::Arc;
-
-use server::db::test_helpers::{read_buffer_table_chunk_ids, write_lp};
-use server::utils::{
-    count_mub_table_chunks, count_os_table_chunks, count_rub_table_chunks, make_db,
-};
-
 use super::DbScenario;
+use data_types::{chunk_metadata::ChunkId, delete_predicate::DeletePredicate};
+use db::{
+    test_helpers::{read_buffer_table_chunk_ids, write_lp},
+    utils::{count_mub_table_chunks, count_os_table_chunks, count_rub_table_chunks, make_db},
+    Db,
+};
+use query::{QueryChunk, QueryDatabase};
+use std::{fmt::Display, sync::Arc};
 
 // Structs, enums, and functions used to exhaust all test scenarios of chunk life cycle
 // & when delete predicates are applied
