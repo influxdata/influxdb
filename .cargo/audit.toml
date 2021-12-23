@@ -20,21 +20,6 @@ ignore = [
     # upstream issue: https://github.com/lipanski/mockito/issues/132
     "RUSTSEC-2020-0095",
 
-    # title: BinaryArray does not perform bound checks on reading values and offsets
-    # why needed: part of `arrow`
-    # upstream issue: https://github.com/apache/arrow-rs/issues/772
-    "RUSTSEC-2021-0116",
-
-    # title: DecimalArray does not perform bound checks on accessing values and offsets
-    # why needed: part of `arrow`
-    # upstream issue: https://github.com/apache/arrow-rs/issues/775
-    "RUSTSEC-2021-0117",
-
-    # title: FixedSizeBinaryArray does not perform bound checks on accessing values and offsets
-    # why needed: part of `arrow`
-    # upstream issue: https://github.com/apache/arrow-rs/issues/774
-    "RUSTSEC-2021-0118",
-
     # title: Generated code can read and write out of bounds in safe code
     # why needed: part of `arrow`
     # upstream issue: https://github.com/google/flatbuffers/issues/6627
