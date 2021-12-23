@@ -46,8 +46,13 @@ impl Config {
 
 #[derive(Debug, StructOpt)]
 enum Command {
+    /// Run the server in database mode
     Database(database::Config),
+
+    /// Run the server in routing mode
     Router(router::Config),
+
+    /// Run the server in test mode
     Test(test::Config),
 }
 

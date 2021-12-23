@@ -39,7 +39,7 @@ pub struct Config {
     command: Command,
 }
 
-/// All possible subcommands for catalog
+/// All possible subcommands for recovering broken databases
 #[derive(Debug, StructOpt)]
 enum Command {
     /// Wipe preserved catalog

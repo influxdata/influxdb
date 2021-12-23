@@ -145,13 +145,26 @@ struct Config {
 
 #[derive(Debug, StructOpt)]
 enum Command {
+    /// Database-related commands
     Database(commands::database::Config),
+
+    /// Run the InfluxDB IOx server
     // Clippy recommended boxing this variant because it's much larger than the others
     Run(Box<commands::run::Config>),
+
+    /// Router-related commands
     Router(commands::router::Config),
+
+    /// IOx server configuration commands
     Server(commands::server::Config),
+
+    /// Manage long-running IOx operations
     Operation(commands::operations::Config),
+
+    /// Start IOx interactive SQL REPL loop
     Sql(commands::sql::Config),
+
+    /// Interrogate internal database data
     Debug(commands::debug::Config),
 }
 

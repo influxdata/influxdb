@@ -194,15 +194,34 @@ struct Claim {
 /// All possible subcommands for database
 #[derive(Debug, StructOpt)]
 enum Command {
+    /// Create a new database
     Create(Create),
+
+    /// Get list of databases
     List(List),
+
+    /// Return configuration of specific database
     Get(Get),
+
+    /// Write data into the specified database
     Write(Write),
+
+    /// Query the data with SQL
     Query(Query),
+
+    /// Manage database chunks
     Chunk(chunk::Config),
+
+    /// Manage database partitions
     Partition(partition::Config),
+
+    /// Recover broken databases
     Recover(recover::Config),
+
+    /// Release a database from its current server owner
     Release(Release),
+
+    /// Claim an unowned database
     Claim(Claim),
 }
 
