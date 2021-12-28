@@ -29,8 +29,9 @@ func NewInfluxdPrintConfigCommand(v *viper.Viper, influxdOpts []cli.Opt) (*cobra
 	}
 
 	cmd := &cobra.Command{
-		Use:   "print-config",
-		Short: "Print the full influxd config resolved from the current environment",
+		Use:        "print-config",
+		Short:      "Print the full influxd config resolved from the current environment",
+		Deprecated: "use the influx-cli command server-config to display the configuration values from the running server",
 		Long: `
 Print config (in YAML) that the influxd server would use if run with the current flags/env vars/config file.
 
