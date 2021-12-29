@@ -30,8 +30,11 @@ type migrationTarget struct {
 	kvMigration, sqlMigration int
 }
 
+// migrationTarget int values mean "migrate to this migration number". For example, kvMigration of 15 will result in the
+// downgraded database including migration 15, but migration 15 will not be undone.
 var downgradeMigrationTargets = map[string]migrationTarget{
 	"2.0": {kvMigration: 15, sqlMigration: 0},
+	"2.1": {kvMigration: 18, sqlMigration: 3},
 }
 
 func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
