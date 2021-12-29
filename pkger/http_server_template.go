@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 
@@ -330,6 +331,40 @@ func (s *HTTPServerTemplates) apply(w http.ResponseWriter, r *http.Request) {
 			Msg:  fmt.Sprintf("invalid organization ID provided: %q", reqBody.OrgID),
 		})
 		return
+	}
+
+	// Reject use of server-side jsonnet with /api/v2/templates/apply
+	if encoding == EncodingJsonnet {
+		s.api.Err(w, r, &errors.Error{
+			Code: errors.EUnprocessableEntity,
+			Msg:  fmt.Sprintf("template from source(s) had an issue: %s", ErrInvalidEncoding.Error()),
+		})
+		return
+	}
+
+	var remotes []string
+	for _, rem := range reqBody.Remotes {
+		remotes = append(remotes, rem.URL)
+	}
+	remotes = append(remotes, reqBody.RawTemplate.Sources...)
+
+	for _, rem := range remotes {
+		// While things like '.%6Aonnet' evaluate to the default encoding (yaml), let's unescape and catch those too
+		decoded, err := url.QueryUnescape(rem)
+		if err != nil {
+			s.api.Err(w, r, &errors.Error{
+				Code: errors.EInvalid,
+				Msg:  fmt.Sprintf("template from url[%q] had an issue", rem),
+			})
+			return
+		}
+		if len(decoded) > 0 && strings.HasSuffix(strings.ToLower(decoded), "jsonnet") {
+			s.api.Err(w, r, &errors.Error{
+				Code: errors.EUnprocessableEntity,
+				Msg:  fmt.Sprintf("template from url[%q] had an issue: %s", rem, ErrInvalidEncoding.Error()),
+			})
+			return
+		}
 	}
 
 	var stackID platform.ID

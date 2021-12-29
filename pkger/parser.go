@@ -209,7 +209,16 @@ func parseJSON(r io.Reader, opts ...ValidateOptFn) (*Template, error) {
 }
 
 func parseJsonnet(r io.Reader, opts ...ValidateOptFn) (*Template, error) {
-	return parse(jsonnet.NewDecoder(r), opts...)
+	opt := &validateOpt{}
+	for _, o := range opts {
+		o(opt)
+	}
+	// For security, we'll default to disabling parsing jsonnet but allow callers to override the behavior via
+	// EnableJsonnet(). Enabling jsonnet might be useful for client code where parsing jsonnet could be acceptable.
+	if opt.enableJsonnet {
+		return parse(jsonnet.NewDecoder(r), opts...)
+	}
+	return nil, fmt.Errorf("%s: jsonnet", ErrInvalidEncoding)
 }
 
 func parseSource(r io.Reader, opts ...ValidateOptFn) (*Template, error) {
@@ -536,13 +545,21 @@ func Combine(pkgs []*Template, validationOpts ...ValidateOptFn) (*Template, erro
 
 type (
 	validateOpt struct {
-		minResources bool
-		skipValidate bool
+		minResources  bool
+		skipValidate  bool
+		enableJsonnet bool
 	}
 
 	// ValidateOptFn provides a means to disable desired validation checks.
 	ValidateOptFn func(*validateOpt)
 )
+
+// Jsonnet parsing is disabled by default. EnableJsonnet turns it back on.
+func EnableJsonnet() ValidateOptFn {
+	return func(opt *validateOpt) {
+		opt.enableJsonnet = true
+	}
+}
 
 // ValidWithoutResources ignores the validation check for minimum number
 // of resources. This is useful for the service Create to ignore this and
