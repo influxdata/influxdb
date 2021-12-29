@@ -553,14 +553,16 @@ func (c *Controller) Shutdown(ctx context.Context) error {
 	// Cancel all of the currently active queries.
 	c.queriesMu.RLock()
 	for _, q := range c.queries {
-		var fluxScript string
-		fc, ok := q.compiler.(lang.FluxCompiler)
-		if !ok {
-			fluxScript = "unknown"
-		} else {
-			fluxScript = fc.Query
+		if c.logShutdownQueries {
+			var fluxScript string
+			fc, ok := q.compiler.(lang.FluxCompiler)
+			if !ok {
+				fluxScript = "unknown"
+			} else {
+				fluxScript = fc.Query
+			}
+			c.log.Info("Cancelling Flux query because of server shutdown", zap.String("query", fluxScript))
 		}
-		c.log.Info("Cancelling Flux query because of server shutdown", zap.String("query", fluxScript))
 
 		q.Cancel()
 	}

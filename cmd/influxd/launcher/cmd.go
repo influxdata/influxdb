@@ -262,7 +262,7 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 		},
 		{
 			DestP:   &o.LogShutdownQueries,
-			Flag:    "log-shutdown-flux-queries",
+			Flag:    "log-flux-queries-on-shutdown",
 			Default: o.LogShutdownQueries,
 			Desc:    "logs flux queries that are cancelled due to server shutdown",
 		},
