@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -exo pipefail
 
-declare -a DOWNGRADE_TARGETS=('2.0')
+declare -a DOWNGRADE_TARGETS=('2.0' '2.1')
 
 declare -r TEST_ORG=testorg
 declare -r TEST_TOKEN=supersecretfaketoken
@@ -16,6 +16,10 @@ function download_older_binary () {
         2.0)
             dl_url=https://dl.influxdata.com/influxdb/releases/influxdb2-2.0.9-linux-amd64.tar.gz
             dl_sha=64b9cfea1b5ca07479a16332056f9e7f806ad71df9c6cc0ec70c4333372b9d26
+            ;;
+        2.1)
+            dl_url=https://dl.influxdata.com/influxdb/releases/influxdb2-2.1.1-linux-amd64.tar.gz
+            dl_sha=1688e3afa7f875d472768e4f4f5a909b357287a45a8f28287021e4184a185927
             ;;
         *)
             >&2 echo Error: Unknown downgrade target "'$target_version'"
