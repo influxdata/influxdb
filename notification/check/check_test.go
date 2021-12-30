@@ -66,19 +66,6 @@ func TestValidCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid owner id",
-			src: &check.Threshold{
-				Base: check.Base{
-					ID:   influxTesting.MustIDBase16(id1),
-					Name: "name1",
-				},
-			},
-			err: &errors.Error{
-				Code: errors.EInvalid,
-				Msg:  "Check OwnerID is invalid",
-			},
-		},
-		{
 			name: "invalid org id",
 			src: &check.Threshold{
 				Base: check.Base{
