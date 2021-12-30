@@ -362,6 +362,21 @@ func (s *Service) InitStack(ctx context.Context, userID platform.ID, stCreate St
 		return Stack{}, err
 	}
 
+	// Reject use of server-side jsonnet with stack templates
+	for _, u := range stCreate.TemplateURLs {
+		// While things like '.%6Aonnet' evaluate to the default encoding (yaml), let's unescape and catch those too
+		decoded, err := url.QueryUnescape(u)
+		if err != nil {
+			msg := fmt.Sprintf("stack template from url[%q] had an issue", u)
+			return Stack{}, influxErr(errors2.EInvalid, msg)
+		}
+
+		if strings.HasSuffix(strings.ToLower(decoded), "jsonnet") {
+			msg := fmt.Sprintf("stack template from url[%q] had an issue: %s", u, ErrInvalidEncoding.Error())
+			return Stack{}, influxErr(errors2.EUnprocessableEntity, msg)
+		}
+	}
+
 	if _, err := s.orgSVC.FindOrganizationByID(ctx, stCreate.OrgID); err != nil {
 		if errors2.ErrorCode(err) == errors2.ENotFound {
 			msg := fmt.Sprintf("organization dependency does not exist for id[%q]", stCreate.OrgID.String())
@@ -474,6 +489,21 @@ func (s *Service) UpdateStack(ctx context.Context, upd StackUpdate) (Stack, erro
 	existing, err := s.ReadStack(ctx, upd.ID)
 	if err != nil {
 		return Stack{}, err
+	}
+
+	// Reject use of server-side jsonnet with stack templates
+	for _, u := range upd.TemplateURLs {
+		// While things like '.%6Aonnet' evaluate to the default encoding (yaml), let's unescape and catch those too
+		decoded, err := url.QueryUnescape(u)
+		if err != nil {
+			msg := fmt.Sprintf("stack template from url[%q] had an issue", u)
+			return Stack{}, influxErr(errors2.EInvalid, msg)
+		}
+
+		if strings.HasSuffix(strings.ToLower(decoded), "jsonnet") {
+			msg := fmt.Sprintf("stack template from url[%q] had an issue: %s", u, ErrInvalidEncoding.Error())
+			return Stack{}, influxErr(errors2.EUnprocessableEntity, msg)
+		}
 	}
 
 	updatedStack := s.applyStackUpdate(existing, upd)

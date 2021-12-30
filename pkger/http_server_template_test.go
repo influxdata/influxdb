@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	influxerror "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
@@ -25,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	"gopkg.in/yaml.v3"
 )
 
@@ -106,46 +108,38 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 	})
 
 	t.Run("dry run pkg", func(t *testing.T) {
-		t.Run("json", func(t *testing.T) {
+		t.Run("jsonnet disabled", func(t *testing.T) {
 			tests := []struct {
 				name        string
 				contentType string
 				reqBody     pkger.ReqApply
 			}{
 				{
-					name:        "app json",
-					contentType: "application/json",
-					reqBody: pkger.ReqApply{
-						DryRun:      true,
-						OrgID:       platform.ID(9000).String(),
-						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
-					},
-				},
-				{
-					name: "defaults json when no content type",
-					reqBody: pkger.ReqApply{
-						DryRun:      true,
-						OrgID:       platform.ID(9000).String(),
-						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
-					},
-				},
-				{
-					name: "retrieves package from a URL",
-					reqBody: pkger.ReqApply{
-						DryRun: true,
-						OrgID:  platform.ID(9000).String(),
-						Remotes: []pkger.ReqTemplateRemote{{
-							URL: newPkgURL(t, filesvr.URL, "testdata/remote_bucket.json"),
-						}},
-					},
-				},
-				{
-					name:        "app jsonnet",
+					name:        "app jsonnet disabled",
 					contentType: "application/x-jsonnet",
 					reqBody: pkger.ReqApply{
 						DryRun:      true,
 						OrgID:       platform.ID(9000).String(),
 						RawTemplate: bucketPkgKinds(t, pkger.EncodingJsonnet),
+					},
+				},
+				{
+					name: "retrieves package from a URL (jsonnet disabled)",
+					reqBody: pkger.ReqApply{
+						DryRun: true,
+						OrgID:  platform.ID(9000).String(),
+						Remotes: []pkger.ReqTemplateRemote{{
+							URL: newPkgURL(t, filesvr.URL, "testdata/bucket_associates_labels_one.jsonnet"),
+						}},
+					},
+				},
+				{
+					name:        "app json with jsonnet disabled remote",
+					contentType: "application/json",
+					reqBody: pkger.ReqApply{
+						DryRun:      true,
+						OrgID:       platform.ID(9000).String(),
+						RawTemplate: bucketPkgJsonWithJsonnetRemote(t),
 					},
 				},
 			}
@@ -182,7 +176,139 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 						},
 					}
 
-					pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+					core, sink := observer.New(zap.InfoLevel)
+					pkgHandler := pkger.NewHTTPServerTemplates(zap.New(core), svc)
+					svr := newMountedHandler(pkgHandler, 1)
+
+					ctx := context.Background()
+					testttp.
+						PostJSON(t, "/api/v2/templates/apply", tt.reqBody).
+						Headers("Content-Type", tt.contentType).
+						WithCtx(ctx).
+						Do(svr).
+						ExpectStatus(http.StatusUnprocessableEntity).
+						ExpectBody(func(buf *bytes.Buffer) {
+							var resp pkger.RespApply
+							decodeBody(t, buf, &resp)
+
+							assert.Len(t, resp.Summary.Buckets, 0)
+							assert.Len(t, resp.Diff.Buckets, 0)
+						})
+
+					// Verify logging when jsonnet is disabled
+					entries := sink.TakeAll() // resets to 0
+					if tt.contentType == "application/x-jsonnet" {
+						require.Equal(t, 1, len(entries))
+						// message 0
+						require.Equal(t, zap.ErrorLevel, entries[0].Entry.Level)
+						require.Equal(t, "api error encountered", entries[0].Entry.Message)
+						assert.ElementsMatch(t, []zap.Field{
+							zap.Error(&influxerror.Error{
+								Code: influxerror.EUnprocessableEntity,
+								Msg:  "template from source(s) had an issue: invalid encoding provided",
+							},
+							)}, entries[0].Context)
+					} else if len(tt.reqBody.Remotes) == 1 && strings.HasSuffix(tt.reqBody.Remotes[0].URL, "jsonnet") {
+						require.Equal(t, 1, len(entries))
+						// message 0
+						require.Equal(t, zap.ErrorLevel, entries[0].Entry.Level)
+						require.Equal(t, "api error encountered", entries[0].Entry.Message)
+						expMsg := fmt.Sprintf("template from url[\"%s\"] had an issue: invalid encoding provided", tt.reqBody.Remotes[0].URL)
+						assert.ElementsMatch(t, []zap.Field{
+							zap.Error(&influxerror.Error{
+								Code: influxerror.EUnprocessableEntity,
+								Msg:  expMsg,
+							},
+							)}, entries[0].Context)
+					} else if len(tt.reqBody.RawTemplate.Sources) == 1 && strings.HasSuffix(tt.reqBody.RawTemplate.Sources[0], "jsonnet") {
+						require.Equal(t, 1, len(entries))
+						// message 0
+						require.Equal(t, zap.ErrorLevel, entries[0].Entry.Level)
+						require.Equal(t, "api error encountered", entries[0].Entry.Message)
+						expMsg := fmt.Sprintf("template from url[\"%s\"] had an issue: invalid encoding provided", tt.reqBody.RawTemplate.Sources[0])
+						assert.ElementsMatch(t, []zap.Field{
+							zap.Error(&influxerror.Error{
+								Code: influxerror.EUnprocessableEntity,
+								Msg:  expMsg,
+							},
+							)}, entries[0].Context)
+					} else {
+						require.Equal(t, 0, len(entries))
+					}
+				}
+				t.Run(tt.name, fn)
+			}
+		})
+
+		t.Run("json", func(t *testing.T) {
+			tests := []struct {
+				name        string
+				contentType string
+				reqBody     pkger.ReqApply
+			}{
+				{
+					name:        "app json",
+					contentType: "application/json",
+					reqBody: pkger.ReqApply{
+						DryRun:      true,
+						OrgID:       platform.ID(9000).String(),
+						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
+					},
+				},
+				{
+					name: "defaults json when no content type",
+					reqBody: pkger.ReqApply{
+						DryRun:      true,
+						OrgID:       platform.ID(9000).String(),
+						RawTemplate: bucketPkgKinds(t, pkger.EncodingJSON),
+					},
+				},
+				{
+					name: "retrieves package from a URL (json)",
+					reqBody: pkger.ReqApply{
+						DryRun: true,
+						OrgID:  platform.ID(9000).String(),
+						Remotes: []pkger.ReqTemplateRemote{{
+							URL: newPkgURL(t, filesvr.URL, "testdata/remote_bucket.json"),
+						}},
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					svc := &fakeSVC{
+						dryRunFn: func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+							var opt pkger.ApplyOpt
+							for _, o := range opts {
+								o(&opt)
+							}
+							pkg, err := pkger.Combine(opt.Templates)
+							if err != nil {
+								return pkger.ImpactSummary{}, err
+							}
+
+							if err := pkg.Validate(); err != nil {
+								return pkger.ImpactSummary{}, err
+							}
+							sum := pkg.Summary()
+							var diff pkger.Diff
+							for _, b := range sum.Buckets {
+								diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
+									DiffIdentifier: pkger.DiffIdentifier{
+										MetaName: b.Name,
+									},
+								})
+							}
+							return pkger.ImpactSummary{
+								Summary: sum,
+								Diff:    diff,
+							}, nil
+						},
+					}
+
+					core, _ := observer.New(zap.InfoLevel)
+					pkgHandler := pkger.NewHTTPServerTemplates(zap.New(core), svc)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -198,7 +324,6 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 							assert.Len(t, resp.Diff.Buckets, 1)
 						})
 				}
-
 				t.Run(tt.name, fn)
 			}
 		})
@@ -566,6 +691,48 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 				})
 		})
 	})
+
+	t.Run("Templates()", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			reqBody  pkger.ReqApply
+			encoding pkger.Encoding
+		}{
+			{
+				name: "jsonnet disabled",
+				reqBody: pkger.ReqApply{
+					OrgID:       platform.ID(9000).String(),
+					RawTemplate: bucketPkgKinds(t, pkger.EncodingJsonnet),
+				},
+				encoding: pkger.EncodingJsonnet,
+			},
+			{
+				name: "jsonnet remote disabled",
+				reqBody: pkger.ReqApply{
+					OrgID: platform.ID(9000).String(),
+					Remotes: []pkger.ReqTemplateRemote{{
+						URL: newPkgURL(t, filesvr.URL, "testdata/bucket_associates_labels_one.jsonnet"),
+					}},
+				},
+				encoding: pkger.EncodingJsonnet,
+			},
+			{
+				name: "jsonnet disabled remote source",
+				reqBody: pkger.ReqApply{
+					OrgID:       platform.ID(9000).String(),
+					RawTemplate: bucketPkgJsonWithJsonnetRemote(t),
+				},
+				encoding: pkger.EncodingJSON,
+			},
+		}
+
+		for _, tt := range tests {
+			tmpl, err := tt.reqBody.Templates(tt.encoding)
+			assert.Nil(t, tmpl)
+			require.Error(t, err)
+			assert.Equal(t, "unprocessable entity", influxerror.ErrorCode(err))
+		}
+	})
 }
 
 func assertNonZeroApplyResp(t *testing.T, resp pkger.RespApply) {
@@ -644,7 +811,7 @@ spec:
 		require.FailNow(t, "invalid encoding provided: "+encoding.String())
 	}
 
-	pkg, err := pkger.Parse(encoding, pkger.FromString(fmt.Sprintf(pkgStr, pkger.APIVersion)))
+	pkg, err := pkger.Parse(encoding, pkger.FromString(fmt.Sprintf(pkgStr, pkger.APIVersion)), pkger.EnableJsonnet())
 	require.NoError(t, err)
 
 	b, err := pkg.Encode(encoding)
@@ -652,6 +819,33 @@ spec:
 	return pkger.ReqRawTemplate{
 		ContentType: encoding.String(),
 		Sources:     pkg.Sources(),
+		Template:    b,
+	}
+}
+
+func bucketPkgJsonWithJsonnetRemote(t *testing.T) pkger.ReqRawTemplate {
+	pkgStr := `[
+  {
+    "apiVersion": "%[1]s",
+    "kind": "Bucket",
+    "metadata": {
+      "name": "rucket-11"
+    },
+    "spec": {
+      "description": "bucket 1 description"
+    }
+  }
+]
+`
+	// Create a json template and then add a jsonnet remote raw template
+	pkg, err := pkger.Parse(pkger.EncodingJSON, pkger.FromString(fmt.Sprintf(pkgStr, pkger.APIVersion)))
+	require.NoError(t, err)
+
+	b, err := pkg.Encode(pkger.EncodingJSON)
+	require.NoError(t, err)
+	return pkger.ReqRawTemplate{
+		ContentType: pkger.EncodingJsonnet.String(),
+		Sources:     []string{"file:///nonexistent.jsonnet"},
 		Template:    b,
 	}
 }

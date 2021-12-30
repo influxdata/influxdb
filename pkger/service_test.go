@@ -5044,6 +5044,96 @@ func TestService(t *testing.T) {
 				t.Run(tt.name, fn)
 			}
 		})
+
+		t.Run("jsonnet template url", func(t *testing.T) {
+			tests := []struct {
+				name            string
+				create          StackCreate
+				expectedErrCode string
+			}{
+				// always valid
+				{
+					name:   "no templates",
+					create: StackCreate{OrgID: 3333},
+				},
+				{
+					name: "one json template",
+					create: StackCreate{
+						OrgID:        3333,
+						TemplateURLs: []string{"http://fake/some.json"},
+					},
+				},
+				{
+					name: "one yaml template",
+					create: StackCreate{
+						OrgID:        3333,
+						TemplateURLs: []string{"http://fake/some.yaml"},
+					},
+				},
+				{
+					name: "multiple templates",
+					create: StackCreate{
+						OrgID: 3333,
+						TemplateURLs: []string{
+							"http://fake/some.yaml",
+							"http://fake/some.json",
+							"http://fake/other.yaml",
+						},
+					},
+				},
+				// invalid
+				{
+					name: "one jsonnet template",
+					create: StackCreate{
+						OrgID:        3333,
+						TemplateURLs: []string{"http://fake/some.jsonnet"},
+					},
+					expectedErrCode: "unprocessable entity",
+				},
+				{
+					name: "multiple with one jsonnet template",
+					create: StackCreate{
+						OrgID: 3333,
+						TemplateURLs: []string{
+							"http://fake/some.json",
+							"http://fake/some.jsonnet",
+							"http://fake/some.yaml",
+						},
+					},
+					expectedErrCode: "unprocessable entity",
+				},
+				{
+					name: "one weird jsonnet template",
+					create: StackCreate{
+						OrgID:        3333,
+						TemplateURLs: []string{"http://fake/some.%6asonnet"},
+					},
+					expectedErrCode: "unprocessable entity",
+				},
+			}
+
+			svc := newTestService(
+				WithIDGenerator(newFakeIDGen(3)),
+				WithTimeGenerator(newTimeGen(now)),
+				WithStore(newFakeStore(safeCreateFn)),
+			)
+
+			for _, tt := range tests {
+				ctx := context.Background()
+				stack, err := svc.InitStack(ctx, 9000, tt.create)
+				if tt.expectedErrCode == "" {
+					require.NoError(t, err)
+					assert.Equal(t, platform.ID(3), stack.ID)
+					assert.Equal(t, platform.ID(3333), stack.OrgID)
+					assert.Equal(t, now, stack.CreatedAt)
+					assert.Equal(t, now, stack.LatestEvent().UpdatedAt)
+				} else {
+					require.Error(t, err)
+					assert.Equal(t, tt.expectedErrCode, errors2.ErrorCode(err))
+					assert.Equal(t, Stack{}, stack)
+				}
+			}
+		})
 	})
 
 	t.Run("UpdateStack", func(t *testing.T) {
@@ -5227,6 +5317,105 @@ func TestService(t *testing.T) {
 				}
 
 				t.Run(tt.name, fn)
+			}
+		})
+		t.Run("jsonnet template url", func(t *testing.T) {
+			tests := []struct {
+				name            string
+				update          StackUpdate
+				expectedErrCode string
+			}{
+				// always valid
+				{
+					name:   "no templates",
+					update: StackUpdate{ID: 3333},
+				},
+				{
+					name: "one json template",
+					update: StackUpdate{
+						ID:           3333,
+						TemplateURLs: []string{"http://fake/some.json"},
+					},
+				},
+				{
+					name: "one yaml template",
+					update: StackUpdate{
+						ID:           3333,
+						TemplateURLs: []string{"http://fake/some.yaml"},
+					},
+				},
+				{
+					name: "multiple templates",
+					update: StackUpdate{
+						ID: 3333,
+						TemplateURLs: []string{
+							"http://fake/some.yaml",
+							"http://fake/some.json",
+							"http://fake/other.yaml",
+						},
+					},
+				},
+				// invalid
+				{
+					name: "one jsonnet template",
+					update: StackUpdate{
+						ID:           3333,
+						TemplateURLs: []string{"http://fake/some.jsonnet"},
+					},
+					expectedErrCode: "unprocessable entity",
+				},
+				{
+					name: "multiple with one jsonnet template",
+					update: StackUpdate{
+						ID: 3333,
+						TemplateURLs: []string{
+							"http://fake/some.json",
+							"http://fake/some.jsonnet",
+							"http://fake/some.yaml",
+						},
+					},
+					expectedErrCode: "unprocessable entity",
+				},
+				{
+					name: "one weird jsonnet template",
+					update: StackUpdate{
+						ID:           3333,
+						TemplateURLs: []string{"http://fake/some.%6asonnet"},
+					},
+					expectedErrCode: "unprocessable entity",
+				},
+			}
+
+			for _, tt := range tests {
+				svc := newTestService(
+					WithIDGenerator(mock.IDGenerator{
+						IDFn: func() platform.ID {
+							return 333
+						},
+					}),
+					WithTimeGenerator(newTimeGen(now)),
+					WithStore(&fakeStore{
+						readFn: func(ctx context.Context, id platform.ID) (Stack, error) {
+							return Stack{ID: id, OrgID: 3}, nil
+						},
+						updateFn: func(ctx context.Context, stack Stack) error {
+							return nil
+						},
+					}),
+				)
+
+				ctx := context.Background()
+				stack, err := svc.UpdateStack(ctx, tt.update)
+				if tt.expectedErrCode == "" {
+					require.NoError(t, err)
+					assert.Equal(t, platform.ID(3333), stack.ID)
+					assert.Equal(t, platform.ID(3), stack.OrgID)
+					assert.Equal(t, now, stack.LatestEvent().UpdatedAt)
+				} else {
+					require.Error(t, err)
+					assert.Equal(t, tt.expectedErrCode, errors2.ErrorCode(err))
+					assert.Equal(t, Stack{}, stack)
+				}
 			}
 		})
 	})
