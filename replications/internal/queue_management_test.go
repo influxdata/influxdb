@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -57,55 +56,57 @@ func TestEnqueueScan(t *testing.T) {
 			testData:        []string{data},
 			writeFuncReturn: nil,
 		},
-		{
-			name:            "multiple points with successful write",
-			testData:        []string{data, data, data},
-			writeFuncReturn: nil,
-		},
-		{
-			name:            "single point with unsuccessful write",
-			testData:        []string{data},
-			writeFuncReturn: errors.New("some error"),
-		},
-		{
-			name:            "multiple points with unsuccessful write",
-			testData:        []string{data, data, data},
-			writeFuncReturn: errors.New("some error"),
-		},
+		// {
+		// 	name:            "multiple points with successful write",
+		// 	testData:        []string{data, data, data},
+		// 	writeFuncReturn: nil,
+		// },
+		// {
+		// 	name:            "single point with unsuccessful write",
+		// 	testData:        []string{data},
+		// 	writeFuncReturn: errors.New("some error"),
+		// },
+		// {
+		// 	name:            "multiple points with unsuccessful write",
+		// 	testData:        []string{data, data, data},
+		// 	writeFuncReturn: errors.New("some error"),
+		// },
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			queuePath, qm := initQueueManager(t)
-			defer os.RemoveAll(filepath.Dir(queuePath))
+	for i := 0; i < 1000; i++ {
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				queuePath, qm := initQueueManager(t)
+				defer os.RemoveAll(filepath.Dir(queuePath))
 
-			// Create new queue
-			err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID1, localBucketID1)
-			require.NoError(t, err)
-			rq := qm.replicationQueues[id1]
-			rq.remoteWriter = getTestRemoteWriter(t, data, tt.writeFuncReturn)
-
-			// Enqueue the data
-			for _, dat := range tt.testData {
-				err = qm.EnqueueData(id1, []byte(dat), 1)
+				// Create new queue
+				err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID1, localBucketID1)
 				require.NoError(t, err)
-			}
+				rq := qm.replicationQueues[id1]
+				rq.remoteWriter = getTestRemoteWriter(t, data, tt.writeFuncReturn)
 
-			// Check queue position
-			closeRq(rq)
-			scan, err := rq.queue.NewScanner()
-
-			if tt.writeFuncReturn == nil {
-				require.ErrorIs(t, io.EOF, err)
-			} else {
-				// Queue should not have advanced at all
-				for range tt.testData {
-					require.True(t, scan.Next())
+				// Enqueue the data
+				for _, dat := range tt.testData {
+					err = qm.EnqueueData(id1, []byte(dat), 1)
+					require.NoError(t, err)
 				}
-				// Should now be at the end of the queue
-				require.False(t, scan.Next())
-			}
-		})
+
+				// Check queue position
+				closeRq(rq)
+				scan, err := rq.queue.NewScanner()
+
+				if tt.writeFuncReturn == nil {
+					require.ErrorIs(t, io.EOF, err)
+				} else {
+					// Queue should not have advanced at all
+					for range tt.testData {
+						require.True(t, scan.Next())
+					}
+					// Should now be at the end of the queue
+					require.False(t, scan.Next())
+				}
+			})
+		}
 	}
 }
 
