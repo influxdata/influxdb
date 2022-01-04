@@ -35,7 +35,7 @@ $ ./influxdb_iox run database --log-filter debug --log-format logfmt
 
 IOx makes use of Rust's [tracing](https://docs.rs/tracing) ecosystem to output application logs to stdout. It
 additionally makes use of [tracing-log](https://docs.rs/tracing-log) to ensure that crates writing events to
-the [log](docs.rs/log/) facade are also rendered to stdout.
+the [log](https://docs.rs/log/) facade are also rendered to stdout.
 
 ### Macros
 

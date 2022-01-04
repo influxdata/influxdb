@@ -144,7 +144,7 @@ Schemas during write are only enforced on “best effort” basis by the Mutable
 
 
 ### 2.4 UTF-8 Passthrough
-The solution presented here will pass UTF-8 strings (for table and column names) as is. No [unicode normalization](http://www.unicode.org/reports/tr15/) or case-handling will be implemented.
+The solution presented here will pass UTF-8 strings (for table and column names) as is. No [unicode normalization](https://www.unicode.org/reports/tr15/) or case-handling will be implemented.
 
 
 ### 2.5 Simple Transactions
@@ -179,7 +179,7 @@ A transaction is addressed using the following schema:
 This ensures the following properties:
 
 - **Linear Enumeration:** Transactions can be traversed in a linear fashion
-- **Uniqueness:** Transactions both complete and incomplete (e.g. due to a crash) are always unique. This allows the detection of uncomplete transactions later on. 
+- **Uniqueness:** Transactions both complete and incomplete (e.g. due to a crash) are always unique. This allows the detection of uncomplete transactions later on.
 
 
 ### 3.1 Catalog Checkpoint _· rejected_

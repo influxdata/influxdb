@@ -3,43 +3,43 @@
 
 
 ## Data Organization
-Figure 1 illustrates an `IOx Server` which is a columnar database management system (DBMS). An IOx Server includes many `databases`, each represents an isolated dataset from an organization or user. The IOx Server in Figure 1 consists of `p` databases. Each database has as many `tables` as needed. Data of each table is partitioned on a specified partition key which is an expression of the table column(s). In the example of Figure 1, `Table 1` is partitioned by date which is an expression on a time column of `Table 1`. `Partition` data is physically split into many chunks depending on the table's flow of ingested data which will be described in the next section, Data Life Cycle. Each chunk contains a subset of rows of its table partition on a subset of columns of the table. For example, `Chunk 1` has 2 rows of data on columns `col1`, `col2`, and `col3` while `Chunk 2` includes 3 rows on `col1` and `col4`. Since every chunk can consist of data of the same or different columns, a chunk has it own `schema` defined with it. `Chunk 1`'s schema is {`col1`, `col2`, `col3`} (and their corresponding data types) and `Chunk 2`'s schema is {`col1`, `col4`}. Columns with the same name, such as `col1`, represent the same column and must have the same data type across all chunks within the table. 
+Figure 1 illustrates an `IOx Server` which is a columnar database management system (DBMS). An IOx Server includes many `databases`, each represents an isolated dataset from an organization or user. The IOx Server in Figure 1 consists of `p` databases. Each database has as many `tables` as needed. Data of each table is partitioned on a specified partition key which is an expression of the table column(s). In the example of Figure 1, `Table 1` is partitioned by date which is an expression on a time column of `Table 1`. `Partition` data is physically split into many chunks depending on the table's flow of ingested data which will be described in the next section, Data Life Cycle. Each chunk contains a subset of rows of its table partition on a subset of columns of the table. For example, `Chunk 1` has 2 rows of data on columns `col1`, `col2`, and `col3` while `Chunk 2` includes 3 rows on `col1` and `col4`. Since every chunk can consist of data of the same or different columns, a chunk has it own `schema` defined with it. `Chunk 1`'s schema is {`col1`, `col2`, `col3`} (and their corresponding data types) and `Chunk 2`'s schema is {`col1`, `col4`}. Columns with the same name, such as `col1`, represent the same column and must have the same data type across all chunks within the table.
 
-```text  
-                                                                 ┌───────────┐                                    
-                                                                 │IOx Server │                        IOx Server  
-                                                                 └───────────┘                                    
-                                                                       │                                          
-                                                        ┌──────────────┼────────────────┐                         
-                                                        ▼              ▼                ▼                         
-                                              ┌───────────┐                     ┌────────────┐                    
-                                              │Database 1 │           ...       │ Database p │        Databases   
-                                              └───────────┘                     └────────────┘                    
-                                                    │                                                             
-                                     ┌──────────────┼─────────────┐                                               
-                                     ▼              ▼             ▼                                               
-                               ┌──────────┐                 ┌──────────┐                                          
-                               │ Table 1  │       ...       │ Table n  │                                Tables    
-                               └──────────┘                 └──────────┘                                          
-                                     │                            │                                               
-                      ┌──────────────┼──────────────┐             │                                               
-                      ▼              ▼              ▼             ▼                                               
-               ┌────────────┐                ┌────────────┐                                                       
-               │Partition 1 │       ...      │Partition m │      ...                                 Partitions   
-               │(2021-12-10)│                │(2021-12-20)│                                                       
-               └────────────┘                └──────┬─────┘                                                       
-                      │                             │                                                             
-        ┌─────────────┼─────────────┐               │                                                             
-        ▼             ▼             ▼               ▼                                                             
-┌──────────────┐              ┌───────────┐                                                                       
-│    Chunk 1   │     ...      │  Chunk 2  │        ...                                                 Chunks     
-│              │              │           │                                                                       
-│col1 col2 col3│              │ col1 col4 │                                                                       
-│---- ---- ----│              │ ---- ---- │                                                                       
-│---- ---- ----│              │ ---- ---- │                                                                       
-└──────────────┘              │ ---- ---- │                                                                       
-                              └───────────┘                                                                       
- 
+```text
+                                                                 ┌───────────┐
+                                                                 │IOx Server │                        IOx Server
+                                                                 └───────────┘
+                                                                       │
+                                                        ┌──────────────┼────────────────┐
+                                                        ▼              ▼                ▼
+                                              ┌───────────┐                     ┌────────────┐
+                                              │Database 1 │           ...       │ Database p │        Databases
+                                              └───────────┘                     └────────────┘
+                                                    │
+                                     ┌──────────────┼─────────────┐
+                                     ▼              ▼             ▼
+                               ┌──────────┐                 ┌──────────┐
+                               │ Table 1  │       ...       │ Table n  │                                Tables
+                               └──────────┘                 └──────────┘
+                                     │                            │
+                      ┌──────────────┼──────────────┐             │
+                      ▼              ▼              ▼             ▼
+               ┌────────────┐                ┌────────────┐
+               │Partition 1 │       ...      │Partition m │      ...                                 Partitions
+               │(2021-12-10)│                │(2021-12-20)│
+               └────────────┘                └──────┬─────┘
+                      │                             │
+        ┌─────────────┼─────────────┐               │
+        ▼             ▼             ▼               ▼
+┌──────────────┐              ┌───────────┐
+│    Chunk 1   │     ...      │  Chunk 2  │        ...                                                 Chunks
+│              │              │           │
+│col1 col2 col3│              │ col1 col4 │
+│---- ---- ----│              │ ---- ---- │
+│---- ---- ----│              │ ---- ---- │
+└──────────────┘              │ ---- ---- │
+                              └───────────┘
+
 Figure 1: Data organization in an IOx Server
 ```
 
@@ -48,7 +48,7 @@ Chunk is considered the smallest block of data in IOx and the central discussion
 [^dup]: The detail of `duplication` and `deduplication` during compaction and query are parts of a large topic that deserve another document.
 
 ### Chunk Types
-A `Chunk` in IOx is an abstract object defined in the code as a [DbChunk](https://github.com/influxdata/influxdb_iox/blob/12c40b0f0f93e94e483015f9104639a1f766d594/server/src/db/chunk.rs#L78). To optimize the Data LifeCycle and Query Performance, IOx implements these types of physical chunks for a DbChunk: O-MUB, F-MUB, RUB, OS.
+A `Chunk` in IOx is an abstract object defined in the code as a [DbChunk](../db/src/chunk.rs). To optimize the Data LifeCycle and Query Performance, IOx implements these types of physical chunks for a DbChunk: O-MUB, F-MUB, RUB, OS.
 
 1. O-MUB: **O**pen **MU**table **B**uffer chunk is optimized for writes and the only chunk type that accepts ingesting data. O-MUB is an in-memory chunk but its data is not sorted and not heavily compressed.[^type]
 1. F-MUB: **F**rozen **MU**table **B**uffer chunk has the same format as O-MUB (in memory, not sorted, not encoded) but it no longer accepts writes. It is used as a transition chunk while its data is being moved from optimized-for-writes to optimized-for-reads.
@@ -61,7 +61,7 @@ Depending on which stage of the lifecycle a chunk is in, it will be represented 
 
 ### Stages of a Chunk
 
-Before digging into Data Lifecycle, let us look into the stages of a chunk implemented as [ChunkStage](https://github.com/influxdata/influxdb_iox/blob/76befe94ad14cd121d6fc5c58aa112997d9e211a/server/src/db/catalog/chunk.rs#L130). A chunk goes through three stages demonstrated in Figure 2: `Open`, `Frozen`, and `Persisted`. 
+Before digging into Data Lifecycle, let us look into the stages of a chunk implemented as [ChunkStage](../db/src/catalog/chunk.rs). A chunk goes through three stages demonstrated in Figure 2: `Open`, `Frozen`, and `Persisted`.
 * When data is ingested into IOx, it will be written into an open chunk which is an `O-MUB`.
 * When triggered by some manual or automatic action of the lifecycle (described in next section), the open chunk will be frozen, first to `F-MUB` then transitioned to `RUB`.
 * When the `RUB` is persisted to an `OS` chunk, its stage will be moved to persisted. Unlike the `Open` and `Frozen` stages that are represented by only one type of chunk at a moment in time, the `Persisted` stage can be represented by two chunk types at a time: `RUB` and `OS` that store the same data for the purpose of query performance. When a query needs to read data of a persisted chunk stage, it will first look for `RUB`, but, if not available, will look for `OS`. `RUB` will be unloaded from the persisted stage if IOx memory runs low, and reloaded if data of that chunk is queried a lot and IOx memory is underused.
@@ -112,60 +112,60 @@ Figure 3 illustrates an example of IOx Data LifeCycle with 8 actions happening a
 * **AT T8**: a `Compact OS` is issued on `OS 1` and `OS 2` to produce `OS 3`.
 
 ```text
-                                                                                                                                                                                           
-                                                                                                                                                                                             
-  Time                                                                                                                                                                                     
-                                                                                                                                                                                           
-  ─────────────────────────  T1  ──────────  T3  ────────────────  T3  ─────  T4  ────────────────  T5  ───────────────  T6  ────────────────────────  T7  ─────────────  T8  ────────▶    
-                                                                                                                                                                                           
-                                                                                                                                                                                           
-                                                                                                                                                                                           
-     Ingest    ┌───────┐    T1:   ┌───────┐ Continue ┌─────┐                                                                                                                               
-  ────────────▶│O-MUB 1│─────────▶│F-MUB 1│─────────▶│RUB 1│──▶│                                                                                                                           
-   before T1   └───────┘  Compact └───────┘compacting└─────┘   │                                                                                                                           
-                                                               │                                                                                                                           
-                                                               │                                                                                                                           
-                                                               │                                                                                                                           
-                                                               │                                                                                                                           
-                      Ingest      ┌───────┐  T2:    ┌───────┐  │   T3:     ┌─────┐                                                                                                         
-                 ────────────────▶│O-MUB 2│────────▶│F-MUB 2│──┼──────────▶│RUB 2│──────────────────────────────────▶│                                                                     
-                between T1 and T2 └───────┘ Delete  └───────┘  │ Compact   └─────┘                                   │                                                                     
-                                                               │      ▲                                              │                                                                     
-                                                               │      │                                              │                                                                     
-                                                               │      │                                              │                                                                     
-                                       Ingest       ┌───────┐  │  ┌───────┐                                          │                                                                     
-                                 ──────────────────▶│O-MUB 3│──┴─▶│F-MUB 3│                                          │                                                                     
-                                 between T2 and T3  └───────┘     └───────┘                                          │                                                                     
-                                                                                                                     │                                                                     
-                                                                                                                     │                                                                     
-                                                                                                                     │                 ┌─────┐                                             
-                                                     Ingest       ┌───────┐  T4:    ┌───────┐                        │             ┌──▶│OS 1 │─────────────────────────▶│                  
-                                               ──────────────────▶│O-MUB 4│────────▶│F-MUB 4│───▶│                   │             │   └─────┘                          │                  
-                                               between T3 and T4  └───────┘ Delete  └───────┘    │   T5:    ┌─────┐  │    T6:      │                                    │                  
+
+
+  Time
+
+  ─────────────────────────  T1  ──────────  T3  ────────────────  T3  ─────  T4  ────────────────  T5  ───────────────  T6  ────────────────────────  T7  ─────────────  T8  ────────▶
+
+
+
+     Ingest    ┌───────┐    T1:   ┌───────┐ Continue ┌─────┐
+  ────────────▶│O-MUB 1│─────────▶│F-MUB 1│─────────▶│RUB 1│──▶│
+   before T1   └───────┘  Compact └───────┘compacting└─────┘   │
+                                                               │
+                                                               │
+                                                               │
+                                                               │
+                      Ingest      ┌───────┐  T2:    ┌───────┐  │   T3:     ┌─────┐
+                 ────────────────▶│O-MUB 2│────────▶│F-MUB 2│──┼──────────▶│RUB 2│──────────────────────────────────▶│
+                between T1 and T2 └───────┘ Delete  └───────┘  │ Compact   └─────┘                                   │
+                                                               │      ▲                                              │
+                                                               │      │                                              │
+                                                               │      │                                              │
+                                       Ingest       ┌───────┐  │  ┌───────┐                                          │
+                                 ──────────────────▶│O-MUB 3│──┴─▶│F-MUB 3│                                          │
+                                 between T2 and T3  └───────┘     └───────┘                                          │
+                                                                                                                     │
+                                                                                                                     │
+                                                                                                                     │                 ┌─────┐
+                                                     Ingest       ┌───────┐  T4:    ┌───────┐                        │             ┌──▶│OS 1 │─────────────────────────▶│
+                                               ──────────────────▶│O-MUB 4│────────▶│F-MUB 4│───▶│                   │             │   └─────┘                          │
+                                               between T3 and T4  └───────┘ Delete  └───────┘    │   T5:    ┌─────┐  │    T6:      │                                    │
                                                                                                  ├─────────▶│RUB 3│──┼────────────▶│                                    │   T8:     ┌─────┐
                                                                                                  │ Compact  └─────┘  │  Persist    │                                    ├──────────▶│OS 3 │
                                                                                                  │    ▲              │      ▲      │   ┌─────┐                          │Compact OS └─────┘
-                                                                                                 │    │              │      │      └──▶│RUB 4│───▶                      │                  
-                                                                       Ingest       ┌───────┐    │┌───────┐          │      │          └─────┘   │              ┌─────┐ │                  
-                                                                 ──────────────────▶│O-MUB 5│────▶│F-MUB 5│          │      │                    │           ┌─▶│OS 2 ├─▶                  
-                                                                 between T4 and T5  └───────┘     └───────┘          │      │                    │           │  └─────┘                    
-                                                                                                                     │      │                    │    T7:    │                             
-                                                                                                                     │      │                    ├──────────▶│                             
-                                                                                                                     │      │                    │  Persist  │                             
-                                                                                     Ingest       ┌───────┐          │  ┌───────┐                │     ▲     │  ┌─────┐                    
-                                                                               ──────────────────▶│O-MUB 6│──────────┴─▶│F-MUB 6│                │     │     └─▶│RUB 5│                    
-                                                                               between T5 and T6  └───────┘             └───────┘                │     │        └─────┘                    
-                                                                                                                                                 │     │                                   
-                                                                                                                                                 │     │                                   
-                                                                                                           Ingest       ┌───────┐                │ ┌───────┐                               
-                                                                                                     ──────────────────▶│O-MUB 7│────────────────┴▶│F-MUB 7│                               
-                                                                                                     between T6 and T7  └───────┘                  └───────┘                               
-                                                                                                                                                                                           
-                                                                                                                                      Ingest       ┌───────┐                               
-                                                                                                                                ──────────────────▶│O-MUB 8│                               
-                                                                                                                                     after T7      └───────┘                               
-                                                                                                                                                                                           
-Figure 3: Example of                                                                                                                                                                                                   
+                                                                                                 │    │              │      │      └──▶│RUB 4│───▶                      │
+                                                                       Ingest       ┌───────┐    │┌───────┐          │      │          └─────┘   │              ┌─────┐ │
+                                                                 ──────────────────▶│O-MUB 5│────▶│F-MUB 5│          │      │                    │           ┌─▶│OS 2 ├─▶
+                                                                 between T4 and T5  └───────┘     └───────┘          │      │                    │           │  └─────┘
+                                                                                                                     │      │                    │    T7:    │
+                                                                                                                     │      │                    ├──────────▶│
+                                                                                                                     │      │                    │  Persist  │
+                                                                                     Ingest       ┌───────┐          │  ┌───────┐                │     ▲     │  ┌─────┐
+                                                                               ──────────────────▶│O-MUB 6│──────────┴─▶│F-MUB 6│                │     │     └─▶│RUB 5│
+                                                                               between T5 and T6  └───────┘             └───────┘                │     │        └─────┘
+                                                                                                                                                 │     │
+                                                                                                                                                 │     │
+                                                                                                           Ingest       ┌───────┐                │ ┌───────┐
+                                                                                                     ──────────────────▶│O-MUB 7│────────────────┴▶│F-MUB 7│
+                                                                                                     between T6 and T7  └───────┘                  └───────┘
+
+                                                                                                                                      Ingest       ┌───────┐
+                                                                                                                                ──────────────────▶│O-MUB 8│
+                                                                                                                                     after T7      └───────┘
+
+Figure 3: Example of
 ```
 
 Now we understand chunks and their life cycle, let us move to next topic: [IOx Catalog: The Metadata for Operating a Database](catalogs.md)

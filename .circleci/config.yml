@@ -335,6 +335,16 @@ jobs:
             # other stuff that may have been added to main since last merge)
             MERGE_BASE=$(git merge-base origin/main $CIRCLE_BRANCH) sh -c 'buf breaking --against ".git#ref=$MERGE_BASE"'
 
+  # Lint docs
+  docs-lint:
+    docker:
+      - image: python:3-slim-bullseye
+    steps:
+      - checkout
+      - run:
+          name: Lint docs
+          command: ./scripts/lint_docs.py ./docs
+
   # Compile a cargo "release" profile binary for branches that end in `/perf`
   #
   # Uses the latest ci_image (influxdb/rust below) to build a release binary and
@@ -458,6 +468,7 @@ workflows:
       - lint
       - cargo_audit
       - protobuf-lint
+      - docs-lint
       - test
       - test_heappy
       - test_perf
@@ -473,6 +484,7 @@ workflows:
             - lint
             - cargo_audit
             - protobuf-lint
+            - docs-lint
             - test
             - test_heappy
             - test_perf
