@@ -139,8 +139,8 @@ func NewRootHandler(name string, opts ...HandlerOptFn) *Handler {
 			kithttp.Metrics(name, h.requests, h.requestDur),
 		)
 		r.Mount(MetricsPath, opt.metricsHTTPHandler())
-		r.Mount(ReadyPath, opt.readyHandler)
-		r.Mount(HealthPath, opt.healthHandler)
+		r.Mount(ReadyPath, kithttp.SetCORS(opt.readyHandler))
+		r.Mount(HealthPath, kithttp.SetCORS(opt.healthHandler))
 		r.Mount(DebugPath, pprof.NewHTTPHandler(opt.pprofEnabled))
 	})
 

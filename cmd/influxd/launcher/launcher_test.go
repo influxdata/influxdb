@@ -164,3 +164,23 @@ func TestLauncher_PingHeaders(t *testing.T) {
 	assert.Equal(t, []string{"OSS"}, resp.Header.Values("X-Influxdb-Build"))
 	assert.Equal(t, []string{"dev"}, resp.Header.Values("X-Influxdb-Version"))
 }
+
+func TestLauncher_PingCors(t *testing.T) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	platform.SetBuildInfo("dev", "none", time.Now().UTC().Format(time.RFC3339))
+
+	r, err := nethttp.NewRequest("OPTIONS", l.URL().String()+"/ping", nil)
+	r.Header.Add("Origin", "http://myapp.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := nethttp.DefaultClient.Do(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, []string{"http://myapp.com"}, resp.Header.Values("Access-Control-Allow-Origin"))
+}

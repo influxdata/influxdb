@@ -90,3 +90,39 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		})
 	}
 }
+
+func TestCors(t *testing.T) {
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{
+			name: "CORS enabled for /ready",
+			path: "/ready",
+		},
+		{
+			name: "CORS enabled for /health",
+			path: "/health",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			//reg := prom.NewRegistry(zaptest.NewLogger(t))
+			h := NewRootHandler(
+				"test",
+				WithLog(zaptest.NewLogger(t)),
+				WithAPIHandler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})),
+				WithMetrics(prom.NewRegistry(zaptest.NewLogger(t)), true),
+			)
+
+			req := httptest.NewRequest(http.MethodOptions, tt.path, nil)
+			req.Header.Add("Origin", "http://myapp.com")
+			recorder := httptest.NewRecorder()
+			h.ServeHTTP(recorder, req)
+
+			require.Equal(t, http.StatusNoContent, recorder.Code)
+			require.Equal(t, "http://myapp.com", recorder.Header().Get("Access-Control-Allow-Origin"))
+		})
+	}
+}
