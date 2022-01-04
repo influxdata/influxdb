@@ -28,8 +28,8 @@ func SetCORS(next http.Handler) http.Handler {
 		}
 		if r.Method == http.MethodOptions {
 			// allow and stop processing in pre-flight requests
-			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH")
-			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, User-Agent")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH, HEAD")
+			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, User-Agent, Content-Encoding")
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}

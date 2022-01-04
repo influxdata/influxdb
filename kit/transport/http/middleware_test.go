@@ -217,6 +217,24 @@ func TestCors(t *testing.T) {
 				"Access-Control-Allow-Origin": "http://anotherapp.com",
 			},
 		},
+		{
+			name:           "Allow Content-Encoding header",
+			method:         "OPTIONS",
+			headers:        []string{"Origin", "http://myapp.com"},
+			expectedStatus: http.StatusNoContent,
+			expectedHeaders: map[string]string{
+				"Access-Control-Allow-Headers": "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, User-Agent, Content-Encoding",
+			},
+		},
+		{
+			name:           "Allow HEAD method",
+			method:         "OPTIONS",
+			headers:        []string{"Origin", "http://myapp.com"},
+			expectedStatus: http.StatusNoContent,
+			expectedHeaders: map[string]string{
+				"Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE, PATCH, HEAD",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
