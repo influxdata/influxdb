@@ -60,7 +60,8 @@ jobs:
             export GOOS=linux
             export GOARCH=amd64
             for cmd in github.com/influxdata/influxdb/cmd/{influxd,influx,influx_inspect} ; do
-              go build -i -o "$TMPOUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
+              go build -o $TMPOUTDIR/$(basename $cmd) -tags "netgo osusergo static_build" -ldflags="-s -extldflags \"-fno-PIC -Wl,-z,stack-size=8388608\"" $cmd
+
             done
             mkdir -p ./bins
             tarsum $TMPOUTDIR ./bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz
