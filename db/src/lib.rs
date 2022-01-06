@@ -1195,18 +1195,17 @@ impl Db {
 /// can just use Db as a `Database` even though the implementation
 /// lives in `catalog_access`
 impl QueryDatabase for Db {
-    type Error = Error;
     type Chunk = DbChunk;
 
     fn chunks(&self, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         self.catalog_access.chunks(predicate)
     }
 
-    fn partition_addrs(&self) -> Result<Vec<PartitionAddr>, Self::Error> {
+    fn partition_addrs(&self) -> Vec<PartitionAddr> {
         self.catalog_access.partition_addrs()
     }
 
-    fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
+    fn chunk_summaries(&self) -> Vec<ChunkSummary> {
         self.catalog_access.chunk_summaries()
     }
 
@@ -2486,7 +2485,7 @@ mod tests {
         // write into a separate partitiion
         write_lp(&db, "cpu bar=1,baz2,frob=3 400000000000000");
 
-        print!("Partitions: {:?}", db.partition_addrs().unwrap());
+        print!("Partitions: {:?}", db.partition_addrs());
 
         let chunk_summaries = db.partition_chunk_summaries("1970-01-05T15");
 
@@ -2507,7 +2506,6 @@ mod tests {
 
         let size: usize = db
             .chunk_summaries()
-            .unwrap()
             .into_iter()
             .map(|x| x.memory_bytes)
             .sum();
@@ -2534,7 +2532,7 @@ mod tests {
         let t_second_write = time.inc(Duration::from_secs(2));
         write_lp(&db, "cpu bar=2 2");
 
-        let mut chunk_summaries = db.chunk_summaries().unwrap();
+        let mut chunk_summaries = db.chunk_summaries();
 
         chunk_summaries.sort_by_key(|s| s.id);
 
@@ -2595,7 +2593,7 @@ mod tests {
         write_lp(&db, "cpu bar=1,baz=2 2");
 
         // Check first/last write times on the chunks at this point
-        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        let mut chunk_summaries = db.chunk_summaries();
         chunk_summaries.sort_unstable();
         assert_eq!(chunk_summaries.len(), 2);
         // Each chunk has one write, so both chunks should have first write == last write
@@ -2612,7 +2610,7 @@ mod tests {
         write_lp(&db, "cpu bar=1,baz=2,frob=3 400000000000000");
 
         // Check first/last write times on the chunks at this point
-        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        let mut chunk_summaries = db.chunk_summaries();
         chunk_summaries.sort_unstable();
         assert_eq!(chunk_summaries.len(), 3);
         // The closed chunk's times should be the same
@@ -2636,7 +2634,7 @@ mod tests {
         .unwrap();
 
         // Check first/last write times on the chunks at this point
-        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        let mut chunk_summaries = db.chunk_summaries();
         chunk_summaries.sort_unstable();
         assert_eq!(chunk_summaries.len(), 3);
         // The rb chunk's times should be the same as they were when this was the closed mb chunk
@@ -2661,7 +2659,7 @@ mod tests {
             .unwrap();
 
         // Check first/last write times on the chunks at this point
-        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        let mut chunk_summaries = db.chunk_summaries();
         chunk_summaries.sort_unstable();
         // Persisting compacts chunks, so now there's only 2
         assert_eq!(chunk_summaries.len(), 2);
@@ -2682,7 +2680,7 @@ mod tests {
         db.rollover_partition("cpu", "1970-01-05T15").await.unwrap();
 
         // Check first/last write times on the chunks at this point
-        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        let mut chunk_summaries = db.chunk_summaries();
         chunk_summaries.sort_unstable();
         assert_eq!(chunk_summaries.len(), 2);
         // The rb chunk's times should still be the same
@@ -2700,7 +2698,7 @@ mod tests {
         write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000");
 
         // Check first/last write times on the chunks at this point
-        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        let mut chunk_summaries = db.chunk_summaries();
         chunk_summaries.sort_unstable();
         assert_eq!(chunk_summaries.len(), 3);
         // The rb chunk's times should still be the same
@@ -2806,7 +2804,7 @@ mod tests {
         write_lp(&db, "cpu bar=1 400000000000000");
         write_lp(&db, "mem frob=3 400000000000001");
 
-        print!("Partitions: {:?}", db.partition_addrs().unwrap());
+        print!("Partitions: {:?}", db.partition_addrs());
 
         let partition_summaries = vec![
             db.partition_summary("cpu", "1970-01-01T00").unwrap(),
@@ -3630,7 +3628,7 @@ mod tests {
 
         write_lp(db.as_ref(), "cpu foo=1 10");
 
-        let chunks = db.chunk_summaries().unwrap();
+        let chunks = db.chunk_summaries();
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].time_of_first_write, t0);
         assert_eq!(chunks[0].time_of_last_write, t0);
@@ -3640,7 +3638,7 @@ mod tests {
 
         run_query(Arc::clone(&db), "select * from cpu").await;
 
-        let chunks = db.chunk_summaries().unwrap();
+        let chunks = db.chunk_summaries();
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].time_of_first_write, t0);
         assert_eq!(chunks[0].time_of_last_write, t0);
@@ -3650,7 +3648,7 @@ mod tests {
 
         write_lp(db.as_ref(), "cpu foo=1 20");
 
-        let chunks = db.chunk_summaries().unwrap();
+        let chunks = db.chunk_summaries();
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].time_of_first_write, t0);
         assert_eq!(chunks[0].time_of_last_write, t2);
@@ -3661,7 +3659,7 @@ mod tests {
         // This chunk should be pruned out and therefore not accessed by the query
         run_query(Arc::clone(&db), "select * from cpu where foo = 2;").await;
 
-        let chunks = db.chunk_summaries().unwrap();
+        let chunks = db.chunk_summaries();
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].time_of_first_write, t0);
         assert_eq!(chunks[0].time_of_last_write, t2);
@@ -3700,7 +3698,6 @@ mod tests {
 
     fn partition_keys(db: &Db) -> Vec<String> {
         db.partition_addrs()
-            .unwrap()
             .into_iter()
             .map(|addr| addr.partition_key.to_string())
             .collect()

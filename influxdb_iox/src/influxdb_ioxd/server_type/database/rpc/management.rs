@@ -169,12 +169,8 @@ impl management_service_server::ManagementService for ManagementService {
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        let chunk_summaries = match db.chunk_summaries() {
-            Ok(chunk_summaries) => chunk_summaries,
-            Err(e) => return Err(default_db_error_handler(e)),
-        };
-
-        let chunks: Vec<Chunk> = chunk_summaries
+        let chunks: Vec<Chunk> = db
+            .chunk_summaries()
             .into_iter()
             .map(|summary| summary.into())
             .collect();
@@ -207,8 +203,8 @@ impl management_service_server::ManagementService for ManagementService {
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        let partition_addrs = db.partition_addrs().map_err(default_db_error_handler)?;
-        let partitions = partition_addrs
+        let partitions = db
+            .partition_addrs()
             .into_iter()
             .map(|addr| Partition {
                 table_name: addr.table_name.to_string(),
@@ -234,9 +230,9 @@ impl management_service_server::ManagementService for ManagementService {
             .map_err(default_server_error_handler)?;
 
         // TODO: get more actual partition details
-        let partition_addrs = db.partition_addrs().map_err(default_db_error_handler)?;
 
-        let partition = partition_addrs
+        let partition = db
+            .partition_addrs()
             .iter()
             .find(|addr| addr.partition_key.as_ref() == partition_key)
             .map(|addr| Partition {

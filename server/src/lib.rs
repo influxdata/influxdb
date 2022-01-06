@@ -1727,7 +1727,7 @@ mod tests {
         db.store_write(&write).unwrap();
 
         // get chunk ID
-        let chunks = db.chunk_summaries().unwrap();
+        let chunks = db.chunk_summaries();
         assert_eq!(chunks.len(), 1);
         let chunk_id = chunks[0].id;
 
@@ -1761,7 +1761,7 @@ mod tests {
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
 
-        let chunk_summaries = db.chunk_summaries().unwrap();
+        let chunk_summaries = db.chunk_summaries();
         assert_eq!(chunk_summaries.len(), 1);
         assert_eq!(chunk_summaries[0].storage, ChunkStorage::ReadBuffer);
     }

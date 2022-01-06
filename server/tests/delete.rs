@@ -127,7 +127,7 @@ async fn delete_predicate_preservation() {
     loop {
         let did_delete_predicate_preservation =
             db.worker_iterations_delete_predicate_preservation() > iters_start;
-        let did_compaction = db.chunk_summaries().unwrap().into_iter().any(|summary| {
+        let did_compaction = db.chunk_summaries().into_iter().any(|summary| {
             (summary.partition_key.as_ref() == "part_c")
                 && (summary.storage == ChunkStorage::ReadBuffer)
         });

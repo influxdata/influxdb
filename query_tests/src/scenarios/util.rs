@@ -434,7 +434,7 @@ pub async fn make_different_stage_chunks_with_deletes_scenario(
         // Make an open MUB
         write_lp(&db, &chunk_data.lp_lines.join("\n"));
         // 0 does not represent the real chunk id. It is here just to initialize the chunk_id  variable for later assignment
-        let mut chunk_id = db.chunk_summaries().unwrap()[0].id;
+        let mut chunk_id = db.chunk_summaries()[0].id;
 
         // ----------
         // freeze MUB

@@ -220,11 +220,7 @@ async fn write_buffer_lifecycle() {
             // As soon as replay finishes the lifecycle should have persisted everything in
             // table_1 into a single chunk. We should therefore have two chunks, one for
             // each of table_1 and table_2
-            assert_eq!(
-                db.chunk_summaries().unwrap().len(),
-                2,
-                "persisted during replay!"
-            );
+            assert_eq!(db.chunk_summaries().len(), 2, "persisted during replay!");
             break;
         }
 
@@ -268,7 +264,6 @@ fn write_group2(write_buffer_state: &MockBufferSharedState) {
 
 fn count_persisted_chunks(db: &Db) -> usize {
     db.chunk_summaries()
-        .unwrap()
         .into_iter()
         .filter(|x| {
             matches!(

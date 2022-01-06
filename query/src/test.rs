@@ -96,13 +96,12 @@ impl TestDatabase {
 }
 
 impl QueryDatabase for TestDatabase {
-    type Error = TestError;
     type Chunk = TestChunk;
 
     /// Return the partition keys for data in this DB
-    fn partition_addrs(&self) -> Result<Vec<PartitionAddr>, Self::Error> {
+    fn partition_addrs(&self) -> Vec<PartitionAddr> {
         let partitions = self.partitions.lock();
-        let addrs = partitions
+        partitions
             .values()
             .filter_map(|chunks| {
                 // each partition has some number of chunks which
@@ -113,9 +112,7 @@ impl QueryDatabase for TestDatabase {
                     .next()
                     .map(|chunk| chunk.addr().into_partition())
             })
-            .collect();
-
-        Ok(addrs)
+            .collect()
     }
 
     fn chunks(&self, _predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
@@ -127,7 +124,7 @@ impl QueryDatabase for TestDatabase {
             .collect()
     }
 
-    fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>, Self::Error> {
+    fn chunk_summaries(&self) -> Vec<ChunkSummary> {
         unimplemented!("summaries not implemented TestDatabase")
     }
 

@@ -192,7 +192,6 @@ pub async fn make_db_time() -> (Arc<Db>, Arc<time::MockProvider>) {
 
 fn chunk_summary_iter(db: &Db) -> impl Iterator<Item = ChunkSummary> + '_ {
     db.partition_addrs()
-        .unwrap()
         .into_iter()
         .flat_map(move |addr| db.partition_chunk_summaries(addr.partition_key.as_ref()))
 }

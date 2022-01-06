@@ -89,21 +89,21 @@ mod tests {
             .unwrap();
         let chunk_id = chunk.id();
 
-        let chunks = db.chunk_summaries().unwrap();
+        let chunks = db.chunk_summaries();
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].storage, ChunkStorage::ReadBufferAndObjectStore);
 
         db.unload_read_buffer("cpu", partition_key, chunk_id)
             .unwrap();
 
-        let chunks = db.chunk_summaries().unwrap();
+        let chunks = db.chunk_summaries();
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].storage, ChunkStorage::ObjectStoreOnly);
 
         let chunk = db.lockable_chunk("cpu", partition_key, chunk_id).unwrap();
         load_chunk(chunk.write()).unwrap().1.await.unwrap().unwrap();
 
-        let chunks = db.chunk_summaries().unwrap();
+        let chunks = db.chunk_summaries();
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].storage, ChunkStorage::ReadBufferAndObjectStore);
 

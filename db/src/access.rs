@@ -5,7 +5,6 @@ use super::{
     catalog::{Catalog, TableNameFilter},
     chunk::DbChunk,
     query_log::QueryLog,
-    Error, Result,
 };
 use crate::system_tables;
 use async_trait::async_trait;
@@ -213,7 +212,6 @@ impl PruningObserver for ChunkAccess {
 
 #[async_trait]
 impl QueryDatabase for QueryCatalogAccess {
-    type Error = Error;
     type Chunk = DbChunk;
 
     /// Return a covering set of chunks for a particular partition
@@ -221,12 +219,12 @@ impl QueryDatabase for QueryCatalogAccess {
         self.chunk_access.candidate_chunks(predicate)
     }
 
-    fn partition_addrs(&self) -> Result<Vec<PartitionAddr>, Self::Error> {
-        Ok(self.catalog.partition_addrs())
+    fn partition_addrs(&self) -> Vec<PartitionAddr> {
+        self.catalog.partition_addrs()
     }
 
-    fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
-        Ok(self.catalog.chunk_summaries())
+    fn chunk_summaries(&self) -> Vec<ChunkSummary> {
+        self.catalog.chunk_summaries()
     }
 
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {

@@ -571,7 +571,6 @@ mod tests {
 
     fn partition_keys(db: &Db) -> Vec<String> {
         db.partition_addrs()
-            .unwrap()
             .into_iter()
             .map(|addr| addr.partition_key.to_string())
             .collect()

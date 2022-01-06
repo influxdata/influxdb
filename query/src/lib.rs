@@ -83,11 +83,10 @@ pub trait QueryChunkMeta: Sized {
 /// Databases store data organized by partitions and each partition stores
 /// data in Chunks.
 pub trait QueryDatabase: Debug + Send + Sync {
-    type Error: std::error::Error + Send + Sync + 'static;
     type Chunk: QueryChunk;
 
     /// Return the partition keys for data in this DB
-    fn partition_addrs(&self) -> Result<Vec<PartitionAddr>, Self::Error>;
+    fn partition_addrs(&self) -> Vec<PartitionAddr>;
 
     /// Schema for a specific table if the table exists.
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>>;
@@ -98,7 +97,7 @@ pub trait QueryDatabase: Debug + Send + Sync {
     fn chunks(&self, predicate: &Predicate) -> Vec<Arc<Self::Chunk>>;
 
     /// Return a summary of all chunks in this database, in all partitions
-    fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>, Self::Error>;
+    fn chunk_summaries(&self) -> Vec<ChunkSummary>;
 
     /// Record that particular type of query was run / planned
     fn record_query(&self, query_type: impl Into<String>, query_text: impl Into<String>);
