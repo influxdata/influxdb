@@ -76,7 +76,12 @@ use data_types::{
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
 };
-use database::{Database, DatabaseConfig};
+use database::{
+    init::{claim_database_in_object_store, create_empty_db_in_object_store},
+    state::DatabaseConfig,
+    Database,
+};
+
 use db::Db;
 use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
 use generated_types::{google::FieldViolation, influxdata::iox::management};
@@ -126,7 +131,9 @@ pub enum Error {
     },
 
     #[snafu(display("cannot create database: {}", source))]
-    CannotCreateDatabase { source: crate::database::InitError },
+    CannotCreateDatabase {
+        source: crate::database::init::InitError,
+    },
 
     #[snafu(display("database not found: {}", db_name))]
     DatabaseNotFound { db_name: String },
@@ -141,7 +148,9 @@ pub enum Error {
     CannotReleaseDatabase { source: crate::database::Error },
 
     #[snafu(display("{}", source))]
-    CannotClaimDatabase { source: crate::database::InitError },
+    CannotClaimDatabase {
+        source: crate::database::init::InitError,
+    },
 
     #[snafu(display("A database with the name `{}` already exists", db_name))]
     DatabaseAlreadyExists { db_name: String },
@@ -186,7 +195,9 @@ pub enum Error {
     },
 
     #[snafu(display("database failed to initialize: {}", source))]
-    DatabaseInit { source: Arc<database::InitError> },
+    DatabaseInit {
+        source: Arc<database::init::InitError>,
+    },
 
     #[snafu(display("error persisting server config to object storage: {}", source))]
     PersistServerConfig { source: object_store::Error },
@@ -363,7 +374,7 @@ impl ServerStateInitialized {
             ))),
             hashbrown::hash_map::Entry::Occupied(mut existing) => {
                 if let Some(init_error) = existing.get().init_error() {
-                    if matches!(&*init_error, database::InitError::NoActiveDatabase) {
+                    if matches!(&*init_error, database::init::InitError::NoActiveDatabase) {
                         existing.insert(Arc::new(Database::new(
                             Arc::clone(&shared.application),
                             config,
@@ -600,8 +611,13 @@ impl Server {
             initialized.server_id
         };
 
-        let res =
-            Database::create(Arc::clone(&self.shared.application), uuid, rules, server_id).await;
+        let res = create_empty_db_in_object_store(
+            Arc::clone(&self.shared.application),
+            uuid,
+            rules,
+            server_id,
+        )
+        .await;
 
         let location = res.context(CannotCreateDatabase)?;
 
@@ -733,7 +749,7 @@ impl Server {
 
         // Mark the database as claimed in object storage and get its location for the server
         // config file
-        let location = Database::claim(
+        let location = claim_database_in_object_store(
             Arc::clone(&self.shared.application),
             &db_name,
             uuid,
@@ -2126,7 +2142,7 @@ mod tests {
         assert_error!(
             server2.claim_database(db_uuid, false).await,
             Error::CannotClaimDatabase {
-                source: database::InitError::CantClaimDatabaseCurrentlyOwned { server_id, .. }
+                source: database::init::InitError::CantClaimDatabaseCurrentlyOwned { server_id, .. }
             } if server_id == server1.server_id().unwrap().get_u32()
         );
 
@@ -2152,7 +2168,7 @@ mod tests {
         assert_error!(
             server2.claim_database(db_uuid, false).await,
             Error::CannotClaimDatabase {
-                source: database::InitError::CantClaimDatabaseCurrentlyOwned { server_id, .. }
+                source: database::init::InitError::CantClaimDatabaseCurrentlyOwned { server_id, .. }
             } if server_id == server1.server_id().unwrap().get_u32()
         );
 
@@ -2252,7 +2268,7 @@ mod tests {
                 let err = database.wait_for_init().await.unwrap_err();
                 assert!(matches!(
                     err.as_ref(),
-                    database::InitError::CatalogLoad { .. }
+                    database::init::InitError::CatalogLoad { .. }
                 ))
             } else if name == &db_name_rules_broken {
                 let err = database.wait_for_init().await.unwrap_err();
