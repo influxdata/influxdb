@@ -267,7 +267,7 @@ mod tests {
         let (db, time) = test_db().await;
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10");
 
-        let partition_keys = db.partition_keys().unwrap();
+        let partition_keys = partition_keys(&db);
         assert_eq!(partition_keys.len(), 1);
 
         // Close window
@@ -317,7 +317,7 @@ mod tests {
         time.inc(late_arrival);
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=3 23");
 
-        let partition_keys = db.partition_keys().unwrap();
+        let partition_keys = partition_keys(&db);
         assert_eq!(partition_keys.len(), 1);
         let partition_key = partition_keys.into_iter().next().unwrap();
         let partition = db.partition("cpu", partition_key.as_str()).unwrap();
@@ -422,7 +422,7 @@ mod tests {
         let late_arrival = Duration::from_secs(1);
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10");
 
-        let partition_keys = db.partition_keys().unwrap();
+        let partition_keys = partition_keys(&db);
         assert_eq!(partition_keys.len(), 1);
         let partition_key = partition_keys.into_iter().next().unwrap();
 
@@ -514,7 +514,7 @@ mod tests {
         db.delete("cpu", Arc::clone(&pred2)).unwrap();
 
         // start persistence job (but don't poll the future yet)
-        let partition_keys = db.partition_keys().unwrap();
+        let partition_keys = partition_keys(&db);
         assert_eq!(partition_keys.len(), 1);
 
         // Wait for the persistence window to be closed
@@ -567,5 +567,13 @@ mod tests {
         .await
         .unwrap();
         check_closure(&catalog);
+    }
+
+    fn partition_keys(db: &Db) -> Vec<String> {
+        db.partition_addrs()
+            .unwrap()
+            .into_iter()
+            .map(|addr| addr.partition_key.to_string())
+            .collect()
     }
 }

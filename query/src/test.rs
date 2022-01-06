@@ -13,7 +13,8 @@ use arrow::{
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
-use data_types::chunk_metadata::{ChunkId, ChunkOrder};
+use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
+use data_types::partition_metadata::PartitionAddr;
 use data_types::{
     chunk_metadata::ChunkSummary,
     delete_predicate::DeletePredicate,
@@ -99,10 +100,22 @@ impl QueryDatabase for TestDatabase {
     type Chunk = TestChunk;
 
     /// Return the partition keys for data in this DB
-    fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
+    fn partition_addrs(&self) -> Result<Vec<PartitionAddr>, Self::Error> {
         let partitions = self.partitions.lock();
-        let keys = partitions.keys().cloned().collect();
-        Ok(keys)
+        let addrs = partitions
+            .values()
+            .filter_map(|chunks| {
+                // each partition has some number of chunks which
+                // should all have the same partition address, so just
+                // take the first one, if any
+                chunks
+                    .values()
+                    .next()
+                    .map(|chunk| chunk.addr().into_partition())
+            })
+            .collect();
+
+        Ok(addrs)
     }
 
     fn chunks(&self, _predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
@@ -822,6 +835,15 @@ impl QueryChunk for TestChunk {
 
     fn id(&self) -> ChunkId {
         self.id
+    }
+
+    fn addr(&self) -> ChunkAddr {
+        ChunkAddr {
+            db_name: Arc::from("TestChunkDb"),
+            table_name: Arc::from(self.table_name.as_str()),
+            partition_key: Arc::from("TestChunkPartitionKey"),
+            chunk_id: self.id,
+        }
     }
 
     fn table_name(&self) -> &str {

@@ -9,7 +9,7 @@ use super::{
 };
 use crate::system_tables;
 use async_trait::async_trait;
-use data_types::chunk_metadata::ChunkSummary;
+use data_types::{chunk_metadata::ChunkSummary, partition_metadata::PartitionAddr};
 use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
@@ -221,8 +221,8 @@ impl QueryDatabase for QueryCatalogAccess {
         self.chunk_access.candidate_chunks(predicate)
     }
 
-    fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
-        Ok(self.catalog.partition_keys().into_iter().collect())
+    fn partition_addrs(&self) -> Result<Vec<PartitionAddr>, Self::Error> {
+        Ok(self.catalog.partition_addrs())
     }
 
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {

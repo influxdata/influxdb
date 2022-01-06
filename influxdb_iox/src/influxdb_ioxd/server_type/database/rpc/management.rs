@@ -207,10 +207,13 @@ impl management_service_server::ManagementService for ManagementService {
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        let partition_keys = db.partition_keys().map_err(default_db_error_handler)?;
-        let partitions = partition_keys
+        let partition_addrs = db.partition_addrs().map_err(default_db_error_handler)?;
+        let partitions = partition_addrs
             .into_iter()
-            .map(|key| Partition { key })
+            .map(|addr| Partition {
+                table_name: addr.table_name.to_string(),
+                key: addr.partition_key.to_string(),
+            })
             .collect::<Vec<_>>();
 
         Ok(Response::new(ListPartitionsResponse { partitions }))
@@ -231,13 +234,15 @@ impl management_service_server::ManagementService for ManagementService {
             .map_err(default_server_error_handler)?;
 
         // TODO: get more actual partition details
-        let partition_keys = db.partition_keys().map_err(default_db_error_handler)?;
+        let partition_addrs = db.partition_addrs().map_err(default_db_error_handler)?;
 
-        let partition = if partition_keys.contains(&partition_key) {
-            Some(Partition { key: partition_key })
-        } else {
-            None
-        };
+        let partition = partition_addrs
+            .iter()
+            .find(|addr| addr.partition_key.as_ref() == partition_key)
+            .map(|addr| Partition {
+                table_name: addr.table_name.to_string(),
+                key: addr.partition_key.to_string(),
+            });
 
         Ok(Response::new(GetPartitionResponse { partition }))
     }

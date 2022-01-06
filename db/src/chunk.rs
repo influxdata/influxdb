@@ -278,6 +278,10 @@ impl QueryChunk for DbChunk {
         self.addr.chunk_id
     }
 
+    fn addr(&self) -> ChunkAddr {
+        self.addr.clone()
+    }
+
     fn table_name(&self) -> &str {
         self.addr.table_name.as_ref()
     }

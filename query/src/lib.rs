@@ -9,9 +9,9 @@
 )]
 
 use data_types::{
-    chunk_metadata::{ChunkId, ChunkOrder, ChunkSummary},
+    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder, ChunkSummary},
     delete_predicate::DeletePredicate,
-    partition_metadata::{InfluxDbType, TableSummary},
+    partition_metadata::{InfluxDbType, PartitionAddr, TableSummary},
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::stringset::StringSet;
@@ -87,7 +87,7 @@ pub trait QueryDatabase: Debug + Send + Sync {
     type Chunk: QueryChunk;
 
     /// Return the partition keys for data in this DB
-    fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
+    fn partition_addrs(&self) -> Result<Vec<PartitionAddr>, Self::Error>;
 
     /// Schema for a specific table if the table exists.
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>>;
@@ -111,6 +111,9 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     /// returns the Id of this chunk. Ids are unique within a
     /// particular partition.
     fn id(&self) -> ChunkId;
+
+    /// Returns the ChunkAddr of this chunk
+    fn addr(&self) -> ChunkAddr;
 
     /// Returns the name of the table stored in this chunk
     fn table_name(&self) -> &str;

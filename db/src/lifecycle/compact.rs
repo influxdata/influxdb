@@ -192,10 +192,12 @@ mod tests {
         let t_last_write = time.inc(Duration::from_secs(1));
         write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 10");
 
-        let partition_keys = db.partition_keys().unwrap();
-        assert_eq!(partition_keys.len(), 1);
+        let partition_addrs = db.partition_addrs().unwrap();
+        assert_eq!(partition_addrs.len(), 1);
 
-        let partition = db.lockable_partition("cpu", &partition_keys[0]).unwrap();
+        let partition = db
+            .lockable_partition("cpu", &partition_addrs[0].partition_key)
+            .unwrap();
         let partition_guard = partition.read();
 
         let chunks = LockablePartition::chunks(&partition_guard);
@@ -248,8 +250,8 @@ mod tests {
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=3 23");
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=2 26");
 
-        let partition_keys = db.partition_keys().unwrap();
-        assert_eq!(partition_keys.len(), 1);
+        let partition_addrs = db.partition_addrs().unwrap();
+        assert_eq!(partition_addrs.len(), 1);
 
         // Cannot simply use empty predicate (#2687)
         let predicate = Arc::new(DeletePredicate {
@@ -263,7 +265,7 @@ mod tests {
         // Delete everything
         db.delete("cpu", predicate).unwrap();
         let chunk = db
-            .compact_partition("cpu", partition_keys[0].as_str())
+            .compact_partition("cpu", &partition_addrs[0].partition_key)
             .await
             .unwrap();
 
@@ -306,9 +308,9 @@ mod tests {
         db.delete("cpu", Arc::clone(&pred2)).unwrap();
 
         // start compaction job (but don't poll the future yet)
-        let partition_keys = db.partition_keys().unwrap();
+        let partition_keys = db.partition_addrs().unwrap();
         assert_eq!(partition_keys.len(), 1);
-        let partition_key: &str = partition_keys[0].as_ref();
+        let partition_key: &str = &partition_keys[0].partition_key;
 
         let partition = db.lockable_partition("cpu", partition_key).unwrap();
         let partition = partition.read();

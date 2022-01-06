@@ -59,13 +59,6 @@ impl PartitionSummary {
     }
 }
 
-/// Metadata and statistics for a Chunk *within* a partition
-#[derive(Debug, PartialEq, Clone)]
-pub struct PartitionChunkSummary {
-    pub chunk_id: u32,
-    pub table: TableSummary,
-}
-
 impl FromIterator<Self> for TableSummary {
     fn from_iter<T: IntoIterator<Item = Self>>(iter: T) -> Self {
         let mut iter = iter.into_iter();

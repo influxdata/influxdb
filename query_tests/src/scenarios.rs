@@ -676,12 +676,13 @@ impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
         ];
         write_lp(&db, &lp_lines.join("\n"));
 
-        assert_eq!(count_mutable_buffer_chunks(&db), 2);
-        assert_eq!(count_read_buffer_chunks(&db), 1);
+        assert_eq!(count_mutable_buffer_chunks(&db), 4);
+        assert_eq!(count_read_buffer_chunks(&db), 2);
         assert_eq!(count_object_store_chunks(&db), 0);
 
         vec![DbScenario {
-            scenario_name: "Data in two open mutable buffer chunks and read buffer".into(),
+            scenario_name: "Data in two open mutable buffer chunks per table and read buffer"
+                .into(),
             db,
         }]
     }

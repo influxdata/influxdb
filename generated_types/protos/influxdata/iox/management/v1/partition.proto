@@ -9,4 +9,7 @@ option go_package = "github.com/influxdata/iox/management/v1";
 message Partition {
   // The partition key of this partition
   string key = 1;
+
+  // The table of this partition
+  string table_name = 2;
 }

@@ -233,6 +233,19 @@ impl Catalog {
             .collect()
     }
 
+    /// return [`PartitionAddr`]s for all partitions in this catalog
+    pub fn partition_addrs(&self) -> Vec<PartitionAddr> {
+        self.tables
+            .read()
+            .values()
+            .flat_map(|table| {
+                table
+                    .partitions()
+                    .map(|partition| partition.read().addr().clone())
+            })
+            .collect()
+    }
+
     /// Returns a list of persistence window summaries for each partition
     pub fn persistence_summaries(&self) -> Vec<(PartitionAddr, WriteSummary)> {
         let mut summaries = Vec::new();

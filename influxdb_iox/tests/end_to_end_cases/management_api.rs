@@ -646,10 +646,12 @@ async fn test_partition_list() {
 
     let expected = vec![
         Partition {
-            key: "cpu".to_string(),
+            key: "cpu".into(),
+            table_name: "cpu".into(),
         },
         Partition {
-            key: "mem".to_string(),
+            key: "mem".into(),
+            table_name: "mem".into(),
         },
     ];
 
@@ -701,7 +703,10 @@ async fn test_partition_get() {
         .await
         .expect("getting partition");
 
-    let expected = Partition { key: "cpu".into() };
+    let expected = Partition {
+        table_name: "cpu".into(),
+        key: "cpu".into(),
+    };
 
     assert_eq!(
         expected, partition,

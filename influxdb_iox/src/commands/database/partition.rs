@@ -224,18 +224,19 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 partition_key,
             } = get;
 
-            let management::generated_types::Partition { key } =
+            let management::generated_types::Partition { key, table_name } =
                 client.get_partition(db_name, partition_key).await?;
 
-            // TODO: get more details from the partition, andprint it
+            // TODO: get more details from the partition, and print it
             // out better (i.e. move to using Partition summary that
             // is already in data_types)
             #[derive(serde::Serialize)]
             struct PartitionDetail {
                 key: String,
+                table_name: String,
             }
 
-            let partition_detail = PartitionDetail { key };
+            let partition_detail = PartitionDetail { key, table_name };
 
             serde_json::to_writer_pretty(std::io::stdout(), &partition_detail)?;
         }

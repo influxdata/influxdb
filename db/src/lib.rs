@@ -23,7 +23,7 @@ use data_types::{
     database_rules::DatabaseRules,
     delete_predicate::DeletePredicate,
     job::Job,
-    partition_metadata::{PartitionSummary, TableSummary},
+    partition_metadata::{PartitionAddr, PartitionSummary, TableSummary},
     server_id::ServerId,
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
@@ -1202,8 +1202,8 @@ impl QueryDatabase for Db {
         self.catalog_access.chunks(predicate)
     }
 
-    fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
-        self.catalog_access.partition_keys()
+    fn partition_addrs(&self) -> Result<Vec<PartitionAddr>, Self::Error> {
+        self.catalog_access.partition_addrs()
     }
 
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
@@ -1777,7 +1777,7 @@ mod tests {
     async fn write_with_rollover() {
         let db = make_db().await.db;
         write_lp(db.as_ref(), "cpu bar=1 10");
-        assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
+        assert_eq!(vec!["1970-01-01T00"], partition_keys(&db));
 
         let mb_chunk = db
             .rollover_partition("cpu", "1970-01-01T00")
@@ -1834,7 +1834,7 @@ mod tests {
         ];
 
         write_lp(db.as_ref(), &lines.join("\n"));
-        assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
+        assert_eq!(vec!["1970-01-01T00"], partition_keys(&db));
 
         db.rollover_partition("cpu", "1970-01-01T00")
             .await
@@ -2486,7 +2486,7 @@ mod tests {
         // write into a separate partitiion
         write_lp(&db, "cpu bar=1,baz2,frob=3 400000000000000");
 
-        print!("Partitions: {:?}", db.partition_keys().unwrap());
+        print!("Partitions: {:?}", db.partition_addrs().unwrap());
 
         let chunk_summaries = db.partition_chunk_summaries("1970-01-05T15");
 
@@ -2806,7 +2806,7 @@ mod tests {
         write_lp(&db, "cpu bar=1 400000000000000");
         write_lp(&db, "mem frob=3 400000000000001");
 
-        print!("Partitions: {:?}", db.partition_keys().unwrap());
+        print!("Partitions: {:?}", db.partition_addrs().unwrap());
 
         let partition_summaries = vec![
             db.partition_summary("cpu", "1970-01-01T00").unwrap(),
@@ -3450,10 +3450,10 @@ mod tests {
         try_write_lp(&db, "my_table,tag_partition_by=b field_float=1.1 10").unwrap();
 
         // check that we have the expected partitions
-        let mut partition_keys = db.partition_keys().unwrap();
-        partition_keys.sort();
+        let mut keys = partition_keys(&db);
+        keys.sort();
         assert_eq!(
-            partition_keys,
+            keys,
             vec![
                 "tag_partition_by_a".to_string(),
                 "tag_partition_by_b".to_string(),
@@ -3470,7 +3470,7 @@ mod tests {
         assert_error!(r, DmlError::SchemaErrors { .. });
 
         // drop all chunks
-        for partition_key in db.partition_keys().unwrap() {
+        for partition_key in partition_keys(&db) {
             let chunk_ids: Vec<_> = {
                 let partition = db.partition("my_table", &partition_key).unwrap();
                 let partition = partition.read();
@@ -3696,5 +3696,13 @@ mod tests {
             .put_parquet_file(path, Bytes::new())
             .await
             .unwrap();
+    }
+
+    fn partition_keys(db: &Db) -> Vec<String> {
+        db.partition_addrs()
+            .unwrap()
+            .into_iter()
+            .map(|addr| addr.partition_key.to_string())
+            .collect()
     }
 }
