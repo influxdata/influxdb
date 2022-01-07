@@ -1910,7 +1910,7 @@ impl<'a> ExprRewriter for FieldValueRewriter<'a> {
                             op,
                             right: right.as_expr(),
                         });
-                        return Ok(Expr::Literal(ScalarValue::Boolean(Some(true))));
+                        return Ok(lit(true));
                     }
                 }
                 expr
@@ -1954,7 +1954,7 @@ impl<'a> ExprRewriter for FieldColumnRewriter<'a> {
 
                     if let Expr::Literal(ScalarValue::Utf8(Some(name))) = &**right {
                         self.field_projections.insert(name.to_owned());
-                        return Ok(Expr::Literal(ScalarValue::Boolean(Some(true))));
+                        return Ok(lit(true));
                     }
                 }
                 expr

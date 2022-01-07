@@ -4036,10 +4036,7 @@ west,host-c,pro,10,6
         assert_eq!(result, to_map(vec![]));
     }
 
-    use datafusion::{
-        logical_plan::{col, Expr},
-        scalar::ScalarValue,
-    };
+    use datafusion::logical_plan::{col, lit, lit_timestamp_nano};
     use std::convert::TryFrom;
 
     #[test]
@@ -4047,50 +4044,47 @@ west,host-c,pro,10,6
         let cases = vec![
             (
                 // a = 22
-                col("a").eq(Expr::Literal(ScalarValue::Int64(Some(22)))),
+                col("a").eq(lit(22_i64)),
                 BinaryExpr::from(("a", "=", 22_i64)),
             ),
             (
                 // a > 10
-                col("a").gt(Expr::Literal(ScalarValue::Int64(Some(10)))),
+                col("a").gt(lit(10_i64)),
                 BinaryExpr::from(("a", ">", 10_i64)),
             ),
             (
                 // 100 = c
-                Expr::Literal(ScalarValue::Int64(Some(100))).eq(col("c")),
+                lit(100_i64).eq(col("c")),
                 BinaryExpr::from(("c", "=", 100_i64)),
             ),
             (
                 // 100 != c
-                Expr::Literal(ScalarValue::Int64(Some(100))).not_eq(col("c")),
+                lit(100_i64).not_eq(col("c")),
                 BinaryExpr::from(("c", "!=", 100_i64)),
             ),
             (
                 // 100 < c
-                Expr::Literal(ScalarValue::Int64(Some(100))).lt(col("c")),
+                lit(100_i64).lt(col("c")),
                 BinaryExpr::from(("c", ">", 100_i64)),
             ),
             (
                 // 100 <= c
-                Expr::Literal(ScalarValue::Int64(Some(100))).lt_eq(col("c")),
+                lit(100_i64).lt_eq(col("c")),
                 BinaryExpr::from(("c", ">=", 100_i64)),
             ),
             (
                 // 100 >= c
-                Expr::Literal(ScalarValue::Int64(Some(100))).gt_eq(col("c")),
+                lit(100_i64).gt_eq(col("c")),
                 BinaryExpr::from(("c", "<=", 100_i64)),
             ),
             (
                 // 100 > c
-                Expr::Literal(ScalarValue::Int64(Some(100))).gt(col("c")),
+                lit(100_i64).gt(col("c")),
                 BinaryExpr::from(("c", "<", 100_i64)),
             ),
             (
                 // a = timestamp(100000)
-                col("a").eq(Expr::Literal(ScalarValue::TimestampNanosecond(
-                    Some(1000000),
-                    None,
-                ))),
+                col("a").eq(lit_timestamp_nano(1000000)),
                 BinaryExpr::from(("a", "=", 1000000_i64)),
             ),
         ];
@@ -4102,8 +4096,7 @@ west,host-c,pro,10,6
         // Error cases
         let cases = vec![
             // 33 = 33
-            Expr::Literal(ScalarValue::Int64(Some(33)))
-                .eq(Expr::Literal(ScalarValue::Int64(Some(33)))),
+            lit(33i64).eq(lit(33i64)),
             // a > b
             col("a").gt(col("b")),
         ];

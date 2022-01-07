@@ -2,10 +2,7 @@
 
 use std::sync::Arc;
 
-use datafusion::{
-    logical_plan::{col, Expr, LogicalPlan, LogicalPlanBuilder},
-    scalar::ScalarValue,
-};
+use datafusion::logical_plan::{col, lit_timestamp_nano, LogicalPlan, LogicalPlanBuilder};
 use observability_deps::tracing::{debug, trace};
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
@@ -204,8 +201,7 @@ impl ReorgPlanner {
         trace!(output_schema=?schema, "Setting sort key on schema for split plan");
 
         // time <= split_time
-        let ts_literal = Expr::Literal(ScalarValue::TimestampNanosecond(Some(split_time), None));
-        let split_expr = col(TIME_COLUMN_NAME).lt_eq(ts_literal);
+        let split_expr = col(TIME_COLUMN_NAME).lt_eq(lit_timestamp_nano(split_time));
 
         let plan = plan_builder.build().context(BuildingPlan)?;
 
