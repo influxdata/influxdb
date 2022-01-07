@@ -1156,9 +1156,43 @@ async fn test_close_partition_chunk_error() {
 }
 
 #[tokio::test]
-async fn test_wipe_persisted_catalog() {
+async fn test_wipe_persisted_catalog_broken_catalog() {
     let db_name = rand_name();
     let server_fixture = fixture_broken_catalog(&db_name).await;
+    let addr = server_fixture.grpc_base();
+
+    let stdout: IoxOperation = serde_json::from_slice(
+        &Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("recover")
+            .arg("wipe")
+            .arg(&db_name)
+            .arg("--host")
+            .arg(addr)
+            .arg("--force")
+            .assert()
+            .success()
+            .get_output()
+            .stdout,
+    )
+    .expect("Expected JSON output");
+
+    let expected_job = Job::WipePreservedCatalog(WipePreservedCatalog { db_name });
+
+    assert_eq!(
+        Some(expected_job),
+        stdout.metadata.job,
+        "operation was {:#?}",
+        stdout
+    );
+}
+
+#[tokio::test]
+async fn test_wipe_persisted_catalog_replay_error() {
+    let write_buffer_dir = TempDir::new().unwrap();
+    let db_name = rand_name();
+    let server_fixture = fixture_replay_broken(&db_name, write_buffer_dir.path()).await;
     let addr = server_fixture.grpc_base();
 
     let stdout: IoxOperation = serde_json::from_slice(
@@ -1216,7 +1250,7 @@ async fn test_wipe_persisted_catalog_error_db_exists() {
     create_readable_database(&db_name, server_fixture.grpc_channel()).await;
 
     let expected_err = format!(
-        "database ({}) in invalid state (Initialized) for transition (WipePreservedCatalog)",
+        "database ({}) in invalid state (Initialized) for wiping preserved catalog. Expected CatalogLoadError, WriteBufferCreationError, ReplayError",
         db_name
     );
 

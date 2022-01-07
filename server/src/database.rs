@@ -64,6 +64,18 @@ pub enum Error {
     },
 
     #[snafu(display(
+        "database ({}) in invalid state ({:?}) for wiping preserved catalog. Expected {}",
+        db_name,
+        state,
+        expected
+    ))]
+    InvalidStateForWipePreservedCatalog {
+        db_name: String,
+        state: DatabaseStateCode,
+        expected: String,
+    },
+
+    #[snafu(display(
         "failed to wipe preserved catalog of database ({}): {}",
         db_name,
         source
@@ -412,7 +424,28 @@ impl Database {
         let handle = handle.await;
 
         let db_name = self.name();
-        let current_state = error_state!(self, "WipePreservedCatalog", CatalogLoadError);
+        let iox_object_store = match &**self.shared.state.read() {
+            DatabaseState::CatalogLoadError(rules_loaded, err) => {
+                warn!(%db_name, %err, "Requested wiping catalog in CatalogLoadError state");
+                Arc::clone(rules_loaded.iox_object_store())
+            }
+            DatabaseState::WriteBufferCreationError(catalog_loaded, err) => {
+                warn!(%db_name, %err, "Requested wiping catalog in WriteBufferCreationError state");
+                catalog_loaded.iox_object_store()
+            }
+            DatabaseState::ReplayError(catalog_loaded, err) => {
+                warn!(%db_name, %err, "Requested wiping catalog in ReplayError state");
+                catalog_loaded.iox_object_store()
+            }
+            state => {
+                return InvalidStateForWipePreservedCatalog {
+                    db_name,
+                    state: state.state_code(),
+                    expected: "CatalogLoadError, WriteBufferCreationError, ReplayError",
+                }
+                .fail()
+            }
+        };
 
         let registry = self.shared.application.job_registry();
         let (tracker, registration) = registry.register(Job::WipePreservedCatalog {
@@ -423,14 +456,37 @@ impl Database {
 
         tokio::spawn(
             async move {
-                PreservedCatalog::wipe(current_state.iox_object_store())
+                // wipe the actual catalog
+                PreservedCatalog::wipe(&iox_object_store)
                     .await
                     .map_err(Box::new)
                     .context(WipePreservedCatalog { db_name })?;
 
                 {
                     let mut state = shared.state.write();
-                    *state.unfreeze(handle) = DatabaseState::RulesLoaded(current_state);
+                    let mut state = state.unfreeze(handle);
+
+                    // Leave temporary `known` state, so we can use
+                    // current state to compute the new one
+                    let current_state = std::mem::replace(&mut *state, DatabaseState::new_known());
+                    let rules_loaded = match current_state {
+                        DatabaseState::CatalogLoadError(rules_loaded, _err) => rules_loaded,
+                        DatabaseState::WriteBufferCreationError(catalog_loaded, _err) => {
+                            catalog_loaded.rollback()
+                        }
+                        DatabaseState::ReplayError(catalog_loaded, _err) => {
+                            catalog_loaded.rollback()
+                        }
+                        // as we have already wiped the preserved
+                        // catalog, we ca not return an error but leave the
+                        // state as is, thus panic ...
+                        _ => unreachable!(
+                            "Wiped preserved catalog and then found database in invalid state: {}",
+                            current_state.state_code()
+                        ),
+                    };
+                    // set the new state
+                    *state = DatabaseState::RulesLoaded(rules_loaded);
                 }
 
                 Ok::<_, Error>(())

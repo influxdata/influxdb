@@ -491,6 +491,10 @@ pub(crate) struct DatabaseStateCatalogLoaded {
 }
 
 impl DatabaseStateCatalogLoaded {
+    pub(crate) fn iox_object_store(&self) -> Arc<IoxObjectStore> {
+        self.db.iox_object_store()
+    }
+
     /// Perform replay
     async fn advance(
         &self,
@@ -549,7 +553,7 @@ impl DatabaseStateCatalogLoaded {
     }
 
     /// Rolls back state to an unloaded catalog.
-    fn rollback(&self) -> DatabaseStateRulesLoaded {
+    pub(crate) fn rollback(&self) -> DatabaseStateRulesLoaded {
         warn!(db_name=%self.db.name(), "throwing away loaded catalog to recover from replay error");
         DatabaseStateRulesLoaded {
             provided_rules: Arc::clone(&self.provided_rules),
