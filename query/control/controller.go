@@ -68,7 +68,7 @@ type Controller struct {
 
 	dependencies []flux.Dependency
 
-	logShutdownQueries bool
+	fluxLogEnabled bool
 }
 
 type Config struct {
@@ -118,8 +118,8 @@ type Config struct {
 
 	ExecutorDependencies []flux.Dependency
 
-	// LogShutdownQueries logs any in-progress queries that get cancelled due to the server being shut down.
-	LogShutdownQueries bool
+	// FluxLogEnabled logs any in-progress queries that get cancelled due to the server being shut down.
+	FluxLogEnabled bool
 }
 
 // complete will fill in the defaults, validate the configuration, and
@@ -210,17 +210,17 @@ func New(config Config, logger *zap.Logger) (*Controller, error) {
 		queryQueue = nil
 	}
 	ctrl := &Controller{
-		config:             c,
-		queries:            make(map[QueryID]*Query),
-		queryQueue:         queryQueue,
-		done:               make(chan struct{}),
-		abort:              make(chan struct{}),
-		memory:             mm,
-		log:                logger,
-		metrics:            newControllerMetrics(metricLabelKeys),
-		labelKeys:          metricLabelKeys,
-		dependencies:       c.ExecutorDependencies,
-		logShutdownQueries: config.LogShutdownQueries,
+		config:         c,
+		queries:        make(map[QueryID]*Query),
+		queryQueue:     queryQueue,
+		done:           make(chan struct{}),
+		abort:          make(chan struct{}),
+		memory:         mm,
+		log:            logger,
+		metrics:        newControllerMetrics(metricLabelKeys),
+		labelKeys:      metricLabelKeys,
+		dependencies:   c.ExecutorDependencies,
+		fluxLogEnabled: config.FluxLogEnabled,
 	}
 	if c.ConcurrencyQuota != 0 {
 		quota := int(c.ConcurrencyQuota)
@@ -553,7 +553,7 @@ func (c *Controller) Shutdown(ctx context.Context) error {
 	// Cancel all of the currently active queries.
 	c.queriesMu.RLock()
 	for _, q := range c.queries {
-		if c.logShutdownQueries {
+		if c.fluxLogEnabled {
 			var fluxScript string
 			fc, ok := q.compiler.(lang.FluxCompiler)
 			if !ok {

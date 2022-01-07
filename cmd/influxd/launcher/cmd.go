@@ -141,11 +141,10 @@ type InfluxdOpts struct {
 	Testing                 bool
 	TestingAlwaysAllowSetup bool
 
-	LogLevel           zapcore.Level
-	FluxLogEnabled     bool
-	LogShutdownQueries bool
-	TracingType        string
-	ReportingDisabled  bool
+	LogLevel          zapcore.Level
+	FluxLogEnabled    bool
+	TracingType       string
+	ReportingDisabled bool
 
 	AssetsPath string
 	BoltPath   string
@@ -204,10 +203,9 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		StorageConfig:     storage.NewConfig(),
 		CoordinatorConfig: coordinator.NewConfig(),
 
-		LogLevel:           zapcore.InfoLevel,
-		FluxLogEnabled:     false,
-		LogShutdownQueries: false,
-		ReportingDisabled:  false,
+		LogLevel:          zapcore.InfoLevel,
+		FluxLogEnabled:    false,
+		ReportingDisabled: false,
 
 		BoltPath:   filepath.Join(dir, bolt.DefaultFilename),
 		SqLitePath: filepath.Join(dir, sqlite.DefaultFilename),
@@ -259,12 +257,6 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "flux-log-enabled",
 			Default: o.FluxLogEnabled,
 			Desc:    "enables detailed logging for flux queries",
-		},
-		{
-			DestP:   &o.LogShutdownQueries,
-			Flag:    "log-flux-queries-on-shutdown",
-			Default: o.LogShutdownQueries,
-			Desc:    "logs flux queries that are cancelled due to server shutdown",
 		},
 		{
 			DestP: &o.TracingType,
