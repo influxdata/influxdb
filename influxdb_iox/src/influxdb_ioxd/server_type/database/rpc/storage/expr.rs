@@ -23,7 +23,7 @@ use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use observability_deps::tracing::warn;
 use predicate::{predicate::PredicateBuilder, regex::regex_match_expr};
 use query::{
-    frontend::influxrpc::MEASUREMENT_COLUMN_NAME,
+    frontend::influxrpc::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME},
     group_by::{Aggregate as QueryAggregate, WindowDuration},
 };
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -63,9 +63,6 @@ pub enum Error {
         description
     ))]
     InvalidWindowOffsetDuration { description: String },
-
-    #[snafu(display("Internal error: found field tag reference in unexpected location"))]
-    InternalInvalidFieldReference {},
 
     #[snafu(display("Invalid regex pattern"))]
     RegExpPatternInvalid {},
@@ -244,12 +241,11 @@ fn normalize_node(node: RPCNode) -> Result<RPCNode> {
     }
 }
 
-/// Converts the node and updates the `StoragePredicate` being built, as
-/// appropriate
+/// Converts the node and updates the `PredicateBuilder`
+/// appropriately
 ///
-/// It recognizes special predicate patterns and pulls them into
-/// the fields on `StoragePredicate` for special processing. If no
-/// patterns are matched, it falls back to a generic DataFusion Expr
+/// It recognizes special predicate patterns. If no patterns are
+/// matched, it falls back to a generic DataFusion Expr
 fn convert_simple_node(builder: PredicateBuilder, node: RPCNode) -> Result<PredicateBuilder> {
     if let Ok(in_list) = InList::try_from(&node) {
         let InList { lhs, value_list } = in_list;
@@ -426,9 +422,8 @@ fn make_tag_name(tag_name: Vec<u8>) -> Result<String> {
         // convert to "_measurement" which is handled specially in grpc planner
         Ok(MEASUREMENT_COLUMN_NAME.to_string())
     } else if tag_name.is_field() {
-        // These should have been handled at a higher level -- if we get
-        // here it is too late
-        InternalInvalidFieldReference.fail()
+        // convert to "_field" which is handled specially in grpc planner
+        Ok(FIELD_COLUMN_NAME.to_string())
     } else {
         String::from_utf8(tag_name).context(ConvertingTagName)
     }
@@ -840,18 +835,18 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_convert_predicate_measurement() {
-        // _measurement = "foo"
+    /// Create a predicate like tag(tag_name) != 'value'
+    fn make_tagref_not_equal_predicate(tag_name: &[u8], value: impl Into<String>) -> RPCPredicate {
+        // tag_ref
         let field_ref = RPCNode {
             node_type: RPCNodeType::TagRef as i32,
             children: vec![],
-            value: Some(RPCValue::TagRefValue(TAG_KEY_MEASUREMENT.to_vec())),
+            value: Some(RPCValue::TagRefValue(tag_name.to_vec())),
         };
         let iconst = RPCNode {
             node_type: RPCNodeType::Literal as i32,
             children: vec![],
-            value: Some(RPCValue::StringValue("foo".into())),
+            value: Some(RPCValue::StringValue(value.into())),
         };
         let comparison = RPCNode {
             node_type: RPCNodeType::ComparisonExpression as i32,
@@ -859,9 +854,15 @@ mod tests {
             value: Some(RPCValue::Comparison(RPCComparison::NotEqual as i32)),
         };
 
-        let rpc_predicate = RPCPredicate {
+        RPCPredicate {
             root: Some(comparison),
-        };
+        }
+    }
+
+    #[test]
+    fn test_convert_predicate_measurement() {
+        // _measurement != "foo"
+        let rpc_predicate = make_tagref_not_equal_predicate(TAG_KEY_MEASUREMENT, "foo");
 
         let predicate = PredicateBuilder::default()
             .rpc_predicate(Some(rpc_predicate))
@@ -869,6 +870,25 @@ mod tests {
             .build();
 
         let expected_exprs = vec![col("_measurement").not_eq(lit("foo"))];
+
+        assert_eq!(
+            &expected_exprs, &predicate.exprs,
+            "expected '{:#?}' doesn't match actual '{:#?}'",
+            expected_exprs, predicate.exprs,
+        );
+    }
+
+    #[test]
+    fn test_convert_predicate_field() {
+        // _field != "bar"
+        let rpc_predicate = make_tagref_not_equal_predicate(TAG_KEY_FIELD, "bar");
+
+        let predicate = PredicateBuilder::default()
+            .rpc_predicate(Some(rpc_predicate))
+            .expect("successfully converting predicate")
+            .build();
+
+        let expected_exprs = vec![col("_field").not_eq(lit("bar"))];
 
         assert_eq!(
             &expected_exprs, &predicate.exprs,
@@ -1081,42 +1101,14 @@ mod tests {
         assert!(predicate.range.is_none());
     }
 
-    #[test]
-    fn test_convert_predicate_unsupported_structure() {
-        // Test (_f = "foo" and host > 5.0) OR (_m = "bar")
-        // which is not something we know how to do
-
-        let (comparison, _) = make_host_comparison();
-
-        let unsupported = make_or_node(
-            make_and_node(make_field_ref_node("foo"), comparison),
-            make_measurement_ref_node("bar"),
-        );
-
-        let rpc_predicate = RPCPredicate {
-            root: Some(unsupported),
-        };
-
-        let res = PredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
-
-        let expected_error = "Internal error: found field tag reference in unexpected location";
-        let actual_error = res.unwrap_err().to_string();
-        assert!(
-            actual_error.contains(expected_error),
-            "expected '{}' not found in '{}'",
-            expected_error,
-            actual_error
-        );
-    }
-
     /// make a _f = 'field_name' type node
     fn make_field_ref_node(field_name: impl Into<String>) -> RPCNode {
-        make_tag_ref_node(&[255], field_name)
+        make_tag_ref_node(TAG_KEY_FIELD, field_name)
     }
 
     /// make a _m = 'measurement_name' type node
     fn make_measurement_ref_node(field_name: impl Into<String>) -> RPCNode {
-        make_tag_ref_node(&[0], field_name)
+        make_tag_ref_node(TAG_KEY_MEASUREMENT, field_name)
     }
 
     /// returns (RPCNode, and expected_expr for the "host > 5.0")
