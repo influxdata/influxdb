@@ -295,7 +295,7 @@ func CreateNotificationRule(
 					OwnerID:        MustIDBase16("020f755c3c082005"),
 					Name:           "name2",
 					Status:         "active",
-					Flux:           `import "influxdata/influxdb/monitor"
+					Flux: `import "influxdata/influxdb/monitor"
 import "slack"
 import "influxdata/influxdb/secrets"
 import "experimental"
@@ -333,7 +333,7 @@ all_statuses
                     }),
             ),
     )`,
-					Every:          "1h",
+					Every: "1h",
 				},
 			},
 		},

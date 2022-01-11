@@ -447,7 +447,7 @@ func CreateCheck(
 						OwnerID:        MustIDBase16("020f755c3c082005"),
 						Status:         "active",
 						Every:          "1m",
-						Flux:           `import "influxdata/influxdb/monitor"
+						Flux: `import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
 data = from(bucket: "telegraf") |> range(start: -1m) |> filter(fn: (r) => r._field == "usage_user")
