@@ -86,6 +86,10 @@ func (t *floatTable) Do(f func(flux.ColReader) error) error {
 
 func (t *floatTable) advance() bool {
 	a := t.cur.Next()
+	if t.cur.Err() != nil {
+		t.err = t.cur.Err()
+		return false
+	}
 	l := a.Len()
 	if l == 0 {
 		return false
@@ -260,6 +264,10 @@ func (t *floatWindowTable) nextBuffer() bool {
 	// Retrieve the next array cursor if needed.
 	if t.arr == nil {
 		arr := t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		if arr.Len() == 0 {
 			return false
 		}
@@ -355,6 +363,10 @@ func (t *floatWindowSelectorTable) Do(f func(flux.ColReader) error) error {
 
 func (t *floatWindowSelectorTable) advance() bool {
 	arr := t.cur.Next()
+	if t.cur.Err() != nil {
+		t.err = t.cur.Err()
+		return false
+	}
 	if arr.Len() == 0 {
 		return false
 	}
@@ -531,6 +543,9 @@ func (t *floatEmptyWindowSelectorTable) startTimes(builder *array.FloatBuilder) 
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -578,6 +593,9 @@ func (t *floatEmptyWindowSelectorTable) stopTimes(builder *array.FloatBuilder) *
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -642,6 +660,9 @@ func (t *floatEmptyWindowSelectorTable) startStopTimes(builder *array.FloatBuild
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -714,6 +735,10 @@ func (t *floatGroupTable) advance() bool {
 	var len int
 	for {
 		arr = t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		len = arr.Len()
 		if len > 0 {
 			break
@@ -746,6 +771,10 @@ func (t *floatGroupTable) advance() bool {
 	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		if arr.Len() > 0 {
 			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue
@@ -1061,6 +1090,10 @@ func (t *integerTable) Do(f func(flux.ColReader) error) error {
 
 func (t *integerTable) advance() bool {
 	a := t.cur.Next()
+	if t.cur.Err() != nil {
+		t.err = t.cur.Err()
+		return false
+	}
 	l := a.Len()
 	if l == 0 {
 		return false
@@ -1237,6 +1270,10 @@ func (t *integerWindowTable) nextBuffer() bool {
 	// Retrieve the next array cursor if needed.
 	if t.arr == nil {
 		arr := t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		if arr.Len() == 0 {
 			return false
 		}
@@ -1332,6 +1369,10 @@ func (t *integerWindowSelectorTable) Do(f func(flux.ColReader) error) error {
 
 func (t *integerWindowSelectorTable) advance() bool {
 	arr := t.cur.Next()
+	if t.cur.Err() != nil {
+		t.err = t.cur.Err()
+		return false
+	}
 	if arr.Len() == 0 {
 		return false
 	}
@@ -1508,6 +1549,9 @@ func (t *integerEmptyWindowSelectorTable) startTimes(builder *array.IntBuilder) 
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -1555,6 +1599,9 @@ func (t *integerEmptyWindowSelectorTable) stopTimes(builder *array.IntBuilder) *
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -1619,6 +1666,9 @@ func (t *integerEmptyWindowSelectorTable) startStopTimes(builder *array.IntBuild
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -1691,6 +1741,10 @@ func (t *integerGroupTable) advance() bool {
 	var len int
 	for {
 		arr = t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		len = arr.Len()
 		if len > 0 {
 			break
@@ -1723,6 +1777,10 @@ func (t *integerGroupTable) advance() bool {
 	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		if arr.Len() > 0 {
 			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue
@@ -2039,6 +2097,10 @@ func (t *unsignedTable) Do(f func(flux.ColReader) error) error {
 
 func (t *unsignedTable) advance() bool {
 	a := t.cur.Next()
+	if t.cur.Err() != nil {
+		t.err = t.cur.Err()
+		return false
+	}
 	l := a.Len()
 	if l == 0 {
 		return false
@@ -2213,6 +2275,10 @@ func (t *unsignedWindowTable) nextBuffer() bool {
 	// Retrieve the next array cursor if needed.
 	if t.arr == nil {
 		arr := t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		if arr.Len() == 0 {
 			return false
 		}
@@ -2308,6 +2374,10 @@ func (t *unsignedWindowSelectorTable) Do(f func(flux.ColReader) error) error {
 
 func (t *unsignedWindowSelectorTable) advance() bool {
 	arr := t.cur.Next()
+	if t.cur.Err() != nil {
+		t.err = t.cur.Err()
+		return false
+	}
 	if arr.Len() == 0 {
 		return false
 	}
@@ -2484,6 +2554,9 @@ func (t *unsignedEmptyWindowSelectorTable) startTimes(builder *array.UintBuilder
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -2531,6 +2604,9 @@ func (t *unsignedEmptyWindowSelectorTable) stopTimes(builder *array.UintBuilder)
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -2595,6 +2671,9 @@ func (t *unsignedEmptyWindowSelectorTable) startStopTimes(builder *array.UintBui
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -2667,6 +2746,10 @@ func (t *unsignedGroupTable) advance() bool {
 	var len int
 	for {
 		arr = t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		len = arr.Len()
 		if len > 0 {
 			break
@@ -2699,6 +2782,10 @@ func (t *unsignedGroupTable) advance() bool {
 	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		if arr.Len() > 0 {
 			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue
@@ -3014,6 +3101,10 @@ func (t *stringTable) Do(f func(flux.ColReader) error) error {
 
 func (t *stringTable) advance() bool {
 	a := t.cur.Next()
+	if t.cur.Err() != nil {
+		t.err = t.cur.Err()
+		return false
+	}
 	l := a.Len()
 	if l == 0 {
 		return false
@@ -3188,6 +3279,10 @@ func (t *stringWindowTable) nextBuffer() bool {
 	// Retrieve the next array cursor if needed.
 	if t.arr == nil {
 		arr := t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		if arr.Len() == 0 {
 			return false
 		}
@@ -3283,6 +3378,10 @@ func (t *stringWindowSelectorTable) Do(f func(flux.ColReader) error) error {
 
 func (t *stringWindowSelectorTable) advance() bool {
 	arr := t.cur.Next()
+	if t.cur.Err() != nil {
+		t.err = t.cur.Err()
+		return false
+	}
 	if arr.Len() == 0 {
 		return false
 	}
@@ -3459,6 +3558,9 @@ func (t *stringEmptyWindowSelectorTable) startTimes(builder *array.StringBuilder
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -3506,6 +3608,9 @@ func (t *stringEmptyWindowSelectorTable) stopTimes(builder *array.StringBuilder)
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -3570,6 +3675,9 @@ func (t *stringEmptyWindowSelectorTable) startStopTimes(builder *array.StringBui
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -3642,6 +3750,10 @@ func (t *stringGroupTable) advance() bool {
 	var len int
 	for {
 		arr = t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		len = arr.Len()
 		if len > 0 {
 			break
@@ -3674,6 +3786,10 @@ func (t *stringGroupTable) advance() bool {
 	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		if arr.Len() > 0 {
 			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue
@@ -3933,6 +4049,10 @@ func (t *booleanTable) Do(f func(flux.ColReader) error) error {
 
 func (t *booleanTable) advance() bool {
 	a := t.cur.Next()
+	if t.cur.Err() != nil {
+		t.err = t.cur.Err()
+		return false
+	}
 	l := a.Len()
 	if l == 0 {
 		return false
@@ -4107,6 +4227,10 @@ func (t *booleanWindowTable) nextBuffer() bool {
 	// Retrieve the next array cursor if needed.
 	if t.arr == nil {
 		arr := t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		if arr.Len() == 0 {
 			return false
 		}
@@ -4202,6 +4326,10 @@ func (t *booleanWindowSelectorTable) Do(f func(flux.ColReader) error) error {
 
 func (t *booleanWindowSelectorTable) advance() bool {
 	arr := t.cur.Next()
+	if t.cur.Err() != nil {
+		t.err = t.cur.Err()
+		return false
+	}
 	if arr.Len() == 0 {
 		return false
 	}
@@ -4378,6 +4506,9 @@ func (t *booleanEmptyWindowSelectorTable) startTimes(builder *array.BooleanBuild
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -4425,6 +4556,9 @@ func (t *booleanEmptyWindowSelectorTable) stopTimes(builder *array.BooleanBuilde
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -4489,6 +4623,9 @@ func (t *booleanEmptyWindowSelectorTable) startStopTimes(builder *array.BooleanB
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -4561,6 +4698,10 @@ func (t *booleanGroupTable) advance() bool {
 	var len int
 	for {
 		arr = t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		len = arr.Len()
 		if len > 0 {
 			break
@@ -4593,6 +4734,10 @@ func (t *booleanGroupTable) advance() bool {
 	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false
+		}
 		if arr.Len() > 0 {
 			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue

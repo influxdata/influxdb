@@ -80,6 +80,10 @@ func (t *{{.name}}Table) Do(f func(flux.ColReader) error) error {
 
 func (t *{{.name}}Table) advance() bool {
 	a := t.cur.Next()
+	if t.cur.Err() != nil {
+	    t.err = t.cur.Err()
+	    return false
+	}
 	l := a.Len()
 	if l == 0 {
 		return false
@@ -256,6 +260,10 @@ func (t *{{.name}}WindowTable) nextBuffer() bool {
 	// Retrieve the next array cursor if needed.
 	if t.arr == nil {
 		arr := t.cur.Next()
+		if t.cur.Err() != nil {
+		    t.err = t.cur.Err()
+		    return false;
+		}
 		if arr.Len() == 0 {
 			return false
 		}
@@ -351,6 +359,10 @@ func (t *{{.name}}WindowSelectorTable) Do(f func(flux.ColReader) error) error {
 
 func (t *{{.name}}WindowSelectorTable) advance() bool {
 	arr := t.cur.Next()
+    if t.cur.Err() != nil {
+        t.err = t.cur.Err()
+        return false;
+    }
 	if arr.Len() == 0 {
 		return false
 	}
@@ -527,6 +539,9 @@ func (t *{{.name}}EmptyWindowSelectorTable) startTimes(builder *array.{{.ArrowTy
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+            if t.cur.Err() != nil {
+                t.err = t.cur.Err()
+            }
 			t.idx = 0
 		}
 
@@ -574,6 +589,9 @@ func (t *{{.name}}EmptyWindowSelectorTable) stopTimes(builder *array.{{.ArrowTyp
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+            if t.cur.Err() != nil {
+                t.err = t.cur.Err()
+            }
 			t.idx = 0
 		}
 
@@ -638,6 +656,9 @@ func (t *{{.name}}EmptyWindowSelectorTable) startStopTimes(builder *array.{{.Arr
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
+            if t.cur.Err() != nil {
+                t.err = t.cur.Err()
+            }
 			t.idx = 0
 		}
 
@@ -710,6 +731,10 @@ func (t *{{.name}}GroupTable) advance() bool {
 	var len int
 	for {
 		arr = t.cur.Next()
+		if t.cur.Err() != nil {
+		    t.err = t.cur.Err()
+		    return false;
+		}
 		len = arr.Len()
 		if len > 0 {
 			break
@@ -742,6 +767,10 @@ func (t *{{.name}}GroupTable) advance() bool {
 	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
+        if t.cur.Err() != nil {
+            t.err = t.cur.Err()
+            return false;
+        }
 		if arr.Len() > 0 {
 			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue
