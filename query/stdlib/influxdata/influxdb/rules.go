@@ -162,7 +162,7 @@ func (PushDownFilterRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node,
 		return pn, false, nil
 	}
 
-	paramName := filterSpec.Fn.Fn.Parameters.List[0].Key.Name
+	paramName := filterSpec.Fn.Fn.Parameters.List[0].Key.Name.Name()
 
 	pushable, notPushable, err := semantic.PartitionPredicates(bodyExpr, func(e semantic.Expression) (bool, error) {
 		return isPushableExpr(paramName, e)
@@ -536,12 +536,12 @@ const fieldValueProperty = "_value"
 
 func isTag(paramName string, e semantic.Expression) bool {
 	memberExpr := validateMemberExpr(paramName, e)
-	return memberExpr != nil && memberExpr.Property != fieldValueProperty
+	return memberExpr != nil && memberExpr.Property.Name() != fieldValueProperty
 }
 
 func isField(paramName string, e semantic.Expression) bool {
 	memberExpr := validateMemberExpr(paramName, e)
-	return memberExpr != nil && memberExpr.Property == fieldValueProperty
+	return memberExpr != nil && memberExpr.Property.Name() == fieldValueProperty
 }
 
 func validateMemberExpr(paramName string, e semantic.Expression) *semantic.MemberExpression {
@@ -555,7 +555,7 @@ func validateMemberExpr(paramName string, e semantic.Expression) *semantic.Membe
 		return nil
 	}
 
-	if idExpr.Name != paramName {
+	if idExpr.Name.Name() != paramName {
 		return nil
 	}
 
