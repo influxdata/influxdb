@@ -56,8 +56,8 @@ pub(crate) fn df_to_expr(
                 ) => {
                     let column = column.name.clone();
 
-                    let scalar =
-                        df_to_scalar(value.clone()).context(CannotConvertDataFusionScalarValue)?;
+                    let scalar = df_to_scalar(value.clone())
+                        .context(CannotConvertDataFusionScalarValueSnafu)?;
 
                     (column, scalar)
                 }
@@ -69,7 +69,7 @@ pub(crate) fn df_to_expr(
                 }
             };
 
-            let op = df_to_op(op).context(CannotConvertDataFusionOperator)?;
+            let op = df_to_op(op).context(CannotConvertDataFusionOperatorSnafu)?;
 
             Ok(DeleteExpr { column, op, scalar })
         }

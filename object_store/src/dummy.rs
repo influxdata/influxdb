@@ -50,18 +50,18 @@ impl ObjectStoreApi for DummyObjectStore {
     }
 
     async fn put(&self, _location: &Self::Path, _bytes: Bytes) -> crate::Result<(), Self::Error> {
-        NotSupported { name: &self.name }.fail()
+        NotSupportedSnafu { name: &self.name }.fail()
     }
 
     async fn get(
         &self,
         _location: &Self::Path,
     ) -> crate::Result<GetResult<Self::Error>, Self::Error> {
-        NotSupported { name: &self.name }.fail()
+        NotSupportedSnafu { name: &self.name }.fail()
     }
 
     async fn delete(&self, _location: &Self::Path) -> crate::Result<(), Self::Error> {
-        NotSupported { name: &self.name }.fail()
+        NotSupportedSnafu { name: &self.name }.fail()
     }
 
     async fn list<'a>(
@@ -71,14 +71,14 @@ impl ObjectStoreApi for DummyObjectStore {
         futures::stream::BoxStream<'a, crate::Result<Vec<Self::Path>, Self::Error>>,
         Self::Error,
     > {
-        NotSupported { name: &self.name }.fail()
+        NotSupportedSnafu { name: &self.name }.fail()
     }
 
     async fn list_with_delimiter(
         &self,
         _prefix: &Self::Path,
     ) -> crate::Result<crate::ListResult<Self::Path>, Self::Error> {
-        NotSupported { name: &self.name }.fail()
+        NotSupportedSnafu { name: &self.name }.fail()
     }
 }
 
@@ -93,7 +93,7 @@ pub(crate) fn new_s3(
     _session_token: Option<impl Into<String>>,
     _max_connections: NonZeroUsize,
 ) -> Result<DummyObjectStore> {
-    NotSupported { name: "aws" }.fail()
+    NotSupportedSnafu { name: "aws" }.fail()
 }
 
 #[allow(dead_code)]
@@ -107,7 +107,7 @@ pub(crate) fn new_gcs(
     _service_account_path: impl AsRef<std::ffi::OsStr>,
     _bucket_name: impl Into<String>,
 ) -> Result<DummyObjectStore> {
-    NotSupported { name: "gcs" }.fail()
+    NotSupportedSnafu { name: "gcs" }.fail()
 }
 
 /// Stub when azure is not configured
@@ -118,5 +118,5 @@ pub(crate) fn new_azure(
     _container_name: impl Into<String>,
     _use_emulator: bool,
 ) -> Result<DummyObjectStore> {
-    NotSupported { name: "azure" }.fail()
+    NotSupportedSnafu { name: "azure" }.fail()
 }

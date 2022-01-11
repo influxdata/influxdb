@@ -90,7 +90,7 @@ pub async fn seek_to_end(db: &Db, write_buffer: &mut dyn WriteBufferReading) -> 
     for (sequencer_id, stream) in write_buffer.streams() {
         let watermark = (stream.fetch_high_watermark)()
             .await
-            .context(SeekError { sequencer_id })?;
+            .context(SeekSnafu { sequencer_id })?;
         watermarks.push((sequencer_id, watermark));
     }
 
@@ -98,7 +98,7 @@ pub async fn seek_to_end(db: &Db, write_buffer: &mut dyn WriteBufferReading) -> 
         write_buffer
             .seek(*sequencer_id, *watermark)
             .await
-            .context(SeekError {
+            .context(SeekSnafu {
                 sequencer_id: *sequencer_id,
             })?;
     }
@@ -186,7 +186,7 @@ pub async fn perform_replay(
             write_buffer
                 .seek(*sequencer_id, min)
                 .await
-                .context(SeekError {
+                .context(SeekSnafu {
                     sequencer_id: *sequencer_id,
                 })?;
         } else {
@@ -195,7 +195,7 @@ pub async fn perform_replay(
             write_buffer
                 .seek(*sequencer_id, sequence_number)
                 .await
-                .context(SeekError {
+                .context(SeekSnafu {
                     sequencer_id: *sequencer_id,
                 })?;
         }
@@ -220,7 +220,7 @@ pub async fn perform_replay(
                 .stream
                 .try_next()
                 .await
-                .context(EntryError { sequencer_id })?
+                .context(EntrySnafu { sequencer_id })?
             {
                 let sequence = *dml_operation
                     .meta()

@@ -135,9 +135,9 @@ impl PointsWriterBuilder {
 
     /// Write points to a file in the directory specified.
     pub fn new_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        fs::create_dir_all(&path).context(CantCreateDirectory)?;
-        let metadata = fs::metadata(&path).context(CantGetMetadata)?;
-        ensure!(metadata.is_dir(), MustBeDirectory);
+        fs::create_dir_all(&path).context(CantCreateDirectorySnafu)?;
+        let metadata = fs::metadata(&path).context(CantGetMetadataSnafu)?;
+        ensure!(metadata.is_dir(), MustBeDirectorySnafu);
 
         Ok(Self {
             config: PointsWriterConfig::Directory(PathBuf::from(path.as_ref())),
@@ -181,7 +181,7 @@ impl PointsWriterBuilder {
                     .append(true)
                     .create(true)
                     .open(&filename)
-                    .context(CantOpenLineProtocolFile { filename })?;
+                    .context(CantOpenLineProtocolFileSnafu { filename })?;
 
                 let file = BufWriter::new(file);
 
@@ -252,13 +252,13 @@ impl InnerPointsWriter {
                 client
                     .write(org, bucket, stream::iter(points))
                     .await
-                    .context(CantWriteToApi)?;
+                    .context(CantWriteToApiSnafu)?;
             }
             Self::File { file } => {
                 for point in points {
                     point
                         .write_data_point_to(&mut *file)
-                        .context(CantWriteToLineProtocolFile)?;
+                        .context(CantWriteToLineProtocolFileSnafu)?;
                 }
             }
             Self::NoOp { perform_write } => {
@@ -268,7 +268,7 @@ impl InnerPointsWriter {
                     for point in points {
                         point
                             .write_data_point_to(&mut sink)
-                            .context(CantWriteToNoOp)?;
+                            .context(CantWriteToNoOpSnafu)?;
                     }
                 }
             }

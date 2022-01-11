@@ -91,7 +91,7 @@ impl Agent {
                 let data = json!({"agent": {"id": agent_id, "name": agent_spec.name}});
 
                 let agent_tag_pairs = TagPair::pairs_from_specs(&agent_spec.tag_pairs, data)
-                    .context(CouldNotCreateAgentTagPairs)?;
+                    .context(CouldNotCreateAgentTagPairsSnafu)?;
 
                 let measurement_generators = agent_spec
                     .measurements
@@ -104,7 +104,7 @@ impl Agent {
                             generated_tag_sets,
                             &agent_tag_pairs,
                         )
-                        .context(CouldNotCreateMeasurementGenerators)
+                        .context(CouldNotCreateMeasurementGeneratorsSnafu)
                     })
                     .collect::<Result<Vec<_>>>()?;
                 let measurement_generators = measurement_generators.into_iter().flatten().collect();
@@ -163,7 +163,7 @@ impl Agent {
             points_writer
                 .write_points(streams.into_iter().flatten())
                 .await
-                .context(CouldNotWritePoints)?;
+                .context(CouldNotWritePointsSnafu)?;
 
             info!("wrote {} in {:?}", points_this_batch, batch_start.elapsed());
             let total = counter.fetch_add(points_this_batch as u64, Ordering::SeqCst);
@@ -222,7 +222,7 @@ impl Agent {
             for mgs in &mut self.measurement_generators {
                 measurement_streams.push(
                     mgs.generate(point_timestamp)
-                        .context(CouldNotGeneratePoint)?,
+                        .context(CouldNotGeneratePointSnafu)?,
                 );
             }
 

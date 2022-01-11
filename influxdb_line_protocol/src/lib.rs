@@ -94,7 +94,7 @@ type IResult<I, T, E = Error> = nom::IResult<I, T, E>;
 
 impl nom::error::ParseError<&str> for Error {
     fn from_error_kind(_input: &str, kind: nom::error::ErrorKind) -> Self {
-        GenericParsingError {
+        GenericParsingSnafu {
             kind,
             trace: vec![],
         }
@@ -102,7 +102,7 @@ impl nom::error::ParseError<&str> for Error {
     }
 
     fn append(_input: &str, kind: nom::error::ErrorKind, other: Self) -> Self {
-        GenericParsingError {
+        GenericParsingSnafu {
             kind,
             trace: vec![other],
         }
@@ -288,7 +288,7 @@ impl<'a> Series<'a> {
                 }
                 Entry::Occupied(e) => {
                     let (tag_key, _) = e.remove_entry();
-                    return DuplicateTag {
+                    return DuplicateTagSnafu {
                         tag_key: tag_key.to_string(),
                     }
                     .fail();
@@ -633,7 +633,7 @@ fn field_set(i: &str) -> IResult<&str, FieldSet<'_>> {
     let sep = tag(",");
 
     match parameterized_separated_list1(sep, one_field, SmallVec::new, |v, i| v.push(i))(i) {
-        Err(nom::Err::Error(_)) => FieldSetMissing.fail().map_err(nom::Err::Error),
+        Err(nom::Err::Error(_)) => FieldSetMissingSnafu.fail().map_err(nom::Err::Error),
         other => other,
     }
 }
@@ -656,14 +656,14 @@ fn field_value(i: &str) -> IResult<&str, FieldValue<'_>> {
 fn field_integer_value(i: &str) -> IResult<&str, i64> {
     let tagged_value = terminated(integral_value_signed, tag("i"));
     map_fail(tagged_value, |value| {
-        value.parse().context(IntegerValueInvalid { value })
+        value.parse().context(IntegerValueInvalidSnafu { value })
     })(i)
 }
 
 fn field_uinteger_value(i: &str) -> IResult<&str, u64> {
     let tagged_value = terminated(digit1, tag("u"));
     map_fail(tagged_value, |value| {
-        value.parse().context(UIntegerValueInvalid { value })
+        value.parse().context(UIntegerValueInvalidSnafu { value })
     })(i)
 }
 
@@ -675,7 +675,7 @@ fn field_float_value(i: &str) -> IResult<&str, f64> {
         field_float_value_no_decimal,
     ));
     map_fail(value, |value| {
-        value.parse().context(FloatValueInvalid { value })
+        value.parse().context(FloatValueInvalidSnafu { value })
     })(i)
 }
 
@@ -713,7 +713,7 @@ fn integral_value_signed(i: &str) -> IResult<&str, &str> {
 
 pub fn timestamp(i: &str) -> IResult<&str, i64> {
     map_fail(integral_value_signed, |value| {
-        value.parse().context(TimestampValueInvalid { value })
+        value.parse().context(TimestampValueInvalidSnafu { value })
     })(i)
 }
 
@@ -814,7 +814,7 @@ fn escape_or_fallback<'a>(
         let (remaining, s) = escape_or_fallback_inner(normal, escape_char, escaped)(i)?;
 
         if s.ends_with('\\') {
-            EndsWithBackslash.fail().map_err(nom::Err::Failure)
+            EndsWithBackslashSnafu.fail().map_err(nom::Err::Failure)
         } else {
             Ok((remaining, s))
         }

@@ -33,13 +33,13 @@ pub async fn store_transaction_proto(
     proto: &proto::Transaction,
 ) -> Result<()> {
     let mut data = Vec::new();
-    proto.encode(&mut data).context(Serialization {})?;
+    proto.encode(&mut data).context(SerializationSnafu {})?;
     let data = Bytes::from(data);
 
     iox_object_store
         .put_catalog_transaction_file(path, data)
         .await
-        .context(Write {})?;
+        .context(WriteSnafu {})?;
 
     Ok(())
 }
@@ -52,10 +52,10 @@ pub async fn load_transaction_proto(
     let data = iox_object_store
         .get_catalog_transaction_file(path)
         .await
-        .context(Read {})?
+        .context(ReadSnafu {})?
         .bytes()
         .await
-        .context(Read {})?;
-    let proto = proto::Transaction::decode(&data[..]).context(Deserialization {})?;
+        .context(ReadSnafu {})?;
+    let proto = proto::Transaction::decode(&data[..]).context(DeserializationSnafu {})?;
     Ok(proto)
 }

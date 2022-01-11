@@ -65,7 +65,7 @@ impl FieldGeneratorImpl {
             d.insert("field".to_string(), json!({ "id": field_id }));
 
             let field_name = substitution::render_once("field", &spec.name, &data)
-                .context(CouldNotCreateFieldName)?;
+                .context(CouldNotCreateFieldNameSnafu)?;
 
             let rng =
                 SmallRng::from_rng(&mut rand::thread_rng()).expect("SmallRng should always create");
@@ -277,7 +277,7 @@ impl StringFieldGenerator {
         let mut registry = substitution::new_handlebars_registry();
         registry
             .register_template_string(&name, template.into())
-            .context(CouldNotCompileStringTemplate)?;
+            .context(CouldNotCompileStringTemplateSnafu)?;
 
         Ok(Self {
             name,

@@ -237,7 +237,7 @@ impl DbChunk {
     ) -> Result<Vec<read_buffer::Predicate>> {
         let mut rub_preds: Vec<read_buffer::Predicate> = vec![];
         for pred in delete_predicates {
-            let rub_pred = to_read_buffer_predicate(pred).context(PredicateConversion)?;
+            let rub_pred = to_read_buffer_predicate(pred).context(PredicateConversionSnafu)?;
             rub_preds.push(rub_pred);
         }
 
@@ -379,7 +379,9 @@ impl QueryChunk for DbChunk {
 
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
-                let batch = chunk.read_filter(selection).context(MutableBufferChunk)?;
+                let batch = chunk
+                    .read_filter(selection)
+                    .context(MutableBufferChunkSnafu)?;
 
                 Ok(Box::pin(MemoryStream::new(vec![batch])))
             }
@@ -407,13 +409,13 @@ impl QueryChunk for DbChunk {
 
                 let read_results = chunk
                     .read_filter(rb_predicate, selection, negated_delete_exprs)
-                    .context(ReadBufferChunkError {
+                    .context(ReadBufferChunkSnafu {
                         chunk_id: self.id(),
                     })?;
                 let schema =
                     chunk
                         .read_filter_table_schema(selection)
-                        .context(ReadBufferChunkError {
+                        .context(ReadBufferChunkSnafu {
                             chunk_id: self.id(),
                         })?;
 
@@ -424,7 +426,7 @@ impl QueryChunk for DbChunk {
             }
             State::ParquetFile { chunk, .. } => chunk
                 .read_filter(&pred_with_deleted_exprs, selection)
-                .context(ParquetFileChunkError {
+                .context(ParquetFileChunkSnafu {
                     chunk_id: self.id(),
                 }),
         }
@@ -459,7 +461,7 @@ impl QueryChunk for DbChunk {
                 Ok(Some(
                     chunk
                         .column_names(rb_predicate, vec![], columns, BTreeSet::new())
-                        .context(ReadBufferChunkError {
+                        .context(ReadBufferChunkSnafu {
                             chunk_id: self.id(),
                         })?,
                 ))
@@ -502,7 +504,7 @@ impl QueryChunk for DbChunk {
                         Selection::Some(&[column_name]),
                         BTreeMap::new(),
                     )
-                    .context(ReadBufferChunkError {
+                    .context(ReadBufferChunkSnafu {
                         chunk_id: self.id(),
                     })?;
 
@@ -513,7 +515,7 @@ impl QueryChunk for DbChunk {
                 // column out to get the set of values.
                 let values = values
                     .remove(column_name)
-                    .with_context(|| ReadBufferError {
+                    .with_context(|| ReadBufferSnafu {
                         chunk_id: self.id(),
                         msg: format!(
                             "failed to find column_name {:?} in results of tag_values",

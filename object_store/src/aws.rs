@@ -34,59 +34,59 @@ pub enum Error {
     #[snafu(display("Expected streamed data to have length {}, got {}", expected, actual))]
     DataDoesNotMatchLength { expected: usize, actual: usize },
 
-    #[snafu(display("Did not receive any data. Bucket: {}, Location: {}", bucket, location))]
-    NoData { bucket: String, location: String },
+    #[snafu(display("Did not receive any data. Bucket: {}, Location: {}", bucket, path))]
+    NoData { bucket: String, path: String },
 
     #[snafu(display(
         "Unable to DELETE data. Bucket: {}, Location: {}, Error: {} ({:?})",
         bucket,
-        location,
+        path,
         source,
         source,
     ))]
     UnableToDeleteData {
         source: rusoto_core::RusotoError<rusoto_s3::DeleteObjectError>,
         bucket: String,
-        location: String,
+        path: String,
     },
 
     #[snafu(display(
         "Unable to GET data. Bucket: {}, Location: {}, Error: {} ({:?})",
         bucket,
-        location,
+        path,
         source,
         source,
     ))]
     UnableToGetData {
         source: rusoto_core::RusotoError<rusoto_s3::GetObjectError>,
         bucket: String,
-        location: String,
+        path: String,
     },
 
     #[snafu(display(
         "Unable to GET part of the data. Bucket: {}, Location: {}, Error: {} ({:?})",
         bucket,
-        location,
+        path,
         source,
         source,
     ))]
     UnableToGetPieceOfData {
         source: std::io::Error,
         bucket: String,
-        location: String,
+        path: String,
     },
 
     #[snafu(display(
         "Unable to PUT data. Bucket: {}, Location: {}, Error: {} ({:?})",
         bucket,
-        location,
+        path,
         source,
         source,
     ))]
     UnableToPutData {
         source: rusoto_core::RusotoError<rusoto_s3::PutObjectError>,
         bucket: String,
-        location: String,
+        path: String,
     },
 
     #[snafu(display(
@@ -136,7 +136,7 @@ pub enum Error {
     MissingSecretAccessKey,
 
     NotFound {
-        location: String,
+        path: String,
         source: rusoto_core::RusotoError<rusoto_s3::GetObjectError>,
     },
 }
@@ -204,9 +204,9 @@ impl ObjectStoreApi for AmazonS3 {
             async move { s3.put_object(request_factory()).await }
         })
         .await
-        .context(UnableToPutData {
+        .context(UnableToPutDataSnafu {
             bucket: &self.bucket_name,
-            location: location.to_raw(),
+            path: location.to_raw(),
         })?;
 
         Ok(())
@@ -228,25 +228,25 @@ impl ObjectStoreApi for AmazonS3 {
             .map_err(|e| match e {
                 rusoto_core::RusotoError::Service(rusoto_s3::GetObjectError::NoSuchKey(_)) => {
                     Error::NotFound {
-                        location: key.clone(),
+                        path: key.clone(),
                         source: e,
                     }
                 }
                 _ => Error::UnableToGetData {
                     bucket: self.bucket_name.to_owned(),
-                    location: key.clone(),
+                    path: key.clone(),
                     source: e,
                 },
             })?
             .body
-            .context(NoData {
+            .context(NoDataSnafu {
                 bucket: self.bucket_name.to_owned(),
-                location: key.clone(),
+                path: key.clone(),
             })?
             .map_err(move |source| Error::UnableToGetPieceOfData {
                 source,
                 bucket: bucket_name.clone(),
-                location: key.clone(),
+                path: key.clone(),
             })
             .err_into()
             .boxed();
@@ -272,9 +272,9 @@ impl ObjectStoreApi for AmazonS3 {
             async move { s3.delete_object(request_factory()).await }
         })
         .await
-        .context(UnableToDeleteData {
+        .context(UnableToDeleteDataSnafu {
             bucket: &self.bucket_name,
-            location: location.to_raw(),
+            path: location.to_raw(),
         })?;
 
         Ok(())
@@ -326,7 +326,7 @@ impl ObjectStoreApi for AmazonS3 {
                             );
                             let last_modified = match object.last_modified {
                                 Some(lm) => DateTime::parse_from_rfc3339(&lm)
-                                    .context(UnableToParseLastModified {
+                                    .context(UnableToParseLastModifiedSnafu {
                                         bucket: &self.bucket_name,
                                     })?
                                     .with_timezone(&Utc),
@@ -384,7 +384,7 @@ pub(crate) fn new_s3(
 ) -> Result<AmazonS3> {
     let region = region.into();
     let region: rusoto_core::Region = match endpoint {
-        None => region.parse().context(InvalidRegion { region })?,
+        None => region.parse().context(InvalidRegionSnafu { region })?,
         Some(endpoint) => rusoto_core::Region::Custom {
             name: region,
             endpoint: endpoint.into(),
@@ -623,15 +623,15 @@ impl Error {
             UnableToPutData {
                 source: RusotoError::Credentials(_),
                 bucket: _,
-                location: _,
+                path: _,
             } | UnableToGetData {
                 source: RusotoError::Credentials(_),
                 bucket: _,
-                location: _,
+                path: _,
             } | UnableToDeleteData {
                 source: RusotoError::Credentials(_),
                 bucket: _,
-                location: _,
+                path: _,
             } | UnableToListData {
                 source: RusotoError::Credentials(_),
                 bucket: _,
@@ -778,7 +778,7 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(ObjectStoreError::NotFound { location, source }) =
+        if let Some(ObjectStoreError::NotFound { path, source }) =
             err.downcast_ref::<ObjectStoreError>()
         {
             let source_variant = source.downcast_ref::<rusoto_core::RusotoError<_>>();
@@ -792,7 +792,7 @@ mod tests {
                 "got: {:?}",
                 source_variant
             );
-            assert_eq!(location, NON_EXISTENT_NAME);
+            assert_eq!(path, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type: {:?}", err);
         }
@@ -861,13 +861,13 @@ mod tests {
                 Error::UnableToPutData {
                     source,
                     bucket,
-                    location,
+                    path,
                 },
         } = err
         {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
             assert_eq!(bucket, config.bucket);
-            assert_eq!(location, NON_EXISTENT_NAME);
+            assert_eq!(path, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type: {:?}", err);
         }
@@ -920,13 +920,13 @@ mod tests {
                 Error::UnableToDeleteData {
                     source,
                     bucket,
-                    location,
+                    path,
                 },
         } = err
         {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
             assert_eq!(bucket, config.bucket);
-            assert_eq!(location, NON_EXISTENT_NAME);
+            assert_eq!(path, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type: {:?}", err);
         }

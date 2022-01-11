@@ -5,7 +5,7 @@
 use reqwest::{Method, StatusCode};
 use snafu::ResultExt;
 
-use crate::{Client, Http, RequestError, ReqwestProcessing};
+use crate::{Client, HttpSnafu, RequestError, ReqwestProcessingSnafu};
 
 impl Client {
     /// Get the readiness of an instance at startup
@@ -15,14 +15,14 @@ impl Client {
             .request(Method::GET, &ready_url)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         match response.status() {
             StatusCode::OK => Ok(true),
             _ => {
                 let status = response.status();
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }

@@ -24,7 +24,7 @@ pub struct CommonServerState {
 impl CommonServerState {
     pub fn from_config(run_config: RunConfig) -> Result<Self, CommonServerStateError> {
         let serving_readiness = run_config.initial_serving_state.clone().into();
-        let trace_exporter = run_config.tracing_config.build().context(Tracing)?;
+        let trace_exporter = run_config.tracing_config.build().context(TracingSnafu)?;
 
         Ok(Self {
             run_config,

@@ -136,7 +136,7 @@ impl Catalog {
     pub fn table(&self, table_name: impl AsRef<str>) -> Result<MappedRwLockReadGuard<'_, Table>> {
         let table_name = table_name.as_ref();
         RwLockReadGuard::try_map(self.tables.read(), |tables| tables.get(table_name))
-            .map_err(|_| TableNotFound { table: table_name }.build())
+            .map_err(|_| TableNotFoundSnafu { table: table_name }.build())
     }
 
     /// Gets or creates a specific table by name
@@ -175,7 +175,7 @@ impl Catalog {
         self.table(table_name)?
             .partition(partition_key)
             .cloned()
-            .context(PartitionNotFound {
+            .context(PartitionNotFoundSnafu {
                 partition: partition_key,
                 table: table_name,
             })
@@ -195,7 +195,7 @@ impl Catalog {
             .read()
             .chunk(chunk_id)
             .map(|(chunk, order)| (Arc::clone(chunk), order))
-            .context(ChunkNotFound {
+            .context(ChunkNotFoundSnafu {
                 partition: partition_key,
                 table: table_name,
                 chunk_id,

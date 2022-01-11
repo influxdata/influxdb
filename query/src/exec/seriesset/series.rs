@@ -237,7 +237,7 @@ impl SeriesSet {
                 Data::BooleanPoints { timestamps, values }
             }
             _ => {
-                return UnsupportedDataType {
+                return UnsupportedDataTypeSnafu {
                     data_type: array.data_type().clone(),
                 }
                 .fail();

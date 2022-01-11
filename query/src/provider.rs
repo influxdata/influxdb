@@ -162,7 +162,7 @@ impl<C: QueryChunk> ProviderBuilder<C> {
         let chunk_pruner = match self.chunk_pruner {
             Some(chunk_pruner) => chunk_pruner,
             None => {
-                return InternalNoChunkPruner {
+                return InternalNoChunkPrunerSnafu {
                     table_name: self.table_name.as_ref(),
                 }
                 .fail()
@@ -479,7 +479,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///  3. vectors of non-overlapped chunks without duplicates
     fn split_overlapped_chunks(&mut self, chunks: Vec<Arc<C>>) -> Result<()> {
         // Find all groups based on statstics
-        let groups = group_potential_duplicates(chunks).context(InternalChunkGrouping)?;
+        let groups = group_potential_duplicates(chunks).context(InternalChunkGroupingSnafu)?;
 
         for mut group in groups {
             if group.len() == 1 {
@@ -727,12 +727,12 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             .map(|f| {
                 let field_name = f.name();
                 let physical_expr =
-                    physical_col(field_name, &input_schema).context(InternalSelectExpr)?;
+                    physical_col(field_name, &input_schema).context(InternalSelectExprSnafu)?;
                 Ok((physical_expr, field_name.to_string()))
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let plan = ProjectionExec::try_new(select_exprs, input).context(InternalProjection)?;
+        let plan = ProjectionExec::try_new(select_exprs, input).context(InternalProjectionSnafu)?;
         Ok(Arc::new(plan))
     }
 
@@ -818,11 +818,12 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             debug!(?negated_del_expr, "Logical negated expressions");
 
             let negated_physical_del_expr =
-                df_physical_expr(&*input, negated_del_expr).context(InternalFilter)?;
+                df_physical_expr(&*input, negated_del_expr).context(InternalFilterSnafu)?;
             debug!(?negated_physical_del_expr, "Physical negated expressions");
 
             input = Arc::new(
-                FilterExec::try_new(negated_physical_del_expr, input).context(InternalFilter)?,
+                FilterExec::try_new(negated_physical_del_expr, input)
+                    .context(InternalFilterSnafu)?,
             );
         }
 
@@ -898,7 +899,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
 
         // Create SortExec operator
         Ok(Arc::new(
-            SortExec::try_new(sort_exprs, input).context(InternalSort)?,
+            SortExec::try_new(sort_exprs, input).context(InternalSortSnafu)?,
         ))
     }
 

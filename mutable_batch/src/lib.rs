@@ -97,7 +97,7 @@ impl MutableBatch {
 
                 schema_builder
                     .build()
-                    .context(InternalSchema)?
+                    .context(InternalSchemaSnafu)?
                     .sort_fields_by_name()
             }
             Selection::Some(cols) => {
@@ -105,7 +105,7 @@ impl MutableBatch {
                     let column = self.column(col)?;
                     schema_builder.influx_column(col, column.influx_type());
                 }
-                schema_builder.build().context(InternalSchema)?
+                schema_builder.build().context(InternalSchemaSnafu)?
             }
         };
 
@@ -122,13 +122,13 @@ impl MutableBatch {
                     .column(field.name())
                     .expect("schema contains non-existent column");
 
-                column.to_arrow().context(ColumnError {
+                column.to_arrow().context(ColumnSnafu {
                     column: field.name(),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
 
-        RecordBatch::try_new(schema.into(), columns).context(ArrowError {})
+        RecordBatch::try_new(schema.into(), columns).context(ArrowSnafu {})
     }
 
     /// Returns an iterator over the columns in this batch in no particular order
@@ -190,7 +190,7 @@ impl MutableBatch {
         let idx = self
             .column_names
             .get(column)
-            .context(ColumnNotFound { column })?;
+            .context(ColumnNotFoundSnafu { column })?;
 
         Ok(&self.columns[*idx])
     }

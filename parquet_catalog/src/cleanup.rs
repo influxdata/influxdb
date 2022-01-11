@@ -65,7 +65,7 @@ pub async fn get_unreferenced_parquet_files(
             TracerCatalogState::default(),
         )
         .await
-        .context(CatalogLoadError)?
+        .context(CatalogLoadSnafu)?
         .expect("catalog gone while reading it?");
 
         state.files.into_inner()
@@ -74,9 +74,9 @@ pub async fn get_unreferenced_parquet_files(
     // gather a list of "files to remove" eagerly so we do not block transactions on the catalog
     // for too long
     let mut to_remove = vec![];
-    let mut stream = iox_object_store.parquet_files().await.context(ReadError)?;
+    let mut stream = iox_object_store.parquet_files().await.context(ReadSnafu)?;
 
-    'outer: while let Some(paths) = stream.try_next().await.context(ReadError)? {
+    'outer: while let Some(paths) = stream.try_next().await.context(ReadSnafu)? {
         for path in paths {
             if to_remove.len() >= max_files {
                 info!(%max_files, "reached limit of number of files to cleanup in one go");
@@ -110,7 +110,7 @@ pub async fn delete_files(catalog: &PreservedCatalog, files: &[ParquetFilePath])
 
     for path in files {
         info!(?path, "Delete file");
-        store.delete_parquet_file(path).await.context(WriteError)?;
+        store.delete_parquet_file(path).await.context(WriteSnafu)?;
     }
 
     if !files.is_empty() {

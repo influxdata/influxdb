@@ -351,7 +351,7 @@ impl Partition {
     /// Drop the specified chunk even if it has an in-progress lifecycle action
     /// returning the dropped chunk
     pub fn force_drop_chunk(&mut self, chunk_id: ChunkId) -> Result<Arc<RwLock<CatalogChunk>>> {
-        self.chunks.remove(chunk_id).context(ChunkNotFound {
+        self.chunks.remove(chunk_id).context(ChunkNotFoundSnafu {
             chunk: ChunkAddr::new(&self.addr, chunk_id),
         })
     }

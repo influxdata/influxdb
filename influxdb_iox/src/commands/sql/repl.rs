@@ -60,7 +60,7 @@ impl RemoteState {
             .list_database_names()
             .await
             .map_err(|e| Box::new(e) as _)
-            .context(LoadingRemoteState)?;
+            .context(LoadingRemoteStateSnafu)?;
 
         Ok(Self { db_names })
     }
@@ -238,7 +238,7 @@ impl Repl {
                 observer
                     .run_query(&sql)
                     .await
-                    .context(RunningObserverQuery)?
+                    .context(RunningObserverQuerySnafu)?
             }
         };
 
@@ -275,7 +275,7 @@ impl Repl {
         println!("Preparing local views of remote system tables");
         let observer = super::observer::Observer::try_new(self.connection.clone())
             .await
-            .context(RunningObserverQuery)?;
+            .context(RunningObserverQuerySnafu)?;
         println!("{}", observer.help());
         self.set_query_engine(QueryEngine::Observer(observer));
         Ok(())
@@ -297,7 +297,7 @@ impl Repl {
 
         self.output_format = requested_format
             .parse()
-            .context(SettingFormat { requested_format })?;
+            .context(SettingFormatSnafu { requested_format })?;
         println!("Set output format format to {}", self.output_format);
         Ok(())
     }
@@ -313,7 +313,7 @@ impl Repl {
         let formatted_results = self
             .output_format
             .format(batches)
-            .context(FormattingResults)?;
+            .context(FormattingResultsSnafu)?;
         println!("{}", formatted_results);
         Ok(())
     }
@@ -353,11 +353,15 @@ async fn scrape_query(
     let mut query_results = client
         .perform_query(db_name, query)
         .await
-        .context(RunningRemoteQuery)?;
+        .context(RunningRemoteQuerySnafu)?;
 
     let mut batches = vec![];
 
-    while let Some(data) = query_results.next().await.context(RunningRemoteQuery)? {
+    while let Some(data) = query_results
+        .next()
+        .await
+        .context(RunningRemoteQuerySnafu)?
+    {
         batches.push(data);
     }
 

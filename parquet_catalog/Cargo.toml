@@ -24,7 +24,7 @@ pbjson-types = "0.1"
 persistence_windows = { path = "../persistence_windows" }
 predicate = { path = "../predicate" }
 prost = "0.8"
-snafu = "0.6"
+snafu = "0.7"
 schema = { path = "../schema" }
 tempfile = "3.1.0"
 thrift = "0.13"

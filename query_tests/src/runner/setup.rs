@@ -69,7 +69,7 @@ impl TestSetup {
                 .keys()
                 .map(|s| s.to_string())
                 .collect::<Vec<_>>();
-            NamedSetupNotFound {
+            NamedSetupNotFoundSnafu {
                 setup_name,
                 known_setups,
             }
@@ -88,10 +88,10 @@ impl TestSetup {
                 .map(|setup_name| setup_name.trim().to_string())
         });
 
-        let setup_name = parser.next().context(SetupNotFound)?;
+        let setup_name = parser.next().context(SetupNotFoundSnafu)?;
 
         if let Some(new_setup_name) = parser.next() {
-            return SecondSetupFound {
+            return SecondSetupFoundSnafu {
                 setup_name,
                 new_setup_name,
             }

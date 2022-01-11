@@ -24,13 +24,13 @@ pub enum Error {
     #[snafu(display(
         "Unable to PUT data. Bucket: {}, Location: {}, Error: {}",
         bucket,
-        location,
+        path,
         source
     ))]
     UnableToPutData {
         source: cloud_storage::Error,
         bucket: String,
-        location: String,
+        path: String,
     },
 
     #[snafu(display("Unable to list data. Bucket: {}, Error: {}", bucket, source,))]
@@ -48,29 +48,29 @@ pub enum Error {
     #[snafu(display(
         "Unable to DELETE data. Bucket: {}, Location: {}, Error: {}",
         bucket,
-        location,
+        path,
         source,
     ))]
     UnableToDeleteData {
         source: cloud_storage::Error,
         bucket: String,
-        location: String,
+        path: String,
     },
 
     #[snafu(display(
         "Unable to GET data. Bucket: {}, Location: {}, Error: {}",
         bucket,
-        location,
+        path,
         source,
     ))]
     UnableToGetData {
         source: cloud_storage::Error,
         bucket: String,
-        location: String,
+        path: String,
     },
 
     NotFound {
-        location: String,
+        path: String,
         source: cloud_storage::Error,
     },
 }
@@ -109,9 +109,9 @@ impl ObjectStoreApi for GoogleCloudStorage {
                 "application/octet-stream",
             )
             .await
-            .context(UnableToPutData {
+            .context(UnableToPutDataSnafu {
                 bucket: &self.bucket_name,
-                location,
+                path: location,
             })?;
 
         Ok(())
@@ -130,13 +130,13 @@ impl ObjectStoreApi for GoogleCloudStorage {
             .map_err(|e| match e {
                 cloud_storage::Error::Other(ref text) if text.starts_with("No such object") => {
                     Error::NotFound {
-                        location,
+                        path: location,
                         source: e,
                     }
                 }
                 _ => Error::UnableToGetData {
                     bucket: bucket_name.clone(),
-                    location,
+                    path: location,
                     source: e,
                 },
             })?;
@@ -154,9 +154,9 @@ impl ObjectStoreApi for GoogleCloudStorage {
             .object()
             .delete(&bucket_name, &location_copy)
             .await
-            .context(UnableToDeleteData {
+            .context(UnableToDeleteDataSnafu {
                 bucket: &self.bucket_name,
-                location: location.clone(),
+                path: location.clone(),
             })?;
 
         Ok(())
@@ -177,7 +177,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
             .object()
             .list(&self.bucket_name, list_request)
             .await
-            .context(UnableToListData {
+            .context(UnableToListDataSnafu {
                 bucket: &self.bucket_name,
             })?;
 
@@ -214,7 +214,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
                 .object()
                 .list(&self.bucket_name, list_request)
                 .await
-                .context(UnableToListData {
+                .context(UnableToListDataSnafu {
                     bucket: &self.bucket_name,
                 })?,
         );
@@ -226,7 +226,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
                 next_token: None,
             },
             Some(list_response) => {
-                let list_response = list_response.context(UnableToStreamListData {
+                let list_response = list_response.context(UnableToStreamListDataSnafu {
                     bucket: &self.bucket_name,
                 })?;
 
@@ -362,7 +362,7 @@ mod test {
             .await
             .unwrap_err();
 
-        if let Some(ObjectStoreError::NotFound { location, source }) =
+        if let Some(ObjectStoreError::NotFound { path, source }) =
             err.downcast_ref::<ObjectStoreError>()
         {
             let source_variant = source.downcast_ref::<cloud_storage::Error>();
@@ -371,7 +371,7 @@ mod test {
                 "got: {:?}",
                 source_variant
             );
-            assert_eq!(location, NON_EXISTENT_NAME);
+            assert_eq!(path, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type: {:?}", err)
         }
@@ -418,13 +418,13 @@ mod test {
                 Error::UnableToDeleteData {
                     source,
                     bucket,
-                    location,
+                    path,
                 },
         } = err
         {
             assert!(matches!(source, cloud_storage::Error::Google(_)));
             assert_eq!(bucket, config.bucket);
-            assert_eq!(location, NON_EXISTENT_NAME);
+            assert_eq!(path, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type: {:?}", err)
         }
@@ -447,13 +447,13 @@ mod test {
                 Error::UnableToDeleteData {
                     source,
                     bucket,
-                    location,
+                    path,
                 },
         } = err
         {
             assert!(matches!(source, cloud_storage::Error::Google(_)));
             assert_eq!(bucket, config.bucket);
-            assert_eq!(location, NON_EXISTENT_NAME);
+            assert_eq!(path, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type: {:?}", err)
         }
@@ -477,13 +477,13 @@ mod test {
                 Error::UnableToPutData {
                     source,
                     bucket,
-                    location,
+                    path,
                 },
         } = err
         {
             assert!(matches!(source, cloud_storage::Error::Other(_)));
             assert_eq!(bucket, config.bucket);
-            assert_eq!(location, NON_EXISTENT_NAME);
+            assert_eq!(path, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type: {:?}", err);
         }

@@ -302,7 +302,7 @@ pub struct HttpDeleteRequest {
 /// TODO: Move alongside HTTP code
 pub fn parse_http_delete_request(input: &str) -> Result<HttpDeleteRequest> {
     let parsed_obj: serde_json::Value =
-        serde_json::from_str(input).context(DeleteInvalid { value: input })?;
+        serde_json::from_str(input).context(DeleteInvalidSnafu { value: input })?;
     let mut parsed_delete = HttpDeleteRequest::default();
 
     if let serde_json::Value::Object(items) = parsed_obj {

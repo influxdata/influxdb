@@ -38,14 +38,14 @@ pub fn parse_uuid(bytes: &[u8]) -> Result<Option<Uuid>> {
     if bytes.is_empty() {
         Ok(None)
     } else {
-        let uuid = Uuid::from_slice(bytes).context(UuidParse {})?;
+        let uuid = Uuid::from_slice(bytes).context(UuidParseSnafu {})?;
         Ok(Some(uuid))
     }
 }
 
 /// Parse big-endian UUID from protobuf and fail if protobuf did not provide data.
 pub fn parse_uuid_required(bytes: &[u8]) -> Result<Uuid> {
-    parse_uuid(bytes)?.context(UuidRequired {})
+    parse_uuid(bytes)?.context(UuidRequiredSnafu {})
 }
 
 /// Parse [`ParquetFilePath`](iox_object_store::ParquetFilePath) from protobuf.
@@ -60,7 +60,7 @@ pub fn parse_dirs_and_filename(proto: &proto::Path) -> Result<ParquetFilePath> {
     };
 
     ParquetFilePath::from_relative_dirs_and_file_name(&dirs_and_file_name)
-        .context(InvalidParquetFilePath)
+        .context(InvalidParquetFilePathSnafu)
 }
 
 /// Store [`ParquetFilePath`](iox_object_store::ParquetFilePath) as protobuf.
@@ -83,15 +83,15 @@ pub fn unparse_dirs_and_filename(path: &ParquetFilePath) -> proto::Path {
 /// Parse timestamp from protobuf.
 pub fn parse_timestamp(ts: &Option<generated_types::google::protobuf::Timestamp>) -> Result<Time> {
     let ts: generated_types::google::protobuf::Timestamp =
-        ts.as_ref().context(DateTimeRequired)?.clone();
-    let ts = ts.try_into().context(DateTimeParseError)?;
+        ts.as_ref().context(DateTimeRequiredSnafu)?.clone();
+    let ts = ts.try_into().context(DateTimeParseSnafu)?;
     Ok(Time::from_date_time(ts))
 }
 
 /// Parse encoding from protobuf.
 pub fn parse_encoding(encoding: i32) -> Result<proto::transaction::Encoding> {
     let parsed = proto::transaction::Encoding::from_i32(encoding)
-        .context(EncodingParseError { data: encoding })?;
+        .context(EncodingParseSnafu { data: encoding })?;
     if parsed == proto::transaction::Encoding::Unspecified {
         Err(Error::EncodingParseError { data: encoding })
     } else {

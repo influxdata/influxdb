@@ -62,7 +62,7 @@ impl IntoStringSet for Vec<RecordBatch> {
             let fields = schema.fields();
             ensure!(
                 fields.len() == 1,
-                InternalSchemaWasNotString {
+                InternalSchemaWasNotStringSnafu {
                     schema: Arc::clone(&schema),
                 }
             );
@@ -90,7 +90,7 @@ impl IntoStringSet for Vec<RecordBatch> {
 
                     add_utf8_dictionary_to_stringset(&mut strings, array, num_rows)?;
                 }
-                _ => InternalSchemaWasNotString {
+                _ => InternalSchemaWasNotStringSnafu {
                     schema: Arc::clone(&schema),
                 }
                 .fail()?,
@@ -109,7 +109,7 @@ fn add_utf8_array_to_stringset(
         // Not sure how to handle a NULL -- StringSet contains
         // Strings, not Option<String>
         if src.is_null(i) {
-            return InternalUnexpectedNull {}.fail();
+            return InternalUnexpectedNullSnafu {}.fail();
         } else {
             let src_value = src.value(i);
             if !dest.contains(src_value) {
@@ -136,7 +136,7 @@ fn add_utf8_dictionary_to_stringset(
         // Not sure how to handle a NULL -- StringSet contains
         // Strings, not Option<String>
         if keys.is_null(i) {
-            return InternalUnexpectedNull {}.fail();
+            return InternalUnexpectedNullSnafu {}.fail();
         } else {
             let idx = keys.value(i);
             let src_value = values.value(idx as _);

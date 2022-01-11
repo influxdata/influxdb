@@ -14,7 +14,7 @@ observability_deps = { path = "../observability_deps" }
 ordered-float = "2"
 regex = "1"
 serde_json = "1.0.72"
-snafu = "0.6.9"
+snafu = "0.7"
 sqlparser = "0.13.0"
 workspace-hack = { path = "../workspace-hack"}
 

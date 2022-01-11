@@ -106,32 +106,33 @@ impl From<DumpOptions> for parquet_catalog::dump::DumpOptions {
 }
 
 pub async fn command(config: Config) -> Result<()> {
-    let object_store =
-        Arc::new(ObjectStore::try_from(&config.object_store_config).context(ObjectStoreParsing)?);
-    let server_id = config.server_id_config.server_id.context(NoServerId)?;
+    let object_store = Arc::new(
+        ObjectStore::try_from(&config.object_store_config).context(ObjectStoreParsingSnafu)?,
+    );
+    let server_id = config.server_id_config.server_id.context(NoServerIdSnafu)?;
     let server_config_bytes = IoxObjectStore::get_server_config_file(&object_store, server_id)
         .await
-        .context(CantReadServerConfig)?;
+        .context(CantReadServerConfigSnafu)?;
 
     let server_config =
         generated_types::server_config::decode_persisted_server_config(server_config_bytes)
-            .context(CantDeserializeServerConfig)?;
+            .context(CantDeserializeServerConfigSnafu)?;
 
     let database_location = server_config
         .databases
         .get(&config.db_name)
-        .context(CantFindDatabase)?;
+        .context(CantFindDatabaseSnafu)?;
 
     let iox_object_store =
         IoxObjectStore::load_at_root_path(Arc::clone(&object_store), database_location)
             .await
-            .context(IoxObjectStoreFailure)?;
+            .context(IoxObjectStoreFailureSnafu)?;
 
     let mut writer = std::io::stdout();
     let options = config.dump_options.into();
     parquet_catalog::dump::dump(&iox_object_store, &mut writer, options)
         .await
-        .context(DumpCatalogFailure)?;
+        .context(DumpCatalogFailureSnafu)?;
 
     Ok(())
 }

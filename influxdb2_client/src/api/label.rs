@@ -1,7 +1,7 @@
 //! Labels
 
 use crate::models::{LabelCreateRequest, LabelResponse, LabelUpdate, LabelsResponse};
-use crate::{Client, Http, RequestError, ReqwestProcessing, Serializing};
+use crate::{Client, HttpSnafu, RequestError, ReqwestProcessingSnafu, SerializingSnafu};
 use reqwest::{Method, StatusCode};
 use snafu::ResultExt;
 use std::collections::HashMap;
@@ -25,15 +25,15 @@ impl Client {
             request = request.query(&[("orgID", id)]);
         }
 
-        let response = request.send().await.context(ReqwestProcessing)?;
+        let response = request.send().await.context(ReqwestProcessingSnafu)?;
         match response.status() {
             StatusCode::OK => Ok(response
                 .json::<LabelsResponse>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }
@@ -45,15 +45,15 @@ impl Client {
             .request(Method::GET, &labels_by_id_url)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
         match response.status() {
             StatusCode::OK => Ok(response
                 .json::<LabelResponse>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }
@@ -73,18 +73,18 @@ impl Client {
         };
         let response = self
             .request(Method::POST, &create_label_url)
-            .body(serde_json::to_string(&body).context(Serializing)?)
+            .body(serde_json::to_string(&body).context(SerializingSnafu)?)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
         match response.status() {
             StatusCode::CREATED => Ok(response
                 .json::<LabelResponse>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }
@@ -100,18 +100,18 @@ impl Client {
         let body = LabelUpdate { name, properties };
         let response = self
             .request(Method::PATCH, &update_label_url)
-            .body(serde_json::to_string(&body).context(Serializing)?)
+            .body(serde_json::to_string(&body).context(SerializingSnafu)?)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
         match response.status() {
             StatusCode::OK => Ok(response
                 .json::<LabelResponse>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }
@@ -123,12 +123,12 @@ impl Client {
             .request(Method::DELETE, &delete_label_url)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
         match response.status() {
             StatusCode::NO_CONTENT => Ok(()),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }

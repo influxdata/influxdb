@@ -72,7 +72,7 @@ pub async fn route_request(
     match server_type
         .route_dml_http_request(req)
         .await
-        .context(WriteError)?
+        .context(WriteSnafu)?
     {
         RequestOrResponse::Response(resp) => Ok(resp),
         RequestOrResponse::Request(req) => Err(ApplicationError::RouteNotFound {

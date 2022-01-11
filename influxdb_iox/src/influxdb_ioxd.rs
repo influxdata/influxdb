@@ -162,7 +162,7 @@ where
 pub async fn grpc_listener(addr: SocketAddr) -> Result<tokio::net::TcpListener> {
     let listener = tokio::net::TcpListener::bind(addr)
         .await
-        .context(StartListeningGrpc { addr })?;
+        .context(StartListeningGrpcSnafu { addr })?;
 
     match listener.local_addr() {
         Ok(local_addr) => info!(%local_addr, "bound gRPC listener"),
@@ -173,7 +173,7 @@ pub async fn grpc_listener(addr: SocketAddr) -> Result<tokio::net::TcpListener> 
 }
 
 pub async fn http_listener(addr: SocketAddr) -> Result<AddrIncoming> {
-    let listener = AddrIncoming::bind(&addr).context(StartListeningHttp { addr })?;
+    let listener = AddrIncoming::bind(&addr).context(StartListeningHttpSnafu { addr })?;
     info!(bind_addr=%listener.local_addr(), "bound HTTP listener");
 
     Ok(listener)

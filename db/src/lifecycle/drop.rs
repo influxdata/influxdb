@@ -1,5 +1,5 @@
 use super::{
-    error::{CannotDropUnpersistedChunk, CommitError, Error, Result},
+    error::{CannotDropUnpersistedChunkSnafu, CommitSnafu, Error, Result},
     LockableCatalogChunk, LockableCatalogPartition,
 };
 use crate::catalog::{
@@ -35,7 +35,7 @@ pub fn drop_chunk(
     // check if we're dropping an unpersisted chunk in a persisted DB
     // See https://github.com/influxdata/influxdb_iox/issues/2291
     if lifecycle_persist && !matches!(guard.stage(), ChunkStage::Persisted { .. }) {
-        return CannotDropUnpersistedChunk {
+        return CannotDropUnpersistedChunkSnafu {
             addr: guard.addr().clone(),
         }
         .fail();
@@ -68,7 +68,7 @@ pub fn drop_chunk(
         if let Some(parquet_path) = parquet_path {
             let mut transaction = preserved_catalog.open_transaction().await;
             transaction.remove_parquet(&parquet_path);
-            transaction.commit().await.context(CommitError)?;
+            transaction.commit().await.context(CommitSnafu)?;
         }
 
         let mut partition = partition.write();
@@ -129,7 +129,7 @@ pub fn drop_partition(
         // check if we're dropping an unpersisted chunk in a persisted DB
         // See https://github.com/influxdata/influxdb_iox/issues/2291
         if lifecycle_persist && !matches!(guard.stage(), ChunkStage::Persisted { .. }) {
-            return CannotDropUnpersistedChunk {
+            return CannotDropUnpersistedChunkSnafu {
                 addr: guard.addr().clone(),
             }
             .fail();
@@ -185,7 +185,7 @@ pub fn drop_partition(
             for path in paths {
                 transaction.remove_parquet(&path);
             }
-            transaction.commit().await.context(CommitError)?;
+            transaction.commit().await.context(CommitSnafu)?;
         }
 
         // AFTER the transaction completes successfully (the involved IO might just fail), finally drop the chunks that

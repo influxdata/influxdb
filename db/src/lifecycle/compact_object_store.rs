@@ -2,9 +2,9 @@
 
 use super::{
     error::{
-        ChunksNotContiguous, ChunksNotInPartition, ChunksNotPersisted, CommitError,
-        ComparePartitionCheckpoint, EmptyChunks, NoCheckpoint, ParquetChunkError, ParquetMetaRead,
-        WritingToObjectStore,
+        ChunksNotContiguousSnafu, ChunksNotInPartitionSnafu, ChunksNotPersistedSnafu, CommitSnafu,
+        ComparePartitionCheckpointSnafu, EmptyChunksSnafu, NoCheckpointSnafu, ParquetChunkSnafu,
+        ParquetMetaReadSnafu, WritingToObjectStoreSnafu,
     },
     LockableCatalogChunk, LockableCatalogPartition, Result,
 };
@@ -193,7 +193,7 @@ fn mark_chunks_to_compact(
 ) -> Result<CompactingOsChunks> {
     // no chunks provided
     if chunks.is_empty() {
-        return EmptyChunks {}.fail();
+        return EmptyChunksSnafu {}.fail();
     }
 
     let db = Arc::clone(&partition.data().db);
@@ -224,7 +224,7 @@ fn mark_chunks_to_compact(
 
             // provided chunks not in the provided partition
             if chunk.key() != partition_addr.partition_key.as_ref() {
-                return ChunksNotInPartition {}.fail();
+                return ChunksNotInPartitionSnafu {}.fail();
             }
 
             input_rows += chunk.table_summary().total_count();
@@ -246,9 +246,9 @@ fn mark_chunks_to_compact(
                 let iox_parquet_metadata = parquet_chunk.parquet_metadata();
                 let iox_metadata = iox_parquet_metadata
                     .decode()
-                    .context(ParquetMetaRead)?
+                    .context(ParquetMetaReadSnafu)?
                     .read_iox_metadata()
-                    .context(ParquetMetaRead)?;
+                    .context(ParquetMetaReadSnafu)?;
 
                 // fold all database_checkpoints into one for the compacting chunk
                 database_checkpoint.fold(&iox_metadata.database_checkpoint);
@@ -257,7 +257,7 @@ fn mark_chunks_to_compact(
                 if let Some(part_ckpt) = &partition_checkpoint {
                     let ordering = part_ckpt
                         .partial_cmp(&iox_metadata.partition_checkpoint)
-                        .context(ComparePartitionCheckpoint)?;
+                        .context(ComparePartitionCheckpointSnafu)?;
                     if ordering == Ordering::Less {
                         partition_checkpoint = Some(iox_metadata.partition_checkpoint);
                     }
@@ -265,7 +265,7 @@ fn mark_chunks_to_compact(
                     partition_checkpoint = Some(iox_metadata.partition_checkpoint);
                 }
             } else {
-                return ChunksNotPersisted {}.fail();
+                return ChunksNotPersistedSnafu {}.fail();
             }
 
             // Set chunk in the right action which is compacting object store
@@ -280,14 +280,14 @@ fn mark_chunks_to_compact(
         .collect::<Result<Vec<_>>>()?;
 
     if partition_checkpoint.is_none() {
-        return NoCheckpoint {}.fail();
+        return NoCheckpointSnafu {}.fail();
     }
     let partition_checkpoint = partition_checkpoint.unwrap();
 
     // Verify if all the provided chunks are contiguous
     let order_range = RangeInclusive::new(min_order, max_order);
     if !partition.contiguous_chunks(&chunk_ids, &order_range)? {
-        return ChunksNotContiguous {}.fail();
+        return ChunksNotContiguousSnafu {}.fail();
     }
 
     // drop partition lock
@@ -380,7 +380,7 @@ async fn persist_stream_to_chunk<'a>(
     let written_result = storage
         .write_to_object_store(chunk_addr, stream, iox_metadata)
         .await
-        .context(WritingToObjectStore)?;
+        .context(WritingToObjectStoreSnafu)?;
 
     // the stream was empty
     if written_result.is_none() {
@@ -401,7 +401,7 @@ async fn persist_stream_to_chunk<'a>(
             Arc::clone(&partition_addr.partition_key),
             metrics,
         )
-        .context(ParquetChunkError)?,
+        .context(ParquetChunkSnafu)?,
     );
 
     Ok(Some(parquet_chunk))
@@ -428,7 +428,7 @@ async fn update_preserved_catalog(
     }
 
     // Close/commit the transaction
-    transaction.commit().await.context(CommitError)?;
+    transaction.commit().await.context(CommitSnafu)?;
 
     Ok(())
 }

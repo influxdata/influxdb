@@ -47,16 +47,16 @@ pub fn sort(packers: &mut [Packers], sort_by: &[usize]) -> Result<(), Error> {
         return Ok(());
     }
 
-    ensure!(sort_by.len() <= packers.len(), TooManyColumns);
+    ensure!(sort_by.len() <= packers.len(), TooManyColumnsSnafu);
 
     let mut col_set = BTreeSet::new();
     for &index in sort_by {
-        ensure!(col_set.insert(index), RepeatedColumns { index });
+        ensure!(col_set.insert(index), RepeatedColumnsSnafu { index });
     }
 
     // TODO(edd): map first/last still unstable https://github.com/rust-lang/rust/issues/62924
     if let Some(index) = col_set.range(packers.len()..).next() {
-        return OutOfBoundsColumn { index: *index }.fail();
+        return OutOfBoundsColumnSnafu { index: *index }.fail();
     }
 
     // Hoare's partitioning scheme can have quadratic runtime behaviour in

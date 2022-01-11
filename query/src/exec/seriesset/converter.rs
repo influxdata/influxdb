@@ -89,7 +89,7 @@ impl SeriesSetConverter {
 
         // for now, only handle a single record batch
         if let Some(batch) = it.next().await {
-            let batch = batch.context(ReadingRecordBatch)?;
+            let batch = batch.context(ReadingRecordBatchSnafu)?;
 
             if it.next().await.is_some() {
                 // but not yet
@@ -98,10 +98,10 @@ impl SeriesSetConverter {
 
             let schema = batch.schema();
             // TODO: check that the tag columns are sorted by tag name...
-            let tag_indexes =
-                FieldIndexes::names_to_indexes(&schema, &tag_columns).context(InternalField)?;
-            let field_indexes =
-                FieldIndexes::from_field_columns(&schema, &field_columns).context(InternalField)?;
+            let tag_indexes = FieldIndexes::names_to_indexes(&schema, &tag_columns)
+                .context(InternalFieldSnafu)?;
+            let field_indexes = FieldIndexes::from_field_columns(&schema, &field_columns)
+                .context(InternalFieldSnafu)?;
 
             // Algorithm: compute, via bitsets, the rows at which each
             // tag column changes and thereby where the tagset
@@ -459,7 +459,7 @@ impl SortableSeries {
                             None
                         }
                     })
-                    .context(FindingGroupColumn {
+                    .context(FindingGroupColumnSnafu {
                         column_name: col.as_ref(),
                     })
             })

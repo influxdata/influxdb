@@ -76,7 +76,7 @@ pub struct DataSpec {
 impl DataSpec {
     /// Given a filename, read the file and parse the specification.
     pub fn from_file(file_name: &str) -> Result<Self> {
-        let spec_toml = fs::read_to_string(file_name).context(ReadFile)?;
+        let spec_toml = fs::read_to_string(file_name).context(ReadFileSnafu)?;
         Self::from_str(&spec_toml)
     }
 
@@ -94,7 +94,7 @@ impl DataSpec {
         let use_ratio = self.database_writers[0].database_regex.is_none();
         for b in &self.database_writers {
             if use_ratio && b.database_regex.is_some() {
-                return DatabaseWritersConfig.fail();
+                return DatabaseWritersConfigSnafu.fail();
             }
         }
 
@@ -104,11 +104,11 @@ impl DataSpec {
                 .iter()
                 .map(|a| {
                     let count = a.count.unwrap_or(1);
-                    let sampling_interval =
-                        parse_duration(&a.sampling_interval).context(InvalidSamplingInterval)?;
+                    let sampling_interval = parse_duration(&a.sampling_interval)
+                        .context(InvalidSamplingIntervalSnafu)?;
                     let spec = self
                         .agent_by_name(&a.name)
-                        .context(AgentNotFound { agent: &a.name })?;
+                        .context(AgentNotFoundSnafu { agent: &a.name })?;
 
                     Ok(AgentAssignment {
                         spec,
@@ -139,8 +139,8 @@ impl DataSpec {
                 start = end;
                 selected_databases
             } else {
-                let p = w.database_regex.as_ref().context(RegexMissing)?;
-                let re = Regex::new(p).context(RegexCompile { regex: p })?;
+                let p = w.database_regex.as_ref().context(RegexMissingSnafu)?;
+                let re = Regex::new(p).context(RegexCompileSnafu { regex: p })?;
                 databases
                     .iter()
                     .filter(|name| re.is_match(name))
@@ -194,7 +194,7 @@ impl FromStr for DataSpec {
     type Err = Error;
 
     fn from_str(spec_toml: &str) -> std::result::Result<Self, <Self as FromStr>::Err> {
-        let spec: Self = toml::from_str(spec_toml).context(Parse)?;
+        let spec: Self = toml::from_str(spec_toml).context(ParseSnafu)?;
         Ok(spec)
     }
 }

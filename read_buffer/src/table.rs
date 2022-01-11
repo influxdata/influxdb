@@ -115,7 +115,7 @@ impl Table {
         let mut row_groups = self.table_data.write();
 
         // Tables must always have at least one row group.
-        ensure!(row_groups.data.len() > 1, EmptyTable);
+        ensure!(row_groups.data.len() > 1, EmptyTableSnafu);
 
         row_groups.data.remove(position); // removes row group data
         row_groups.meta = Arc::new(MetaData::from(row_groups.data.as_ref())); // rebuild meta
@@ -368,7 +368,7 @@ impl Table {
         for (ct, _) in &schema.group_columns {
             ensure!(
                 matches!(ct, ColumnType::Tag(_)),
-                UnsupportedColumnOperation {
+                UnsupportedColumnOperationSnafu {
                     msg: format!("column type must be ColumnType::Tag, got {:?}", ct),
                     column_name: ct.as_str().to_string(),
                 },
@@ -535,7 +535,7 @@ impl Table {
         for (name, (ct, _)) in columns.iter().zip(meta.schema_for_column_names(columns)) {
             ensure!(
                 matches!(ct, ColumnType::Tag(_)),
-                UnsupportedColumnOperation {
+                UnsupportedColumnOperationSnafu {
                     msg: format!("column type must be ColumnType::Tag, got {:?}", ct),
                     column_name: name.to_string(),
                 },
@@ -760,7 +760,7 @@ impl MetaData {
                         Ok(arr)
                     }
                     _ => {
-                        return UnsupportedColumnOperation {
+                        return UnsupportedColumnOperationSnafu {
                             column_name: expr.column().to_owned(),
                             msg: format!(
                                 "cannot compare column type {} to expression literal {:?}",
@@ -772,7 +772,7 @@ impl MetaData {
                     }
                 },
                 None => {
-                    return UnsupportedColumnOperation {
+                    return UnsupportedColumnOperationSnafu {
                         column_name: expr.column().to_owned(),
                         msg: "column does not exist",
                     }

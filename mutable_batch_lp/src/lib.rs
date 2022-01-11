@@ -64,7 +64,7 @@ pub fn lines_to_batches_stats(
     let mut stats = PayloadStatistics::default();
     let mut batches = HashMap::new();
     for (line_idx, maybe_line) in parse_lines(lines).enumerate() {
-        let line = maybe_line.context(LineProtocol { line: line_idx + 1 })?;
+        let line = maybe_line.context(LineProtocolSnafu { line: line_idx + 1 })?;
 
         stats.num_lines += 1;
         stats.num_fields += line.field_set.len();
@@ -78,10 +78,10 @@ pub fn lines_to_batches_stats(
 
         // TODO: Reuse writer
         let mut writer = Writer::new(batch, 1);
-        write_line(&mut writer, &line, default_time).context(Write { line: line_idx + 1 })?;
+        write_line(&mut writer, &line, default_time).context(WriteSnafu { line: line_idx + 1 })?;
         writer.commit();
     }
-    ensure!(!batches.is_empty(), EmptyPayload);
+    ensure!(!batches.is_empty(), EmptyPayloadSnafu);
 
     Ok((batches, stats))
 }

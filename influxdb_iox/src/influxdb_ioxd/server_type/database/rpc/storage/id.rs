@@ -36,7 +36,7 @@ impl TryFrom<u64> for Id {
     type Error = Error;
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        Ok(Self(NonZeroU64::new(value).context(IdCannotBeZero)?))
+        Ok(Self(NonZeroU64::new(value).context(IdCannotBeZeroSnafu)?))
     }
 }
 
@@ -60,10 +60,10 @@ impl TryFrom<&str> for Id {
     type Error = Error;
 
     fn try_from(hex: &str) -> Result<Self, Self::Error> {
-        ensure!(hex.len() == ID_LENGTH, IdLengthIncorrect { hex });
+        ensure!(hex.len() == ID_LENGTH, IdLengthIncorrectSnafu { hex });
 
         u64::from_str_radix(hex, 16)
-            .context(InvalidId)
+            .context(InvalidIdSnafu)
             .and_then(|value| value.try_into())
     }
 }

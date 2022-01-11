@@ -190,7 +190,7 @@ impl Chunk {
         let result = self
             .table
             .read_filter(&select_columns, &predicate, negated_predicates.as_slice())
-            .context(TableError);
+            .context(TableSnafu);
 
         let row_groups = result
             .as_ref()
@@ -214,7 +214,7 @@ impl Chunk {
     ) -> Result<table::ReadAggregateResults> {
         self.table
             .read_aggregate(predicate, group_columns, aggregates)
-            .context(TableError)
+            .context(TableSnafu)
     }
 
     //
@@ -225,7 +225,7 @@ impl Chunk {
     /// schema and the predicate's expressions. Returns an error if the
     /// predicate cannot be applied.
     pub fn validate_predicate(&self, predicate: Predicate) -> Result<Predicate, Error> {
-        self.table.validate_predicate(predicate).context(TableError)
+        self.table.validate_predicate(predicate).context(TableSnafu)
     }
 
     /// Determines if one of more rows in the provided table could possibly
@@ -256,7 +256,7 @@ impl Chunk {
         if let Selection::Some(cols) = columns {
             for column_name in cols {
                 if !table_meta.has_column(column_name) {
-                    return ColumnDoesNotExist {
+                    return ColumnDoesNotExistSnafu {
                         column_name: column_name.to_string(),
                         table_name: self.table.name().to_string(),
                     }
@@ -273,7 +273,7 @@ impl Chunk {
             },
             ..ResultSchema::default()
         })
-        .context(TableSchemaError)
+        .context(TableSchemaSnafu)
     }
 
     /// Determines if at least one row in the Chunk satisfies the provided
@@ -302,7 +302,7 @@ impl Chunk {
     ) -> Result<BTreeSet<String>> {
         self.table
             .column_names(&predicate, &negated_predicates, only_columns, dst)
-            .context(TableError)
+            .context(TableSnafu)
     }
 
     /// Returns the distinct set of column values for each provided column,
@@ -324,7 +324,7 @@ impl Chunk {
     ) -> Result<BTreeMap<String, BTreeSet<String>>> {
         let columns = match columns {
             Selection::All => {
-                return UnsupportedOperation {
+                return UnsupportedOperationSnafu {
                     msg: "column_values does not support All columns".to_owned(),
                 }
                 .fail();
@@ -334,7 +334,7 @@ impl Chunk {
 
         self.table
             .column_values(&predicate, columns, dst)
-            .context(TableError)
+            .context(TableSnafu)
     }
 }
 

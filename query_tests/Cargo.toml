@@ -23,7 +23,7 @@ arrow_util = { path = "../arrow_util" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 schema = { path = "../schema" }
-snafu = "0.6.3"
+snafu = "0.7"
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers" }
 tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }

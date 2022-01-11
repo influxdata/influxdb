@@ -66,13 +66,13 @@ impl TagPair {
                         let mut template = new_handlebars_registry();
                         template
                             .register_template_string(&tag_key, &tag_pair_spec.template)
-                            .context(CantCompileTemplate {
+                            .context(CantCompileTemplateSnafu {
                                 tag_key: &tag_pair_spec.key,
                             })?;
 
                         let value = template
                             .render(&tag_key, &template_data)
-                            .context(CantRenderTemplate { tag_key: &tag_key })?;
+                            .context(CantRenderTemplateSnafu { tag_key: &tag_key })?;
 
                         let tag_pair = StaticTagPair {
                             key: Arc::new(tag_key),

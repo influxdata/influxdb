@@ -137,7 +137,7 @@ impl SchemaAdapterStream {
                 .iter()
                 .any(|output_field| input_field.name() == output_field.name())
             {
-                return InternalLostInputField {
+                return InternalLostInputFieldSnafu {
                     field_name: input_field.name(),
                 }
                 .fail();
@@ -151,7 +151,7 @@ impl SchemaAdapterStream {
                     let input_field = input_schema.field(*input_index);
                     let output_field = output_schema.field(output_index);
                     if input_field.data_type() != output_field.data_type() {
-                        return InternalDataTypeMismatch {
+                        return InternalDataTypeMismatchSnafu {
                             input_field_name: input_field.name(),
                             input_field_type: input_field.data_type().clone(),
                             output_field_name: output_field.name(),
@@ -163,7 +163,7 @@ impl SchemaAdapterStream {
                 ColumnMapping::MakeNull(data_type) => {
                     let output_field = output_schema.field(output_index);
                     if data_type != output_field.data_type() {
-                        return InternalDataTypeMismatchForNull {
+                        return InternalDataTypeMismatchForNullSnafu {
                             field_type: data_type.clone(),
                             output_field_name: output_field.name(),
                             output_field_type: output_field.data_type().clone(),

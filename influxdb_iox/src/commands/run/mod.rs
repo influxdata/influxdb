@@ -64,10 +64,10 @@ pub async fn command(config: Config) -> Result<()> {
             );
             database::command(config.database_config)
                 .await
-                .context(DatabaseError)
+                .context(DatabaseSnafu)
         }
-        Some(Command::Database(config)) => database::command(config).await.context(DatabaseError),
-        Some(Command::Router(config)) => router::command(config).await.context(RouterError),
-        Some(Command::Test(config)) => test::command(config).await.context(TestError),
+        Some(Command::Database(config)) => database::command(config).await.context(DatabaseSnafu),
+        Some(Command::Router(config)) => router::command(config).await.context(RouterSnafu),
+        Some(Command::Test(config)) => test::command(config).await.context(TestSnafu),
     }
 }

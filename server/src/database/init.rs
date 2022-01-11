@@ -340,7 +340,7 @@ impl DatabaseStateKnown {
             &location,
         )
         .await
-        .context(DatabaseObjectStoreLookup)?;
+        .context(DatabaseObjectStoreLookupSnafu)?;
 
         Ok(DatabaseStateDatabaseObjectStoreFound {
             iox_object_store: Arc::new(iox_object_store),
@@ -361,11 +361,11 @@ impl DatabaseStateDatabaseObjectStoreFound {
     ) -> Result<DatabaseStateOwnerInfoLoaded, InitError> {
         let owner_info = fetch_owner_info(&self.iox_object_store)
             .await
-            .context(FetchingOwnerInfo)?;
+            .context(FetchingOwnerInfoSnafu)?;
 
         let server_id = shared.config.read().server_id.get_u32();
         if owner_info.id != server_id {
-            return DatabaseOwnerMismatch {
+            return DatabaseOwnerMismatchSnafu {
                 actual: owner_info.id,
                 expected: server_id,
             }
@@ -393,11 +393,11 @@ impl DatabaseStateOwnerInfoLoaded {
     ) -> Result<DatabaseStateRulesLoaded, InitError> {
         let rules = PersistedDatabaseRules::load(&self.iox_object_store)
             .await
-            .context(LoadingRules)?;
+            .context(LoadingRulesSnafu)?;
 
         let db_name = shared.config.read().name.clone();
         if rules.db_name() != &db_name {
-            return RulesDatabaseNameMismatch {
+            return RulesDatabaseNameMismatchSnafu {
                 actual: rules.db_name(),
                 expected: db_name.as_str(),
             }
@@ -449,7 +449,7 @@ impl DatabaseStateRulesLoaded {
             skip_replay,
         )
         .await
-        .context(CatalogLoad)?;
+        .context(CatalogLoadSnafu)?;
 
         let database_to_commit = DatabaseToCommit {
             server_id,
@@ -519,7 +519,7 @@ impl DatabaseStateCatalogLoaded {
                         connection,
                     )
                     .await
-                    .context(CreateWriteBuffer)?;
+                    .context(CreateWriteBufferSnafu)?;
 
                 let replay_plan = if skip_replay {
                     None
@@ -529,7 +529,7 @@ impl DatabaseStateCatalogLoaded {
 
                 db.perform_replay(replay_plan, consumer.as_mut())
                     .await
-                    .context(Replay)?;
+                    .context(ReplaySnafu)?;
 
                 Some(Arc::new(WriteBufferConsumer::new(
                     consumer,
@@ -772,13 +772,13 @@ pub async fn create_empty_db_in_object_store(
 
     create_owner_info(server_id, server_location, &iox_object_store)
         .await
-        .context(CreatingOwnerInfo)?;
+        .context(CreatingOwnerInfoSnafu)?;
 
     let rules_to_persist = PersistedDatabaseRules::new(uuid, provided_rules);
     rules_to_persist
         .persist(&iox_object_store)
         .await
-        .context(SavingRules)?;
+        .context(SavingRulesSnafu)?;
 
     create_preserved_catalog(
         &db_name,
@@ -788,7 +788,7 @@ pub async fn create_empty_db_in_object_store(
         true,
     )
     .await
-    .context(CannotCreatePreservedCatalog)?;
+    .context(CannotCreatePreservedCatalogSnafu)?;
 
     Ok(database_location)
 }
@@ -810,11 +810,11 @@ pub async fn claim_database_in_object_store(
 
     let iox_object_store = IoxObjectStore::load(Arc::clone(application.object_store()), uuid)
         .await
-        .context(IoxObjectStoreError)?;
+        .context(IoxObjectStoreSnafu)?;
 
     let owner_info = fetch_owner_info(&iox_object_store)
         .await
-        .context(FetchingOwnerInfo);
+        .context(FetchingOwnerInfoSnafu);
 
     // try to recreate owner_info if force is specified
     let owner_info = match owner_info {
@@ -827,18 +827,18 @@ pub async fn claim_database_in_object_store(
 
             create_owner_info(server_id, server_location, &iox_object_store)
                 .await
-                .context(CreatingOwnerInfo)?;
+                .context(CreatingOwnerInfoSnafu)?;
 
             fetch_owner_info(&iox_object_store)
                 .await
-                .context(FetchingOwnerInfo)
+                .context(FetchingOwnerInfoSnafu)
         }
         t => t,
     }?;
 
     if owner_info.id != 0 {
         if !force {
-            return CantClaimDatabaseCurrentlyOwned {
+            return CantClaimDatabaseCurrentlyOwnedSnafu {
                 uuid,
                 server_id: owner_info.id,
             }
@@ -862,7 +862,7 @@ pub async fn claim_database_in_object_store(
         &iox_object_store,
     )
     .await
-    .context(UpdatingOwnerInfo)?;
+    .context(UpdatingOwnerInfoSnafu)?;
 
     Ok(database_location)
 }

@@ -189,19 +189,21 @@ pub trait HttpDrivenDml: ServerType {
         let max_request_size = self.max_request_size();
         let lp_metrics = self.lp_metrics();
 
-        let query = req.uri().query().context(ExpectedQueryString)?;
+        let query = req.uri().query().context(ExpectedQueryStringSnafu)?;
 
         let write_info: WriteInfo =
-            serde_urlencoded::from_str(query).context(InvalidQueryString {
+            serde_urlencoded::from_str(query).context(InvalidQueryStringSnafu {
                 query_string: String::from(query),
             })?;
 
         let db_name = org_and_bucket_to_database(&write_info.org, &write_info.bucket)
-            .context(BucketMappingError)?;
+            .context(BucketMappingSnafu)?;
 
-        let body = parse_body(req, max_request_size).await.context(ParseBody)?;
+        let body = parse_body(req, max_request_size)
+            .await
+            .context(ParseBodySnafu)?;
 
-        let body = std::str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
+        let body = std::str::from_utf8(&body).context(ReadingBodyAsUtf8Snafu)?;
 
         // The time, in nanoseconds since the epoch, to assign to any points that don't
         // contain a timestamp
@@ -284,21 +286,23 @@ pub trait HttpDrivenDml: ServerType {
 
         // Extract the DB name from the request
         // db_name = orrID_bucketID
-        let query = req.uri().query().context(ExpectedQueryString)?;
+        let query = req.uri().query().context(ExpectedQueryStringSnafu)?;
         let delete_info: WriteInfo =
-            serde_urlencoded::from_str(query).context(InvalidQueryString {
+            serde_urlencoded::from_str(query).context(InvalidQueryStringSnafu {
                 query_string: String::from(query),
             })?;
         let db_name = org_and_bucket_to_database(&delete_info.org, &delete_info.bucket)
-            .context(BucketMappingError)?;
+            .context(BucketMappingSnafu)?;
 
         // Parse body
-        let body = parse_body(req, max_request_size).await.context(ParseBody)?;
-        let body = std::str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
+        let body = parse_body(req, max_request_size)
+            .await
+            .context(ParseBodySnafu)?;
+        let body = std::str::from_utf8(&body).context(ReadingBodyAsUtf8Snafu)?;
 
         // Parse and extract table name (which can be empty), start, stop, and predicate
         let parsed_delete =
-            parse_http_delete_request(body).context(ParsingDelete { input: body })?;
+            parse_http_delete_request(body).context(ParsingDeleteSnafu { input: body })?;
 
         let table_name = parsed_delete.table_name;
         let predicate = parsed_delete.predicate;
@@ -308,7 +312,7 @@ pub trait HttpDrivenDml: ServerType {
 
         // Build delete predicate
         let predicate = parse_delete_predicate(&start, &stop, &predicate)
-            .context(BuildingDeletePredicate { input: body })?;
+            .context(BuildingDeletePredicateSnafu { input: body })?;
 
         let delete = DmlDelete::new(
             predicate,

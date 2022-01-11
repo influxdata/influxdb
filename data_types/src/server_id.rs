@@ -27,7 +27,7 @@ impl FromStr for ServerId {
     type Err = Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let value: u32 = value.parse().context(UnableToParse { value })?;
+        let value: u32 = value.parse().context(UnableToParseSnafu { value })?;
         Self::try_from(value)
     }
 }
@@ -38,7 +38,7 @@ impl TryFrom<u32> for ServerId {
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         NonZeroU32::new(value)
             .map(Self)
-            .context(ValueMayNotBeZero)
+            .context(ValueMayNotBeZeroSnafu)
             .map_err(Into::into)
     }
 }

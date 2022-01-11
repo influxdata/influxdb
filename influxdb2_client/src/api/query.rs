@@ -2,7 +2,7 @@
 //!
 //! Query InfluxDB using InfluxQL or Flux Query
 
-use crate::{Client, Http, RequestError, ReqwestProcessing, Serializing};
+use crate::{Client, HttpSnafu, RequestError, ReqwestProcessingSnafu, SerializingSnafu};
 use reqwest::{Method, StatusCode};
 use snafu::ResultExt;
 
@@ -18,16 +18,16 @@ impl Client {
             .request(Method::GET, &req_url)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         match response.status() {
             StatusCode::OK => Ok(response
                 .json::<FluxSuggestions>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }
@@ -44,16 +44,16 @@ impl Client {
             .request(Method::GET, &req_url)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         match response.status() {
             StatusCode::OK => Ok(response
                 .json::<FluxSuggestion>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }
@@ -67,16 +67,19 @@ impl Client {
             .header("Accepting-Encoding", "identity")
             .header("Content-Type", "application/json")
             .query(&[("org", &org)])
-            .body(serde_json::to_string(&query.unwrap_or_default()).context(Serializing)?)
+            .body(serde_json::to_string(&query.unwrap_or_default()).context(SerializingSnafu)?)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         match response.status() {
-            StatusCode::OK => Ok(response.json::<String>().await.context(ReqwestProcessing)?),
+            StatusCode::OK => Ok(response
+                .json::<String>()
+                .await
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }
@@ -91,19 +94,19 @@ impl Client {
         let response = self
             .request(Method::POST, &req_url)
             .header("Content-Type", "application/json")
-            .body(serde_json::to_string(&query.unwrap_or_default()).context(Serializing)?)
+            .body(serde_json::to_string(&query.unwrap_or_default()).context(SerializingSnafu)?)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         match response.status() {
             StatusCode::OK => Ok(response
                 .json::<AnalyzeQueryResponse>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }
@@ -120,20 +123,20 @@ impl Client {
             .header("Content-Type", "application/json")
             .body(
                 serde_json::to_string(&language_request.unwrap_or_default())
-                    .context(Serializing)?,
+                    .context(SerializingSnafu)?,
             )
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         match response.status() {
             StatusCode::OK => Ok(response
                 .json::<AstResponse>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }

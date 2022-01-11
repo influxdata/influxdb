@@ -20,8 +20,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("No data in memory found. Location: {}", location))]
-    NoDataInMemory { location: String },
+    #[snafu(display("No data in memory found. Location: {path}"))]
+    NoDataInMemory { path: String },
 }
 
 /// In-memory storage suitable for testing or for opting out of using a cloud
@@ -56,15 +56,15 @@ impl ObjectStoreApi for InMemory {
     }
 
     async fn get(&self, location: &Self::Path) -> Result<GetResult<Self::Error>> {
-        let data = self
-            .storage
-            .read()
-            .await
-            .get(location)
-            .cloned()
-            .context(NoDataInMemory {
-                location: location.to_string(),
-            })?;
+        let data =
+            self.storage
+                .read()
+                .await
+                .get(location)
+                .cloned()
+                .context(NoDataInMemorySnafu {
+                    path: location.to_string(),
+                })?;
 
         Ok(GetResult::Stream(
             futures::stream::once(async move { Ok(data) }).boxed(),
@@ -211,7 +211,7 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(ObjectStoreError::NotFound { location, source }) =
+        if let Some(ObjectStoreError::NotFound { path, source }) =
             err.downcast_ref::<ObjectStoreError>()
         {
             let source_variant = source.downcast_ref::<Error>();
@@ -220,7 +220,7 @@ mod tests {
                 "got: {:?}",
                 source_variant
             );
-            assert_eq!(location, NON_EXISTENT_NAME);
+            assert_eq!(path, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type: {:?}", err);
         }

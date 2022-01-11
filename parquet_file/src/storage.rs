@@ -120,8 +120,8 @@ impl Storage {
         // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
         let file_size_bytes = data.len();
         let md = IoxParquetMetaData::from_file_bytes(data.clone())
-            .context(ExtractingMetadataFailure)?
-            .context(NoData)?;
+            .context(ExtractingMetadataFailureSnafu)?
+            .context(NoDataSnafu)?;
         self.to_object_store(data, &path).await?;
 
         Ok(Some((path, file_size_bytes, md)))
@@ -143,27 +143,27 @@ impl Storage {
         schema: SchemaRef,
         metadata: IoxMetadata,
     ) -> Result<Vec<u8>> {
-        let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailure)?;
+        let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailureSnafu)?;
 
         let props = Self::writer_props(&metadata_bytes);
 
         let mem_writer = MemWriter::default();
         {
             let mut writer = ArrowWriter::try_new(mem_writer.clone(), schema, Some(props))
-                .context(OpeningParquetWriter)?;
+                .context(OpeningParquetWriterSnafu)?;
             let mut no_stream_data = true;
             while let Some(batch) = stream.next().await {
                 no_stream_data = false;
-                let batch = batch.context(ReadingStream)?;
-                writer.write(&batch).context(WritingParquetToMemory)?;
+                let batch = batch.context(ReadingStreamSnafu)?;
+                writer.write(&batch).context(WritingParquetToMemorySnafu)?;
             }
             if no_stream_data {
                 return Ok(vec![]);
             }
-            writer.close().context(ClosingParquetWriter)?;
+            writer.close().context(ClosingParquetWriterSnafu)?;
         } // drop the reference to the MemWriter that the SerializedFileWriter has
 
-        mem_writer.into_inner().context(WritingToMemWriter)
+        mem_writer.into_inner().context(WritingToMemWriterSnafu)
     }
 
     /// Put the given vector of bytes to the specified location
@@ -173,7 +173,7 @@ impl Storage {
         self.iox_object_store
             .put_parquet_file(path, data)
             .await
-            .context(WritingToObjectStore)
+            .context(WritingToObjectStoreSnafu)
     }
 
     /// Return indices of the schema's fields of the selection columns
@@ -209,7 +209,7 @@ impl Storage {
         let batch_size = 1024; // Todo: make a constant or policy for this
 
         let read_stream = futures::executor::block_on(store.get_parquet_file(&path))
-            .context(ReadingObjectStore)?;
+            .context(ReadingObjectStoreSnafu)?;
 
         let file = match read_stream {
             GetResult::File(f, _) => {
@@ -218,28 +218,28 @@ impl Storage {
             }
             GetResult::Stream(read_stream) => {
                 // read parquet file to local file
-                let mut file = tempfile::tempfile().context(OpenTempFile)?;
+                let mut file = tempfile::tempfile().context(OpenTempFileSnafu)?;
 
                 debug!(?path, ?file, "Beginning to read parquet to temp file");
 
                 for bytes in futures::executor::block_on_stream(read_stream) {
-                    let bytes = bytes.context(ReadingObjectStore)?;
+                    let bytes = bytes.context(ReadingObjectStoreSnafu)?;
                     debug!(len = bytes.len(), "read bytes from object store");
-                    file.write_all(&bytes).context(WriteTempFile)?;
+                    file.write_all(&bytes).context(WriteTempFileSnafu)?;
                 }
 
-                file.rewind().context(WriteTempFile)?;
+                file.rewind().context(WriteTempFileSnafu)?;
 
                 debug!(?path, "Completed read parquet to tempfile");
                 file
             }
         };
 
-        let file_reader = SerializedFileReader::new(file).context(ParquetReader)?;
+        let file_reader = SerializedFileReader::new(file).context(ParquetReaderSnafu)?;
         let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
         let record_batch_reader = arrow_reader
             .get_record_reader_by_columns(projection, batch_size)
-            .context(ParquetReader)?;
+            .context(ParquetReaderSnafu)?;
 
         for batch in record_batch_reader {
             if tx.blocking_send(batch).is_err() {

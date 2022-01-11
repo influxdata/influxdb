@@ -2,7 +2,7 @@
 //!
 //! Initate and start onboarding process of InfluxDB server.
 
-use crate::{Client, Http, RequestError, ReqwestProcessing, Serializing};
+use crate::{Client, HttpSnafu, RequestError, ReqwestProcessingSnafu, SerializingSnafu};
 use reqwest::{Method, StatusCode};
 use snafu::ResultExt;
 
@@ -16,17 +16,17 @@ impl Client {
             .request(Method::GET, &setup_url)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         match response.status() {
             StatusCode::OK => Ok(response
                 .json::<IsOnboarding>()
                 .await
-                .context(ReqwestProcessing)?
+                .context(ReqwestProcessingSnafu)?
                 .allowed),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }
@@ -54,19 +54,19 @@ impl Client {
 
         let response = self
             .request(Method::POST, &setup_init_url)
-            .body(serde_json::to_string(&body).context(Serializing)?)
+            .body(serde_json::to_string(&body).context(SerializingSnafu)?)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         match response.status() {
             StatusCode::CREATED => Ok(response
                 .json::<OnboardingResponse>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }
@@ -94,19 +94,19 @@ impl Client {
 
         let response = self
             .request(Method::POST, &setup_new_url)
-            .body(serde_json::to_string(&body).context(Serializing)?)
+            .body(serde_json::to_string(&body).context(SerializingSnafu)?)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         match response.status() {
             StatusCode::CREATED => Ok(response
                 .json::<OnboardingResponse>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }

@@ -54,22 +54,22 @@ impl VariantGrpcRemote {
     }
 
     async fn write(&self, write: &DmlOperation) -> Result<(), Error> {
-        let connection_string = self
-            .resolver
-            .resolve_remote(self.server_id)
-            .context(NoRemote {
-                server_id: self.server_id,
-            })?;
+        let connection_string =
+            self.resolver
+                .resolve_remote(self.server_id)
+                .context(NoRemoteSnafu {
+                    server_id: self.server_id,
+                })?;
         let client = self
             .connection_pool
             .grpc_client(&connection_string)
             .await
-            .context(ConnectionFailure)?;
+            .context(ConnectionFailureSnafu)?;
 
         client
             .write(&self.db_name, write)
             .await
-            .context(WriteFailure)
+            .context(WriteFailureSnafu)
     }
 }
 
@@ -98,13 +98,13 @@ impl VariantWriteBuffer {
             .connection_pool
             .write_buffer_producer(&self.db_name, &self.write_buffer_cfg)
             .await
-            .context(ConnectionFailure)?;
+            .context(ConnectionFailureSnafu)?;
 
         // TODO(marco): use multiple sequencers
         write_buffer
             .store_operation(0, operation)
             .await
-            .context(WriteFailure)?;
+            .context(WriteFailureSnafu)?;
 
         Ok(())
     }

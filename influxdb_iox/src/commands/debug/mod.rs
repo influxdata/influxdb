@@ -32,7 +32,7 @@ pub async fn command(config: Config) -> Result<()> {
     match config.command {
         Command::DumpCatalog(dump_catalog) => dump_catalog::command(*dump_catalog)
             .await
-            .context(DumpCatalogError),
+            .context(DumpCatalogSnafu),
         Command::PrintCpu => {
             print_cpu::main();
             Ok(())

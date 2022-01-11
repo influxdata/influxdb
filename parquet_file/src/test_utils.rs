@@ -86,10 +86,10 @@ pub async fn load_parquet_from_store_for_path(
     let parquet_data = store
         .get_parquet_file(path)
         .await
-        .context(GettingDataFromObjectStore)?
+        .context(GettingDataFromObjectStoreSnafu)?
         .bytes()
         .await
-        .context(GettingDataFromObjectStore)?;
+        .context(GettingDataFromObjectStoreSnafu)?;
 
     Ok(parquet_data)
 }

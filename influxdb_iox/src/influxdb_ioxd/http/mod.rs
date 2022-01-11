@@ -251,13 +251,13 @@ async fn pprof_profile(req: Request<Body>) -> Result<Response<Body>, Application
     use snafu::ResultExt;
 
     let query_string = req.uri().query().unwrap_or_default();
-    let query: PProfArgs =
-        serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
+    let query: PProfArgs = serde_urlencoded::from_str(query_string)
+        .context(InvalidQueryStringSnafu { query_string })?;
 
     let report = self::pprof::dump_rsprof(query.seconds, query.frequency.get())
         .await
         .map_err(|e| Box::new(e) as _)
-        .context(PProf)?;
+        .context(PProfSnafu)?;
 
     let mut body: Vec<u8> = Vec::new();
 
@@ -273,16 +273,16 @@ async fn pprof_profile(req: Request<Body>) -> Result<Response<Body>, Application
         report
             .flamegraph(&mut body)
             .map_err(|e| Box::new(e) as _)
-            .context(PProf)?;
+            .context(PProfSnafu)?;
         if body.is_empty() {
-            return EmptyFlamegraph.fail();
+            return EmptyFlamegraphSnafu.fail();
         }
     } else {
         let profile = report
             .pprof()
             .map_err(|e| Box::new(e) as _)
-            .context(PProf)?;
-        profile.encode(&mut body).context(Prost)?;
+            .context(PProfSnafu)?;
+        profile.encode(&mut body).context(ProstSnafu)?;
     }
 
     Ok(Response::new(Body::from(body)))
@@ -290,7 +290,7 @@ async fn pprof_profile(req: Request<Body>) -> Result<Response<Body>, Application
 
 #[cfg(not(feature = "pprof"))]
 async fn pprof_profile(_req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
-    PProfIsNotCompiled {}.fail()
+    PProfIsNotCompiledSnafu {}.fail()
 }
 
 // If heappy support is enabled, call it
@@ -299,12 +299,12 @@ async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>, Appl
     use snafu::ResultExt;
 
     let query_string = req.uri().query().unwrap_or_default();
-    let query: PProfAllocsArgs =
-        serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
+    let query: PProfAllocsArgs = serde_urlencoded::from_str(query_string)
+        .context(InvalidQueryStringSnafu { query_string })?;
 
     let report = self::heappy::dump_heappy_rsprof(query.seconds, query.interval.get())
         .await
-        .context(HeappyError)?;
+        .context(HeappySnafu)?;
 
     let mut body: Vec<u8> = Vec::new();
 
@@ -320,10 +320,10 @@ async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>, Appl
     {
         report.flamegraph(&mut body);
         if body.is_empty() {
-            return EmptyFlamegraph.fail();
+            return EmptyFlamegraphSnafu.fail();
         }
     } else {
-        report.write_pprof(&mut body).context(ProstIO)?
+        report.write_pprof(&mut body).context(ProstIOSnafu)?
     }
 
     Ok(Response::new(Body::from(body)))
@@ -332,5 +332,5 @@ async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>, Appl
 //  Return error if heappy not enabled
 #[cfg(not(feature = "heappy"))]
 async fn pprof_heappy_profile(_req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
-    HeappyIsNotCompiled {}.fail()
+    HeappyIsNotCompiledSnafu {}.fail()
 }

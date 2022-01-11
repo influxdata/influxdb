@@ -148,9 +148,9 @@ impl StringSetPlanBuilder {
             if !strings.is_empty() {
                 let batch =
                     str_iter_to_batch(TABLE_NAMES_COLUMN_NAME, strings.into_iter().map(Some))
-                        .context(InternalConvertingToArrow)?;
+                        .context(InternalConvertingToArrowSnafu)?;
 
-                let plan = make_scan_plan(batch).context(InternalPlanningStringSet)?;
+                let plan = make_scan_plan(batch).context(InternalPlanningStringSetSnafu)?;
 
                 plans.push(plan)
             }

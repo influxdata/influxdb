@@ -64,7 +64,7 @@ impl<'a> DatabaseName<'a> {
         // NOTE: If changing these characters, please update the error message
         // above.
         if let Some(bad_char_offset) = name.chars().position(|c| c.is_control()) {
-            return BadChars {
+            return BadCharsSnafu {
                 bad_char_offset,
                 name,
             }

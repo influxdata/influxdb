@@ -75,7 +75,7 @@ pub enum Error {
     },
 
     NotFound {
-        location: String,
+        path: String,
         source: io::Error,
     },
 }
@@ -110,22 +110,22 @@ impl ObjectStoreApi for File {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                 let parent = path
                     .parent()
-                    .context(UnableToCreateFile { path: &path, err })?;
+                    .context(UnableToCreateFileSnafu { path: &path, err })?;
                 fs::create_dir_all(&parent)
                     .await
-                    .context(UnableToCreateDir { path: parent })?;
+                    .context(UnableToCreateDirSnafu { path: parent })?;
 
                 match fs::File::create(&path).await {
                     Ok(f) => f,
-                    Err(err) => return UnableToCreateFile { path, err }.fail(),
+                    Err(err) => return UnableToCreateFileSnafu { path, err }.fail(),
                 }
             }
-            Err(err) => return UnableToCreateFile { path, err }.fail(),
+            Err(err) => return UnableToCreateFileSnafu { path, err }.fail(),
         };
 
         tokio::io::copy(&mut &content[..], &mut file)
             .await
-            .context(UnableToCopyDataToFile)?;
+            .context(UnableToCopyDataToFileSnafu)?;
 
         Ok(())
     }
@@ -136,7 +136,7 @@ impl ObjectStoreApi for File {
         let file = fs::File::open(&path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
                 Error::NotFound {
-                    location: location.to_string(),
+                    path: location.to_string(),
                     source: e,
                 }
             } else {
@@ -154,7 +154,7 @@ impl ObjectStoreApi for File {
         let path = self.path(location);
         fs::remove_file(&path)
             .await
-            .context(UnableToDeleteFile { path })?;
+            .context(UnableToDeleteFileSnafu { path })?;
         Ok(())
     }
 
@@ -221,7 +221,7 @@ impl ObjectStoreApi for File {
                 if entry_location.prefix_matches(&resolved_prefix) {
                     let metadata = entry
                         .metadata()
-                        .context(UnableToAccessMetadata { path: entry.path() })?;
+                        .context(UnableToAccessMetadataSnafu { path: entry.path() })?;
 
                     if metadata.is_dir() {
                         let parts = entry_location
@@ -243,7 +243,7 @@ impl ObjectStoreApi for File {
                             .expect("Modified file time should be supported on this platform")
                             .into();
                         let size = usize::try_from(metadata.len())
-                            .context(FileSizeOverflowedUsize { path: entry.path() })?;
+                            .context(FileSizeOverflowedUsizeSnafu { path: entry.path() })?;
 
                         objects.push(ObjectMeta {
                             location,
@@ -436,7 +436,7 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(ObjectStoreError::NotFound { location, source }) =
+        if let Some(ObjectStoreError::NotFound { path, source }) =
             err.downcast_ref::<ObjectStoreError>()
         {
             let source_variant = source.downcast_ref::<std::io::Error>();
@@ -445,7 +445,7 @@ mod tests {
                 "got: {:?}",
                 source_variant
             );
-            assert_eq!(location, NON_EXISTENT_NAME);
+            assert_eq!(path, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type: {:?}", err);
         }

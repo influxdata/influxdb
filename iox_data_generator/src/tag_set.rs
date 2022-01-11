@@ -228,12 +228,12 @@ impl GeneratedTagSets {
                 let one = self
                     .has_one_values
                     .get(&key.value)
-                    .context(HasOneNotFound {
+                    .context(HasOneNotFoundSnafu {
                         has_one: &key.value,
                     })?
                     .id_to_has_ones
                     .get(&parent_id)
-                    .context(HasOneNotFoundForParent {
+                    .context(HasOneNotFoundForParentSnafu {
                         has_one: &key.value,
                         parent_id,
                     })?
@@ -296,7 +296,7 @@ impl GeneratedTagSets {
     ) -> Result<()> {
         template
             .register_template_string(&spec.name, &spec.template)
-            .context(CantCompileTemplate {
+            .context(CantCompileTemplateSnafu {
                 template: &spec.name,
             })?;
 
@@ -313,7 +313,7 @@ impl GeneratedTagSets {
                     let rendered_value =
                         template
                             .render(&spec.name, &id_map)
-                            .context(CantRenderTemplate {
+                            .context(CantRenderTemplateSnafu {
                                 template: &spec.name,
                             })?;
                     let value = Arc::new(rendered_value);
@@ -401,7 +401,7 @@ impl GeneratedTagSets {
                 let rendered_value =
                     template
                         .render(&spec.name, &data)
-                        .context(CantRenderTemplate {
+                        .context(CantRenderTemplateSnafu {
                             template: &spec.name,
                         })?;
                 let value = Arc::new(rendered_value);

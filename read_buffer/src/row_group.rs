@@ -1936,7 +1936,7 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
                             ),
                         )
                             as arrow::array::ArrayRef),
-                        t => UnsupportedOperation {
+                        t => UnsupportedOperationSnafu {
                             msg: format!("cannot convert {:?} to TimestampNanosecondArray", t),
                         }
                         .fail(),
@@ -2456,7 +2456,7 @@ impl TryFrom<ReadAggregateResult<'_>> for RecordBatch {
         // try_new only returns an error if the schema is invalid or the number
         // of rows on columns differ. We have full control over both so there
         // should never be an error to return...
-        Self::try_new(arrow_schema, columns).context(ArrowConversion)
+        Self::try_new(arrow_schema, columns).context(ArrowConversionSnafu)
     }
 }
 

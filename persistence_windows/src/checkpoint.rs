@@ -786,7 +786,7 @@ impl ReplayPlanner {
             for (sequencer_id, min_max) in &partition_checkpoint.sequencer_numbers {
                 let database_wide_min_max = database_checkpoint
                     .sequencer_number(*sequencer_id)
-                    .context(PartitionCheckpointWithoutDatabase {
+                    .context(PartitionCheckpointWithoutDatabaseSnafu {
                         table_name: Arc::clone(table_name),
                         partition_key: Arc::clone(partition_key),
                         sequencer_id: *sequencer_id,

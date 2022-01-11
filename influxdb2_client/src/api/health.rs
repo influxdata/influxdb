@@ -3,7 +3,7 @@
 //! Get health of an InfluxDB instance
 
 use crate::models::HealthCheck;
-use crate::{Client, Http, RequestError, ReqwestProcessing};
+use crate::{Client, HttpSnafu, RequestError, ReqwestProcessingSnafu};
 use reqwest::{Method, StatusCode};
 use snafu::ResultExt;
 
@@ -15,20 +15,20 @@ impl Client {
             .request(Method::GET, &health_url)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         match response.status() {
             StatusCode::OK => Ok(response
                 .json::<HealthCheck>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             StatusCode::SERVICE_UNAVAILABLE => Ok(response
                 .json::<HealthCheck>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessingSnafu)?),
             status => {
-                let text = response.text().await.context(ReqwestProcessing)?;
-                Http { status, text }.fail()?
+                let text = response.text().await.context(ReqwestProcessingSnafu)?;
+                HttpSnafu { status, text }.fail()?
             }
         }
     }

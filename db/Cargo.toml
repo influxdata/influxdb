@@ -35,7 +35,7 @@ rand = "0.8.3"
 rand_distr = "0.4.2"
 read_buffer = { path = "../read_buffer" }
 schema = { path = "../schema" }
-snafu = "0.6"
+snafu = "0.7"
 time = { path = "../time" }
 tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.6.9" }

@@ -64,13 +64,15 @@ impl ReorgPlanner {
         builder = builder.add_no_op_pruner();
         builder = builder.add_chunk(Arc::clone(&chunk));
 
-        let provider = builder.build().context(CreatingProvider { table_name })?;
+        let provider = builder
+            .build()
+            .context(CreatingProviderSnafu { table_name })?;
 
         // Logical plan to scan all columns with no predicates
         let plan = LogicalPlanBuilder::scan(table_name, Arc::new(provider) as _, None)
-            .context(BuildingPlan)?
+            .context(BuildingPlanSnafu)?
             .build()
-            .context(BuildingPlan)?;
+            .context(BuildingPlanSnafu)?;
 
         debug!(%table_name, plan=%plan.display_indent_schema(),
                "created single chunk scan plan");
@@ -117,7 +119,7 @@ impl ReorgPlanner {
         }
         trace!(output_schema=?schema, "Setting sort key on schema for compact plan");
 
-        let plan = plan_builder.build().context(BuildingPlan)?;
+        let plan = plan_builder.build().context(BuildingPlanSnafu)?;
 
         debug!(table_name=provider.table_name(), plan=%plan.display_indent_schema(),
                "created compact plan for table");
@@ -203,7 +205,7 @@ impl ReorgPlanner {
         // time <= split_time
         let split_expr = col(TIME_COLUMN_NAME).lt_eq(lit_timestamp_nano(split_time));
 
-        let plan = plan_builder.build().context(BuildingPlan)?;
+        let plan = plan_builder.build().context(BuildingPlanSnafu)?;
 
         let plan = make_stream_split(plan, split_expr);
 
@@ -254,7 +256,9 @@ impl ReorgPlanner {
             builder = builder.add_chunk(chunk);
         }
 
-        let provider = builder.build().context(CreatingProvider { table_name })?;
+        let provider = builder
+            .build()
+            .context(CreatingProviderSnafu { table_name })?;
         let provider = Arc::new(provider);
 
         // Scan all columns
@@ -262,7 +266,7 @@ impl ReorgPlanner {
 
         let plan_builder =
             LogicalPlanBuilder::scan(table_name, Arc::clone(&provider) as _, projection)
-                .context(BuildingPlan)?;
+                .context(BuildingPlanSnafu)?;
 
         Ok(ScanPlan {
             plan_builder,

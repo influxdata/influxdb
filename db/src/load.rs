@@ -9,7 +9,7 @@ use parquet_catalog::{
     core::{PreservedCatalog, PreservedCatalogConfig},
     interface::{
         CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
-        ChunkAddrWithoutDatabase, ChunkCreationFailed,
+        ChunkAddrWithoutDatabase, ChunkCreationFailedSnafu,
     },
 };
 use parquet_file::chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk};
@@ -81,7 +81,7 @@ pub async fn load_or_create_preserved_catalog(
             let plan = planner
                 .map(|planner| planner.build())
                 .transpose()
-                .context(CannotBuildReplayPlan)?;
+                .context(CannotBuildReplayPlanSnafu)?;
             Ok((preserved_catalog, catalog, plan))
         }
         Ok(None) => {
@@ -108,7 +108,7 @@ pub async fn load_or_create_preserved_catalog(
 
                 PreservedCatalog::wipe(&iox_object_store)
                     .await
-                    .context(CannotWipeCatalog)?;
+                    .context(CannotWipeCatalogSnafu)?;
 
                 create_preserved_catalog(
                     db_name,
@@ -143,7 +143,7 @@ pub async fn create_preserved_catalog(
 
     let preserved_catalog = PreservedCatalog::new_empty(config)
         .await
-        .context(CannotCreateCatalog)?;
+        .context(CannotCreateCatalogSnafu)?;
 
     let Loader {
         catalog, planner, ..
@@ -151,7 +151,7 @@ pub async fn create_preserved_catalog(
     let plan = planner
         .map(|planner| planner.build())
         .transpose()
-        .context(CannotBuildReplayPlan)?;
+        .context(CannotBuildReplayPlanSnafu)?;
     Ok((preserved_catalog, catalog, plan))
 }
 
@@ -186,17 +186,19 @@ impl CatalogState for Loader {
         iox_object_store: Arc<IoxObjectStore>,
         info: CatalogParquetInfo,
     ) -> Result<(), CatalogStateAddError> {
-        use parquet_catalog::interface::{MetadataExtractFailed, ReplayPlanError, SchemaError};
+        use parquet_catalog::interface::{
+            MetadataExtractFailedSnafu, ReplayPlanSnafu, SchemaSnafu,
+        };
 
         // extract relevant bits from parquet file metadata
         let iox_md = info
             .metadata
             .decode()
-            .context(MetadataExtractFailed {
+            .context(MetadataExtractFailedSnafu {
                 path: info.path.clone(),
             })?
             .read_iox_metadata()
-            .context(MetadataExtractFailed {
+            .context(MetadataExtractFailedSnafu {
                 path: info.path.clone(),
             })?;
 
@@ -205,7 +207,7 @@ impl CatalogState for Loader {
             planner
                 .register_checkpoints(&iox_md.partition_checkpoint, &iox_md.database_checkpoint)
                 .map_err(|e| Box::new(e) as _)
-                .context(ReplayPlanError {
+                .context(ReplayPlanSnafu {
                     path: info.path.clone(),
                 })?;
         }
@@ -221,7 +223,7 @@ impl CatalogState for Loader {
             Arc::clone(&iox_md.partition_key),
             metrics,
         )
-        .context(ChunkCreationFailed { path: &info.path })?;
+        .context(ChunkCreationFailedSnafu { path: &info.path })?;
         let parquet_chunk = Arc::new(parquet_chunk);
 
         let (partition, table_schema) = {
@@ -235,7 +237,7 @@ impl CatalogState for Loader {
 
         let schema_handle = TableSchemaUpsertHandle::new(&table_schema, &parquet_chunk.schema())
             .map_err(|e| Box::new(e) as _)
-            .context(SchemaError { path: &info.path })?;
+            .context(SchemaSnafu { path: &info.path })?;
 
         let mut partition = partition.write();
         if partition.chunk(iox_md.chunk_id).is_some() {

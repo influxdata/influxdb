@@ -115,11 +115,11 @@ impl IoxObjectStore {
         let list_result = inner
             .list_with_delimiter(&root_path.inner)
             .await
-            .context(UnderlyingObjectStoreError)?;
+            .context(UnderlyingObjectStoreSnafu)?;
 
         ensure!(
             list_result.objects.is_empty(),
-            DatabaseAlreadyExists { uuid }
+            DatabaseAlreadyExistsSnafu { uuid }
         );
 
         Ok(Self::existing(inner, root_path))
@@ -150,7 +150,7 @@ impl IoxObjectStore {
         let list_result = inner
             .list_with_delimiter(&root_path.inner)
             .await
-            .context(UnderlyingObjectStoreError)?;
+            .context(UnderlyingObjectStoreSnafu)?;
 
         let rules_file = root_path.rules_path();
         let rules_exists = list_result
@@ -158,7 +158,7 @@ impl IoxObjectStore {
             .iter()
             .any(|object| object.location == rules_file.inner);
 
-        ensure!(rules_exists, NoRulesFound { root_path });
+        ensure!(rules_exists, NoRulesFoundSnafu { root_path });
 
         Ok(Self::existing(inner, root_path))
     }

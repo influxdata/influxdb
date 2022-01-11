@@ -52,10 +52,10 @@ pub(crate) fn render_once(name: &str, template: impl Into<String>, data: &Value)
     let template = template.into();
     registry
         .register_template_string(name, &template)
-        .context(CantCompileTemplate { template })?;
+        .context(CantCompileTemplateSnafu { template })?;
     registry
         .render(name, data)
-        .context(CantRenderTemplate { name })
+        .context(CantRenderTemplateSnafu { name })
 }
 
 pub(crate) fn new_handlebars_registry() -> Handlebars<'static> {

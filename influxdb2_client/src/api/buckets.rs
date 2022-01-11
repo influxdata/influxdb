@@ -1,7 +1,7 @@
 //! Buckets API
 
 use crate::models::PostBucketRequest;
-use crate::{Client, Http, RequestError, ReqwestProcessing, Serializing};
+use crate::{Client, HttpSnafu, RequestError, ReqwestProcessingSnafu, SerializingSnafu};
 use reqwest::Method;
 use snafu::ResultExt;
 
@@ -18,16 +18,16 @@ impl Client {
             .request(Method::POST, &create_bucket_url)
             .body(
                 serde_json::to_string(&post_bucket_request.unwrap_or_default())
-                    .context(Serializing)?,
+                    .context(SerializingSnafu)?,
             )
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         if !response.status().is_success() {
             let status = response.status();
-            let text = response.text().await.context(ReqwestProcessing)?;
-            Http { status, text }.fail()?;
+            let text = response.text().await.context(ReqwestProcessingSnafu)?;
+            HttpSnafu { status, text }.fail()?;
         }
 
         Ok(())

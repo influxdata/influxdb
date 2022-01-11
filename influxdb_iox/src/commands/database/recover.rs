@@ -95,14 +95,15 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             let operation = client
                 .wipe_preserved_catalog(db_name)
                 .await
-                .context(WipeError)?;
+                .context(WipeSnafu)?;
 
-            serde_json::to_writer_pretty(std::io::stdout(), &operation).context(WritingJson)?;
+            serde_json::to_writer_pretty(std::io::stdout(), &operation)
+                .context(WritingJsonSnafu)?;
         }
         Command::SkipReplay(skip_replay) => {
             let SkipReplay { db_name } = skip_replay;
 
-            client.skip_replay(db_name).await.context(SkipReplayError)?;
+            client.skip_replay(db_name).await.context(SkipReplaySnafu)?;
 
             println!("Ok");
         }
@@ -110,9 +111,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             let operation = client
                 .rebuild_preserved_catalog(rebuild.db_name, rebuild.force)
                 .await
-                .context(RebuildCatalog)?;
+                .context(RebuildCatalogSnafu)?;
 
-            serde_json::to_writer_pretty(std::io::stdout(), &operation).context(WritingJson)?;
+            serde_json::to_writer_pretty(std::io::stdout(), &operation)
+                .context(WritingJsonSnafu)?;
         }
     }
 

@@ -112,16 +112,16 @@ impl TestCatalogState {
 
     /// Inserts a file into this catalog state
     pub fn insert(&mut self, info: CatalogParquetInfo) -> Result<(), CatalogStateAddError> {
-        use crate::interface::MetadataExtractFailed;
+        use crate::interface::MetadataExtractFailedSnafu;
 
         let iox_md = info
             .metadata
             .decode()
-            .context(MetadataExtractFailed {
+            .context(MetadataExtractFailedSnafu {
                 path: info.path.clone(),
             })?
             .read_iox_metadata()
-            .context(MetadataExtractFailed {
+            .context(MetadataExtractFailedSnafu {
                 path: info.path.clone(),
             })?;
 

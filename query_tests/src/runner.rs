@@ -177,24 +177,24 @@ impl<W: Write> Runner<W> {
         writeln!(self.log, "  writing output to {:?}", output_path)?;
         writeln!(self.log, "  expected output in {:?}", expected_path)?;
 
-        let contents = std::fs::read(&input_path).context(NoCaseFile { path: &input_path })?;
+        let contents = std::fs::read(&input_path).context(NoCaseFileSnafu { path: &input_path })?;
         let contents =
-            String::from_utf8(contents).context(CaseFileNotUtf8 { path: &input_path })?;
+            String::from_utf8(contents).context(CaseFileNotUtf8Snafu { path: &input_path })?;
 
         writeln!(self.log, "Processing contents:\n{}", contents)?;
-        let test_setup = TestSetup::try_from_lines(contents.lines()).context(SetupError)?;
+        let test_setup = TestSetup::try_from_lines(contents.lines()).context(SetupSnafu)?;
         let queries = TestQueries::from_lines(contents.lines());
         writeln!(self.log, "Using test setup:\n{}", test_setup)?;
 
         // Make a place to store output files
-        let output_file = std::fs::File::create(&output_path).context(CreatingOutputFile {
+        let output_file = std::fs::File::create(&output_path).context(CreatingOutputFileSnafu {
             output_path: output_path.clone(),
         })?;
 
         let mut output = vec![];
         output.push(format!("-- Test Setup: {}", test_setup.setup_name()));
 
-        let db_setup = test_setup.get_setup().context(SetupError)?;
+        let db_setup = test_setup.get_setup().context(SetupSnafu)?;
         for q in queries.iter() {
             output.push(format!("-- SQL: {}", q));
 
@@ -203,13 +203,15 @@ impl<W: Write> Runner<W> {
 
         let mut output_file = LineWriter::new(output_file);
         for o in &output {
-            writeln!(&mut output_file, "{}", o).with_context(|| WritingToOutputFile {
+            writeln!(&mut output_file, "{}", o).with_context(|_| WritingToOutputFileSnafu {
                 output_path: output_path.clone(),
             })?;
         }
-        output_file.flush().with_context(|| WritingToOutputFile {
-            output_path: output_path.clone(),
-        })?;
+        output_file
+            .flush()
+            .with_context(|_| WritingToOutputFileSnafu {
+                output_path: output_path.clone(),
+            })?;
 
         std::mem::drop(output_file);
 
@@ -219,7 +221,7 @@ impl<W: Write> Runner<W> {
             .unwrap_or_else(Vec::new);
 
         let expected_contents: Vec<_> = String::from_utf8(expected_data)
-            .context(ExpectedFileNotUtf8 {
+            .context(ExpectedFileNotUtf8Snafu {
                 path: &expected_path,
             })?
             .lines()
@@ -238,7 +240,7 @@ impl<W: Write> Runner<W> {
             writeln!(self.log, "  diff -du {:?} {:?}", expected_path, output_path)?;
             writeln!(self.log, "  # Update expected")?;
             writeln!(self.log, "  cp -f {:?} {:?}", output_path, expected_path)?;
-            OutputMismatch {
+            OutputMismatchSnafu {
                 output_path,
                 expected_path,
             }
@@ -292,7 +294,7 @@ impl<W: Write> Runner<W> {
                 .collect::<Vec<_>>();
 
             if !previous_results.is_empty() && previous_results != current_results {
-                return ScenarioMismatch {
+                return ScenarioMismatchSnafu {
                     scenario_name,
                     previous_results,
                     current_results,
@@ -309,11 +311,11 @@ impl<W: Write> Runner<W> {
 ///
 /// This converts `some/prefix/in/foo.sql` (or other file extensions) to `some/prefix/out/foo.out`.
 fn make_output_path(input: &Path) -> Result<PathBuf> {
-    let stem = input.file_stem().context(NoFileStem { path: input })?;
+    let stem = input.file_stem().context(NoFileStemSnafu { path: input })?;
 
     // go two levels up (from file to dir, from dir to parent dir)
-    let parent = input.parent().context(NoParent { path: input })?;
-    let parent = parent.parent().context(NoParent { path: parent })?;
+    let parent = input.parent().context(NoParentSnafu { path: input })?;
+    let parent = parent.parent().context(NoParentSnafu { path: parent })?;
     let mut out = parent.to_path_buf();
 
     // go one level down (from parent dir to out-dir)

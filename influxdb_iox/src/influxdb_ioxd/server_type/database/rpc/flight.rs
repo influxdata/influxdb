@@ -157,14 +157,15 @@ impl Flight for FlightService {
     ) -> Result<Response<Self::DoGetStream>, tonic::Status> {
         let span_ctx = request.extensions().get().cloned();
         let ticket = request.into_inner();
-        let json_str = String::from_utf8(ticket.ticket.to_vec()).context(InvalidTicket {
+        let json_str = String::from_utf8(ticket.ticket.to_vec()).context(InvalidTicketSnafu {
             ticket: ticket.ticket,
         })?;
 
         let read_info: ReadInfo =
-            serde_json::from_str(&json_str).context(InvalidQuery { query: &json_str })?;
+            serde_json::from_str(&json_str).context(InvalidQuerySnafu { query: &json_str })?;
 
-        let database = DatabaseName::new(&read_info.database_name).context(InvalidDatabaseName)?;
+        let database =
+            DatabaseName::new(&read_info.database_name).context(InvalidDatabaseNameSnafu)?;
 
         let db = self
             .server
@@ -178,7 +179,7 @@ impl Flight for FlightService {
         let physical_plan = Planner::new(&ctx)
             .sql(&read_info.sql_query)
             .await
-            .context(Planning)?;
+            .context(PlanningSnafu)?;
 
         let output = GetStream::new(ctx, physical_plan, read_info.database_name).await?;
 
@@ -268,7 +269,7 @@ impl GetStream {
             .execute_stream(Arc::clone(&physical_plan))
             .await
             .map_err(|e| Box::new(e) as _)
-            .context(Query {
+            .context(QuerySnafu {
                 database_name: &database_name,
             })?;
 
@@ -410,7 +411,7 @@ fn optimize_record_batch(batch: &RecordBatch, schema: SchemaRef) -> Result<Recor
         })
         .collect();
 
-    RecordBatch::try_new(schema, columns?).context(InvalidRecordBatch)
+    RecordBatch::try_new(schema, columns?).context(InvalidRecordBatchSnafu)
 }
 
 fn deep_clone_array(array: &ArrayRef) -> ArrayRef {
@@ -454,7 +455,7 @@ fn optimize_schema(schema: &Schema) -> Schema {
 fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef, Error> {
     match array.data_type() {
         DataType::Dictionary(_, value) => {
-            arrow::compute::cast(array, value).context(DictionaryError)
+            arrow::compute::cast(array, value).context(DictionarySnafu)
         }
         _ => unreachable!("not a dictionary"),
     }

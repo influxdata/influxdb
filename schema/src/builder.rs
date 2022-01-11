@@ -159,7 +159,7 @@ impl SchemaBuilder {
             sort_key,
             false,
         )
-        .context(ValidatingSchema)
+        .context(ValidatingSchemaSnafu)
     }
 
     /// Internal helper method to add a column definition

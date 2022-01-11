@@ -1,7 +1,7 @@
 //! Write API
 
 use crate::models::WriteDataPoint;
-use crate::{Client, Http, RequestError, ReqwestProcessing};
+use crate::{Client, HttpSnafu, RequestError, ReqwestProcessingSnafu};
 use bytes::BufMut;
 use futures::{Stream, StreamExt};
 use reqwest::{Body, Method};
@@ -25,12 +25,12 @@ impl Client {
             .body(body)
             .send()
             .await
-            .context(ReqwestProcessing)?;
+            .context(ReqwestProcessingSnafu)?;
 
         if !response.status().is_success() {
             let status = response.status();
-            let text = response.text().await.context(ReqwestProcessing)?;
-            Http { status, text }.fail()?;
+            let text = response.text().await.context(ReqwestProcessingSnafu)?;
+            HttpSnafu { status, text }.fail()?;
         }
 
         Ok(())

@@ -32,10 +32,10 @@ pub async fn make_application(
 ) -> Result<Arc<ApplicationState>> {
     warn_about_inmem_store(&config.run_config.object_store_config);
     let object_store = ObjectStore::try_from(&config.run_config.object_store_config)
-        .context(ObjectStoreParsing)?;
+        .context(ObjectStoreParsingSnafu)?;
     check_object_store(&object_store)
         .await
-        .context(ObjectStoreCheck)?;
+        .context(ObjectStoreCheckSnafu)?;
     let object_storage = Arc::new(object_store);
 
     Ok(Arc::new(ApplicationState::new(

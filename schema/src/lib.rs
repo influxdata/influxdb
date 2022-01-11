@@ -397,7 +397,7 @@ impl Schema {
             .iter()
             .map(|&column_name| {
                 self.find_index_of(column_name)
-                    .context(ColumnNotFound { column_name })
+                    .context(ColumnNotFoundSnafu { column_name })
             })
             .collect()
     }

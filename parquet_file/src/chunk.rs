@@ -119,11 +119,13 @@ impl ParquetChunk {
     ) -> Result<Self> {
         let decoded = parquet_metadata
             .decode()
-            .context(MetadataDecodeFailed { path })?;
-        let schema = decoded.read_schema().context(SchemaReadFailed { path })?;
+            .context(MetadataDecodeFailedSnafu { path })?;
+        let schema = decoded
+            .read_schema()
+            .context(SchemaReadFailedSnafu { path })?;
         let columns = decoded
             .read_statistics(&schema)
-            .context(StatisticsReadFailed { path })?;
+            .context(StatisticsReadFailedSnafu { path })?;
         let table_summary = TableSummary {
             name: table_name.to_string(),
             columns,
@@ -250,7 +252,7 @@ impl ParquetChunk {
             self.path.clone(),
             Arc::clone(&self.iox_object_store),
         )
-        .context(ReadParquet)
+        .context(ReadParquetSnafu)
     }
 
     /// The total number of rows in all row groups in this chunk.

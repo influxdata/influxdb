@@ -250,7 +250,7 @@ where
             (Bool(s1), Bool(s2)) => s1.overlaps(s2),
             (String(s1), String(s2)) => s1.overlaps(s2),
             _ => {
-                return MismatchedStatsTypes {
+                return MismatchedStatsTypesSnafu {
                     column_name: s1.name.clone(),
                 }
                 .fail()
@@ -268,7 +268,7 @@ where
             StatOverlap::Unknown if is_none => Ok(true),
             // This case means there some stats, but not all.
             // Unclear how this could happen, so throw an error for now
-            StatOverlap::Unknown => InternalPartialStatistics {
+            StatOverlap::Unknown => InternalPartialStatisticsSnafu {
                 column_name: s1.name.clone(),
                 s1: s1.stats.clone(),
                 s2: s2.stats.clone(),

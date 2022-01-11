@@ -1,6 +1,6 @@
 //! This module contains the code to write chunks to the object store
 use super::{
-    error::{CommitError, Error, ParquetChunkError, Result, WritingToObjectStore},
+    error::{CommitSnafu, Error, ParquetChunkSnafu, Result, WritingToObjectStoreSnafu},
     LockableCatalogPartition,
 };
 use crate::{
@@ -131,7 +131,7 @@ pub(super) fn write_chunk_to_object_store(
             let written_result = storage
                 .write_to_object_store(addr.clone(), stream, metadata)
                 .await
-                .context(WritingToObjectStore)?;
+                .context(WritingToObjectStoreSnafu)?;
 
             // the stream was empty
             if written_result.is_none() {
@@ -152,7 +152,7 @@ pub(super) fn write_chunk_to_object_store(
                     Arc::clone(&partition_key),
                     metrics,
                 )
-                .context(ParquetChunkError)?,
+                .context(ParquetChunkSnafu)?,
             );
 
             // Collect any pending delete predicate from any partitions and include them in
@@ -194,7 +194,7 @@ pub(super) fn write_chunk_to_object_store(
             }
 
             // preserved commit
-            let ckpt_handle = transaction.commit().await.context(CommitError)?;
+            let ckpt_handle = transaction.commit().await.context(CommitSnafu)?;
 
             // Deletes persisted correctly
             delete_handle.flush();

@@ -52,12 +52,14 @@ pub async fn parse_body(
     let ungzip = match req.headers().get(&header_name) {
         None => false,
         Some(content_encoding) => {
-            let content_encoding = content_encoding.to_str().context(ReadingHeaderAsUtf8 {
-                header_name: header_name.as_str(),
-            })?;
+            let content_encoding = content_encoding
+                .to_str()
+                .context(ReadingHeaderAsUtf8Snafu {
+                    header_name: header_name.as_str(),
+                })?;
             match content_encoding {
                 "gzip" => true,
-                _ => InvalidContentEncoding { content_encoding }.fail()?,
+                _ => InvalidContentEncodingSnafu { content_encoding }.fail()?,
             }
         }
     };
@@ -66,7 +68,7 @@ pub async fn parse_body(
 
     let mut body = BytesMut::new();
     while let Some(chunk) = payload.next().await {
-        let chunk = chunk.context(ClientHangup)?;
+        let chunk = chunk.context(ClientHangupSnafu)?;
         // limit max size of in-memory payload
         if (body.len() + chunk.len()) > max_size {
             return Err(ParseBodyError::RequestSizeExceeded {
@@ -88,7 +90,7 @@ pub async fn parse_body(
         let mut decoded_data = Vec::new();
         decoder
             .read_to_end(&mut decoded_data)
-            .context(ReadingBodyAsGzip)?;
+            .context(ReadingBodyAsGzipSnafu)?;
         Ok(decoded_data.into())
     } else {
         Ok(body)

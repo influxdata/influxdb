@@ -264,7 +264,7 @@ impl ObjectStoreApi for ObjectStore {
             (GoogleCloudStorage(gcs), path::Path::GoogleCloudStorage(location)) => gcs
                 .put(location, bytes)
                 .await
-                .context(GcsObjectStoreError)?,
+                .context(GcsObjectStoreSnafu)?,
             (InMemory(in_mem), path::Path::InMemory(location)) => {
                 in_mem.put(location, bytes).await?
             }
@@ -274,7 +274,7 @@ impl ObjectStoreApi for ObjectStore {
             (File(file), path::Path::File(location)) => file
                 .put(location, bytes)
                 .await
-                .context(FileObjectStoreError)?,
+                .context(FileObjectStoreSnafu)?,
             (MicrosoftAzure(azure), path::Path::MicrosoftAzure(location)) => {
                 azure.put(location, bytes).await?
             }
@@ -422,32 +422,32 @@ impl ObjectStoreApi for ObjectStore {
                 .list_with_delimiter(prefix)
                 .map_ok(|list_result| list_result.map_paths(path::Path::AmazonS3))
                 .await
-                .context(AwsObjectStoreError),
+                .context(AwsObjectStoreSnafu),
             (GoogleCloudStorage(gcs), path::Path::GoogleCloudStorage(prefix)) => gcs
                 .list_with_delimiter(prefix)
                 .map_ok(|list_result| list_result.map_paths(path::Path::GoogleCloudStorage))
                 .await
-                .context(GcsObjectStoreError),
+                .context(GcsObjectStoreSnafu),
             (InMemory(in_mem), path::Path::InMemory(prefix)) => in_mem
                 .list_with_delimiter(prefix)
                 .map_ok(|list_result| list_result.map_paths(path::Path::InMemory))
                 .await
-                .context(InMemoryObjectStoreError),
+                .context(InMemoryObjectStoreSnafu),
             (InMemoryThrottled(in_mem_throttled), path::Path::InMemory(prefix)) => in_mem_throttled
                 .list_with_delimiter(prefix)
                 .map_ok(|list_result| list_result.map_paths(path::Path::InMemory))
                 .await
-                .context(InMemoryObjectStoreError),
+                .context(InMemoryObjectStoreSnafu),
             (File(file), path::Path::File(prefix)) => file
                 .list_with_delimiter(prefix)
                 .map_ok(|list_result| list_result.map_paths(path::Path::File))
                 .await
-                .context(FileObjectStoreError),
+                .context(FileObjectStoreSnafu),
             (MicrosoftAzure(azure), path::Path::MicrosoftAzure(prefix)) => azure
                 .list_with_delimiter(prefix)
                 .map_ok(|list_result| list_result.map_paths(path::Path::MicrosoftAzure))
                 .await
-                .context(AzureObjectStoreError),
+                .context(AzureObjectStoreSnafu),
             _ => unreachable!(),
         }
     }
@@ -669,9 +669,9 @@ pub enum Error {
     #[snafu(display("{}", source))]
     DummyObjectStoreError { source: dummy::Error },
 
-    #[snafu(display("Object at location {} not found: {}", location, source))]
+    #[snafu(display("Object at location {} not found: {}", path, source))]
     NotFound {
-        location: String,
+        path: String,
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 }
@@ -679,8 +679,8 @@ pub enum Error {
 impl From<disk::Error> for Error {
     fn from(source: disk::Error) -> Self {
         match source {
-            disk::Error::NotFound { location, source } => Self::NotFound {
-                location,
+            disk::Error::NotFound { path, source } => Self::NotFound {
+                path,
                 source: source.into(),
             },
             _ => Self::FileObjectStoreError { source },
@@ -692,8 +692,8 @@ impl From<disk::Error> for Error {
 impl From<gcp::Error> for Error {
     fn from(source: gcp::Error) -> Self {
         match source {
-            gcp::Error::NotFound { location, source } => Self::NotFound {
-                location,
+            gcp::Error::NotFound { path, source } => Self::NotFound {
+                path,
                 source: source.into(),
             },
             _ => Self::GcsObjectStoreError { source },
@@ -705,8 +705,8 @@ impl From<gcp::Error> for Error {
 impl From<aws::Error> for Error {
     fn from(source: aws::Error) -> Self {
         match source {
-            aws::Error::NotFound { location, source } => Self::NotFound {
-                location,
+            aws::Error::NotFound { path, source } => Self::NotFound {
+                path,
                 source: source.into(),
             },
             _ => Self::AwsObjectStoreError { source },
@@ -724,8 +724,8 @@ impl From<azure::Error> for Error {
 impl From<memory::Error> for Error {
     fn from(source: memory::Error) -> Self {
         match source {
-            memory::Error::NoDataInMemory { ref location } => Self::NotFound {
-                location: location.into(),
+            memory::Error::NoDataInMemory { ref path } => Self::NotFound {
+                path: path.into(),
                 source: source.into(),
             },
             // currently "not found" is the only error that can happen with the in-memory store

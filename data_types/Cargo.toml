@@ -14,7 +14,7 @@ ordered-float = "2"
 percent-encoding = "2.1.0"
 regex = "1"
 siphasher = "0.3"
-snafu = "0.6"
+snafu = "0.7"
 time = { path = "../time" }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}

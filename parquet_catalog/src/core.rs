@@ -252,11 +252,11 @@ impl PreservedCatalog {
         let list = iox_object_store
             .catalog_transaction_files()
             .await
-            .context(Read)?
+            .context(ReadSnafu)?
             .next()
             .await;
         match list {
-            Some(l) => Ok(!l.context(Read)?.is_empty()),
+            Some(l) => Ok(!l.context(ReadSnafu)?.is_empty()),
             None => Ok(false),
         }
     }
@@ -273,9 +273,9 @@ impl PreservedCatalog {
         let mut stream = iox_object_store
             .catalog_transaction_files()
             .await
-            .context(Read)?;
+            .context(ReadSnafu)?;
 
-        while let Some(transaction_file_list) = stream.try_next().await.context(Read)? {
+        while let Some(transaction_file_list) = stream.try_next().await.context(ReadSnafu)? {
             for transaction_file_path in &transaction_file_list {
                 match load_transaction_proto(iox_object_store, transaction_file_path).await {
                     Ok(proto) => match proto_parse::parse_timestamp(&proto.start_timestamp) {
@@ -303,7 +303,7 @@ impl PreservedCatalog {
     ///
     /// Note that wiping the catalog will NOT wipe any referenced parquet files.
     pub async fn wipe(iox_object_store: &IoxObjectStore) -> Result<()> {
-        Ok(iox_object_store.wipe_catalog().await.context(Write)?)
+        Ok(iox_object_store.wipe_catalog().await.context(WriteSnafu)?)
     }
 
     /// Create new catalog w/o any data.
@@ -330,7 +330,7 @@ impl PreservedCatalog {
             .commit()
             .await
             .map_err(Box::new)
-            .context(CommitError)?;
+            .context(CommitSnafu)?;
 
         Ok(catalog)
     }
@@ -352,9 +352,9 @@ impl PreservedCatalog {
             .iox_object_store
             .catalog_transaction_files()
             .await
-            .context(Read)?;
+            .context(ReadSnafu)?;
 
-        while let Some(transaction_file_list) = stream.try_next().await.context(Read)? {
+        while let Some(transaction_file_list) = stream.try_next().await.context(ReadSnafu)? {
             for transaction_file_path in &transaction_file_list {
                 // keep track of the max
                 max_revision = Some(
@@ -383,7 +383,7 @@ impl PreservedCatalog {
                         };
 
                         if uuid1 != uuid2 {
-                            Fork {
+                            ForkSnafu {
                                 revision_counter: transaction_file_path.revision_counter,
                                 uuid1,
                                 uuid2,
@@ -412,7 +412,7 @@ impl PreservedCatalog {
         // read and replay delta revisions
         let mut last_tkey = None;
         for rev in start_revision..=max_revision {
-            let uuid = transactions.get(&rev).context(MissingTransaction {
+            let uuid = transactions.get(&rev).context(MissingTransactionSnafu {
                 revision_counter: rev,
             })?;
             let tkey = TransactionKey {
@@ -551,18 +551,19 @@ impl OpenTransaction {
     {
         match action {
             proto::transaction::action::Action::Upgrade(u) => {
-                UnsupportedUpgrade { format: u.format }.fail()?;
+                UnsupportedUpgradeSnafu { format: u.format }.fail()?;
             }
             proto::transaction::action::Action::AddParquet(a) => {
-                let path =
-                    proto_parse::parse_dirs_and_filename(a.path.as_ref().context(PathRequired)?)
-                        .context(ProtobufParseError)?;
+                let path = proto_parse::parse_dirs_and_filename(
+                    a.path.as_ref().context(PathRequiredSnafu)?,
+                )
+                .context(ProtobufParseSnafu)?;
                 let file_size_bytes = a.file_size_bytes as usize;
 
                 let metadata = IoxParquetMetaData::from_thrift_bytes(a.metadata.as_ref().to_vec());
 
                 // try to decode to ensure catalog is OK
-                metadata.decode().context(MetadataDecodingFailed)?;
+                metadata.decode().context(MetadataDecodingFailedSnafu)?;
 
                 let metadata = Arc::new(metadata);
 
@@ -575,20 +576,21 @@ impl OpenTransaction {
                             metadata,
                         },
                     )
-                    .context(AddError)?;
+                    .context(AddSnafu)?;
             }
             proto::transaction::action::Action::RemoveParquet(a) => {
-                let path =
-                    proto_parse::parse_dirs_and_filename(a.path.as_ref().context(PathRequired)?)
-                        .context(ProtobufParseError)?;
-                state.remove(&path).context(RemoveError)?;
+                let path = proto_parse::parse_dirs_and_filename(
+                    a.path.as_ref().context(PathRequiredSnafu)?,
+                )
+                .context(ProtobufParseSnafu)?;
+                state.remove(&path).context(RemoveSnafu)?;
             }
             proto::transaction::action::Action::DeletePredicate(d) => {
                 let predicate = Arc::new(
                     d.predicate
-                        .context(DeletePredicateMissing)?
+                        .context(DeletePredicateMissingSnafu)?
                         .try_into()
-                        .context(CannotDeserializePredicate)?,
+                        .context(CannotDeserializePredicateSnafu)?,
                 );
                 let chunks = d
                     .chunks
@@ -597,7 +599,10 @@ impl OpenTransaction {
                         let addr = ChunkAddrWithoutDatabase {
                             table_name: Arc::from(chunk.table_name),
                             partition_key: Arc::from(chunk.partition_key),
-                            chunk_id: chunk.chunk_id.try_into().context(CannotDecodeChunkId)?,
+                            chunk_id: chunk
+                                .chunk_id
+                                .try_into()
+                                .context(CannotDecodeChunkIdSnafu)?,
                         };
                         Ok(addr)
                     })
@@ -630,7 +635,7 @@ impl OpenTransaction {
             TransactionFilePath::new_transaction(self.tkey().revision_counter, self.tkey().uuid);
         store_transaction_proto(iox_object_store, &path, &self.proto)
             .await
-            .context(ProtobufIOError)?;
+            .context(ProtobufIOSnafu)?;
         Ok(())
     }
 
@@ -655,11 +660,11 @@ impl OpenTransaction {
         };
         let proto = load_transaction_proto(iox_object_store, &path)
             .await
-            .context(ProtobufIOError)?;
+            .context(ProtobufIOSnafu)?;
 
         // sanity-check file content
         if proto.version != TRANSACTION_VERSION {
-            TransactionVersionMismatch {
+            TransactionVersionMismatchSnafu {
                 revision_counter: tkey.revision_counter,
                 actual: proto.version,
                 // we only support a single version right now
@@ -668,16 +673,16 @@ impl OpenTransaction {
             .fail()?;
         }
         if proto.revision_counter != tkey.revision_counter {
-            WrongTransactionRevision {
+            WrongTransactionRevisionSnafu {
                 actual: proto.revision_counter,
                 expected: tkey.revision_counter,
             }
             .fail()?
         }
         let uuid_actual =
-            proto_parse::parse_uuid_required(&proto.uuid).context(ProtobufParseError)?;
+            proto_parse::parse_uuid_required(&proto.uuid).context(ProtobufParseSnafu)?;
         if uuid_actual != tkey.uuid {
-            WrongTransactionUuid {
+            WrongTransactionUuidSnafu {
                 revision_counter: tkey.revision_counter,
                 expected: tkey.uuid,
                 actual: uuid_actual,
@@ -688,10 +693,10 @@ impl OpenTransaction {
         if encoding == proto::transaction::Encoding::Delta {
             // only verify chain for delta encodings
             let last_uuid_actual =
-                proto_parse::parse_uuid(&proto.previous_uuid).context(ProtobufParseError)?;
+                proto_parse::parse_uuid(&proto.previous_uuid).context(ProtobufParseSnafu)?;
             let last_uuid_expected = last_tkey.as_ref().map(|tkey| tkey.uuid);
             if last_uuid_actual != last_uuid_expected {
-                WrongTransactionLink {
+                WrongTransactionLinkSnafu {
                     revision_counter: tkey.revision_counter,
                     expected: last_uuid_expected,
                     actual: last_uuid_actual,
@@ -700,9 +705,9 @@ impl OpenTransaction {
             }
         }
         // verify we can parse the timestamp (checking that no error is raised)
-        proto_parse::parse_timestamp(&proto.start_timestamp).context(ProtobufParseError)?;
+        proto_parse::parse_timestamp(&proto.start_timestamp).context(ProtobufParseSnafu)?;
         let encoding_actual =
-            proto_parse::parse_encoding(proto.encoding).context(ProtobufParseError)?;
+            proto_parse::parse_encoding(proto.encoding).context(ProtobufParseSnafu)?;
         if encoding_actual != encoding {
             return Err(Error::WrongEncodingError {
                 actual: encoding_actual,
@@ -965,7 +970,7 @@ impl<'c> CheckpointHandle<'c> {
         let path = TransactionFilePath::new_checkpoint(self.tkey.revision_counter, self.tkey.uuid);
         store_transaction_proto(&iox_object_store, &path, &proto)
             .await
-            .context(ProtobufIOError)?;
+            .context(ProtobufIOSnafu)?;
 
         Ok(())
     }

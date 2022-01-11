@@ -78,7 +78,7 @@ pub async fn rebuild_catalog(
     // create new empty catalog
     let catalog = PreservedCatalog::new_empty(config.clone())
         .await
-        .context(NewEmptyFailure)?;
+        .context(NewEmptyFailureSnafu)?;
 
     // create single transaction with all files
     if !files.is_empty() {
@@ -86,7 +86,7 @@ pub async fn rebuild_catalog(
         for info in files {
             transaction.add_parquet(&info);
         }
-        transaction.commit().await.context(CheckpointFailure)?;
+        transaction.commit().await.context(CheckpointFailureSnafu)?;
     }
 
     Ok(catalog)
@@ -104,11 +104,11 @@ async fn collect_files(
     let mut stream = iox_object_store
         .parquet_files()
         .await
-        .context(ReadFailure)?;
+        .context(ReadFailureSnafu)?;
 
     let mut files = vec![];
 
-    while let Some(paths) = stream.try_next().await.context(ReadFailure)? {
+    while let Some(paths) = stream.try_next().await.context(ReadFailureSnafu)? {
         for path in paths {
             match read_parquet(iox_object_store, &path).await {
                 Ok((file_size_bytes, metadata)) => {
@@ -138,27 +138,27 @@ async fn read_parquet(
     let data = iox_object_store
         .get_parquet_file(path)
         .await
-        .context(ReadFailure)?
+        .context(ReadFailureSnafu)?
         .bytes()
         .await
-        .context(ReadFailure)?;
+        .context(ReadFailureSnafu)?;
 
     let file_size_bytes = data.len();
 
     let parquet_metadata = IoxParquetMetaData::from_file_bytes(data)
-        .context(MetadataReadFailure { path: path.clone() })?; // Error reading metadata
+        .context(MetadataReadFailureSnafu { path: path.clone() })?; // Error reading metadata
 
     if parquet_metadata.is_none() {
-        return NoRowGroups { path: path.clone() }.fail();
+        return NoRowGroupsSnafu { path: path.clone() }.fail();
     } // No data and hence no metadata
     let parquet_metadata = parquet_metadata.unwrap();
 
     // validate IOxMetadata
     parquet_metadata
         .decode()
-        .context(MetadataReadFailure { path: path.clone() })?
+        .context(MetadataReadFailureSnafu { path: path.clone() })?
         .read_iox_metadata()
-        .context(MetadataReadFailure { path: path.clone() })?;
+        .context(MetadataReadFailureSnafu { path: path.clone() })?;
 
     Ok((file_size_bytes, Arc::new(parquet_metadata)))
 }

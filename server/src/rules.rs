@@ -148,25 +148,25 @@ impl PersistedDatabaseRules {
         let bytes = iox_object_store
             .get_database_rules_file()
             .await
-            .context(RulesFetch)?;
+            .context(RulesFetchSnafu)?;
 
         let proto: management::v1::PersistedDatabaseRules =
             generated_types::database_rules::decode_persisted_database_rules(bytes)
-                .context(Deserialization)?;
+                .context(DeserializationSnafu)?;
 
         let original: management::v1::DatabaseRules = proto
             .rules
             .ok_or_else(|| FieldViolation::required("rules"))
-            .context(ConvertingRules)?;
+            .context(ConvertingRulesSnafu)?;
 
-        let full = Arc::new(original.clone().try_into().context(ConvertingRules)?);
+        let full = Arc::new(original.clone().try_into().context(ConvertingRulesSnafu)?);
 
         let uuid = Uuid::from_slice(&proto.uuid)
             .map_err(|e| FieldViolation {
                 field: "uuid".to_string(),
                 description: e.to_string(),
             })
-            .context(ConvertingRules)?;
+            .context(ConvertingRulesSnafu)?;
 
         Ok(Self {
             uuid,
@@ -184,12 +184,12 @@ impl PersistedDatabaseRules {
 
         let mut data = bytes::BytesMut::new();
         encode_persisted_database_rules(&persisted_database_rules, &mut data)
-            .context(Serialization)?;
+            .context(SerializationSnafu)?;
 
         iox_object_store
             .put_database_rules_file(data.freeze())
             .await
-            .context(ObjectStore {
+            .context(ObjectStoreSnafu {
                 db_name: self.provided.db_name(),
             })?;
 

@@ -99,7 +99,7 @@ impl SchemaMerger {
         match (self.measurement.as_ref(), other.measurement()) {
             (Some(existing_measurement), Some(new_measurement)) => {
                 if existing_measurement != new_measurement {
-                    return TryMergeDifferentMeasurementNames {
+                    return TryMergeDifferentMeasurementNamesSnafu {
                         existing_measurement,
                         new_measurement,
                     }

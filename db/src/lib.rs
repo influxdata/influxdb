@@ -401,7 +401,7 @@ impl Db {
         info!(%table_name, %partition_key, found_chunk=chunk.is_some(), "rolling over a partition");
         if let Some(chunk) = chunk {
             let mut chunk = chunk.write();
-            chunk.freeze().context(FreezingChunk)?;
+            chunk.freeze().context(FreezingChunkSnafu)?;
 
             Ok(Some(DbChunk::snapshot(&chunk)))
         } else {
@@ -478,11 +478,13 @@ impl Db {
             let partition = partition.upgrade();
 
             let (_, fut) =
-                lifecycle::drop_chunk(partition, chunk.write()).context(LifecycleError)?;
+                lifecycle::drop_chunk(partition, chunk.write()).context(LifecycleSnafu)?;
             fut
         };
 
-        fut.await.context(TaskCancelled)?.context(LifecycleError)
+        fut.await
+            .context(TaskCancelledSnafu)?
+            .context(LifecycleSnafu)
     }
 
     /// Drops the specified partition from the catalog and all storage systems
@@ -496,11 +498,13 @@ impl Db {
         let fut = {
             let partition = self.lockable_partition(table_name, partition_key)?;
             let partition = partition.write();
-            let (_, fut) = lifecycle::drop_partition(partition).context(LifecycleError)?;
+            let (_, fut) = lifecycle::drop_partition(partition).context(LifecycleSnafu)?;
             fut
         };
 
-        fut.await.context(TaskCancelled)?.context(LifecycleError)
+        fut.await
+            .context(TaskCancelledSnafu)?
+            .context(LifecycleSnafu)
     }
 
     /// Store a delete
@@ -666,11 +670,13 @@ impl Db {
                 return Ok(None);
             }
 
-            let (_, fut) = lifecycle::compact_chunks(partition, chunks).context(LifecycleError)?;
+            let (_, fut) = lifecycle::compact_chunks(partition, chunks).context(LifecycleSnafu)?;
             fut
         };
 
-        fut.await.context(TaskCancelled)?.context(LifecycleError)
+        fut.await
+            .context(TaskCancelledSnafu)?
+            .context(LifecycleSnafu)
     }
 
     /// Compact all persisted chunks in this partition
@@ -736,12 +742,15 @@ impl Db {
             // invoke compact
             let (tracker, fut) =
                 lifecycle::compact_object_store::compact_object_store_chunks(partition, chunks)
-                    .context(LifecycleError)?;
+                    .context(LifecycleSnafu)?;
             (tracker, fut)
         };
 
-        let _ =
-            tokio::spawn(async move { fut.await.context(TaskCancelled)?.context(LifecycleError) });
+        let _ = tokio::spawn(async move {
+            fut.await
+                .context(TaskCancelledSnafu)?
+                .context(LifecycleSnafu)
+        });
         Ok(tracker)
     }
 
@@ -775,7 +784,7 @@ impl Db {
                     false => window.flush_handle(),
                 })
                 .flatten()
-                .context(CannotFlushPartition {
+                .context(CannotFlushPartitionSnafu {
                     table_name,
                     partition_key,
                 })?;
@@ -791,11 +800,13 @@ impl Db {
             };
 
             let (_, fut) = lifecycle::persist_chunks(partition, chunks, flush_handle)
-                .context(LifecycleError)?;
+                .context(LifecycleSnafu)?;
             fut
         };
 
-        fut.await.context(TaskCancelled)?.context(LifecycleError)
+        fut.await
+            .context(TaskCancelledSnafu)?
+            .context(LifecycleSnafu)
     }
 
     /// Unload chunk from read buffer but keep it in object store
@@ -807,7 +818,7 @@ impl Db {
     ) -> Result<Arc<DbChunk>> {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
         let chunk = chunk.write();
-        lifecycle::unload_read_buffer_chunk(chunk).context(LifecycleError)
+        lifecycle::unload_read_buffer_chunk(chunk).context(LifecycleSnafu)
     }
 
     /// Load chunk from object store to read buffer
@@ -818,7 +829,7 @@ impl Db {
         chunk_id: ChunkId,
     ) -> Result<TaskTracker<Job>> {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
-        LockableChunk::load_read_buffer(chunk.write()).context(LifecycleError)
+        LockableChunk::load_read_buffer(chunk.write()).context(LifecycleSnafu)
     }
 
     /// Return chunk summary information for all chunks in the specified
@@ -889,9 +900,9 @@ impl Db {
         if let Some(replay_plan) = replay_plan {
             perform_replay(self, replay_plan, consumer)
                 .await
-                .context(ReplayError)
+                .context(ReplaySnafu)
         } else {
-            seek_to_end(self, consumer).await.context(ReplayError)
+            seek_to_end(self, consumer).await.context(ReplaySnafu)
         }
     }
 
@@ -1024,11 +1035,11 @@ impl Db {
     /// Returns an error if this [`Db`] cannot accept a given DML operation
     fn can_store(&self, meta: &DmlMeta) -> Result<(), DmlError> {
         let rules = self.rules.read();
-        ensure!(!rules.lifecycle_rules.immutable, DatabaseNotWriteable);
+        ensure!(!rules.lifecycle_rules.immutable, DatabaseNotWriteableSnafu);
         if rules.write_buffer_connection.is_some() {
             ensure!(
                 meta.sequence().is_some(),
-                WritingOnlyAllowedThroughWriteBuffer
+                WritingOnlyAllowedThroughWriteBufferSnafu
             );
         }
         Ok(())
@@ -1068,12 +1079,12 @@ impl Db {
         // configuration again unnecessarily, but we may have come here by consuming records from
         // the write buffer, so this check is necessary in that case.
         if immutable {
-            return DatabaseNotWriteable {}.fail();
+            return DatabaseNotWriteableSnafu {}.fail();
         }
 
         if let Some(hard_limit) = buffer_size_hard {
             if self.catalog.metrics().memory().total() > hard_limit.get() {
-                return HardLimitReached {}.fail();
+                return HardLimitReachedSnafu {}.fail();
             }
         }
 
@@ -1181,7 +1192,7 @@ impl Db {
 
         ensure!(
             schema_errors.is_empty(),
-            SchemaErrors {
+            SchemaErrorsSnafu {
                 errors: schema_errors
             }
         );

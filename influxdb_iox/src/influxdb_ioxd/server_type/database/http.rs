@@ -198,7 +198,7 @@ pub async fn route_request(
     match server_type
         .route_dml_http_request(req)
         .await
-        .context(DmlError)?
+        .context(DmlSnafu)?
     {
         RequestOrResponse::Response(resp) => Ok(resp),
         RequestOrResponse::Request(req) => {
@@ -238,16 +238,16 @@ async fn query(
 ) -> Result<Response<Body>, ApplicationError> {
     let server = &server_type.server;
 
-    let uri_query = req.uri().query().context(ExpectedQueryString {})?;
+    let uri_query = req.uri().query().context(ExpectedQueryStringSnafu {})?;
 
     let QueryParams { d, q, format } =
-        serde_urlencoded::from_str(uri_query).context(InvalidQueryString {
+        serde_urlencoded::from_str(uri_query).context(InvalidQueryStringSnafu {
             query_string: uri_query,
         })?;
 
-    let format = QueryOutputFormat::from_str(&format).context(ParsingFormat { format })?;
+    let format = QueryOutputFormat::from_str(&format).context(ParsingFormatSnafu { format })?;
 
-    let db_name = DatabaseName::new(&d).context(DatabaseNameError)?;
+    let db_name = DatabaseName::new(&d).context(DatabaseNameSnafu)?;
     debug!(uri = ?req.uri(), %q, ?format, %db_name, "running SQL query");
 
     let db = server.db(&db_name)?;
@@ -255,7 +255,7 @@ async fn query(
     db.record_query("sql", &q);
 
     let ctx = db.new_query_context(req.extensions().get().cloned());
-    let physical_plan = Planner::new(&ctx).sql(&q).await.context(Planning)?;
+    let physical_plan = Planner::new(&ctx).sql(&q).await.context(PlanningSnafu)?;
 
     // TODO: stream read results out rather than rendering the
     // whole thing in mem
@@ -263,18 +263,18 @@ async fn query(
         .collect(physical_plan)
         .await
         .map_err(|e| Box::new(e) as _)
-        .context(Query { db_name })?;
+        .context(QuerySnafu { db_name })?;
 
     let results = format
         .format(&batches)
-        .context(FormattingResult { q, format })?;
+        .context(FormattingResultSnafu { q, format })?;
 
     let body = Body::from(results.into_bytes());
 
     let response = Response::builder()
         .header(CONTENT_TYPE, format.content_type())
         .body(body)
-        .context(CreatingResponse)?;
+        .context(CreatingResponseSnafu)?;
 
     Ok(response)
 }

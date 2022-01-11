@@ -203,7 +203,7 @@ fn datatype_to_measurement_field_enum(data_type: &ArrowDataType) -> Result<Field
         ArrowDataType::UInt64 => Ok(FieldType::Unsigned),
         ArrowDataType::Utf8 => Ok(FieldType::String),
         ArrowDataType::Boolean => Ok(FieldType::Boolean),
-        _ => UnsupportedFieldType {
+        _ => UnsupportedFieldTypeSnafu {
             data_type: data_type.clone(),
         }
         .fail(),

@@ -125,9 +125,10 @@ pub async fn generate(
 
     let database_agents = spec
         .database_split_to_agents(&databases)
-        .context(CouldNotAssignAgents)?;
+        .context(CouldNotAssignAgentsSnafu)?;
 
-    let generated_tag_sets = GeneratedTagSets::from_spec(spec).context(CouldNotGenerateTagSets)?;
+    let generated_tag_sets =
+        GeneratedTagSets::from_spec(spec).context(CouldNotGenerateTagSetsSnafu)?;
 
     let lock = Arc::new(tokio::sync::Mutex::new(()));
 
@@ -148,7 +149,7 @@ pub async fn generate(
                 continue_on,
                 &generated_tag_sets,
             )
-            .context(CouldNotCreateAgent)?;
+            .context(CouldNotCreateAgentSnafu)?;
 
             info!(
                 "Configuring {} agents of \"{}\" to write data to org {} and bucket {} (database {})",
@@ -162,7 +163,7 @@ pub async fn generate(
             for mut agent in agents.into_iter() {
                 let agent_points_writer = points_writer_builder
                     .build_for_agent(&agent_assignment.spec.name, org, bucket)
-                    .context(CouldNotCreateAgentWriter)?;
+                    .context(CouldNotCreateAgentWriterSnafu)?;
 
                 let lock_ref = Arc::clone(&lock);
 
@@ -188,8 +189,8 @@ pub async fn generate(
     for handle in handles {
         total_points += handle
             .await
-            .context(TokioError)?
-            .context(AgentCouldNotGeneratePoints)?;
+            .context(TokioSnafu)?
+            .context(AgentCouldNotGeneratePointsSnafu)?;
     }
 
     let elapsed = start.elapsed();

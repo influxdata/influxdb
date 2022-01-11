@@ -269,7 +269,7 @@ impl Column {
                     .add_buffer(data.iter().cloned().collect())
                     .null_bit_buffer(nulls)
                     .build()
-                    .context(CreatingArrowArray)?;
+                    .context(CreatingArrowArraySnafu)?;
                 Arc::new(Float64Array::from(data))
             }
             ColumnData::I64(data, _) => match self.influx_type {
@@ -279,7 +279,7 @@ impl Column {
                         .add_buffer(data.iter().cloned().collect())
                         .null_bit_buffer(nulls)
                         .build()
-                        .context(CreatingArrowArray)?;
+                        .context(CreatingArrowArraySnafu)?;
                     Arc::new(TimestampNanosecondArray::from(data))
                 }
                 InfluxColumnType::IOx(IOxValueType::I64)
@@ -289,7 +289,7 @@ impl Column {
                         .add_buffer(data.iter().cloned().collect())
                         .null_bit_buffer(nulls)
                         .build()
-                        .context(CreatingArrowArray)?;
+                        .context(CreatingArrowArraySnafu)?;
                     Arc::new(Int64Array::from(data))
                 }
                 _ => unreachable!(),
@@ -300,7 +300,7 @@ impl Column {
                     .add_buffer(data.iter().cloned().collect())
                     .null_bit_buffer(nulls)
                     .build()
-                    .context(CreatingArrowArray)?;
+                    .context(CreatingArrowArraySnafu)?;
                 Arc::new(UInt64Array::from(data))
             }
             ColumnData::String(data, _) => Arc::new(data.to_arrow()),
@@ -310,7 +310,7 @@ impl Column {
                     .add_buffer(data.to_arrow())
                     .null_bit_buffer(nulls)
                     .build()
-                    .context(CreatingArrowArray)?;
+                    .context(CreatingArrowArraySnafu)?;
                 Arc::new(BooleanArray::from(data))
             }
             ColumnData::Tag(data, dictionary, _) => {

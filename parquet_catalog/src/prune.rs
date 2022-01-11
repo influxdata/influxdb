@@ -63,16 +63,16 @@ pub async fn prune_history(iox_object_store: Arc<IoxObjectStore>, before: Time) 
     let mut stream = iox_object_store
         .catalog_transaction_files()
         .await
-        .context(Read)?;
+        .context(ReadSnafu)?;
 
-    while let Some(transaction_file_list) = stream.try_next().await.context(Read)? {
+    while let Some(transaction_file_list) = stream.try_next().await.context(ReadSnafu)? {
         for transaction_file_path in transaction_file_list {
             if is_checkpoint_or_zero(&transaction_file_path) {
                 let proto = load_transaction_proto(&iox_object_store, &transaction_file_path)
                     .await
-                    .context(ProtobufIOError)?;
+                    .context(ProtobufIOSnafu)?;
                 let start_timestamp =
-                    parse_timestamp(&proto.start_timestamp).context(ProtobufParseError)?;
+                    parse_timestamp(&proto.start_timestamp).context(ProtobufParseSnafu)?;
 
                 if start_timestamp <= before {
                     latest_in_prune_range = Some(
@@ -101,7 +101,7 @@ pub async fn prune_history(iox_object_store: Arc<IoxObjectStore>, before: Time) 
                     iox_object_store
                         .delete_catalog_transaction_file(&file)
                         .await
-                        .context(Delete)?;
+                        .context(DeleteSnafu)?;
                 }
             }
         }

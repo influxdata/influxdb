@@ -6,7 +6,7 @@ use snafu::Snafu;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 // Export the snafu "selectors" so they can be used in other modules
-#[snafu(visibility = "pub")]
+#[snafu(visibility(pub))]
 pub enum Error {
     #[snafu(context(false))]
     PartitionError { source: catalog::partition::Error },

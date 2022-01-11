@@ -27,7 +27,7 @@ percent-encoding = "2.1"
 rusoto_core = { version = "0.47.0", optional = true}
 rusoto_credential = { version = "0.47.0", optional = true}
 rusoto_s3 = { version = "0.47.0", optional = true}
-snafu = "0.6.10"
+snafu = "0.7"
 tokio = { version = "1.13", features = ["fs", "io-util", "macros", "parking_lot", "rt-multi-thread", "time"] }
 # Filesystem integration
 tokio-util = { version = "0.6.9", features = [ "codec", "io" ] }

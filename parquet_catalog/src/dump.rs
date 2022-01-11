@@ -72,10 +72,10 @@ where
     let mut files = iox_object_store
         .catalog_transaction_files()
         .await
-        .context(ListFiles)?
+        .context(ListFilesSnafu)?
         .try_concat()
         .await
-        .context(ListFiles)?;
+        .context(ListFilesSnafu)?;
     files.sort_by_key(|f| (f.revision_counter, f.uuid, !f.is_checkpoint()));
     let options = Arc::new(options);
 
@@ -85,7 +85,7 @@ where
             "{:#?}",
             File::read(iox_object_store, &file, Arc::clone(&options)).await
         )
-        .context(WriteOutput)?;
+        .context(WriteOutputSnafu)?;
     }
 
     Ok(())

@@ -290,7 +290,7 @@ impl TestChunk {
     /// Checks the saved error, and returns it if any, otherwise returns OK
     fn check_error(&self) -> Result<()> {
         if let Some(message) = self.saved_error.as_ref() {
-            General { message }.fail()
+            GeneralSnafu { message }.fail()
         } else {
             Ok(())
         }

@@ -53,16 +53,16 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
     let mut repl = repl::Repl::new(connection);
 
-    repl.set_output_format(config.format).context(Repl)?;
+    repl.set_output_format(config.format).context(ReplSnafu)?;
 
-    repl.run().await.context(Repl)
+    repl.run().await.context(ReplSnafu)
 }
 
 async fn check_health(connection: Connection) -> Result<()> {
     let response = health::Client::new(connection)
         .check_storage()
         .await
-        .context(Client)?;
+        .context(ClientSnafu)?;
 
     match response {
         true => Ok(()),

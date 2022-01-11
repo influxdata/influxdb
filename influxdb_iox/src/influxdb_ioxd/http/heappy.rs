@@ -37,8 +37,8 @@ pub(crate) async fn dump_heappy_rsprof(seconds: u64, interval: i32) -> Result<He
         Ok(report)
     })
     .await
-    .context(JoinError)?
-    .context(HeappyError)?;
+    .context(JoinSnafu)?
+    .context(HeappySnafu)?;
 
     Ok(report)
 }

@@ -124,7 +124,7 @@ impl FieldIndexes {
             .map(|column_name| {
                 schema
                     .index_of(&*column_name)
-                    .context(ColumnNotFoundForField {
+                    .context(ColumnNotFoundForFieldSnafu {
                         column_name: column_name.as_ref(),
                     })
             })
@@ -138,7 +138,7 @@ impl FieldIndexes {
                 let timestamp_index =
                     schema
                         .index_of(TIME_COLUMN_NAME)
-                        .context(ColumnNotFoundForField {
+                        .context(ColumnNotFoundForFieldSnafu {
                             column_name: TIME_COLUMN_NAME,
                         })?;
 
@@ -158,16 +158,15 @@ impl FieldIndexes {
                         let field_index =
                             schema
                                 .index_of(&*field_name)
-                                .context(ColumnNotFoundForField {
+                                .context(ColumnNotFoundForFieldSnafu {
                                     column_name: field_name.as_ref(),
                                 })?;
 
-                        let timestamp_index =
-                            schema
-                                .index_of(timestamp_name)
-                                .context(ColumnNotFoundForField {
-                                    column_name: TIME_COLUMN_NAME,
-                                })?;
+                        let timestamp_index = schema.index_of(timestamp_name).context(
+                            ColumnNotFoundForFieldSnafu {
+                                column_name: TIME_COLUMN_NAME,
+                            },
+                        )?;
 
                         Ok(FieldIndex {
                             value_index: field_index,

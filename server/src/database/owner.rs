@@ -20,9 +20,13 @@ pub enum OwnerInfoFetchError {
 pub(crate) async fn fetch_owner_info(
     iox_object_store: &IoxObjectStore,
 ) -> Result<management::v1::OwnerInfo, OwnerInfoFetchError> {
-    let raw_owner_info = iox_object_store.get_owner_file().await.context(Loading)?;
+    let raw_owner_info = iox_object_store
+        .get_owner_file()
+        .await
+        .context(LoadingSnafu)?;
 
-    generated_types::server_config::decode_database_owner_info(raw_owner_info).context(Decoding)
+    generated_types::server_config::decode_database_owner_info(raw_owner_info)
+        .context(DecodingSnafu)
 }
 
 #[derive(Debug, Snafu)]
@@ -46,7 +50,7 @@ pub(crate) async fn create_owner_info(
             iox_object_store.get_owner_file().await,
             Err(object_store::Error::NotFound { .. })
         ),
-        OwnerFileAlreadyExists,
+        OwnerFileAlreadyExistsSnafu,
     );
 
     let owner_info = management::v1::OwnerInfo {
@@ -63,7 +67,7 @@ pub(crate) async fn create_owner_info(
         .put_owner_file(encoded)
         .await
         .map_err(Box::new)
-        .context(CreatingOwnerFile)?;
+        .context(CreatingOwnerFileSnafu)?;
 
     Ok(())
 }
@@ -92,7 +96,7 @@ pub(crate) async fn update_owner_info(
         mut transactions,
     } = fetch_owner_info(iox_object_store)
         .await
-        .context(CouldNotFetch)?;
+        .context(CouldNotFetchSnafu)?;
 
     let new_transaction = management::v1::OwnershipTransaction {
         id,
@@ -119,6 +123,6 @@ pub(crate) async fn update_owner_info(
     iox_object_store
         .put_owner_file(encoded)
         .await
-        .context(UpdatingOwnerFile)?;
+        .context(UpdatingOwnerFileSnafu)?;
     Ok(())
 }

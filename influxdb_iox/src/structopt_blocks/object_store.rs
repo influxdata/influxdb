@@ -238,7 +238,7 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
                 ) {
                     (Some(bucket), Some(service_account)) => {
                         Self::new_google_cloud_storage(service_account, bucket)
-                            .context(InvalidGCSConfig)
+                            .context(InvalidGCSConfigSnafu)
                     }
                     (bucket, service_account) => {
                         let mut missing_args = vec![];
@@ -249,7 +249,7 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
                         if service_account.is_none() {
                             missing_args.push("google-service-account");
                         }
-                        MissingObjectStoreConfig {
+                        MissingObjectStoreConfigSnafu {
                             object_store: ObjectStoreType::Google,
                             missing: missing_args.join(", "),
                         }
@@ -277,7 +277,7 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
                             session_token,
                             config.object_store_connection_limit,
                         )
-                        .context(InvalidS3Config)
+                        .context(InvalidS3ConfigSnafu)
                     }
                     (bucket, _, _, _, _, _) => {
                         let mut missing_args = vec![];
@@ -285,7 +285,7 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
                         if bucket.is_none() {
                             missing_args.push("bucket");
                         }
-                        MissingObjectStoreConfig {
+                        MissingObjectStoreConfigSnafu {
                             object_store: ObjectStoreType::S3,
                             missing: missing_args.join(", "),
                         }
@@ -302,7 +302,7 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
                 ) {
                     (Some(bucket), Some(storage_account), Some(access_key)) => {
                         Self::new_microsoft_azure(storage_account, access_key, bucket, false)
-                            .context(InvalidAzureConfig)
+                            .context(InvalidAzureConfigSnafu)
                     }
                     (bucket, storage_account, access_key) => {
                         let mut missing_args = vec![];
@@ -317,7 +317,7 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
                             missing_args.push("azure-storage-access-key");
                         }
 
-                        MissingObjectStoreConfig {
+                        MissingObjectStoreConfigSnafu {
                             object_store: ObjectStoreType::Azure,
                             missing: missing_args.join(", "),
                         }
@@ -329,10 +329,10 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
             Some(ObjectStoreType::File) => match config.database_directory.as_ref() {
                 Some(db_dir) => {
                     fs::create_dir_all(db_dir)
-                        .context(CreatingDatabaseDirectory { path: db_dir })?;
+                        .context(CreatingDatabaseDirectorySnafu { path: db_dir })?;
                     Ok(Self::new_file(&db_dir))
                 }
-                None => MissingObjectStoreConfig {
+                None => MissingObjectStoreConfigSnafu {
                     object_store: ObjectStoreType::File,
                     missing: "data-dir",
                 }
@@ -361,10 +361,13 @@ pub async fn check_object_store(object_store: &ObjectStore) -> Result<(), CheckE
     let mut stream = object_store
         .list(Some(&prefix))
         .await
-        .context(CannotReadObjectStore)?;
+        .context(CannotReadObjectStoreSnafu)?;
 
     // ... but sometimes it fails only if we use the resulting stream, so try that once
-    stream.try_next().await.context(CannotReadObjectStore)?;
+    stream
+        .try_next()
+        .await
+        .context(CannotReadObjectStoreSnafu)?;
 
     // store seems to be readable
     Ok(())

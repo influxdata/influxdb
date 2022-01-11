@@ -43,32 +43,32 @@ impl ParquetFilePath {
         let mut directories = dirs_and_file_name.directories.iter();
         let table_name = directories
             .next()
-            .context(MissingTableName)?
+            .context(MissingTableNameSnafu)?
             .to_string()
             .into();
         let partition_key = directories
             .next()
-            .context(MissingPartitionKey)?
+            .context(MissingPartitionKeySnafu)?
             .to_string()
             .into();
 
-        ensure!(directories.next().is_none(), UnexpectedDirectory);
+        ensure!(directories.next().is_none(), UnexpectedDirectorySnafu);
 
         let file_name = dirs_and_file_name
             .file_name
             .as_ref()
-            .context(MissingChunkId)?
+            .context(MissingChunkIdSnafu)?
             .to_string();
         let mut parts = file_name.split('.');
         let chunk_id = parts
             .next()
-            .context(MissingChunkId)?
+            .context(MissingChunkIdSnafu)?
             .parse::<Uuid>()
-            .context(InvalidChunkId)?
+            .context(InvalidChunkIdSnafu)?
             .into();
-        let ext = parts.next().context(MissingExtension)?;
-        ensure!(ext == "parquet", InvalidExtension { ext });
-        ensure!(parts.next().is_none(), UnexpectedExtension);
+        let ext = parts.next().context(MissingExtensionSnafu)?;
+        ensure!(ext == "parquet", InvalidExtensionSnafu { ext });
+        ensure!(parts.next().is_none(), UnexpectedExtensionSnafu);
 
         Ok(Self {
             table_name,

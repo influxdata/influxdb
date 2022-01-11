@@ -67,33 +67,33 @@ impl TransactionFilePath {
 
         let revision_counter = directories
             .next()
-            .context(MissingRevisionCounter)?
+            .context(MissingRevisionCounterSnafu)?
             .to_string()
             .parse()
-            .context(InvalidRevisionCounter)?;
+            .context(InvalidRevisionCounterSnafu)?;
 
-        ensure!(directories.next().is_none(), UnexpectedDirectory);
+        ensure!(directories.next().is_none(), UnexpectedDirectorySnafu);
 
         let file_name = dirs_and_file_name
             .file_name
             .as_ref()
-            .context(MissingFileName)?
+            .context(MissingFileNameSnafu)?
             .to_string();
         let mut parts = file_name.split('.');
 
         let uuid = parts
             .next()
-            .context(MissingUuid)?
+            .context(MissingUuidSnafu)?
             .parse()
-            .context(InvalidUuid)?;
+            .context(InvalidUuidSnafu)?;
 
         let suffix = parts
             .next()
-            .context(MissingSuffix)?
+            .context(MissingSuffixSnafu)?
             .parse()
-            .context(InvalidSuffix)?;
+            .context(InvalidSuffixSnafu)?;
 
-        ensure!(parts.next().is_none(), UnexpectedExtension);
+        ensure!(parts.next().is_none(), UnexpectedExtensionSnafu);
 
         Ok(Self {
             revision_counter,
@@ -187,7 +187,7 @@ impl FromStr for TransactionFileSuffix {
         match s {
             TRANSACTION_FILE_SUFFIX => Ok(Self::Transaction),
             CHECKPOINT_FILE_SUFFIX => Ok(Self::Checkpoint),
-            suffix => UnknownSuffix { suffix }.fail(),
+            suffix => UnknownSuffixSnafu { suffix }.fail(),
         }
     }
 }

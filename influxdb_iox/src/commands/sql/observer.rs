@@ -63,10 +63,10 @@ impl Observer {
         self.context
             .sql(sql)
             .await
-            .context(Query)?
+            .context(QuerySnafu)?
             .collect()
             .await
-            .context(Query)
+            .context(QuerySnafu)
     }
 
     pub fn help(&self) -> String {
@@ -111,7 +111,7 @@ async fn load_remote_system_tables(
     let db_names = management_client
         .list_database_names()
         .await
-        .context(LoadingDatabaseNames)?;
+        .context(LoadingDatabaseNamesSnafu)?;
 
     println!("Loading system tables from {} databases", db_names.len());
 
@@ -130,11 +130,15 @@ async fn load_remote_system_tables(
                     let mut query_results = client
                         .perform_query(&db_name, &sql)
                         .await
-                        .context(RunningRemoteQuery)?;
+                        .context(RunningRemoteQuerySnafu)?;
 
                     let mut batches = vec![];
 
-                    while let Some(data) = query_results.next().await.context(RunningRemoteQuery)? {
+                    while let Some(data) = query_results
+                        .next()
+                        .await
+                        .context(RunningRemoteQuerySnafu)?
+                    {
                         batches.push(data);
                     }
 

@@ -38,7 +38,7 @@ macro_rules! error_state {
         match &**$s.shared.state.read() {
             DatabaseState::$variant(state, _) => state.clone(),
             state => {
-                return InvalidState {
+                return InvalidStateSnafu {
                     db_name: &$s.shared.config.read().name,
                     state: state.state_code(),
                     transition: $transition,
@@ -201,7 +201,7 @@ impl Database {
         let (uuid, iox_object_store) = {
             let state = self.shared.state.read();
             // Can't release an already released database
-            ensure!(state.is_active(), CannotReleaseUnowned { db_name });
+            ensure!(state.is_active(), CannotReleaseUnownedSnafu { db_name });
 
             let uuid = state.uuid().expect("Active databases have UUIDs");
             let iox_object_store = self
@@ -220,7 +220,7 @@ impl Database {
             &iox_object_store,
         )
         .await
-        .context(CannotRelease { db_name })?;
+        .context(CannotReleaseSnafu { db_name })?;
 
         let mut state = self.shared.state.write();
         let mut state = state.unfreeze(handle);
@@ -333,7 +333,7 @@ impl Database {
 
             // ensure the database is in initialized state (since we
             // hold the freeze handle, nothing could have changed this)
-            let initialized = state.get_initialized().context(RulesNotUpdateable {
+            let initialized = state.get_initialized().context(RulesNotUpdateableSnafu {
                 db_name,
                 state: state_code,
             })?;
@@ -353,7 +353,7 @@ impl Database {
         rules_to_persist
             .persist(&iox_object_store)
             .await
-            .context(CannotPersistUpdatedRules)?;
+            .context(CannotPersistUpdatedRulesSnafu)?;
 
         let mut state = self.shared.state.write();
 
@@ -438,7 +438,7 @@ impl Database {
                 catalog_loaded.iox_object_store()
             }
             state => {
-                return InvalidStateForWipePreservedCatalog {
+                return InvalidStateForWipePreservedCatalogSnafu {
                     db_name,
                     state: state.state_code(),
                     expected: "CatalogLoadError, WriteBufferCreationError, ReplayError",
@@ -460,7 +460,7 @@ impl Database {
                 PreservedCatalog::wipe(&iox_object_store)
                     .await
                     .map_err(Box::new)
-                    .context(WipePreservedCatalog { db_name })?;
+                    .context(WipePreservedCatalogSnafu { db_name })?;
 
                 {
                     let mut state = shared.state.write();
@@ -511,7 +511,7 @@ impl Database {
             // the catalog if it is in ended up in an error loading
             let state = self.shared.state.read();
             if !force && !matches!(&**state, DatabaseState::CatalogLoadError { .. }) {
-                return InvalidStateForRebuild {
+                return InvalidStateForRebuildSnafu {
                     db_name,
                     state: state.state_code(),
                     expected: "(CatalogLoadError)",
@@ -526,11 +526,13 @@ impl Database {
         });
 
         let shared = Arc::clone(&self.shared);
-        let iox_object_store = self.iox_object_store().context(InvalidStateForRebuild {
-            db_name: &db_name,
-            state: shared.state.read().state_code(),
-            expected: "Object store initialized",
-        })?;
+        let iox_object_store = self
+            .iox_object_store()
+            .context(InvalidStateForRebuildSnafu {
+                db_name: &db_name,
+                state: shared.state.read().state_code(),
+                expected: "Object store initialized",
+            })?;
 
         tokio::spawn(
             async move {
@@ -560,7 +562,7 @@ impl Database {
                     let state = shared.state.read();
                     ensure!(
                         matches!(&**state, DatabaseState::Known(_)),
-                        UnexpectedTransitionForRebuild {
+                        UnexpectedTransitionForRebuildSnafu {
                             db_name: &db_name,
                             state: state.state_code()
                         }
@@ -573,7 +575,7 @@ impl Database {
                 PreservedCatalog::wipe(iox_object_store.as_ref())
                     .await
                     .map_err(Box::new)
-                    .context(WipePreservedCatalog { db_name: &db_name })?;
+                    .context(WipePreservedCatalogSnafu { db_name: &db_name })?;
 
                 let config = PreservedCatalogConfig::new(
                     Arc::clone(&iox_object_store),
@@ -583,7 +585,7 @@ impl Database {
                 parquet_catalog::rebuild::rebuild_catalog(config, false)
                     .await
                     .map_err(Box::new)
-                    .context(RebuildPreservedCatalog { db_name: &db_name })?;
+                    .context(RebuildPreservedCatalogSnafu { db_name: &db_name })?;
 
                 // Double check the state hasn't changed (we hold the
                 // freeze handle to make sure it does not)

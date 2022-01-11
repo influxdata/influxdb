@@ -85,14 +85,14 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
     for col in &table_batch.columns {
         ensure!(
             columns.insert(col.column_name.as_str()),
-            DuplicateColumnName {
+            DuplicateColumnNameSnafu {
                 column: &col.column_name
             }
         );
     }
 
     // Batch must contain a time column
-    ensure!(columns.contains(TIME_COLUMN_NAME), MissingTime);
+    ensure!(columns.contains(TIME_COLUMN_NAME), MissingTimeSnafu);
 
     let mut writer = Writer::new(batch, to_insert);
     for column in &table_batch.columns {
@@ -121,9 +121,13 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
             ),
             InfluxColumnType::Tag => {
                 if let Some(interned) = values.interned_string_values.as_ref() {
-                    let dictionary = interned.dictionary.as_ref().context(MissingDictionary {
-                        column: &column.column_name,
-                    })?;
+                    let dictionary =
+                        interned
+                            .dictionary
+                            .as_ref()
+                            .context(MissingDictionarySnafu {
+                                column: &column.column_name,
+                            })?;
                     validate_packed_string(&column.column_name, dictionary)?;
                     writer.write_tag_dict(
                         &column.column_name,
@@ -148,9 +152,13 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
             }
             InfluxColumnType::Field(InfluxFieldType::String) => {
                 if let Some(interned) = values.interned_string_values.as_ref() {
-                    let dictionary = interned.dictionary.as_ref().context(MissingDictionary {
-                        column: &column.column_name,
-                    })?;
+                    let dictionary =
+                        interned
+                            .dictionary
+                            .as_ref()
+                            .context(MissingDictionarySnafu {
+                                column: &column.column_name,
+                            })?;
 
                     validate_packed_string(&column.column_name, dictionary)?;
                     writer.write_string(
@@ -184,7 +192,7 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
                 RepeatLastElement::new(values.bool_values.iter().cloned()),
             ),
             InfluxColumnType::Timestamp => {
-                ensure!(valid_mask.is_none(), NullTime);
+                ensure!(valid_mask.is_none(), NullTimeSnafu);
                 writer.write_time(
                     &column.column_name,
                     RepeatLastElement::new(values.i64_values.iter().cloned()),
@@ -192,7 +200,7 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
             }
             InfluxColumnType::IOx(_) => unimplemented!(),
         }
-        .context(Write {
+        .context(WriteSnafu {
             column: &column.column_name,
         })?;
     }
@@ -289,7 +297,7 @@ fn validate_packed_string(column: &str, strings: &PackedStrings) -> Result<()> {
     for (index, offset) in strings.offsets.iter().enumerate().skip(1) {
         let offset = *offset as usize;
         if offset < last_offset || !strings.values.is_char_boundary(offset) {
-            return InvalidOffset {
+            return InvalidOffsetSnafu {
                 column,
                 offset,
                 index,
@@ -356,7 +364,7 @@ fn compute_valid_mask(null_mask: &[u8], to_insert: usize) -> Option<Vec<u8>> {
 }
 
 fn pb_column_type(col: &PbColumn) -> Result<InfluxColumnType> {
-    let values = col.values.as_ref().context(EmptyColumn {
+    let values = col.values.as_ref().context(EmptyColumnSnafu {
         column: &col.column_name,
     })?;
 
@@ -371,7 +379,7 @@ fn pb_column_type(col: &PbColumn) -> Result<InfluxColumnType> {
         {
             Ok(InfluxColumnType::Timestamp)
         }
-        _ => InvalidType {
+        _ => InvalidTypeSnafu {
             column: &col.column_name,
         }
         .fail(),
@@ -382,7 +390,7 @@ fn pb_value_type(column: &str, values: &PbValues) -> Result<InfluxFieldType> {
     let mut ret = None;
     let mut set_type = |field: InfluxFieldType| -> Result<()> {
         match ret {
-            Some(_) => MultipleValues { column }.fail(),
+            Some(_) => MultipleValuesSnafu { column }.fail(),
             None => {
                 ret = Some(field);
                 Ok(())
@@ -418,7 +426,7 @@ fn pb_value_type(column: &str, values: &PbValues) -> Result<InfluxFieldType> {
         set_type(InfluxFieldType::Boolean)?;
     }
 
-    ret.context(EmptyColumn { column })
+    ret.context(EmptyColumnSnafu { column })
 }
 
 #[cfg(test)]

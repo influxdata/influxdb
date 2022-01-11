@@ -244,7 +244,7 @@ impl std::fmt::Display for CatalogChunk {
 
 macro_rules! unexpected_state {
     ($SELF: expr, $OP: expr, $EXPECTED: expr, $STATE: expr) => {
-        InternalChunkState {
+        InternalChunkStateSnafu {
             chunk: $SELF.addr.clone(),
             operation: $OP,
             expected: $EXPECTED,
@@ -823,7 +823,7 @@ impl CatalogChunk {
                 match &representation {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
                         // Should always be in RUB once persisted
-                        InternalChunkState {
+                        InternalChunkStateSnafu {
                             chunk: self.addr.clone(),
                             operation: "setting object store",
                             expected: "Frozen with ReadBuffer",
@@ -860,7 +860,7 @@ impl CatalogChunk {
     pub fn set_loading_to_read_buffer(&mut self, registration: &TaskRegistration) -> Result<()> {
         match &mut self.stage {
             ChunkStage::Persisted { read_buffer, .. } => match read_buffer {
-                Some(_) => InternalChunkState {
+                Some(_) => InternalChunkStateSnafu {
                     chunk: self.addr.clone(),
                     operation: "setting loading",
                     expected: "Persisted without ReadBuffer",
@@ -904,7 +904,7 @@ impl CatalogChunk {
                 } else {
                     // TODO: do we really need to error here or should unloading an unloaded chunk
                     // be a no-op?
-                    InternalChunkState {
+                    InternalChunkStateSnafu {
                         chunk: self.addr.clone(),
                         operation: "setting unload",
                         expected: "Persisted with ReadBuffer",

@@ -277,7 +277,7 @@ impl InfluxRpcPlanner {
                 let pred_result = chunk
                     .apply_predicate_to_metadata(&predicate)
                     .map_err(|e| Box::new(e) as _)
-                    .context(CheckingChunkPredicate {
+                    .context(CheckingChunkPredicateSnafu {
                         chunk_id: chunk.id(),
                     })?;
 
@@ -314,9 +314,11 @@ impl InfluxRpcPlanner {
 
         // Now build plans for full-plan tables
         for (table_name, chunks) in full_plan_table_chunks {
-            let schema = database.table_schema(&table_name).context(TableRemoved {
-                table_name: &table_name,
-            })?;
+            let schema = database
+                .table_schema(&table_name)
+                .context(TableRemovedSnafu {
+                    table_name: &table_name,
+                })?;
             if let Some(plan) =
                 self.table_name_plan(&table_name, schema, &mut normalizer, chunks)?
             {
@@ -324,7 +326,7 @@ impl InfluxRpcPlanner {
             }
         }
 
-        builder.build().context(CreatingStringSet)
+        builder.build().context(CreatingStringSetSnafu)
     }
 
     /// Returns a set of plans that produces the names of "tag"
@@ -363,7 +365,7 @@ impl InfluxRpcPlanner {
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
                 .map_err(|e| Box::new(e) as _)
-                .context(CheckingChunkPredicate {
+                .context(CheckingChunkPredicateSnafu {
                     chunk_id: chunk.id(),
                 })?;
 
@@ -386,7 +388,7 @@ impl InfluxRpcPlanner {
                 let maybe_names = chunk
                     .column_names(&predicate, selection)
                     .map_err(|e| Box::new(e) as _)
-                    .context(FindingColumnNames)?;
+                    .context(FindingColumnNamesSnafu)?;
 
                 match maybe_names {
                     Some(mut names) => {
@@ -432,9 +434,11 @@ impl InfluxRpcPlanner {
             // were already known to have data (based on the contents of known_columns)
 
             for (table_name, chunks) in need_full_plans.into_iter() {
-                let schema = database.table_schema(&table_name).context(TableRemoved {
-                    table_name: &table_name,
-                })?;
+                let schema = database
+                    .table_schema(&table_name)
+                    .context(TableRemovedSnafu {
+                        table_name: &table_name,
+                    })?;
                 let plan = self.tag_keys_plan(&table_name, schema, &mut normalizer, chunks)?;
 
                 if let Some(plan) = plan {
@@ -447,7 +451,7 @@ impl InfluxRpcPlanner {
         builder
             .append_other(known_columns.into())
             .build()
-            .context(CreatingStringSet)
+            .context(CreatingStringSetSnafu)
     }
 
     /// Returns a plan which finds the distinct, non-null tag values
@@ -491,7 +495,7 @@ impl InfluxRpcPlanner {
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
                 .map_err(|e| Box::new(e) as _)
-                .context(CheckingChunkPredicate {
+                .context(CheckingChunkPredicateSnafu {
                     chunk_id: chunk.id(),
                 })?;
 
@@ -513,7 +517,7 @@ impl InfluxRpcPlanner {
             let (influx_column_type, field) = schema.field(idx);
             ensure!(
                 matches!(influx_column_type, Some(InfluxColumnType::Tag)),
-                InvalidTagColumn {
+                InvalidTagColumnSnafu {
                     tag_name,
                     influx_column_type,
                 }
@@ -522,7 +526,7 @@ impl InfluxRpcPlanner {
                 influx_column_type
                     .unwrap()
                     .valid_arrow_type(field.data_type()),
-                InternalInvalidTagType {
+                InternalInvalidTagTypeSnafu {
                     tag_name,
                     data_type: field.data_type().clone(),
                 }
@@ -533,7 +537,7 @@ impl InfluxRpcPlanner {
                 let maybe_values = chunk
                     .column_values(tag_name, &predicate)
                     .map_err(|e| Box::new(e) as _)
-                    .context(FindingColumnValues)?;
+                    .context(FindingColumnValuesSnafu)?;
 
                 match maybe_values {
                     Some(mut names) => {
@@ -575,9 +579,11 @@ impl InfluxRpcPlanner {
         // time in `known_columns`, and some tables in chunks that we
         // need to run a plan to find what values pass the predicate.
         for (table_name, chunks) in need_full_plans.into_iter() {
-            let schema = database.table_schema(&table_name).context(TableRemoved {
-                table_name: &table_name,
-            })?;
+            let schema = database
+                .table_schema(&table_name)
+                .context(TableRemovedSnafu {
+                    table_name: &table_name,
+                })?;
             let scan_and_filter =
                 self.scan_and_filter(&table_name, schema, &mut normalizer, chunks)?;
 
@@ -601,11 +607,11 @@ impl InfluxRpcPlanner {
                 //          Scan
                 let plan = plan_builder
                     .project(select_exprs.clone())
-                    .context(BuildingPlan)?
+                    .context(BuildingPlanSnafu)?
                     .filter(tag_name_is_not_null)
-                    .context(BuildingPlan)?
+                    .context(BuildingPlanSnafu)?
                     .build()
-                    .context(BuildingPlan)?;
+                    .context(BuildingPlanSnafu)?;
 
                 builder = builder.append_other(plan.into());
             }
@@ -615,7 +621,7 @@ impl InfluxRpcPlanner {
         builder
             .append_other(known_values.into())
             .build()
-            .context(CreatingStringSet)
+            .context(CreatingStringSetSnafu)
     }
 
     /// Returns a plan that produces a list of columns and their
@@ -641,9 +647,11 @@ impl InfluxRpcPlanner {
 
         let mut field_list_plan = FieldListPlan::new();
         for (table_name, chunks) in table_chunks {
-            let schema = database.table_schema(&table_name).context(TableRemoved {
-                table_name: &table_name,
-            })?;
+            let schema = database
+                .table_schema(&table_name)
+                .context(TableRemovedSnafu {
+                    table_name: &table_name,
+                })?;
             if let Some(plan) =
                 self.field_columns_plan(&table_name, schema, &mut normalizer, chunks)?
             {
@@ -688,9 +696,11 @@ impl InfluxRpcPlanner {
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
         for (table_name, chunks) in table_chunks {
-            let schema = database.table_schema(&table_name).context(TableRemoved {
-                table_name: &table_name,
-            })?;
+            let schema = database
+                .table_schema(&table_name)
+                .context(TableRemovedSnafu {
+                    table_name: &table_name,
+                })?;
 
             let ss_plan = self.read_filter_plan(table_name, schema, &mut normalizer, chunks)?;
             // If we have to do real work, add it to the list of plans
@@ -743,9 +753,11 @@ impl InfluxRpcPlanner {
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
         for (table_name, chunks) in table_chunks {
-            let schema = database.table_schema(&table_name).context(TableRemoved {
-                table_name: &table_name,
-            })?;
+            let schema = database
+                .table_schema(&table_name)
+                .context(TableRemovedSnafu {
+                    table_name: &table_name,
+                })?;
             let ss_plan = match agg {
                 Aggregate::None => {
                     self.read_filter_plan(table_name, Arc::clone(&schema), &mut normalizer, chunks)?
@@ -800,9 +812,11 @@ impl InfluxRpcPlanner {
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
         for (table_name, chunks) in table_chunks {
-            let schema = database.table_schema(&table_name).context(TableRemoved {
-                table_name: &table_name,
-            })?;
+            let schema = database
+                .table_schema(&table_name)
+                .context(TableRemovedSnafu {
+                    table_name: &table_name,
+                })?;
             let ss_plan = self.read_window_aggregate_plan(
                 table_name,
                 schema,
@@ -837,7 +851,7 @@ impl InfluxRpcPlanner {
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
                 .map_err(|e| Box::new(e) as _)
-                .context(CheckingChunkPredicate {
+                .context(CheckingChunkPredicateSnafu {
                     chunk_id: chunk.id(),
                 })?;
 
@@ -902,9 +916,9 @@ impl InfluxRpcPlanner {
 
         let plan = plan_builder
             .project(select_exprs)
-            .context(BuildingPlan)?
+            .context(BuildingPlanSnafu)?
             .build()
-            .context(BuildingPlan)?;
+            .context(BuildingPlanSnafu)?;
 
         // And finally pivot the plan
         let plan = make_schema_pivot(plan);
@@ -963,9 +977,9 @@ impl InfluxRpcPlanner {
 
         let plan = plan_builder
             .project(select_exprs)
-            .context(BuildingPlan)?
+            .context(BuildingPlanSnafu)?
             .build()
-            .context(BuildingPlan)?;
+            .context(BuildingPlanSnafu)?;
 
         Ok(Some(plan))
     }
@@ -1017,9 +1031,9 @@ impl InfluxRpcPlanner {
 
         let plan = plan_builder
             .project(select_exprs)
-            .context(BuildingPlan)?
+            .context(BuildingPlanSnafu)?
             .build()
-            .context(BuildingPlan)?;
+            .context(BuildingPlanSnafu)?;
 
         // Add the final node that outputs the table name or not, depending
         let plan = make_non_null_checker(table_name, plan);
@@ -1070,7 +1084,7 @@ impl InfluxRpcPlanner {
         // Order by
         let plan_builder = plan_builder
             .sort(tags_and_timestamp)
-            .context(BuildingPlan)?;
+            .context(BuildingPlanSnafu)?;
 
         // Select away anything that isn't in the influx data model
         let tags_fields_and_timestamps: Vec<Expr> = schema
@@ -1082,9 +1096,9 @@ impl InfluxRpcPlanner {
 
         let plan_builder = plan_builder
             .project(tags_fields_and_timestamps)
-            .context(BuildingPlan)?;
+            .context(BuildingPlanSnafu)?;
 
-        let plan = plan_builder.build().context(BuildingPlan)?;
+        let plan = plan_builder.build().context(BuildingPlanSnafu)?;
 
         let tag_columns = schema
             .tags_iter()
@@ -1188,7 +1202,7 @@ impl InfluxRpcPlanner {
 
         let plan_builder = plan_builder
             .aggregate(group_exprs, agg_exprs)
-            .context(BuildingPlan)?;
+            .context(BuildingPlanSnafu)?;
 
         // Reorganize the output so it is ordered and sorted on tag columns
 
@@ -1209,16 +1223,16 @@ impl InfluxRpcPlanner {
 
             plan_builder
                 .project(project_exprs)
-                .context(BuildingPlan)?
+                .context(BuildingPlanSnafu)?
                 .sort(sort_exprs)
-                .context(BuildingPlan)?
+                .context(BuildingPlanSnafu)?
         } else {
             plan_builder
         };
 
         let plan_builder = cast_aggregates(plan_builder, agg, &field_columns)?;
 
-        let plan = plan_builder.build().context(BuildingPlan)?;
+        let plan = plan_builder.build().context(BuildingPlanSnafu)?;
 
         let tag_columns = tag_columns.iter().map(|s| Arc::from(*s)).collect();
         let ss_plan = SeriesSetPlan::new(Arc::from(table_name), plan, tag_columns, field_columns);
@@ -1303,14 +1317,14 @@ impl InfluxRpcPlanner {
 
         let plan_builder = plan_builder
             .aggregate(group_exprs, agg_exprs)
-            .context(BuildingPlan)?
+            .context(BuildingPlanSnafu)?
             .sort(sort_exprs)
-            .context(BuildingPlan)?;
+            .context(BuildingPlanSnafu)?;
 
         let plan_builder = cast_aggregates(plan_builder, agg, &field_columns)?;
 
         // and finally create the plan
-        let plan = plan_builder.build().context(BuildingPlan)?;
+        let plan = plan_builder.build().context(BuildingPlanSnafu)?;
 
         let tag_columns = schema
             .tags_iter()
@@ -1378,11 +1392,13 @@ impl InfluxRpcPlanner {
             builder = builder.add_chunk(chunk);
         }
 
-        let provider = builder.build().context(CreatingProvider { table_name })?;
+        let provider = builder
+            .build()
+            .context(CreatingProviderSnafu { table_name })?;
         let schema = provider.iox_schema();
 
         let mut plan_builder = LogicalPlanBuilder::scan(table_name, Arc::new(provider), projection)
-            .context(BuildingPlan)?;
+            .context(BuildingPlanSnafu)?;
 
         // Use a filter node to add general predicates + timestamp
         // range, if any
@@ -1392,11 +1408,13 @@ impl InfluxRpcPlanner {
             let mut rewriter = MissingColumnsToNull::new(&schema);
             let filter_expr = filter_expr
                 .rewrite(&mut rewriter)
-                .context(RewritingFilterPredicate { table_name })?;
+                .context(RewritingFilterPredicateSnafu { table_name })?;
 
             trace!(?filter_expr, "Rewritten filter_expr");
 
-            plan_builder = plan_builder.filter(filter_expr).context(BuildingPlan)?;
+            plan_builder = plan_builder
+                .filter(filter_expr)
+                .context(BuildingPlanSnafu)?;
         }
 
         Ok(Some(TableScanAndFilter {
@@ -1460,7 +1478,7 @@ fn cast_aggregates(
                 // CAST(field_name as Int64) as field_name
                 col(field_name)
                     .cast_to(&DataType::Int64, schema)
-                    .context(CastingAggregates { agg, field_name })?
+                    .context(CastingAggregatesSnafu { agg, field_name })?
                     .alias(field_name)
             } else {
                 col(field_name)
@@ -1469,7 +1487,7 @@ fn cast_aggregates(
         })
         .collect::<Result<Vec<_>>>()?;
 
-    plan_builder.project(cast_exprs).context(BuildingPlan)
+    plan_builder.project(cast_exprs).context(BuildingPlanSnafu)
 }
 
 struct TableScanAndFilter {
@@ -1554,7 +1572,7 @@ impl AggExprs {
             Aggregate::First | Aggregate::Last | Aggregate::Min | Aggregate::Max => {
                 Self::selector_aggregates(agg, schema, predicate)
             }
-            Aggregate::None => InternalUnexpectedNoneAggregate.fail(),
+            Aggregate::None => InternalUnexpectedNoneAggregateSnafu.fail(),
         }
     }
 
@@ -1572,7 +1590,7 @@ impl AggExprs {
             Aggregate::First | Aggregate::Last | Aggregate::Min | Aggregate::Max => {
                 Self::selector_aggregates(agg, schema, predicate)
             }
-            Aggregate::None => InternalUnexpectedNoneAggregate.fail(),
+            Aggregate::None => InternalUnexpectedNoneAggregateSnafu.fail(),
         }
     }
 
@@ -1705,7 +1723,7 @@ fn make_agg_expr(agg: Aggregate, field_expr: FieldExpr<'_>) -> Result<Expr> {
 
     let field_name = field_expr.name;
     agg.to_datafusion_expr(field_expr.expr)
-        .context(CreatingAggregates)
+        .context(CreatingAggregatesSnafu)
         .map(|agg| agg.alias(field_name))
 }
 
@@ -1735,7 +1753,7 @@ fn make_selector_expr<'a>(
         Aggregate::Last => selector_last(field.datatype, output),
         Aggregate::Min => selector_min(field.datatype, output),
         Aggregate::Max => selector_max(field.datatype, output),
-        _ => return InternalAggregateNotSelector { agg }.fail(),
+        _ => return InternalAggregateNotSelectorSnafu { agg }.fail(),
     };
 
     Ok(uda

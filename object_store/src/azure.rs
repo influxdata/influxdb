@@ -26,22 +26,22 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("Unable to DELETE data. Location: {}, Error: {}", location, source,))]
+    #[snafu(display("Unable to DELETE data. Location: {}, Error: {}", path, source,))]
     Delete {
         source: Box<dyn std::error::Error + Send + Sync>,
-        location: String,
+        path: String,
     },
 
-    #[snafu(display("Unable to GET data. Location: {}, Error: {}", location, source,))]
+    #[snafu(display("Unable to GET data. Location: {}, Error: {}", path, source,))]
     Get {
         source: Box<dyn std::error::Error + Send + Sync>,
-        location: String,
+        path: String,
     },
 
-    #[snafu(display("Unable to PUT data. Location: {}, Error: {}", location, source,))]
+    #[snafu(display("Unable to PUT data. Location: {}, Error: {}", path, source,))]
     Put {
         source: Box<dyn std::error::Error + Send + Sync>,
-        location: String,
+        path: String,
     },
 
     #[snafu(display("Unable to list data. Error: {}", source))]
@@ -87,8 +87,8 @@ impl ObjectStoreApi for MicrosoftAzure {
             .put_block_blob(bytes)
             .execute()
             .await
-            .context(Put {
-                location: location.to_owned(),
+            .context(PutSnafu {
+                path: location.to_owned(),
             })?;
 
         Ok(())
@@ -104,8 +104,8 @@ impl ObjectStoreApi for MicrosoftAzure {
                 .execute()
                 .await
                 .map(|blob| blob.data)
-                .context(Get {
-                    location: location.to_owned(),
+                .context(GetSnafu {
+                    path: location.to_owned(),
                 })
         }
         .into_stream()
@@ -122,8 +122,8 @@ impl ObjectStoreApi for MicrosoftAzure {
             .delete_snapshots_method(DeleteSnapshotsMethod::Include)
             .execute()
             .await
-            .context(Delete {
-                location: location.to_owned(),
+            .context(DeleteSnafu {
+                path: location.to_owned(),
             })?;
 
         Ok(())
@@ -160,7 +160,7 @@ impl ObjectStoreApi for MicrosoftAzure {
                 ListState::Start => {}
             }
 
-            let resp = match request.execute().await.context(List) {
+            let resp = match request.execute().await.context(ListSnafu) {
                 Ok(resp) => resp,
                 Err(err) => return Some((Err(err), state)),
             };
@@ -195,7 +195,7 @@ impl ObjectStoreApi for MicrosoftAzure {
         request = request.delimiter(Delimiter::new(DELIMITER));
         request = request.prefix(&*prefix_raw);
 
-        let resp = request.execute().await.context(List)?;
+        let resp = request.execute().await.context(ListSnafu)?;
 
         let next_token = resp.next_marker.as_ref().map(|m| m.as_str().to_string());
 

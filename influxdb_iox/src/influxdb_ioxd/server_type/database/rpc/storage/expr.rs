@@ -179,7 +179,7 @@ impl AddRpcNode for PredicateBuilder {
             None => Ok(self),
             Some(rpc_predicate) => {
                 match rpc_predicate.root {
-                    None => EmptyPredicateNode {}.fail(),
+                    None => EmptyPredicateNodeSnafu {}.fail(),
                     Some(node) => {
                         // normalize so the rest of the passes can deal with fewer cases
                         let node = normalize_node(node)?;
@@ -229,7 +229,7 @@ fn normalize_node(node: RPCNode) -> Result<RPCNode> {
         // which seems some sort of wrapper -- unwrap this case
         (None, 1) => Ok(normalized_children.pop().unwrap()),
         // It is not clear what None means without exactly one child..
-        (None, _) => EmptyPredicateValue {}.fail(),
+        (None, _) => EmptyPredicateValueSnafu {}.fail(),
         (Some(value), _) => {
             // performance any other normalizations needed
             Ok(RPCNode {
@@ -425,7 +425,7 @@ fn make_tag_name(tag_name: Vec<u8>) -> Result<String> {
         // convert to "_field" which is handled specially in grpc planner
         Ok(FIELD_COLUMN_NAME.to_string())
     } else {
-        String::from_utf8(tag_name).context(ConvertingTagName)
+        String::from_utf8(tag_name).context(ConvertingTagNameSnafu)
     }
 }
 
@@ -435,7 +435,7 @@ fn build_node(value: RPCValue, inputs: Vec<Expr>) -> Result<Expr> {
     let can_have_children = matches!(&value, RPCValue::Logical(_) | RPCValue::Comparison(_));
 
     if !can_have_children && !inputs.is_empty() {
-        return UnexpectedChildren { value }.fail();
+        return UnexpectedChildrenSnafu { value }.fail();
     }
 
     match value {
@@ -459,7 +459,7 @@ fn build_logical_node(logical: i32, inputs: Vec<Expr>) -> Result<Expr> {
     match logical_enum {
         Some(RPCLogical::And) => build_binary_expr(Operator::And, inputs),
         Some(RPCLogical::Or) => build_binary_expr(Operator::Or, inputs),
-        None => UnknownLogicalNode { logical }.fail(),
+        None => UnknownLogicalNodeSnafu { logical }.fail(),
     }
 }
 
@@ -470,14 +470,14 @@ fn build_comparison_node(comparison: i32, inputs: Vec<Expr>) -> Result<Expr> {
     match comparison_enum {
         Some(RPCComparison::Equal) => build_binary_expr(Operator::Eq, inputs),
         Some(RPCComparison::NotEqual) => build_binary_expr(Operator::NotEq, inputs),
-        Some(RPCComparison::StartsWith) => StartsWithNotSupported {}.fail(),
+        Some(RPCComparison::StartsWith) => StartsWithNotSupportedSnafu {}.fail(),
         Some(RPCComparison::Regex) => build_regex_match_expr(true, inputs),
         Some(RPCComparison::NotRegex) => build_regex_match_expr(false, inputs),
         Some(RPCComparison::Lt) => build_binary_expr(Operator::Lt, inputs),
         Some(RPCComparison::Lte) => build_binary_expr(Operator::LtEq, inputs),
         Some(RPCComparison::Gt) => build_binary_expr(Operator::Gt, inputs),
         Some(RPCComparison::Gte) => build_binary_expr(Operator::GtEq, inputs),
-        None => UnknownComparisonNode { comparison }.fail(),
+        None => UnknownComparisonNodeSnafu { comparison }.fail(),
     }
 }
 
@@ -493,7 +493,7 @@ fn build_binary_expr(op: Operator, inputs: Vec<Expr>) -> Result<Expr> {
             op,
             inputs[1].take().unwrap(),
         )),
-        _ => UnsupportedNumberOfChildren { op, num_children }.fail(),
+        _ => UnsupportedNumberOfChildrenSnafu { op, num_children }.fail(),
     }
 }
 
@@ -504,14 +504,14 @@ fn build_regex_match_expr(matches: bool, mut inputs: Vec<Expr>) -> Result<Expr> 
     match num_children {
         2 => {
             let pattern = if let Expr::Literal(ScalarValue::Utf8(pattern)) = inputs.remove(1) {
-                pattern.context(RegExpPatternInvalid)?
+                pattern.context(RegExpPatternInvalidSnafu)?
             } else {
-                return InternalInvalidRegexExprReference.fail();
+                return InternalInvalidRegexExprReferenceSnafu.fail();
             };
 
             Ok(regex_match_expr(inputs.remove(0), pattern, matches))
         }
-        _ => InternalInvalidRegexExprChildren { num_children }.fail(),
+        _ => InternalInvalidRegexExprChildrenSnafu { num_children }.fail(),
     }
 }
 
@@ -523,7 +523,7 @@ pub fn make_read_group_aggregate(
     // validate Group setting
     match group {
         // Group:None is invalid if grouping keys are specified
-        RPCGroup::None if !group_keys.is_empty() => InvalidGroupNone {
+        RPCGroup::None if !group_keys.is_empty() => InvalidGroupNoneSnafu {
             num_group_keys: group_keys.len(),
         }
         .fail(),
@@ -546,7 +546,7 @@ pub fn make_read_window_aggregate(
 ) -> Result<GroupByAndAggregate> {
     // only support single aggregate for now
     if aggregates.len() != 1 {
-        return AggregateNotSingleton { aggregates }.fail();
+        return AggregateNotSingletonSnafu { aggregates }.fail();
     }
     let agg = convert_aggregate(aggregates.into_iter().next())?;
 
@@ -561,7 +561,7 @@ pub fn make_read_window_aggregate(
     // nanosecond values, then the Window will be ignored
 
     let (every, offset) = match (window, window_every, offset) {
-        (None, 0, 0) => return EmptyWindow {}.fail(),
+        (None, 0, 0) => return EmptyWindowSnafu {}.fail(),
         (Some(window), 0, 0) => (
             convert_duration(window.every, DurationValidation::ForbidZero).map_err(|e| {
                 Error::InvalidWindowEveryDuration {
@@ -638,7 +638,7 @@ fn convert_aggregate(aggregate: Option<RPCAggregate>) -> Result<QueryAggregate> 
         Some(RPCAggregateType::First) => Ok(QueryAggregate::First),
         Some(RPCAggregateType::Last) => Ok(QueryAggregate::Last),
         Some(RPCAggregateType::Mean) => Ok(QueryAggregate::Mean),
-        None => UnknownAggregate { aggregate_type }.fail(),
+        None => UnknownAggregateSnafu { aggregate_type }.fail(),
     }
 }
 

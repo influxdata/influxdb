@@ -10,5 +10,5 @@ arrow = { version = "6.0", features = ["prettyprint"] }
 hashbrown = "0.11"
 indexmap = { version = "1.7", features = ["std"] }
 itertools = "0.10.1"
-snafu = "0.6"
+snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}

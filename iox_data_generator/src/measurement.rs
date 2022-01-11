@@ -115,7 +115,7 @@ impl MeasurementGenerator {
                 "measurement": {"id": measurement_id},
             }),
         )
-        .context(CouldNotCreateMeasurementName)?;
+        .context(CouldNotCreateMeasurementNameSnafu)?;
 
         let fields = spec
             .fields
@@ -129,7 +129,7 @@ impl MeasurementGenerator {
                 FieldGeneratorImpl::from_spec(field_spec, data, execution_start_time)
             })
             .collect::<crate::field::Result<Vec<_>>>()
-            .context(CouldNotCreateFieldGeneratorSets {
+            .context(CouldNotCreateFieldGeneratorSetsSnafu {
                 name: &measurement_name,
             })?
             .into_iter()
@@ -143,14 +143,14 @@ impl MeasurementGenerator {
         });
 
         let mut tag_pairs = TagPair::pairs_from_specs(&spec.tag_pairs, template_data)
-            .context(CouldNotCreateMeasurementTagPairs)?;
+            .context(CouldNotCreateMeasurementTagPairsSnafu)?;
         for t in agent_tag_pairs {
             tag_pairs.push(Arc::clone(t));
         }
 
         let generated_tag_sets = match &spec.tag_set {
             Some(t) => Arc::clone(generated_tag_sets.sets_for(t).context(
-                GeneratedTagSetNotFound {
+                GeneratedTagSetNotFoundSnafu {
                     tag_set: t,
                     measurement: &measurement_name,
                 },

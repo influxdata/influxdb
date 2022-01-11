@@ -11,7 +11,7 @@ generated_types = { path = "../generated_types" }
 hashbrown = "0.11"
 mutable_batch = { path = "../mutable_batch" }
 schema = { path = "../schema" }
-snafu = "0.6"
+snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

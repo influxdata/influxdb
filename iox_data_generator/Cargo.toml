@@ -20,7 +20,7 @@ rand = { version = "0.8.3", features = ["small_rng"] }
 regex = "1.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.72"
-snafu = "0.6.8"
+snafu = "0.7"
 tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 toml = "0.5.6"
 tracing = "0.1"

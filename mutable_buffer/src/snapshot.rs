@@ -71,7 +71,7 @@ impl ChunkSnapshot {
                 let projection = self
                     .schema
                     .compute_select_indicies(columns)
-                    .context(SelectColumns)?;
+                    .context(SelectColumnsSnafu)?;
                 let schema = self.schema.select_by_indices(&projection).into();
                 let columns = projection
                     .into_iter()

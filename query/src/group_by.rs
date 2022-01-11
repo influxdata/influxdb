@@ -84,10 +84,10 @@ impl Aggregate {
             Self::Count => Ok(count(input)),
             Self::Min => Ok(min(input)),
             Self::Max => Ok(max(input)),
-            Self::First => AggregateNotSupported { agg: "First" }.fail(),
-            Self::Last => AggregateNotSupported { agg: "Last" }.fail(),
+            Self::First => AggregateNotSupportedSnafu { agg: "First" }.fail(),
+            Self::Last => AggregateNotSupportedSnafu { agg: "Last" }.fail(),
             Self::Mean => Ok(avg(input)),
-            Self::None => AggregateNotSupported { agg: "None" }.fail(),
+            Self::None => AggregateNotSupportedSnafu { agg: "None" }.fail(),
         }
     }
 }

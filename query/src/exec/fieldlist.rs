@@ -75,12 +75,11 @@ impl IntoFieldList for Vec<RecordBatch> {
         // seen
         let arrow_schema = self[0].schema();
 
-        let time_column_index =
-            arrow_schema
-                .index_of(TIME_COLUMN_NAME)
-                .with_context(|| InternalNoTimeColumn {
-                    schema: Arc::clone(&arrow_schema),
-                })?;
+        let time_column_index = arrow_schema.index_of(TIME_COLUMN_NAME).with_context(|_| {
+            InternalNoTimeColumnSnafu {
+                schema: Arc::clone(&arrow_schema),
+            }
+        })?;
 
         // key: fieldname, value: highest value of time column we have seen
         let mut field_times = BTreeMap::new();
@@ -159,7 +158,7 @@ impl IntoFieldList for Vec<FieldList> {
             if let Some(existing_field) = field_map.get_mut(&new_field.name) {
                 ensure!(
                     existing_field.data_type == new_field.data_type,
-                    InconsistentFieldType {
+                    InconsistentFieldTypeSnafu {
                         field_name: new_field.name,
                         data_type1: existing_field.data_type.clone(),
                         data_type2: new_field.data_type,

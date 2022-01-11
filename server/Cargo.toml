@@ -32,7 +32,7 @@ parquet_catalog = { path = "../parquet_catalog" }
 persistence_windows = { path = "../persistence_windows" }
 query = { path = "../query" }
 rand = "0.8.3"
-snafu = "0.6"
+snafu = "0.7"
 time = { path = "../time" }
 trace = { path = "../trace" }
 tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }

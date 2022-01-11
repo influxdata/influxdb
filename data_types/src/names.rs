@@ -26,7 +26,7 @@ pub fn org_and_bucket_to_database<'a, O: AsRef<str>, B: AsRef<str>>(
 
     let db_name = format!("{}{}{}", org.as_ref(), SEPARATOR, bucket.as_ref());
 
-    DatabaseName::new(db_name).context(InvalidDatabaseName)
+    DatabaseName::new(db_name).context(InvalidDatabaseNameSnafu)
 }
 
 #[cfg(test)]

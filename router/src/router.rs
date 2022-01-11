@@ -122,7 +122,7 @@ impl Router {
         operation: &DmlOperation,
     ) -> Result<(), WriteErrorShard> {
         match self.write_sink_sets.get(&shard_id) {
-            Some(sink_set) => sink_set.write(operation).await.context(SinkSetFailure),
+            Some(sink_set) => sink_set.write(operation).await.context(SinkSetFailureSnafu),
             None => Err(WriteErrorShard::NoSinkSetFound { shard_id }),
         }
     }

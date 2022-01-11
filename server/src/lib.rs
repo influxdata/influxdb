@@ -381,13 +381,13 @@ impl ServerStateInitialized {
                         )));
                         existing.into_mut()
                     } else {
-                        return DatabaseAlreadyExists {
+                        return DatabaseAlreadyExistsSnafu {
                             db_name: config.name,
                         }
                         .fail();
                     }
                 } else {
-                    return DatabaseAlreadyExists {
+                    return DatabaseAlreadyExistsSnafu {
                         db_name: config.name,
                     }
                     .fail();
@@ -565,7 +565,7 @@ impl Server {
         let db = initialized
             .databases
             .get(db_name)
-            .context(DatabaseNotFound { db_name })?;
+            .context(DatabaseNotFoundSnafu { db_name })?;
 
         Ok(Arc::clone(db))
     }
@@ -573,7 +573,7 @@ impl Server {
     /// Returns an active `Database` by name
     pub fn active_database(&self, db_name: &DatabaseName<'_>) -> Result<Arc<Database>> {
         let database = self.database(db_name)?;
-        ensure!(database.is_active(), DatabaseNotFound { db_name });
+        ensure!(database.is_active(), DatabaseNotFoundSnafu { db_name });
         Ok(database)
     }
 
@@ -583,7 +583,7 @@ impl Server {
 
         database
             .initialized_db()
-            .context(DatabaseNotInitialized { db_name })
+            .context(DatabaseNotInitializedSnafu { db_name })
     }
 
     /// Tells the server the set of rules for a database.
@@ -605,7 +605,7 @@ impl Server {
 
             ensure!(
                 !initialized.databases.contains_key(&db_name),
-                DatabaseAlreadyExists { db_name }
+                DatabaseAlreadyExistsSnafu { db_name }
             );
 
             initialized.server_id
@@ -619,7 +619,7 @@ impl Server {
         )
         .await;
 
-        let location = res.context(CannotCreateDatabase)?;
+        let location = res.context(CannotCreateDatabaseSnafu)?;
 
         let database = {
             let mut state = self.shared.state.write();
@@ -648,7 +648,7 @@ impl Server {
         // Save the database to the server config as soon as it's added to the `ServerState`
         self.persist_server_config().await?;
 
-        database.wait_for_init().await.context(DatabaseInit)?;
+        database.wait_for_init().await.context(DatabaseInitSnafu)?;
 
         Ok(database)
     }
@@ -672,7 +672,7 @@ impl Server {
         // If a UUID has been specified, it has to match this database's UUID
         // Should this check be here or in database.release?
         if matches!(uuid, Some(specified) if specified != current) {
-            return UuidMismatch {
+            return UuidMismatchSnafu {
                 db_name: db_name.to_string(),
                 specified: uuid.unwrap(),
                 current,
@@ -680,7 +680,10 @@ impl Server {
             .fail();
         }
 
-        let returned_uuid = database.release().await.context(CannotReleaseDatabase)?;
+        let returned_uuid = database
+            .release()
+            .await
+            .context(CannotReleaseDatabaseSnafu)?;
         database.shutdown();
         let _ = database
             .join()
@@ -741,9 +744,9 @@ impl Server {
         // Check that this name is unique among currently active databases
         if let Ok(existing_db) = self.database(&db_name) {
             if matches!(existing_db.uuid(), Some(existing_uuid) if existing_uuid == uuid) {
-                return DatabaseAlreadyOwnedByThisServer { uuid }.fail();
+                return DatabaseAlreadyOwnedByThisServerSnafu { uuid }.fail();
             } else {
-                return DatabaseAlreadyExists { db_name }.fail();
+                return DatabaseAlreadyExistsSnafu { db_name }.fail();
             }
         }
 
@@ -757,7 +760,7 @@ impl Server {
             force,
         )
         .await
-        .context(CannotClaimDatabase)?;
+        .context(CannotClaimDatabaseSnafu)?;
 
         let database = {
             let mut state = self.shared.state.write();
@@ -786,7 +789,7 @@ impl Server {
         // Save the database to the server config as soon as it's added to the `ServerState`
         self.persist_server_config().await?;
 
-        database.wait_for_init().await.context(DatabaseInit)?;
+        database.wait_for_init().await.context(DatabaseInitSnafu)?;
 
         Ok(db_name)
     }
@@ -805,7 +808,7 @@ impl Server {
             bytes,
         )
         .await
-        .context(PersistServerConfig)?;
+        .context(PersistServerConfigSnafu)?;
 
         Ok(())
     }
@@ -822,7 +825,7 @@ impl Server {
         Ok(database
             .update_provided_rules(rules)
             .await
-            .context(CanNotUpdateRules { db_name })?)
+            .context(CanNotUpdateRulesSnafu { db_name })?)
     }
 
     /// Closes a chunk and starts moving its data to the read buffer, as a
@@ -840,7 +843,7 @@ impl Server {
 
         let partition = db
             .lockable_partition(&table_name, &partition_key)
-            .context(PartitionNotFound)?;
+            .context(PartitionNotFoundSnafu)?;
 
         let partition = partition.read();
         let chunk =
@@ -871,7 +874,7 @@ impl Server {
         self.database(db_name)?
             .wipe_preserved_catalog()
             .await
-            .context(WipePreservedCatalog)
+            .context(WipePreservedCatalogSnafu)
     }
 }
 
@@ -1071,7 +1074,7 @@ impl DatabaseStore for Server {
     // TODO: refactor usages of this to use the Server rather than this trait and to
     //       explicitly create a database.
     async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
-        let db_name = DatabaseName::new(name.to_string()).context(InvalidDatabaseName)?;
+        let db_name = DatabaseName::new(name.to_string()).context(InvalidDatabaseNameSnafu)?;
 
         let db = match self.db(&db_name) {
             Ok(db) => db,
@@ -1115,9 +1118,9 @@ pub enum DatabaseNameFromRulesError {
     #[snafu(display(
         "database rules for UUID {} not found at expected location `{}`",
         uuid,
-        location
+        path
     ))]
-    DatabaseRulesNotFound { uuid: Uuid, location: String },
+    DatabaseRulesNotFound { uuid: Uuid, path: String },
 
     #[snafu(display("error loading rules from object storage: {} ({:?})", source, source))]
     CannotLoadRules { source: object_store::Error },
@@ -1138,17 +1141,17 @@ async fn database_name_from_rules_file(
     let rules_bytes = IoxObjectStore::load_database_rules(object_store, uuid)
         .await
         .map_err(|e| match e {
-            object_store::Error::NotFound { location, .. } => {
-                DatabaseNameFromRulesError::DatabaseRulesNotFound { uuid, location }
+            object_store::Error::NotFound { path, .. } => {
+                DatabaseNameFromRulesError::DatabaseRulesNotFound { uuid, path }
             }
             other => DatabaseNameFromRulesError::CannotLoadRules { source: other },
         })?;
 
     let rules: PersistedDatabaseRules =
         generated_types::database_rules::decode_persisted_database_rules(rules_bytes)
-            .context(CannotDeserializeRules)?
+            .context(CannotDeserializeRulesSnafu)?
             .try_into()
-            .context(ConvertingRules)?;
+            .context(ConvertingRulesSnafu)?;
 
     Ok(rules.db_name().to_owned())
 }
