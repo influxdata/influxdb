@@ -719,8 +719,7 @@ fn read_statistics_from_parquet_row_group(
                 .fail()?;
             }
 
-            let count =
-                (row_group.num_rows().max(0) as u64).saturating_sub(parquet_stats.null_count());
+            let count = row_group.num_rows().max(0) as u64;
 
             let stats = extract_iox_statistics(
                 parquet_stats,
@@ -902,6 +901,8 @@ mod tests {
             .iter()
             .zip(table_summary_expected.columns.iter())
         {
+            assert_eq!(actual_column.stats.total_count() as usize, chunk.rows());
+            assert_eq!(expected_column.stats.total_count() as usize, chunk.rows());
             assert_eq!(actual_column, expected_column);
         }
     }
@@ -955,8 +956,20 @@ mod tests {
         // check that column counts are consistent
         let n_rows = decoded.md.file_metadata().num_rows() as u64;
         assert!(n_rows >= decoded.md.num_row_groups() as u64);
-        for summary in &chunk.table_summary().columns {
-            assert!(summary.total_count() <= n_rows);
+        for (col_idx, summary) in chunk.table_summary().columns.iter().enumerate() {
+            let mut num_values = 0;
+            let mut null_count = 0;
+
+            for row_group in decoded.md.row_groups() {
+                let column_chunk = row_group.column(col_idx);
+                num_values += column_chunk.num_values();
+                null_count += column_chunk.statistics().unwrap().null_count();
+            }
+
+            assert_eq!(summary.total_count(), num_values as u64);
+            assert_eq!(summary.total_count(), n_rows);
+            assert_eq!(summary.null_count(), null_count);
+            assert!(summary.null_count() <= summary.total_count());
         }
 
         // check column names

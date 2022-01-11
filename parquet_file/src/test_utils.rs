@@ -109,7 +109,7 @@ fn create_column_tag(
         arrow_cols_sub.push((name.to_string(), Arc::clone(&array), true));
     }
 
-    let total_count = data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64;
+    let total_count = data.iter().flatten().count() as u64;
     let null_count = data.iter().flatten().filter(|x| x.is_none()).count() as u64;
 
     summaries.push(ColumnSummary {
@@ -392,7 +392,7 @@ fn create_column_field_f64(
         array_data_type = Some(array.data_type().clone());
     }
 
-    let total_count = data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64;
+    let total_count = data.iter().flatten().count() as u64;
     let null_count = data.iter().flatten().filter(|x| x.is_none()).count() as u64;
 
     summaries.push(ColumnSummary {
@@ -581,7 +581,7 @@ fn create_column_field_generic<A, T, F>(
         array_data_type = Some(array.data_type().clone());
     }
 
-    let total_count = data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64;
+    let total_count = data.iter().flatten().count() as u64;
     let null_count = data.iter().flatten().filter(|x| x.is_none()).count() as u64;
 
     summaries.push(ColumnSummary {
