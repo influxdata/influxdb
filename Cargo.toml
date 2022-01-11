@@ -18,6 +18,7 @@ members = [
     "influxdb_tsm",
     "influxdb2_client",
     "internal_types",
+    "iox_catalog",
     "iox_data_generator",
     "iox_object_store",
     "job_registry",
