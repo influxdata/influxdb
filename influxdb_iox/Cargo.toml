@@ -32,6 +32,7 @@ predicate = { path = "../predicate" }
 query = { path = "../query" }
 read_buffer = { path = "../read_buffer" }
 router = { path = "../router" }
+router2 = { path = "../router2" }
 server = { path = "../server" }
 time = { path = "../time" }
 trace = { path = "../trace" }

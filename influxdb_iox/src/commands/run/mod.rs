@@ -5,6 +5,7 @@ use crate::structopt_blocks::run_config::RunConfig;
 
 pub mod database;
 pub mod router;
+pub mod router2;
 pub mod test;
 
 #[derive(Debug, Snafu)]
@@ -15,6 +16,9 @@ pub enum Error {
 
     #[snafu(display("Error in router subcommand: {}", source))]
     RouterError { source: router::Error },
+
+    #[snafu(display("Error in router2 subcommand: {}", source))]
+    Router2Error { source: router2::Error },
 
     #[snafu(display("Error in test subcommand: {}", source))]
     TestError { source: test::Error },
@@ -39,6 +43,7 @@ impl Config {
             None => &self.database_config.run_config,
             Some(Command::Database(config)) => &config.run_config,
             Some(Command::Router(config)) => &config.run_config,
+            Some(Command::Router2(config)) => &config.run_config,
             Some(Command::Test(config)) => &config.run_config,
         }
     }
@@ -51,6 +56,9 @@ enum Command {
 
     /// Run the server in routing mode
     Router(router::Config),
+
+    /// Run the server in router2 mode
+    Router2(router2::Config),
 
     /// Run the server in test mode
     Test(test::Config),
@@ -68,6 +76,7 @@ pub async fn command(config: Config) -> Result<()> {
         }
         Some(Command::Database(config)) => database::command(config).await.context(DatabaseSnafu),
         Some(Command::Router(config)) => router::command(config).await.context(RouterSnafu),
+        Some(Command::Router2(config)) => router2::command(config).await.context(Router2Snafu),
         Some(Command::Test(config)) => test::command(config).await.context(TestSnafu),
     }
 }

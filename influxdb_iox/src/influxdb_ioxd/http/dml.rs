@@ -338,7 +338,7 @@ pub trait HttpDrivenDml: ServerType {
     /// - [`route_write_http_request`](Self::route_write_http_request)
     ///
     /// Returns `RequestOrResponse::Response` if the request was routed,
-    /// Returns `RequestOrResponse::Response` if the request did not match (and needs to be handled some other way)
+    /// Returns `RequestOrResponse::Request` if the request did not match (and needs to be handled some other way)
     async fn route_dml_http_request(
         &self,
         req: Request<Body>,

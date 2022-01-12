@@ -1,4 +1,5 @@
 use hyper::{Body, Response, StatusCode};
+use observability_deps::tracing::warn;
 
 /// Constants used in API error codes.
 ///
@@ -66,6 +67,30 @@ impl HttpApiErrorCode {
     }
 }
 
+impl From<StatusCode> for HttpApiErrorCode {
+    fn from(s: StatusCode) -> Self {
+        match s {
+            StatusCode::INTERNAL_SERVER_ERROR => Self::InternalError,
+            StatusCode::NOT_FOUND => Self::NotFound,
+            StatusCode::CONFLICT => Self::Conflict,
+            StatusCode::BAD_REQUEST => Self::Invalid,
+            StatusCode::UNPROCESSABLE_ENTITY => Self::UnprocessableEntity,
+            StatusCode::NO_CONTENT => Self::EmptyValue,
+            StatusCode::SERVICE_UNAVAILABLE => Self::Unavailable,
+            StatusCode::FORBIDDEN => Self::Forbidden,
+            StatusCode::TOO_MANY_REQUESTS => Self::TooManyRequests,
+            StatusCode::UNAUTHORIZED => Self::Unauthorized,
+            StatusCode::METHOD_NOT_ALLOWED => Self::MethodNotAllowed,
+            StatusCode::PAYLOAD_TOO_LARGE => Self::RequestTooLarge,
+            StatusCode::UNSUPPORTED_MEDIA_TYPE => Self::UnsupportedMediaType,
+            v => {
+                warn!(code=%v, "returning unexpected status code as internal error");
+                Self::InternalError
+            }
+        }
+    }
+}
+
 /// Error that is compatible with the Influxdata Cloud 2 HTTP API.
 ///
 /// See <https://docs.influxdata.com/influxdb/v2.1/api/#operation/PostWrite>.
@@ -80,9 +105,9 @@ pub struct HttpApiError {
 
 impl HttpApiError {
     /// Create new error from code and message.
-    pub fn new(code: HttpApiErrorCode, msg: impl Into<String>) -> Self {
+    pub fn new(code: impl Into<HttpApiErrorCode>, msg: impl Into<String>) -> Self {
         Self {
-            code,
+            code: code.into(),
             msg: msg.into(),
         }
     }
