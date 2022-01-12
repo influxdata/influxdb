@@ -81,8 +81,8 @@ func (t *{{.name}}Table) Do(f func(flux.ColReader) error) error {
 func (t *{{.name}}Table) advance() bool {
 	a := t.cur.Next()
 	if t.cur.Err() != nil {
-	    t.err = t.cur.Err()
-	    return false
+		t.err = t.cur.Err()
+		return false
 	}
 	l := a.Len()
 	if l == 0 {
@@ -261,8 +261,8 @@ func (t *{{.name}}WindowTable) nextBuffer() bool {
 	if t.arr == nil {
 		arr := t.cur.Next()
 		if t.cur.Err() != nil {
-		    t.err = t.cur.Err()
-		    return false;
+			t.err = t.cur.Err()
+			return false;
 		}
 		if arr.Len() == 0 {
 			return false
@@ -359,10 +359,10 @@ func (t *{{.name}}WindowSelectorTable) Do(f func(flux.ColReader) error) error {
 
 func (t *{{.name}}WindowSelectorTable) advance() bool {
 	arr := t.cur.Next()
-    if t.cur.Err() != nil {
-        t.err = t.cur.Err()
-        return false;
-    }
+	if t.cur.Err() != nil {
+		t.err = t.cur.Err()
+		return false;
+	}
 	if arr.Len() == 0 {
 		return false
 	}
@@ -461,10 +461,10 @@ func new{{.Name}}EmptyWindowSelectorTable(
 	}
 	t.readTags(tags)
 	if cur.Err() != nil {
-	    t.err = cur.Err()
-	    t.empty = false
+		t.err = cur.Err()
+		t.empty = false
 	} else {
-	    t.init(t.advance)
+		t.init(t.advance)
 	}
 	return t
 }
@@ -544,9 +544,9 @@ func (t *{{.name}}EmptyWindowSelectorTable) startTimes(builder *array.{{.ArrowTy
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
-            if t.cur.Err() != nil {
-                t.err = t.cur.Err()
-            }
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -594,9 +594,9 @@ func (t *{{.name}}EmptyWindowSelectorTable) stopTimes(builder *array.{{.ArrowTyp
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
-            if t.cur.Err() != nil {
-                t.err = t.cur.Err()
-            }
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -661,9 +661,9 @@ func (t *{{.name}}EmptyWindowSelectorTable) startStopTimes(builder *array.{{.Arr
 		// been read in its entirety, call Next().
 		if t.arr.Len() > 0 && t.idx == t.arr.Len() {
 			t.arr = t.cur.Next()
-            if t.cur.Err() != nil {
-                t.err = t.cur.Err()
-            }
+			if t.cur.Err() != nil {
+				t.err = t.cur.Err()
+			}
 			t.idx = 0
 		}
 
@@ -737,8 +737,8 @@ func (t *{{.name}}GroupTable) advance() bool {
 	for {
 		arr = t.cur.Next()
 		if t.cur.Err() != nil {
-		    t.err = t.cur.Err()
-		    return false;
+			t.err = t.cur.Err()
+			return false;
 		}
 		len = arr.Len()
 		if len > 0 {
@@ -772,10 +772,10 @@ func (t *{{.name}}GroupTable) advance() bool {
 	aggregate.AccumulateFirst(arr.Timestamps, arr.Values, t.tags)
 	for {
 		arr = t.cur.Next()
-        if t.cur.Err() != nil {
-            t.err = t.cur.Err()
-            return false;
-        }
+		if t.cur.Err() != nil {
+			t.err = t.cur.Err()
+			return false;
+		}
 		if arr.Len() > 0 {
 			aggregate.AccumulateMore(arr.Timestamps, arr.Values, t.tags)
 			continue
@@ -903,7 +903,7 @@ func (a *{{.name}}AggregateAccumulator) Result() (int64, {{.Type}}, [][]byte) {
 // the ones returned for each series and the struct returned here will
 // aggregate the aggregates.
 func make{{.Name}}AggregateAccumulator(agg datatypes.Aggregate_AggregateType) ({{.Name}}AggregateAccumulator, error){
- 	switch agg {
+	switch agg {
 	case datatypes.Aggregate_AggregateTypeFirst:
 		return &{{.name}}SelectorAccumulator{selector: selectorFirstGroups{{.Name}}}, nil
 	case datatypes.Aggregate_AggregateTypeLast:
