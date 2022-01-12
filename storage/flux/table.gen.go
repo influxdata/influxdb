@@ -464,7 +464,12 @@ func newFloatEmptyWindowSelectorTable(
 		timeColumn:   timeColumn,
 	}
 	t.readTags(tags)
-	t.init(t.advance)
+	if cur.Err() != nil {
+		t.err = cur.Err()
+		t.empty = false
+	} else {
+		t.init(t.advance)
+	}
 	return t
 }
 
@@ -1470,7 +1475,12 @@ func newIntegerEmptyWindowSelectorTable(
 		timeColumn:   timeColumn,
 	}
 	t.readTags(tags)
-	t.init(t.advance)
+	if cur.Err() != nil {
+		t.err = cur.Err()
+		t.empty = false
+	} else {
+		t.init(t.advance)
+	}
 	return t
 }
 
@@ -2475,7 +2485,12 @@ func newUnsignedEmptyWindowSelectorTable(
 		timeColumn:   timeColumn,
 	}
 	t.readTags(tags)
-	t.init(t.advance)
+	if cur.Err() != nil {
+		t.err = cur.Err()
+		t.empty = false
+	} else {
+		t.init(t.advance)
+	}
 	return t
 }
 
@@ -3479,7 +3494,12 @@ func newStringEmptyWindowSelectorTable(
 		timeColumn:   timeColumn,
 	}
 	t.readTags(tags)
-	t.init(t.advance)
+	if cur.Err() != nil {
+		t.err = cur.Err()
+		t.empty = false
+	} else {
+		t.init(t.advance)
+	}
 	return t
 }
 
@@ -4427,7 +4447,12 @@ func newBooleanEmptyWindowSelectorTable(
 		timeColumn:   timeColumn,
 	}
 	t.readTags(tags)
-	t.init(t.advance)
+	if cur.Err() != nil {
+		t.err = cur.Err()
+		t.empty = false
+	} else {
+		t.init(t.advance)
+	}
 	return t
 }
 
