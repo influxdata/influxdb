@@ -95,7 +95,7 @@ DO UPDATE SET name = kafka_topics.name RETURNING *;
         .bind(&name) // $1
         .fetch_one(pool)
         .await
-        .context(SqlxError)?;
+        .context(SqlxSnafu)?;
 
         Ok(rec)
     }
@@ -126,7 +126,7 @@ DO UPDATE SET name = query_pools.name RETURNING *;
         .bind(&connection_string) // $2
         .fetch_one(pool)
         .await
-        .context(SqlxError)?;
+        .context(SqlxSnafu)?;
 
         Ok(rec)
     }
@@ -192,7 +192,7 @@ SELECT * FROM namespaces WHERE name = $1;
             return Ok(None);
         }
 
-        let rec = rec.context(SqlxError)?;
+        let rec = rec.context(SqlxSnafu)?;
         Ok(Some(rec))
     }
 }
@@ -239,7 +239,7 @@ WHERE namespace_id = $1;
         .bind(&namespace_id)
         .fetch_all(pool)
         .await
-        .context(SqlxError)?;
+        .context(SqlxSnafu)?;
 
         Ok(rec)
     }
@@ -298,7 +298,7 @@ DO UPDATE SET name = column_names.name RETURNING *;
         })?;
 
         if rec.data_type != ct {
-            return ColumnTypeMismatch {
+            return ColumnTypeMismatchSnafu {
                 name,
                 existing: rec.name,
                 new: column_type.as_str(),
@@ -320,7 +320,7 @@ WHERE table_names.namespace_id = $1;
         .bind(&namespace_id)
         .fetch_all(pool)
         .await
-        .context(SqlxError)?;
+        .context(SqlxSnafu)?;
 
         Ok(rec)
     }
@@ -371,7 +371,7 @@ impl NamespaceSchema {
                         );
                     }
                     _ => {
-                        return UnknownColumnType {
+                        return UnknownColumnTypeSnafu {
                             data_type: c.data_type,
                             name: c.name.to_string(),
                         }
@@ -549,7 +549,7 @@ pub async fn validate_or_insert_schema(
                         match table.columns.get(key.as_str()) {
                             Some(c) => {
                                 if !c.is_tag() {
-                                    return ColumnTypeMismatch {
+                                    return ColumnTypeMismatchSnafu {
                                         name: key.to_string(),
                                         existing: c.data_type.to_string(),
                                         new: ColumnType::Tag.to_string(),
@@ -584,7 +584,7 @@ pub async fn validate_or_insert_schema(
                 for (key, value) in &line.field_set {
                     if let Some(column) = table.columns.get(key.as_str()) {
                         if !column.matches_field_type(&value) {
-                            return ColumnTypeMismatch {
+                            return ColumnTypeMismatchSnafu {
                                 name: key.to_string(),
                                 existing: column.data_type.as_str().to_string(),
                                 new: column_type_from_field(&value).to_string(),

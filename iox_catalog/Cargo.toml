@@ -9,7 +9,7 @@ async-trait = "0.1.42"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 futures = "0.3"
 observability_deps = { path = "../observability_deps" }
-snafu = "0.6.10"
+snafu = "0.7"
 sqlx = { version = "0.5", features = [ "runtime-tokio-native-tls" , "postgres" ] }
 tokio = { version = "1.13", features = ["full", "io-util", "macros", "parking_lot", "rt-multi-thread", "time"] }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
