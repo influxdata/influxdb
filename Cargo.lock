@@ -1629,6 +1629,7 @@ dependencies = [
  "regex",
  "reqwest",
  "router",
+ "router2",
  "rustyline",
  "schema",
  "serde",
@@ -3558,6 +3559,19 @@ dependencies = [
  "trace",
  "workspace-hack",
  "write_buffer",
+]
+
+[[package]]
+name = "router2"
+version = "0.1.0"
+dependencies = [
+ "dml",
+ "generated_types",
+ "hyper",
+ "metric",
+ "thiserror",
+ "tonic",
+ "trace",
 ]
 
 [[package]]
