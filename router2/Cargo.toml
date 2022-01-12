@@ -13,3 +13,4 @@ metric = { path = "../metric" }
 thiserror = "1.0"
 tonic = "0.5"
 trace = { path = "../trace/" }
+workspace-hack = { path = "../workspace-hack"}
