@@ -192,7 +192,7 @@ jobs:
       - image: mcr.microsoft.com/azure-storage/azurite
       - image: vectorized/redpanda:v21.9.2
         command: redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M
-      - image: circleci/postgres:9.6-alpine-ram
+      - image: postgres
     resource_class: xlarge  # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
@@ -214,7 +214,7 @@ jobs:
       AZURE_USE_EMULATOR: "1"
       INFLUXDB_IOX_BUCKET: iox-test
       POSTGRES_USER: postgres
-      DATABASE_URL: "postgresql://root@localhost/circle_test"
+      DATABASE_URL: "postgres://postgres@localhost/iox_shared"
     steps:
       - run:
           name: Setup localstack (AWS emulation)
