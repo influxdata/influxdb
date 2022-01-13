@@ -104,6 +104,11 @@ impl QueryLog {
         let log = self.log.lock();
         log.clone()
     }
+
+    /// Marks the provided query entry as completed using the current time.
+    pub fn set_completed(&self, entry: Arc<QueryLogEntry>) {
+        entry.set_completed(self.time_provider.now())
+    }
 }
 
 #[cfg(test)]

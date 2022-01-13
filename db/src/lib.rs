@@ -45,7 +45,7 @@ use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::Persisten
 use predicate::predicate::Predicate;
 use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
-    QueryDatabase,
+    QueryCompletedToken, QueryDatabase,
 };
 use rand_distr::{Distribution, Poisson};
 use schema::selection::Selection;
@@ -1224,7 +1224,11 @@ impl QueryDatabase for Db {
         self.catalog_access.table_schema(table_name)
     }
 
-    fn record_query(&self, query_type: impl Into<String>, query_text: impl Into<String>) {
+    fn record_query(
+        &self,
+        query_type: impl Into<String>,
+        query_text: impl Into<String>,
+    ) -> QueryCompletedToken<'_> {
         self.catalog_access.record_query(query_type, query_text)
     }
 }
