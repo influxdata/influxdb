@@ -201,7 +201,7 @@ pub mod tests {
             let addr: SocketAddr = "127.0.0.1:0".parse()?;
             let listener = tokio::net::TcpListener::bind(addr).await?;
             let local_addr = listener.local_addr()?;
-            let local_addr = format!("http://{}", local_addr.to_string());
+            let local_addr = format!("http://{}", local_addr);
 
             tokio::spawn(async move {
                 Server::builder()

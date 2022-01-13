@@ -2204,7 +2204,7 @@ mod test {
             Column::Unsigned(_, IntegerEncoding::U64(_, _))
         ));
 
-        for (scalar, result) in cases.clone() {
+        for (scalar, result) in cases {
             assert_eq!(col.might_contain_value(&Value::Scalar(scalar)), result);
         }
 
@@ -2217,7 +2217,7 @@ mod test {
             (Scalar::F64(-100.0), false),
         ];
 
-        for (scalar, result) in cases.clone() {
+        for (scalar, result) in cases {
             assert_eq!(col.might_contain_value(&Value::Scalar(scalar)), result);
         }
     }

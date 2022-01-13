@@ -350,14 +350,8 @@ mod tests {
         // Random chunk IDs use UUID-format
         let id_random = ChunkId::new();
         let inner: Uuid = id_random.get();
-        assert_eq!(
-            format!("{:?}", id_random),
-            format!("ChunkId({})", inner.to_string())
-        );
-        assert_eq!(
-            format!("{}", id_random),
-            format!("ChunkId({})", inner.to_string())
-        );
+        assert_eq!(format!("{:?}", id_random), format!("ChunkId({})", inner));
+        assert_eq!(format!("{}", id_random), format!("ChunkId({})", inner));
 
         // Deterministic IDs use integer format
         let id_test = ChunkId::new_test(42);
