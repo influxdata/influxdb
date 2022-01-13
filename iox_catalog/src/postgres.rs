@@ -716,8 +716,48 @@ mod tests {
     use super::*;
     use crate::{SHARED_KAFKA_TOPIC, SHARED_QUERY_POOL};
     use influxdb_line_protocol::parse_lines;
+    use std::env;
 
-    const DSN: &str = "postgres://postgres:tQLof_oWuqh4B@ZEwNKRoboR@localhost/iox_shared";
+    // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
+    macro_rules! maybe_skip_integration {
+        () => {{
+            dotenv::dotenv().ok();
+
+            let required_vars = [
+                "DATABASE_URL",
+            ];
+            let unset_vars: Vec<_> = required_vars
+                .iter()
+                .filter_map(|&name| match env::var(name) {
+                    Ok(_) => None,
+                    Err(_) => Some(name),
+                })
+                .collect();
+            let unset_var_names = unset_vars.join(", ");
+
+            let force = env::var("TEST_INTEGRATION");
+
+            if force.is_ok() && !unset_var_names.is_empty() {
+                panic!(
+                    "TEST_INTEGRATION is set, \
+                            but variable(s) {} need to be set",
+                    unset_var_names
+                );
+            } else if force.is_err() {
+                eprintln!(
+                    "skipping Postgres integration test - set {}TEST_INTEGRATION to run",
+                    if unset_var_names.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{} and ", unset_var_names)
+                    }
+                );
+                return;
+            }
+        }};
+    }
+
+    const DSN: &str = "postgres://postgres@localhost/iox_shared";
 
     async fn setup_db() -> (Pool<Postgres>, KafkaTopic, QueryPool) {
         // std::env::var("TEST_DATABASE_URL").unwrap()
@@ -734,6 +774,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_catalog() {
+        // If running an integration test on your laptop, this requires that you have Postgres
+        // running and that you've done the sqlx migrations. See the README in this crate for
+        // info to set it up.
+        maybe_skip_integration!();
+
         let (pool, kafka_topic, query_pool) = setup_db().await;
         clear_schema(&pool).await;
 

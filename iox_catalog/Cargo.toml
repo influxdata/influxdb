@@ -13,3 +13,6 @@ snafu = "0.7"
 sqlx = { version = "0.5", features = [ "runtime-tokio-native-tls" , "postgres" ] }
 tokio = { version = "1.13", features = ["full", "io-util", "macros", "parking_lot", "rt-multi-thread", "time"] }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+
+[dev-dependencies] # In alphabetical order
+dotenv = "0.15.0"
