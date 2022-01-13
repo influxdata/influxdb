@@ -1,4 +1,4 @@
-use arrow::array::{ArrayRef, DurationMillisecondArray, TimestampNanosecondArray};
+use arrow::array::{ArrayRef, DurationNanosecondArray, TimestampNanosecondArray};
 use arrow::datatypes::{DataType, TimeUnit};
 use arrow::error::{ArrowError, Result};
 use arrow::record_batch::RecordBatch;
@@ -42,13 +42,13 @@ fn array_value_to_string(column: &ArrayRef, row: usize) -> Result<String> {
             Ok(ts.to_rfc3339_opts(SecondsFormat::AutoSi, use_z))
         }
         // TODO(edd): see https://github.com/apache/arrow-rs/issues/1168
-        DataType::Duration(TimeUnit::Millisecond) if column.is_valid(row) => {
+        DataType::Duration(TimeUnit::Nanosecond) if column.is_valid(row) => {
             let dur_column = column
                 .as_any()
-                .downcast_ref::<DurationMillisecondArray>()
+                .downcast_ref::<DurationNanosecondArray>()
                 .unwrap();
 
-            let duration = std::time::Duration::from_millis(
+            let duration = std::time::Duration::from_nanos(
                 dur_column
                     .value(row)
                     .try_into()

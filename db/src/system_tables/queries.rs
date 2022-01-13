@@ -3,7 +3,7 @@ use crate::{
     system_tables::IoxSystemTable,
 };
 use arrow::{
-    array::{DurationMillisecondArray, StringArray, TimestampNanosecondArray},
+    array::{DurationNanosecondArray, StringArray, TimestampNanosecondArray},
     datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
     error::Result,
     record_batch::RecordBatch,
@@ -49,7 +49,7 @@ fn queries_schema() -> SchemaRef {
         Field::new("query_text", DataType::Utf8, false),
         Field::new(
             "completed_duration",
-            DataType::Duration(TimeUnit::Millisecond),
+            DataType::Duration(TimeUnit::Nanosecond),
             false,
         ),
     ]))
@@ -77,8 +77,8 @@ fn from_query_log_entries(
 
     let query_runtime = entries
         .iter()
-        .map(|e| e.query_completed_duration().map(|d| d.as_millis() as i64))
-        .collect::<DurationMillisecondArray>();
+        .map(|e| e.query_completed_duration().map(|d| d.as_nanos() as i64))
+        .collect::<DurationNanosecondArray>();
 
     RecordBatch::try_new(
         schema,
