@@ -112,7 +112,7 @@
   # max-concurrent-compactions = 0
 
   # MaxConcurrentDeletes is the maximum number of simultaneous DELETE calls on a shard
-  # The default is 1, which was the previous hard-coded value.
+  # The default is 1, and should be left unchanged for most users
   # MaxConcurrentDeletes = 1
 
   # CompactThroughput is the rate limit in bytes per second that we
