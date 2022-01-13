@@ -67,6 +67,9 @@ const (
 	// write-ahead log file will compact into an index file.
 	DefaultMaxIndexLogFileSize = 1 * 1024 * 1024 // 1MB
 
+	// DefaultMaxConcurrentDeletes is the default number of concurrent DELETE calls on a shard.
+	DefaultMaxConcurrentDeletes = 1
+
 	// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache in the TSI index.
 	DefaultSeriesIDSetCacheSize = 100
 
@@ -138,6 +141,10 @@ type Config struct {
 	// be compacted less frequently, store more series in-memory, and provide higher write throughput.
 	MaxIndexLogFileSize toml.Size `toml:"max-index-log-file-size"`
 
+	// MaxConcurrentDeletes is the maximum number of simultaneous DELETE calls on a shard
+	// The default is 1, which was the previous hard-coded value.
+	MaxConcurrentDeletes int `toml:"max-concurrent-deletes"`
+
 	// SeriesIDSetCacheSize is the number items that can be cached within the TSI index. TSI caching can help
 	// with query performance when the same tag key/value predicates are commonly used on queries.
 	// Setting series-id-set-cache-size to 0 disables the cache.
@@ -178,6 +185,7 @@ func NewConfig() Config {
 		MaxSeriesPerDatabase:     DefaultMaxSeriesPerDatabase,
 		MaxValuesPerTag:          DefaultMaxValuesPerTag,
 		MaxConcurrentCompactions: DefaultMaxConcurrentCompactions,
+		MaxConcurrentDeletes:     DefaultMaxConcurrentDeletes,
 
 		MaxIndexLogFileSize:  toml.Size(DefaultMaxIndexLogFileSize),
 		SeriesIDSetCacheSize: DefaultSeriesIDSetCacheSize,
@@ -199,6 +207,10 @@ func (c *Config) Validate() error {
 
 	if c.MaxConcurrentCompactions < 0 {
 		return errors.New("max-concurrent-compactions must be non-negative")
+	}
+
+	if c.MaxConcurrentDeletes <= 0 {
+		return errors.New("max-concurrent-deletes must be positive")
 	}
 
 	if c.SeriesIDSetCacheSize < 0 {
