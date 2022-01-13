@@ -1,7 +1,7 @@
 use crate::{metadata::IoxParquetMetaData, storage::Storage};
 use data_types::{
     partition_metadata::{Statistics, TableSummary},
-    timestamp::TimestampRange,
+    timestamp::{TimestampMinMax, TimestampRange},
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
@@ -83,9 +83,9 @@ pub struct ParquetChunk {
     /// Schema that goes with this table's parquet file
     schema: Arc<Schema>,
 
-    /// Timestamp range of this table's parquet file
-    /// (extracted from TableSummary)
-    timestamp_range: Option<TimestampRange>,
+    /// min/max time range of this table's parquet file
+    /// (extracted from TableSummary), if known
+    timestamp_min_max: Option<TimestampMinMax>,
 
     /// Persists the parquet file within a database's relative path
     iox_object_store: Arc<IoxObjectStore>,
@@ -159,13 +159,13 @@ impl ParquetChunk {
         rows: usize,
         metrics: ChunkMetrics,
     ) -> Self {
-        let timestamp_range = extract_range(&table_summary);
+        let timestamp_min_max = extract_range(&table_summary);
 
         Self {
             partition_key,
             table_summary,
             schema,
-            timestamp_range,
+            timestamp_min_max,
             iox_object_store,
             path: path.into(),
             file_size_bytes,
@@ -211,12 +211,16 @@ impl ParquetChunk {
         Arc::clone(&self.schema)
     }
 
-    // Return true if this chunk contains values within the time range
+    // Return true if this chunk contains values within the time
+    // range, or if the range is `None`.
     pub fn has_timerange(&self, timestamp_range: Option<&TimestampRange>) -> bool {
-        match (self.timestamp_range, timestamp_range) {
-            (Some(a), Some(b)) => !a.disjoint(b),
-            (None, Some(_)) => false, /* If this chunk doesn't have a time column it can't match */
-            // the predicate
+        match (self.timestamp_min_max, timestamp_range) {
+            (Some(timestamp_min_max), Some(timestamp_range)) => {
+                timestamp_min_max.overlaps(*timestamp_range)
+            }
+            // If this chunk doesn't have a time column it can't match
+            (None, Some(_)) => false,
+            // If there no range specified,
             (_, None) => true,
         }
     }
@@ -272,13 +276,13 @@ impl ParquetChunk {
 }
 
 /// Extracts min/max values of the timestamp column, from the TableSummary, if possible
-fn extract_range(table_summary: &TableSummary) -> Option<TimestampRange> {
+fn extract_range(table_summary: &TableSummary) -> Option<TimestampMinMax> {
     table_summary
         .column(TIME_COLUMN_NAME)
         .map(|c| {
             if let Statistics::I64(s) = &c.stats {
                 if let (Some(min), Some(max)) = (s.min, s.max) {
-                    return Some(TimestampRange::new(min, max));
+                    return Some(TimestampMinMax::new(min, max));
                 }
             }
             None

@@ -5,7 +5,7 @@ use arrow::record_batch::RecordBatch;
 use data_types::{
     error::ErrorLogger,
     partition_metadata::{Statistics, TableSummary},
-    timestamp::TimestampRange,
+    timestamp::{TimestampMinMax, TimestampRange},
 };
 use schema::selection::Selection;
 use schema::{Schema, TIME_COLUMN_NAME};
@@ -135,6 +135,7 @@ impl ChunkSnapshot {
     }
 
     /// Returns if this MUB contains rows matching the given time range
+    /// or if the range is `None`
     pub fn has_timerange(&self, timestamp_range: &Option<TimestampRange>) -> bool {
         let timestamp_range = match timestamp_range {
             Some(t) => t,
@@ -144,10 +145,10 @@ impl ChunkSnapshot {
         self.schema
             .find_index_of(TIME_COLUMN_NAME)
             .and_then(|idx| match &self.summary.columns[idx].stats {
-                Statistics::I64(stats) => Some(
-                    !TimestampRange::new(stats.min? as _, stats.max? as _)
-                        .disjoint(timestamp_range),
-                ),
+                Statistics::I64(stats) => {
+                    let min_max = TimestampMinMax::new(stats.min?, stats.max?);
+                    Some(min_max.overlaps(*timestamp_range))
+                }
                 _ => panic!("invalid statistics for time column"),
             })
             .unwrap_or(false) // If no time column or no time column values - cannot match

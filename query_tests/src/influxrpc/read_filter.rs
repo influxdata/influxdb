@@ -178,6 +178,49 @@ async fn test_read_filter_data_no_pred() {
 }
 
 #[tokio::test]
+async fn test_read_filter_data_exclusive_predicate() {
+    let predicate = PredicateBuilder::new()
+        // should not return the 350 row as predicate is
+        // range.start <= ts < range.end
+        .timestamp_range(349, 350)
+        .build();
+
+    let expected_results = vec![];
+
+    run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_data_inclusive_predicate() {
+    let predicate = PredicateBuilder::new()
+        // should return  350 row!
+        .timestamp_range(350, 351)
+        .build();
+
+    let expected_results = vec![
+        "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [350], values: [90.0]",
+    ];
+
+    run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_data_exact_predicate() {
+    let predicate = PredicateBuilder::new()
+        // should return  250 rows!
+        .timestamp_range(250, 251)
+        .build();
+
+    let expected_results = vec![
+        "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [72.4]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [250], values: [51.0]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [53.4]",
+    ];
+
+    run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
 async fn test_read_filter_data_no_pred_with_delete() {
     let predicate = EMPTY_PREDICATE;
     let expected_results = vec![

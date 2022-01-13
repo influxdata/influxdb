@@ -855,6 +855,8 @@ impl InfluxRpcPlanner {
                     chunk_id: chunk.id(),
                 })?;
 
+            trace!(?pred_result, chunk_id=?chunk.id(), "applied predicate to metadata");
+
             if !matches!(pred_result, PredicateMatch::Zero) {
                 // have to include chunk as we can't rule it out
                 let table_name = chunk.table_name().to_string();
