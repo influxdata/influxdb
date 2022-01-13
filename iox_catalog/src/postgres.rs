@@ -3,7 +3,7 @@
 use crate::TIME_COLUMN;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 use snafu::{ResultExt, Snafu};
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use sqlx::{postgres::PgPoolOptions, Pool, Postgres, Executor};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::Formatter;
@@ -44,10 +44,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 const MAX_CONNECTIONS: u32 = 5;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(500);
+const SCHEMA_NAME: &str = "iox_catalog";
 
 /// Connect to the catalog store.
 pub async fn connect_catalog_store(
     app_name: &'static str,
+    schema_name: &'static str,
     dsn: &'static str,
 ) -> Result<Pool<Postgres>, sqlx::Error> {
     let pool = PgPoolOptions::new()
@@ -59,10 +61,11 @@ pub async fn connect_catalog_store(
         .after_connect(move |c| {
             Box::pin(async move {
                 // Tag the connection with the provided application name.
-                sqlx::query("SET application_name = '$1';")
-                    .bind(app_name)
-                    .execute(c)
+                c.execute(sqlx::query("SET application_name = '$1';").bind(app_name)).await?;
+                let search_path_query = format!("SET search_path TO {}", schema_name);
+                c.execute(sqlx::query(&search_path_query))
                     .await?;
+
                 Ok(())
             })
         })
@@ -86,10 +89,10 @@ impl KafkaTopic {
     async fn create_or_get(name: &str, pool: &Pool<Postgres>) -> Result<KafkaTopic> {
         let rec = sqlx::query_as::<_, KafkaTopic>(
             r#"
-INSERT INTO kafka_topics ( name )
+INSERT INTO kafka_topic ( name )
 VALUES ( $1 )
 ON CONFLICT ON CONSTRAINT kafka_topic_name_unique
-DO UPDATE SET name = kafka_topics.name RETURNING *;
+DO UPDATE SET name = kafka_topic.name RETURNING *;
         "#,
         )
         .bind(&name) // $1
@@ -105,25 +108,22 @@ DO UPDATE SET name = kafka_topics.name RETURNING *;
 struct QueryPool {
     id: i16,
     name: String,
-    connection_string: String,
 }
 
 impl QueryPool {
     async fn create_or_get(
         name: &str,
-        connection_string: &str,
         pool: &Pool<Postgres>,
     ) -> Result<QueryPool> {
         let rec = sqlx::query_as::<_, QueryPool>(
             r#"
-INSERT INTO query_pools ( name, connection_string )
-VALUES ( $1, $2 )
+INSERT INTO query_pool ( name )
+VALUES ( $1 )
 ON CONFLICT ON CONSTRAINT query_pool_name_unique
-DO UPDATE SET name = query_pools.name RETURNING *;
+DO UPDATE SET name = query_pool.name RETURNING *;
         "#,
         )
         .bind(&name) // $1
-        .bind(&connection_string) // $2
         .fetch_one(pool)
         .await
         .context(SqlxSnafu)?;
@@ -152,7 +152,7 @@ impl Namespace {
     ) -> Result<Self> {
         let rec = sqlx::query_as::<_, Self>(
             r#"
-INSERT INTO namespaces ( name, retention_duration, kafka_topic_id, query_pool_id )
+INSERT INTO namespace ( name, retention_duration, kafka_topic_id, query_pool_id )
 VALUES ( $1, $2, $3, $4 )
 RETURNING *
         "#,
@@ -181,7 +181,7 @@ RETURNING *
     async fn get_by_name(name: &str, pool: &Pool<Postgres>) -> Result<Option<Self>> {
         let rec = sqlx::query_as::<_, Self>(
             r#"
-SELECT * FROM namespaces WHERE name = $1;
+SELECT * FROM namespace WHERE name = $1;
         "#,
         )
         .bind(&name) // $1
@@ -208,10 +208,10 @@ impl Table {
     async fn create_or_get(name: &str, namespace_id: i32, pool: &Pool<Postgres>) -> Result<Self> {
         let rec = sqlx::query_as::<_, Self>(
             r#"
-INSERT INTO table_names ( name, namespace_id )
+INSERT INTO table_name ( name, namespace_id )
 VALUES ( $1, $2 )
 ON CONFLICT ON CONSTRAINT table_name_unique
-DO UPDATE SET name = table_names.name RETURNING *;
+DO UPDATE SET name = table_name.name RETURNING *;
         "#,
         )
         .bind(&name) // $1
@@ -232,7 +232,7 @@ DO UPDATE SET name = table_names.name RETURNING *;
     async fn get_by_namespace_id(namespace_id: i32, pool: &Pool<Postgres>) -> Result<Vec<Table>> {
         let rec = sqlx::query_as::<_, Self>(
             r#"
-SELECT * FROM table_names
+SELECT * FROM table_name
 WHERE namespace_id = $1;
             "#,
         )
@@ -250,21 +250,21 @@ pub struct Column {
     id: i32,
     table_id: i32,
     name: String,
-    data_type: i16,
+    column_type: i16,
 }
 
 impl Column {
     fn is_tag(&self) -> bool {
-        self.data_type == ColumnType::Tag as i16
+        self.column_type == ColumnType::Tag as i16
     }
 
     fn matches_field_type(&self, field_value: &FieldValue) -> bool {
         match field_value {
-            FieldValue::I64(_) => self.data_type == ColumnType::I64 as i16,
-            FieldValue::U64(_) => self.data_type == ColumnType::U64 as i16,
-            FieldValue::F64(_) => self.data_type == ColumnType::F64 as i16,
-            FieldValue::String(_) => self.data_type == ColumnType::String as i16,
-            FieldValue::Boolean(_) => self.data_type == ColumnType::Bool as i16,
+            FieldValue::I64(_) => self.column_type == ColumnType::I64 as i16,
+            FieldValue::U64(_) => self.column_type == ColumnType::U64 as i16,
+            FieldValue::F64(_) => self.column_type == ColumnType::F64 as i16,
+            FieldValue::String(_) => self.column_type == ColumnType::String as i16,
+            FieldValue::Boolean(_) => self.column_type == ColumnType::Bool as i16,
         }
     }
 
@@ -278,10 +278,10 @@ impl Column {
 
         let rec = sqlx::query_as::<_, Self>(
             r#"
-INSERT INTO column_names ( name, table_id, data_type )
+INSERT INTO column_name ( name, table_id, column_type )
 VALUES ( $1, $2, $3 )
 ON CONFLICT ON CONSTRAINT column_name_unique
-DO UPDATE SET name = column_names.name RETURNING *;
+DO UPDATE SET name = column_name.name RETURNING *;
         "#,
         )
         .bind(&name) // $1
@@ -297,7 +297,7 @@ DO UPDATE SET name = column_names.name RETURNING *;
             }
         })?;
 
-        if rec.data_type != ct {
+        if rec.column_type != ct {
             return ColumnTypeMismatchSnafu {
                 name,
                 existing: rec.name,
@@ -312,9 +312,9 @@ DO UPDATE SET name = column_names.name RETURNING *;
     async fn get_by_namespace_id(namespace_id: i32, pool: &Pool<Postgres>) -> Result<Vec<Column>> {
         let rec = sqlx::query_as::<_, Self>(
             r#"
-SELECT column_names.* FROM table_names
-INNER JOIN column_names on column_names.table_id = table_names.id
-WHERE table_names.namespace_id = $1;
+SELECT column_name.* FROM table_name
+INNER JOIN column_name on column_name.table_id = table_name.id
+WHERE table_name.namespace_id = $1;
             "#,
         )
         .bind(&namespace_id)
@@ -360,19 +360,19 @@ impl NamespaceSchema {
 
             for c in columns {
                 let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
-                match ColumnType::try_from(c.data_type) {
-                    Ok(data_type) => {
+                match ColumnType::try_from(c.column_type) {
+                    Ok(column_type) => {
                         t.columns.insert(
                             c.name,
                             ColumnSchema {
                                 id: c.id,
-                                data_type,
+                                column_type,
                             },
                         );
                     }
                     _ => {
                         return UnknownColumnTypeSnafu {
-                            data_type: c.data_type,
+                            data_type: c.column_type,
                             name: c.name.to_string(),
                         }
                         .fail()
@@ -450,16 +450,16 @@ pub struct ColumnSchema {
     /// the column id
     pub id: i32,
     /// the column type
-    pub data_type: ColumnType,
+    pub column_type: ColumnType,
 }
 
 impl ColumnSchema {
     fn is_tag(&self) -> bool {
-        self.data_type == ColumnType::Tag
+        self.column_type == ColumnType::Tag
     }
 
     fn matches_field_type(&self, field_value: &FieldValue) -> bool {
-        match (field_value, self.data_type) {
+        match (field_value, self.column_type) {
             (FieldValue::I64(_), ColumnType::I64) => true,
             (FieldValue::U64(_), ColumnType::U64) => true,
             (FieldValue::F64(_), ColumnType::F64) => true,
@@ -483,7 +483,7 @@ pub enum ColumnType {
 }
 
 impl ColumnType {
-    fn as_str(&self) -> &str {
+    fn as_str(&self) -> &'static str {
         match self {
             ColumnType::I64 => "i64",
             ColumnType::U64 => "u64",
@@ -551,7 +551,7 @@ pub async fn validate_or_insert_schema(
                                 if !c.is_tag() {
                                     return ColumnTypeMismatchSnafu {
                                         name: key.to_string(),
-                                        existing: c.data_type.to_string(),
+                                        existing: c.column_type.to_string(),
                                         new: ColumnType::Tag.to_string(),
                                     }
                                     .fail();
@@ -571,7 +571,7 @@ pub async fn validate_or_insert_schema(
                                         column.name,
                                         ColumnSchema {
                                             id: column.id,
-                                            data_type: ColumnType::Tag,
+                                            column_type: ColumnType::Tag,
                                         },
                                     );
                                 }
@@ -586,7 +586,7 @@ pub async fn validate_or_insert_schema(
                         if !column.matches_field_type(&value) {
                             return ColumnTypeMismatchSnafu {
                                 name: key.to_string(),
-                                existing: column.data_type.as_str().to_string(),
+                                existing: column.column_type.as_str().to_string(),
                                 new: column_type_from_field(&value).to_string(),
                             }
                             .fail();
@@ -602,7 +602,7 @@ pub async fn validate_or_insert_schema(
                                 column.name,
                                 ColumnSchema {
                                     id: column.id,
-                                    data_type,
+                                    column_type: data_type,
                                 },
                             );
                         }
@@ -626,7 +626,7 @@ pub async fn validate_or_insert_schema(
                             new_column.name,
                             ColumnSchema {
                                 id: new_column.id,
-                                data_type: ColumnType::Tag,
+                                column_type: ColumnType::Tag,
                             },
                         );
                     }
@@ -639,7 +639,7 @@ pub async fn validate_or_insert_schema(
                         new_column.name,
                         ColumnSchema {
                             id: new_column.id,
-                            data_type,
+                            column_type: data_type,
                         },
                     );
                 }
@@ -650,7 +650,7 @@ pub async fn validate_or_insert_schema(
                     time_column.name,
                     ColumnSchema {
                         id: time_column.id,
-                        data_type: ColumnType::Time,
+                        column_type: ColumnType::Time,
                     },
                 );
 
@@ -721,11 +721,11 @@ mod tests {
 
     async fn setup_db() -> (Pool<Postgres>, KafkaTopic, QueryPool) {
         // std::env::var("TEST_DATABASE_URL").unwrap()
-        let pool = connect_catalog_store("test", &DSN).await.unwrap();
+        let pool = connect_catalog_store("test", SCHEMA_NAME, &DSN).await.unwrap();
         let kafka_topic = KafkaTopic::create_or_get(SHARED_KAFKA_TOPIC, &pool)
             .await
             .unwrap();
-        let query_pool = QueryPool::create_or_get(SHARED_QUERY_POOL, "foo", &pool)
+        let query_pool = QueryPool::create_or_get(SHARED_QUERY_POOL, &pool)
             .await
             .unwrap();
 
@@ -819,11 +819,11 @@ new_measurement,t9=a f10=true 1
         let new_table = new_schema.tables.get("new_measurement").unwrap();
         assert_eq!(
             ColumnType::Bool,
-            new_table.columns.get("f10").unwrap().data_type
+            new_table.columns.get("f10").unwrap().column_type
         );
         assert_eq!(
             ColumnType::Tag,
-            new_table.columns.get("t9").unwrap().data_type
+            new_table.columns.get("t9").unwrap().column_type
         );
         let schema = NamespaceSchema::get_by_name("asdf", &pool)
             .await
@@ -844,11 +844,11 @@ m1,new_tag=c new_field=1i 2
         let table = new_schema.tables.get("m1").unwrap();
         assert_eq!(
             ColumnType::I64,
-            table.columns.get("new_field").unwrap().data_type
+            table.columns.get("new_field").unwrap().column_type
         );
         assert_eq!(
             ColumnType::Tag,
-            table.columns.get("new_tag").unwrap().data_type
+            table.columns.get("new_tag").unwrap().column_type
         );
         let schema = NamespaceSchema::get_by_name("asdf", &pool)
             .await
@@ -858,15 +858,15 @@ m1,new_tag=c new_field=1i 2
     }
 
     async fn clear_schema(pool: &Pool<Postgres>) {
-        sqlx::query("delete from column_names;")
+        sqlx::query("delete from column_name;")
             .execute(pool)
             .await
             .unwrap();
-        sqlx::query("delete from table_names;")
+        sqlx::query("delete from table_name;")
             .execute(pool)
             .await
             .unwrap();
-        sqlx::query("delete from namespaces;")
+        sqlx::query("delete from namespace;")
             .execute(pool)
             .await
             .unwrap();

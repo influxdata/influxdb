@@ -2,7 +2,9 @@
 -- iox_shared schema
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS public.kafka_topics
+CREATE SCHEMA IF NOT EXISTS iox_catalog;
+
+CREATE TABLE IF NOT EXISTS iox_catalog.kafka_topic
 (
     id INT GENERATED ALWAYS AS IDENTITY,
     name VARCHAR NOT NULL,
@@ -10,16 +12,15 @@ CREATE TABLE IF NOT EXISTS public.kafka_topics
     CONSTRAINT kafka_topic_name_unique UNIQUE (name)
     );
 
-CREATE TABLE IF NOT EXISTS public.query_pools
+CREATE TABLE IF NOT EXISTS iox_catalog.query_pool
 (
     id SMALLINT GENERATED ALWAYS AS IDENTITY,
     name VARCHAR NOT NULL,
-    connection_string VARCHAR NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT query_pool_name_unique UNIQUE (name)
     );
 
-CREATE TABLE IF NOT EXISTS public.namespaces
+CREATE TABLE IF NOT EXISTS iox_catalog.namespace
 (
     id INT GENERATED ALWAYS AS IDENTITY,
     name VARCHAR NOT NULL,
@@ -30,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.namespaces
     CONSTRAINT namespace_name_unique UNIQUE (name)
     );
 
-CREATE TABLE IF NOT EXISTS public.table_names
+CREATE TABLE IF NOT EXISTS iox_catalog.table_name
 (
     id INT GENERATED ALWAYS AS IDENTITY,
     namespace_id integer NOT NULL,
@@ -39,17 +40,17 @@ CREATE TABLE IF NOT EXISTS public.table_names
     CONSTRAINT table_name_unique UNIQUE (namespace_id, name)
     );
 
-CREATE TABLE IF NOT EXISTS public.column_names
+CREATE TABLE IF NOT EXISTS iox_catalog.column_name
 (
     id INT GENERATED ALWAYS AS IDENTITY,
     table_id INT NOT NULL,
     name VARCHAR NOT NULL,
-    data_type SMALLINT NOT NULL,
+    column_type SMALLINT NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT column_name_unique UNIQUE (table_id, name)
     );
 
-CREATE TABLE IF NOT EXISTS public.sequencers
+CREATE TABLE IF NOT EXISTS iox_catalog.sequencer
 (
     id SMALLINT GENERATED ALWAYS AS IDENTITY,
     kafka_topic_id INT NOT NULL,
@@ -58,7 +59,7 @@ CREATE TABLE IF NOT EXISTS public.sequencers
     PRIMARY KEY (id)
     );
 
-CREATE TABLE IF NOT EXISTS public.sharding_rule_overrides
+CREATE TABLE IF NOT EXISTS iox_catalog.sharding_rule_override
 (
     id INT GENERATED ALWAYS AS IDENTITY,
     namespace_id INT NOT NULL,
@@ -67,9 +68,9 @@ CREATE TABLE IF NOT EXISTS public.sharding_rule_overrides
     PRIMARY KEY (id)
     );
 
-CREATE TABLE IF NOT EXISTS public.partitions
+CREATE TABLE IF NOT EXISTS iox_catalog.partition
 (
-    id INT GENERATED ALWAYS AS IDENTITY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
     sequencer_id SMALLINT NOT NULL,
     table_id INT NOT NULL,
     partition_key VARCHAR NOT NULL,
@@ -77,7 +78,7 @@ CREATE TABLE IF NOT EXISTS public.partitions
     CONSTRAINT partition_key_unique UNIQUE (table_id, partition_key)
     );
 
-CREATE TABLE IF NOT EXISTS public.parquet_files
+CREATE TABLE IF NOT EXISTS iox_catalog.parquet_file
 (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     sequencer_id SMALLINT NOT NULL,
@@ -86,155 +87,147 @@ CREATE TABLE IF NOT EXISTS public.parquet_files
     file_location VARCHAR NOT NULL,
     min_sequence_number BIGINT,
     max_sequence_number BIGINT,
-    min_time INT,
-    max_time INT,
+    min_time BIGINT,
+    max_time BIGINT,
     to_delete BOOLEAN,
     PRIMARY KEY (id),
     CONSTRAINT parquet_location_unique UNIQUE (file_location)
     );
 
-CREATE TABLE IF NOT EXISTS public.delete_tombstones
+CREATE TABLE IF NOT EXISTS iox_catalog.tombstone
 (
-    id INT GENERATED ALWAYS AS IDENTITY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
     table_id INT NOT NULL,
     sequencer_id SMALLINT NOT NULL,
-    partition_id INT NOT NULL,
     sequence_number BIGINT NOT NULL,
-    min_time INT NOT NULL,
-    max_time INT NOT NULL,
+    min_time BIGINT NOT NULL,
+    max_time BIGINT NOT NULL,
     serialized_predicate TEXT NOT NULL,
     PRIMARY KEY (id)
     );
 
-CREATE TABLE IF NOT EXISTS public.processed_tombstones
+CREATE TABLE IF NOT EXISTS iox_catalog.processed_tombstone
 (
-    delete_tombstone_id INT NOT NULL,
+    tombstone_id BIGINT NOT NULL,
     parquet_file_id BIGINT NOT NULL,
-    PRIMARY KEY (delete_tombstone_id, parquet_file_id)
+    PRIMARY KEY (tombstone_id, parquet_file_id)
     );
 
-ALTER TABLE IF EXISTS public.namespaces
+ALTER TABLE IF EXISTS iox_catalog.namespace
     ADD FOREIGN KEY (kafka_topic_id)
-    REFERENCES public.kafka_topics (id) MATCH SIMPLE
+    REFERENCES iox_catalog.kafka_topic (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.namespaces
+ALTER TABLE IF EXISTS iox_catalog.namespace
     ADD FOREIGN KEY (query_pool_id)
-    REFERENCES public.query_pools (id) MATCH SIMPLE
+    REFERENCES iox_catalog.query_pool (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.table_names
+ALTER TABLE IF EXISTS iox_catalog.table_name
     ADD FOREIGN KEY (namespace_id)
-    REFERENCES public.namespaces (id) MATCH SIMPLE
+    REFERENCES iox_catalog.namespace (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.column_names
+ALTER TABLE IF EXISTS iox_catalog.column_name
     ADD FOREIGN KEY (table_id)
-    REFERENCES public.table_names (id) MATCH SIMPLE
+    REFERENCES iox_catalog.table_name (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.sequencers
+ALTER TABLE IF EXISTS iox_catalog.sequencer
     ADD FOREIGN KEY (kafka_topic_id)
-    REFERENCES public.kafka_topics (id) MATCH SIMPLE
+    REFERENCES iox_catalog.kafka_topic (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.sharding_rule_overrides
+ALTER TABLE IF EXISTS iox_catalog.sharding_rule_override
     ADD FOREIGN KEY (namespace_id)
-    REFERENCES public.namespaces (id) MATCH SIMPLE
+    REFERENCES iox_catalog.namespace (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.sharding_rule_overrides
+ALTER TABLE IF EXISTS iox_catalog.sharding_rule_override
     ADD FOREIGN KEY (table_id)
-    REFERENCES public.table_names (id) MATCH SIMPLE
+    REFERENCES iox_catalog.table_name (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.sharding_rule_overrides
+ALTER TABLE IF EXISTS iox_catalog.sharding_rule_override
     ADD FOREIGN KEY (column_id)
-    REFERENCES public.column_names (id) MATCH SIMPLE
+    REFERENCES iox_catalog.column_name (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.partitions
+ALTER TABLE IF EXISTS iox_catalog.partition
     ADD FOREIGN KEY (sequencer_id)
-    REFERENCES public.sequencers (id) MATCH SIMPLE
+    REFERENCES iox_catalog.sequencer (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.partitions
+ALTER TABLE IF EXISTS iox_catalog.partition
     ADD FOREIGN KEY (table_id)
-    REFERENCES public.table_names (id) MATCH SIMPLE
+    REFERENCES iox_catalog.table_name (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.parquet_files
+ALTER TABLE IF EXISTS iox_catalog.parquet_file
     ADD FOREIGN KEY (sequencer_id)
-    REFERENCES public.sequencers (id) MATCH SIMPLE
+    REFERENCES iox_catalog.sequencer (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.parquet_files
+ALTER TABLE IF EXISTS iox_catalog.parquet_file
     ADD FOREIGN KEY (table_id)
-    REFERENCES public.table_names (id) MATCH SIMPLE
+    REFERENCES iox_catalog.table_name (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.parquet_files
+ALTER TABLE IF EXISTS iox_catalog.parquet_file
     ADD FOREIGN KEY (partition_id)
-    REFERENCES public.partitions (id) MATCH SIMPLE
+    REFERENCES iox_catalog.partition (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.delete_tombstones
+ALTER TABLE IF EXISTS iox_catalog.tombstone
     ADD FOREIGN KEY (sequencer_id)
-    REFERENCES public.sequencers (id) MATCH SIMPLE
+    REFERENCES iox_catalog.sequencer (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.delete_tombstones
+ALTER TABLE IF EXISTS iox_catalog.tombstone
     ADD FOREIGN KEY (table_id)
-    REFERENCES public.table_names (id) MATCH SIMPLE
+    REFERENCES iox_catalog.table_name (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.delete_tombstones
-    ADD FOREIGN KEY (partition_id)
-    REFERENCES public.partitions (id) MATCH SIMPLE
+ALTER TABLE IF EXISTS iox_catalog.processed_tombstone
+    ADD FOREIGN KEY (tombstone_id)
+    REFERENCES iox_catalog.tombstone (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
 
-ALTER TABLE IF EXISTS public.processed_tombstones
-    ADD FOREIGN KEY (delete_tombstone_id)
-    REFERENCES public.delete_tombstones (id) MATCH SIMPLE
-    ON UPDATE NO ACTION
-       ON DELETE NO ACTION
-	NOT VALID;
-
-ALTER TABLE IF EXISTS public.processed_tombstones
+ALTER TABLE IF EXISTS iox_catalog.processed_tombstone
     ADD FOREIGN KEY (parquet_file_id)
-    REFERENCES public.parquet_files (id) MATCH SIMPLE
+    REFERENCES iox_catalog.parquet_file (id) MATCH SIMPLE
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
