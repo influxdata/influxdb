@@ -86,11 +86,24 @@ pub async fn parse_body(
 
         // Read at most max_size bytes to prevent a decompression bomb based
         // DoS.
-        let mut decoder = decoder.take(max_size as u64);
+        //
+        // In order to detect if the entire stream ahs been read, or truncated,
+        // read an extra byte beyond the limit and check the resulting data
+        // length - see test_read_gzipped_body_truncation.
+        let mut decoder = decoder.take(max_size as u64 + 1);
         let mut decoded_data = Vec::new();
         decoder
             .read_to_end(&mut decoded_data)
             .context(ReadingBodyAsGzipSnafu)?;
+
+        // If the length is max_size+1, the body is at least max_size+1 bytes in
+        // length, and possibly longer, but truncated.
+        if decoded_data.len() > max_size {
+            return Err(ParseBodyError::RequestSizeExceeded {
+                max_body_size: max_size,
+            });
+        }
+
         Ok(decoded_data.into())
     } else {
         Ok(body)
@@ -99,6 +112,11 @@ pub async fn parse_body(
 
 #[cfg(test)]
 mod tests {
+    use std::{io::Write, iter};
+
+    use flate2::{write::GzEncoder, Compression};
+    use futures::stream;
+    use http::HeaderValue;
     use hyper::Request;
     use tokio_stream::wrappers::ReceiverStream;
 
@@ -132,5 +150,53 @@ mod tests {
             parse_result.to_string(),
             "Client hung up while sending body: error reading a body from connection: Blarg Error"
         );
+    }
+
+    #[tokio::test]
+    async fn test_read_gzipped_body_truncation() {
+        const MAX_BYTES: usize = 1024;
+
+        // Generate a LP string in the form of:
+        //
+        //  bananas,A=AAAAAAAAAA(repeated)... B=42
+        //                                  ^
+        //                                  |
+        //                         MAX_BYTES boundary
+        //
+        // So that reading MAX_BYTES number of bytes produces the string:
+        //
+        //  bananas,A=AAAAAAAAAA(repeated)...
+        //
+        // Effectively trimming off the " B=42" suffix.
+        let body = "bananas,A=";
+        let body = iter::once(body)
+            .chain(iter::repeat("A").take(MAX_BYTES - body.len()))
+            .chain(iter::once(" B=42\n"))
+            .flat_map(|s| s.bytes())
+            .collect::<Vec<u8>>();
+
+        // Apply gzip compression to the body
+        let mut e = GzEncoder::new(Vec::new(), Compression::default());
+        e.write_all(&body).unwrap();
+        let body = e.finish().expect("failed to compress test body");
+
+        let body: Result<_, std::io::Error> = Ok(body);
+        let body = Body::wrap_stream(stream::iter(iter::once(body)));
+
+        let mut request = Request::builder()
+            .uri("https://explosions.example/")
+            .body(body)
+            .unwrap();
+
+        request
+            .headers_mut()
+            .insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+
+        let got = parse_body(request, MAX_BYTES).await;
+
+        assert!(matches!(
+            got,
+            Err(ParseBodyError::RequestSizeExceeded { .. })
+        ));
     }
 }
