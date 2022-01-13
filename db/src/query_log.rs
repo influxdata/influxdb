@@ -47,7 +47,7 @@ impl QueryLogEntry {
         }
     }
 
-    fn set_completed(&self, now: Time) {
+    pub fn set_completed(&self, now: Time) {
         let dur = now - self.issue_time;
         self.query_completed_duration
             .store(dur.as_nanos() as i64, atomic::Ordering::Relaxed);
@@ -132,11 +132,11 @@ mod test_super {
         );
 
         // when the query completes some time in the future.
-        time_provider.set(Time::from_timestamp_millis(200));
+        time_provider.set(Time::from_timestamp_millis(300));
         entry.set_completed(time_provider.now());
         assert_eq!(
             entry.query_completed_duration(),
-            Some(Duration::from_millis(100))
+            Some(Duration::from_millis(200))
         );
     }
 }

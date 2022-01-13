@@ -1,6 +1,6 @@
-use arrow::array::{ArrayRef, TimestampNanosecondArray};
+use arrow::array::{ArrayRef, DurationMillisecondArray, TimestampNanosecondArray};
 use arrow::datatypes::{DataType, TimeUnit};
-use arrow::error::Result;
+use arrow::error::{ArrowError, Result};
 use arrow::record_batch::RecordBatch;
 
 use comfy_table::{Cell, Table};
@@ -40,6 +40,21 @@ fn array_value_to_string(column: &ArrayRef, row: usize) -> Result<String> {
             // convert to string in preferred influx format
             let use_z = true;
             Ok(ts.to_rfc3339_opts(SecondsFormat::AutoSi, use_z))
+        }
+        // TODO(edd): see https://github.com/apache/arrow-rs/issues/1168
+        DataType::Duration(TimeUnit::Millisecond) if column.is_valid(row) => {
+            let dur_column = column
+                .as_any()
+                .downcast_ref::<DurationMillisecondArray>()
+                .unwrap();
+
+            let duration = std::time::Duration::from_millis(
+                dur_column
+                    .value(row)
+                    .try_into()
+                    .map_err(|e| ArrowError::InvalidArgumentError(format!("{:?}", e)))?,
+            );
+            Ok(format!("{:?}", duration))
         }
         _ => {
             // fallback to arrow's default printing for other types
