@@ -87,7 +87,7 @@ pub async fn parse_body(
         // Read at most max_size bytes to prevent a decompression bomb based
         // DoS.
         //
-        // In order to detect if the entire stream ahs been read, or truncated,
+        // In order to detect if the entire stream has been read, or truncated,
         // read an extra byte beyond the limit and check the resulting data
         // length - see test_read_gzipped_body_truncation.
         let mut decoder = decoder.take(max_size as u64 + 1);
