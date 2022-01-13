@@ -500,7 +500,7 @@ func (s *Service) updateCheck(ctx context.Context, tx kv.Tx, id platform.ID, chk
 		}
 	}
 
-	// ID and OrganizationID can not be updated
+	// ID, OrganizationID, and OwnerID can not be updated.
 	chk.SetID(current.GetID())
 	chk.SetOrgID(current.GetOrgID())
 	chk.SetOwnerID(current.GetOwnerID())

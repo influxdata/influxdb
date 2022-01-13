@@ -52,12 +52,6 @@ func (b Base) Valid(lang fluxlang.FluxLanguageService) error {
 			Msg:  "Check Name can't be empty",
 		}
 	}
-	if !b.OwnerID.Valid() {
-		return &errors.Error{
-			Code: errors.EInvalid,
-			Msg:  "Check OwnerID is invalid",
-		}
-	}
 	if !b.OrgID.Valid() {
 		return &errors.Error{
 			Code: errors.EInvalid,
