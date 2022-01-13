@@ -709,6 +709,7 @@ mod test {
 
         pretty_format_batches(&record_batches)
             .unwrap()
+            .to_string()
             .split('\n')
             .map(|s| s.to_owned())
             .collect()

@@ -108,7 +108,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     tonic_build::configure()
         .file_descriptor_set_path(&descriptor_path)
         .format(true)
-        .compile_with_config(config, &proto_files, &[root.into()])?;
+        .compile_with_config(config, &proto_files, &[root])?;
 
     let descriptor_set = std::fs::read(descriptor_path)?;
 

@@ -18,7 +18,7 @@ mutable_batch_pb = { path = "../mutable_batch_pb" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.2"
 pin-project = "1.0"
-prost = "0.8"
+prost = "0.9"
 rdkafka = { version = "0.28.0", optional = true }
 time = { path = "../time" }
 tokio = { version = "1.13", features = ["fs", "macros", "parking_lot", "rt", "sync", "time"] }

@@ -11,7 +11,7 @@ generated_types = { path = "../generated_types" }
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
-prost = "0.8"
+prost = "0.9"
 
 [dev-dependencies]
 bytes = "1.0"

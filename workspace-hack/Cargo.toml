@@ -14,7 +14,7 @@ publish = false
 ### BEGIN HAKARI SECTION
 [dependencies]
 bytes = { version = "1", features = ["std"] }
-chrono = { version = "0.4", features = ["clock", "libc", "oldtime", "std", "time", "winapi"] }
+chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "libc", "std", "winapi"] }
 either = { version = "1", features = ["use_std"] }
 futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
 futures-core = { version = "0.3", features = ["alloc", "std"] }
@@ -37,7 +37,7 @@ regex-automata = { version = "0.1", features = ["regex-syntax", "std"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 reqwest = { version = "0.11", features = ["__tls", "default-tls", "hyper-tls", "json", "native-tls-crate", "serde_json", "tokio-native-tls"] }
 serde = { version = "1", features = ["derive", "serde_derive", "std"] }
-serde_json = { version = "1", features = ["indexmap", "preserve_order", "std"] }
+serde_json = { version = "1", features = ["arbitrary_precision", "indexmap", "preserve_order", "std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 tokio = { version = "1", features = ["bytes", "fs", "full", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "process", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "sync", "time", "tokio-macros", "winapi"] }
 tokio-stream = { version = "0.1", features = ["net", "time"] }

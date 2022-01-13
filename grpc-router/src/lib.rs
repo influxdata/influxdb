@@ -67,7 +67,7 @@
 //! #        todo!()
 //! #    }
 //! #
-//! #    type TestServerStreamStream = Pin<Box<dyn Stream<Item = Result<TestServerStreamResponse, tonic::Status>> + Send + Sync>>;
+//! #    type TestServerStreamStream = Pin<Box<dyn Stream<Item = Result<TestServerStreamResponse, tonic::Status>> + Send>>;
 //! #
 //! #    async fn test_server_stream(&self, request: Request<TestRequest>) -> Result<Response<Self::TestServerStreamStream>, Status> {
 //! #        todo!()
@@ -158,7 +158,7 @@
 //! #        todo!()
 //! #    }
 //! #
-//! #    type TestServerStreamStream = Pin<Box<dyn Stream<Item = Result<TestServerStreamResponse, tonic::Status>> + Send + Sync>>;
+//! #    type TestServerStreamStream = Pin<Box<dyn Stream<Item = Result<TestServerStreamResponse, tonic::Status>> + Send>>;
 //! #
 //! #    async fn test_server_stream(&self, request: Request<TestRequest>) -> Result<Response<Self::TestServerStreamStream>, Status> {
 //! #        todo!()

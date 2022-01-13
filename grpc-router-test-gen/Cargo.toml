@@ -6,10 +6,10 @@ edition = "2021"
 description = "Protobuf used in test for the grpc-router crate; need to be in a separate create because of linter limitations"
 
 [dependencies]
-tonic = "0.5"
-prost = "0.8"
-prost-types = "0.8"
+tonic = "0.6"
+prost = "0.9"
+prost-types = "0.9"
 
 [build-dependencies]
-tonic-build = "0.5"
-prost-build = "0.8"
+tonic-build = "0.6"
+prost-build = "0.9"

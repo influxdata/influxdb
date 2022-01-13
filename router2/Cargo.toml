@@ -11,6 +11,6 @@ generated_types = { path = "../generated_types" }
 hyper = "0.14"
 metric = { path = "../metric" }
 thiserror = "1.0"
-tonic = "0.5"
+tonic = "0.6"
 trace = { path = "../trace/" }
 workspace-hack = { path = "../workspace-hack"}

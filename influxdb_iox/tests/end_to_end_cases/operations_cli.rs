@@ -67,23 +67,30 @@ async fn test_start_stop() {
         .success()
         .stdout(predicate::str::contains("Ok"));
 
-    let completed: IoxOperation = serde_json::from_slice(
-        &Command::cargo_bin("influxdb_iox")
-            .unwrap()
-            .arg("operation")
-            .arg("wait")
-            .arg(name.to_string())
-            .arg("--host")
-            .arg(addr)
-            .assert()
-            .success()
-            .get_output()
-            .stdout,
-    )
-    .expect("expected JSON output");
+    let command_result = Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("operation")
+        .arg("wait")
+        .arg(name.to_string())
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success();
 
-    assert_eq!(completed.metadata.pending_count, 0);
-    assert_eq!(completed.metadata.total_count, 1);
-    assert_eq!(completed.metadata.cancelled_count, 1);
-    assert_eq!(&completed.metadata.job, &operations[0].metadata.job)
+    // Can't parse a canceled operation due to
+    // https://github.com/influxdata/influxdb_iox/issues/3458
+    // workaround by just comparing string output
+    // let completed: IoxOperation = serde_json::from_slice(
+    //     &command_result.get_output().stdout,
+    // )
+    //     .expect("expected JSON output");
+    // assert_eq!(completed.metadata.pending_count, 0);
+    // assert_eq!(completed.metadata.total_count, 1);
+    // assert_eq!(completed.metadata.cancelled_count, 1);
+    // assert_eq!(&completed.metadata.job, &operations[0].metadata.job)
+
+    command_result
+        .stdout(predicate::str::contains(r#""message": "Job cancelled""#))
+        .stdout(predicate::str::contains(r#""cancelledCount": "1","#))
+        .stdout(predicate::str::contains("dummy"));
 }

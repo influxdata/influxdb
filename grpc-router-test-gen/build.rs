@@ -22,5 +22,5 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
 
     tonic_build::configure()
         .format(true)
-        .compile_with_config(config, &proto_files, &[root.into()])
+        .compile_with_config(config, &proto_files, &[root])
 }

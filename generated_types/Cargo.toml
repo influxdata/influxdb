@@ -8,12 +8,12 @@ edition = "2021"
 bytes = "1.0"
 data_types = { path = "../data_types", optional = true }
 observability_deps = { path = "../observability_deps" }
-pbjson = "0.1"
-pbjson-types = "0.1"
-prost = "0.8"
+pbjson = "0.2"
+pbjson-types = "0.2"
+prost = "0.9"
 regex = "1"
 serde = { version = "1.0", features = ["derive"] }
-tonic = "0.5"
+tonic = "0.6"
 time = { path = "../time" }
 workspace-hack = { path = "../workspace-hack"}
 
@@ -22,9 +22,9 @@ data_types = { path = "../data_types" }
 num_cpus = "1.13.0"
 
 [build-dependencies] # In alphabetical order
-tonic-build = "0.5"
-prost-build = "0.8"
-pbjson-build = "0.1"
+tonic-build = "0.6"
+prost-build = "0.9"
+pbjson-build = "0.2"
 
 [features]
 default = []

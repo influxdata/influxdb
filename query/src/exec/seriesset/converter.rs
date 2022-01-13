@@ -815,6 +815,7 @@ mod tests {
         let batch_size = 1000;
         let bounds = None;
         let projection = None;
+        let datetime_format = None;
         let mut reader = csv::Reader::new(
             data.as_bytes(),
             schema,
@@ -823,6 +824,7 @@ mod tests {
             batch_size,
             bounds,
             projection,
+            datetime_format,
         );
 
         let first_batch = reader.next().expect("Reading first batch");

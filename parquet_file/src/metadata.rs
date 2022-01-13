@@ -552,6 +552,8 @@ impl IoxParquetMetaData {
             row_groups: thrift_row_groups,
             key_value_metadata: file_metadata.key_value_metadata().clone(),
             created_by: file_metadata.created_by().clone(),
+            encryption_algorithm: None,
+            footer_signing_key_metadata: None,
         };
 
         // step 2: serialize the thrift struct into bytes
