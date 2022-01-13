@@ -193,6 +193,8 @@ jobs:
       - image: vectorized/redpanda:v21.9.2
         command: redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M
       - image: postgres
+        environment:
+          POSTGRES_HOST_AUTH_METHOD: trust
     resource_class: xlarge  # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
