@@ -1,6 +1,10 @@
 //! Ring buffer of queries that have been run with some brief information
 
-use std::{collections::VecDeque, sync::Arc};
+use std::{
+    collections::VecDeque,
+    sync::{atomic, Arc},
+    time::Duration,
+};
 
 use parking_lot::Mutex;
 use time::{Time, TimeProvider};
@@ -16,6 +20,10 @@ pub struct QueryLogEntry {
 
     /// Time at which the query was run
     pub issue_time: Time,
+
+    /// Duration in nanoseconds query took to complete (-1 is a sentinel value
+    /// indicating query not completed).
+    query_completed_duration: atomic::AtomicI64,
 }
 
 impl QueryLogEntry {
@@ -25,7 +33,24 @@ impl QueryLogEntry {
             query_type,
             query_text,
             issue_time,
+            query_completed_duration: (-1_i64).into(),
         }
+    }
+
+    pub fn query_completed_duration(&self) -> Option<Duration> {
+        match self
+            .query_completed_duration
+            .load(atomic::Ordering::Relaxed)
+        {
+            -1 => None,
+            d => Some(Duration::from_nanos(d as u64)),
+        }
+    }
+
+    fn set_completed(&self, now: Time) {
+        let dur = now - self.issue_time;
+        self.query_completed_duration
+            .store(dur.as_nanos() as i64, atomic::Ordering::Relaxed);
     }
 }
 
@@ -49,16 +74,20 @@ impl QueryLog {
         }
     }
 
-    pub fn push(&self, query_type: impl Into<String>, query_text: impl Into<String>) {
-        if self.max_size == 0 {
-            return;
-        }
-
+    pub fn push(
+        &self,
+        query_type: impl Into<String>,
+        query_text: impl Into<String>,
+    ) -> Arc<QueryLogEntry> {
         let entry = Arc::new(QueryLogEntry::new(
             query_type.into(),
             query_text.into(),
             self.time_provider.now(),
         ));
+
+        if self.max_size == 0 {
+            return entry;
+        }
 
         let mut log = self.log.lock();
 
@@ -67,11 +96,47 @@ impl QueryLog {
             log.pop_front();
         }
 
-        log.push_back(entry);
+        log.push_back(Arc::clone(&entry));
+        entry
     }
 
     pub fn entries(&self) -> VecDeque<Arc<QueryLogEntry>> {
         let log = self.log.lock();
         log.clone()
+    }
+}
+
+#[cfg(test)]
+mod test_super {
+    use time::MockProvider;
+
+    use super::*;
+
+    #[test]
+    fn test_query_log_entry_completed() {
+        let time_provider = MockProvider::new(Time::from_timestamp_millis(100));
+
+        let entry = Arc::new(QueryLogEntry::new(
+            "sql".into(),
+            "SELECT 1".into(),
+            time_provider.now(),
+        ));
+        // query has not completed
+        assert_eq!(entry.query_completed_duration(), None);
+
+        // when the query completes at the same time it's issued
+        entry.set_completed(time_provider.now());
+        assert_eq!(
+            entry.query_completed_duration(),
+            Some(Duration::from_millis(0))
+        );
+
+        // when the query completes some time in the future.
+        time_provider.set(Time::from_timestamp_millis(200));
+        entry.set_completed(time_provider.now());
+        assert_eq!(
+            entry.query_completed_duration(),
+            Some(Duration::from_millis(100))
+        );
     }
 }
