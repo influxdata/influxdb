@@ -218,7 +218,7 @@ where
         // TODO: Encapsulate locking into a CatalogTransaction type
         let partition = partition.read();
         if partition.is_persisted() {
-            debug!(db_name = %self.db.name(), %partition, "nothing to be compacted for partition");
+            trace!(db_name = %self.db.name(), %partition, "nothing to be compacted for partition");
             return;
         }
 
@@ -340,7 +340,7 @@ where
         let partition = partition.read();
 
         if partition.is_persisted() {
-            debug!(%db_name, %partition, "nothing to persist for partition");
+            trace!(%db_name, %partition, "nothing to persist for partition");
             return false;
         }
 
