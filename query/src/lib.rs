@@ -81,7 +81,7 @@ pub trait QueryChunkMeta: Sized {
 /// a `QueryDatabase`. It is used to trigger side-effects (such as query timing)
 /// on query completion.
 pub struct QueryCompletedToken<'a> {
-    f: Box<dyn Fn() + Send + 'a>,
+    f: Option<Box<dyn FnOnce() + Send + 'a>>,
 }
 
 impl<'a> Debug for QueryCompletedToken<'a> {
@@ -91,14 +91,18 @@ impl<'a> Debug for QueryCompletedToken<'a> {
 }
 
 impl<'a> QueryCompletedToken<'a> {
-    pub fn new(f: impl Fn() + Send + 'a) -> Self {
-        Self { f: Box::new(f) }
+    pub fn new(f: impl FnOnce() + Send + 'a) -> Self {
+        Self {
+            f: Some(Box::new(f)),
+        }
     }
 }
 
 impl<'a> Drop for QueryCompletedToken<'a> {
     fn drop(&mut self) {
-        (self.f)()
+        if let Some(f) = self.f.take() {
+            (f)()
+        }
     }
 }
 

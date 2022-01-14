@@ -242,7 +242,7 @@ impl QueryDatabase for QueryCatalogAccess {
         // When the query token is dropped the query entry's completion time
         // will be set.
         let entry = self.query_log.push(query_type, query_text);
-        QueryCompletedToken::new(move || self.query_log.set_completed(Arc::clone(&entry)))
+        QueryCompletedToken::new(move || self.query_log.set_completed(entry))
     }
 }
 

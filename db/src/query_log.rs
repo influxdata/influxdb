@@ -9,6 +9,9 @@ use std::{
 use parking_lot::Mutex;
 use time::{Time, TimeProvider};
 
+// The query duration used for queries still running.
+const UNCOMPLETED_DURATION: i64 = -1;
+
 /// Information about a single query that was executed
 #[derive(Debug)]
 pub struct QueryLogEntry {
@@ -33,7 +36,7 @@ impl QueryLogEntry {
             query_type,
             query_text,
             issue_time,
-            query_completed_duration: (-1_i64).into(),
+            query_completed_duration: UNCOMPLETED_DURATION.into(),
         }
     }
 
@@ -42,7 +45,7 @@ impl QueryLogEntry {
             .query_completed_duration
             .load(atomic::Ordering::Relaxed)
         {
-            -1 => None,
+            UNCOMPLETED_DURATION => None,
             d => Some(Duration::from_nanos(d as u64)),
         }
     }
@@ -54,7 +57,7 @@ impl QueryLogEntry {
     }
 }
 
-/// Stores a fixed number `QueryExcutions` -- handles locking
+/// Stores a fixed number `QueryExecutions` -- handles locking
 /// internally so can be shared across multiple
 #[derive(Debug)]
 pub struct QueryLog {
