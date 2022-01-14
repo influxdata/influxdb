@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS iox_catalog.sequencer
     kafka_topic_id INT NOT NULL,
     kafka_partition INT NOT NULL,
     min_unpersisted_sequence_number BIGINT,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT sequencer_unique UNIQUE (kafka_topic_id, kafka_partition)
     );
 
 CREATE TABLE IF NOT EXISTS iox_catalog.sharding_rule_override
