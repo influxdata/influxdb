@@ -6,6 +6,7 @@ use data_types::DatabaseName;
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use mutable_batch_lp::PayloadStatistics;
+use predicate::delete_predicate::HttpDeleteRequest;
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
@@ -26,12 +27,19 @@ pub enum DmlError {
 #[async_trait]
 pub trait DmlHandler: Debug + Send + Sync {
     /// Write `batches` to `namespace`.
-    async fn write<'a>(
-        &'a self,
+    async fn write(
+        &self,
         namespace: DatabaseName<'_>,
         batches: HashMap<String, MutableBatch>,
         payload_stats: PayloadStatistics,
         body_len: usize,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<(), DmlError>;
+
+    /// Delete the data specified in `delete`.
+    async fn delete(
+        &self,
+        delete: HttpDeleteRequest,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), DmlError>;
 }

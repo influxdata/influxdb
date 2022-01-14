@@ -17,8 +17,8 @@ pub struct NopDmlHandler;
 
 #[async_trait]
 impl DmlHandler for NopDmlHandler {
-    async fn write<'a>(
-        &'a self,
+    async fn write(
+        &self,
         namespace: DatabaseName<'_>,
         batches: HashMap<String, MutableBatch>,
         _payload_stats: PayloadStatistics,
@@ -26,6 +26,15 @@ impl DmlHandler for NopDmlHandler {
         _span_ctx: Option<SpanContext>,
     ) -> Result<(), DmlError> {
         info!(%namespace, ?batches, "dropping write operation");
+        Ok(())
+    }
+
+    async fn delete(
+        &self,
+        delete: predicate::delete_predicate::HttpDeleteRequest,
+        _span_ctx: Option<SpanContext>,
+    ) -> Result<(), DmlError> {
+        info!(?delete, "dropping delete operation");
         Ok(())
     }
 }
