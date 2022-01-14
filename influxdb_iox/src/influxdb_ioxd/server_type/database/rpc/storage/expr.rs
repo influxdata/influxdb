@@ -692,25 +692,20 @@ fn format_predicate<'a>(pred: &'a RPCPredicate, f: &mut fmt::Formatter<'_>) -> f
 }
 
 fn format_node<'a>(node: &'a RPCNode, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let value = match &node.value {
-        None => {
-            write!(f, "node: NONE")?;
-            return Ok(());
-        }
-        Some(value) => value,
-    };
+    // Note for "ParenExpresion" value is None
+    let value = node.value.as_ref();
 
     match node.children.len() {
         0 => {
-            format_value(value, f)?;
+            format_opt_value(value, f)?;
         }
         // print using infix notation
         // (child0 <op> child1)
-        2 => {
+        2 if node.value.is_some() => {
             write!(f, "(")?;
             format_node(&node.children[0], f)?;
             write!(f, " ")?;
-            format_value(value, f)?;
+            format_opt_value(value, f)?;
             write!(f, " ")?;
             format_node(&node.children[1], f)?;
             write!(f, ")")?;
@@ -718,7 +713,7 @@ fn format_node<'a>(node: &'a RPCNode, f: &mut fmt::Formatter<'_>) -> fmt::Result
         // print func notation
         // <op>(child0, chold1, ...)
         _ => {
-            format_value(value, f)?;
+            format_opt_value(value, f)?;
             write!(f, "(")?;
             for (i, child) in node.children.iter().enumerate() {
                 if i > 0 {
@@ -733,6 +728,13 @@ fn format_node<'a>(node: &'a RPCNode, f: &mut fmt::Formatter<'_>) -> fmt::Result
     Ok(())
 }
 
+fn format_opt_value<'a>(value: Option<&'a RPCValue>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if let Some(value) = value {
+        format_value(value, f)
+    } else {
+        Ok(())
+    }
+}
 fn format_value<'a>(value: &'a RPCValue, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     use RPCValue::*;
     match value {
@@ -1493,6 +1495,37 @@ mod tests {
         let rpc_pred = Some(RPCPredicate { root: Some(node) });
         assert_eq!(
             "AND((TagRef:_m[0x00] == \"val1\"), (TagRef:tag2 == \"val2\"), (TagRef:_f[0xff] == \"val3\"))",
+            format!("{}", displayable_predicate(rpc_pred.as_ref()))
+        );
+    }
+
+    #[test]
+    fn test_displayable_predicate_paren_expression_1_arg() {
+        let paren = RPCNode {
+            node_type: RPCNodeType::ParenExpression as i32,
+            children: vec![make_tag_ref_node(b"foo", "val1")],
+            value: None,
+        };
+        let rpc_pred = Some(RPCPredicate { root: Some(paren) });
+        assert_eq!(
+            r#"((TagRef:foo == "val1"))"#,
+            format!("{}", displayable_predicate(rpc_pred.as_ref()))
+        );
+    }
+
+    #[test]
+    fn test_displayable_predicate_paren_expression_2_arg() {
+        let paren = RPCNode {
+            node_type: RPCNodeType::ParenExpression as i32,
+            children: vec![
+                make_tag_ref_node(b"foo", "val1"),
+                make_tag_ref_node(b"bar", "val2"),
+            ],
+            value: None,
+        };
+        let rpc_pred = Some(RPCPredicate { root: Some(paren) });
+        assert_eq!(
+            r#"((TagRef:foo == "val1"), (TagRef:bar == "val2"))"#,
             format!("{}", displayable_predicate(rpc_pred.as_ref()))
         );
     }
