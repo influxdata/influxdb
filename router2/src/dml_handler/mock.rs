@@ -1,9 +1,13 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use async_trait::async_trait;
-use dml::DmlOperation;
+use data_types::DatabaseName;
+
+use hashbrown::HashMap;
+use mutable_batch::MutableBatch;
 use mutable_batch_lp::PayloadStatistics;
 use parking_lot::Mutex;
+use trace::ctx::SpanContext;
 
 use super::{DmlError, DmlHandler};
 
@@ -11,7 +15,7 @@ use super::{DmlError, DmlHandler};
 pub enum MockDmlHandlerCall {
     Dispatch {
         db_name: String,
-        op: DmlOperation,
+        batches: HashMap<String, MutableBatch>,
         payload_stats: PayloadStatistics,
         body_len: usize,
     },
@@ -57,18 +61,19 @@ macro_rules! record_and_return {
 
 #[async_trait]
 impl DmlHandler for Arc<MockDmlHandler> {
-    async fn dispatch<'a>(
+    async fn write<'a>(
         &'a self,
-        db_name: impl Into<String> + Send + Sync + 'a,
-        op: impl Into<DmlOperation> + Send + Sync + 'a,
+        db_name: DatabaseName<'_>,
+        batches: HashMap<String, MutableBatch>,
         payload_stats: PayloadStatistics,
         body_len: usize,
+        _span_ctx: Option<SpanContext>,
     ) -> Result<(), DmlError> {
         record_and_return!(
             self,
             MockDmlHandlerCall::Dispatch {
                 db_name: db_name.into(),
-                op: op.into(),
+                batches,
                 payload_stats,
                 body_len,
             },

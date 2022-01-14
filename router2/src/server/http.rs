@@ -4,7 +4,7 @@ use std::str::Utf8Error;
 
 use bytes::{Bytes, BytesMut};
 use data_types::names::{org_and_bucket_to_database, OrgBucketMappingError};
-use dml::{DmlMeta, DmlWrite};
+
 use futures::StreamExt;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
 use observability_deps::tracing::*;
@@ -184,7 +184,7 @@ where
         // contain a timestamp
         let default_time = self.time_provider.now().timestamp_nanos();
 
-        let (tables, stats) = match mutable_batch_lp::lines_to_batches_stats(body, default_time) {
+        let (batches, stats) = match mutable_batch_lp::lines_to_batches_stats(body, default_time) {
             Ok(v) => v,
             Err(mutable_batch_lp::Error::EmptyPayload) => {
                 debug!("nothing to write");
@@ -193,9 +193,8 @@ where
             Err(e) => return Err(Error::ParseLineProtocol(e)),
         };
 
-        let op = DmlWrite::new(tables, DmlMeta::unsequenced(span_ctx));
         self.dml_handler
-            .dispatch(db_name, op, stats, body.len())
+            .write(db_name, batches, stats, body.len(), span_ctx)
             .await?;
 
         Ok(())
@@ -275,7 +274,7 @@ mod tests {
     use std::{io::Write, iter, sync::Arc};
 
     use assert_matches::assert_matches;
-    use dml::DmlOperation;
+    
     use flate2::{write::GzEncoder, Compression};
     use hyper::header::HeaderValue;
 
@@ -360,12 +359,10 @@ mod tests {
                         assert_eq!(calls.len(), 1);
 
                         // Validate the write op
-                        let op = assert_matches!(&calls[0], MockDmlHandlerCall::Dispatch{ db_name, op, body_len, .. } => {
+                        assert_matches!(&calls[0], MockDmlHandlerCall::Dispatch{ db_name, body_len, .. } => {
                             assert_eq!(db_name, $want_write_db);
                             assert_eq!(*body_len, want_body_len);
-                            op
-                        });
-                        assert_matches!(op, DmlOperation::Write(_));
+                        })
                     } else {
                         assert!(calls.is_empty());
                     }

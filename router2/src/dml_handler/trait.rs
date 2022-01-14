@@ -1,9 +1,13 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use dml::DmlOperation;
+use data_types::DatabaseName;
+
+use hashbrown::HashMap;
+use mutable_batch::MutableBatch;
 use mutable_batch_lp::PayloadStatistics;
 use thiserror::Error;
+use trace::ctx::SpanContext;
 
 /// Errors emitted by a [`DmlHandler`] implementation during DML request
 /// processing.
@@ -21,12 +25,13 @@ pub enum DmlError {
 /// An abstract handler of [`DmlOperation`] requests.
 #[async_trait]
 pub trait DmlHandler: Debug + Send + Sync {
-    /// Apply `op` to `db_name`.
-    async fn dispatch<'a>(
+    /// Write `batches` to `db_name`.
+    async fn write<'a>(
         &'a self,
-        db_name: impl Into<String> + Send + Sync + 'a,
-        op: impl Into<DmlOperation> + Send + Sync + 'a,
+        db_name: DatabaseName<'_>,
+        batches: HashMap<String, MutableBatch>,
         payload_stats: PayloadStatistics,
         body_len: usize,
+        span_ctx: Option<SpanContext>,
     ) -> Result<(), DmlError>;
 }
