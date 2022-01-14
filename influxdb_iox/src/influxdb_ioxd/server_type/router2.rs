@@ -1,9 +1,12 @@
-use std::{fmt::Display, sync::Arc};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use hyper::{Body, Request, Response};
 use metric::Registry;
-use router2::server::RouterServer;
+use router2::{dml_handler::DmlHandler, server::RouterServer};
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
@@ -14,14 +17,14 @@ use crate::influxdb_ioxd::{
 };
 
 #[derive(Debug)]
-pub struct RouterServerType {
-    server: RouterServer,
+pub struct RouterServerType<D> {
+    server: RouterServer<D>,
     shutdown: CancellationToken,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
-impl RouterServerType {
-    pub fn new(server: RouterServer, common_state: &CommonServerState) -> Self {
+impl<D> RouterServerType<D> {
+    pub fn new(server: RouterServer<D>, common_state: &CommonServerState) -> Self {
         Self {
             server,
             shutdown: CancellationToken::new(),
@@ -31,7 +34,10 @@ impl RouterServerType {
 }
 
 #[async_trait]
-impl ServerType for RouterServerType {
+impl<D> ServerType for RouterServerType<D>
+where
+    D: DmlHandler + 'static,
+{
     type RouteError = IoxHttpErrorAdaptor;
 
     /// Return the [`metric::Registry`] used by the router.
@@ -51,7 +57,11 @@ impl ServerType for RouterServerType {
         &self,
         req: Request<Body>,
     ) -> Result<Response<Body>, Self::RouteError> {
-        self.server.http().route(req).map_err(IoxHttpErrorAdaptor)
+        self.server
+            .http()
+            .route(req)
+            .await
+            .map_err(IoxHttpErrorAdaptor)
     }
 
     /// Registers the services exposed by the router [`GrpcDelegate`] delegate.
@@ -82,7 +92,7 @@ pub struct IoxHttpErrorAdaptor(router2::server::http::Error);
 
 impl Display for IoxHttpErrorAdaptor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
+        Display::fmt(&self.0, f)
     }
 }
 

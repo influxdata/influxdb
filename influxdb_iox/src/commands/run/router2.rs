@@ -13,7 +13,10 @@ use crate::{
     },
 };
 use observability_deps::tracing::*;
-use router2::server::RouterServer;
+use router2::{
+    dml_handler::nop::NopDmlHandler,
+    server::{http::HttpDelegate, RouterServer},
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -53,7 +56,11 @@ pub struct Config {
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
-    let router_server = RouterServer::default();
+    let http = HttpDelegate::new(
+        config.run_config.max_http_request_size,
+        NopDmlHandler::default(),
+    );
+    let router_server = RouterServer::new(http, Default::default());
     let server_type = Arc::new(RouterServerType::new(router_server, &common_state));
 
     info!("starting router2");
