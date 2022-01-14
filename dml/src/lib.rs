@@ -131,6 +131,18 @@ impl DmlOperation {
     }
 }
 
+impl From<DmlWrite> for DmlOperation {
+    fn from(v: DmlWrite) -> Self {
+        Self::Write(v)
+    }
+}
+
+impl From<DmlDelete> for DmlOperation {
+    fn from(v: DmlDelete) -> Self {
+        Self::Delete(v)
+    }
+}
+
 /// A collection of writes to potentially multiple tables within the same database
 #[derive(Debug, Clone)]
 pub struct DmlWrite {
