@@ -68,7 +68,7 @@ impl DmlHandler for Arc<MockDmlHandler> {
             self,
             MockDmlHandlerCall::Dispatch {
                 db_name: db_name.into(),
-                op: op.into().clone(),
+                op: op.into(),
                 payload_stats,
                 body_len,
             },

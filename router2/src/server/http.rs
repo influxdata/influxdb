@@ -430,10 +430,7 @@ mod tests {
 
     test_write_handler!(
         invalid_org_bucket,
-        query_string = format!(
-            "?org=test&bucket={}",
-            iter::repeat("A").take(1000).collect::<String>()
-        ),
+        query_string = format!("?org=test&bucket={}", "A".repeat(1000)),
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Ok(())],
         want_write_db = "", // None
