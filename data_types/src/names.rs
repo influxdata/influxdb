@@ -8,6 +8,9 @@ use snafu::{ResultExt, Snafu};
 pub enum OrgBucketMappingError {
     #[snafu(display("Invalid database name: {}", source))]
     InvalidDatabaseName { source: DatabaseNameError },
+
+    #[snafu(display("missing org/bucket value"))]
+    NotSpecified,
 }
 
 /// Map an InfluxDB 2.X org & bucket into an IOx DatabaseName.
@@ -23,6 +26,11 @@ pub fn org_and_bucket_to_database<'a, O: AsRef<str>, B: AsRef<str>>(
 
     let org: Cow<'_, str> = utf8_percent_encode(org.as_ref(), NON_ALPHANUMERIC).into();
     let bucket: Cow<'_, str> = utf8_percent_encode(bucket.as_ref(), NON_ALPHANUMERIC).into();
+
+    // An empty org or bucket is not acceptable.
+    if org.is_empty() || bucket.is_empty() {
+        return Err(OrgBucketMappingError::NotSpecified);
+    }
 
     let db_name = format!("{}{}{}", org.as_ref(), SEPARATOR, bucket.as_ref());
 
@@ -71,5 +79,12 @@ mod tests {
 
         let got = org_and_bucket_to_database("org!", "bucket").unwrap();
         assert_eq!(got.as_str(), "org%21_bucket");
+    }
+
+    #[test]
+    fn test_empty_org_bucket() {
+        let err = org_and_bucket_to_database("", "")
+            .expect_err("should fail with empty org/bucket valuese");
+        assert!(matches!(err, OrgBucketMappingError::NotSpecified));
     }
 }
