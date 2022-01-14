@@ -3,7 +3,7 @@ use crate::{
     system_tables::IoxSystemTable,
 };
 use arrow::{
-    array::{StringArray, TimestampNanosecondArray},
+    array::{DurationNanosecondArray, StringArray, TimestampNanosecondArray},
     datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
     error::Result,
     record_batch::RecordBatch,
@@ -47,6 +47,11 @@ fn queries_schema() -> SchemaRef {
         ),
         Field::new("query_type", DataType::Utf8, false),
         Field::new("query_text", DataType::Utf8, false),
+        Field::new(
+            "completed_duration",
+            DataType::Duration(TimeUnit::Nanosecond),
+            false,
+        ),
     ]))
 }
 
@@ -70,12 +75,18 @@ fn from_query_log_entries(
         .map(|e| Some(&e.query_text))
         .collect::<StringArray>();
 
+    let query_runtime = entries
+        .iter()
+        .map(|e| e.query_completed_duration().map(|d| d.as_nanos() as i64))
+        .collect::<DurationNanosecondArray>();
+
     RecordBatch::try_new(
         schema,
         vec![
             Arc::new(issue_time),
             Arc::new(query_type),
             Arc::new(query_text),
+            Arc::new(query_runtime),
         ],
     )
 }
@@ -94,19 +105,36 @@ mod tests {
         query_log.push("sql", "select * from foo");
         time_provider.inc(std::time::Duration::from_secs(24 * 60 * 60));
         query_log.push("sql", "select * from bar");
-        query_log.push("read_filter", "json goop");
+        let read_filter_entry = query_log.push("read_filter", "json goop");
 
         let expected = vec![
-            "+----------------------+-------------+-------------------+",
-            "| issue_time           | query_type  | query_text        |",
-            "+----------------------+-------------+-------------------+",
-            "| 1996-12-19T16:39:57Z | sql         | select * from foo |",
-            "| 1996-12-20T16:39:57Z | sql         | select * from bar |",
-            "| 1996-12-20T16:39:57Z | read_filter | json goop         |",
-            "+----------------------+-------------+-------------------+",
+            "+----------------------+-------------+-------------------+--------------------+",
+            "| issue_time           | query_type  | query_text        | completed_duration |",
+            "+----------------------+-------------+-------------------+--------------------+",
+            "| 1996-12-19T16:39:57Z | sql         | select * from foo |                    |",
+            "| 1996-12-20T16:39:57Z | sql         | select * from bar |                    |",
+            "| 1996-12-20T16:39:57Z | read_filter | json goop         |                    |",
+            "+----------------------+-------------+-------------------+--------------------+",
         ];
 
         let schema = queries_schema();
+        let batch = from_query_log_entries(schema.clone(), query_log.entries()).unwrap();
+        assert_batches_eq!(&expected, &[batch]);
+
+        // mark one of the queries completed after 4s
+        let now = Time::from_rfc3339("1996-12-20T16:40:01+00:00").unwrap();
+        read_filter_entry.set_completed(now);
+
+        let expected = vec![
+            "+----------------------+-------------+-------------------+--------------------+",
+            "| issue_time           | query_type  | query_text        | completed_duration |",
+            "+----------------------+-------------+-------------------+--------------------+",
+            "| 1996-12-19T16:39:57Z | sql         | select * from foo |                    |",
+            "| 1996-12-20T16:39:57Z | sql         | select * from bar |                    |",
+            "| 1996-12-20T16:39:57Z | read_filter | json goop         | 4s                 |",
+            "+----------------------+-------------+-------------------+--------------------+",
+        ];
+
         let batch = from_query_log_entries(schema, query_log.entries()).unwrap();
         assert_batches_eq!(&expected, &[batch]);
     }

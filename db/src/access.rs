@@ -22,7 +22,7 @@ use predicate::predicate::{Predicate, PredicateBuilder};
 use query::{
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
-    QueryChunk, QueryChunkMeta, QueryDatabase, DEFAULT_SCHEMA,
+    QueryChunk, QueryChunkMeta, QueryCompletedToken, QueryDatabase, DEFAULT_SCHEMA,
 };
 use schema::Schema;
 use std::{any::Any, sync::Arc};
@@ -234,8 +234,15 @@ impl QueryDatabase for QueryCatalogAccess {
             .map(|table| Arc::clone(&table.schema().read()))
     }
 
-    fn record_query(&self, query_type: impl Into<String>, query_text: impl Into<String>) {
-        self.query_log.push(query_type, query_text)
+    fn record_query(
+        &self,
+        query_type: impl Into<String>,
+        query_text: impl Into<String>,
+    ) -> QueryCompletedToken<'_> {
+        // When the query token is dropped the query entry's completion time
+        // will be set.
+        let entry = self.query_log.push(query_type, query_text);
+        QueryCompletedToken::new(move || self.query_log.set_completed(entry))
     }
 }
 

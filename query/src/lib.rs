@@ -77,6 +77,35 @@ pub trait QueryChunkMeta: Sized {
     }
 }
 
+/// A `QueryCompletedToken` is returned by `record_query` implementations of
+/// a `QueryDatabase`. It is used to trigger side-effects (such as query timing)
+/// on query completion.
+pub struct QueryCompletedToken<'a> {
+    f: Option<Box<dyn FnOnce() + Send + 'a>>,
+}
+
+impl<'a> Debug for QueryCompletedToken<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QueryCompletedToken").finish()
+    }
+}
+
+impl<'a> QueryCompletedToken<'a> {
+    pub fn new(f: impl FnOnce() + Send + 'a) -> Self {
+        Self {
+            f: Some(Box::new(f)),
+        }
+    }
+}
+
+impl<'a> Drop for QueryCompletedToken<'a> {
+    fn drop(&mut self) {
+        if let Some(f) = self.f.take() {
+            (f)()
+        }
+    }
+}
+
 /// A `Database` is the main trait implemented by the IOx subsystems
 /// that store actual data.
 ///
@@ -100,7 +129,11 @@ pub trait QueryDatabase: Debug + Send + Sync {
     fn chunk_summaries(&self) -> Vec<ChunkSummary>;
 
     /// Record that particular type of query was run / planned
-    fn record_query(&self, query_type: impl Into<String>, query_text: impl Into<String>);
+    fn record_query(
+        &self,
+        query_type: impl Into<String>,
+        query_text: impl Into<String>,
+    ) -> QueryCompletedToken<'_>;
 }
 
 /// Collection of data that shares the same partition key
