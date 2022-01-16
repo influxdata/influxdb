@@ -1897,6 +1897,7 @@ dependencies = [
  "snafu",
  "sqlx",
  "tokio",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -5363,9 +5364,14 @@ dependencies = [
 name = "workspace-hack"
 version = "0.1.0"
 dependencies = [
+ "ahash",
+ "base64 0.13.0",
+ "bitflags",
+ "byteorder",
  "bytes",
  "cc",
  "chrono",
+ "digest 0.9.0",
  "either",
  "futures-channel",
  "futures-core",
@@ -5378,6 +5384,7 @@ dependencies = [
  "indexmap",
  "log",
  "memchr",
+ "nom",
  "num-bigint 0.4.3",
  "num-integer",
  "num-traits",
@@ -5389,6 +5396,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "smallvec",
  "syn",
  "tokio",
