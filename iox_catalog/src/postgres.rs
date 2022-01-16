@@ -329,7 +329,7 @@ impl SequencerRepo for PostgresCatalog {
             ( kafka_topic_id, kafka_partition, min_unpersisted_sequence_number )
         VALUES
             ( $1, $2, 0 )
-        ON CONFLICT ON CONSTRAINT sequencer_uniqe
+        ON CONFLICT ON CONSTRAINT sequencer_unique
         DO UPDATE SET kafka_topic_id = sequencer.kafka_topic_id RETURNING *;
         "#,
         )

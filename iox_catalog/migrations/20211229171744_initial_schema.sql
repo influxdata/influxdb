@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS iox_catalog.namespace
     name VARCHAR NOT NULL,
     retention_duration VARCHAR,
     kafka_topic_id integer NOT NULL,
-    query_pool_id integer NOT NULL,
+    query_pool_id SMALLINT NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT namespace_name_unique UNIQUE (name)
     );
