@@ -22,7 +22,7 @@ pub enum DmlError {
     Internal(Box<dyn std::error::Error + Send + Sync>),
 }
 
-/// An abstract handler of [`DmlOperation`] requests.
+/// An abstract handler of DML requests.
 #[async_trait]
 pub trait DmlHandler: Debug + Send + Sync {
     /// Write `batches` to `namespace`.
