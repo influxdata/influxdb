@@ -189,7 +189,11 @@ impl ColumnRepo for MemCatalog {
     ) -> Result<Column> {
         let mut collections = self.collections.lock().expect("mutex poisoned");
 
-        let column = match collections.columns.iter().find(|t| t.name == name) {
+        let column = match collections
+            .columns
+            .iter()
+            .find(|t| t.name == name && t.table_id == table_id)
+        {
             Some(c) => {
                 if column_type as i16 != c.column_type {
                     return Err(Error::ColumnTypeMismatch {
@@ -263,5 +267,28 @@ impl SequencerRepo for MemCatalog {
     async fn list(&self) -> Result<Vec<Sequencer>> {
         let collections = self.collections.lock().expect("mutex poisoned");
         Ok(collections.sequencers.clone())
+    }
+
+    async fn list_by_kafka_topic(&self, topic: &KafkaTopic) -> Result<Vec<Sequencer>> {
+        let collections = self.collections.lock().expect("mutex poisoned");
+        let sequencers: Vec<_> = collections
+            .sequencers
+            .iter()
+            .filter(|s| s.kafka_topic_id == topic.id)
+            .cloned()
+            .collect();
+        Ok(sequencers)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_mem_repo() {
+        let f = || Arc::new(MemCatalog::new());
+
+        crate::interface::test_helpers::test_repo(f).await;
     }
 }

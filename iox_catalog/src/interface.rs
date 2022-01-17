@@ -124,6 +124,9 @@ pub trait SequencerRepo {
 
     /// list all sequencers
     async fn list(&self) -> Result<Vec<Sequencer>>;
+
+    /// list all sequencers for a given kafka topic
+    async fn list_by_kafka_topic(&self, topic: &KafkaTopic) -> Result<Vec<Sequencer>>;
 }
 
 /// Data object for a kafka topic
@@ -145,7 +148,7 @@ pub struct QueryPool {
 }
 
 /// Data object for a namespace
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
 pub struct Namespace {
     /// The id of the namespace
     pub id: i32,
@@ -449,4 +452,187 @@ pub struct Sequencer {
     /// with a higher sequence number than this. However, all data with a sequence number
     /// lower than this must have been persisted to Parquet.
     pub min_unpersisted_sequence_number: i64,
+}
+
+#[cfg(test)]
+pub(crate) mod test_helpers {
+    use super::*;
+    use futures::{stream::FuturesOrdered, StreamExt};
+
+    pub(crate) async fn test_repo<T, F>(new_repo: F)
+    where
+        T: RepoCollection + Send + Sync,
+        F: Fn() -> T + Send + Sync,
+    {
+        test_kafka_topic(&new_repo()).await;
+        test_query_pool(&new_repo()).await;
+        test_namespace(&new_repo()).await;
+        test_table(&new_repo()).await;
+        test_column(&new_repo()).await;
+        test_sequencer(&new_repo()).await;
+    }
+
+    async fn test_kafka_topic<T: RepoCollection + Send + Sync>(repo: &T) {
+        let kafka_repo = repo.kafka_topic();
+        let k = kafka_repo.create_or_get("foo").await.unwrap();
+        assert!(k.id > 0);
+        assert_eq!(k.name, "foo");
+        let k2 = kafka_repo.create_or_get("foo").await.unwrap();
+        assert_eq!(k, k2);
+    }
+
+    async fn test_query_pool<T: RepoCollection + Send + Sync>(repo: &T) {
+        let query_repo = repo.query_pool();
+        let q = query_repo.create_or_get("foo").await.unwrap();
+        assert!(q.id > 0);
+        assert_eq!(q.name, "foo");
+        let q2 = query_repo.create_or_get("foo").await.unwrap();
+        assert_eq!(q, q2);
+    }
+
+    async fn test_namespace<T: RepoCollection + Send + Sync>(repo: &T) {
+        let namespace_repo = repo.namespace();
+        let kafka = repo.kafka_topic().create_or_get("foo").await.unwrap();
+        let pool = repo.query_pool().create_or_get("foo").await.unwrap();
+
+        let namespace_name = "test_namespace";
+        let namespace = namespace_repo
+            .create(namespace_name, "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        assert!(namespace.id > 0);
+        assert_eq!(namespace.name, namespace_name);
+
+        let conflict = namespace_repo
+            .create(namespace_name, "inf", kafka.id, pool.id)
+            .await;
+        assert!(matches!(
+            conflict.unwrap_err(),
+            Error::NameExists { name: _ }
+        ));
+
+        let found = namespace_repo
+            .get_by_name(namespace_name)
+            .await
+            .unwrap()
+            .expect("namespace should be there");
+        assert_eq!(namespace, found);
+    }
+
+    async fn test_table<T: RepoCollection + Send + Sync>(repo: &T) {
+        let kafka = repo.kafka_topic().create_or_get("foo").await.unwrap();
+        let pool = repo.query_pool().create_or_get("foo").await.unwrap();
+        let namespace = repo
+            .namespace()
+            .create("namespace_table_test", "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+
+        // test we can create or get a table
+        let table_repo = repo.table();
+        let t = table_repo
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let tt = table_repo
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        assert!(t.id > 0);
+        assert_eq!(t, tt);
+
+        let tables = table_repo.list_by_namespace_id(namespace.id).await.unwrap();
+        assert_eq!(vec![t], tables);
+    }
+
+    async fn test_column<T: RepoCollection + Send + Sync>(repo: &T) {
+        let kafka = repo.kafka_topic().create_or_get("foo").await.unwrap();
+        let pool = repo.query_pool().create_or_get("foo").await.unwrap();
+        let namespace = repo
+            .namespace()
+            .create("namespace_column_test", "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        let table = repo
+            .table()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+
+        // test we can create or get a column
+        let column_repo = repo.column();
+        let c = column_repo
+            .create_or_get("column_test", table.id, ColumnType::Tag)
+            .await
+            .unwrap();
+        let cc = column_repo
+            .create_or_get("column_test", table.id, ColumnType::Tag)
+            .await
+            .unwrap();
+        assert!(c.id > 0);
+        assert_eq!(c, cc);
+
+        // test that attempting to create an already defined column of a different type returns error
+        let err = column_repo
+            .create_or_get("column_test", table.id, ColumnType::U64)
+            .await
+            .expect_err("should error with wrong column type");
+        assert!(matches!(
+            err,
+            Error::ColumnTypeMismatch {
+                name: _,
+                existing: _,
+                new: _
+            }
+        ));
+
+        // test that we can create a column of the same name under a different table
+        let table2 = repo
+            .table()
+            .create_or_get("test_table_2", namespace.id)
+            .await
+            .unwrap();
+        let ccc = column_repo
+            .create_or_get("column_test", table2.id, ColumnType::U64)
+            .await
+            .unwrap();
+        assert_ne!(c, ccc);
+
+        let columns = column_repo
+            .list_by_namespace_id(namespace.id)
+            .await
+            .unwrap();
+        assert_eq!(vec![c, ccc], columns);
+    }
+
+    async fn test_sequencer<T: RepoCollection + Send + Sync>(repo: &T) {
+        let kafka = repo
+            .kafka_topic()
+            .create_or_get("sequencer_test")
+            .await
+            .unwrap();
+        let sequencer_repo = repo.sequencer();
+
+        // Create 10 sequencers
+        let created = (1..=10)
+            .map(|partition| sequencer_repo.create_or_get(&kafka, partition))
+            .collect::<FuturesOrdered<_>>()
+            .map(|v| {
+                let v = v.expect("failed to create sequencer");
+                (v.id, v)
+            })
+            .collect::<BTreeMap<_, _>>()
+            .await;
+
+        // List them and assert they match
+        let listed = sequencer_repo
+            .list_by_kafka_topic(&kafka)
+            .await
+            .expect("failed to list sequencers")
+            .into_iter()
+            .map(|v| (v.id, v))
+            .collect::<BTreeMap<_, _>>();
+
+        assert_eq!(created, listed);
+    }
 }

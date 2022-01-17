@@ -315,6 +315,14 @@ impl SequencerRepo for PostgresCatalog {
             .await
             .map_err(|e| Error::SqlxError { source: e })
     }
+
+    async fn list_by_kafka_topic(&self, topic: &KafkaTopic) -> Result<Vec<Sequencer>> {
+        sqlx::query_as::<_, Sequencer>(r#"SELECT * FROM sequencer WHERE kafka_topic_id = $1;"#)
+            .bind(&topic.id) // $1
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
 }
 
 /// The error code returned by Postgres for a unique constraint violation.
@@ -353,13 +361,6 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::postgres::PostgresCatalog;
-    use crate::{
-        create_or_get_default_records, interface::NamespaceSchema, validate_or_insert_schema,
-    };
-    use futures::{stream::FuturesOrdered, StreamExt};
-    use influxdb_line_protocol::parse_lines;
-    use std::collections::BTreeMap;
     use std::env;
 
     // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
@@ -399,196 +400,28 @@ mod tests {
         }};
     }
 
-    async fn setup_db() -> (Arc<PostgresCatalog>, KafkaTopic, QueryPool) {
+    async fn setup_db() -> Arc<PostgresCatalog> {
         let dsn = std::env::var("DATABASE_URL").unwrap();
-        let postgres_catalog = Arc::new(
+        Arc::new(
             PostgresCatalog::connect("test", SCHEMA_NAME, &dsn)
                 .await
                 .unwrap(),
-        );
-
-        let (kafka_topic, query_pool, _) = create_or_get_default_records(2, &postgres_catalog)
-            .await
-            .unwrap();
-        (postgres_catalog, kafka_topic, query_pool)
+        )
     }
 
     #[tokio::test]
-    async fn test_catalog() {
+    async fn test_repo() {
         // If running an integration test on your laptop, this requires that you have Postgres
         // running and that you've done the sqlx migrations. See the README in this crate for
         // info to set it up.
         maybe_skip_integration!();
 
-        let (postgres, kafka_topic, query_pool) = setup_db().await;
+        let postgres = setup_db().await;
         clear_schema(&postgres.pool).await;
 
-        let namespace = NamespaceRepo::create(postgres.as_ref(), "foo", "inf", 0, 0).await;
-        assert!(matches!(
-            namespace.unwrap_err(),
-            Error::ForeignKeyViolation { source: _ }
-        ));
-        let namespace = NamespaceRepo::create(
-            postgres.as_ref(),
-            "foo",
-            "inf",
-            kafka_topic.id,
-            query_pool.id,
-        )
-        .await
-        .unwrap();
-        assert!(namespace.id > 0);
-        assert_eq!(namespace.kafka_topic_id, kafka_topic.id);
-        assert_eq!(namespace.query_pool_id, query_pool.id);
+        let f = || Arc::clone(&postgres);
 
-        // test that we can create or get a table
-        let t = TableRepo::create_or_get(postgres.as_ref(), "foo", namespace.id)
-            .await
-            .unwrap();
-        let tt = TableRepo::create_or_get(postgres.as_ref(), "foo", namespace.id)
-            .await
-            .unwrap();
-        assert!(t.id > 0);
-        assert_eq!(t, tt);
-
-        // test that we can craete or get a column
-        let c = ColumnRepo::create_or_get(postgres.as_ref(), "foo", t.id, ColumnType::I64)
-            .await
-            .unwrap();
-        let cc = ColumnRepo::create_or_get(postgres.as_ref(), "foo", t.id, ColumnType::I64)
-            .await
-            .unwrap();
-        assert!(c.id > 0);
-        assert_eq!(c, cc);
-
-        // test that attempting to create an already defined column of a different type returns error
-        let err = ColumnRepo::create_or_get(postgres.as_ref(), "foo", t.id, ColumnType::F64)
-            .await
-            .expect_err("should error with wrong column type");
-        assert!(matches!(
-            err,
-            Error::ColumnTypeMismatch {
-                name: _,
-                existing: _,
-                new: _
-            }
-        ));
-
-        // now test with a new namespace
-        let namespace = NamespaceRepo::create(
-            postgres.as_ref(),
-            "asdf",
-            "inf",
-            kafka_topic.id,
-            query_pool.id,
-        )
-        .await
-        .unwrap();
-        let data = r#"
-m1,t1=a,t2=b f1=2i,f2=2.0 1
-m1,t1=a f1=3i 2
-m2,t3=b f1=true 1
-        "#;
-
-        // test that new schema gets returned
-        let lines: Vec<_> = parse_lines(data).map(|l| l.unwrap()).collect();
-        let schema = Arc::new(NamespaceSchema::new(
-            namespace.id,
-            namespace.kafka_topic_id,
-            namespace.query_pool_id,
-        ));
-        let new_schema = validate_or_insert_schema(lines, &schema, &postgres)
-            .await
-            .unwrap();
-        let new_schema = new_schema.unwrap();
-
-        // ensure new schema is in the db
-        let schema_from_db = NamespaceSchema::get_by_name("asdf", &postgres)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(new_schema, schema_from_db);
-
-        // test that a new table will be created
-        let data = r#"
-m1,t1=c f1=1i 2
-new_measurement,t9=a f10=true 1
-        "#;
-        let lines: Vec<_> = parse_lines(data).map(|l| l.unwrap()).collect();
-        let new_schema = validate_or_insert_schema(lines, &schema_from_db, &postgres)
-            .await
-            .unwrap()
-            .unwrap();
-        let new_table = new_schema.tables.get("new_measurement").unwrap();
-        assert_eq!(
-            ColumnType::Bool,
-            new_table.columns.get("f10").unwrap().column_type
-        );
-        assert_eq!(
-            ColumnType::Tag,
-            new_table.columns.get("t9").unwrap().column_type
-        );
-        let schema = NamespaceSchema::get_by_name("asdf", &postgres)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(new_schema, schema);
-
-        // test that a new column for an existing table will be created
-        // test that a new table will be created
-        let data = r#"
-m1,new_tag=c new_field=1i 2
-        "#;
-        let lines: Vec<_> = parse_lines(data).map(|l| l.unwrap()).collect();
-        let new_schema = validate_or_insert_schema(lines, &schema, &postgres)
-            .await
-            .unwrap()
-            .unwrap();
-        let table = new_schema.tables.get("m1").unwrap();
-        assert_eq!(
-            ColumnType::I64,
-            table.columns.get("new_field").unwrap().column_type
-        );
-        assert_eq!(
-            ColumnType::Tag,
-            table.columns.get("new_tag").unwrap().column_type
-        );
-        let schema = NamespaceSchema::get_by_name("asdf", &postgres)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(new_schema, schema);
-    }
-
-    #[tokio::test]
-    async fn test_sequencers() {
-        maybe_skip_integration!();
-
-        let (postgres, kafka_topic, _query_pool) = setup_db().await;
-        clear_schema(&postgres.pool).await;
-
-        // Create 10 sequencers
-        let created = (1..=10)
-            .map(|partition| {
-                SequencerRepo::create_or_get(postgres.as_ref(), &kafka_topic, partition)
-            })
-            .collect::<FuturesOrdered<_>>()
-            .map(|v| {
-                let v = v.expect("failed to create sequencer");
-                (v.id, v)
-            })
-            .collect::<BTreeMap<_, _>>()
-            .await;
-
-        // List them and assert they match
-        let listed = SequencerRepo::list(postgres.as_ref())
-            .await
-            .expect("failed to list sequencers")
-            .into_iter()
-            .map(|v| (v.id, v))
-            .collect::<BTreeMap<_, _>>();
-
-        assert_eq!(created, listed);
+        crate::interface::test_helpers::test_repo(f).await;
     }
 
     async fn clear_schema(pool: &Pool<Postgres>) {
