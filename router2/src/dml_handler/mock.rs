@@ -1,13 +1,12 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::DatabaseName;
+use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use mutable_batch_lp::PayloadStatistics;
 use parking_lot::Mutex;
-use predicate::delete_predicate::HttpDeleteRequest;
 use trace::ctx::SpanContext;
 
 use super::{DmlError, DmlHandler};
@@ -20,7 +19,11 @@ pub enum MockDmlHandlerCall {
         payload_stats: PayloadStatistics,
         body_len: usize,
     },
-    Delete(HttpDeleteRequest),
+    Delete {
+        namespace: String,
+        table: String,
+        predicate: DeletePredicate,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -89,11 +92,21 @@ impl DmlHandler for Arc<MockDmlHandler> {
         )
     }
 
-    async fn delete(
+    async fn delete<'a>(
         &self,
-        delete: HttpDeleteRequest,
+        namespace: DatabaseName<'_>,
+        table: impl Into<String> + Send + Sync + 'a,
+        predicate: DeletePredicate,
         _span_ctx: Option<SpanContext>,
     ) -> Result<(), DmlError> {
-        record_and_return!(self, MockDmlHandlerCall::Delete(delete), delete_return)
+        record_and_return!(
+            self,
+            MockDmlHandlerCall::Delete {
+                namespace: namespace.into(),
+                table: table.into(),
+                predicate,
+            },
+            delete_return
+        )
     }
 }

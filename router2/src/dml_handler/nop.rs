@@ -1,7 +1,7 @@
 //! A NOP implementation of [`DmlHandler`].
 
 use async_trait::async_trait;
-use data_types::DatabaseName;
+use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
@@ -29,12 +29,15 @@ impl DmlHandler for NopDmlHandler {
         Ok(())
     }
 
-    async fn delete(
+    async fn delete<'a>(
         &self,
-        delete: predicate::delete_predicate::HttpDeleteRequest,
+        namespace: DatabaseName<'_>,
+        table: impl Into<String> + Send + Sync + 'a,
+        predicate: DeletePredicate,
         _span_ctx: Option<SpanContext>,
     ) -> Result<(), DmlError> {
-        info!(?delete, "dropping delete operation");
+        let table = table.into();
+        info!(%namespace, %table, ?predicate, "dropping delete operation");
         Ok(())
     }
 }

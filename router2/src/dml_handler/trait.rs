@@ -1,12 +1,11 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use data_types::DatabaseName;
+use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use mutable_batch_lp::PayloadStatistics;
-use predicate::delete_predicate::HttpDeleteRequest;
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
@@ -37,9 +36,11 @@ pub trait DmlHandler: Debug + Send + Sync {
     ) -> Result<(), DmlError>;
 
     /// Delete the data specified in `delete`.
-    async fn delete(
+    async fn delete<'a>(
         &self,
-        delete: HttpDeleteRequest,
+        namespace: DatabaseName<'_>,
+        table_name: impl Into<String> + Send + Sync + 'a,
+        predicate: DeletePredicate,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), DmlError>;
 }
