@@ -34,6 +34,7 @@ use arrow::{
 };
 use datafusion::{
     error::{DataFusionError as Error, Result},
+    execution::runtime_env::RuntimeEnv,
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
     physical_plan::{
         common::SizedRecordBatchStream,
@@ -207,7 +208,11 @@ impl ExecutionPlan for SchemaPivotExec {
     }
 
     /// Execute one partition and return an iterator over RecordBatch
-    async fn execute(&self, partition: usize) -> Result<SendableRecordBatchStream> {
+    async fn execute(
+        &self,
+        partition: usize,
+        runtime: Arc<RuntimeEnv>,
+    ) -> Result<SendableRecordBatchStream> {
         if self.output_partitioning().partition_count() <= partition {
             return Err(Error::Internal(format!(
                 "SchemaPivotExec invalid partition {}",
@@ -216,7 +221,7 @@ impl ExecutionPlan for SchemaPivotExec {
         }
 
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
-        let mut input_reader = self.input.execute(partition).await?;
+        let mut input_reader = self.input.execute(partition, runtime).await?;
 
         // Algorithm: for each column we haven't seen a value for yet,
         // check each input row;
@@ -326,6 +331,7 @@ mod tests {
         datatypes::{Field, Schema, SchemaRef},
     };
     use datafusion::physical_plan::memory::MemoryExec;
+    use datafusion_util::test_execute_partition;
 
     #[tokio::test]
     async fn schema_pivot_exec_all_null() {
@@ -425,25 +431,13 @@ mod tests {
     }
 
     #[tokio::test]
+    #[should_panic(expected = "SchemaPivotExec invalid partition 1")]
     async fn schema_pivot_exec_bad_partition() {
         // ensure passing in a bad partition generates a reasonable error
 
         let pivot = make_schema_pivot(SchemaTestCase::input_schema(), vec![]);
 
-        let results = pivot.execute(1).await;
-
-        let expected_error = "SchemaPivotExec invalid partition 1";
-        let actual_error = match results {
-            Ok(_) => "Unexpected success running pivot".into(),
-            Err(e) => format!("{:?}", e),
-        };
-
-        assert!(
-            actual_error.contains(expected_error),
-            "expected '{}' not found in '{}'",
-            expected_error,
-            actual_error
-        );
+        test_execute_partition(pivot, 1).await;
     }
 
     /// Return a StringSet extracted from the record batch
@@ -466,10 +460,13 @@ mod tests {
     }
 
     /// Create a schema pivot node with a single input
-    fn make_schema_pivot(input_schema: SchemaRef, data: Vec<RecordBatch>) -> SchemaPivotExec {
+    fn make_schema_pivot(
+        input_schema: SchemaRef,
+        data: Vec<RecordBatch>,
+    ) -> Arc<dyn ExecutionPlan> {
         let input = make_memory_exec(input_schema, data);
         let output_schema = Arc::new(make_schema_pivot_output_schema().as_ref().clone().into());
-        SchemaPivotExec::new(input, output_schema)
+        Arc::new(SchemaPivotExec::new(input, output_schema))
     }
 
     /// Create an ExecutionPlan that produces `data` record batches.
@@ -546,7 +543,7 @@ mod tests {
 
             let pivot = make_schema_pivot(schema, input_batches);
 
-            let results = pivot.execute(0).await.expect("Correctly executed pivot");
+            let results = test_execute_partition(pivot, 0).await;
 
             reader_to_stringset(results).await
         }

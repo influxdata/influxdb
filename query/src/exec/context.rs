@@ -343,8 +343,11 @@ impl IOxExecutionContext {
             .span()
             .map(|span| span.child("execute_stream_partitioned"));
 
+        // TODO add a nice accessor to the Runtime from the execution context
+        let runtime = Arc::clone(&self.inner.state.lock().unwrap().runtime_env);
+
         self.run(async move {
-            let stream = physical_plan.execute(partition).await?;
+            let stream = physical_plan.execute(partition, runtime).await?;
             let stream = TracedStream::new(stream, span, physical_plan);
             Ok(Box::pin(stream) as _)
         })

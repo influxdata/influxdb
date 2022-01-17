@@ -14,6 +14,7 @@ use datafusion_util::AdapterStream;
 use self::algo::RecordBatchDeduplicator;
 use datafusion::{
     error::{DataFusionError, Result},
+    execution::runtime_env::RuntimeEnv,
     physical_plan::{
         expressions::PhysicalSortExpr,
         metrics::{
@@ -166,7 +167,11 @@ impl ExecutionPlan for DeduplicateExec {
         Ok(Arc::new(Self::new(input, self.sort_keys.clone())))
     }
 
-    async fn execute(&self, partition: usize) -> Result<SendableRecordBatchStream> {
+    async fn execute(
+        &self,
+        partition: usize,
+        runtime: Arc<RuntimeEnv>,
+    ) -> Result<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Internal(
                 "DeduplicateExec only supports a single input stream".to_string(),
@@ -174,7 +179,7 @@ impl ExecutionPlan for DeduplicateExec {
         }
         let deduplicate_metrics = DeduplicateMetrics::new(&self.metrics, partition);
 
-        let input_stream = self.input.execute(0).await?;
+        let input_stream = self.input.execute(0, runtime).await?;
 
         // the deduplication is performed in a separate task which is
         // then sent via a channel to the output
@@ -317,7 +322,8 @@ mod test {
         record_batch::RecordBatch,
     };
     use arrow_util::assert_batches_eq;
-    use datafusion::physical_plan::{collect, expressions::col, memory::MemoryExec};
+    use datafusion::physical_plan::{expressions::col, memory::MemoryExec};
+    use datafusion_util::test_collect;
 
     use super::*;
     use arrow::array::DictionaryArray;
@@ -789,6 +795,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[should_panic(expected = "This is the error")]
     async fn test_input_error_propagated() {
         // test that an error from the input gets to the output
 
@@ -827,16 +834,8 @@ mod test {
             },
         }];
 
-        let exec = Arc::new(DeduplicateExec::new(input, sort_keys));
-        let output = collect(Arc::clone(&exec) as Arc<dyn ExecutionPlan>)
-            .await
-            .unwrap_err()
-            .to_string();
-        assert!(
-            output.contains("Compute error: This is the error"),
-            "actual output: {}",
-            output
-        );
+        let exec: Arc<dyn ExecutionPlan> = Arc::new(DeduplicateExec::new(input, sort_keys));
+        test_collect(exec).await;
     }
 
     #[tokio::test]
@@ -959,9 +958,7 @@ mod test {
 
         // Create and run the deduplicator
         let exec = Arc::new(DeduplicateExec::new(input, sort_keys));
-        let output = collect(Arc::clone(&exec) as Arc<dyn ExecutionPlan>)
-            .await
-            .unwrap();
+        let output = test_collect(Arc::clone(&exec) as Arc<dyn ExecutionPlan>).await;
 
         TestResults { output, exec }
     }
@@ -999,7 +996,11 @@ mod test {
             unimplemented!()
         }
 
-        async fn execute(&self, partition: usize) -> Result<SendableRecordBatchStream> {
+        async fn execute(
+            &self,
+            partition: usize,
+            _runtime: Arc<RuntimeEnv>,
+        ) -> Result<SendableRecordBatchStream> {
             assert_eq!(partition, 0);
 
             // ensure there is space to queue up the channel

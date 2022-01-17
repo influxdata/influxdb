@@ -851,7 +851,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "6.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=794b92b4e03ee3b470c0506019bca4659cee5e34#794b92b4e03ee3b470c0506019bca4659cee5e34"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=f027e5f4d9a44ad9cc879c133abc913f78fa76f0#f027e5f4d9a44ad9cc879c133abc913f78fa76f0"
 dependencies = [
  "ahash",
  "arrow",
@@ -869,6 +869,7 @@ dependencies = [
  "rand",
  "smallvec",
  "sqlparser",
+ "tempfile",
  "tokio",
  "tokio-stream",
 ]
