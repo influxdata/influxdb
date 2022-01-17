@@ -11,6 +11,7 @@ mod test {
         metrics::{self, MetricValue},
         ExecutionPlan, ExecutionPlanVisitor,
     };
+    use datafusion_util::test_execute_partition;
     use futures::StreamExt;
     use schema::{merge::SchemaMerger, sort::SortKey, Schema};
 
@@ -81,14 +82,14 @@ mod test {
             .await
             .unwrap();
 
-        let mut stream0 = plan.execute(0).await.expect("ran the plan");
+        let mut stream0 = test_execute_partition(Arc::clone(&plan), 0).await;
         let mut num_rows = 0;
         while let Some(batch) = stream0.next().await {
             num_rows += batch.unwrap().num_rows();
         }
         assert_eq!(num_rows, 3);
 
-        let mut stream1 = plan.execute(1).await.expect("ran the plan");
+        let mut stream1 = test_execute_partition(Arc::clone(&plan), 1).await;
         let mut num_rows = 0;
         while let Some(batch) = stream1.next().await {
             num_rows += batch.unwrap().num_rows();

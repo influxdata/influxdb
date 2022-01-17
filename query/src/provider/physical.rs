@@ -6,6 +6,7 @@ use arrow::datatypes::SchemaRef;
 use data_types::partition_metadata::TableSummary;
 use datafusion::{
     error::DataFusionError,
+    execution::runtime_env::RuntimeEnv,
     physical_plan::{
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
         DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
@@ -97,6 +98,7 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     async fn execute(
         &self,
         partition: usize,
+        _runtime: Arc<RuntimeEnv>,
     ) -> datafusion::error::Result<SendableRecordBatchStream> {
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
         let timer = baseline_metrics.elapsed_compute().timer();

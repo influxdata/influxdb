@@ -4,6 +4,8 @@
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
+use datafusion::physical_plan::{collect, ExecutionPlan};
 use datafusion::{
     arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch},
     logical_plan::{binary_expr, col, lit, Expr, Operator},
@@ -197,6 +199,44 @@ impl RecordBatchStream for AdapterStream {
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
     }
+}
+
+/// Execute the [ExecutionPlan] with a default [RuntimeEnv] and
+/// collect the results in memory.
+///
+/// # Panics
+/// If an an error occurs
+pub async fn test_collect(plan: Arc<dyn ExecutionPlan>) -> Vec<RecordBatch> {
+    let runtime = Arc::new(RuntimeEnv::new(RuntimeConfig::default()).unwrap());
+    collect(plan, runtime).await.unwrap()
+}
+
+/// Execute the specified partition of the [ExecutionPlan] with a
+/// default [RuntimeEnv] returning the resulting stream.
+///
+/// # Panics
+/// If an an error occurs
+pub async fn test_execute_partition(
+    plan: Arc<dyn ExecutionPlan>,
+    partition: usize,
+) -> SendableRecordBatchStream {
+    let runtime = Arc::new(RuntimeEnv::new(RuntimeConfig::default()).unwrap());
+    plan.execute(partition, runtime).await.unwrap()
+}
+
+/// Execute the specified partition of the [ExecutionPlan] with a
+/// default [RuntimeEnv] and collect the results in memory.
+///
+/// # Panics
+/// If an an error occurs
+pub async fn test_collect_partition(
+    plan: Arc<dyn ExecutionPlan>,
+    partition: usize,
+) -> Vec<RecordBatch> {
+    let stream = test_execute_partition(plan, partition).await;
+    datafusion::physical_plan::common::collect(stream)
+        .await
+        .unwrap()
 }
 
 #[cfg(test)]

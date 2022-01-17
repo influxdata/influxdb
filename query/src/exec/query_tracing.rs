@@ -212,9 +212,12 @@ fn get_timestamps(metrics: &MetricsSet) -> (Option<DateTime<Utc>>, Option<DateTi
 mod tests {
     use async_trait::async_trait;
     use chrono::TimeZone;
-    use datafusion::physical_plan::{
-        metrics::{Count, Time, Timestamp},
-        Metric,
+    use datafusion::{
+        execution::runtime_env::RuntimeEnv,
+        physical_plan::{
+            metrics::{Count, Time, Timestamp},
+            Metric,
+        },
     };
 
     use std::{sync::Arc, time::Duration};
@@ -457,6 +460,7 @@ mod tests {
         async fn execute(
             &self,
             _partition: usize,
+            _runtime: Arc<RuntimeEnv>,
         ) -> datafusion::error::Result<datafusion::physical_plan::SendableRecordBatchStream>
         {
             unimplemented!()

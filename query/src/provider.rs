@@ -12,8 +12,7 @@ use datafusion::{
         expressions::{col as physical_col, PhysicalSortExpr},
         filter::FilterExec,
         projection::ProjectionExec,
-        sort::SortExec,
-        sort_preserving_merge::SortPreservingMergeExec,
+        sorts::{sort::SortExec, sort_preserving_merge::SortPreservingMergeExec},
         union::UnionExec,
         ExecutionPlan,
     },
@@ -1057,7 +1056,7 @@ mod test {
 
     use arrow::datatypes::DataType;
     use arrow_util::assert_batches_eq;
-    use datafusion::physical_plan::collect;
+    use datafusion_util::test_collect;
     use schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
 
     use crate::{
@@ -1145,7 +1144,7 @@ mod test {
             vec![Arc::clone(&chunk)],
             Predicate::default(),
         ));
-        let batch = collect(Arc::clone(&input)).await.unwrap();
+        let batch = test_collect(Arc::clone(&input)).await;
         // data in its original non-sorted form
         let expected = vec![
             "+-----------+------+--------------------------------+",
@@ -1161,8 +1160,8 @@ mod test {
         assert_batches_eq!(&expected, &batch);
 
         // Add Sort operator on top of IOx scan
-        let sort_plan = Deduplicater::build_sort_plan(chunk, input, &sort_key);
-        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        let sort_plan = Deduplicater::build_sort_plan(chunk, input, &sort_key).unwrap();
+        let batch = test_collect(sort_plan).await;
         // data is sorted on (tag1, time)
         let expected = vec![
             "+-----------+------+--------------------------------+",
@@ -1222,7 +1221,7 @@ mod test {
             vec![Arc::clone(&chunk)],
             Predicate::default(),
         ));
-        let batch = collect(Arc::clone(&input)).await.unwrap();
+        let batch = test_collect(Arc::clone(&input)).await;
         // data in its original non-sorted form
         let expected = vec![
             "+-----------+------+------+--------------------------------+",
@@ -1238,8 +1237,8 @@ mod test {
         assert_batches_eq!(&expected, &batch);
 
         // Add Sort operator on top of IOx scan
-        let sort_plan = Deduplicater::build_sort_plan(chunk, input, &sort_key);
-        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        let sort_plan = Deduplicater::build_sort_plan(chunk, input, &sort_key).unwrap();
+        let batch = test_collect(sort_plan).await;
         // with the provider stats, data is sorted on: (tag1, tag2, time)
         let expected = vec![
             "+-----------+------+------+--------------------------------+",
@@ -1300,8 +1299,9 @@ mod test {
             Arc::clone(&chunk),
             Predicate::default(),
             &sort_key,
-        );
-        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        )
+        .unwrap();
+        let batch = test_collect(sort_plan).await;
         // with provided stats, data is sorted on (tag1, tag2, time)
         let expected = vec![
             "+-----------+------+------+--------------------------------+",
@@ -1407,8 +1407,9 @@ mod test {
             chunks,
             Predicate::default(),
             &output_sort_key,
-        );
-        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        )
+        .unwrap();
+        let batch = test_collect(sort_plan).await;
         // data is sorted on primary key(tag1, tag2, time)
         let expected = vec![
             "+-----------+------+------+--------------------------------+",
@@ -1520,8 +1521,9 @@ mod test {
             chunks,
             Predicate::default(),
             &output_sort_key,
-        );
-        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        )
+        .unwrap();
+        let batch = test_collect(sort_plan).await;
         // expect only 5 values, with "f1" and "timestamp" (even though input has 10)
         let expected = vec![
             "+-----------+--------------------------------+",
@@ -1652,8 +1654,9 @@ mod test {
             chunks,
             Predicate::default(),
             &output_sort_key,
-        );
-        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        )
+        .unwrap();
+        let batch = test_collect(sort_plan).await;
 
         let expected = vec![
             "+-----------+-----------------+",
@@ -1799,8 +1802,9 @@ mod test {
             chunks,
             Predicate::default(),
             &output_sort_key,
-        );
-        let batch = collect(sort_plan.unwrap()).await.unwrap();
+        )
+        .unwrap();
+        let batch = test_collect(sort_plan).await;
         // with provided stats, data is sorted on (tag2, tag1, tag3, time)
         let expected = vec![
             "+-----------+------------+------+------+------+--------------------------------+",
@@ -1869,14 +1873,10 @@ mod test {
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
-        let plan = deduplicator.build_scan_plan(
-            Arc::from("t"),
-            schema,
-            chunks,
-            Predicate::default(),
-            false,
-        );
-        let batch = collect(plan.unwrap()).await.unwrap();
+        let plan = deduplicator
+            .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), false)
+            .unwrap();
+        let batch = test_collect(plan).await;
         // No duplicates so no sort at all. The data will stay in their original order
         assert_batches_eq!(&expected, &batch);
     }
@@ -1930,14 +1930,10 @@ mod test {
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
-        let plan = deduplicator.build_scan_plan(
-            Arc::from("t"),
-            schema,
-            chunks,
-            Predicate::default(),
-            false,
-        );
-        let batch = collect(plan.unwrap()).await.unwrap();
+        let plan = deduplicator
+            .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), false)
+            .unwrap();
+        let batch = test_collect(plan).await;
         // Data must be sorted on (tag1, time) and duplicates removed
         let expected = vec![
             "+-----------+------+--------------------------------+",
@@ -2008,14 +2004,16 @@ mod test {
             .unwrap();
 
         let mut deduplicator = Deduplicater::new();
-        let plan = deduplicator.build_scan_plan(
-            Arc::from("t"),
-            Arc::new(schema),
-            chunks,
-            Predicate::default(),
-            false,
-        );
-        let batch = collect(plan.unwrap()).await.unwrap();
+        let plan = deduplicator
+            .build_scan_plan(
+                Arc::from("t"),
+                Arc::new(schema),
+                chunks,
+                Predicate::default(),
+                false,
+            )
+            .unwrap();
+        let batch = test_collect(plan).await;
 
         // expect just the 7 rows of de-duplicated data
         let expected = vec![
@@ -2106,14 +2104,10 @@ mod test {
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
-        let plan = deduplicator.build_scan_plan(
-            Arc::from("t"),
-            schema,
-            chunks,
-            Predicate::default(),
-            false,
-        );
-        let batch = collect(plan.unwrap()).await.unwrap();
+        let plan = deduplicator
+            .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), false)
+            .unwrap();
+        let batch = test_collect(plan).await;
         // Two overlapped chunks will be sort merged on (tag1, time) with duplicates removed
         let expected = vec![
             "+-----------+------+--------------------------------+",
@@ -2258,14 +2252,10 @@ mod test {
 
         // Create scan plan whose output data is only partially sorted
         let mut deduplicator = Deduplicater::new();
-        let plan = deduplicator.build_scan_plan(
-            Arc::from("t"),
-            schema,
-            chunks,
-            Predicate::default(),
-            false,
-        );
-        let batch = collect(plan.unwrap()).await.unwrap();
+        let plan = deduplicator
+            .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), false)
+            .unwrap();
+        let batch = test_collect(plan).await;
         // Final data is partially sorted with duplicates removed. Detailed:
         //   . chunk1 and chunk2 will be sorted merged and deduplicated (rows 7-14)
         //   . chunk3 will stay in its original (rows 1-3)
@@ -2418,14 +2408,10 @@ mod test {
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
-        let plan = deduplicator.build_scan_plan(
-            Arc::from("t"),
-            schema,
-            chunks,
-            Predicate::default(),
-            true,
-        );
-        let batch = collect(plan.unwrap()).await.unwrap();
+        let plan = deduplicator
+            .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), true)
+            .unwrap();
+        let batch = test_collect(plan).await;
         // Final data must be sorted
         let expected = vec![
             "+-----------+------+--------------------------------+",
@@ -2477,7 +2463,7 @@ mod test {
         provider.ensure_pk_sort();
 
         let plan = provider.scan(&None, 1024, &[], None).await.unwrap();
-        let batches = collect(plan).await.unwrap();
+        let batches = test_collect(plan).await;
 
         for batch in &batches {
             // TODO: schema output lacks sort key (#3214)

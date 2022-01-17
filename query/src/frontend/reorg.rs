@@ -284,6 +284,7 @@ struct ScanPlan<C: QueryChunk + 'static> {
 mod test {
     use arrow::compute::SortOptions;
     use arrow_util::assert_batches_eq;
+    use datafusion_util::{test_collect, test_collect_partition};
     use schema::merge::SchemaMerger;
 
     use crate::{
@@ -369,9 +370,7 @@ mod test {
         // single chunk processed
         assert_eq!(physical_plan.output_partitioning().partition_count(), 1);
 
-        let batches = datafusion::physical_plan::collect(physical_plan)
-            .await
-            .unwrap();
+        let batches = test_collect(physical_plan).await;
 
         // all data from chunk
         let expected = vec![
@@ -428,9 +427,7 @@ mod test {
             physical_plan.output_partitioning()
         );
 
-        let batches = datafusion::physical_plan::collect(physical_plan)
-            .await
-            .unwrap();
+        let batches = test_collect(physical_plan).await;
 
         // sorted on state ASC and time
         let expected = vec![
@@ -487,10 +484,7 @@ mod test {
         );
 
         // verify that the stream was split
-        let stream0 = physical_plan.execute(0).await.expect("ran the plan");
-        let batches0 = datafusion::physical_plan::common::collect(stream0)
-            .await
-            .expect("plan ran without error");
+        let batches0 = test_collect_partition(Arc::clone(&physical_plan), 0).await;
 
         // Note sorted on time
         let expected = vec![
@@ -504,10 +498,7 @@ mod test {
         ];
         assert_batches_eq!(&expected, &batches0);
 
-        let stream1 = physical_plan.execute(1).await.expect("ran the plan");
-        let batches1 = datafusion::physical_plan::common::collect(stream1)
-            .await
-            .expect("plan ran without error");
+        let batches1 = test_collect_partition(physical_plan, 1).await;
 
         // Sorted on state (tag1) ASC and time
         let expected = vec![

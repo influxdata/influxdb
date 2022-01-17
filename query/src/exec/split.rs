@@ -17,6 +17,7 @@ use arrow::{
 };
 use datafusion::{
     error::{DataFusionError, Result},
+    execution::runtime_env::RuntimeEnv,
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
@@ -187,9 +188,13 @@ impl ExecutionPlan for StreamSplitExec {
     ///
     /// * partition 0 are the rows for which the split_expr evaluates to true
     /// * partition 1 are the rows for which the split_expr does not evaluate to true (e.g. Null or false)
-    async fn execute(&self, partition: usize) -> Result<SendableRecordBatchStream> {
+    async fn execute(
+        &self,
+        partition: usize,
+        runtime: Arc<RuntimeEnv>,
+    ) -> Result<SendableRecordBatchStream> {
         trace!(partition, "SplitExec::execute");
-        self.start_if_needed().await?;
+        self.start_if_needed(runtime).await?;
 
         let mut state = self.state.lock().await;
         match &mut (*state) {
@@ -229,7 +234,7 @@ impl ExecutionPlan for StreamSplitExec {
 
 impl StreamSplitExec {
     /// if in State::New, sets up the output running and sets self.state --> `Running`
-    async fn start_if_needed(&self) -> Result<()> {
+    async fn start_if_needed(&self, runtime: Arc<RuntimeEnv>) -> Result<()> {
         let mut state = self.state.lock().await;
         if matches!(*state, State::Running { .. }) {
             return Ok(());
@@ -246,7 +251,7 @@ impl StreamSplitExec {
 
         trace!("Setting up SplitStreamExec state");
 
-        let input_stream = self.input.execute(0).await?;
+        let input_stream = self.input.execute(0, runtime).await?;
         let (tx0, rx0) = tokio::sync::mpsc::channel(2);
         let (tx1, rx1) = tokio::sync::mpsc::channel(2);
         let split_expr = Arc::clone(&self.split_expr);
@@ -436,6 +441,7 @@ mod tests {
         logical_plan::{col, lit, DFSchema},
         physical_plan::{memory::MemoryExec, planner::DefaultPhysicalPlanner},
     };
+    use datafusion_util::test_collect_partition;
 
     use super::*;
 
@@ -469,9 +475,9 @@ mod tests {
         let input = make_input(vec![vec![batch0, batch1]]);
         // int_col < 3
         let split_expr = compile_expr(input.as_ref(), col("int_col").lt(lit(3)));
-        let split_exec = StreamSplitExec::new(input, split_expr);
+        let split_exec: Arc<dyn ExecutionPlan> = Arc::new(StreamSplitExec::new(input, split_expr));
 
-        let output0 = run_and_get_output(&split_exec, 0).await.unwrap();
+        let output0 = test_collect_partition(Arc::clone(&split_exec), 0).await;
         let expected = vec![
             "+---------+------------+",
             "| int_col | str_col    |",
@@ -483,7 +489,7 @@ mod tests {
         ];
         assert_batches_sorted_eq!(&expected, &output0);
 
-        let output1 = run_and_get_output(&split_exec, 1).await.unwrap();
+        let output1 = test_collect_partition(split_exec, 1).await;
         let expected = vec![
             "+---------+---------+",
             "| int_col | str_col |",
@@ -508,13 +514,13 @@ mod tests {
         let input = make_input(vec![vec![batch0]]);
         // use `false` to send all outputs to second stream
         let split_expr = compile_expr(input.as_ref(), lit(false));
-        let split_exec = StreamSplitExec::new(input, split_expr);
+        let split_exec: Arc<dyn ExecutionPlan> = Arc::new(StreamSplitExec::new(input, split_expr));
 
-        let output0 = run_and_get_output(&split_exec, 0).await.unwrap();
+        let output0 = test_collect_partition(Arc::clone(&split_exec), 0).await;
         let expected = vec!["+---------+", "| int_col |", "+---------+", "+---------+"];
         assert_batches_sorted_eq!(&expected, &output0);
 
-        let output1 = run_and_get_output(&split_exec, 1).await.unwrap();
+        let output1 = test_collect_partition(split_exec, 1).await;
         let expected = vec![
             "+---------+",
             "| int_col |",
@@ -541,9 +547,9 @@ mod tests {
         let input = make_input(vec![vec![batch0]]);
         // int_col < 3
         let split_expr = compile_expr(input.as_ref(), col("int_col").lt(lit(3)));
-        let split_exec = StreamSplitExec::new(input, split_expr);
+        let split_exec: Arc<dyn ExecutionPlan> = Arc::new(StreamSplitExec::new(input, split_expr));
 
-        let output0 = run_and_get_output(&split_exec, 0).await.unwrap();
+        let output0 = test_collect_partition(Arc::clone(&split_exec), 0).await;
         let expected = vec![
             "+---------+",
             "| int_col |",
@@ -554,7 +560,7 @@ mod tests {
         ];
         assert_batches_sorted_eq!(&expected, &output0);
 
-        let output1 = run_and_get_output(&split_exec, 1).await.unwrap();
+        let output1 = test_collect_partition(split_exec, 1).await;
         let expected = vec![
             "+---------+",
             "| int_col |",
@@ -567,6 +573,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[should_panic(expected = "Expected boolean array, but had type Int64")]
     async fn test_non_bool() {
         // test non boolean expression (expect error)
 
@@ -580,17 +587,9 @@ mod tests {
         let input = make_input(vec![vec![batch0]]);
         // int_col (not a boolean)
         let split_expr = compile_expr(input.as_ref(), col("int_col"));
-        let split_exec = StreamSplitExec::new(input, split_expr);
+        let split_exec: Arc<dyn ExecutionPlan> = Arc::new(StreamSplitExec::new(input, split_expr));
 
-        let output0 = run_and_get_output(&split_exec, 0)
-            .await
-            .unwrap_err()
-            .to_string();
-        assert!(
-            output0.contains("Expected boolean array, but had type Int64"),
-            "error was: {}",
-            output0
-        );
+        test_collect_partition(split_exec, 0).await;
     }
 
     fn make_input(partitions: Vec<Vec<RecordBatch>>) -> Arc<dyn ExecutionPlan> {
@@ -628,14 +627,5 @@ mod tests {
                 &ctx_state,
             )
             .expect("creating physical expression")
-    }
-
-    /// Runs the `output_num` output of the stream and returns the results
-    async fn run_and_get_output(
-        split_exec: &StreamSplitExec,
-        output_num: usize,
-    ) -> Result<Vec<RecordBatch>> {
-        let stream = split_exec.execute(output_num).await?;
-        datafusion::physical_plan::common::collect(stream).await
     }
 }

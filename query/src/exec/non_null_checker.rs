@@ -52,6 +52,7 @@ use arrow::{
 };
 use datafusion::{
     error::{DataFusionError as Error, Result},
+    execution::runtime_env::RuntimeEnv,
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
     physical_plan::{
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
@@ -240,7 +241,11 @@ impl ExecutionPlan for NonNullCheckerExec {
     }
 
     /// Execute one partition and return an iterator over RecordBatch
-    async fn execute(&self, partition: usize) -> Result<SendableRecordBatchStream> {
+    async fn execute(
+        &self,
+        partition: usize,
+        runtime: Arc<RuntimeEnv>,
+    ) -> Result<SendableRecordBatchStream> {
         if self.output_partitioning().partition_count() <= partition {
             return Err(Error::Internal(format!(
                 "NonNullCheckerExec invalid partition {}",
@@ -249,7 +254,7 @@ impl ExecutionPlan for NonNullCheckerExec {
         }
 
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
-        let input_stream = self.input.execute(partition).await?;
+        let input_stream = self.input.execute(partition, runtime).await?;
 
         let (tx, rx) = mpsc::channel(1);
 
@@ -352,7 +357,8 @@ mod tests {
     use super::*;
     use arrow::array::{ArrayRef, StringArray};
     use arrow_util::assert_batches_eq;
-    use datafusion::physical_plan::{collect, memory::MemoryExec};
+    use datafusion::physical_plan::memory::MemoryExec;
+    use datafusion_util::test_collect;
 
     #[tokio::test]
     async fn test_single_column_non_null() {
@@ -479,9 +485,8 @@ mod tests {
             Arc::new(schema),
             value.into(),
         ));
-        let output = collect(Arc::clone(&exec) as Arc<dyn ExecutionPlan>)
-            .await
-            .unwrap();
+
+        let output = test_collect(exec as Arc<dyn ExecutionPlan>).await;
 
         output
     }
