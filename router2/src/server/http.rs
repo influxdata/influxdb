@@ -171,10 +171,10 @@ where
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let account = OrgBucketInfo::try_from(&req)?;
-        let db_name = org_and_bucket_to_database(&account.org, &account.bucket)
+        let namespace = org_and_bucket_to_database(&account.org, &account.bucket)
             .map_err(OrgBucketError::MappingFail)?;
 
-        trace!(org=%account.org, bucket=%account.bucket, db_name=%db_name, "processing write request");
+        trace!(org=%account.org, bucket=%account.bucket, %namespace, "processing write request");
 
         // Read the HTTP body and convert it to a str.
         let body = self.read_body(req).await?;
@@ -194,7 +194,7 @@ where
         };
 
         self.dml_handler
-            .write(db_name, batches, stats, body.len(), span_ctx)
+            .write(namespace, batches, stats, body.len(), span_ctx)
             .await?;
 
         Ok(())
@@ -274,7 +274,7 @@ mod tests {
     use std::{io::Write, iter, sync::Arc};
 
     use assert_matches::assert_matches;
-    
+
     use flate2::{write::GzEncoder, Compression};
     use hyper::header::HeaderValue;
 
@@ -359,8 +359,8 @@ mod tests {
                         assert_eq!(calls.len(), 1);
 
                         // Validate the write op
-                        assert_matches!(&calls[0], MockDmlHandlerCall::Dispatch{ db_name, body_len, .. } => {
-                            assert_eq!(db_name, $want_write_db);
+                        assert_matches!(&calls[0], MockDmlHandlerCall::Dispatch{ namespace, body_len, .. } => {
+                            assert_eq!(namespace, $want_write_db);
                             assert_eq!(*body_len, want_body_len);
                         })
                     } else {

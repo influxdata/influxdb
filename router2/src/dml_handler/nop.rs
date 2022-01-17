@@ -19,13 +19,13 @@ pub struct NopDmlHandler;
 impl DmlHandler for NopDmlHandler {
     async fn write<'a>(
         &'a self,
-        db_name: DatabaseName<'_>,
+        namespace: DatabaseName<'_>,
         batches: HashMap<String, MutableBatch>,
         _payload_stats: PayloadStatistics,
         _body_len: usize,
         _span_ctx: Option<SpanContext>,
     ) -> Result<(), DmlError> {
-        info!(%db_name, ?batches, "dropping write operation");
+        info!(%namespace, ?batches, "dropping write operation");
         Ok(())
     }
 }

@@ -14,7 +14,7 @@ use super::{DmlError, DmlHandler};
 #[derive(Debug, Clone)]
 pub enum MockDmlHandlerCall {
     Dispatch {
-        db_name: String,
+        namespace: String,
         batches: HashMap<String, MutableBatch>,
         payload_stats: PayloadStatistics,
         body_len: usize,
@@ -63,7 +63,7 @@ macro_rules! record_and_return {
 impl DmlHandler for Arc<MockDmlHandler> {
     async fn write<'a>(
         &'a self,
-        db_name: DatabaseName<'_>,
+        namespace: DatabaseName<'_>,
         batches: HashMap<String, MutableBatch>,
         payload_stats: PayloadStatistics,
         body_len: usize,
@@ -72,7 +72,7 @@ impl DmlHandler for Arc<MockDmlHandler> {
         record_and_return!(
             self,
             MockDmlHandlerCall::Dispatch {
-                db_name: db_name.into(),
+                namespace: namespace.into(),
                 batches,
                 payload_stats,
                 body_len,

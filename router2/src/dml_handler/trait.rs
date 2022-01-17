@@ -25,10 +25,10 @@ pub enum DmlError {
 /// An abstract handler of [`DmlOperation`] requests.
 #[async_trait]
 pub trait DmlHandler: Debug + Send + Sync {
-    /// Write `batches` to `db_name`.
+    /// Write `batches` to `namespace`.
     async fn write<'a>(
         &'a self,
-        db_name: DatabaseName<'_>,
+        namespace: DatabaseName<'_>,
         batches: HashMap<String, MutableBatch>,
         payload_stats: PayloadStatistics,
         body_len: usize,
