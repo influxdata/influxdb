@@ -1,5 +1,4 @@
 use snafu::{ResultExt, Snafu};
-use structopt::StructOpt;
 
 mod dump_catalog;
 mod print_cpu;
@@ -13,13 +12,13 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Interrogate internal database data
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct Config {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Command,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 enum Command {
     /// Dump preserved catalog.
     DumpCatalog(Box<dump_catalog::Config>),

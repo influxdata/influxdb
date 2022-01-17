@@ -7,7 +7,6 @@ use influxdb_iox_client::{
     connection::Connection,
     management::{self, generated_types::Chunk},
 };
-use structopt::StructOpt;
 use thiserror::Error;
 
 #[allow(clippy::enum_variant_names)]
@@ -35,21 +34,21 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Manage IOx chunks
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct Config {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Command,
 }
 
 /// List the chunks for the specified database in JSON format
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct List {
     /// The name of the database
     db_name: String,
 }
 
 /// Loads the specified chunk in the specified database from the Object Store to the Read Buffer.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Load {
     /// The name of the database
     db_name: String,
@@ -59,7 +58,7 @@ struct Load {
 }
 
 /// All possible subcommands for chunk
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 enum Command {
     List(List),
     Load(Load),

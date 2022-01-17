@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::{
+    clap_blocks::{boolean_flag::BooleanFlag, run_config::RunConfig},
     influxdb_ioxd::{
         self,
         server_type::{
@@ -13,9 +14,7 @@ use crate::{
             },
         },
     },
-    structopt_blocks::{boolean_flag::BooleanFlag, run_config::RunConfig},
 };
-use structopt::StructOpt;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -32,8 +31,8 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, StructOpt)]
-#[structopt(
+#[derive(Debug, clap::Parser)]
+#[clap(
     name = "run",
     about = "Runs in database mode",
     long_about = "Run the IOx database server.\n\nThe configuration options below can be \
@@ -48,7 +47,7 @@ Configuration is loaded from the following sources (highest precedence first):
         - pre-configured default values"
 )]
 pub struct Config {
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub(crate) run_config: RunConfig,
 
     /// The number of threads to use for all worker pools.
@@ -59,7 +58,7 @@ pub struct Config {
     /// 3. Reorganizing data (e.g. compacting chunks)
     ///
     /// If not specified, defaults to the number of cores on the system
-    #[structopt(long = "--num-worker-threads", env = "INFLUXDB_IOX_NUM_WORKER_THREADS")]
+    #[clap(long = "--num-worker-threads", env = "INFLUXDB_IOX_NUM_WORKER_THREADS")]
     pub num_worker_threads: Option<usize>,
 
     // TODO(marco): Remove once the database-run-mode (aka the `server` crate) cannot handle routing anymore and we're
@@ -70,11 +69,11 @@ pub struct Config {
     /// occurrences of the "{id}" substring will be replaced with the remote Server ID.
     ///
     /// Example: http://node-{id}.ioxmydomain.com:8082
-    #[structopt(long = "--remote-template", env = "INFLUXDB_IOX_REMOTE_TEMPLATE")]
+    #[clap(long = "--remote-template", env = "INFLUXDB_IOX_REMOTE_TEMPLATE")]
     pub remote_template: Option<String>,
 
     /// Automatically wipe the preserved catalog on error
-    #[structopt(
+    #[clap(
         long = "--wipe-catalog-on-error",
         env = "INFLUXDB_IOX_WIPE_CATALOG_ON_ERROR",
         // TODO: Don't automatically wipe on error (#1522)
@@ -83,7 +82,7 @@ pub struct Config {
     pub wipe_catalog_on_error: BooleanFlag,
 
     /// Skip replaying the write buffer and seek to high watermark instead.
-    #[structopt(
+    #[clap(
         long = "--skip-replay",
         env = "INFLUXDB_IOX_SKIP_REPLAY",
         default_value = "no"

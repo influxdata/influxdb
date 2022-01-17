@@ -1,5 +1,4 @@
 use influxdb_iox_client::{connection::Connection, management, operations::Client};
-use structopt::StructOpt;
 use thiserror::Error;
 
 #[allow(clippy::enum_variant_names)]
@@ -15,13 +14,13 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Manage long-running IOx operations
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct Config {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Command,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 enum Command {
     /// Get list of running operations
     List,

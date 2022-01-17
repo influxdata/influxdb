@@ -10,7 +10,6 @@ use influxdb_iox_client::{
     write,
 };
 use std::{fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr, time::Duration};
-use structopt::StructOpt;
 use thiserror::Error;
 use time::TimeProvider;
 use uuid::Uuid;
@@ -53,80 +52,80 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Manage IOx databases
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct Config {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Command,
 }
 
 /// Create a new database
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Create {
     /// The name of the database
     name: String,
     /// Once the total amount of buffered data in memory reaches this size start
     /// dropping data from memory based on the drop_order
-    #[structopt(long, default_value = "52428800")] // 52428800 = 50*1024*1024
+    #[clap(long, default_value = "52428800")] // 52428800 = 50*1024*1024
     buffer_size_soft: usize,
 
     /// Once the amount of data in memory reaches this size start
     /// rejecting writes
-    #[structopt(long, default_value = "104857600")] // 104857600 = 100*1024*1024
+    #[clap(long, default_value = "104857600")] // 104857600 = 100*1024*1024
     buffer_size_hard: usize,
 
     /// Persists chunks to object storage.
-    #[structopt(long = "skip-persist", parse(from_flag = std::ops::Not::not))]
+    #[clap(long = "skip-persist", parse(from_flag = std::ops::Not::not))]
     persist: bool,
 
     /// Do not allow writing new data to this database
-    #[structopt(long)]
+    #[clap(long)]
     immutable: bool,
 
     /// After how many transactions should IOx write a new checkpoint?
-    #[structopt(long, default_value = "100", parse(try_from_str))]
+    #[clap(long, default_value = "100", parse(try_from_str))]
     catalog_transactions_until_checkpoint: NonZeroU64,
 
     /// Prune catalog transactions older than the given age.
     ///
     /// Keeping old transaction can be useful for debugging.
-    #[structopt(long, default_value = "1d", parse(try_from_str = humantime::parse_duration))]
+    #[clap(long, default_value = "1d", parse(try_from_str = humantime::parse_duration))]
     catalog_transaction_prune_age: Duration,
 
     /// Once a partition hasn't received a write for this period of time,
     /// it will be compacted and, if set, persisted. Writers will generally
     /// have this amount of time to send late arriving writes or this could
     /// be their clock skew.
-    #[structopt(long, default_value = "300")]
+    #[clap(long, default_value = "300")]
     late_arrive_window_seconds: u32,
 
     /// Maximum number of rows before triggering persistence
-    #[structopt(long, default_value = "100000")]
+    #[clap(long, default_value = "100000")]
     persist_row_threshold: u64,
 
     /// Maximum age of a write before triggering persistence
-    #[structopt(long, default_value = "1800")]
+    #[clap(long, default_value = "1800")]
     persist_age_threshold_seconds: u32,
 
     /// Maximum number of rows to buffer in a MUB chunk before compacting it
-    #[structopt(long, default_value = "100000")]
+    #[clap(long, default_value = "100000")]
     mub_row_threshold: u64,
 
     /// Use up to this amount of space in bytes for caching Parquet files. A
     /// value of zero disables Parquet file caching.
-    #[structopt(long, default_value = "0")]
+    #[clap(long, default_value = "0")]
     parquet_cache_limit: u64,
 }
 
 /// Get list of databases
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct List {
     /// Whether to list detailed information about the databases along with their names.
-    #[structopt(long)]
+    #[clap(long)]
     detailed: bool,
 }
 
 /// Return configuration of specific database
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Get {
     /// The name of the database
     name: String,
@@ -134,12 +133,12 @@ struct Get {
     /// If false, returns values for all fields, with defaults filled
     /// in. If true, only returns values which were explicitly set on
     /// database creation or update
-    #[structopt(long)]
+    #[clap(long)]
     omit_defaults: bool,
 }
 
 /// Write data into the specified database
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Write {
     /// The name of the database
     name: String,
@@ -149,7 +148,7 @@ struct Write {
 }
 
 /// Query the data with SQL
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Query {
     /// The name of the database
     name: String,
@@ -158,24 +157,24 @@ struct Query {
     query: String,
 
     /// Optional format ('pretty', 'json', or 'csv')
-    #[structopt(short, long, default_value = "pretty")]
+    #[clap(short, long, default_value = "pretty")]
     format: String,
 }
 
 /// Release a database from its current server owner
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Release {
     /// The name of the database to release
     name: String,
 
     /// Optionally, the UUID of the database to delete. This must match the UUID of the current
     /// database with the given name, or the release operation will result in an error.
-    #[structopt(short, long)]
+    #[clap(short, long)]
     uuid: Option<Uuid>,
 }
 
 /// Claim an unowned database
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Claim {
     /// The UUID of the database to claim
     uuid: Uuid,
@@ -187,12 +186,12 @@ struct Claim {
     /// are writing to this database (for example, the data files have
     /// been copied somewhere). If another server is currently writing
     /// to this database, corruption will very likely occur
-    #[structopt(long)]
+    #[clap(long)]
     force: bool,
 }
 
 /// All possible subcommands for database
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 enum Command {
     /// Create a new database
     Create(Create),

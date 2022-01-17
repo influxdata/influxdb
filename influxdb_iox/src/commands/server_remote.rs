@@ -1,7 +1,6 @@
 use crate::TABLE_STYLE_SINGLE_LINE_BORDERS;
 use comfy_table::{Cell, Table};
 use influxdb_iox_client::{connection::Connection, remote};
-use structopt::StructOpt;
 use thiserror::Error;
 
 #[allow(clippy::enum_variant_names)]
@@ -13,8 +12,8 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, StructOpt)]
-#[structopt(
+#[derive(Debug, clap::Parser)]
+#[clap(
     name = "remote",
     about = "Manage configuration about other IOx servers"
 )]

@@ -52,61 +52,61 @@ Logging:
         .author(crate_authors!())
         .about("IOx data point generator")
         .arg(
-            Arg::with_name("SPECIFICATION")
-                .short("s")
+            Arg::new("SPECIFICATION")
+                .short('s')
                 .long("spec")
                 .help("Path to the specification TOML file describing the data generation")
                 .takes_value(true)
                 .required(true),
         )
-        .arg(Arg::with_name("PRINT")
+        .arg(Arg::new("PRINT")
                 .long("print")
             .help("Print the generated line protocol from a single sample collection to the terminal")
         )
-        .arg(Arg::with_name("NOOP")
+        .arg(Arg::new("NOOP")
                 .long("noop")
             .help("Runs the generation with agents writing to a sink. Useful for quick stress test to see how much resources the generator will take")
         )
         .arg(
-            Arg::with_name("OUTPUT")
-                .short("o")
+            Arg::new("OUTPUT")
+                .short('o')
                 .long("output")
                 .help("The filename to write line protocol")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("HOST")
-                .short("h")
+            Arg::new("HOST")
+                .short('h')
                 .long("host")
                 .help("The host name part of the API endpoint to write to")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("ORG")
+            Arg::new("ORG")
                 .long("org")
                 .help("The organization name to write to")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("BUCKET")
+            Arg::new("BUCKET")
                 .long("bucket")
                 .help("The bucket name to write to")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("DATABASE_LIST")
+            Arg::new("DATABASE_LIST")
                 .long("database_list")
                 .help("File name with a list of databases. 1 per line with <org>_<bucket> format")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("TOKEN")
+            Arg::new("TOKEN")
                 .long("token")
                 .help("The API authorization token used for all requests")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("START")
+            Arg::new("START")
                 .long("start")
                 .help(
                     "The date and time at which to start the timestamps of the generated data. \
@@ -116,7 +116,7 @@ Logging:
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("END")
+            Arg::new("END")
                 .long("end")
                 .help(
                     "The date and time at which to stop the timestamps of the generated data. \
@@ -125,18 +125,18 @@ Logging:
                 )
                 .takes_value(true),
         )
-        .arg(Arg::with_name("continue").long("continue").help(
+        .arg(Arg::new("continue").long("continue").help(
             "Generate live data using the intervals from the spec after generating historical  \
               data. This option has no effect if you specify an end time.",
         ))
         .arg(
-            Arg::with_name("batch_size")
+            Arg::new("batch_size")
                 .long("batch_size")
                 .help("Generate this many samplings to batch into a single API call. Good for sending a bunch of historical data in quickly if paired with a start time from long ago.")
                 .takes_value(true)
         )
         .arg(
-            Arg::with_name("jaeger_debug_header")
+            Arg::new("jaeger_debug_header")
                 .long("jaeger_debug_header")
                 .help("Generate jaeger debug header with given key during write")
                 .takes_value(true)

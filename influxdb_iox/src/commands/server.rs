@@ -8,7 +8,6 @@ use std::{
 
 use crate::commands::server_remote;
 use influxdb_iox_client::{connection::Connection, deployment, management};
-use structopt::StructOpt;
 use thiserror::Error;
 
 #[allow(clippy::enum_variant_names)]
@@ -26,14 +25,14 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "server", about = "IOx server commands")]
+#[derive(Debug, clap::Parser)]
+#[clap(name = "server", about = "IOx server commands")]
 pub struct Config {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Command,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 enum Command {
     /// Set server ID
     Set(Set),
@@ -44,22 +43,28 @@ enum Command {
     /// Wait until server is initialized.
     WaitServerInitialized(WaitSeverInitialized),
 
-    Remote(crate::commands::server_remote::Config),
+    Remote(Remote),
 }
 
 /// Set server ID
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Set {
     /// The server ID to set
     id: NonZeroU32,
 }
 
 /// Wait until server is initialized.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct WaitSeverInitialized {
     /// Timeout in seconds.
-    #[structopt(short, default_value = "10")]
+    #[clap(short, default_value = "10")]
     timeout: u64,
+}
+
+#[derive(Debug, clap::Parser)]
+struct Remote {
+    #[clap(subcommand)]
+    config: server_remote::Config,
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
@@ -99,6 +104,6 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
         }
-        Command::Remote(config) => Ok(server_remote::command(connection, config).await?),
+        Command::Remote(config) => Ok(server_remote::command(connection, config.config).await?),
     }
 }

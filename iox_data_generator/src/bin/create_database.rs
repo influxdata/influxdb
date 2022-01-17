@@ -40,27 +40,27 @@ Examples:
     let matches = App::new(help)
         .about("IOx Database creation script")
         .arg(
-            Arg::with_name("DATABASE_NAME")
+            Arg::new("DATABASE_NAME")
                 .help("Name of the database to create")
                 .takes_value(true)
                 .required(true),
         )
         .arg(
-            Arg::with_name("WRITER")
+            Arg::new("WRITER")
                 .long("writer")
                 .help("The gRPC host and port of the IOx server that should write to Kafka")
                 .takes_value(true)
                 .required(true),
         )
         .arg(
-            Arg::with_name("READER")
+            Arg::new("READER")
                 .long("reader")
                 .help("The gRPC host and port of the IOx server that should read from Kafka")
                 .takes_value(true)
                 .required(true),
         )
         .arg(
-            Arg::with_name("KAFKA")
+            Arg::new("KAFKA")
                 .long("kafka")
                 .help("The connection address of the Kafka instance")
                 .takes_value(true)

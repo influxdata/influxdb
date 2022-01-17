@@ -5,7 +5,6 @@ use crate::influxdb_ioxd::{
     rpc::{serve_builder, setup_builder, RpcBuilderInput},
 };
 use async_trait::async_trait;
-use clap::arg_enum;
 use hyper::{Body, Method, Request, Response};
 use metric::Registry;
 use snafu::Snafu;
@@ -28,15 +27,13 @@ impl HttpApiErrorSource for ApplicationError {
     }
 }
 
-arg_enum! {
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TestAction {
-        None,
-        EarlyReturnFromGrpcWorker,
-        EarlyReturnFromServerWorker,
-        PanicInGrpcWorker,
-        PanicInServerWorker,
-    }
+#[derive(Debug, Clone, PartialEq, Eq, clap::ArgEnum)]
+pub enum TestAction {
+    None,
+    EarlyReturnFromGrpcWorker,
+    EarlyReturnFromServerWorker,
+    PanicInGrpcWorker,
+    PanicInServerWorker,
 }
 
 #[derive(Debug)]

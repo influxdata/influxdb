@@ -107,22 +107,22 @@ impl ServerType for DatabaseServerType {
 #[cfg(test)]
 mod tests {
     use crate::{
+        clap_blocks::run_config::RunConfig,
         commands::run::database::Config,
         influxdb_ioxd::{
             grpc_listener, http_listener, serve,
             server_type::database::setup::{make_application, make_server},
         },
-        structopt_blocks::run_config::RunConfig,
     };
 
     use super::*;
     use ::http::{header::HeaderName, HeaderValue};
+    use clap::Parser;
     use data_types::{database_rules::DatabaseRules, DatabaseName};
     use futures::pin_mut;
     use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
     use server::rules::ProvidedDatabaseRules;
     use std::{convert::TryInto, net::SocketAddr, num::NonZeroU64};
-    use structopt::StructOpt;
     use test_helpers::assert_error;
     use tokio::task::JoinHandle;
     use trace::{
@@ -132,7 +132,7 @@ mod tests {
     use trace_exporters::export::{AsyncExporter, TestAsyncExporter};
 
     fn test_config(server_id: Option<u32>) -> Config {
-        let mut config = Config::from_iter(&[
+        let mut config = Config::parse_from(&[
             "run",
             "--api-bind",
             "127.0.0.1:0",
