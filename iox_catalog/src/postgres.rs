@@ -1,15 +1,12 @@
 //! A Postgres backed implementation of the Catalog
 
 use crate::interface::{
-    Column, ColumnRepo, ColumnSchema, ColumnType, Error, KafkaTopic, KafkaTopicRepo, Namespace,
-    NamespaceRepo, NamespaceSchema, QueryPool, QueryPoolRepo, RepoCollection, Result, Sequencer,
-    SequencerRepo, Table, TableRepo, TableSchema,
+    Column, ColumnRepo, ColumnType, Error, KafkaTopic, KafkaTopicRepo, Namespace, NamespaceRepo,
+    QueryPool, QueryPoolRepo, RepoCollection, Result, Sequencer, SequencerRepo, Table, TableRepo,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::info;
 use sqlx::{postgres::PgPoolOptions, Executor, Pool, Postgres};
-use std::collections::BTreeMap;
-use std::convert::TryFrom;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -130,7 +127,7 @@ impl NamespaceRepo for PostgresCatalog {
         retention_duration: &str,
         kafka_topic_id: i32,
         query_pool_id: i16,
-    ) -> Result<NamespaceSchema> {
+    ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
 INSERT INTO namespace ( name, retention_duration, kafka_topic_id, query_pool_id )
@@ -156,10 +153,10 @@ RETURNING *
             }
         })?;
 
-        Ok(NamespaceSchema::new(rec.id, kafka_topic_id, query_pool_id))
+        Ok(rec)
     }
 
-    async fn get_by_name(&self, name: &str) -> Result<Option<NamespaceSchema>> {
+    async fn get_by_name(&self, name: &str) -> Result<Option<Namespace>> {
         // TODO: maybe get all the data in a single call to Postgres?
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
@@ -175,47 +172,8 @@ SELECT * FROM namespace WHERE name = $1;
         }
 
         let namespace = rec.map_err(|e| Error::SqlxError { source: e })?;
-        // get the columns first just in case someone else is creating schema while we're doing this.
-        let columns = ColumnRepo::list_by_namespace_id(self, namespace.id).await?;
-        let tables = TableRepo::list_by_namespace_id(self, namespace.id).await?;
 
-        let mut namespace = NamespaceSchema::new(
-            namespace.id,
-            namespace.kafka_topic_id,
-            namespace.query_pool_id,
-        );
-
-        let mut table_id_to_schema = BTreeMap::new();
-        for t in tables {
-            table_id_to_schema.insert(t.id, (t.name, TableSchema::new(t.id)));
-        }
-
-        for c in columns {
-            let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
-            match ColumnType::try_from(c.column_type) {
-                Ok(column_type) => {
-                    t.columns.insert(
-                        c.name,
-                        ColumnSchema {
-                            id: c.id,
-                            column_type,
-                        },
-                    );
-                }
-                _ => {
-                    return Err(Error::UnknownColumnType {
-                        data_type: c.column_type,
-                        name: c.name.to_string(),
-                    });
-                }
-            }
-        }
-
-        for (_, (table_name, schema)) in table_id_to_schema {
-            namespace.tables.insert(table_name, schema);
-        }
-
-        return Ok(Some(namespace));
+        Ok(Some(namespace))
     }
 }
 
@@ -390,9 +348,12 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{create_or_get_default_records, validate_or_insert_schema};
+    use crate::{
+        create_or_get_default_records, interface::NamespaceSchema, validate_or_insert_schema,
+    };
     use futures::{stream::FuturesOrdered, StreamExt};
     use influxdb_line_protocol::parse_lines;
+    use std::collections::BTreeMap;
     use std::env;
 
     // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
@@ -535,7 +496,7 @@ m2,t3=b f1=true 1
         let new_schema = new_schema.unwrap();
 
         // ensure new schema is in the db
-        let schema_from_db = NamespaceRepo::get_by_name(postgres.as_ref(), "asdf")
+        let schema_from_db = NamespaceSchema::get_by_name("asdf", &postgres)
             .await
             .unwrap()
             .unwrap();
@@ -560,7 +521,7 @@ new_measurement,t9=a f10=true 1
             ColumnType::Tag,
             new_table.columns.get("t9").unwrap().column_type
         );
-        let schema = NamespaceRepo::get_by_name(postgres.as_ref(), "asdf")
+        let schema = NamespaceSchema::get_by_name("asdf", &postgres)
             .await
             .unwrap()
             .unwrap();
@@ -585,7 +546,7 @@ m1,new_tag=c new_field=1i 2
             ColumnType::Tag,
             table.columns.get("new_tag").unwrap().column_type
         );
-        let schema = NamespaceRepo::get_by_name(postgres.as_ref(), "asdf")
+        let schema = NamespaceSchema::get_by_name("asdf", &postgres)
             .await
             .unwrap()
             .unwrap();

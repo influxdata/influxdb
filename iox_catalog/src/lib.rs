@@ -25,6 +25,7 @@ const SHARED_QUERY_POOL: &str = SHARED_KAFKA_TOPIC;
 const TIME_COLUMN: &str = "time";
 
 pub mod interface;
+pub mod mem;
 pub mod postgres;
 
 /// Given the lines of a write request and an in memory schema, this will validate the write

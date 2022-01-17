@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use influxdb_line_protocol::FieldValue;
-use snafu::Snafu;
+use snafu::{OptionExt, Snafu};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::Formatter;
@@ -33,6 +33,9 @@ pub enum Error {
         name
     ))]
     UnknownColumnType { data_type: i16, name: String },
+
+    #[snafu(display("namespace {} not found", name))]
+    NamespaceNotFound { name: String },
 }
 
 /// A specialized `Error` for Catalog errors
@@ -72,18 +75,18 @@ pub trait QueryPoolRepo {
 /// Functions for working with namespaces in the catalog
 #[async_trait]
 pub trait NamespaceRepo {
-    /// Creates the namespace in the catalog, or get the existing record by name. Then
-    /// constructs a namespace schema with all tables and columns under the namespace.
+    /// Creates the namespace in the catalog. If one by the same name already exists, an
+    /// error is returned.
     async fn create(
         &self,
         name: &str,
         retention_duration: &str,
         kafka_topic_id: i32,
         query_pool_id: i16,
-    ) -> Result<NamespaceSchema>;
+    ) -> Result<Namespace>;
 
-    /// Gets the namespace schema including all tables and columns.
-    async fn get_by_name(&self, name: &str) -> Result<Option<NamespaceSchema>>;
+    /// Gets the namespace by its unique name.
+    async fn get_by_name(&self, name: &str) -> Result<Option<Namespace>>;
 }
 
 /// Functions for working with tables in the catalog
@@ -124,7 +127,7 @@ pub trait SequencerRepo {
 }
 
 /// Data object for a kafka topic
-#[derive(Debug, Eq, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
 pub struct KafkaTopic {
     /// The id of the topic
     pub id: i32,
@@ -133,7 +136,7 @@ pub struct KafkaTopic {
 }
 
 /// Data object for a query pool
-#[derive(Debug, Eq, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
 pub struct QueryPool {
     /// The id of the pool
     pub id: i16,
@@ -142,7 +145,7 @@ pub struct QueryPool {
 }
 
 /// Data object for a namespace
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Namespace {
     /// The id of the namespace
     pub id: i32,
@@ -181,6 +184,63 @@ impl NamespaceSchema {
         }
     }
 
+    /// Gets the namespace schema including all tables and columns.
+    pub async fn get_by_name<T: RepoCollection + Send + Sync>(
+        name: &str,
+        repo: &T,
+    ) -> Result<Option<Self>> {
+        let namespace_repo = repo.namespace();
+        let table_repo = repo.table();
+        let column_repo = repo.column();
+
+        let namespace = namespace_repo
+            .get_by_name(name)
+            .await?
+            .context(NamespaceNotFoundSnafu { name })?;
+
+        // get the columns first just in case someone else is creating schema while we're doing this.
+        let columns = column_repo.list_by_namespace_id(namespace.id).await?;
+        let tables = table_repo.list_by_namespace_id(namespace.id).await?;
+
+        let mut namespace = Self::new(
+            namespace.id,
+            namespace.kafka_topic_id,
+            namespace.query_pool_id,
+        );
+
+        let mut table_id_to_schema = BTreeMap::new();
+        for t in tables {
+            table_id_to_schema.insert(t.id, (t.name, TableSchema::new(t.id)));
+        }
+
+        for c in columns {
+            let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
+            match ColumnType::try_from(c.column_type) {
+                Ok(column_type) => {
+                    t.columns.insert(
+                        c.name,
+                        ColumnSchema {
+                            id: c.id,
+                            column_type,
+                        },
+                    );
+                }
+                _ => {
+                    return Err(Error::UnknownColumnType {
+                        data_type: c.column_type,
+                        name: c.name.to_string(),
+                    });
+                }
+            }
+        }
+
+        for (_, (table_name, schema)) in table_id_to_schema {
+            namespace.tables.insert(table_name, schema);
+        }
+
+        Ok(Some(namespace))
+    }
+
     /// Adds tables and columns to the `NamespaceSchema`. These are created
     /// incrementally while validating the schema for a write and this helper
     /// method takes them in to add them to the schema.
@@ -215,7 +275,7 @@ impl NamespaceSchema {
 }
 
 /// Data object for a table
-#[derive(Debug, sqlx::FromRow, Eq, PartialEq)]
+#[derive(Debug, Clone, sqlx::FromRow, Eq, PartialEq)]
 pub struct Table {
     /// The id of the table
     pub id: i32,
@@ -252,7 +312,7 @@ impl TableSchema {
 }
 
 /// Data object for a column
-#[derive(Debug, sqlx::FromRow, Eq, PartialEq)]
+#[derive(Debug, Clone, sqlx::FromRow, Eq, PartialEq)]
 pub struct Column {
     /// the column id
     pub id: i32,
