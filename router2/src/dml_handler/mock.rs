@@ -7,24 +7,27 @@ use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use mutable_batch_lp::PayloadStatistics;
 use parking_lot::Mutex;
+use predicate::delete_predicate::HttpDeleteRequest;
 use trace::ctx::SpanContext;
 
 use super::{DmlError, DmlHandler};
 
 #[derive(Debug, Clone)]
 pub enum MockDmlHandlerCall {
-    Dispatch {
+    Write {
         namespace: String,
         batches: HashMap<String, MutableBatch>,
         payload_stats: PayloadStatistics,
         body_len: usize,
     },
+    Delete(HttpDeleteRequest),
 }
 
 #[derive(Debug, Default)]
 struct Inner {
     calls: Vec<MockDmlHandlerCall>,
-    dispatch_return: VecDeque<Result<(), DmlError>>,
+    write_return: VecDeque<Result<(), DmlError>>,
+    delete_return: VecDeque<Result<(), DmlError>>,
 }
 
 impl Inner {
@@ -37,8 +40,13 @@ impl Inner {
 pub struct MockDmlHandler(Mutex<Inner>);
 
 impl MockDmlHandler {
-    pub fn with_dispatch_return(self, ret: impl Into<VecDeque<Result<(), DmlError>>>) -> Self {
-        self.0.lock().dispatch_return = ret.into();
+    pub fn with_write_return(self, ret: impl Into<VecDeque<Result<(), DmlError>>>) -> Self {
+        self.0.lock().write_return = ret.into();
+        self
+    }
+
+    pub fn with_delete_return(self, ret: impl Into<VecDeque<Result<(), DmlError>>>) -> Self {
+        self.0.lock().delete_return = ret.into();
         self
     }
 
@@ -61,8 +69,8 @@ macro_rules! record_and_return {
 
 #[async_trait]
 impl DmlHandler for Arc<MockDmlHandler> {
-    async fn write<'a>(
-        &'a self,
+    async fn write(
+        &self,
         namespace: DatabaseName<'_>,
         batches: HashMap<String, MutableBatch>,
         payload_stats: PayloadStatistics,
@@ -71,13 +79,21 @@ impl DmlHandler for Arc<MockDmlHandler> {
     ) -> Result<(), DmlError> {
         record_and_return!(
             self,
-            MockDmlHandlerCall::Dispatch {
+            MockDmlHandlerCall::Write {
                 namespace: namespace.into(),
                 batches,
                 payload_stats,
                 body_len,
             },
-            dispatch_return
+            write_return
         )
+    }
+
+    async fn delete(
+        &self,
+        delete: HttpDeleteRequest,
+        _span_ctx: Option<SpanContext>,
+    ) -> Result<(), DmlError> {
+        record_and_return!(self, MockDmlHandlerCall::Delete(delete), delete_return)
     }
 }

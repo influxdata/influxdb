@@ -8,6 +8,7 @@ use data_types::names::{org_and_bucket_to_database, OrgBucketMappingError};
 use futures::StreamExt;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
 use observability_deps::tracing::*;
+use predicate::delete_predicate::parse_http_delete_request;
 use serde::Deserialize;
 use thiserror::Error;
 use time::{SystemProvider, TimeProvider};
@@ -54,6 +55,10 @@ pub enum Error {
     #[error("failed to parse line protocol: {0}")]
     ParseLineProtocol(mutable_batch_lp::Error),
 
+    /// Failure to parse the request delete predicate.
+    #[error("failed to parse delete predicate: {0}")]
+    ParseDelete(#[from] predicate::delete_predicate::Error),
+
     /// An error returned from the [`DmlHandler`].
     #[error("dml handler error: {0}")]
     DmlHandler(#[from] DmlError),
@@ -79,6 +84,7 @@ impl Error {
             Error::RequestSizeExceeded(_) => StatusCode::PAYLOAD_TOO_LARGE,
             Error::ParseLineProtocol(_) => StatusCode::BAD_REQUEST,
             Error::DmlHandler(DmlError::Internal(_)) => StatusCode::INTERNAL_SERVER_ERROR,
+            Error::ParseDelete(_) => StatusCode::BAD_REQUEST,
         }
     }
 }
@@ -200,8 +206,25 @@ where
         Ok(())
     }
 
-    async fn delete_handler(&self, _req: Request<Body>) -> Result<(), Error> {
-        unimplemented!()
+    async fn delete_handler(&self, req: Request<Body>) -> Result<(), Error> {
+        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
+
+        let account = OrgBucketInfo::try_from(&req)?;
+        let namespace = org_and_bucket_to_database(&account.org, &account.bucket)
+            .map_err(OrgBucketError::MappingFail)?;
+
+        trace!(org=%account.org, bucket=%account.bucket, %namespace, "processing delete request");
+
+        // Read the HTTP body and convert it to a str.
+        let body = self.read_body(req).await?;
+        let body = std::str::from_utf8(&body).map_err(Error::NonUtf8Body)?;
+
+        // Parse and extract table name (which can be empty), start, stop, and predicate
+        let parsed_delete = parse_http_delete_request(body)?;
+
+        self.dml_handler.delete(parsed_delete, span_ctx).await?;
+
+        Ok(())
     }
 
     /// Parse the request's body into raw bytes, applying the configured size
@@ -284,87 +307,94 @@ mod tests {
 
     const MAX_BYTES: usize = 1024;
 
-    // Generate two write handler tests - one for a plain request and one with a
+    // Generate two HTTP handler tests - one for a plain request and one with a
     // gzip-encoded body (and appropriate header), asserting the handler return
     // value & write op.
-    macro_rules! test_write_handler {
+    macro_rules! test_http_handler {
         (
             $name:ident,
-            query_string = $query_string:expr,   // Request URI query string
-            body = $body:expr,                   // Request body content
-            dml_handler = $dml_handler:expr,     // DML handler response (if called)
-            want_write_db = $want_write_db:expr, // Expected write DB name (empty if no write)
-            want_return = $($want_return:tt )+   // Expected HTTP response
+            uri = $uri:expr,                                // Request URI
+            body = $body:expr,                              // Request body content
+            dml_write_handler = $dml_write_handler:expr,    // DML write handler response (if called)
+            dml_delete_handler = $dml_delete_handler:expr,  // DML delete handler response (if called)
+            want_result = $want_result:pat,                 // Expected handler return value (as pattern)
+            want_dml_calls = $($want_dml_calls:tt )+        // assert_matches slice pattern for expected DML calls
         ) => {
             // Generate the two test cases by feed the same inputs, but varying
             // the encoding.
-            test_write_handler!(
+            test_http_handler!(
                 $name,
                 encoding=plain,
-                query_string = $query_string,
+                uri = $uri,
                 body = $body,
-                dml_handler = $dml_handler,
-                want_write_db = $want_write_db,
-                want_return = $($want_return)+
+                dml_write_handler = $dml_write_handler,
+                dml_delete_handler = $dml_delete_handler,
+                want_result = $want_result,
+                want_dml_calls = $($want_dml_calls)+
             );
-            test_write_handler!(
+            test_http_handler!(
                 $name,
                 encoding=gzip,
-                query_string = $query_string,
+                uri = $uri,
                 body = $body,
-                dml_handler = $dml_handler,
-                want_write_db = $want_write_db,
-                want_return = $($want_return)+
+                dml_write_handler = $dml_write_handler,
+                dml_delete_handler = $dml_delete_handler,
+                want_result = $want_result,
+                want_dml_calls = $($want_dml_calls)+
             );
         };
-
         // Actual test body generator.
         (
             $name:ident,
             encoding = $encoding:tt,
-            query_string = $query_string:expr,
+            uri = $uri:expr,
             body = $body:expr,
-            dml_handler = $dml_handler:expr,
-            want_write_db = $want_write_db:expr,
-            want_return = $($want_return:tt )+
+            dml_write_handler = $dml_write_handler:expr,
+            dml_delete_handler = $dml_delete_handler:expr,
+            want_result = $want_result:pat,
+            want_dml_calls = $($want_dml_calls:tt )+
         ) => {
             paste::paste! {
                 #[tokio::test]
-                async fn [<test_write_handler_ $name _ $encoding>]() {
+                async fn [<test_http_handler_ $name _ $encoding>]() {
                     let body = $body;
                     let want_body_len = body.len();
 
                     // Optionally generate a fragment of code to encode the body
-                    let body = test_write_handler!(encoding=$encoding, body);
+                    let body = test_http_handler!(encoding=$encoding, body);
 
                     #[allow(unused_mut)]
                     let mut request = Request::builder()
-                        .uri(format!("https://bananas.example/api/v2/write{}", $query_string))
+                        .uri($uri)
                         .method("POST")
                         .body(Body::from(body))
                         .unwrap();
 
                     // Optionally modify request to account for the desired
                     // encoding
-                    test_write_handler!(encoding_header=$encoding, request);
+                    test_http_handler!(encoding_header=$encoding, request);
 
-                    let dml_handler = Arc::new(MockDmlHandler::default().with_dispatch_return($dml_handler));
+                    let dml_handler = Arc::new(MockDmlHandler::default()
+                        .with_write_return($dml_write_handler)
+                        .with_delete_return($dml_delete_handler)
+                    );
                     let delegate = HttpDelegate::new(MAX_BYTES, Arc::clone(&dml_handler));
 
                     let got = delegate.route(request).await;
-                    assert_matches!(got, $($want_return)+);
+                    assert_matches!(got, $want_result);
+
+                    // All successful responses should have a NO_CONTENT code
+                    if let Ok(v) = got {
+                        assert_eq!(v.status(), StatusCode::NO_CONTENT);
+                    }
 
                     let calls = dml_handler.calls();
-                    if !$want_write_db.is_empty() {
-                        assert_eq!(calls.len(), 1);
+                    assert_matches!(calls.as_slice(), $($want_dml_calls)+);
 
-                        // Validate the write op
-                        assert_matches!(&calls[0], MockDmlHandlerCall::Dispatch{ namespace, body_len, .. } => {
-                            assert_eq!(namespace, $want_write_db);
-                            assert_eq!(*body_len, want_body_len);
-                        })
-                    } else {
-                        assert!(calls.is_empty());
+                    // If this was a write op, ensure the body length matches
+                    // the above input.
+                    if let Some(MockDmlHandlerCall::Write{body_len, ..}) = calls.get(0) {
+                        assert_eq!(*body_len, want_body_len);
                     }
                 }
             }
@@ -387,14 +417,62 @@ mod tests {
         }};
     }
 
+    // Wrapper over test_http_handler specifically for write requests.
+    macro_rules! test_write_handler {
+        (
+            $name:ident,
+            query_string = $query_string:expr,   // Request URI query string
+            body = $body:expr,                   // Request body content
+            dml_handler = $dml_handler:expr,     // DML write handler response (if called)
+            want_result = $want_result:pat,
+            want_dml_calls = $($want_dml_calls:tt )+
+        ) => {
+            paste::paste! {
+                test_http_handler!(
+                    [<write_ $name>],
+                    uri = format!("https://bananas.example/api/v2/write{}", $query_string),
+                    body = $body,
+                    dml_write_handler = $dml_handler,
+                    dml_delete_handler = [],
+                    want_result = $want_result,
+                    want_dml_calls = $($want_dml_calls)+
+                );
+            }
+        };
+    }
+
+    // Wrapper over test_http_handler specifically for delete requests.
+    macro_rules! test_delete_handler {
+        (
+            $name:ident,
+            query_string = $query_string:expr,   // Request URI query string
+            body = $body:expr,                   // Request body content
+            dml_handler = $dml_handler:expr,     // DML delete handler response (if called)
+            want_result = $want_result:pat,
+            want_dml_calls = $($want_dml_calls:tt )+
+        ) => {
+            paste::paste! {
+                test_http_handler!(
+                    [<delete_ $name>],
+                    uri = format!("https://bananas.example/api/v2/delete{}", $query_string),
+                    body = $body,
+                    dml_write_handler = [],
+                    dml_delete_handler = $dml_handler,
+                    want_result = $want_result,
+                    want_dml_calls = $($want_dml_calls)+
+                );
+            }
+        };
+    }
+
     test_write_handler!(
         ok,
         query_string = "?org=bananas&bucket=test",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Ok(())],
-        want_write_db = "bananas_test",
-        want_return = Ok(r) => {
-            assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        want_result = Ok(_),
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
+            assert_eq!(namespace, "bananas_test");
         }
     );
 
@@ -403,8 +481,8 @@ mod tests {
         query_string = "",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Ok(())],
-        want_write_db = "", // None
-        want_return = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified))
+        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified)),
+        want_dml_calls = [] // None
     );
 
     test_write_handler!(
@@ -412,8 +490,8 @@ mod tests {
         query_string = "?",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Ok(())],
-        want_write_db = "", // None
-        want_return = Err(Error::InvalidOrgBucket(OrgBucketError::DecodeFail(_)))
+        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::DecodeFail(_))),
+        want_dml_calls = [] // None
     );
 
     test_write_handler!(
@@ -421,8 +499,8 @@ mod tests {
         query_string = "?org=&bucket=",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Ok(())],
-        want_write_db = "", // None
-        want_return = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified))
+        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified)),
+        want_dml_calls = [] // None
     );
 
     test_write_handler!(
@@ -430,8 +508,8 @@ mod tests {
         query_string = format!("?org=test&bucket={}", "A".repeat(1000)),
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Ok(())],
-        want_write_db = "", // None
-        want_return = Err(Error::InvalidOrgBucket(OrgBucketError::MappingFail(_)))
+        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::MappingFail(_))),
+        want_dml_calls = [] // None
     );
 
     test_write_handler!(
@@ -439,8 +517,8 @@ mod tests {
         query_string = "?org=bananas&bucket=test",
         body = "not line protocol".as_bytes(),
         dml_handler = [Ok(())],
-        want_write_db = "", // None
-        want_return = Err(Error::ParseLineProtocol(_))
+        want_result = Err(Error::ParseLineProtocol(_)),
+        want_dml_calls = [] // None
     );
 
     test_write_handler!(
@@ -448,8 +526,8 @@ mod tests {
         query_string = "?org=bananas&bucket=test",
         body = vec![0xc3, 0x28],
         dml_handler = [Ok(())],
-        want_write_db = "", // None
-        want_return = Err(Error::NonUtf8Body(_))
+        want_result = Err(Error::NonUtf8Body(_)),
+        want_dml_calls = [] // None
     );
 
     test_write_handler!(
@@ -476,8 +554,8 @@ mod tests {
                 .collect::<Vec<u8>>()
         },
         dml_handler = [Ok(())],
-        want_write_db = "", // None
-        want_return = Err(Error::RequestSizeExceeded(_))
+        want_result = Err(Error::RequestSizeExceeded(_)),
+        want_dml_calls = [] // None
     );
 
     test_write_handler!(
@@ -485,8 +563,10 @@ mod tests {
         query_string = "?org=bananas&bucket=test",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Err(DmlError::DatabaseNotFound("bananas_test".to_string()))],
-        want_write_db = "bananas_test",
-        want_return = Err(Error::DmlHandler(DmlError::DatabaseNotFound(_)))
+        want_result = Err(Error::DmlHandler(DmlError::DatabaseNotFound(_))),
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
+            assert_eq!(namespace, "bananas_test");
+        }
     );
 
     test_write_handler!(
@@ -494,7 +574,115 @@ mod tests {
         query_string = "?org=bananas&bucket=test",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Err(DmlError::Internal("💣".into()))],
-        want_write_db = "bananas_test",
-        want_return = Err(Error::DmlHandler(DmlError::Internal(_)))
+        want_result = Err(Error::DmlHandler(DmlError::Internal(_))),
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
+            assert_eq!(namespace, "bananas_test");
+        }
+    );
+
+    test_delete_handler!(
+        ok,
+        query_string = "?org=bananas&bucket=test",
+        body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
+        dml_handler = [Ok(())],
+        want_result = Ok(_),
+        want_dml_calls = [MockDmlHandlerCall::Delete(d)] => {
+            assert_eq!(d.table_name, "its_a_table");
+            assert_eq!(d.start_time, "2021-04-01T14:00:00Z");
+            assert_eq!(d.stop_time, "2021-04-02T14:00:00Z");
+            assert_eq!(d.predicate, "location=Boston");
+        }
+    );
+
+    test_delete_handler!(
+        invalid_delete_body,
+        query_string = "?org=bananas&bucket=test",
+        body = r#"{wat}"#.as_bytes(),
+        dml_handler = [],
+        want_result = Err(Error::ParseDelete(_)),
+        want_dml_calls = []
+    );
+
+    test_delete_handler!(
+        no_query_params,
+        query_string = "",
+        body = "".as_bytes(),
+        dml_handler = [Ok(())],
+        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified)),
+        want_dml_calls = [] // None
+    );
+
+    test_delete_handler!(
+        no_org_bucket,
+        query_string = "?",
+        body = "".as_bytes(),
+        dml_handler = [Ok(())],
+        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::DecodeFail(_))),
+        want_dml_calls = [] // None
+    );
+
+    test_delete_handler!(
+        empty_org_bucket,
+        query_string = "?org=&bucket=",
+        body = "".as_bytes(),
+        dml_handler = [Ok(())],
+        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified)),
+        want_dml_calls = [] // None
+    );
+
+    test_delete_handler!(
+        invalid_org_bucket,
+        query_string = format!("?org=test&bucket={}", "A".repeat(1000)),
+        body = "".as_bytes(),
+        dml_handler = [Ok(())],
+        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::MappingFail(_))),
+        want_dml_calls = [] // None
+    );
+
+    test_delete_handler!(
+        non_utf8_body,
+        query_string = "?org=bananas&bucket=test",
+        body = vec![0xc3, 0x28],
+        dml_handler = [Ok(())],
+        want_result = Err(Error::NonUtf8Body(_)),
+        want_dml_calls = [] // None
+    );
+
+    test_delete_handler!(
+        db_not_found,
+        query_string = "?org=bananas&bucket=test",
+        body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
+        dml_handler = [Err(DmlError::DatabaseNotFound("bananas_test".to_string()))],
+        want_result = Err(Error::DmlHandler(DmlError::DatabaseNotFound(_))),
+        want_dml_calls = [MockDmlHandlerCall::Delete(d)] => {
+            assert_eq!(d.table_name, "its_a_table");
+            assert_eq!(d.start_time, "2021-04-01T14:00:00Z");
+            assert_eq!(d.stop_time, "2021-04-02T14:00:00Z");
+            assert_eq!(d.predicate, "location=Boston");
+        }
+    );
+
+    test_delete_handler!(
+        dml_handler_error,
+        query_string = "?org=bananas&bucket=test",
+        body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
+        dml_handler = [Err(DmlError::Internal("💣".into()))],
+        want_result = Err(Error::DmlHandler(DmlError::Internal(_))),
+        want_dml_calls = [MockDmlHandlerCall::Delete(d)] => {
+            assert_eq!(d.table_name, "its_a_table");
+            assert_eq!(d.start_time, "2021-04-01T14:00:00Z");
+            assert_eq!(d.stop_time, "2021-04-02T14:00:00Z");
+            assert_eq!(d.predicate, "location=Boston");
+        }
+    );
+
+    test_http_handler!(
+        not_found,
+        uri = "https://bananas.example/wat",
+        body = "".as_bytes(),
+        dml_write_handler = [],
+        dml_delete_handler = [],
+        want_result = Err(Error::NoHandler),
+        want_dml_calls = []
     );
 }

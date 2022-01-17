@@ -3727,6 +3727,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "paste",
+ "predicate",
  "serde",
  "serde_urlencoded",
  "thiserror",
