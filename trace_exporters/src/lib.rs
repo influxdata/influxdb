@@ -12,7 +12,6 @@ use crate::jaeger::JaegerAgentExporter;
 use snafu::Snafu;
 use std::num::NonZeroU16;
 use std::sync::Arc;
-use structopt::StructOpt;
 
 pub mod export;
 
@@ -37,12 +36,12 @@ mod thrift {
 }
 
 /// CLI config for distributed tracing options
-#[derive(Debug, StructOpt, Clone)]
+#[derive(Debug, Clone, clap::Parser)]
 pub struct TracingConfig {
     /// Tracing: exporter type
     ///
     /// Can be one of: none, jaeger
-    #[structopt(
+    #[clap(
         long = "--traces-exporter",
         env = "TRACES_EXPORTER",
         default_value = "none"
@@ -54,7 +53,7 @@ pub struct TracingConfig {
     /// Protocol is Thrift/Compact over UDP.
     ///
     /// Only used if `--traces-exporter` is "jaeger".
-    #[structopt(
+    #[clap(
         long = "--traces-exporter-jaeger-agent-host",
         env = "TRACES_EXPORTER_JAEGER_AGENT_HOST",
         default_value = "0.0.0.0"
@@ -66,7 +65,7 @@ pub struct TracingConfig {
     /// Protocol is Thrift/Compact over UDP.
     ///
     /// Only used if `--traces-exporter` is "jaeger".
-    #[structopt(
+    #[clap(
         long = "--traces-exporter-jaeger-agent-port",
         env = "TRACES_EXPORTER_JAEGER_AGENT_PORT",
         default_value = "6831"
@@ -76,7 +75,7 @@ pub struct TracingConfig {
     /// Tracing: Jaeger service name.
     ///
     /// Only used if `--traces-exporter` is "jaeger".
-    #[structopt(
+    #[clap(
         long = "--traces-exporter-jaeger-service-name",
         env = "TRACES_EXPORTER_JAEGER_SERVICE_NAME",
         default_value = "iox-conductor"
@@ -86,7 +85,7 @@ pub struct TracingConfig {
     /// Tracing: specifies the header name used for passing trace context
     ///
     /// Only used if `--traces-exporter` is "jaeger".
-    #[structopt(
+    #[clap(
         long = "--traces-exporter-jaeger-trace-context-header-name",
         env = "TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME",
         default_value = "uber-trace-id"
@@ -96,7 +95,7 @@ pub struct TracingConfig {
     /// Tracing: specifies the header name used for force sampling
     ///
     /// Only used if `--traces-exporter` is "jaeger".
-    #[structopt(
+    #[clap(
         long = "--traces-jaeger-debug-name",
         env = "TRACES_EXPORTER_JAEGER_DEBUG_NAME",
         default_value = "jaeger-debug-id"

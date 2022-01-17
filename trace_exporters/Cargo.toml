@@ -9,10 +9,10 @@ description = "Additional tracing exporters for IOx"
 
 async-trait = "0.1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+clap = { version = "3", features = ["derive", "env"] }
 futures = "0.3"
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
-structopt = { version = "0.3.25" }
 thrift = { version = "0.13.0" }
 tokio = { version = "1.13", features = ["macros", "parking_lot", "rt", "sync"] }
 trace = { path = "../trace" }

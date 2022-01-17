@@ -1,10 +1,9 @@
 ///! Common CLI flags for logging and tracing
 use crate::{config::*, Builder, Result, TroggingGuard};
-use structopt::StructOpt;
 use tracing_subscriber::fmt::{writer::BoxMakeWriter, MakeWriter};
 
 /// CLI config for the logging related subset of options.
-#[derive(Debug, StructOpt, Clone)]
+#[derive(Debug, Clone, clap::Parser)]
 pub struct LoggingConfig {
     /// Logs: filter directive
     ///
@@ -24,7 +23,7 @@ pub struct LoggingConfig {
     ///
     /// If None, [`crate::Builder`] sets a default, by default [`crate::Builder::DEFAULT_LOG_FILTER`],
     /// but overrideable with [`crate::Builder::with_default_log_filter`].
-    #[structopt(long = "--log-filter", env = "LOG_FILTER")]
+    #[clap(long = "--log-filter", env = "LOG_FILTER")]
     pub log_filter: Option<String>,
 
     /// Logs: filter short-hand
@@ -37,10 +36,10 @@ pub struct LoggingConfig {
     /// -vv  'debug,hyper::proto::h1=info,h2=info'
     ///
     /// -vvv 'trace,hyper::proto::h1=info,h2=info'
-    #[structopt(
-        short = "-v",
+    #[clap(
+        short = 'v',
         long = "--verbose",
-        multiple = true,
+        multiple_occurrences = true,
         takes_value = false,
         parse(from_occurrences)
     )]
@@ -51,7 +50,7 @@ pub struct LoggingConfig {
     /// Can be one of: stdout, stderr
     //
     // TODO(jacobmarble): consider adding file path, file rotation, syslog, ?
-    #[structopt(
+    #[clap(
         long = "--log-destination",
         env = "LOG_DESTINATION",
         default_value = "stdout",
@@ -94,7 +93,7 @@ pub struct LoggingConfig {
     ///   level=info msg="This is an info message" target="logging" location="logfmt/tests/logging.rs:36" time=1612181556329599000
     ///   level=debug msg="This is a debug message" target="logging" location="logfmt/tests/logging.rs:37" time=1612181556329618000
     ///   level=trace msg="This is a trace message" target="logging" location="logfmt/tests/logging.rs:38" time=1612181556329634000
-    #[structopt(long = "--log-format", env = "LOG_FORMAT", default_value = "full", verbatim_doc_comment)]
+    #[clap(long = "--log-format", env = "LOG_FORMAT", default_value = "full", verbatim_doc_comment)]
     pub log_format: LogFormat,
 }
 
@@ -144,16 +143,14 @@ impl From<LoggingConfig> for Builder<BoxMakeWriter> {
 
 #[cfg(test)]
 mod tests {
+    use clap::StructOpt;
+
     use super::*;
     use crate::test_util::simple_test;
 
-    fn to_vec(v: &[&str]) -> Vec<String> {
-        v.iter().map(|s| s.to_string()).collect()
-    }
-
     #[test]
     fn test_log_verbose_count() {
-        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli"])).unwrap();
+        let cfg = LoggingConfig::try_parse_from(&["cli"]).unwrap();
         assert_eq!(cfg.log_verbose_count, 0);
 
         assert_eq!(
@@ -165,7 +162,7 @@ WARN woo
             .trim_start(),
         );
 
-        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli", "-v"])).unwrap();
+        let cfg = LoggingConfig::try_parse_from(&["cli", "-v"]).unwrap();
         assert_eq!(cfg.log_verbose_count, 1);
 
         assert_eq!(
@@ -178,7 +175,7 @@ INFO bar
             .trim_start(),
         );
 
-        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli", "-vv"])).unwrap();
+        let cfg = LoggingConfig::try_parse_from(&["cli", "-vv"]).unwrap();
         assert_eq!(cfg.log_verbose_count, 2);
 
         assert_eq!(
@@ -192,7 +189,7 @@ DEBUG baz
             .trim_start(),
         );
 
-        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli", "-vvv"])).unwrap();
+        let cfg = LoggingConfig::try_parse_from(&["cli", "-vvv"]).unwrap();
         assert_eq!(cfg.log_verbose_count, 3);
 
         assert_eq!(
@@ -210,7 +207,7 @@ TRACE trax
 
     #[test]
     fn test_custom_default_log_level() {
-        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli"])).unwrap();
+        let cfg = LoggingConfig::try_parse_from(&["cli"]).unwrap();
 
         assert_eq!(
             simple_test(
@@ -228,7 +225,7 @@ DEBUG baz
             .trim_start(),
         );
 
-        let cfg = LoggingConfig::from_iter_safe(to_vec(&["cli", "--log-filter=info"])).unwrap();
+        let cfg = LoggingConfig::try_parse_from(&["cli", "--log-filter=info"]).unwrap();
 
         assert_eq!(
             simple_test(

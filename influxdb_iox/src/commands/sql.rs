@@ -2,7 +2,6 @@
 
 use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
-use structopt::StructOpt;
 
 use influxdb_iox_client::{connection::Connection, health};
 
@@ -14,7 +13,7 @@ mod repl_command;
 ///
 /// Supports command history and interactive editing. History is
 /// stored in $HOME/.iox_sql_history.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct Config {
     // TODO add an option to avoid saving history
 
@@ -23,7 +22,7 @@ pub struct Config {
     /// `SET FORMAT` command
     ///
     /// Optional format ('pretty', 'json', or 'csv')
-    #[structopt(short, long, default_value = "pretty")]
+    #[clap(short, long, default_value = "pretty")]
     format: String,
 }
 

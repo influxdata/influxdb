@@ -8,7 +8,7 @@ default-run = "iox_data_generator"
 [dependencies]
 chrono = { version = "0.4", default-features = false }
 chrono-english = "0.1.4"
-clap = "2.34.0"
+clap = { version = "3", features = ["cargo"] }
 futures = "0.3"
 handlebars = "4.1.6"
 humantime = "2.1.0"

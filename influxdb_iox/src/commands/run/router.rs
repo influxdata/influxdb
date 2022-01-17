@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::{
+    clap_blocks::run_config::RunConfig,
     influxdb_ioxd::{
         self,
         server_type::{
@@ -10,11 +11,9 @@ use crate::{
             router::RouterServerType,
         },
     },
-    structopt_blocks::run_config::RunConfig,
 };
 use observability_deps::tracing::warn;
 use router::{resolver::RemoteTemplate, server::RouterServer};
-use structopt::StructOpt;
 use thiserror::Error;
 use time::SystemProvider;
 
@@ -32,8 +31,8 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, StructOpt)]
-#[structopt(
+#[derive(Debug, clap::Parser)]
+#[clap(
     name = "run",
     about = "Runs in router mode",
     long_about = "Run the IOx router server.\n\nThe configuration options below can be \
@@ -48,7 +47,7 @@ Configuration is loaded from the following sources (highest precedence first):
         - pre-configured default values"
 )]
 pub struct Config {
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub(crate) run_config: RunConfig,
 
     /// When IOx nodes need to talk to remote peers they consult an internal remote address
@@ -57,7 +56,7 @@ pub struct Config {
     /// occurrences of the "{id}" substring will be replaced with the remote Server ID.
     ///
     /// Example: http://node-{id}.ioxmydomain.com:8082
-    #[structopt(long = "--remote-template", env = "INFLUXDB_IOX_REMOTE_TEMPLATE")]
+    #[clap(long = "--remote-template", env = "INFLUXDB_IOX_REMOTE_TEMPLATE")]
     pub remote_template: Option<String>,
 }
 

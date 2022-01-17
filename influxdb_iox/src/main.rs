@@ -15,7 +15,6 @@ use influxdb_iox_client::connection::Builder;
 use observability_deps::tracing::warn;
 use once_cell::sync::Lazy;
 use std::str::FromStr;
-use structopt::StructOpt;
 use tokio::runtime::Runtime;
 
 mod commands {
@@ -30,7 +29,7 @@ mod commands {
     pub mod tracing;
 }
 
-mod structopt_blocks;
+mod clap_blocks;
 
 pub mod influxdb_ioxd;
 
@@ -66,8 +65,8 @@ const TABLE_STYLE_SINGLE_LINE_BORDERS: &str = "||--+-++|    ++++++";
 ))]
 compile_error!("heappy and jemalloc_replacing_malloc features are mutually exclusive");
 
-#[derive(Debug, StructOpt)]
-#[structopt(
+#[derive(Debug, clap::Parser)]
+#[clap(
     name = "influxdb_iox",
     version = &VERSION_STRING[..],
     about = "InfluxDB IOx server and command line tools",
@@ -109,17 +108,17 @@ struct Config {
     /// -vv  'debug,hyper::proto::h1=info,h2=info'
     ///
     /// -vvv 'trace,hyper::proto::h1=info,h2=info'
-    #[structopt(
-        short = "-v",
+    #[clap(
+        short = 'v',
         long = "--verbose",
-        multiple = true,
+        multiple_occurrences = true,
         takes_value = false,
         parse(from_occurrences)
     )]
     pub log_verbose_count: u8,
 
     /// gRPC address of IOx server to connect to
-    #[structopt(
+    #[clap(
         short,
         long,
         global = true,
@@ -131,19 +130,19 @@ struct Config {
     /// Additional headers to add to CLI requests
     ///
     /// Values should be key value pairs separated by ':'
-    #[structopt(long, global = true)]
+    #[clap(long, global = true)]
     header: Vec<KeyValue<http::header::HeaderName, http::HeaderValue>>,
 
-    #[structopt(long)]
+    #[clap(long)]
     /// Set the maximum number of threads to use. Defaults to the number of
     /// cores on the system
     num_threads: Option<usize>,
 
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Command,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 enum Command {
     /// Database-related commands
     Database(commands::database::Config),
@@ -174,7 +173,7 @@ fn main() -> Result<(), std::io::Error> {
     // load all environment variables from .env before doing anything
     load_dotenv();
 
-    let config: Config = StructOpt::from_args();
+    let config: Config = clap::Parser::parse();
 
     let tokio_runtime = get_runtime(config.num_threads)?;
     tokio_runtime.block_on(async move {

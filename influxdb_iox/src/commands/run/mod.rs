@@ -1,7 +1,6 @@
 use snafu::{ResultExt, Snafu};
-use structopt::StructOpt;
 
-use crate::structopt_blocks::run_config::RunConfig;
+use crate::clap_blocks::run_config::RunConfig;
 
 pub mod database;
 pub mod router;
@@ -26,14 +25,14 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct Config {
     // TODO(marco) remove this
     /// Config for database mode, for backwards compatibility reasons.
-    #[structopt(flatten)]
+    #[clap(flatten)]
     database_config: database::Config,
 
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Option<Command>,
 }
 
@@ -49,7 +48,7 @@ impl Config {
     }
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 enum Command {
     /// Run the server in database mode
     Database(database::Config),

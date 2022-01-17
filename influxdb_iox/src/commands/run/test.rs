@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::{
+    clap_blocks::run_config::RunConfig,
     influxdb_ioxd::{
         self,
         server_type::{
@@ -10,10 +11,8 @@ use crate::{
             test::{TestAction, TestServerType},
         },
     },
-    structopt_blocks::run_config::RunConfig,
 };
 use metric::Registry;
-use structopt::StructOpt;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -27,8 +26,8 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, StructOpt)]
-#[structopt(
+#[derive(Debug, clap::Parser)]
+#[clap(
     name = "run",
     about = "Runs in test mode",
     long_about = "Run the IOx test server.\n\nThe configuration options below can be \
@@ -43,16 +42,16 @@ Configuration is loaded from the following sources (highest precedence first):
         - pre-configured default values"
 )]
 pub struct Config {
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub(crate) run_config: RunConfig,
 
     /// Test action
-    #[structopt(
+    #[clap(
+        arg_enum,
         long = "--test-action",
         env = "IOX_TEST_ACTION",
         default_value = "None",
-        possible_values = &TestAction::variants(),
-        case_insensitive = true,
+        ignore_case = true
     )]
     test_action: TestAction,
 }

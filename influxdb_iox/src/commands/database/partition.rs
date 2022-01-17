@@ -4,7 +4,6 @@ use influxdb_iox_client::{
     connection::Connection,
     management::{self},
 };
-use structopt::StructOpt;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -24,21 +23,21 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Manage IOx partitions
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct Config {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Command,
 }
 
 /// List all known partition keys for a database
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct List {
     /// The name of the database
     db_name: String,
 }
 
 /// Get details of a specific partition in JSON format (TODO)
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Get {
     /// The name of the database
     db_name: String,
@@ -51,7 +50,7 @@ struct Get {
 ///
 /// Errors if there is nothing to persist at the moment as per the lifecycle rules. If successful it returns the
 /// chunk that contains the persisted data.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Persist {
     /// The name of the database
     db_name: String,
@@ -63,14 +62,14 @@ struct Persist {
     table_name: String,
 
     /// Persist all data irrespective of arrival time
-    #[structopt(long)]
+    #[clap(long)]
     force: bool,
 }
 
 /// Compact Object Store Chunks
 ///
 /// Errors if the chunks are not yet compacted and not contiguous.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct CompactObjectStoreChunks {
     /// The name of the database
     db_name: String,
@@ -86,7 +85,7 @@ struct CompactObjectStoreChunks {
 }
 
 /// Compact all Object Store Chunks of a partition
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct CompactObjectStorePartition {
     /// The name of the database
     db_name: String,
@@ -99,7 +98,7 @@ struct CompactObjectStorePartition {
 }
 
 /// lists all chunks in this partition
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct ListChunks {
     /// The name of the database
     db_name: String,
@@ -110,7 +109,7 @@ struct ListChunks {
 
 /// Create a new, open chunk in the partiton's Mutable Buffer which will receive
 /// new writes.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct NewChunk {
     /// The name of the database
     db_name: String,
@@ -124,7 +123,7 @@ struct NewChunk {
 
 /// Closes a chunk in the mutable buffer for writing and starts its migration to
 /// the read buffer
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct CloseChunk {
     /// The name of the database
     db_name: String,
@@ -140,7 +139,7 @@ struct CloseChunk {
 }
 
 /// Unload chunk from read buffer but keep it in object store.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct UnloadChunk {
     /// The name of the database
     db_name: String,
@@ -156,7 +155,7 @@ struct UnloadChunk {
 }
 
 /// Drop partition from memory and (if persisted) from object store.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct DropPartition {
     /// The name of the database
     db_name: String,
@@ -169,7 +168,7 @@ struct DropPartition {
 }
 
 /// All possible subcommands for partition
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 enum Command {
     /// List partitions
     List(List),

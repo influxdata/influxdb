@@ -4,7 +4,7 @@ use snafu::{ResultExt, Snafu};
 use trace::TraceCollector;
 
 use crate::{
-    influxdb_ioxd::serving_readiness::ServingReadiness, structopt_blocks::run_config::RunConfig,
+    clap_blocks::run_config::RunConfig, influxdb_ioxd::serving_readiness::ServingReadiness,
 };
 
 #[derive(Debug, Snafu)]
@@ -35,11 +35,10 @@ impl CommonServerState {
 
     #[cfg(test)]
     pub fn for_testing() -> Self {
-        use structopt::StructOpt;
+        use clap::Parser;
 
         Self::from_config(
-            RunConfig::from_iter_safe(["not_used".to_string()].into_iter())
-                .expect("default parsing should work"),
+            RunConfig::try_parse_from(&["not_used"]).expect("default parsing should work"),
         )
         .expect("default configs should work")
     }

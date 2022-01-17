@@ -1,7 +1,6 @@
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{connection::Connection, management};
 use snafu::{ResultExt, Snafu};
-use structopt::StructOpt;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -33,14 +32,14 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Recover broken databases.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct Config {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Command,
 }
 
 /// All possible subcommands for recovering broken databases
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 enum Command {
     /// Wipe preserved catalog
     Wipe(Wipe),
@@ -53,10 +52,10 @@ enum Command {
 }
 
 /// Wipe preserved catalog.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Wipe {
     /// Force wipe. Required option to prevent accidental erasure
-    #[structopt(long)]
+    #[clap(long)]
     force: bool,
 
     /// The name of the database
@@ -64,10 +63,10 @@ struct Wipe {
 }
 
 /// Rebuild catalog from parquet files
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Rebuild {
     /// Force rebuild, even if the database has already successfully started
-    #[structopt(long)]
+    #[clap(long)]
     force: bool,
 
     /// The name of the database
@@ -75,7 +74,7 @@ struct Rebuild {
 }
 
 /// Skip replay
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct SkipReplay {
     /// The name of the database
     db_name: String,

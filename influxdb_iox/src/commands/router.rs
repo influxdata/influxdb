@@ -4,7 +4,6 @@ use influxdb_iox_client::{
     connection::Connection,
     router::{self, generated_types::Router as RouterConfig},
 };
-use structopt::StructOpt;
 use thiserror::Error;
 
 #[allow(clippy::enum_variant_names)]
@@ -20,35 +19,35 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Manage IOx databases
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct Config {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Command,
 }
 
 /// Create a new router or update an existing one.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct CreateOrUpdate {
     /// The name of the router
     name: String,
 }
 
 /// Return configuration of specific router
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Get {
     /// The name of the router
     name: String,
 }
 
 /// Delete specific router
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 struct Delete {
     /// The name of the router
     name: String,
 }
 
 /// All possible subcommands for router
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 enum Command {
     CreateOrUpdate(CreateOrUpdate),
 

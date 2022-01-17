@@ -10,7 +10,7 @@
     clippy::clone_on_ref_ptr
 )]
 
-#[cfg(feature = "structopt")]
+#[cfg(feature = "clap")]
 pub mod cli;
 pub mod config;
 

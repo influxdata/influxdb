@@ -7,20 +7,20 @@ use snafu::{ResultExt, Snafu};
 use trace::TraceCollector;
 
 use crate::{
+    clap_blocks::object_store::{check_object_store, warn_about_inmem_store},
     commands::run::database::Config,
-    structopt_blocks::object_store::{check_object_store, warn_about_inmem_store},
 };
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Cannot parse object store config: {}", source))]
     ObjectStoreParsing {
-        source: crate::structopt_blocks::object_store::ParseError,
+        source: crate::clap_blocks::object_store::ParseError,
     },
 
     #[snafu(display("Cannot check object store config: {}", source))]
     ObjectStoreCheck {
-        source: crate::structopt_blocks::object_store::CheckError,
+        source: crate::clap_blocks::object_store::CheckError,
     },
 }
 

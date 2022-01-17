@@ -1,15 +1,14 @@
-use crate::structopt_blocks::{object_store::ObjectStoreConfig, server_id::ServerIdConfig};
+use crate::clap_blocks::{object_store::ObjectStoreConfig, server_id::ServerIdConfig};
 use iox_object_store::IoxObjectStore;
 use object_store::ObjectStore;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{convert::TryFrom, sync::Arc};
-use structopt::StructOpt;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Cannot parse object store config: {}", source))]
     ObjectStoreParsing {
-        source: crate::structopt_blocks::object_store::ParseError,
+        source: crate::clap_blocks::object_store::ParseError,
     },
 
     #[snafu(display("No server ID provided"))]
@@ -40,47 +39,47 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Dump preserved catalog.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct Config {
     // object store config
-    #[structopt(flatten)]
+    #[clap(flatten)]
     object_store_config: ObjectStoreConfig,
 
     // server ID config
-    #[structopt(flatten)]
+    #[clap(flatten)]
     server_id_config: ServerIdConfig,
 
     /// The name of the database
     db_name: String,
 
     // dump options
-    #[structopt(flatten)]
+    #[clap(flatten)]
     dump_options: DumpOptions,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct DumpOptions {
     /// Show debug output of `DecodedIoxParquetMetaData` if decoding succeeds, show the decoding
     /// error otherwise.
     ///
     /// Since this contains the entire Apache Parquet metadata object this is quite verbose and is
     /// usually not recommended.
-    #[structopt(long = "--show-parquet-metadata")]
+    #[clap(long = "--show-parquet-metadata")]
     show_parquet_metadata: bool,
 
     /// Show debug output of `IoxMetadata` if decoding succeeds, show the decoding
     /// error otherwise.
-    #[structopt(long = "--show-iox-metadata")]
+    #[clap(long = "--show-iox-metadata")]
     show_iox_metadata: bool,
 
     /// Show debug output of `Schema` if decoding succeeds, show the decoding
     /// error otherwise.
-    #[structopt(long = "--show-schema")]
+    #[clap(long = "--show-schema")]
     show_schema: bool,
 
     /// Show debug output of `ColumnSummary` if decoding succeeds,
     /// show the decoding error otherwise.
-    #[structopt(long = "--show-statistics")]
+    #[clap(long = "--show-statistics")]
     show_statistics: bool,
 
     /// Show unparsed `IoxParquetMetaData` -- which are Apache Thrift bytes -- as part of the
@@ -89,7 +88,7 @@ pub struct DumpOptions {
     /// Since this binary data is usually quite hard to read, it is recommended to set this to
     /// `false` which will replace the actual bytes with `b"metadata omitted"`. Use the other
     /// toggles to instead show the content of the Apache Thrift message.
-    #[structopt(long = "--show-unparsed-metadata")]
+    #[clap(long = "--show-unparsed-metadata")]
     show_unparsed_metadata: bool,
 }
 
