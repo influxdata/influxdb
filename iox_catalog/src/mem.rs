@@ -7,12 +7,31 @@ use crate::interface::{
 };
 use async_trait::async_trait;
 use std::convert::TryFrom;
+use std::fmt::Formatter;
 use std::sync::{Arc, Mutex};
 
-struct MemCatalog {
+/// In-memory catalog that implements the `RepoCollection` and individual repo traits fromt
+/// the catalog interface.
+#[derive(Default)]
+pub struct MemCatalog {
     collections: Mutex<MemCollections>,
 }
 
+impl MemCatalog {
+    /// return new initialized `MemCatalog`
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Debug for MemCatalog {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let c = self.collections.lock().expect("mutex poisoned");
+        write!(f, "MemCatalog[ {:?} ]", c)
+    }
+}
+
+#[derive(Default, Debug)]
 struct MemCollections {
     kafka_topics: Vec<KafkaTopic>,
     query_pools: Vec<QueryPool>,
