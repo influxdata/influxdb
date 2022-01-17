@@ -77,20 +77,10 @@ async fn test_start_stop() {
         .assert()
         .success();
 
-    // Can't parse a canceled operation due to
-    // https://github.com/influxdata/influxdb_iox/issues/3458
-    // workaround by just comparing string output
-    // let completed: IoxOperation = serde_json::from_slice(
-    //     &command_result.get_output().stdout,
-    // )
-    //     .expect("expected JSON output");
-    // assert_eq!(completed.metadata.pending_count, 0);
-    // assert_eq!(completed.metadata.total_count, 1);
-    // assert_eq!(completed.metadata.cancelled_count, 1);
-    // assert_eq!(&completed.metadata.job, &operations[0].metadata.job)
-
-    command_result
-        .stdout(predicate::str::contains(r#""message": "Job cancelled""#))
-        .stdout(predicate::str::contains(r#""cancelledCount": "1","#))
-        .stdout(predicate::str::contains("dummy"));
+    let completed: IoxOperation =
+        serde_json::from_slice(&command_result.get_output().stdout).expect("expected JSON output");
+    assert_eq!(completed.metadata.pending_count, 0);
+    assert_eq!(completed.metadata.total_count, 1);
+    assert_eq!(completed.metadata.cancelled_count, 1);
+    assert_eq!(&completed.metadata.job, &operations[0].metadata.job)
 }
