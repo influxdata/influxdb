@@ -6,11 +6,29 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait = "0.1"
+bytes = "1.1"
+data_types = { path = "../data_types" }
 dml = { path = "../dml" }
+flate2 = "1.0"
+futures = "0.3.19"
 generated_types = { path = "../generated_types" }
+hashbrown = "0.11"
 hyper = "0.14"
 metric = { path = "../metric" }
+mutable_batch = { path = "../mutable_batch" }
+mutable_batch_lp = { path = "../mutable_batch_lp" }
+observability_deps = { path = "../observability_deps" }
+parking_lot = "0.11"
+serde = "1.0"
+serde_urlencoded = "0.7"
 thiserror = "1.0"
+time = { path = "../time" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tonic = "0.6"
 trace = { path = "../trace/" }
 workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies]
+assert_matches = "1.5"
+paste = "1.0.6"
