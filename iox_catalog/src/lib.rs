@@ -25,6 +25,7 @@ const SHARED_QUERY_POOL: &str = SHARED_KAFKA_TOPIC;
 const TIME_COLUMN: &str = "time";
 
 pub mod interface;
+pub mod mem;
 pub mod postgres;
 
 /// Given the lines of a write request and an in memory schema, this will validate the write
@@ -194,4 +195,101 @@ pub async fn create_or_get_default_records<T: RepoCollection + Sync + Send>(
         .await;
 
     Ok((kafka_topic, query_pool, sequencers))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::interface::get_schema_by_name;
+    use crate::mem::MemCatalog;
+    use influxdb_line_protocol::parse_lines;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_validate_or_insert_schema() {
+        let repo = Arc::new(MemCatalog::new());
+        let (kafka_topic, query_pool, _) = create_or_get_default_records(2, &repo).await.unwrap();
+
+        let namespace_name = "validate_schema";
+        // now test with a new namespace
+        let namespace = repo
+            .namespace()
+            .create(namespace_name, "inf", kafka_topic.id, query_pool.id)
+            .await
+            .unwrap();
+        let data = r#"
+m1,t1=a,t2=b f1=2i,f2=2.0 1
+m1,t1=a f1=3i 2
+m2,t3=b f1=true 1
+        "#;
+
+        // test that new schema gets returned
+        let lines: Vec<_> = parse_lines(data).map(|l| l.unwrap()).collect();
+        let schema = Arc::new(NamespaceSchema::new(
+            namespace.id,
+            namespace.kafka_topic_id,
+            namespace.query_pool_id,
+        ));
+        let new_schema = validate_or_insert_schema(lines, &schema, &repo)
+            .await
+            .unwrap();
+        let new_schema = new_schema.unwrap();
+
+        // ensure new schema is in the db
+        let schema_from_db = get_schema_by_name(namespace_name, &repo)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(new_schema, schema_from_db);
+
+        // test that a new table will be created
+        let data = r#"
+m1,t1=c f1=1i 2
+new_measurement,t9=a f10=true 1
+        "#;
+        let lines: Vec<_> = parse_lines(data).map(|l| l.unwrap()).collect();
+        let new_schema = validate_or_insert_schema(lines, &schema_from_db, &repo)
+            .await
+            .unwrap()
+            .unwrap();
+        let new_table = new_schema.tables.get("new_measurement").unwrap();
+        assert_eq!(
+            ColumnType::Bool,
+            new_table.columns.get("f10").unwrap().column_type
+        );
+        assert_eq!(
+            ColumnType::Tag,
+            new_table.columns.get("t9").unwrap().column_type
+        );
+        let schema = get_schema_by_name(namespace_name, &repo)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(new_schema, schema);
+
+        // test that a new column for an existing table will be created
+        // test that a new table will be created
+        let data = r#"
+m1,new_tag=c new_field=1i 2
+        "#;
+        let lines: Vec<_> = parse_lines(data).map(|l| l.unwrap()).collect();
+        let new_schema = validate_or_insert_schema(lines, &schema, &repo)
+            .await
+            .unwrap()
+            .unwrap();
+        let table = new_schema.tables.get("m1").unwrap();
+        assert_eq!(
+            ColumnType::I64,
+            table.columns.get("new_field").unwrap().column_type
+        );
+        assert_eq!(
+            ColumnType::Tag,
+            table.columns.get("new_tag").unwrap().column_type
+        );
+        let schema = get_schema_by_name(namespace_name, &repo)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(new_schema, schema);
+    }
 }
