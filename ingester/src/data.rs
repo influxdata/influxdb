@@ -3,33 +3,62 @@
 
 use std::{sync::Arc, collections::BTreeMap};
 
+use crate::server::IngesterServer;
+use snafu::{OptionExt, Snafu};
+use iox_catalog::interface::{KafkaTopicId, SequencerId, RepoCollection, KafkaTopic, NamespaceId};
 use parking_lot::RwLock;
 use arrow::datatypes::DataType;
 
-// Ingetser's setup: place to keep its Kafka Topic & Sequencer IDs
-struct IngesterProfile {
-    // kafka_topic: 
-    // sequencer_ids: 
+#[derive(Debug, Snafu)]
+//#[allow(missing_copy_implementations, missing_docs)]
+pub enum Error {
+    #[snafu(display("Topic {} not found", name))]
+    TopicNotFound { name: String },
 }
+
+/// A specialized `Error` for Ingester Data errors
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
 
 /// Ingester Data: a Mapp of Shard ID to its Data
 struct Sequencers {
     // This map gets set up on initialization of the ingester so it won't ever be modified.
     // The content of each SequenceData will get changed when more namespaces and tables 
     // get ingested.
-    data: BTreeMap<i32, Arc<SequencerData>>,
+    data: BTreeMap<SequencerId, Arc<SequencerData>>,
   }
 
 impl Sequencers {
-    /// One time initilize Sequencers of this Ingester
-    pub fn initialize() -> Self {
+    /// One time initialize Sequencers of this Ingester
+    pub async fn initialize(ingester: &IngesterServer) -> Result<Self> {
+        // Get kafka topic
+        let kafka_topic_repro = ingester.iox_catalog.kafka_topic();
+        let topic = kafka_topic_repro.create_or_get(ingester.kafka_topic_name).await?;
+
+        // Get all namespaces of this topic
+        let namespace_repo = ingester.iox_catalog.namespace();
+        let x = namespace_repro.
+
+
+        // Get Sequencers
+        let sequencer_repro = ingester.iox_catalog.sequencer();
+        let sequencers = BTreeMap::default();
+        for shard in ingester.kafka_partitions {
+            let sequencer = sequencer_repro.create_or_get(&topic, shard).await?;
+
+            sequencers.insert(sequencer.id, )
+        }
+
+        Ok(Self {
+            data: BTreeMap::default(),
+        })
     }
 }
   
   /// Data of a Shard
   struct SequencerData {
     // New namespaces can come in at any time so we need to be able to add new ones
-    namespaces: RwLock<BTreeMap<i32, Arc<NamespaceData>>>,
+    namespaces: RwLock<BTreeMap<NamespaceId, Arc<NamespaceData>>>,
   }
 
   impl SequencerData {

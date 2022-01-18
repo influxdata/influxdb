@@ -1858,7 +1858,9 @@ name = "ingester"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "iox_catalog",
  "parking_lot",
+ "snafu",
 ]
 
 [[package]]

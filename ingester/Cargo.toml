@@ -6,5 +6,6 @@ edition = "2021"
 
 [dependencies]
 arrow = { version = "7.0", features = ["prettyprint"] }
-# mutable_batch = { path = "../mutable_batch" }
+snafu = "0.7"
+iox_catalog = { path = "../iox_catalog" }
 parking_lot = "0.11.2"
