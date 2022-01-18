@@ -2,8 +2,9 @@
 //! used for testing or for an IOx designed to run without catalog persistence.
 
 use crate::interface::{
-    Column, ColumnRepo, ColumnType, Error, KafkaTopic, KafkaTopicRepo, Namespace, NamespaceRepo,
-    QueryPool, QueryPoolRepo, RepoCollection, Result, Sequencer, SequencerRepo, Table, TableRepo,
+    Column, ColumnId, ColumnRepo, ColumnType, Error, KafkaTopic, KafkaTopicId, KafkaTopicRepo,
+    Namespace, NamespaceId, NamespaceRepo, QueryPool, QueryPoolId, QueryPoolRepo, RepoCollection,
+    Result, Sequencer, SequencerId, SequencerRepo, Table, TableId, TableRepo,
 };
 use async_trait::async_trait;
 use std::convert::TryFrom;
@@ -76,7 +77,7 @@ impl KafkaTopicRepo for MemCatalog {
             Some(t) => t,
             None => {
                 let topic = KafkaTopic {
-                    id: collections.kafka_topics.len() as i32 + 1,
+                    id: KafkaTopicId::new(collections.kafka_topics.len() as i32 + 1),
                     name: name.to_string(),
                 };
                 collections.kafka_topics.push(topic);
@@ -97,7 +98,7 @@ impl QueryPoolRepo for MemCatalog {
             Some(t) => t,
             None => {
                 let pool = QueryPool {
-                    id: collections.query_pools.len() as i16 + 1,
+                    id: QueryPoolId::new(collections.query_pools.len() as i16 + 1),
                     name: name.to_string(),
                 };
                 collections.query_pools.push(pool);
@@ -115,8 +116,8 @@ impl NamespaceRepo for MemCatalog {
         &self,
         name: &str,
         retention_duration: &str,
-        kafka_topic_id: i32,
-        query_pool_id: i16,
+        kafka_topic_id: KafkaTopicId,
+        query_pool_id: QueryPoolId,
     ) -> Result<Namespace> {
         let mut collections = self.collections.lock().expect("mutex poisoned");
         if collections.namespaces.iter().any(|n| n.name == name) {
@@ -126,7 +127,7 @@ impl NamespaceRepo for MemCatalog {
         }
 
         let namespace = Namespace {
-            id: collections.namespaces.len() as i32 + 1,
+            id: NamespaceId::new(collections.namespaces.len() as i32 + 1),
             name: name.to_string(),
             kafka_topic_id,
             query_pool_id,
@@ -148,14 +149,14 @@ impl NamespaceRepo for MemCatalog {
 
 #[async_trait]
 impl TableRepo for MemCatalog {
-    async fn create_or_get(&self, name: &str, namespace_id: i32) -> Result<Table> {
+    async fn create_or_get(&self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
         let mut collections = self.collections.lock().expect("mutex poisoned");
 
         let table = match collections.tables.iter().find(|t| t.name == name) {
             Some(t) => t,
             None => {
                 let table = Table {
-                    id: collections.tables.len() as i32 + 1,
+                    id: TableId::new(collections.tables.len() as i32 + 1),
                     namespace_id,
                     name: name.to_string(),
                 };
@@ -167,7 +168,7 @@ impl TableRepo for MemCatalog {
         Ok(table.clone())
     }
 
-    async fn list_by_namespace_id(&self, namespace_id: i32) -> Result<Vec<Table>> {
+    async fn list_by_namespace_id(&self, namespace_id: NamespaceId) -> Result<Vec<Table>> {
         let collections = self.collections.lock().expect("mutex poisoned");
         let tables: Vec<_> = collections
             .tables
@@ -184,7 +185,7 @@ impl ColumnRepo for MemCatalog {
     async fn create_or_get(
         &self,
         name: &str,
-        table_id: i32,
+        table_id: TableId,
         column_type: ColumnType,
     ) -> Result<Column> {
         let mut collections = self.collections.lock().expect("mutex poisoned");
@@ -207,7 +208,7 @@ impl ColumnRepo for MemCatalog {
             }
             None => {
                 let column = Column {
-                    id: collections.columns.len() as i32 + 1,
+                    id: ColumnId::new(collections.columns.len() as i32 + 1),
                     table_id,
                     name: name.to_string(),
                     column_type: column_type as i16,
@@ -220,7 +221,7 @@ impl ColumnRepo for MemCatalog {
         Ok(column.clone())
     }
 
-    async fn list_by_namespace_id(&self, namespace_id: i32) -> Result<Vec<Column>> {
+    async fn list_by_namespace_id(&self, namespace_id: NamespaceId) -> Result<Vec<Column>> {
         let mut columns = vec![];
 
         let collections = self.collections.lock().expect("mutex poisoned");
@@ -251,7 +252,7 @@ impl SequencerRepo for MemCatalog {
             Some(t) => t,
             None => {
                 let sequencer = Sequencer {
-                    id: collections.sequencers.len() as i16 + 1,
+                    id: SequencerId::new(collections.sequencers.len() as i16 + 1),
                     kafka_topic_id: topic.id,
                     kafka_partition: partition,
                     min_unpersisted_sequence_number: 0,
