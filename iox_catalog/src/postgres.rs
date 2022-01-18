@@ -1,8 +1,9 @@
 //! A Postgres backed implementation of the Catalog
 
 use crate::interface::{
-    Column, ColumnRepo, ColumnType, Error, KafkaTopic, KafkaTopicRepo, Namespace, NamespaceRepo,
-    QueryPool, QueryPoolRepo, RepoCollection, Result, Sequencer, SequencerRepo, Table, TableRepo,
+    Column, ColumnRepo, ColumnType, Error, KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace,
+    NamespaceId, NamespaceRepo, QueryPool, QueryPoolId, QueryPoolRepo, RepoCollection, Result,
+    Sequencer, SequencerRepo, Table, TableId, TableRepo,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::info;
@@ -130,8 +131,8 @@ impl NamespaceRepo for PostgresCatalog {
         &self,
         name: &str,
         retention_duration: &str,
-        kafka_topic_id: i32,
-        query_pool_id: i16,
+        kafka_topic_id: KafkaTopicId,
+        query_pool_id: QueryPoolId,
     ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
@@ -184,7 +185,7 @@ SELECT * FROM namespace WHERE name = $1;
 
 #[async_trait]
 impl TableRepo for PostgresCatalog {
-    async fn create_or_get(&self, name: &str, namespace_id: i32) -> Result<Table> {
+    async fn create_or_get(&self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
         let rec = sqlx::query_as::<_, Table>(
             r#"
 INSERT INTO table_name ( name, namespace_id )
@@ -208,7 +209,7 @@ DO UPDATE SET name = table_name.name RETURNING *;
         Ok(rec)
     }
 
-    async fn list_by_namespace_id(&self, namespace_id: i32) -> Result<Vec<Table>> {
+    async fn list_by_namespace_id(&self, namespace_id: NamespaceId) -> Result<Vec<Table>> {
         let rec = sqlx::query_as::<_, Table>(
             r#"
 SELECT * FROM table_name
@@ -229,7 +230,7 @@ impl ColumnRepo for PostgresCatalog {
     async fn create_or_get(
         &self,
         name: &str,
-        table_id: i32,
+        table_id: TableId,
         column_type: ColumnType,
     ) -> Result<Column> {
         let ct = column_type as i16;
@@ -266,7 +267,7 @@ DO UPDATE SET name = column_name.name RETURNING *;
         Ok(rec)
     }
 
-    async fn list_by_namespace_id(&self, namespace_id: i32) -> Result<Vec<Column>> {
+    async fn list_by_namespace_id(&self, namespace_id: NamespaceId) -> Result<Vec<Column>> {
         let rec = sqlx::query_as::<_, Column>(
             r#"
 SELECT column_name.* FROM table_name

@@ -13,7 +13,7 @@
 
 use crate::interface::{
     column_type_from_field, ColumnSchema, ColumnType, Error, KafkaTopic, NamespaceSchema,
-    QueryPool, RepoCollection, Result, Sequencer,
+    QueryPool, RepoCollection, Result, Sequencer, SequencerId, TableId,
 };
 use futures::{stream::FuturesOrdered, StreamExt};
 use influxdb_line_protocol::ParsedLine;
@@ -42,9 +42,9 @@ pub async fn validate_or_insert_schema<T: RepoCollection + Sync + Send>(
     repo: &T,
 ) -> Result<Option<NamespaceSchema>> {
     // table name to table_id
-    let mut new_tables: BTreeMap<String, i32> = BTreeMap::new();
+    let mut new_tables: BTreeMap<String, TableId> = BTreeMap::new();
     // table_id to map of column name to column
-    let mut new_columns: BTreeMap<i32, BTreeMap<String, ColumnSchema>> = BTreeMap::new();
+    let mut new_columns: BTreeMap<TableId, BTreeMap<String, ColumnSchema>> = BTreeMap::new();
 
     for line in &lines {
         let table_name = line.series.measurement.as_str();
@@ -176,7 +176,7 @@ pub async fn validate_or_insert_schema<T: RepoCollection + Sync + Send>(
 pub async fn create_or_get_default_records<T: RepoCollection + Sync + Send>(
     kafka_partition_count: i32,
     repo: &T,
-) -> Result<(KafkaTopic, QueryPool, BTreeMap<i16, Sequencer>)> {
+) -> Result<(KafkaTopic, QueryPool, BTreeMap<SequencerId, Sequencer>)> {
     let kafka_repo = repo.kafka_topic();
     let query_repo = repo.query_pool();
     let sequencer_repo = repo.sequencer();
