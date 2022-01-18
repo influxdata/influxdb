@@ -1861,6 +1861,7 @@ dependencies = [
  "iox_catalog",
  "parking_lot",
  "snafu",
+ "workspace-hack",
 ]
 
 [[package]]
