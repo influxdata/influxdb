@@ -5,23 +5,24 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use crate::server::IngesterServer;
 use arrow::datatypes::DataType;
-use iox_catalog::interface::{NamespaceId, SequencerId, RepoCollection, KafkaPartition};
+use iox_catalog::interface::{KafkaPartition, NamespaceId, RepoCollection, SequencerId};
 use parking_lot::RwLock;
-use snafu::{Snafu, ResultExt};
+use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
     #[snafu(display("Topic {} not found", name))]
-    TopicNotFound { 
+    TopicNotFound {
         source: iox_catalog::interface::Error,
-        name: String},
+        name: String,
+    },
 
     #[snafu(display("Sequencer id {} not found", id.get()))]
-    SequencerNotFound { 
+    SequencerNotFound {
         source: iox_catalog::interface::Error,
-        id: KafkaPartition},
-    
+        id: KafkaPartition,
+    },
 }
 
 /// A specialized `Error` for Ingester Data errors
@@ -44,7 +45,7 @@ impl Sequencers {
         let topic = kafka_topic_repro
             .create_or_get(topic_name.as_str())
             .await
-            .context(TopicNotFoundSnafu{name: topic_name})?;
+            .context(TopicNotFoundSnafu { name: topic_name })?;
 
         // Get sequencer ids from the catalog
         let sequencer_repro = ingester.iox_catalog.sequencer();
@@ -53,7 +54,7 @@ impl Sequencers {
             let sequencer = sequencer_repro
                 .create_or_get(&topic, shard)
                 .await
-                .context(SequencerNotFoundSnafu{id: shard})?;
+                .context(SequencerNotFoundSnafu { id: shard })?;
             // Create empty buffer for each sequencer
             sequencers.insert(sequencer.id, Arc::new(SequencerData::new()));
         }
