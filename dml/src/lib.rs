@@ -85,6 +85,23 @@ impl DmlMeta {
     pub fn bytes_read(&self) -> Option<usize> {
         self.bytes_read
     }
+
+    /// Return the approximate memory size of the metadata, in bytes.
+    ///
+    /// This includes `Self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + self
+                .span_ctx
+                .as_ref()
+                .map(|ctx| ctx.size())
+                .unwrap_or_default()
+            - self
+                .span_ctx
+                .as_ref()
+                .map(|_| std::mem::size_of::<SpanContext>())
+                .unwrap_or_default()
+    }
 }
 
 /// A DML operation
@@ -127,6 +144,20 @@ impl DmlOperation {
                 .into_iter()
                 .map(|(shard, delete)| (shard, Self::Delete(delete)))
                 .collect(),
+        }
+    }
+
+    /// Return the approximate memory size of the operation, in bytes.
+    ///
+    /// This includes `Self`.
+    pub fn size(&self) -> usize {
+        match self {
+            Self::Write(w) => {
+                std::mem::size_of::<Self>() - std::mem::size_of::<DmlWrite>() + w.size()
+            }
+            Self::Delete(d) => {
+                std::mem::size_of::<Self>() - std::mem::size_of::<DmlDelete>() + d.size()
+            }
         }
     }
 }
@@ -246,6 +277,20 @@ impl DmlWrite {
             .map(|(shard_id, tables)| (shard_id, Self::new(tables, self.meta.clone())))
             .collect()
     }
+
+    /// Return the approximate memory size of the write, in bytes.
+    ///
+    /// This includes `Self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + self
+                .tables
+                .iter()
+                .map(|(k, v)| std::mem::size_of_val(k) + k.capacity() + v.size())
+                .sum::<usize>()
+            + self.meta.size()
+            - std::mem::size_of::<DmlMeta>()
+    }
 }
 
 /// A delete operation
@@ -317,6 +362,20 @@ impl DmlDelete {
                 .map(|shard| (shard, self.clone()))
                 .collect()
         }
+    }
+
+    /// Return the approximate memory size of the delete, in bytes.
+    ///
+    /// This includes `Self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<Self>() + self.predicate.size() - std::mem::size_of::<DeletePredicate>()
+            + self
+                .table_name
+                .as_ref()
+                .map(|s| s.len())
+                .unwrap_or_default()
+            + self.meta.size()
+            - std::mem::size_of::<DmlMeta>()
     }
 }
 

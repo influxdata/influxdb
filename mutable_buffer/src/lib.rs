@@ -169,13 +169,10 @@ impl MBChunk {
     ///
     /// Note: This does not include the size of any cached ChunkSnapshot
     pub fn size(&self) -> usize {
-        let size_self = std::mem::size_of::<Self>();
+        // need to substract the mutable batch size because it is already reported by `MutableBatch::size`.
+        let size_self = std::mem::size_of::<Self>() - std::mem::size_of::<MutableBatch>();
 
-        let size_columns = self
-            .mutable_batch
-            .columns()
-            .map(|(k, v)| k.capacity() + v.size())
-            .sum::<usize>();
+        let mutable_batch_size = self.mutable_batch.size();
 
         let size_table_name = self.table_name.len();
 
@@ -184,7 +181,7 @@ impl MBChunk {
             guard.as_ref().map(|snapshot| snapshot.size()).unwrap_or(0)
         };
 
-        size_self + size_columns + size_table_name + snapshot_size
+        size_self + mutable_batch_size + size_table_name + snapshot_size
     }
 
     /// Returns an iterator over (column_name, estimated_size) for all

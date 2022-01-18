@@ -29,6 +29,13 @@ impl DeletePredicate {
         }
         out
     }
+
+    /// Return the approximate memory size of the predicate, in bytes.
+    ///
+    /// This includes `Self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<Self>() + self.exprs.iter().map(|expr| expr.size()).sum::<usize>()
+    }
 }
 
 /// Single expression to be used as parts of a predicate.
@@ -65,6 +72,13 @@ impl DeleteExpr {
     /// Scalar value.
     pub fn scalar(&self) -> &Scalar {
         &self.scalar
+    }
+
+    /// Return the approximate memory size of the expression, in bytes.
+    ///
+    /// This includes `Self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<Self>() + self.column.capacity() + self.scalar.size()
     }
 }
 
@@ -109,6 +123,19 @@ pub enum Scalar {
     I64(i64),
     F64(ordered_float::OrderedFloat<f64>),
     String(String),
+}
+
+impl Scalar {
+    /// Return the approximate memory size of the scalar, in bytes.
+    ///
+    /// This includes `Self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + match &self {
+                Self::Bool(_) | Self::I64(_) | Self::F64(_) => 0,
+                Self::String(s) => s.capacity(),
+            }
+    }
 }
 
 impl std::fmt::Display for Scalar {
