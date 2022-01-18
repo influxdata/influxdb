@@ -3,8 +3,9 @@
 
 use crate::interface::{
     Column, ColumnId, ColumnRepo, ColumnType, Error, KafkaTopic, KafkaTopicId, KafkaTopicRepo,
-    Namespace, NamespaceId, NamespaceRepo, QueryPool, QueryPoolId, QueryPoolRepo, RepoCollection,
-    Result, Sequencer, SequencerId, SequencerRepo, Table, TableId, TableRepo,
+    Namespace, NamespaceId, NamespaceRepo, Partition, PartitionId, PartitionRepo, QueryPool,
+    QueryPoolId, QueryPoolRepo, RepoCollection, Result, Sequencer, SequencerId, SequencerRepo,
+    Table, TableId, TableRepo,
 };
 use async_trait::async_trait;
 use std::convert::TryFrom;
@@ -40,6 +41,7 @@ struct MemCollections {
     tables: Vec<Table>,
     columns: Vec<Column>,
     sequencers: Vec<Sequencer>,
+    partitions: Vec<Partition>,
 }
 
 impl RepoCollection for Arc<MemCatalog> {
@@ -65,6 +67,10 @@ impl RepoCollection for Arc<MemCatalog> {
 
     fn sequencer(&self) -> Arc<dyn SequencerRepo + Sync + Send> {
         Self::clone(self) as Arc<dyn SequencerRepo + Sync + Send>
+    }
+
+    fn partition(&self) -> Arc<dyn PartitionRepo + Sync + Send> {
+        Self::clone(self) as Arc<dyn PartitionRepo + Sync + Send>
     }
 }
 
@@ -279,6 +285,46 @@ impl SequencerRepo for MemCatalog {
             .cloned()
             .collect();
         Ok(sequencers)
+    }
+}
+
+#[async_trait]
+impl PartitionRepo for MemCatalog {
+    async fn create_or_get(
+        &self,
+        key: &str,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+    ) -> Result<Partition> {
+        let mut collections = self.collections.lock().expect("mutex poisoned");
+        let partition = match collections.partitions.iter().find(|p| {
+            p.partition_key == key && p.sequencer_id == sequencer_id && p.table_id == table_id
+        }) {
+            Some(p) => p,
+            None => {
+                let p = Partition {
+                    id: PartitionId::new(collections.partitions.len() as i64 + 1),
+                    sequencer_id,
+                    table_id,
+                    partition_key: key.to_string(),
+                };
+                collections.partitions.push(p);
+                collections.partitions.last().unwrap()
+            }
+        };
+
+        Ok(partition.clone())
+    }
+
+    async fn list_by_sequencer(&self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
+        let collections = self.collections.lock().expect("mutex poisoned");
+        let partitions: Vec<_> = collections
+            .partitions
+            .iter()
+            .filter(|p| p.sequencer_id == sequencer_id)
+            .cloned()
+            .collect();
+        Ok(partitions)
     }
 }
 
