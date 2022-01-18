@@ -1857,7 +1857,8 @@ dependencies = [
 name = "ingester"
 version = "0.1.0"
 dependencies = [
- "mutable_batch",
+ "arrow",
+ "parking_lot",
 ]
 
 [[package]]
