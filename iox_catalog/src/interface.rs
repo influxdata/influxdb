@@ -163,7 +163,8 @@ pub struct Namespace {
     pub query_pool_id: i16,
 }
 
-/// Schema collection for a namespace
+/// Schema collection for a namespace. This is an in-memory object useful for a schema
+/// cache.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NamespaceSchema {
     /// the namespace id
@@ -185,63 +186,6 @@ impl NamespaceSchema {
             kafka_topic_id,
             query_pool_id,
         }
-    }
-
-    /// Gets the namespace schema including all tables and columns.
-    pub async fn get_by_name<T: RepoCollection + Send + Sync>(
-        name: &str,
-        repo: &T,
-    ) -> Result<Option<Self>> {
-        let namespace_repo = repo.namespace();
-        let table_repo = repo.table();
-        let column_repo = repo.column();
-
-        let namespace = namespace_repo
-            .get_by_name(name)
-            .await?
-            .context(NamespaceNotFoundSnafu { name })?;
-
-        // get the columns first just in case someone else is creating schema while we're doing this.
-        let columns = column_repo.list_by_namespace_id(namespace.id).await?;
-        let tables = table_repo.list_by_namespace_id(namespace.id).await?;
-
-        let mut namespace = Self::new(
-            namespace.id,
-            namespace.kafka_topic_id,
-            namespace.query_pool_id,
-        );
-
-        let mut table_id_to_schema = BTreeMap::new();
-        for t in tables {
-            table_id_to_schema.insert(t.id, (t.name, TableSchema::new(t.id)));
-        }
-
-        for c in columns {
-            let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
-            match ColumnType::try_from(c.column_type) {
-                Ok(column_type) => {
-                    t.columns.insert(
-                        c.name,
-                        ColumnSchema {
-                            id: c.id,
-                            column_type,
-                        },
-                    );
-                }
-                _ => {
-                    return Err(Error::UnknownColumnType {
-                        data_type: c.column_type,
-                        name: c.name.to_string(),
-                    });
-                }
-            }
-        }
-
-        for (_, (table_name, schema)) in table_id_to_schema {
-            namespace.tables.insert(table_name, schema);
-        }
-
-        Ok(Some(namespace))
     }
 
     /// Adds tables and columns to the `NamespaceSchema`. These are created
@@ -275,6 +219,63 @@ impl NamespaceSchema {
 
         None
     }
+}
+
+/// Gets the namespace schema including all tables and columns.
+pub async fn get_schema_by_name<T: RepoCollection + Send + Sync>(
+    name: &str,
+    repo: &T,
+) -> Result<Option<NamespaceSchema>> {
+    let namespace_repo = repo.namespace();
+    let table_repo = repo.table();
+    let column_repo = repo.column();
+
+    let namespace = namespace_repo
+        .get_by_name(name)
+        .await?
+        .context(NamespaceNotFoundSnafu { name })?;
+
+    // get the columns first just in case someone else is creating schema while we're doing this.
+    let columns = column_repo.list_by_namespace_id(namespace.id).await?;
+    let tables = table_repo.list_by_namespace_id(namespace.id).await?;
+
+    let mut namespace = NamespaceSchema::new(
+        namespace.id,
+        namespace.kafka_topic_id,
+        namespace.query_pool_id,
+    );
+
+    let mut table_id_to_schema = BTreeMap::new();
+    for t in tables {
+        table_id_to_schema.insert(t.id, (t.name, TableSchema::new(t.id)));
+    }
+
+    for c in columns {
+        let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
+        match ColumnType::try_from(c.column_type) {
+            Ok(column_type) => {
+                t.columns.insert(
+                    c.name,
+                    ColumnSchema {
+                        id: c.id,
+                        column_type,
+                    },
+                );
+            }
+            _ => {
+                return Err(Error::UnknownColumnType {
+                    data_type: c.column_type,
+                    name: c.name.to_string(),
+                });
+            }
+        }
+    }
+
+    for (_, (table_name, schema)) in table_id_to_schema {
+        namespace.tables.insert(table_name, schema);
+    }
+
+    Ok(Some(namespace))
 }
 
 /// Data object for a table

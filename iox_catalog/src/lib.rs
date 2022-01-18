@@ -200,6 +200,7 @@ pub async fn create_or_get_default_records<T: RepoCollection + Sync + Send>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interface::get_schema_by_name;
     use crate::mem::MemCatalog;
     use influxdb_line_protocol::parse_lines;
     use std::sync::Arc;
@@ -235,7 +236,7 @@ m2,t3=b f1=true 1
         let new_schema = new_schema.unwrap();
 
         // ensure new schema is in the db
-        let schema_from_db = NamespaceSchema::get_by_name(namespace_name, &repo)
+        let schema_from_db = get_schema_by_name(namespace_name, &repo)
             .await
             .unwrap()
             .unwrap();
@@ -260,7 +261,7 @@ new_measurement,t9=a f10=true 1
             ColumnType::Tag,
             new_table.columns.get("t9").unwrap().column_type
         );
-        let schema = NamespaceSchema::get_by_name(namespace_name, &repo)
+        let schema = get_schema_by_name(namespace_name, &repo)
             .await
             .unwrap()
             .unwrap();
@@ -285,7 +286,7 @@ m1,new_tag=c new_field=1i 2
             ColumnType::Tag,
             table.columns.get("new_tag").unwrap().column_type
         );
-        let schema = NamespaceSchema::get_by_name(namespace_name, &repo)
+        let schema = get_schema_by_name(namespace_name, &repo)
             .await
             .unwrap()
             .unwrap();

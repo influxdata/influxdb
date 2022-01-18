@@ -10,7 +10,7 @@ use std::convert::TryFrom;
 use std::fmt::Formatter;
 use std::sync::{Arc, Mutex};
 
-/// In-memory catalog that implements the `RepoCollection` and individual repo traits fromt
+/// In-memory catalog that implements the `RepoCollection` and individual repo traits from
 /// the catalog interface.
 #[derive(Default)]
 pub struct MemCatalog {
