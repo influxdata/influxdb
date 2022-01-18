@@ -19,7 +19,7 @@ pub struct NopDmlHandler;
 impl DmlHandler for NopDmlHandler {
     async fn write(
         &self,
-        namespace: DatabaseName<'_>,
+        namespace: DatabaseName<'static>,
         batches: HashMap<String, MutableBatch>,
         _payload_stats: PayloadStatistics,
         _body_len: usize,
@@ -31,7 +31,7 @@ impl DmlHandler for NopDmlHandler {
 
     async fn delete<'a>(
         &self,
-        namespace: DatabaseName<'_>,
+        namespace: DatabaseName<'static>,
         table: impl Into<String> + Send + Sync + 'a,
         predicate: DeletePredicate,
         _span_ctx: Option<SpanContext>,

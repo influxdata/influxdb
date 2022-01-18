@@ -74,7 +74,7 @@ macro_rules! record_and_return {
 impl DmlHandler for Arc<MockDmlHandler> {
     async fn write(
         &self,
-        namespace: DatabaseName<'_>,
+        namespace: DatabaseName<'static>,
         batches: HashMap<String, MutableBatch>,
         payload_stats: PayloadStatistics,
         body_len: usize,
@@ -94,7 +94,7 @@ impl DmlHandler for Arc<MockDmlHandler> {
 
     async fn delete<'a>(
         &self,
-        namespace: DatabaseName<'_>,
+        namespace: DatabaseName<'static>,
         table: impl Into<String> + Send + Sync + 'a,
         predicate: DeletePredicate,
         _span_ctx: Option<SpanContext>,

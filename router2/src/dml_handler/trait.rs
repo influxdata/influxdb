@@ -28,7 +28,7 @@ pub trait DmlHandler: Debug + Send + Sync {
     /// Write `batches` to `namespace`.
     async fn write(
         &self,
-        namespace: DatabaseName<'_>,
+        namespace: DatabaseName<'static>,
         batches: HashMap<String, MutableBatch>,
         payload_stats: PayloadStatistics,
         body_len: usize,
@@ -38,7 +38,7 @@ pub trait DmlHandler: Debug + Send + Sync {
     /// Delete the data specified in `delete`.
     async fn delete<'a>(
         &self,
-        namespace: DatabaseName<'_>,
+        namespace: DatabaseName<'static>,
         table_name: impl Into<String> + Send + Sync + 'a,
         predicate: DeletePredicate,
         span_ctx: Option<SpanContext>,
