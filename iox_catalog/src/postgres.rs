@@ -2,8 +2,8 @@
 
 use crate::interface::{
     Column, ColumnRepo, ColumnType, Error, KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace,
-    NamespaceId, NamespaceRepo, QueryPool, QueryPoolId, QueryPoolRepo, RepoCollection, Result,
-    Sequencer, SequencerRepo, Table, TableId, TableRepo,
+    NamespaceId, NamespaceRepo, Partition, PartitionRepo, QueryPool, QueryPoolId, QueryPoolRepo,
+    RepoCollection, Result, Sequencer, SequencerId, SequencerRepo, Table, TableId, TableRepo,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::info;
@@ -82,6 +82,10 @@ impl RepoCollection for Arc<PostgresCatalog> {
 
     fn sequencer(&self) -> Arc<dyn SequencerRepo + Sync + Send> {
         Self::clone(self) as Arc<dyn SequencerRepo + Sync + Send>
+    }
+
+    fn partition(&self) -> Arc<dyn PartitionRepo + Sync + Send> {
+        Self::clone(self) as Arc<dyn PartitionRepo + Sync + Send>
     }
 }
 
@@ -326,6 +330,47 @@ impl SequencerRepo for PostgresCatalog {
     }
 }
 
+#[async_trait]
+impl PartitionRepo for PostgresCatalog {
+    async fn create_or_get(
+        &self,
+        key: &str,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+    ) -> Result<Partition> {
+        sqlx::query_as::<_, Partition>(
+            r#"
+        INSERT INTO partition
+            ( partition_key, sequencer_id, table_id )
+        VALUES
+            ( $1, $2, $3 )
+        ON CONFLICT ON CONSTRAINT partition_key_unique
+        DO UPDATE SET partition_key = partition.partition_key RETURNING *;
+        "#,
+        )
+        .bind(key) // $1
+        .bind(&sequencer_id) // $2
+        .bind(&table_id) // $3
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| {
+            if is_fk_violation(&e) {
+                Error::ForeignKeyViolation { source: e }
+            } else {
+                Error::SqlxError { source: e }
+            }
+        })
+    }
+
+    async fn list_by_sequencer(&self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
+        sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE sequencer_id = $1;"#)
+            .bind(&sequencer_id) // $1
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+}
+
 /// The error code returned by Postgres for a unique constraint violation.
 ///
 /// See <https://www.postgresql.org/docs/9.2/errcodes-appendix.html>
@@ -427,6 +472,10 @@ mod tests {
 
     async fn clear_schema(pool: &Pool<Postgres>) {
         sqlx::query("delete from column_name;")
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("delete from partition;")
             .execute(pool)
             .await
             .unwrap();

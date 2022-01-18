@@ -131,6 +131,21 @@ impl SequencerId {
     }
 }
 
+/// Unique ID for a `Sequencer`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct PartitionId(i64);
+
+#[allow(missing_docs)]
+impl PartitionId {
+    pub fn new(v: i64) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i64 {
+        self.0
+    }
+}
+
 /// Container that can return repos for each of the catalog data types.
 #[async_trait]
 pub trait RepoCollection {
@@ -146,6 +161,8 @@ pub trait RepoCollection {
     fn column(&self) -> Arc<dyn ColumnRepo + Sync + Send>;
     /// repo for sequencers
     fn sequencer(&self) -> Arc<dyn SequencerRepo + Sync + Send>;
+    /// repo for partitions
+    fn partition(&self) -> Arc<dyn PartitionRepo + Sync + Send>;
 }
 
 /// Functions for working with Kafka topics in the catalog.
@@ -217,6 +234,22 @@ pub trait SequencerRepo {
 
     /// list all sequencers for a given kafka topic
     async fn list_by_kafka_topic(&self, topic: &KafkaTopic) -> Result<Vec<Sequencer>>;
+}
+
+/// Functions for working with IOx partitions in the catalog. Note that these are how
+/// IOx splits up data within a database, which is differenet than Kafka partitions.
+#[async_trait]
+pub trait PartitionRepo {
+    /// create or get a partition record for the given partition key, sequencer and table
+    async fn create_or_get(
+        &self,
+        key: &str,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+    ) -> Result<Partition>;
+
+    /// return partitions for a given sequencer
+    async fn list_by_sequencer(&self, sequencer_id: SequencerId) -> Result<Vec<Partition>>;
 }
 
 /// Data object for a kafka topic
@@ -545,6 +578,19 @@ pub struct Sequencer {
     pub min_unpersisted_sequence_number: i64,
 }
 
+/// Data object for a partition. The combination of sequencer, table and key are unique (i.e. only one record can exist for each combo)
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct Partition {
+    /// the id of the partition
+    pub id: PartitionId,
+    /// the sequencer the data in the partition arrived from
+    pub sequencer_id: SequencerId,
+    /// the table the partition is under
+    pub table_id: TableId,
+    /// the string key of the partition
+    pub partition_key: String,
+}
+
 #[cfg(test)]
 pub(crate) mod test_helpers {
     use super::*;
@@ -561,6 +607,7 @@ pub(crate) mod test_helpers {
         test_table(&new_repo()).await;
         test_column(&new_repo()).await;
         test_sequencer(&new_repo()).await;
+        test_partition(&new_repo()).await;
     }
 
     async fn test_kafka_topic<T: RepoCollection + Send + Sync>(repo: &T) {
@@ -720,6 +767,51 @@ pub(crate) mod test_helpers {
             .list_by_kafka_topic(&kafka)
             .await
             .expect("failed to list sequencers")
+            .into_iter()
+            .map(|v| (v.id, v))
+            .collect::<BTreeMap<_, _>>();
+
+        assert_eq!(created, listed);
+    }
+
+    async fn test_partition<T: RepoCollection + Send + Sync>(repo: &T) {
+        let kafka = repo.kafka_topic().create_or_get("foo").await.unwrap();
+        let pool = repo.query_pool().create_or_get("foo").await.unwrap();
+        let namespace = repo
+            .namespace()
+            .create("namespace_partition_test", "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        let table = repo
+            .table()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = repo.sequencer().create_or_get(&kafka, 1).await.unwrap();
+        let other_sequencer = repo.sequencer().create_or_get(&kafka, 2).await.unwrap();
+
+        let partition_repo = repo.partition();
+
+        let created = ["foo", "bar"]
+            .iter()
+            .map(|key| partition_repo.create_or_get(key, sequencer.id, table.id))
+            .collect::<FuturesOrdered<_>>()
+            .map(|v| {
+                let v = v.expect("failed to create partition");
+                (v.id, v)
+            })
+            .collect::<BTreeMap<_, _>>()
+            .await;
+        let _ = partition_repo
+            .create_or_get("asdf", other_sequencer.id, table.id)
+            .await
+            .unwrap();
+
+        // List them and assert they match
+        let listed = partition_repo
+            .list_by_sequencer(sequencer.id)
+            .await
+            .expect("failed to list partitions")
             .into_iter()
             .map(|v| (v.id, v))
             .collect::<BTreeMap<_, _>>();
