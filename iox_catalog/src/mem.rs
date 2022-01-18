@@ -4,8 +4,9 @@
 use crate::interface::{
     Column, ColumnId, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
     KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, Partition, PartitionId, PartitionRepo,
-    QueryPool, QueryPoolId, QueryPoolRepo, RepoCollection, Result, Sequencer, SequencerId,
-    SequencerRepo, Table, TableId, TableRepo,
+    QueryPool, QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer,
+    SequencerId, SequencerRepo, Table, TableId, TableRepo, Timestamp, Tombstone, TombstoneId,
+    TombstoneRepo,
 };
 use async_trait::async_trait;
 use std::convert::TryFrom;
@@ -42,6 +43,7 @@ struct MemCollections {
     columns: Vec<Column>,
     sequencers: Vec<Sequencer>,
     partitions: Vec<Partition>,
+    tombstones: Vec<Tombstone>,
 }
 
 impl RepoCollection for Arc<MemCatalog> {
@@ -71,6 +73,10 @@ impl RepoCollection for Arc<MemCatalog> {
 
     fn partition(&self) -> Arc<dyn PartitionRepo + Sync + Send> {
         Self::clone(self) as Arc<dyn PartitionRepo + Sync + Send>
+    }
+
+    fn tombstone(&self) -> Arc<dyn TombstoneRepo + Sync + Send> {
+        Self::clone(self) as Arc<dyn TombstoneRepo + Sync + Send>
     }
 }
 
@@ -329,6 +335,58 @@ impl PartitionRepo for MemCatalog {
             .cloned()
             .collect();
         Ok(partitions)
+    }
+}
+
+#[async_trait]
+impl TombstoneRepo for MemCatalog {
+    async fn create_or_get(
+        &self,
+        table_id: TableId,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+        predicate: &str,
+    ) -> Result<Tombstone> {
+        let mut collections = self.collections.lock().expect("mutex poisoned");
+        let tombstone = match collections.tombstones.iter().find(|t| {
+            t.table_id == table_id
+                && t.sequencer_id == sequencer_id
+                && t.sequence_number == sequence_number
+        }) {
+            Some(t) => t,
+            None => {
+                let t = Tombstone {
+                    id: TombstoneId::new(collections.tombstones.len() as i64 + 1),
+                    table_id,
+                    sequencer_id,
+                    sequence_number,
+                    min_time,
+                    max_time,
+                    serialized_predicate: predicate.to_string(),
+                };
+                collections.tombstones.push(t);
+                collections.tombstones.last().unwrap()
+            }
+        };
+
+        Ok(tombstone.clone())
+    }
+
+    async fn list_tombstones_by_sequencer_greater_than(
+        &self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) -> Result<Vec<Tombstone>> {
+        let collections = self.collections.lock().expect("mutex poisoned");
+        let tombstones: Vec<_> = collections
+            .tombstones
+            .iter()
+            .filter(|t| t.sequencer_id == sequencer_id && t.sequence_number > sequence_number)
+            .cloned()
+            .collect();
+        Ok(tombstones)
     }
 }
 

@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS iox_catalog.tombstone
     min_time BIGINT NOT NULL,
     max_time BIGINT NOT NULL,
     serialized_predicate TEXT NOT NULL,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT tombstone_unique UNIQUE (table_id, sequencer_id, sequence_number)
     );
 
 CREATE TABLE IF NOT EXISTS iox_catalog.processed_tombstone

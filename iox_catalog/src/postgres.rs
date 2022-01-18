@@ -3,8 +3,8 @@
 use crate::interface::{
     Column, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
     KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, Partition, PartitionRepo, QueryPool,
-    QueryPoolId, QueryPoolRepo, RepoCollection, Result, Sequencer, SequencerId, SequencerRepo,
-    Table, TableId, TableRepo,
+    QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer, SequencerId,
+    SequencerRepo, Table, TableId, TableRepo, Timestamp, Tombstone, TombstoneRepo,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::info;
@@ -87,6 +87,10 @@ impl RepoCollection for Arc<PostgresCatalog> {
 
     fn partition(&self) -> Arc<dyn PartitionRepo + Sync + Send> {
         Self::clone(self) as Arc<dyn PartitionRepo + Sync + Send>
+    }
+
+    fn tombstone(&self) -> Arc<dyn TombstoneRepo + Sync + Send> {
+        Self::clone(self) as Arc<dyn TombstoneRepo + Sync + Send>
     }
 }
 
@@ -376,6 +380,58 @@ impl PartitionRepo for PostgresCatalog {
     }
 }
 
+#[async_trait]
+impl TombstoneRepo for PostgresCatalog {
+    async fn create_or_get(
+        &self,
+        table_id: TableId,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+        predicate: &str,
+    ) -> Result<Tombstone> {
+        sqlx::query_as::<_, Tombstone>(
+            r#"
+        INSERT INTO tombstone
+            ( table_id, sequencer_id, sequence_number, min_time, max_time, serialized_predicate )
+        VALUES
+            ( $1, $2, $3, $4, $5, $6 )
+        ON CONFLICT ON CONSTRAINT tombstone_unique
+        DO UPDATE SET table_id = tombstone.table_id RETURNING *;
+        "#,
+        )
+        .bind(&table_id) // $1
+        .bind(&sequencer_id) // $2
+        .bind(&sequence_number) // $3
+        .bind(&min_time) // $4
+        .bind(&max_time) // $5
+        .bind(predicate) // $6
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| {
+            if is_fk_violation(&e) {
+                Error::ForeignKeyViolation { source: e }
+            } else {
+                Error::SqlxError { source: e }
+            }
+        })
+    }
+
+    async fn list_tombstones_by_sequencer_greater_than(
+        &self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) -> Result<Vec<Tombstone>> {
+        sqlx::query_as::<_, Tombstone>(r#"SELECT * FROM tombstone WHERE sequencer_id = $1 AND sequence_number > $2 ORDER BY id;"#)
+            .bind(&sequencer_id) // $1
+            .bind(&sequence_number) // $2
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+}
+
 /// The error code returned by Postgres for a unique constraint violation.
 ///
 /// See <https://www.postgresql.org/docs/9.2/errcodes-appendix.html>
@@ -476,6 +532,10 @@ mod tests {
     }
 
     async fn clear_schema(pool: &Pool<Postgres>) {
+        sqlx::query("delete from tombstone;")
+            .execute(pool)
+            .await
+            .unwrap();
         sqlx::query("delete from column_name;")
             .execute(pool)
             .await
