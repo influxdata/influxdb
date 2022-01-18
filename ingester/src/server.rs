@@ -1,3 +1,6 @@
+//! Ingester Server
+//!
+
 use std::sync::Arc;
 
 use iox_catalog::{mem::MemCatalog, interface::KafkaPartition};
@@ -6,12 +9,16 @@ use iox_catalog::{mem::MemCatalog, interface::KafkaPartition};
 /// an `ingester` server instance.
 #[derive(Debug)]
 pub struct IngesterServer<'a> {
-    pub kafka_topic_name: String,
-    pub kafka_partitions: Vec<KafkaPartition>, // todo: use KafkaPartitionId when available
+    // Kafka Topic assigned to this ingester
+    kafka_topic_name: String,
+    // Kafka Partitions (Shards) assigned to this INgester
+    kafka_partitions: Vec<KafkaPartition>,
+    /// Catalog of this ingester 
     pub iox_catalog: &'a Arc<MemCatalog>,
 }
 
 impl<'a> IngesterServer<'a> {
+    /// Initialize the Ingester
     pub fn new(topic_name: String, shard_ids: Vec<KafkaPartition>, catalog: &'a Arc<MemCatalog>) -> Self {
         Self {
             kafka_topic_name: topic_name,
@@ -20,11 +27,12 @@ impl<'a> IngesterServer<'a> {
         }
     }
 
+    /// Return a kafka topic name
     pub fn get_topic(&self) -> String {
         self.kafka_topic_name.clone()
     }
 
-
+    /// Return Kafka Partitions
     pub fn get_kafka_partitions(&self) -> Vec<KafkaPartition> {
         self.kafka_partitions.clone()
     }

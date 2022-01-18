@@ -13,5 +13,9 @@
     clippy::clone_on_ref_ptr
 )]
 
+#[allow(
+    dead_code
+)]
+
 pub mod data;
 pub mod server;
