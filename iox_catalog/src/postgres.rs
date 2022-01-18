@@ -1,9 +1,10 @@
 //! A Postgres backed implementation of the Catalog
 
 use crate::interface::{
-    Column, ColumnRepo, ColumnType, Error, KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace,
-    NamespaceId, NamespaceRepo, QueryPool, QueryPoolId, QueryPoolRepo, RepoCollection, Result,
-    Sequencer, SequencerRepo, Table, TableId, TableRepo,
+    Column, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
+    KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, Partition, PartitionRepo, QueryPool,
+    QueryPoolId, QueryPoolRepo, RepoCollection, Result, Sequencer, SequencerId, SequencerRepo,
+    Table, TableId, TableRepo,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::info;
@@ -82,6 +83,10 @@ impl RepoCollection for Arc<PostgresCatalog> {
 
     fn sequencer(&self) -> Arc<dyn SequencerRepo + Sync + Send> {
         Self::clone(self) as Arc<dyn SequencerRepo + Sync + Send>
+    }
+
+    fn partition(&self) -> Arc<dyn PartitionRepo + Sync + Send> {
+        Self::clone(self) as Arc<dyn PartitionRepo + Sync + Send>
     }
 }
 
@@ -286,7 +291,11 @@ WHERE table_name.namespace_id = $1;
 
 #[async_trait]
 impl SequencerRepo for PostgresCatalog {
-    async fn create_or_get(&self, topic: &KafkaTopic, partition: i32) -> Result<Sequencer> {
+    async fn create_or_get(
+        &self,
+        topic: &KafkaTopic,
+        partition: KafkaPartition,
+    ) -> Result<Sequencer> {
         sqlx::query_as::<_, Sequencer>(
             r#"
         INSERT INTO sequencer
@@ -320,6 +329,47 @@ impl SequencerRepo for PostgresCatalog {
     async fn list_by_kafka_topic(&self, topic: &KafkaTopic) -> Result<Vec<Sequencer>> {
         sqlx::query_as::<_, Sequencer>(r#"SELECT * FROM sequencer WHERE kafka_topic_id = $1;"#)
             .bind(&topic.id) // $1
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+}
+
+#[async_trait]
+impl PartitionRepo for PostgresCatalog {
+    async fn create_or_get(
+        &self,
+        key: &str,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+    ) -> Result<Partition> {
+        sqlx::query_as::<_, Partition>(
+            r#"
+        INSERT INTO partition
+            ( partition_key, sequencer_id, table_id )
+        VALUES
+            ( $1, $2, $3 )
+        ON CONFLICT ON CONSTRAINT partition_key_unique
+        DO UPDATE SET partition_key = partition.partition_key RETURNING *;
+        "#,
+        )
+        .bind(key) // $1
+        .bind(&sequencer_id) // $2
+        .bind(&table_id) // $3
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| {
+            if is_fk_violation(&e) {
+                Error::ForeignKeyViolation { source: e }
+            } else {
+                Error::SqlxError { source: e }
+            }
+        })
+    }
+
+    async fn list_by_sequencer(&self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
+        sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE sequencer_id = $1;"#)
+            .bind(&sequencer_id) // $1
             .fetch_all(&self.pool)
             .await
             .map_err(|e| Error::SqlxError { source: e })
@@ -427,6 +477,10 @@ mod tests {
 
     async fn clear_schema(pool: &Pool<Postgres>) {
         sqlx::query("delete from column_name;")
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("delete from partition;")
             .execute(pool)
             .await
             .unwrap();

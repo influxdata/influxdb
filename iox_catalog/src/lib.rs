@@ -12,8 +12,8 @@
 )]
 
 use crate::interface::{
-    column_type_from_field, ColumnSchema, ColumnType, Error, KafkaTopic, NamespaceSchema,
-    QueryPool, RepoCollection, Result, Sequencer, SequencerId, TableId,
+    column_type_from_field, ColumnSchema, ColumnType, Error, KafkaPartition, KafkaTopic,
+    NamespaceSchema, QueryPool, RepoCollection, Result, Sequencer, SequencerId, TableId,
 };
 use futures::{stream::FuturesOrdered, StreamExt};
 use influxdb_line_protocol::ParsedLine;
@@ -185,7 +185,7 @@ pub async fn create_or_get_default_records<T: RepoCollection + Sync + Send>(
     let query_pool = query_repo.create_or_get(SHARED_QUERY_POOL).await?;
 
     let sequencers = (1..=kafka_partition_count)
-        .map(|partition| sequencer_repo.create_or_get(&kafka_topic, partition))
+        .map(|partition| sequencer_repo.create_or_get(&kafka_topic, KafkaPartition::new(partition)))
         .collect::<FuturesOrdered<_>>()
         .map(|v| {
             let v = v.expect("failed to create sequencer");
