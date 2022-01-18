@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use influxdb_line_protocol::FieldValue;
-use snafu::Snafu;
+use snafu::{OptionExt, Snafu};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::Formatter;
@@ -33,10 +33,103 @@ pub enum Error {
         name
     ))]
     UnknownColumnType { data_type: i16, name: String },
+
+    #[snafu(display("namespace {} not found", name))]
+    NamespaceNotFound { name: String },
 }
 
 /// A specialized `Error` for Catalog errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Unique ID for a `Namespace`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct NamespaceId(i32);
+
+#[allow(missing_docs)]
+impl NamespaceId {
+    pub fn new(v: i32) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i32 {
+        self.0
+    }
+}
+
+/// Unique ID for a `KafkaTopic`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct KafkaTopicId(i32);
+
+#[allow(missing_docs)]
+impl KafkaTopicId {
+    pub fn new(v: i32) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i32 {
+        self.0
+    }
+}
+
+/// Unique ID for a `QueryPool`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct QueryPoolId(i16);
+
+#[allow(missing_docs)]
+impl QueryPoolId {
+    pub fn new(v: i16) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i16 {
+        self.0
+    }
+}
+
+/// Unique ID for a `Table`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct TableId(i32);
+
+#[allow(missing_docs)]
+impl TableId {
+    pub fn new(v: i32) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i32 {
+        self.0
+    }
+}
+
+/// Unique ID for a `Column`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct ColumnId(i32);
+
+#[allow(missing_docs)]
+impl ColumnId {
+    pub fn new(v: i32) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i32 {
+        self.0
+    }
+}
+
+/// Unique ID for a `Sequencer`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct SequencerId(i16);
+
+#[allow(missing_docs)]
+impl SequencerId {
+    pub fn new(v: i16) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i16 {
+        self.0
+    }
+}
 
 /// Container that can return repos for each of the catalog data types.
 #[async_trait]
@@ -72,28 +165,28 @@ pub trait QueryPoolRepo {
 /// Functions for working with namespaces in the catalog
 #[async_trait]
 pub trait NamespaceRepo {
-    /// Creates the namespace in the catalog, or get the existing record by name. Then
-    /// constructs a namespace schema with all tables and columns under the namespace.
+    /// Creates the namespace in the catalog. If one by the same name already exists, an
+    /// error is returned.
     async fn create(
         &self,
         name: &str,
         retention_duration: &str,
-        kafka_topic_id: i32,
-        query_pool_id: i16,
-    ) -> Result<NamespaceSchema>;
+        kafka_topic_id: KafkaTopicId,
+        query_pool_id: QueryPoolId,
+    ) -> Result<Namespace>;
 
-    /// Gets the namespace schema including all tables and columns.
-    async fn get_by_name(&self, name: &str) -> Result<Option<NamespaceSchema>>;
+    /// Gets the namespace by its unique name.
+    async fn get_by_name(&self, name: &str) -> Result<Option<Namespace>>;
 }
 
 /// Functions for working with tables in the catalog
 #[async_trait]
 pub trait TableRepo {
     /// Creates the table in the catalog or get the existing record by name.
-    async fn create_or_get(&self, name: &str, namespace_id: i32) -> Result<Table>;
+    async fn create_or_get(&self, name: &str, namespace_id: NamespaceId) -> Result<Table>;
 
     /// Lists all tables in the catalog for the given namespace id.
-    async fn list_by_namespace_id(&self, namespace_id: i32) -> Result<Vec<Table>>;
+    async fn list_by_namespace_id(&self, namespace_id: NamespaceId) -> Result<Vec<Table>>;
 }
 
 /// Functions for working with columns in the catalog
@@ -105,12 +198,12 @@ pub trait ColumnRepo {
     async fn create_or_get(
         &self,
         name: &str,
-        table_id: i32,
+        table_id: TableId,
         column_type: ColumnType,
     ) -> Result<Column>;
 
     /// Lists all columns in the passed in namespace id.
-    async fn list_by_namespace_id(&self, namespace_id: i32) -> Result<Vec<Column>>;
+    async fn list_by_namespace_id(&self, namespace_id: NamespaceId) -> Result<Vec<Column>>;
 }
 
 /// Functions for working with sequencers in the catalog
@@ -121,58 +214,62 @@ pub trait SequencerRepo {
 
     /// list all sequencers
     async fn list(&self) -> Result<Vec<Sequencer>>;
+
+    /// list all sequencers for a given kafka topic
+    async fn list_by_kafka_topic(&self, topic: &KafkaTopic) -> Result<Vec<Sequencer>>;
 }
 
 /// Data object for a kafka topic
-#[derive(Debug, Eq, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
 pub struct KafkaTopic {
     /// The id of the topic
-    pub id: i32,
+    pub id: KafkaTopicId,
     /// The unique name of the topic
     pub name: String,
 }
 
 /// Data object for a query pool
-#[derive(Debug, Eq, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
 pub struct QueryPool {
     /// The id of the pool
-    pub id: i16,
+    pub id: QueryPoolId,
     /// The unique name of the pool
     pub name: String,
 }
 
 /// Data object for a namespace
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
 pub struct Namespace {
     /// The id of the namespace
-    pub id: i32,
+    pub id: NamespaceId,
     /// The unique name of the namespace
     pub name: String,
     /// The retention duration as a string. 'inf' or not present represents infinite duration (i.e. never drop data).
     #[sqlx(default)]
     pub retention_duration: Option<String>,
     /// The kafka topic that writes to this namespace will land in
-    pub kafka_topic_id: i32,
+    pub kafka_topic_id: KafkaTopicId,
     /// The query pool assigned to answer queries for this namespace
-    pub query_pool_id: i16,
+    pub query_pool_id: QueryPoolId,
 }
 
-/// Schema collection for a namespace
+/// Schema collection for a namespace. This is an in-memory object useful for a schema
+/// cache.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NamespaceSchema {
     /// the namespace id
-    pub id: i32,
+    pub id: NamespaceId,
     /// the kafka topic this namespace gets data written to
-    pub kafka_topic_id: i32,
+    pub kafka_topic_id: KafkaTopicId,
     /// the query pool assigned to answer queries for this namespace
-    pub query_pool_id: i16,
+    pub query_pool_id: QueryPoolId,
     /// the tables in the namespace by name
     pub tables: BTreeMap<String, TableSchema>,
 }
 
 impl NamespaceSchema {
     /// Create a new `NamespaceSchema`
-    pub fn new(id: i32, kafka_topic_id: i32, query_pool_id: i16) -> Self {
+    pub fn new(id: NamespaceId, kafka_topic_id: KafkaTopicId, query_pool_id: QueryPoolId) -> Self {
         Self {
             id,
             tables: BTreeMap::new(),
@@ -186,8 +283,8 @@ impl NamespaceSchema {
     /// method takes them in to add them to the schema.
     pub fn add_tables_and_columns(
         &mut self,
-        new_tables: BTreeMap<String, i32>,
-        new_columns: BTreeMap<i32, BTreeMap<String, ColumnSchema>>,
+        new_tables: BTreeMap<String, TableId>,
+        new_columns: BTreeMap<TableId, BTreeMap<String, ColumnSchema>>,
     ) {
         for (table_name, table_id) in new_tables {
             self.tables
@@ -203,7 +300,7 @@ impl NamespaceSchema {
         }
     }
 
-    fn get_table_mut(&mut self, table_id: i32) -> Option<&mut TableSchema> {
+    fn get_table_mut(&mut self, table_id: TableId) -> Option<&mut TableSchema> {
         for table in self.tables.values_mut() {
             if table.id == table_id {
                 return Some(table);
@@ -214,13 +311,70 @@ impl NamespaceSchema {
     }
 }
 
+/// Gets the namespace schema including all tables and columns.
+pub async fn get_schema_by_name<T: RepoCollection + Send + Sync>(
+    name: &str,
+    repo: &T,
+) -> Result<Option<NamespaceSchema>> {
+    let namespace_repo = repo.namespace();
+    let table_repo = repo.table();
+    let column_repo = repo.column();
+
+    let namespace = namespace_repo
+        .get_by_name(name)
+        .await?
+        .context(NamespaceNotFoundSnafu { name })?;
+
+    // get the columns first just in case someone else is creating schema while we're doing this.
+    let columns = column_repo.list_by_namespace_id(namespace.id).await?;
+    let tables = table_repo.list_by_namespace_id(namespace.id).await?;
+
+    let mut namespace = NamespaceSchema::new(
+        namespace.id,
+        namespace.kafka_topic_id,
+        namespace.query_pool_id,
+    );
+
+    let mut table_id_to_schema = BTreeMap::new();
+    for t in tables {
+        table_id_to_schema.insert(t.id, (t.name, TableSchema::new(t.id)));
+    }
+
+    for c in columns {
+        let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
+        match ColumnType::try_from(c.column_type) {
+            Ok(column_type) => {
+                t.columns.insert(
+                    c.name,
+                    ColumnSchema {
+                        id: c.id,
+                        column_type,
+                    },
+                );
+            }
+            _ => {
+                return Err(Error::UnknownColumnType {
+                    data_type: c.column_type,
+                    name: c.name.to_string(),
+                });
+            }
+        }
+    }
+
+    for (_, (table_name, schema)) in table_id_to_schema {
+        namespace.tables.insert(table_name, schema);
+    }
+
+    Ok(Some(namespace))
+}
+
 /// Data object for a table
-#[derive(Debug, sqlx::FromRow, Eq, PartialEq)]
+#[derive(Debug, Clone, sqlx::FromRow, Eq, PartialEq)]
 pub struct Table {
     /// The id of the table
-    pub id: i32,
+    pub id: TableId,
     /// The namespace id that the table is in
-    pub namespace_id: i32,
+    pub namespace_id: NamespaceId,
     /// The name of the table, which is unique within the associated namespace
     pub name: String,
 }
@@ -229,14 +383,14 @@ pub struct Table {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct TableSchema {
     /// the table id
-    pub id: i32,
+    pub id: TableId,
     /// the table's columns by their name
     pub columns: BTreeMap<String, ColumnSchema>,
 }
 
 impl TableSchema {
     /// Initialize new `TableSchema`
-    pub fn new(id: i32) -> Self {
+    pub fn new(id: TableId) -> Self {
         Self {
             id,
             columns: BTreeMap::new(),
@@ -252,12 +406,12 @@ impl TableSchema {
 }
 
 /// Data object for a column
-#[derive(Debug, sqlx::FromRow, Eq, PartialEq)]
+#[derive(Debug, Clone, sqlx::FromRow, Eq, PartialEq)]
 pub struct Column {
     /// the column id
-    pub id: i32,
+    pub id: ColumnId,
     /// the table id the column is in
-    pub table_id: i32,
+    pub table_id: TableId,
     /// the name of the column, which is unique in the table
     pub name: String,
     /// the logical type of the column
@@ -286,7 +440,7 @@ impl Column {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct ColumnSchema {
     /// the column id
-    pub id: i32,
+    pub id: ColumnId,
     /// the column type
     pub column_type: ColumnType,
 }
@@ -379,9 +533,9 @@ pub fn column_type_from_field(field_value: &FieldValue) -> ColumnType {
 #[derive(Debug, Copy, Clone, PartialEq, sqlx::FromRow)]
 pub struct Sequencer {
     /// the id of the sequencer
-    pub id: i16,
+    pub id: SequencerId,
     /// the topic the sequencer is reading from
-    pub kafka_topic_id: i32,
+    pub kafka_topic_id: KafkaTopicId,
     /// the kafka partition the sequencer is reading from
     pub kafka_partition: i32,
     /// The minimum unpersisted sequence number. Because different tables
@@ -389,4 +543,187 @@ pub struct Sequencer {
     /// with a higher sequence number than this. However, all data with a sequence number
     /// lower than this must have been persisted to Parquet.
     pub min_unpersisted_sequence_number: i64,
+}
+
+#[cfg(test)]
+pub(crate) mod test_helpers {
+    use super::*;
+    use futures::{stream::FuturesOrdered, StreamExt};
+
+    pub(crate) async fn test_repo<T, F>(new_repo: F)
+    where
+        T: RepoCollection + Send + Sync,
+        F: Fn() -> T + Send + Sync,
+    {
+        test_kafka_topic(&new_repo()).await;
+        test_query_pool(&new_repo()).await;
+        test_namespace(&new_repo()).await;
+        test_table(&new_repo()).await;
+        test_column(&new_repo()).await;
+        test_sequencer(&new_repo()).await;
+    }
+
+    async fn test_kafka_topic<T: RepoCollection + Send + Sync>(repo: &T) {
+        let kafka_repo = repo.kafka_topic();
+        let k = kafka_repo.create_or_get("foo").await.unwrap();
+        assert!(k.id > KafkaTopicId::new(0));
+        assert_eq!(k.name, "foo");
+        let k2 = kafka_repo.create_or_get("foo").await.unwrap();
+        assert_eq!(k, k2);
+    }
+
+    async fn test_query_pool<T: RepoCollection + Send + Sync>(repo: &T) {
+        let query_repo = repo.query_pool();
+        let q = query_repo.create_or_get("foo").await.unwrap();
+        assert!(q.id > QueryPoolId::new(0));
+        assert_eq!(q.name, "foo");
+        let q2 = query_repo.create_or_get("foo").await.unwrap();
+        assert_eq!(q, q2);
+    }
+
+    async fn test_namespace<T: RepoCollection + Send + Sync>(repo: &T) {
+        let namespace_repo = repo.namespace();
+        let kafka = repo.kafka_topic().create_or_get("foo").await.unwrap();
+        let pool = repo.query_pool().create_or_get("foo").await.unwrap();
+
+        let namespace_name = "test_namespace";
+        let namespace = namespace_repo
+            .create(namespace_name, "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        assert!(namespace.id > NamespaceId::new(0));
+        assert_eq!(namespace.name, namespace_name);
+
+        let conflict = namespace_repo
+            .create(namespace_name, "inf", kafka.id, pool.id)
+            .await;
+        assert!(matches!(
+            conflict.unwrap_err(),
+            Error::NameExists { name: _ }
+        ));
+
+        let found = namespace_repo
+            .get_by_name(namespace_name)
+            .await
+            .unwrap()
+            .expect("namespace should be there");
+        assert_eq!(namespace, found);
+    }
+
+    async fn test_table<T: RepoCollection + Send + Sync>(repo: &T) {
+        let kafka = repo.kafka_topic().create_or_get("foo").await.unwrap();
+        let pool = repo.query_pool().create_or_get("foo").await.unwrap();
+        let namespace = repo
+            .namespace()
+            .create("namespace_table_test", "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+
+        // test we can create or get a table
+        let table_repo = repo.table();
+        let t = table_repo
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let tt = table_repo
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        assert!(t.id > TableId::new(0));
+        assert_eq!(t, tt);
+
+        let tables = table_repo.list_by_namespace_id(namespace.id).await.unwrap();
+        assert_eq!(vec![t], tables);
+    }
+
+    async fn test_column<T: RepoCollection + Send + Sync>(repo: &T) {
+        let kafka = repo.kafka_topic().create_or_get("foo").await.unwrap();
+        let pool = repo.query_pool().create_or_get("foo").await.unwrap();
+        let namespace = repo
+            .namespace()
+            .create("namespace_column_test", "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        let table = repo
+            .table()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+
+        // test we can create or get a column
+        let column_repo = repo.column();
+        let c = column_repo
+            .create_or_get("column_test", table.id, ColumnType::Tag)
+            .await
+            .unwrap();
+        let cc = column_repo
+            .create_or_get("column_test", table.id, ColumnType::Tag)
+            .await
+            .unwrap();
+        assert!(c.id > ColumnId::new(0));
+        assert_eq!(c, cc);
+
+        // test that attempting to create an already defined column of a different type returns error
+        let err = column_repo
+            .create_or_get("column_test", table.id, ColumnType::U64)
+            .await
+            .expect_err("should error with wrong column type");
+        assert!(matches!(
+            err,
+            Error::ColumnTypeMismatch {
+                name: _,
+                existing: _,
+                new: _
+            }
+        ));
+
+        // test that we can create a column of the same name under a different table
+        let table2 = repo
+            .table()
+            .create_or_get("test_table_2", namespace.id)
+            .await
+            .unwrap();
+        let ccc = column_repo
+            .create_or_get("column_test", table2.id, ColumnType::U64)
+            .await
+            .unwrap();
+        assert_ne!(c, ccc);
+
+        let columns = column_repo
+            .list_by_namespace_id(namespace.id)
+            .await
+            .unwrap();
+        assert_eq!(vec![c, ccc], columns);
+    }
+
+    async fn test_sequencer<T: RepoCollection + Send + Sync>(repo: &T) {
+        let kafka = repo
+            .kafka_topic()
+            .create_or_get("sequencer_test")
+            .await
+            .unwrap();
+        let sequencer_repo = repo.sequencer();
+
+        // Create 10 sequencers
+        let created = (1..=10)
+            .map(|partition| sequencer_repo.create_or_get(&kafka, partition))
+            .collect::<FuturesOrdered<_>>()
+            .map(|v| {
+                let v = v.expect("failed to create sequencer");
+                (v.id, v)
+            })
+            .collect::<BTreeMap<_, _>>()
+            .await;
+
+        // List them and assert they match
+        let listed = sequencer_repo
+            .list_by_kafka_topic(&kafka)
+            .await
+            .expect("failed to list sequencers")
+            .into_iter()
+            .map(|v| (v.id, v))
+            .collect::<BTreeMap<_, _>>();
+
+        assert_eq!(created, listed);
+    }
 }
