@@ -1,9 +1,10 @@
 //! A Postgres backed implementation of the Catalog
 
 use crate::interface::{
-    Column, ColumnRepo, ColumnType, Error, KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace,
-    NamespaceId, NamespaceRepo, Partition, PartitionRepo, QueryPool, QueryPoolId, QueryPoolRepo,
-    RepoCollection, Result, Sequencer, SequencerId, SequencerRepo, Table, TableId, TableRepo,
+    Column, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
+    KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, Partition, PartitionRepo, QueryPool,
+    QueryPoolId, QueryPoolRepo, RepoCollection, Result, Sequencer, SequencerId, SequencerRepo,
+    Table, TableId, TableRepo,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::info;
@@ -290,7 +291,11 @@ WHERE table_name.namespace_id = $1;
 
 #[async_trait]
 impl SequencerRepo for PostgresCatalog {
-    async fn create_or_get(&self, topic: &KafkaTopic, partition: i32) -> Result<Sequencer> {
+    async fn create_or_get(
+        &self,
+        topic: &KafkaTopic,
+        partition: KafkaPartition,
+    ) -> Result<Sequencer> {
         sqlx::query_as::<_, Sequencer>(
             r#"
         INSERT INTO sequencer

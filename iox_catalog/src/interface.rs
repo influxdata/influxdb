@@ -131,6 +131,21 @@ impl SequencerId {
     }
 }
 
+/// The kafka partition identifier. This is in the actual Kafka cluster.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct KafkaPartition(i32);
+
+#[allow(missing_docs)]
+impl KafkaPartition {
+    pub fn new(v: i32) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i32 {
+        self.0
+    }
+}
+
 /// Unique ID for a `Sequencer`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
@@ -227,7 +242,11 @@ pub trait ColumnRepo {
 #[async_trait]
 pub trait SequencerRepo {
     /// create a sequencer record for the kafka topic and partition or return the existing record
-    async fn create_or_get(&self, topic: &KafkaTopic, partition: i32) -> Result<Sequencer>;
+    async fn create_or_get(
+        &self,
+        topic: &KafkaTopic,
+        partition: KafkaPartition,
+    ) -> Result<Sequencer>;
 
     /// list all sequencers
     async fn list(&self) -> Result<Vec<Sequencer>>;
@@ -570,7 +589,7 @@ pub struct Sequencer {
     /// the topic the sequencer is reading from
     pub kafka_topic_id: KafkaTopicId,
     /// the kafka partition the sequencer is reading from
-    pub kafka_partition: i32,
+    pub kafka_partition: KafkaPartition,
     /// The minimum unpersisted sequence number. Because different tables
     /// can be persisted at different times, it is possible some data has been persisted
     /// with a higher sequence number than this. However, all data with a sequence number
@@ -753,7 +772,7 @@ pub(crate) mod test_helpers {
 
         // Create 10 sequencers
         let created = (1..=10)
-            .map(|partition| sequencer_repo.create_or_get(&kafka, partition))
+            .map(|partition| sequencer_repo.create_or_get(&kafka, KafkaPartition::new(partition)))
             .collect::<FuturesOrdered<_>>()
             .map(|v| {
                 let v = v.expect("failed to create sequencer");
@@ -787,8 +806,16 @@ pub(crate) mod test_helpers {
             .create_or_get("test_table", namespace.id)
             .await
             .unwrap();
-        let sequencer = repo.sequencer().create_or_get(&kafka, 1).await.unwrap();
-        let other_sequencer = repo.sequencer().create_or_get(&kafka, 2).await.unwrap();
+        let sequencer = repo
+            .sequencer()
+            .create_or_get(&kafka, KafkaPartition::new(1))
+            .await
+            .unwrap();
+        let other_sequencer = repo
+            .sequencer()
+            .create_or_get(&kafka, KafkaPartition::new(2))
+            .await
+            .unwrap();
 
         let partition_repo = repo.partition();
 

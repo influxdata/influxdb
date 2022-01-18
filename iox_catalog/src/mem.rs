@@ -2,10 +2,10 @@
 //! used for testing or for an IOx designed to run without catalog persistence.
 
 use crate::interface::{
-    Column, ColumnId, ColumnRepo, ColumnType, Error, KafkaTopic, KafkaTopicId, KafkaTopicRepo,
-    Namespace, NamespaceId, NamespaceRepo, Partition, PartitionId, PartitionRepo, QueryPool,
-    QueryPoolId, QueryPoolRepo, RepoCollection, Result, Sequencer, SequencerId, SequencerRepo,
-    Table, TableId, TableRepo,
+    Column, ColumnId, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
+    KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, Partition, PartitionId, PartitionRepo,
+    QueryPool, QueryPoolId, QueryPoolRepo, RepoCollection, Result, Sequencer, SequencerId,
+    SequencerRepo, Table, TableId, TableRepo,
 };
 use async_trait::async_trait;
 use std::convert::TryFrom;
@@ -247,7 +247,11 @@ impl ColumnRepo for MemCatalog {
 
 #[async_trait]
 impl SequencerRepo for MemCatalog {
-    async fn create_or_get(&self, topic: &KafkaTopic, partition: i32) -> Result<Sequencer> {
+    async fn create_or_get(
+        &self,
+        topic: &KafkaTopic,
+        partition: KafkaPartition,
+    ) -> Result<Sequencer> {
         let mut collections = self.collections.lock().expect("mutex poisoned");
 
         let sequencer = match collections
