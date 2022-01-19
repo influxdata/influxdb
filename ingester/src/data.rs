@@ -1,6 +1,7 @@
 //! Data for the lifecycle of the Ingeter
 //!
 
+use arrow::record_batch::RecordBatch;
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::server::IngesterServer;
@@ -48,7 +49,7 @@ impl Sequencers {
         let topic_name = ingester.get_topic();
         let kafka_topic_repro = ingester.iox_catalog.kafka_topic();
         let topic = kafka_topic_repro
-            .create_or_get(topic_name.as_str())
+            .create_or_get(topic_name.as_str()) //todo: use `get` instead
             .await
             .context(ReadTopicSnafu { name: topic_name })?;
 
@@ -57,7 +58,7 @@ impl Sequencers {
         let mut sequencers = BTreeMap::default();
         for shard in ingester.get_kafka_partitions() {
             let sequencer = sequencer_repro
-                .create_or_get(&topic, shard)
+                .create_or_get(&topic, shard) //todo: use `get` instead
                 .await
                 .context(ReadSequencerSnafu { id: shard })?;
             // Create empty buffer for each sequencer
@@ -89,46 +90,48 @@ struct TableData {
 }
 
 /// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
-#[derive(Default)]
 struct PartitionData {
     id: PartitionId,
     inner: RwLock<DataBuffer>,
 }
 
 /// Data of an IOx partition split into batches
-//                       ┌────────────────────────┐            ┌────────────────────────┐
-//                       │       Snapshots        │            │       Persisting       │
-//                       │                        │            │                        │
-//                       │    ┌───────────────┐   │            │   ┌───────────────┐    │
-//                       │   ┌┴──────────────┐│   │            │   │  Persisting   │    │
-//                       │  ┌┴──────────────┐├┴───┼────────────┼──▶│     Data      │    │
-//                       │  │   Snapshot    ├┘    │            │   └───────────────┘    │
-//                       │  └───────────────┘     │            │                        │
-// ┌────────────┐        │                        │            │         ...            │
-// │   Buffer   │───────▶│          ...           │            │                        │
-// └────────────┘        │                        │            │                        │
-//                       │   ┌───────────────┐    │            │    ┌───────────────┐   │
-//                       │  ┌┴──────────────┐│    │            │    │  Persisting   │   │
-//                       │ ┌┴──────────────┐├┴────┼────────────┼───▶│     Data      │   │
-//                       │ │   Snapshot    ├┘     │            │    └───────────────┘   │
-//                       │ └───────────────┘      │            │                        │
-//                       │                        │            │                        │
-//                       └────────────────────────┘            └────────────────────────┘
+/// ┌────────────────────────┐        ┌────────────────────────┐      ┌─────────────────────────┐
+/// │         Buffer         │        │       Snapshots        │      │       Persisting        │
+/// │  ┌───────────────────┐ │        │                        │      │                         │
+/// │  │  ┌───────────────┐│ │        │ ┌───────────────────┐  │      │  ┌───────────────────┐  │
+/// │  │ ┌┴──────────────┐│├─┼────────┼─┼─▶┌───────────────┐│  │      │  │  ┌───────────────┐│  │
+/// │  │┌┴──────────────┐├┘│ │        │ │ ┌┴──────────────┐││  │      │  │ ┌┴──────────────┐││  │
+/// │  ││  BufferBatch  ├┘ │ │        │ │┌┴──────────────┐├┘│──┼──────┼─▶│┌┴──────────────┐├┘│  │
+/// │  │└───────────────┘  │ │    ┌───┼─▶│ SnapshotBatch ├┘ │  │      │  ││ SnapshotBatch ├┘ │  │
+/// │  └───────────────────┘ │    │   │ │└───────────────┘  │  │      │  │└───────────────┘  │  │
+/// │          ...           │    │   │ └───────────────────┘  │      │  └───────────────────┘  │
+/// │  ┌───────────────────┐ │    │   │                        │      │                         │
+/// │  │  ┌───────────────┐│ │    │   │          ...           │      │           ...           │
+/// │  │ ┌┴──────────────┐││ │    │   │                        │      │                         │
+/// │  │┌┴──────────────┐├┘│─┼────┘   │ ┌───────────────────┐  │      │  ┌───────────────────┐  │
+/// │  ││  BufferBatch  ├┘ │ │        │ │  ┌───────────────┐│  │      │  │  ┌───────────────┐│  │
+/// │  │└───────────────┘  │ │        │ │ ┌┴──────────────┐││  │      │  │ ┌┴──────────────┐││  │
+/// │  └───────────────────┘ │        │ │┌┴──────────────┐├┘│──┼──────┼─▶│┌┴──────────────┐├┘│  │
+/// │                        │        │ ││ SnapshotBatch ├┘ │  │      │  ││ SnapshotBatch ├┘ │  │
+/// │          ...           │        │ │└───────────────┘  │  │      │  │└───────────────┘  │  │
+/// │                        │        │ └───────────────────┘  │      │  └───────────────────┘  │
+/// └────────────────────────┘        └────────────────────────┘      └─────────────────────────┘
 #[derive(Default)]
 struct DataBuffer {
     /// Buffer of ingesting data
-    buffer: Vec<DataBatch>,
+    buffer: Vec<BufferBatch>,
 
     /// Data in `buffer` will be moved to a `snapshot` when one of these happens:
     ///  . A background persist is called
     ///  . A read request from Querier
     /// The `buffer` will be empty when this happens.
-    snapshots: Vec<Arc<DataBatch>>,
+    snapshots: Vec<Arc<SnapshotBatch>>,
 
     /// When a persist is called, data in `buffer` will be moved to a `snapshot`
     /// and then all `snapshots` will be moved to a `persisting`.
     /// Both `buffer` and 'snaphots` will be empty when this happens.
-    persisting: Vec<DataBatch>,
+    persisting: Vec<SnapshotBatch>,
     // Extra Notes:
     //  . Multiple perssiting operations may be happenning concurrently but
     //    their persisted info must be added into the Catalog in thier data
@@ -141,10 +144,21 @@ struct DataBuffer {
     //    Queriers that may not have loaded the parquet files from object
     //    storage yet. But this will be decided after MVP.
 }
-
-struct DataBatch {
+/// BufferBatch is a MutauableBatch with its ingesting order, sequencer_number, that
+/// helps the ingester keep the batches of data in thier ingesting order
+struct BufferBatch {
     /// Sequencer number of the ingesting data
     pub sequencer_number: u64,
     /// Ingesting data
     pub inner: MutableBatch,
+}
+
+/// SnapshotBatch contains data of many contiguous BufferBatches
+struct SnapshotBatch {
+    /// Min sequencer number of its comebined BufferBatches
+    pub min_sequencer_number: u64,
+    /// Max sequencer number of its comebined BufferBatches
+    pub max_sequencer_number: u64,
+    /// Data of its comebined BufferBatches kept in one RecordBatch
+    pub inner: RecordBatch,
 }

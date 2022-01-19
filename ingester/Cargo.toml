@@ -5,6 +5,7 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2021"
 
 [dependencies]
+arrow = { version = "7.0", features = ["prettyprint"] }
 iox_catalog = { path = "../iox_catalog" }
 mutable_batch = { path = "../mutable_batch"}
 parking_lot = "0.11.2"
