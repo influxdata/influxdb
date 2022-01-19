@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::server::IngesterServer;
 use iox_catalog::interface::{
     KafkaPartition, NamespaceId, PartitionId, RepoCollection, SequenceNumber, SequencerId, TableId,
+    Tombstone,
 };
 use mutable_batch::MutableBatch;
 use parking_lot::RwLock;
@@ -34,7 +35,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Ingester Data: a Mapp of Shard ID to its Data
 #[derive(Default)]
-struct Sequencers {
+pub struct Sequencers {
     // This map gets set up on initialization of the ingester so it won't ever be modified.
     // The content of each SequenceData will get changed when more namespaces and tables
     // get ingested.
@@ -65,26 +66,26 @@ impl Sequencers {
 
 /// Data of a Shard
 #[derive(Default)]
-struct SequencerData {
+pub struct SequencerData {
     // New namespaces can come in at any time so we need to be able to add new ones
     namespaces: RwLock<BTreeMap<NamespaceId, Arc<NamespaceData>>>,
 }
 
 /// Data of a Namespace that belongs to a given Shard
 #[derive(Default)]
-struct NamespaceData {
+pub struct NamespaceData {
     tables: RwLock<BTreeMap<TableId, Arc<TableData>>>,
 }
 
 /// Data of a Table in a given Namesapce that belongs to a given Shard
 #[derive(Default)]
-struct TableData {
+pub struct TableData {
     // Map pf partition key to its data
     partition_data: RwLock<BTreeMap<String, Arc<PartitionData>>>,
 }
 
 /// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
-struct PartitionData {
+pub struct PartitionData {
     id: PartitionId,
     inner: RwLock<DataBuffer>,
 }
@@ -112,9 +113,15 @@ struct PartitionData {
 /// │                        │        │ └───────────────────┘  │      │  └───────────────────┘  │
 /// └────────────────────────┘        └────────────────────────┘      └─────────────────────────┘
 #[derive(Default)]
-struct DataBuffer {
-    /// Buffer of ingesting data
-    buffer: Vec<BufferBatch>,
+pub struct DataBuffer {
+    /// Buffer of incoming writes
+    pub buffer: Vec<BufferBatch>,
+
+    /// Buffer of tombstones whose time range overlaps with this partition.
+    /// These tombstone first will be written into the Catalog and then here.
+    /// When a persist is called, these tombstones will be moved into the
+    /// PersistingBatch to get applied in those data.
+    pub deletes: Vec<Tombstone>,
 
     /// Data in `buffer` will be moved to a `snapshot` when one of these happens:
     ///  . A background persist is called
@@ -141,7 +148,7 @@ struct DataBuffer {
 }
 /// BufferBatch is a MutauableBatch with its ingesting order, sequencer_number, that
 /// helps the ingester keep the batches of data in thier ingesting order
-struct BufferBatch {
+pub struct BufferBatch {
     /// Sequencer number of the ingesting data
     pub sequencer_number: SequenceNumber,
     /// Ingesting data
@@ -149,7 +156,7 @@ struct BufferBatch {
 }
 
 /// SnapshotBatch contains data of many contiguous BufferBatches
-struct SnapshotBatch {
+pub struct SnapshotBatch {
     /// Min sequencer number of its comebined BufferBatches
     pub min_sequencer_number: SequenceNumber,
     /// Max sequencer number of its comebined BufferBatches
@@ -160,10 +167,23 @@ struct SnapshotBatch {
 
 /// PersistingBatch contains all needed info and data for creating
 /// a parquet file for given set of SnapshotBatches
-struct PersistingBatch {
-    sequencer_id: SequencerId,
-    table_id: TableId,
-    partition_id: PartitionId,
-    object_store_id: Uuid,
-    data: Vec<SnapshotBatch>,
+pub struct PersistingBatch {
+    /// Sesquencer id of the data
+    pub sequencer_id: SequencerId,
+
+    /// Table id of the data
+    pub table_id: TableId,
+
+    /// Parittion Id of the data
+    pub partition_id: PartitionId,
+
+    /// Id of to-be-created parquet file of this data
+    pub object_store_id: Uuid,
+
+    /// data to be persisted
+    pub data: Vec<SnapshotBatch>,
+
+    /// delete predicates to be appied to the data
+    /// before perssiting
+    pub deletes: Vec<Tombstone>,
 }
