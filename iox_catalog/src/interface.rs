@@ -146,7 +146,7 @@ impl KafkaPartition {
     }
 }
 
-/// Unique ID for a `Sequencer`
+/// Unique ID for a `Partition`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct PartitionId(i64);
