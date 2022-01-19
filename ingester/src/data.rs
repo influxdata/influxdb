@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::server::IngesterServer;
 use iox_catalog::interface::{
-    KafkaPartition, NamespaceId, PartitionId, RepoCollection, SequencerId, TableId,
+    KafkaPartition, NamespaceId, PartitionId, RepoCollection, SequenceNumber, SequencerId, TableId,
 };
 use mutable_batch::MutableBatch;
 use parking_lot::RwLock;
@@ -46,17 +46,10 @@ impl Sequencers {
     pub async fn initialize<T: RepoCollection + Send + Sync>(
         ingester: &IngesterServer<'_, T>,
     ) -> Result<Self> {
-        // Get kafka topic from the catalog
-        let topic_name = ingester.get_topic();
-        let kafka_topic_repro = ingester.iox_catalog.kafka_topic();
-        let topic = kafka_topic_repro
-            .create_or_get(topic_name.as_str()) //todo: use `get` instead
-            .await
-            .context(ReadTopicSnafu { name: topic_name })?;
-
         // Get sequencer ids from the catalog
         let sequencer_repro = ingester.iox_catalog.sequencer();
         let mut sequencers = BTreeMap::default();
+        let topic = ingester.get_topic();
         for shard in ingester.get_kafka_partitions() {
             let sequencer = sequencer_repro
                 .create_or_get(&topic, shard) //todo: use `get` instead
@@ -150,7 +143,7 @@ struct DataBuffer {
 /// helps the ingester keep the batches of data in thier ingesting order
 struct BufferBatch {
     /// Sequencer number of the ingesting data
-    pub sequencer_number: u64,
+    pub sequencer_number: SequenceNumber,
     /// Ingesting data
     pub data: MutableBatch,
 }
@@ -158,9 +151,9 @@ struct BufferBatch {
 /// SnapshotBatch contains data of many contiguous BufferBatches
 struct SnapshotBatch {
     /// Min sequencer number of its comebined BufferBatches
-    pub min_sequencer_number: u64,
+    pub min_sequencer_number: SequenceNumber,
     /// Max sequencer number of its comebined BufferBatches
-    pub max_sequencer_number: u64,
+    pub max_sequencer_number: SequenceNumber,
     /// Data of its comebined BufferBatches kept in one RecordBatch
     pub data: RecordBatch,
 }
