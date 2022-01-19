@@ -3,15 +3,16 @@
 
 use crate::interface::{
     Column, ColumnId, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
-    KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, Partition, PartitionId, PartitionRepo,
-    QueryPool, QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer,
-    SequencerId, SequencerRepo, Table, TableId, TableRepo, Timestamp, Tombstone, TombstoneId,
-    TombstoneRepo,
+    KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile, ParquetFileId,
+    ParquetFileRepo, Partition, PartitionId, PartitionRepo, QueryPool, QueryPoolId, QueryPoolRepo,
+    RepoCollection, Result, SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId,
+    TableRepo, Timestamp, Tombstone, TombstoneId, TombstoneRepo,
 };
 use async_trait::async_trait;
 use std::convert::TryFrom;
 use std::fmt::Formatter;
 use std::sync::{Arc, Mutex};
+use uuid::Uuid;
 
 /// In-memory catalog that implements the `RepoCollection` and individual repo traits from
 /// the catalog interface.
@@ -44,6 +45,7 @@ struct MemCollections {
     sequencers: Vec<Sequencer>,
     partitions: Vec<Partition>,
     tombstones: Vec<Tombstone>,
+    parquet_files: Vec<ParquetFile>,
 }
 
 impl RepoCollection for Arc<MemCatalog> {
@@ -77,6 +79,10 @@ impl RepoCollection for Arc<MemCatalog> {
 
     fn tombstone(&self) -> Arc<dyn TombstoneRepo + Sync + Send> {
         Self::clone(self) as Arc<dyn TombstoneRepo + Sync + Send>
+    }
+
+    fn parquet_file(&self) -> Arc<dyn ParquetFileRepo + Sync + Send> {
+        Self::clone(self) as Arc<dyn ParquetFileRepo + Sync + Send>
     }
 }
 
@@ -387,6 +393,71 @@ impl TombstoneRepo for MemCatalog {
             .cloned()
             .collect();
         Ok(tombstones)
+    }
+}
+
+#[async_trait]
+impl ParquetFileRepo for MemCatalog {
+    async fn create(
+        &self,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+        partition_id: PartitionId,
+        object_store_id: Uuid,
+        min_sequence_number: SequenceNumber,
+        max_sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<ParquetFile> {
+        let mut collections = self.collections.lock().expect("mutex poisoned");
+        if collections
+            .parquet_files
+            .iter()
+            .any(|f| f.object_store_id == object_store_id)
+        {
+            return Err(Error::FileExists { object_store_id });
+        }
+
+        let parquet_file = ParquetFile {
+            id: ParquetFileId::new(collections.parquet_files.len() as i64 + 1),
+            sequencer_id,
+            table_id,
+            partition_id,
+            object_store_id,
+            min_sequence_number,
+            max_sequence_number,
+            min_time,
+            max_time,
+            to_delete: false,
+        };
+        collections.parquet_files.push(parquet_file);
+        Ok(*collections.parquet_files.last().unwrap())
+    }
+
+    async fn flag_for_delete(&self, id: ParquetFileId) -> Result<()> {
+        let mut collections = self.collections.lock().expect("mutex poisoned");
+
+        match collections.parquet_files.iter_mut().find(|p| p.id == id) {
+            Some(f) => f.to_delete = true,
+            None => return Err(Error::ParquetRecordNotFound { id }),
+        }
+
+        Ok(())
+    }
+
+    async fn list_by_sequencer_greater_than(
+        &self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) -> Result<Vec<ParquetFile>> {
+        let collections = self.collections.lock().expect("mutex poisoned");
+        let files: Vec<_> = collections
+            .parquet_files
+            .iter()
+            .filter(|f| f.sequencer_id == sequencer_id && f.max_sequence_number > sequence_number)
+            .cloned()
+            .collect();
+        Ok(files)
     }
 }
 

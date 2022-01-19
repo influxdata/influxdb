@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::Formatter;
 use std::sync::Arc;
+use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -36,6 +37,12 @@ pub enum Error {
 
     #[snafu(display("namespace {} not found", name))]
     NamespaceNotFound { name: String },
+
+    #[snafu(display("parquet file with object_store_id {} already exists", object_store_id))]
+    FileExists { object_store_id: Uuid },
+
+    #[snafu(display("parquet_file record {} not found", id))]
+    ParquetRecordNotFound { id: ParquetFileId },
 }
 
 /// A specialized `Error` for Catalog errors
@@ -206,6 +213,28 @@ impl Timestamp {
     }
 }
 
+/// Unique ID for a `ParquetFile`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct ParquetFileId(i64);
+
+#[allow(missing_docs)]
+impl ParquetFileId {
+    pub fn new(v: i64) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i64 {
+        self.0
+    }
+}
+
+impl std::fmt::Display for ParquetFileId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // Use `self.number` to refer to each positional data point.
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Container that can return repos for each of the catalog data types.
 #[async_trait]
 pub trait RepoCollection {
@@ -225,6 +254,8 @@ pub trait RepoCollection {
     fn partition(&self) -> Arc<dyn PartitionRepo + Sync + Send>;
     /// repo for tombstones
     fn tombstone(&self) -> Arc<dyn TombstoneRepo + Sync + Send>;
+    /// repo for parquet_files
+    fn parquet_file(&self) -> Arc<dyn ParquetFileRepo + Sync + Send>;
 }
 
 /// Functions for working with Kafka topics in the catalog.
@@ -340,6 +371,37 @@ pub trait TombstoneRepo {
         sequencer_id: SequencerId,
         sequence_number: SequenceNumber,
     ) -> Result<Vec<Tombstone>>;
+}
+
+/// Functions for working with parquet file pointers in the catalog
+#[async_trait]
+pub trait ParquetFileRepo {
+    /// create the parquet file
+    #[allow(clippy::too_many_arguments)]
+    async fn create(
+        &self,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+        partition_id: PartitionId,
+        object_store_id: Uuid,
+        min_sequence_number: SequenceNumber,
+        max_sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<ParquetFile>;
+
+    /// Flag the parquet file for deletion
+    async fn flag_for_delete(&self, id: ParquetFileId) -> Result<()>;
+
+    /// Get all parquet files for a sequencer with a max_sequence_number greater than the
+    /// one passed in. The ingester will use this on startup to see which files were persisted
+    /// that are greater than its min_unpersisted_number so that it can discard any data in
+    /// these partitions on replay.
+    async fn list_by_sequencer_greater_than(
+        &self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) -> Result<Vec<ParquetFile>>;
 }
 
 /// Data object for a kafka topic
@@ -700,6 +762,31 @@ pub struct Tombstone {
     pub serialized_predicate: String,
 }
 
+/// Data for a parquet file reference in the catalog.
+#[derive(Debug, Copy, Clone, PartialEq, sqlx::FromRow)]
+pub struct ParquetFile {
+    /// the id of the file in the catalog
+    pub id: ParquetFileId,
+    /// the sequencer that sequenced writes that went into this file
+    pub sequencer_id: SequencerId,
+    /// the table
+    pub table_id: TableId,
+    /// the partition
+    pub partition_id: PartitionId,
+    /// the uuid used in the object store path for this file
+    pub object_store_id: Uuid,
+    /// the minimum sequence number from a record in this file
+    pub min_sequence_number: SequenceNumber,
+    /// the maximum sequence number from a record in this file
+    pub max_sequence_number: SequenceNumber,
+    /// the min timestamp of data in this file
+    pub min_time: Timestamp,
+    /// the max timestamp of data in this file
+    pub max_time: Timestamp,
+    /// flag to mark that this file should be deleted from object storage
+    pub to_delete: bool,
+}
+
 #[cfg(test)]
 pub(crate) mod test_helpers {
     use super::*;
@@ -718,6 +805,7 @@ pub(crate) mod test_helpers {
         test_sequencer(&new_repo()).await;
         test_partition(&new_repo()).await;
         test_tombstone(&new_repo()).await;
+        test_parquet_file(&new_repo()).await;
     }
 
     async fn test_kafka_topic<T: RepoCollection + Send + Sync>(repo: &T) {
@@ -1009,5 +1097,108 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(vec![t2, t3], listed);
+    }
+
+    async fn test_parquet_file<T: RepoCollection + Send + Sync>(repo: &T) {
+        let kafka = repo.kafka_topic().create_or_get("foo").await.unwrap();
+        let pool = repo.query_pool().create_or_get("foo").await.unwrap();
+        let namespace = repo
+            .namespace()
+            .create("namespace_parquet_file_test", "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        let table = repo
+            .table()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let other_table = repo
+            .table()
+            .create_or_get("other", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = repo
+            .sequencer()
+            .create_or_get(&kafka, KafkaPartition::new(1))
+            .await
+            .unwrap();
+        let partition = repo
+            .partition()
+            .create_or_get("one", sequencer.id, table.id)
+            .await
+            .unwrap();
+        let other_partition = repo
+            .partition()
+            .create_or_get("one", sequencer.id, other_table.id)
+            .await
+            .unwrap();
+
+        let min_time = Timestamp::new(1);
+        let max_time = Timestamp::new(10);
+
+        let parquet_repo = repo.parquet_file();
+        let parquet_file = parquet_repo
+            .create(
+                sequencer.id,
+                partition.table_id,
+                partition.id,
+                Uuid::new_v4(),
+                SequenceNumber::new(10),
+                SequenceNumber::new(140),
+                min_time,
+                max_time,
+            )
+            .await
+            .unwrap();
+
+        // verify that trying to create a file with the same UUID throws an error
+        let err = parquet_repo
+            .create(
+                sequencer.id,
+                partition.table_id,
+                partition.id,
+                parquet_file.object_store_id,
+                SequenceNumber::new(10),
+                SequenceNumber::new(140),
+                min_time,
+                max_time,
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(err, Error::FileExists { object_store_id: _ }));
+
+        let other_file = parquet_repo
+            .create(
+                sequencer.id,
+                other_partition.table_id,
+                other_partition.id,
+                Uuid::new_v4(),
+                SequenceNumber::new(45),
+                SequenceNumber::new(200),
+                min_time,
+                max_time,
+            )
+            .await
+            .unwrap();
+
+        let files = parquet_repo
+            .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(1))
+            .await
+            .unwrap();
+        assert_eq!(vec![parquet_file, other_file], files);
+        let files = parquet_repo
+            .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(150))
+            .await
+            .unwrap();
+        assert_eq!(vec![other_file], files);
+
+        // verify that to_delete is initially set to false and that it can be updated to true
+        assert!(!parquet_file.to_delete);
+        parquet_repo.flag_for_delete(parquet_file.id).await.unwrap();
+        let files = parquet_repo
+            .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(1))
+            .await
+            .unwrap();
+        assert!(files.first().unwrap().to_delete);
     }
 }

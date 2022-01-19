@@ -53,6 +53,7 @@ tower = { version = "0.4", features = ["balance", "buffer", "discover", "futures
 tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace", "release_max_level_debug", "std", "tracing-attributes"] }
 tracing-core = { version = "0.1", features = ["lazy_static", "std"] }
 tracing-subscriber = { version = "0.3", features = ["alloc", "ansi", "ansi_term", "env-filter", "fmt", "lazy_static", "matchers", "regex", "registry", "sharded-slab", "smallvec", "std", "thread_local", "tracing", "tracing-log"] }
+uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
 
 [build-dependencies]
 ahash = { version = "0.7", features = ["std"] }
@@ -86,5 +87,6 @@ smallvec = { version = "1", default-features = false, features = ["union"] }
 syn = { version = "1", features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "quote", "visit", "visit-mut"] }
 tokio = { version = "1", features = ["bytes", "fs", "full", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "process", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "sync", "time", "tokio-macros", "winapi"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
+uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
 
 ### END HAKARI SECTION
