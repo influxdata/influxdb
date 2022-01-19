@@ -275,6 +275,9 @@ pub trait RepoCollection {
 pub trait KafkaTopicRepo {
     /// Creates the kafka topic in the catalog or gets the existing record by name.
     async fn create_or_get(&self, name: &str) -> Result<KafkaTopic>;
+
+    /// Gets the kafka topic by its unique name
+    async fn get_by_name(&self, name: &str) -> Result<Option<KafkaTopic>>;
 }
 
 /// Functions for working with query pools in the catalog.
@@ -834,6 +837,10 @@ pub(crate) mod test_helpers {
         assert_eq!(k.name, "foo");
         let k2 = kafka_repo.create_or_get("foo").await.unwrap();
         assert_eq!(k, k2);
+        let k3 = kafka_repo.get_by_name("foo").await.unwrap().unwrap();
+        assert_eq!(k3, k);
+        let k3 = kafka_repo.get_by_name("asdf").await.unwrap();
+        assert!(k3.is_none());
     }
 
     async fn test_query_pool<T: RepoCollection + Send + Sync>(repo: &T) {
