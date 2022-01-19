@@ -1911,6 +1911,7 @@ dependencies = [
  "snafu",
  "sqlx",
  "tokio",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -4351,6 +4352,7 @@ dependencies = [
  "thiserror",
  "tokio-stream",
  "url",
+ "uuid",
  "whoami",
 ]
 

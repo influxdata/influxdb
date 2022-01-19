@@ -2,15 +2,17 @@
 
 use crate::interface::{
     Column, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
-    KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, Partition, PartitionRepo, QueryPool,
-    QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer, SequencerId,
-    SequencerRepo, Table, TableId, TableRepo, Timestamp, Tombstone, TombstoneRepo,
+    KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile, ParquetFileId,
+    ParquetFileRepo, Partition, PartitionId, PartitionRepo, QueryPool, QueryPoolId, QueryPoolRepo,
+    RepoCollection, Result, SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId,
+    TableRepo, Timestamp, Tombstone, TombstoneRepo,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::info;
 use sqlx::{postgres::PgPoolOptions, Executor, Pool, Postgres};
 use std::sync::Arc;
 use std::time::Duration;
+use uuid::Uuid;
 
 const MAX_CONNECTIONS: u32 = 5;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
@@ -91,6 +93,10 @@ impl RepoCollection for Arc<PostgresCatalog> {
 
     fn tombstone(&self) -> Arc<dyn TombstoneRepo + Sync + Send> {
         Self::clone(self) as Arc<dyn TombstoneRepo + Sync + Send>
+    }
+
+    fn parquet_file(&self) -> Arc<dyn ParquetFileRepo + Sync + Send> {
+        Self::clone(self) as Arc<dyn ParquetFileRepo + Sync + Send>
     }
 }
 
@@ -424,6 +430,75 @@ impl TombstoneRepo for PostgresCatalog {
         sequence_number: SequenceNumber,
     ) -> Result<Vec<Tombstone>> {
         sqlx::query_as::<_, Tombstone>(r#"SELECT * FROM tombstone WHERE sequencer_id = $1 AND sequence_number > $2 ORDER BY id;"#)
+            .bind(&sequencer_id) // $1
+            .bind(&sequence_number) // $2
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+}
+
+#[async_trait]
+impl ParquetFileRepo for PostgresCatalog {
+    async fn create(
+        &self,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+        partition_id: PartitionId,
+        object_store_id: Uuid,
+        min_sequence_number: SequenceNumber,
+        max_sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<ParquetFile> {
+        let rec = sqlx::query_as::<_, ParquetFile>(
+            r#"
+INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false )
+RETURNING *
+        "#,
+        )
+            .bind(sequencer_id) // $1
+            .bind(table_id) // $2
+            .bind(partition_id) // $3
+            .bind(object_store_id) // $4
+            .bind(min_sequence_number) // $5
+            .bind(max_sequence_number) // $6
+            .bind(min_time) // $7
+            .bind(max_time) // $8
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| {
+                if is_unique_violation(&e) {
+                    Error::FileExists {
+                        object_store_id,
+                    }
+                } else if is_fk_violation(&e) {
+                    Error::ForeignKeyViolation { source: e }
+                } else {
+                    Error::SqlxError { source: e }
+                }
+            })?;
+
+        Ok(rec)
+    }
+
+    async fn flag_for_delete(&self, id: ParquetFileId) -> Result<()> {
+        let _ = sqlx::query(r#"UPDATE parquet_file SET to_delete = true WHERE id = $1;"#)
+            .bind(&id) // $1
+            .execute(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(())
+    }
+
+    async fn list_by_sequencer_greater_than(
+        &self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) -> Result<Vec<ParquetFile>> {
+        sqlx::query_as::<_, ParquetFile>(r#"SELECT * FROM parquet_file WHERE sequencer_id = $1 AND max_sequence_number > $2 ORDER BY id;"#)
             .bind(&sequencer_id) // $1
             .bind(&sequence_number) // $2
             .fetch_all(&self.pool)
