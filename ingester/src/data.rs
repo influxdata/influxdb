@@ -7,12 +7,12 @@ use uuid::Uuid;
 
 use crate::server::IngesterServer;
 use iox_catalog::interface::{
-    KafkaPartition, NamespaceId, PartitionId, RepoCollection, SequenceNumber, SequencerId, TableId,
-    Tombstone,
+    KafkaPartition, KafkaTopicId, NamespaceId, PartitionId, RepoCollection, SequenceNumber,
+    SequencerId, TableId, Tombstone,
 };
 use mutable_batch::MutableBatch;
 use parking_lot::RwLock;
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -27,6 +27,16 @@ pub enum Error {
     ReadSequencer {
         source: iox_catalog::interface::Error,
         id: KafkaPartition,
+    },
+
+    #[snafu(display(
+        "Sequencer record not found for kafka_topic_id {} and kafka_partition {}",
+        kafka_topic_id,
+        kafka_partition
+    ))]
+    SequencerNotFound {
+        kafka_topic_id: KafkaTopicId,
+        kafka_partition: KafkaPartition,
     },
 }
 
@@ -53,9 +63,13 @@ impl Sequencers {
         let topic = ingester.get_topic();
         for shard in ingester.get_kafka_partitions() {
             let sequencer = sequencer_repro
-                .create_or_get(&topic, shard) //todo: use `get` instead
+                .get_by_topic_id_and_partition(topic.id, shard)
                 .await
-                .context(ReadSequencerSnafu { id: shard })?;
+                .context(ReadSequencerSnafu { id: shard })?
+                .context(SequencerNotFoundSnafu {
+                    kafka_topic_id: topic.id,
+                    kafka_partition: shard,
+                })?;
             // Create empty buffer for each sequencer
             sequencers.insert(sequencer.id, Arc::new(SequencerData::default()));
         }
@@ -128,7 +142,6 @@ pub struct DataBuffer {
     ///  . A read request from Querier
     /// The `buffer` will be empty when this happens.
     snapshots: Vec<Arc<SnapshotBatch>>,
-
     /// When a persist is called, data in `buffer` will be moved to a `snapshot`
     /// and then all `snapshots` will be moved to a `persisting`.
     /// Both `buffer` and 'snaphots` will be empty when this happens.

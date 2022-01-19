@@ -105,6 +105,16 @@ impl KafkaTopicRepo for MemCatalog {
 
         Ok(topic.clone())
     }
+
+    async fn get_by_name(&self, name: &str) -> Result<Option<KafkaTopic>> {
+        let collections = self.collections.lock().expect("mutex poisoned");
+        let kafka_topic = collections
+            .kafka_topics
+            .iter()
+            .find(|t| t.name == name)
+            .cloned();
+        Ok(kafka_topic)
+    }
 }
 
 #[async_trait]
@@ -285,6 +295,20 @@ impl SequencerRepo for MemCatalog {
         };
 
         Ok(*sequencer)
+    }
+
+    async fn get_by_topic_id_and_partition(
+        &self,
+        topic_id: KafkaTopicId,
+        partition: KafkaPartition,
+    ) -> Result<Option<Sequencer>> {
+        let collections = self.collections.lock().expect("mutex poisoned");
+        let sequencer = collections
+            .sequencers
+            .iter()
+            .find(|s| s.kafka_topic_id == topic_id && s.kafka_partition == partition)
+            .cloned();
+        Ok(sequencer)
     }
 
     async fn list(&self) -> Result<Vec<Sequencer>> {

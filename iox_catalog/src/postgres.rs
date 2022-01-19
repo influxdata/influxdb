@@ -118,6 +118,25 @@ DO UPDATE SET name = kafka_topic.name RETURNING *;
 
         Ok(rec)
     }
+
+    async fn get_by_name(&self, name: &str) -> Result<Option<KafkaTopic>> {
+        let rec = sqlx::query_as::<_, KafkaTopic>(
+            r#"
+SELECT * FROM kafka_topic WHERE name = $1;
+        "#,
+        )
+        .bind(&name) // $1
+        .fetch_one(&self.pool)
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let kafka_topic = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(kafka_topic))
+    }
 }
 
 #[async_trait]
@@ -178,7 +197,6 @@ RETURNING *
     }
 
     async fn get_by_name(&self, name: &str) -> Result<Option<Namespace>> {
-        // TODO: maybe get all the data in a single call to Postgres?
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
 SELECT * FROM namespace WHERE name = $1;
@@ -327,6 +345,30 @@ impl SequencerRepo for PostgresCatalog {
                 Error::SqlxError { source: e }
             }
         })
+    }
+
+    async fn get_by_topic_id_and_partition(
+        &self,
+        topic_id: KafkaTopicId,
+        partition: KafkaPartition,
+    ) -> Result<Option<Sequencer>> {
+        let rec = sqlx::query_as::<_, Sequencer>(
+            r#"
+SELECT * FROM sequencer WHERE kafka_topic_id = $1 AND kafka_partition = $2;
+        "#,
+        )
+        .bind(topic_id) // $1
+        .bind(partition) // $2
+        .fetch_one(&self.pool)
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let sequencer = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(sequencer))
     }
 
     async fn list(&self) -> Result<Vec<Sequencer>> {
@@ -608,6 +650,10 @@ mod tests {
 
     async fn clear_schema(pool: &Pool<Postgres>) {
         sqlx::query("delete from tombstone;")
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("delete from parquet_file;")
             .execute(pool)
             .await
             .unwrap();

@@ -78,6 +78,12 @@ impl KafkaTopicId {
     }
 }
 
+impl std::fmt::Display for KafkaTopicId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Unique ID for a `QueryPool`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
@@ -150,6 +156,12 @@ impl KafkaPartition {
     }
     pub fn get(&self) -> i32 {
         self.0
+    }
+}
+
+impl std::fmt::Display for KafkaPartition {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -263,6 +275,9 @@ pub trait RepoCollection {
 pub trait KafkaTopicRepo {
     /// Creates the kafka topic in the catalog or gets the existing record by name.
     async fn create_or_get(&self, name: &str) -> Result<KafkaTopic>;
+
+    /// Gets the kafka topic by its unique name
+    async fn get_by_name(&self, name: &str) -> Result<Option<KafkaTopic>>;
 }
 
 /// Functions for working with query pools in the catalog.
@@ -325,6 +340,13 @@ pub trait SequencerRepo {
         topic: &KafkaTopic,
         partition: KafkaPartition,
     ) -> Result<Sequencer>;
+
+    /// get the sequencer record by `KafkaTopicId` and `KafkaPartition`
+    async fn get_by_topic_id_and_partition(
+        &self,
+        topic_id: KafkaTopicId,
+        partition: KafkaPartition,
+    ) -> Result<Option<Sequencer>>;
 
     /// list all sequencers
     async fn list(&self) -> Result<Vec<Sequencer>>;
@@ -815,6 +837,10 @@ pub(crate) mod test_helpers {
         assert_eq!(k.name, "foo");
         let k2 = kafka_repo.create_or_get("foo").await.unwrap();
         assert_eq!(k, k2);
+        let k3 = kafka_repo.get_by_name("foo").await.unwrap().unwrap();
+        assert_eq!(k3, k);
+        let k3 = kafka_repo.get_by_name("asdf").await.unwrap();
+        assert!(k3.is_none());
     }
 
     async fn test_query_pool<T: RepoCollection + Send + Sync>(repo: &T) {
@@ -970,6 +996,22 @@ pub(crate) mod test_helpers {
             .collect::<BTreeMap<_, _>>();
 
         assert_eq!(created, listed);
+
+        // get by the sequencer id and partition
+        let kafka_partition = KafkaPartition::new(1);
+        let sequencer = sequencer_repo
+            .get_by_topic_id_and_partition(kafka.id, kafka_partition)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(kafka.id, sequencer.kafka_topic_id);
+        assert_eq!(kafka_partition, sequencer.kafka_partition);
+
+        let sequencer = sequencer_repo
+            .get_by_topic_id_and_partition(kafka.id, KafkaPartition::new(523))
+            .await
+            .unwrap();
+        assert!(sequencer.is_none());
     }
 
     async fn test_partition<T: RepoCollection + Send + Sync>(repo: &T) {
