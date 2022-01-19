@@ -611,6 +611,10 @@ mod tests {
             .execute(pool)
             .await
             .unwrap();
+        sqlx::query("delete from parquet_file;")
+            .execute(pool)
+            .await
+            .unwrap();
         sqlx::query("delete from column_name;")
             .execute(pool)
             .await
