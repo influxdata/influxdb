@@ -105,6 +105,16 @@ impl KafkaTopicRepo for MemCatalog {
 
         Ok(topic.clone())
     }
+
+    async fn get_by_name(&self, name: &str) -> Result<Option<KafkaTopic>> {
+        let collections = self.collections.lock().expect("mutex poisoned");
+        let kafka_topic = collections
+            .kafka_topics
+            .iter()
+            .find(|t| t.name == name)
+            .cloned();
+        Ok(kafka_topic)
+    }
 }
 
 #[async_trait]
