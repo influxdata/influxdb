@@ -4,22 +4,24 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::server::IngesterServer;
-use arrow::datatypes::DataType;
-use iox_catalog::interface::{KafkaPartition, NamespaceId, RepoCollection, SequencerId};
+use iox_catalog::interface::{
+    KafkaPartition, NamespaceId, PartitionId, RepoCollection, SequencerId, TableId,
+};
+use mutable_batch::MutableBatch;
 use parking_lot::RwLock;
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Topic {} not found", name))]
-    TopicNotFound {
+    #[snafu(display("Error while reading Topic {}", name))]
+    ReadTopic {
         source: iox_catalog::interface::Error,
         name: String,
     },
 
-    #[snafu(display("Sequencer id {} not found", id.get()))]
-    SequencerNotFound {
+    #[snafu(display("Error while reading Kafka Partition id {}", id.get()))]
+    ReadSequencer {
         source: iox_catalog::interface::Error,
         id: KafkaPartition,
     },
@@ -29,6 +31,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Ingester Data: a Mapp of Shard ID to its Data
+#[derive(Default)]
 struct Sequencers {
     // This map gets set up on initialization of the ingester so it won't ever be modified.
     // The content of each SequenceData will get changed when more namespaces and tables
@@ -45,7 +48,7 @@ impl Sequencers {
         let topic = kafka_topic_repro
             .create_or_get(topic_name.as_str())
             .await
-            .context(TopicNotFoundSnafu { name: topic_name })?;
+            .context(ReadTopicSnafu { name: topic_name })?;
 
         // Get sequencer ids from the catalog
         let sequencer_repro = ingester.iox_catalog.sequencer();
@@ -54,9 +57,9 @@ impl Sequencers {
             let sequencer = sequencer_repro
                 .create_or_get(&topic, shard)
                 .await
-                .context(SequencerNotFoundSnafu { id: shard })?;
+                .context(ReadSequencerSnafu { id: shard })?;
             // Create empty buffer for each sequencer
-            sequencers.insert(sequencer.id, Arc::new(SequencerData::new()));
+            sequencers.insert(sequencer.id, Arc::new(SequencerData::default()));
         }
 
         Ok(Self { data: sequencers })
@@ -64,35 +67,29 @@ impl Sequencers {
 }
 
 /// Data of a Shard
+#[derive(Default)]
 struct SequencerData {
     // New namespaces can come in at any time so we need to be able to add new ones
     namespaces: RwLock<BTreeMap<NamespaceId, Arc<NamespaceData>>>,
 }
 
-impl SequencerData {
-    /// Create an empty SequenceData
-    pub fn new() -> Self {
-        Self {
-            namespaces: RwLock::new(BTreeMap::default()),
-        }
-    }
-}
-
 /// Data of a Namespace that belongs to a given Shard
+#[derive(Default)]
 struct NamespaceData {
-    tables: RwLock<BTreeMap<i64, Arc<TableData>>>,
+    tables: RwLock<BTreeMap<TableId, Arc<TableData>>>,
 }
 
 /// Data of a Table in a given Namesapce that belongs to a given Shard
+#[derive(Default)]
 struct TableData {
-    partitions: RwLock<BTreeMap<i64, Arc<PartitionData>>>,
+    // Map pf partition key to its data
+    partition_data: RwLock<BTreeMap<String, Arc<PartitionData>>>,
 }
 
 /// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
+#[derive(Default)]
 struct PartitionData {
-    /// Key of this partition
-    partition_key: String,
-    /// Data
+    id: PartitionId,
     inner: RwLock<DataBuffer>,
 }
 
@@ -115,6 +112,7 @@ struct PartitionData {
 //                       │ └───────────────┘      │            │                        │
 //                       │                        │            │                        │
 //                       └────────────────────────┘            └────────────────────────┘
+#[derive(Default)]
 struct DataBuffer {
     /// Buffer of ingesting data
     buffer: Vec<DataBatch>,
@@ -128,7 +126,7 @@ struct DataBuffer {
     /// When a persist is called, data in `buffer` will be moved to a `snapshot`
     /// and then all `snapshots` will be moved to a `persisting`.
     /// Both `buffer` and 'snaphots` will be empty when this happens.
-    persisting: Vec<PersistingData>,
+    persisting: Vec<DataBatch>,
     // Extra Notes:
     //  . Multiple perssiting operations may be happenning concurrently but
     //    their persisted info must be added into the Catalog in thier data
@@ -142,18 +140,9 @@ struct DataBuffer {
     //    storage yet. But this will be decided after MVP.
 }
 
-struct PersistingData {
-    batches: Vec<Arc<DataBatch>>,
-}
-
 struct DataBatch {
-    // a map of the unique column name to its data. Every column
-    // must have the same number of values.
-    column_data: BTreeMap<i64, ColumnData<DataType>>,
-}
-
-struct ColumnData<T> {
-    // it might be better to have the raw values and null markers,
-    // but this will probably be easier and faster to get going.
-    values: Option<T>,
+    /// Sequencer number of the ingesting data
+    pub sequencer_number: u64,
+    /// Ingesting data
+    pub inner: MutableBatch,
 }

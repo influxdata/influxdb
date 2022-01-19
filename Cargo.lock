@@ -1859,6 +1859,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "iox_catalog",
+ "mutable_batch",
  "parking_lot",
  "snafu",
  "workspace-hack",
