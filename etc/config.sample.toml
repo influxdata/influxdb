@@ -113,7 +113,7 @@
 
   # MaxConcurrentDeletes is the maximum number of simultaneous DELETE calls on a shard
   # The default is 1, and should be left unchanged for most users
-  # MaxConcurrentDeletes = 1
+  # max-concurrent-deletes = 1
 
   # CompactThroughput is the rate limit in bytes per second that we
   # will allow TSM compactions to write to disk. Note that short bursts are allowed
