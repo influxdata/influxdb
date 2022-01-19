@@ -287,6 +287,20 @@ impl SequencerRepo for MemCatalog {
         Ok(*sequencer)
     }
 
+    async fn get_by_topic_id_and_partition(
+        &self,
+        topic_id: KafkaTopicId,
+        partition: KafkaPartition,
+    ) -> Result<Option<Sequencer>> {
+        let collections = self.collections.lock().expect("mutex poisoned");
+        let sequencer = collections
+            .sequencers
+            .iter()
+            .find(|s| s.kafka_topic_id == topic_id && s.kafka_partition == partition)
+            .cloned();
+        Ok(sequencer)
+    }
+
     async fn list(&self) -> Result<Vec<Sequencer>> {
         let collections = self.collections.lock().expect("mutex poisoned");
         Ok(collections.sequencers.clone())

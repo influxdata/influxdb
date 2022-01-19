@@ -329,6 +329,30 @@ impl SequencerRepo for PostgresCatalog {
         })
     }
 
+    async fn get_by_topic_id_and_partition(
+        &self,
+        topic_id: KafkaTopicId,
+        partition: KafkaPartition,
+    ) -> Result<Option<Sequencer>> {
+        let rec = sqlx::query_as::<_, Sequencer>(
+            r#"
+SELECT * FROM sequencer WHERE kafka_topic_id = $1 AND kafka_partition = $2;
+        "#,
+        )
+        .bind(topic_id) // $1
+        .bind(partition) // $2
+        .fetch_one(&self.pool)
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let sequencer = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(sequencer))
+    }
+
     async fn list(&self) -> Result<Vec<Sequencer>> {
         sqlx::query_as::<_, Sequencer>(r#"SELECT * FROM sequencer;"#)
             .fetch_all(&self.pool)
