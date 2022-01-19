@@ -131,7 +131,7 @@ pub struct DataBuffer {
     /// Buffer of incoming writes
     pub buffer: Vec<BufferBatch>,
 
-    /// Buffer of tombstones whose time range overlaps with this partition.
+    /// Buffer of tombstones whose time range may overlap with this partition.
     /// These tombstone first will be written into the Catalog and then here.
     /// When a persist is called, these tombstones will be moved into the
     /// PersistingBatch to get applied in those data.
