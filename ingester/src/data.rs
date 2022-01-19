@@ -125,7 +125,7 @@ struct DataBuffer {
     /// When a persist is called, data in `buffer` will be moved to a `snapshot`
     /// and then all `snapshots` will be moved to a `persisting`.
     /// Both `buffer` and 'snaphots` will be empty when this happens.
-    persisting: Option<Arc<SnapshotBatch>>,
+    persisting: Option<Arc<PersistingBatch>>,
     // Extra Notes:
     //  . In MVP, we will only persist a set of sanpshots at a time.
     //    In later version, multiple perssiting operations may be happenning concurrently but
