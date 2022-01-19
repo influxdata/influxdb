@@ -3,6 +3,7 @@
 
 use arrow::record_batch::RecordBatch;
 use std::{collections::BTreeMap, sync::Arc};
+use uuid::Uuid;
 
 use crate::server::IngesterServer;
 use iox_catalog::interface::{
@@ -131,9 +132,10 @@ struct DataBuffer {
     /// When a persist is called, data in `buffer` will be moved to a `snapshot`
     /// and then all `snapshots` will be moved to a `persisting`.
     /// Both `buffer` and 'snaphots` will be empty when this happens.
-    persisting: Vec<SnapshotBatch>,
+    persisting: Option<Arc<SnapshotBatch>>,
     // Extra Notes:
-    //  . Multiple perssiting operations may be happenning concurrently but
+    //  . In MVP, we will only persist a set of sanpshots at a time.
+    //    In later version, multiple perssiting operations may be happenning concurrently but
     //    their persisted info must be added into the Catalog in thier data
     //    ingesting order.
     //  . When a read request comes from a Querier, all data from `snaphots`
@@ -150,7 +152,7 @@ struct BufferBatch {
     /// Sequencer number of the ingesting data
     pub sequencer_number: u64,
     /// Ingesting data
-    pub inner: MutableBatch,
+    pub data: MutableBatch,
 }
 
 /// SnapshotBatch contains data of many contiguous BufferBatches
@@ -160,5 +162,15 @@ struct SnapshotBatch {
     /// Max sequencer number of its comebined BufferBatches
     pub max_sequencer_number: u64,
     /// Data of its comebined BufferBatches kept in one RecordBatch
-    pub inner: RecordBatch,
+    pub data: RecordBatch,
+}
+
+/// PersistingBatch contains all needed info and data for creating
+/// a parquet file for given set of SnapshotBatches
+struct PersistingBatch {
+    sequencer_id: SequencerId,
+    table_id: TableId,
+    partition_id: PartitionId,
+    object_store_id: Uuid,
+    data: Vec<SnapshotBatch>,
 }
