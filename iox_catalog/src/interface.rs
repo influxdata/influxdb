@@ -78,6 +78,12 @@ impl KafkaTopicId {
     }
 }
 
+impl std::fmt::Display for KafkaTopicId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Unique ID for a `QueryPool`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
@@ -150,6 +156,12 @@ impl KafkaPartition {
     }
     pub fn get(&self) -> i32 {
         self.0
+    }
+}
+
+impl std::fmt::Display for KafkaPartition {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
