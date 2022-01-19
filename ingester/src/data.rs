@@ -41,7 +41,9 @@ struct Sequencers {
 
 impl Sequencers {
     /// One time initialize Sequencers of this Ingester
-    pub async fn initialize(ingester: &IngesterServer<'_>) -> Result<Self> {
+    pub async fn initialize<T: RepoCollection + Send + Sync>(
+        ingester: &IngesterServer<'_, T>,
+    ) -> Result<Self> {
         // Get kafka topic from the catalog
         let topic_name = ingester.get_topic();
         let kafka_topic_repro = ingester.iox_catalog.kafka_topic();
