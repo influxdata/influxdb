@@ -326,6 +326,13 @@ pub trait SequencerRepo {
         partition: KafkaPartition,
     ) -> Result<Sequencer>;
 
+    /// get the sequencer record by `KafkaTopicId` and `KafkaPartition`
+    async fn get_by_topic_id_and_partition(
+        &self,
+        topic_id: KafkaTopicId,
+        partition: KafkaPartition,
+    ) -> Result<Option<Sequencer>>;
+
     /// list all sequencers
     async fn list(&self) -> Result<Vec<Sequencer>>;
 
@@ -970,6 +977,22 @@ pub(crate) mod test_helpers {
             .collect::<BTreeMap<_, _>>();
 
         assert_eq!(created, listed);
+
+        // get by the sequencer id and partition
+        let kafka_partition = KafkaPartition::new(1);
+        let sequencer = sequencer_repo
+            .get_by_topic_id_and_partition(kafka.id, kafka_partition)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(kafka.id, sequencer.kafka_topic_id);
+        assert_eq!(kafka_partition, sequencer.kafka_partition);
+
+        let sequencer = sequencer_repo
+            .get_by_topic_id_and_partition(kafka.id, KafkaPartition::new(523))
+            .await
+            .unwrap();
+        assert!(sequencer.is_none());
     }
 
     async fn test_partition<T: RepoCollection + Send + Sync>(repo: &T) {
