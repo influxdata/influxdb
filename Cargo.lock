@@ -1854,6 +1854,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ingester"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "iox_catalog",
+ "mutable_batch",
+ "parking_lot",
+ "snafu",
+ "uuid",
+ "workspace-hack",
+]
+
+[[package]]
 name = "instant"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
