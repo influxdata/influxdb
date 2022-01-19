@@ -161,6 +161,51 @@ impl PartitionId {
     }
 }
 
+/// Unique ID for a `Tombstone`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct TombstoneId(i64);
+
+#[allow(missing_docs)]
+impl TombstoneId {
+    pub fn new(v: i64) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i64 {
+        self.0
+    }
+}
+
+/// A sequence number from a `Sequencer` (kafka partition)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct SequenceNumber(i64);
+
+#[allow(missing_docs)]
+impl SequenceNumber {
+    pub fn new(v: i64) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i64 {
+        self.0
+    }
+}
+
+/// A time in nanoseconds from epoch
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct Timestamp(i64);
+
+#[allow(missing_docs)]
+impl Timestamp {
+    pub fn new(v: i64) -> Self {
+        Self(v)
+    }
+    pub fn get(&self) -> i64 {
+        self.0
+    }
+}
+
 /// Container that can return repos for each of the catalog data types.
 #[async_trait]
 pub trait RepoCollection {
@@ -178,6 +223,8 @@ pub trait RepoCollection {
     fn sequencer(&self) -> Arc<dyn SequencerRepo + Sync + Send>;
     /// repo for partitions
     fn partition(&self) -> Arc<dyn PartitionRepo + Sync + Send>;
+    /// repo for tombstones
+    fn tombstone(&self) -> Arc<dyn TombstoneRepo + Sync + Send>;
 }
 
 /// Functions for working with Kafka topics in the catalog.
@@ -269,6 +316,30 @@ pub trait PartitionRepo {
 
     /// return partitions for a given sequencer
     async fn list_by_sequencer(&self, sequencer_id: SequencerId) -> Result<Vec<Partition>>;
+}
+
+/// Functions for working with tombstones in the catalog
+#[async_trait]
+pub trait TombstoneRepo {
+    /// create or get a tombstone
+    async fn create_or_get(
+        &self,
+        table_id: TableId,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+        predicate: &str,
+    ) -> Result<Tombstone>;
+
+    /// return all tombstones for the sequencer with a sequence number greater than that
+    /// passed in. This will be used by the ingester on startup to see what tombstones
+    /// might have to be applied to data that is read from the write buffer.
+    async fn list_tombstones_by_sequencer_greater_than(
+        &self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) -> Result<Vec<Tombstone>>;
 }
 
 /// Data object for a kafka topic
@@ -610,6 +681,25 @@ pub struct Partition {
     pub partition_key: String,
 }
 
+/// Data object for a tombstone.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct Tombstone {
+    /// the id of the tombstone
+    pub id: TombstoneId,
+    /// the table the tombstone is associated with
+    pub table_id: TableId,
+    /// the sequencer the tombstone was sent through
+    pub sequencer_id: SequencerId,
+    /// the sequence nubmer assigned to the tombstone from the sequencer
+    pub sequence_number: SequenceNumber,
+    /// the min time (inclusive) that the delete applies to
+    pub min_time: Timestamp,
+    /// the max time (exclusive) that the delete applies to
+    pub max_time: Timestamp,
+    /// the full delete predicate
+    pub serialized_predicate: String,
+}
+
 #[cfg(test)]
 pub(crate) mod test_helpers {
     use super::*;
@@ -627,6 +717,7 @@ pub(crate) mod test_helpers {
         test_column(&new_repo()).await;
         test_sequencer(&new_repo()).await;
         test_partition(&new_repo()).await;
+        test_tombstone(&new_repo()).await;
     }
 
     async fn test_kafka_topic<T: RepoCollection + Send + Sync>(repo: &T) {
@@ -844,5 +935,79 @@ pub(crate) mod test_helpers {
             .collect::<BTreeMap<_, _>>();
 
         assert_eq!(created, listed);
+    }
+
+    async fn test_tombstone<T: RepoCollection + Send + Sync>(repo: &T) {
+        let kafka = repo.kafka_topic().create_or_get("foo").await.unwrap();
+        let pool = repo.query_pool().create_or_get("foo").await.unwrap();
+        let namespace = repo
+            .namespace()
+            .create("namespace_tombstone_test", "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        let table = repo
+            .table()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let other_table = repo
+            .table()
+            .create_or_get("other", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = repo
+            .sequencer()
+            .create_or_get(&kafka, KafkaPartition::new(1))
+            .await
+            .unwrap();
+
+        let tombstone_repo = repo.tombstone();
+        let min_time = Timestamp::new(1);
+        let max_time = Timestamp::new(10);
+        let t1 = tombstone_repo
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(1),
+                min_time,
+                max_time,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+        assert!(t1.id > TombstoneId::new(0));
+        assert_eq!(t1.sequencer_id, sequencer.id);
+        assert_eq!(t1.sequence_number, SequenceNumber::new(1));
+        assert_eq!(t1.min_time, min_time);
+        assert_eq!(t1.max_time, max_time);
+        assert_eq!(t1.serialized_predicate, "whatevs");
+        let t2 = tombstone_repo
+            .create_or_get(
+                other_table.id,
+                sequencer.id,
+                SequenceNumber::new(2),
+                min_time,
+                max_time,
+                "bleh",
+            )
+            .await
+            .unwrap();
+        let t3 = tombstone_repo
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(3),
+                min_time,
+                max_time,
+                "sdf",
+            )
+            .await
+            .unwrap();
+
+        let listed = tombstone_repo
+            .list_tombstones_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(1))
+            .await
+            .unwrap();
+        assert_eq!(vec![t2, t3], listed);
     }
 }
