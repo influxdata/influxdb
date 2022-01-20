@@ -84,15 +84,15 @@ CREATE TABLE IF NOT EXISTS iox_catalog.parquet_file
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     sequencer_id SMALLINT NOT NULL,
     table_id INT NOT NULL,
-    partition_id INT NOT NULL,
-    file_location VARCHAR NOT NULL,
+    partition_id BIGINT NOT NULL,
+    object_store_id uuid NOT NULL,
     min_sequence_number BIGINT,
     max_sequence_number BIGINT,
     min_time BIGINT,
     max_time BIGINT,
     to_delete BOOLEAN,
     PRIMARY KEY (id),
-    CONSTRAINT parquet_location_unique UNIQUE (file_location)
+    CONSTRAINT parquet_location_unique UNIQUE (object_store_id)
     );
 
 CREATE TABLE IF NOT EXISTS iox_catalog.tombstone
@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS iox_catalog.tombstone
     min_time BIGINT NOT NULL,
     max_time BIGINT NOT NULL,
     serialized_predicate TEXT NOT NULL,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT tombstone_unique UNIQUE (table_id, sequencer_id, sequence_number)
     );
 
 CREATE TABLE IF NOT EXISTS iox_catalog.processed_tombstone

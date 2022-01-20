@@ -1,17 +1,18 @@
 //! A Postgres backed implementation of the Catalog
 
 use crate::interface::{
-    Column, ColumnRepo, ColumnSchema, ColumnType, Error, KafkaTopic, KafkaTopicRepo, Namespace,
-    NamespaceRepo, NamespaceSchema, QueryPool, QueryPoolRepo, RepoCollection, Result, Sequencer,
-    SequencerRepo, Table, TableRepo, TableSchema,
+    Column, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
+    KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile, ParquetFileId,
+    ParquetFileRepo, Partition, PartitionId, PartitionRepo, QueryPool, QueryPoolId, QueryPoolRepo,
+    RepoCollection, Result, SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId,
+    TableRepo, Timestamp, Tombstone, TombstoneRepo,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::info;
 use sqlx::{postgres::PgPoolOptions, Executor, Pool, Postgres};
-use std::collections::BTreeMap;
-use std::convert::TryFrom;
 use std::sync::Arc;
 use std::time::Duration;
+use uuid::Uuid;
 
 const MAX_CONNECTIONS: u32 = 5;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
@@ -19,41 +20,46 @@ const IDLE_TIMEOUT: Duration = Duration::from_secs(500);
 #[allow(dead_code)]
 const SCHEMA_NAME: &str = "iox_catalog";
 
-/// Connect to the catalog store.
-pub async fn connect_catalog_store(
-    app_name: &'static str,
-    schema_name: &'static str,
-    dsn: &str,
-) -> Result<Pool<Postgres>, sqlx::Error> {
-    let pool = PgPoolOptions::new()
-        .min_connections(1)
-        .max_connections(MAX_CONNECTIONS)
-        .connect_timeout(CONNECT_TIMEOUT)
-        .idle_timeout(IDLE_TIMEOUT)
-        .test_before_acquire(true)
-        .after_connect(move |c| {
-            Box::pin(async move {
-                // Tag the connection with the provided application name.
-                c.execute(sqlx::query("SET application_name = '$1';").bind(app_name))
-                    .await?;
-                let search_path_query = format!("SET search_path TO {}", schema_name);
-                c.execute(sqlx::query(&search_path_query)).await?;
-
-                Ok(())
-            })
-        })
-        .connect(dsn)
-        .await?;
-
-    // Log a connection was successfully established and include the application
-    // name for cross-correlation between Conductor logs & database connections.
-    info!(application_name=%app_name, "connected to catalog store");
-
-    Ok(pool)
+/// In-memory catalog that implements the `RepoCollection` and individual repo traits.
+#[derive(Debug)]
+pub struct PostgresCatalog {
+    pool: Pool<Postgres>,
 }
 
-struct PostgresCatalog {
-    pool: Pool<Postgres>,
+impl PostgresCatalog {
+    /// Connect to the catalog store.
+    pub async fn connect(
+        app_name: &'static str,
+        schema_name: &'static str,
+        dsn: &str,
+    ) -> Result<Self> {
+        let pool = PgPoolOptions::new()
+            .min_connections(1)
+            .max_connections(MAX_CONNECTIONS)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .idle_timeout(IDLE_TIMEOUT)
+            .test_before_acquire(true)
+            .after_connect(move |c| {
+                Box::pin(async move {
+                    // Tag the connection with the provided application name.
+                    c.execute(sqlx::query("SET application_name = '$1';").bind(app_name))
+                        .await?;
+                    let search_path_query = format!("SET search_path TO {}", schema_name);
+                    c.execute(sqlx::query(&search_path_query)).await?;
+
+                    Ok(())
+                })
+            })
+            .connect(dsn)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })?;
+
+        // Log a connection was successfully established and include the application
+        // name for cross-correlation between Conductor logs & database connections.
+        info!(application_name=%app_name, "connected to catalog store");
+
+        Ok(Self { pool })
+    }
 }
 
 impl RepoCollection for Arc<PostgresCatalog> {
@@ -80,6 +86,18 @@ impl RepoCollection for Arc<PostgresCatalog> {
     fn sequencer(&self) -> Arc<dyn SequencerRepo + Sync + Send> {
         Self::clone(self) as Arc<dyn SequencerRepo + Sync + Send>
     }
+
+    fn partition(&self) -> Arc<dyn PartitionRepo + Sync + Send> {
+        Self::clone(self) as Arc<dyn PartitionRepo + Sync + Send>
+    }
+
+    fn tombstone(&self) -> Arc<dyn TombstoneRepo + Sync + Send> {
+        Self::clone(self) as Arc<dyn TombstoneRepo + Sync + Send>
+    }
+
+    fn parquet_file(&self) -> Arc<dyn ParquetFileRepo + Sync + Send> {
+        Self::clone(self) as Arc<dyn ParquetFileRepo + Sync + Send>
+    }
 }
 
 #[async_trait]
@@ -99,6 +117,25 @@ DO UPDATE SET name = kafka_topic.name RETURNING *;
         .map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(rec)
+    }
+
+    async fn get_by_name(&self, name: &str) -> Result<Option<KafkaTopic>> {
+        let rec = sqlx::query_as::<_, KafkaTopic>(
+            r#"
+SELECT * FROM kafka_topic WHERE name = $1;
+        "#,
+        )
+        .bind(&name) // $1
+        .fetch_one(&self.pool)
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let kafka_topic = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(kafka_topic))
     }
 }
 
@@ -128,9 +165,9 @@ impl NamespaceRepo for PostgresCatalog {
         &self,
         name: &str,
         retention_duration: &str,
-        kafka_topic_id: i32,
-        query_pool_id: i16,
-    ) -> Result<NamespaceSchema> {
+        kafka_topic_id: KafkaTopicId,
+        query_pool_id: QueryPoolId,
+    ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
 INSERT INTO namespace ( name, retention_duration, kafka_topic_id, query_pool_id )
@@ -156,11 +193,10 @@ RETURNING *
             }
         })?;
 
-        Ok(NamespaceSchema::new(rec.id, kafka_topic_id, query_pool_id))
+        Ok(rec)
     }
 
-    async fn get_by_name(&self, name: &str) -> Result<Option<NamespaceSchema>> {
-        // TODO: maybe get all the data in a single call to Postgres?
+    async fn get_by_name(&self, name: &str) -> Result<Option<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
 SELECT * FROM namespace WHERE name = $1;
@@ -175,53 +211,14 @@ SELECT * FROM namespace WHERE name = $1;
         }
 
         let namespace = rec.map_err(|e| Error::SqlxError { source: e })?;
-        // get the columns first just in case someone else is creating schema while we're doing this.
-        let columns = ColumnRepo::list_by_namespace_id(self, namespace.id).await?;
-        let tables = TableRepo::list_by_namespace_id(self, namespace.id).await?;
 
-        let mut namespace = NamespaceSchema::new(
-            namespace.id,
-            namespace.kafka_topic_id,
-            namespace.query_pool_id,
-        );
-
-        let mut table_id_to_schema = BTreeMap::new();
-        for t in tables {
-            table_id_to_schema.insert(t.id, (t.name, TableSchema::new(t.id)));
-        }
-
-        for c in columns {
-            let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
-            match ColumnType::try_from(c.column_type) {
-                Ok(column_type) => {
-                    t.columns.insert(
-                        c.name,
-                        ColumnSchema {
-                            id: c.id,
-                            column_type,
-                        },
-                    );
-                }
-                _ => {
-                    return Err(Error::UnknownColumnType {
-                        data_type: c.column_type,
-                        name: c.name.to_string(),
-                    });
-                }
-            }
-        }
-
-        for (_, (table_name, schema)) in table_id_to_schema {
-            namespace.tables.insert(table_name, schema);
-        }
-
-        return Ok(Some(namespace));
+        Ok(Some(namespace))
     }
 }
 
 #[async_trait]
 impl TableRepo for PostgresCatalog {
-    async fn create_or_get(&self, name: &str, namespace_id: i32) -> Result<Table> {
+    async fn create_or_get(&self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
         let rec = sqlx::query_as::<_, Table>(
             r#"
 INSERT INTO table_name ( name, namespace_id )
@@ -245,7 +242,7 @@ DO UPDATE SET name = table_name.name RETURNING *;
         Ok(rec)
     }
 
-    async fn list_by_namespace_id(&self, namespace_id: i32) -> Result<Vec<Table>> {
+    async fn list_by_namespace_id(&self, namespace_id: NamespaceId) -> Result<Vec<Table>> {
         let rec = sqlx::query_as::<_, Table>(
             r#"
 SELECT * FROM table_name
@@ -266,7 +263,7 @@ impl ColumnRepo for PostgresCatalog {
     async fn create_or_get(
         &self,
         name: &str,
-        table_id: i32,
+        table_id: TableId,
         column_type: ColumnType,
     ) -> Result<Column> {
         let ct = column_type as i16;
@@ -303,7 +300,7 @@ DO UPDATE SET name = column_name.name RETURNING *;
         Ok(rec)
     }
 
-    async fn list_by_namespace_id(&self, namespace_id: i32) -> Result<Vec<Column>> {
+    async fn list_by_namespace_id(&self, namespace_id: NamespaceId) -> Result<Vec<Column>> {
         let rec = sqlx::query_as::<_, Column>(
             r#"
 SELECT column_name.* FROM table_name
@@ -322,7 +319,11 @@ WHERE table_name.namespace_id = $1;
 
 #[async_trait]
 impl SequencerRepo for PostgresCatalog {
-    async fn create_or_get(&self, topic: &KafkaTopic, partition: i32) -> Result<Sequencer> {
+    async fn create_or_get(
+        &self,
+        topic: &KafkaTopic,
+        partition: KafkaPartition,
+    ) -> Result<Sequencer> {
         sqlx::query_as::<_, Sequencer>(
             r#"
         INSERT INTO sequencer
@@ -346,8 +347,202 @@ impl SequencerRepo for PostgresCatalog {
         })
     }
 
+    async fn get_by_topic_id_and_partition(
+        &self,
+        topic_id: KafkaTopicId,
+        partition: KafkaPartition,
+    ) -> Result<Option<Sequencer>> {
+        let rec = sqlx::query_as::<_, Sequencer>(
+            r#"
+SELECT * FROM sequencer WHERE kafka_topic_id = $1 AND kafka_partition = $2;
+        "#,
+        )
+        .bind(topic_id) // $1
+        .bind(partition) // $2
+        .fetch_one(&self.pool)
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let sequencer = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(sequencer))
+    }
+
     async fn list(&self) -> Result<Vec<Sequencer>> {
         sqlx::query_as::<_, Sequencer>(r#"SELECT * FROM sequencer;"#)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn list_by_kafka_topic(&self, topic: &KafkaTopic) -> Result<Vec<Sequencer>> {
+        sqlx::query_as::<_, Sequencer>(r#"SELECT * FROM sequencer WHERE kafka_topic_id = $1;"#)
+            .bind(&topic.id) // $1
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+}
+
+#[async_trait]
+impl PartitionRepo for PostgresCatalog {
+    async fn create_or_get(
+        &self,
+        key: &str,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+    ) -> Result<Partition> {
+        sqlx::query_as::<_, Partition>(
+            r#"
+        INSERT INTO partition
+            ( partition_key, sequencer_id, table_id )
+        VALUES
+            ( $1, $2, $3 )
+        ON CONFLICT ON CONSTRAINT partition_key_unique
+        DO UPDATE SET partition_key = partition.partition_key RETURNING *;
+        "#,
+        )
+        .bind(key) // $1
+        .bind(&sequencer_id) // $2
+        .bind(&table_id) // $3
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| {
+            if is_fk_violation(&e) {
+                Error::ForeignKeyViolation { source: e }
+            } else {
+                Error::SqlxError { source: e }
+            }
+        })
+    }
+
+    async fn list_by_sequencer(&self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
+        sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE sequencer_id = $1;"#)
+            .bind(&sequencer_id) // $1
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+}
+
+#[async_trait]
+impl TombstoneRepo for PostgresCatalog {
+    async fn create_or_get(
+        &self,
+        table_id: TableId,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+        predicate: &str,
+    ) -> Result<Tombstone> {
+        sqlx::query_as::<_, Tombstone>(
+            r#"
+        INSERT INTO tombstone
+            ( table_id, sequencer_id, sequence_number, min_time, max_time, serialized_predicate )
+        VALUES
+            ( $1, $2, $3, $4, $5, $6 )
+        ON CONFLICT ON CONSTRAINT tombstone_unique
+        DO UPDATE SET table_id = tombstone.table_id RETURNING *;
+        "#,
+        )
+        .bind(&table_id) // $1
+        .bind(&sequencer_id) // $2
+        .bind(&sequence_number) // $3
+        .bind(&min_time) // $4
+        .bind(&max_time) // $5
+        .bind(predicate) // $6
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| {
+            if is_fk_violation(&e) {
+                Error::ForeignKeyViolation { source: e }
+            } else {
+                Error::SqlxError { source: e }
+            }
+        })
+    }
+
+    async fn list_tombstones_by_sequencer_greater_than(
+        &self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) -> Result<Vec<Tombstone>> {
+        sqlx::query_as::<_, Tombstone>(r#"SELECT * FROM tombstone WHERE sequencer_id = $1 AND sequence_number > $2 ORDER BY id;"#)
+            .bind(&sequencer_id) // $1
+            .bind(&sequence_number) // $2
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+}
+
+#[async_trait]
+impl ParquetFileRepo for PostgresCatalog {
+    async fn create(
+        &self,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+        partition_id: PartitionId,
+        object_store_id: Uuid,
+        min_sequence_number: SequenceNumber,
+        max_sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<ParquetFile> {
+        let rec = sqlx::query_as::<_, ParquetFile>(
+            r#"
+INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false )
+RETURNING *
+        "#,
+        )
+            .bind(sequencer_id) // $1
+            .bind(table_id) // $2
+            .bind(partition_id) // $3
+            .bind(object_store_id) // $4
+            .bind(min_sequence_number) // $5
+            .bind(max_sequence_number) // $6
+            .bind(min_time) // $7
+            .bind(max_time) // $8
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| {
+                if is_unique_violation(&e) {
+                    Error::FileExists {
+                        object_store_id,
+                    }
+                } else if is_fk_violation(&e) {
+                    Error::ForeignKeyViolation { source: e }
+                } else {
+                    Error::SqlxError { source: e }
+                }
+            })?;
+
+        Ok(rec)
+    }
+
+    async fn flag_for_delete(&self, id: ParquetFileId) -> Result<()> {
+        let _ = sqlx::query(r#"UPDATE parquet_file SET to_delete = true WHERE id = $1;"#)
+            .bind(&id) // $1
+            .execute(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(())
+    }
+
+    async fn list_by_sequencer_greater_than(
+        &self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) -> Result<Vec<ParquetFile>> {
+        sqlx::query_as::<_, ParquetFile>(r#"SELECT * FROM parquet_file WHERE sequencer_id = $1 AND max_sequence_number > $2 ORDER BY id;"#)
+            .bind(&sequencer_id) // $1
+            .bind(&sequence_number) // $2
             .fetch_all(&self.pool)
             .await
             .map_err(|e| Error::SqlxError { source: e })
@@ -390,9 +585,6 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{create_or_get_default_records, validate_or_insert_schema};
-    use futures::{stream::FuturesOrdered, StreamExt};
-    use influxdb_line_protocol::parse_lines;
     use std::env;
 
     // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
@@ -432,199 +624,44 @@ mod tests {
         }};
     }
 
-    async fn setup_db() -> (Arc<PostgresCatalog>, KafkaTopic, QueryPool) {
+    async fn setup_db() -> Arc<PostgresCatalog> {
         let dsn = std::env::var("DATABASE_URL").unwrap();
-        let pool = connect_catalog_store("test", SCHEMA_NAME, &dsn)
-            .await
-            .unwrap();
-        let postgres_catalog = Arc::new(PostgresCatalog { pool });
-
-        let (kafka_topic, query_pool, _) = create_or_get_default_records(2, &postgres_catalog)
-            .await
-            .unwrap();
-        (postgres_catalog, kafka_topic, query_pool)
+        Arc::new(
+            PostgresCatalog::connect("test", SCHEMA_NAME, &dsn)
+                .await
+                .unwrap(),
+        )
     }
 
     #[tokio::test]
-    async fn test_catalog() {
+    async fn test_repo() {
         // If running an integration test on your laptop, this requires that you have Postgres
         // running and that you've done the sqlx migrations. See the README in this crate for
         // info to set it up.
         maybe_skip_integration!();
 
-        let (postgres, kafka_topic, query_pool) = setup_db().await;
+        let postgres = setup_db().await;
         clear_schema(&postgres.pool).await;
 
-        let namespace = NamespaceRepo::create(postgres.as_ref(), "foo", "inf", 0, 0).await;
-        assert!(matches!(
-            namespace.unwrap_err(),
-            Error::ForeignKeyViolation { source: _ }
-        ));
-        let namespace = NamespaceRepo::create(
-            postgres.as_ref(),
-            "foo",
-            "inf",
-            kafka_topic.id,
-            query_pool.id,
-        )
-        .await
-        .unwrap();
-        assert!(namespace.id > 0);
-        assert_eq!(namespace.kafka_topic_id, kafka_topic.id);
-        assert_eq!(namespace.query_pool_id, query_pool.id);
+        let f = || Arc::clone(&postgres);
 
-        // test that we can create or get a table
-        let t = TableRepo::create_or_get(postgres.as_ref(), "foo", namespace.id)
-            .await
-            .unwrap();
-        let tt = TableRepo::create_or_get(postgres.as_ref(), "foo", namespace.id)
-            .await
-            .unwrap();
-        assert!(t.id > 0);
-        assert_eq!(t, tt);
-
-        // test that we can craete or get a column
-        let c = ColumnRepo::create_or_get(postgres.as_ref(), "foo", t.id, ColumnType::I64)
-            .await
-            .unwrap();
-        let cc = ColumnRepo::create_or_get(postgres.as_ref(), "foo", t.id, ColumnType::I64)
-            .await
-            .unwrap();
-        assert!(c.id > 0);
-        assert_eq!(c, cc);
-
-        // test that attempting to create an already defined column of a different type returns error
-        let err = ColumnRepo::create_or_get(postgres.as_ref(), "foo", t.id, ColumnType::F64)
-            .await
-            .expect_err("should error with wrong column type");
-        assert!(matches!(
-            err,
-            Error::ColumnTypeMismatch {
-                name: _,
-                existing: _,
-                new: _
-            }
-        ));
-
-        // now test with a new namespace
-        let namespace = NamespaceRepo::create(
-            postgres.as_ref(),
-            "asdf",
-            "inf",
-            kafka_topic.id,
-            query_pool.id,
-        )
-        .await
-        .unwrap();
-        let data = r#"
-m1,t1=a,t2=b f1=2i,f2=2.0 1
-m1,t1=a f1=3i 2
-m2,t3=b f1=true 1
-        "#;
-
-        // test that new schema gets returned
-        let lines: Vec<_> = parse_lines(data).map(|l| l.unwrap()).collect();
-        let schema = Arc::new(NamespaceSchema::new(
-            namespace.id,
-            namespace.kafka_topic_id,
-            namespace.query_pool_id,
-        ));
-        let new_schema = validate_or_insert_schema(lines, &schema, &postgres)
-            .await
-            .unwrap();
-        let new_schema = new_schema.unwrap();
-
-        // ensure new schema is in the db
-        let schema_from_db = NamespaceRepo::get_by_name(postgres.as_ref(), "asdf")
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(new_schema, schema_from_db);
-
-        // test that a new table will be created
-        let data = r#"
-m1,t1=c f1=1i 2
-new_measurement,t9=a f10=true 1
-        "#;
-        let lines: Vec<_> = parse_lines(data).map(|l| l.unwrap()).collect();
-        let new_schema = validate_or_insert_schema(lines, &schema_from_db, &postgres)
-            .await
-            .unwrap()
-            .unwrap();
-        let new_table = new_schema.tables.get("new_measurement").unwrap();
-        assert_eq!(
-            ColumnType::Bool,
-            new_table.columns.get("f10").unwrap().column_type
-        );
-        assert_eq!(
-            ColumnType::Tag,
-            new_table.columns.get("t9").unwrap().column_type
-        );
-        let schema = NamespaceRepo::get_by_name(postgres.as_ref(), "asdf")
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(new_schema, schema);
-
-        // test that a new column for an existing table will be created
-        // test that a new table will be created
-        let data = r#"
-m1,new_tag=c new_field=1i 2
-        "#;
-        let lines: Vec<_> = parse_lines(data).map(|l| l.unwrap()).collect();
-        let new_schema = validate_or_insert_schema(lines, &schema, &postgres)
-            .await
-            .unwrap()
-            .unwrap();
-        let table = new_schema.tables.get("m1").unwrap();
-        assert_eq!(
-            ColumnType::I64,
-            table.columns.get("new_field").unwrap().column_type
-        );
-        assert_eq!(
-            ColumnType::Tag,
-            table.columns.get("new_tag").unwrap().column_type
-        );
-        let schema = NamespaceRepo::get_by_name(postgres.as_ref(), "asdf")
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(new_schema, schema);
-    }
-
-    #[tokio::test]
-    async fn test_sequencers() {
-        maybe_skip_integration!();
-
-        let (postgres, kafka_topic, _query_pool) = setup_db().await;
-        clear_schema(&postgres.pool).await;
-
-        // Create 10 sequencers
-        let created = (1..=10)
-            .map(|partition| {
-                SequencerRepo::create_or_get(postgres.as_ref(), &kafka_topic, partition)
-            })
-            .collect::<FuturesOrdered<_>>()
-            .map(|v| {
-                let v = v.expect("failed to create sequencer");
-                (v.id, v)
-            })
-            .collect::<BTreeMap<_, _>>()
-            .await;
-
-        // List them and assert they match
-        let listed = SequencerRepo::list(postgres.as_ref())
-            .await
-            .expect("failed to list sequencers")
-            .into_iter()
-            .map(|v| (v.id, v))
-            .collect::<BTreeMap<_, _>>();
-
-        assert_eq!(created, listed);
+        crate::interface::test_helpers::test_repo(f).await;
     }
 
     async fn clear_schema(pool: &Pool<Postgres>) {
+        sqlx::query("delete from tombstone;")
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("delete from parquet_file;")
+            .execute(pool)
+            .await
+            .unwrap();
         sqlx::query("delete from column_name;")
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("delete from partition;")
             .execute(pool)
             .await
             .unwrap();
