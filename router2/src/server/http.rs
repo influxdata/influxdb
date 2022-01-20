@@ -8,7 +8,7 @@ use data_types::names::{org_and_bucket_to_database, OrgBucketMappingError};
 use futures::StreamExt;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
 use observability_deps::tracing::*;
-use predicate::delete_predicate::parse_http_delete_request;
+use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use serde::Deserialize;
 use thiserror::Error;
 use time::{SystemProvider, TimeProvider};
@@ -221,8 +221,15 @@ where
 
         // Parse and extract table name (which can be empty), start, stop, and predicate
         let parsed_delete = parse_http_delete_request(body)?;
+        let predicate = parse_delete_predicate(
+            &parsed_delete.start_time,
+            &parsed_delete.stop_time,
+            &parsed_delete.predicate,
+        )?;
 
-        self.dml_handler.delete(parsed_delete, span_ctx).await?;
+        self.dml_handler
+            .delete(namespace, parsed_delete.table_name, predicate, span_ctx)
+            .await?;
 
         Ok(())
     }
@@ -586,11 +593,10 @@ mod tests {
         body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
         dml_handler = [Ok(())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Delete(d)] => {
-            assert_eq!(d.table_name, "its_a_table");
-            assert_eq!(d.start_time, "2021-04-01T14:00:00Z");
-            assert_eq!(d.stop_time, "2021-04-02T14:00:00Z");
-            assert_eq!(d.predicate, "location=Boston");
+        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, table, predicate}] => {
+            assert_eq!(table, "its_a_table");
+            assert_eq!(namespace, "bananas_test");
+            assert!(!predicate.exprs.is_empty());
         }
     );
 
@@ -654,11 +660,10 @@ mod tests {
         body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
         dml_handler = [Err(DmlError::DatabaseNotFound("bananas_test".to_string()))],
         want_result = Err(Error::DmlHandler(DmlError::DatabaseNotFound(_))),
-        want_dml_calls = [MockDmlHandlerCall::Delete(d)] => {
-            assert_eq!(d.table_name, "its_a_table");
-            assert_eq!(d.start_time, "2021-04-01T14:00:00Z");
-            assert_eq!(d.stop_time, "2021-04-02T14:00:00Z");
-            assert_eq!(d.predicate, "location=Boston");
+        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, table, predicate}] => {
+            assert_eq!(table, "its_a_table");
+            assert_eq!(namespace, "bananas_test");
+            assert!(!predicate.exprs.is_empty());
         }
     );
 
@@ -668,11 +673,10 @@ mod tests {
         body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
         dml_handler = [Err(DmlError::Internal("💣".into()))],
         want_result = Err(Error::DmlHandler(DmlError::Internal(_))),
-        want_dml_calls = [MockDmlHandlerCall::Delete(d)] => {
-            assert_eq!(d.table_name, "its_a_table");
-            assert_eq!(d.start_time, "2021-04-01T14:00:00Z");
-            assert_eq!(d.stop_time, "2021-04-02T14:00:00Z");
-            assert_eq!(d.predicate, "location=Boston");
+        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, table, predicate}] => {
+            assert_eq!(table, "its_a_table");
+            assert_eq!(namespace, "bananas_test");
+            assert!(!predicate.exprs.is_empty());
         }
     );
 
