@@ -169,17 +169,19 @@ pub struct BufferBatch {
 }
 
 /// SnapshotBatch contains data of many contiguous BufferBatches
+#[derive(Debug)]
 pub struct SnapshotBatch {
     /// Min sequencer number of its comebined BufferBatches
     pub min_sequencer_number: SequenceNumber,
     /// Max sequencer number of its comebined BufferBatches
     pub max_sequencer_number: SequenceNumber,
     /// Data of its comebined BufferBatches kept in one RecordBatch
-    pub data: RecordBatch,
+    pub data: Arc<RecordBatch>,
 }
 
 /// PersistingBatch contains all needed info and data for creating
 /// a parquet file for given set of SnapshotBatches
+#[derive(Debug)]
 pub struct PersistingBatch {
     /// Sesquencer id of the data
     pub sequencer_id: SequencerId,

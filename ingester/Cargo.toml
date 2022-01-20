@@ -6,9 +6,14 @@ edition = "2021"
 
 [dependencies]
 arrow = { version = "7.0", features = ["prettyprint"] }
+datafusion = { path = "../datafusion" }
+data_types = { path = "../data_types" }
 iox_catalog = { path = "../iox_catalog" }
 mutable_batch = { path = "../mutable_batch"}
 parking_lot = "0.11.2"
+predicate = { path = "../predicate" }
+query = { path = "../query" }
+schema = { path = "../schema" }
 snafu = "0.7"
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}

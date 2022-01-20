@@ -13,5 +13,7 @@
 )]
 
 #[allow(dead_code)]
+
+pub mod compact;
 pub mod data;
 pub mod server;
