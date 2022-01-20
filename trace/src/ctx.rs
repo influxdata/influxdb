@@ -95,6 +95,18 @@ impl SpanContext {
             events: Default::default(),
         }
     }
+
+    /// Return the approximate memory size of the span, in bytes.
+    ///
+    /// This includes `Self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + self
+                .links
+                .iter()
+                .map(|(t_id, s_id)| std::mem::size_of_val(t_id) + std::mem::size_of_val(s_id))
+                .sum::<usize>()
+    }
 }
 
 impl PartialEq for SpanContext {
