@@ -27,10 +27,7 @@ pub struct TableNamespaceSharder<T> {
     shards: Vec<T>,
 }
 
-impl<T> TableNamespaceSharder<T>
-where
-    T: Ord,
-{
+impl<T> TableNamespaceSharder<T> {
     /// Initialise a [`TableNamespaceSharder`] that consistently maps keys to
     /// one of `shards`.
     ///
@@ -100,10 +97,7 @@ impl<T> TableNamespaceSharder<T> {
     }
 }
 
-impl<T> FromIterator<T> for TableNamespaceSharder<T>
-where
-    T: Ord,
-{
+impl<T> FromIterator<T> for TableNamespaceSharder<T> {
     fn from_iter<U: IntoIterator<Item = T>>(iter: U) -> Self {
         Self::new(iter)
     }
