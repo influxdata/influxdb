@@ -2653,7 +2653,7 @@ mod tests {
                     sequence_number: 1,
                     table_name: None,
                     predicate: DeletePredicate {
-                        range: TimestampRange { start: 0, end: 20 },
+                        range: TimestampRange::new(0, 20),
                         exprs: vec![],
                     },
                 }]),
@@ -2707,7 +2707,7 @@ mod tests {
                     sequence_number: 1,
                     table_name: None,
                     predicate: DeletePredicate {
-                        range: TimestampRange { start: 0, end: 11 },
+                        range: TimestampRange::new(0, 11),
                         exprs: vec![],
                     },
                 }]),
@@ -2817,7 +2817,7 @@ mod tests {
                     sequence_number: 2,
                     table_name: Some("table_1"),
                     predicate: DeletePredicate {
-                        range: TimestampRange { start: 19, end: 21 },
+                        range: TimestampRange::new(19, 21),
                         exprs: vec![],
                     },
                 }]),

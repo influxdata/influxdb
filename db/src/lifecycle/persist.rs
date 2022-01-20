@@ -324,7 +324,7 @@ mod tests {
 
         // Delete first row
         let predicate = Arc::new(DeletePredicate {
-            range: TimestampRange { start: 0, end: 20 },
+            range: TimestampRange::new(0, 20),
             exprs: vec![],
         });
 
@@ -388,10 +388,7 @@ mod tests {
 
         // Delete everything
         let predicate = Arc::new(DeletePredicate {
-            range: TimestampRange {
-                start: 0,
-                end: 1_000,
-            },
+            range: TimestampRange::new(0, 1_000),
             exprs: vec![],
         });
 
@@ -430,10 +427,7 @@ mod tests {
 
         // Cannot simply use empty predicate (#2687)
         let predicate = Arc::new(DeletePredicate {
-            range: TimestampRange {
-                start: 0,
-                end: 1_000,
-            },
+            range: TimestampRange::new(0, 1_000),
             exprs: vec![],
         });
 
@@ -494,10 +488,7 @@ mod tests {
         write_lp(db.as_ref(), "cpu foo=3 20");
         write_lp(db.as_ref(), "cpu foo=4 20");
 
-        let range = TimestampRange {
-            start: 0,
-            end: 1_000,
-        };
+        let range = TimestampRange::new(0, 1_000);
         let pred1 = Arc::new(DeletePredicate {
             range,
             exprs: vec![DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::I64(1))],

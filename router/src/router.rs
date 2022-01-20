@@ -410,7 +410,7 @@ mod tests {
         );
         let delete = DmlOperation::Delete(DmlDelete::new(
             DeletePredicate {
-                range: TimestampRange { start: 1, end: 2 },
+                range: TimestampRange::new(1, 2),
                 exprs: vec![],
             },
             Some(NonEmptyString::new("foo_foo").unwrap()),

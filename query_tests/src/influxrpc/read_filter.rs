@@ -62,10 +62,7 @@ impl DbSetup for TwoMeasurementsMultiSeriesWithDelete {
         // 2 rows of h2o with timestamp 200 and 350 will be deleted
         let delete_table_name = "h2o";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 120,
-                end: 250,
-            },
+            range: TimestampRange::new(120, 250),
             exprs: vec![],
         };
 
@@ -104,10 +101,7 @@ impl DbSetup for TwoMeasurementsMultiSeriesWithDeleteAll {
         // pred: delete from h20 where 100 <= time <= 360
         let delete_table_name = "h2o";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 100,
-                end: 360,
-            },
+            range: TimestampRange::new(100, 360),
             exprs: vec![],
         };
 
@@ -649,10 +643,7 @@ impl DbSetup for MeasurementsSortableTagsWithDelete {
         // 1 rows of h2o with timestamp 250 will be deleted
         let delete_table_name = "h2o";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 120,
-                end: 350,
-            },
+            range: TimestampRange::new(120, 350),
             exprs: vec![DeleteExpr::new(
                 "state".to_string(),
                 data_types::delete_predicate::Op::Eq,
