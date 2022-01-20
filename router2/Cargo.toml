@@ -23,6 +23,7 @@ parking_lot = "0.11"
 predicate = { path = "../predicate" }
 serde = "1.0"
 serde_urlencoded = "0.7"
+siphasher = "0.3"
 thiserror = "1.0"
 time = { path = "../time" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

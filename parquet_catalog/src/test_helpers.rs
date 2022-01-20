@@ -545,7 +545,7 @@ fn get_sorted_keys<'a>(
 /// Helper to create a simple delete predicate.
 pub fn create_delete_predicate(value: i64) -> Arc<DeletePredicate> {
     Arc::new(DeletePredicate {
-        range: TimestampRange { start: 11, end: 22 },
+        range: TimestampRange::new(11, 22),
         exprs: vec![DeleteExpr::new(
             "foo".to_string(),
             Op::Eq,

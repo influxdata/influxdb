@@ -86,7 +86,7 @@ impl DbSetup for OneMeasurementNoTagsWithDelete {
         // 1 row of m0 with timestamp 1
         let delete_table_name = "m0";
         let pred = DeletePredicate {
-            range: TimestampRange { start: 1, end: 1 },
+            range: TimestampRange::new(1, 1),
             exprs: vec![DeleteExpr::new(
                 "foo".to_string(),
                 data_types::delete_predicate::Op::Eq,
@@ -118,7 +118,7 @@ impl DbSetup for OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {
         // pred: delete from m0 where 1 <= time <= 2
         let delete_table_name = "m0";
         let pred = DeletePredicate {
-            range: TimestampRange { start: 1, end: 2 },
+            range: TimestampRange::new(1, 2),
             exprs: vec![],
         };
 

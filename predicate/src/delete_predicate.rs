@@ -94,10 +94,7 @@ pub fn parse_delete_predicate(
     let delete_exprs = parse_predicate(predicate)?;
 
     Ok(DeletePredicate {
-        range: TimestampRange {
-            start: start_time,
-            end: stop_time,
-        },
+        range: TimestampRange::new(start_time, stop_time),
         exprs: delete_exprs,
     })
 }
@@ -551,8 +548,8 @@ mod tests {
         let pred = r#"cost != 100"#;
 
         let result = parse_delete_predicate(start, stop, pred).unwrap();
-        assert_eq!(result.range.start, 0);
-        assert_eq!(result.range.end, 200);
+        assert_eq!(result.range.start(), 0);
+        assert_eq!(result.range.end(), 200);
 
         let expected = vec![DeleteExpr::new(
             "cost".to_string(),

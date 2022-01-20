@@ -101,10 +101,7 @@ async fn delete_predicate_preservation() {
 
     // ==================== do: delete ====================
     let pred = Arc::new(DeletePredicate {
-        range: TimestampRange {
-            start: 0,
-            end: 1_000,
-        },
+        range: TimestampRange::new(0, 1_000),
         exprs: vec![DeleteExpr::new(
             "selector".to_string(),
             data_types::delete_predicate::Op::Eq,

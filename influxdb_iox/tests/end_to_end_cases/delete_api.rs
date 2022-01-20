@@ -66,10 +66,7 @@ async fn test_delete_on_database() {
     // Delete some data
     let table = "cpu";
     let pred = DeletePredicate {
-        range: TimestampRange {
-            start: 100,
-            end: 120,
-        },
+        range: TimestampRange::new(100, 120),
         exprs: vec![DeleteExpr {
             column: String::from("region"),
             op: data_types::delete_predicate::Op::Eq,
@@ -169,10 +166,7 @@ pub async fn test_delete_on_router() {
 
     let table = "cpu";
     let pred = DeletePredicate {
-        range: TimestampRange {
-            start: 100,
-            end: 120,
-        },
+        range: TimestampRange::new(100, 120),
         exprs: vec![DeleteExpr {
             column: String::from("region"),
             op: data_types::delete_predicate::Op::Eq,

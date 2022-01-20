@@ -62,10 +62,7 @@ impl DbSetup for TwoMeasurementsMultiSeriesWithDelete {
         // 2 rows of h2o with timestamp 200 and 350 will be deleted
         let delete_table_name = "h2o";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 120,
-                end: 250,
-            },
+            range: TimestampRange::new(120, 250),
             exprs: vec![],
         };
 
@@ -104,10 +101,7 @@ impl DbSetup for TwoMeasurementsMultiSeriesWithDeleteAll {
         // pred: delete from h20 where 100 <= time <= 360
         let delete_table_name = "h2o";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 100,
-                end: 360,
-            },
+            range: TimestampRange::new(100, 360),
             exprs: vec![],
         };
 
@@ -218,6 +212,22 @@ async fn test_read_filter_data_exact_predicate() {
     ];
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_data_tag_predicate() {
+    let predicate = PredicateBuilder::new()
+        // region = region
+        .add_expr(col("region").eq(col("region")))
+        .build();
+
+    // expect both series to be returned
+    let expected_results = vec![
+        "Series tags={_measurement=cpu, region=west, _field=user}\n  FloatPoints timestamps: [100, 150], values: [23.2, 21.0]",
+        "Series tags={_measurement=disk, region=east, _field=bytes}\n  IntegerPoints timestamps: [200], values: [99]",
+    ];
+
+    run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
@@ -633,10 +643,7 @@ impl DbSetup for MeasurementsSortableTagsWithDelete {
         // 1 rows of h2o with timestamp 250 will be deleted
         let delete_table_name = "h2o";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 120,
-                end: 350,
-            },
+            range: TimestampRange::new(120, 350),
             exprs: vec![DeleteExpr::new(
                 "state".to_string(),
                 data_types::delete_predicate::Op::Eq,

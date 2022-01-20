@@ -851,7 +851,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "6.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=f027e5f4d9a44ad9cc879c133abc913f78fa76f0#f027e5f4d9a44ad9cc879c133abc913f78fa76f0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=ad392fd529f9f8631b90271f7dbf3a4f2feadb7b#ad392fd529f9f8631b90271f7dbf3a4f2feadb7b"
 dependencies = [
  "ahash",
  "arrow",
@@ -3744,6 +3744,7 @@ dependencies = [
  "predicate",
  "serde",
  "serde_urlencoded",
+ "siphasher",
  "thiserror",
  "time 0.1.0",
  "tokio",

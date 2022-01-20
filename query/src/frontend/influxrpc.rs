@@ -339,6 +339,9 @@ impl InfluxRpcPlanner {
     {
         debug!(predicate=?predicate, "planning tag_keys");
 
+        // Special case predicates that span the entire valid timestamp range
+        let predicate = predicate.clear_timestamp_if_max_range();
+
         // The basic algorithm is:
         //
         // 1. Find all the potential tables in the chunks

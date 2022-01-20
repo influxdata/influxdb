@@ -315,10 +315,7 @@ impl DbSetup for MeasurementForDefect2697WithDelete {
         // 1 row of m0 with timestamp 1609459201000000022 (section=2b bar=1.2)
         let delete_table_name = "mm";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 1609459201000000022,
-                end: 1609459201000000022,
-            },
+            range: TimestampRange::new(1609459201000000022, 1609459201000000022),
             exprs: vec![],
         };
 
@@ -347,10 +344,7 @@ impl DbSetup for MeasurementForDefect2697WithDeleteAll {
         // pred: delete from mm where 1 <= time <= 1609459201000000031
         let delete_table_name = "mm";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 1,
-                end: 1609459201000000031,
-            },
+            range: TimestampRange::new(1, 1609459201000000031),
             exprs: vec![],
         };
 

@@ -166,7 +166,6 @@ where
     async fn scan(
         &self,
         projection: &Option<Vec<usize>>,
-        _batch_size: usize,
         // It would be cool to push projection and limit down
         _filters: &[datafusion::logical_plan::Expr],
         _limit: Option<usize>,

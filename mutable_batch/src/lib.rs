@@ -194,4 +194,17 @@ impl MutableBatch {
 
         Ok(&self.columns[*idx])
     }
+
+    /// Return the approximate memory size of the batch, in bytes.
+    ///
+    /// This includes `Self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + self
+                .column_names
+                .iter()
+                .map(|(k, v)| std::mem::size_of_val(k) + k.capacity() + std::mem::size_of_val(v))
+                .sum::<usize>()
+            + self.columns.iter().map(|c| c.size()).sum::<usize>()
+    }
 }
