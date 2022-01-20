@@ -12,6 +12,7 @@ mod influxdb_ioxd;
 #[cfg(feature = "kafka")]
 mod kafka;
 
+mod influxrpc;
 mod management_api;
 mod management_cli;
 mod metrics;
@@ -27,7 +28,6 @@ mod router_cli;
 mod run_cli;
 pub mod scenario;
 mod sql_cli;
-mod storage_api;
 mod system_tables;
 mod tracing;
 mod write_api;
