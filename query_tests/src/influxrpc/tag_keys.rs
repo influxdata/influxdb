@@ -163,6 +163,47 @@ async fn list_tag_name_end_to_end_with_delete() {
     run_tag_keys_test_case(EndToEndTestWithDelete {}, predicate, expected_tag_keys).await;
 }
 
+#[tokio::test]
+async fn list_tag_name_max_time() {
+    test_helpers::maybe_start_logging();
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(-9223372036854775806, 9223372036854775806)
+        .build();
+    let expected_tag_keys = vec!["host"];
+    run_tag_keys_test_case(MeasurementWithMaxTime {}, predicate, expected_tag_keys).await;
+}
+
+#[tokio::test]
+async fn list_tag_name_max_i64() {
+    test_helpers::maybe_start_logging();
+    let predicate = PredicateBuilder::default()
+        // outside valid timestamp range
+        .timestamp_range(i64::MIN, i64::MAX)
+        .build();
+    let expected_tag_keys = vec!["host"];
+    run_tag_keys_test_case(MeasurementWithMaxTime {}, predicate, expected_tag_keys).await;
+}
+
+#[tokio::test]
+async fn list_tag_name_max_time_less_one() {
+    test_helpers::maybe_start_logging();
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(-9223372036854775806, 9223372036854775805) // one less than max timestamp
+        .build();
+    let expected_tag_keys = vec![];
+    run_tag_keys_test_case(MeasurementWithMaxTime {}, predicate, expected_tag_keys).await;
+}
+
+#[tokio::test]
+async fn list_tag_name_max_time_greater_one() {
+    test_helpers::maybe_start_logging();
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(-9223372036854775805, 9223372036854775806) // one more than min timestamp
+        .build();
+    let expected_tag_keys = vec![];
+    run_tag_keys_test_case(MeasurementWithMaxTime {}, predicate, expected_tag_keys).await;
+}
+
 fn to_stringset(v: &[&str]) -> StringSetRef {
     v.into_stringset().unwrap()
 }

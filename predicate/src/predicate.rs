@@ -8,7 +8,7 @@ use std::{
     fmt,
 };
 
-use data_types::timestamp::TimestampRange;
+use data_types::timestamp::{TimestampRange, MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::{
     error::DataFusionError,
     logical_plan::{col, lit_timestamp_nano, Column, Expr, Operator},
@@ -207,6 +207,23 @@ impl Predicate {
             }
         }
     }
+
+    /// Removes the timestamp range from this predicate, if the range
+    /// is for the entire min/max valid range.
+    ///
+    /// This is used in certain cases to retain compatibility with the
+    /// existing storage engine
+    pub fn clear_timestamp_if_max_range(mut self) -> Self {
+        self.range = self.range.take().and_then(|range| {
+            if range.start <= MIN_NANO_TIME && range.end >= MAX_NANO_TIME {
+                None
+            } else {
+                Some(range)
+            }
+        });
+
+        self
+    }
 }
 
 impl fmt::Display for Predicate {
@@ -295,6 +312,7 @@ impl PredicateBuilder {
             self.inner.range.is_none(),
             "Unexpected re-definition of timestamp range"
         );
+
         self.inner.range = Some(TimestampRange { start, end });
         self
     }
@@ -627,5 +645,58 @@ mod tests {
             .build();
 
         assert_eq!(p.to_string(), "Predicate table_names: {my_table} field_columns: {f1, f2} partition_key: 'the_key' range: [1 - 100] exprs: [#foo = Int32(42)]");
+    }
+
+    #[test]
+    fn test_clear_timestamp_if_max_range_out_of_range() {
+        let p = PredicateBuilder::new()
+            .timestamp_range(1, 100)
+            .add_expr(col("foo").eq(lit(42)))
+            .build();
+
+        let expected = p.clone();
+
+        // no rewrite
+        assert_eq!(p.clear_timestamp_if_max_range(), expected);
+    }
+
+    #[test]
+    fn test_clear_timestamp_if_max_range_out_of_range_low() {
+        let p = PredicateBuilder::new()
+            .timestamp_range(MIN_NANO_TIME, 100)
+            .add_expr(col("foo").eq(lit(42)))
+            .build();
+
+        let expected = p.clone();
+
+        // no rewrite
+        assert_eq!(p.clear_timestamp_if_max_range(), expected);
+    }
+
+    #[test]
+    fn test_clear_timestamp_if_max_range_out_of_range_high() {
+        let p = PredicateBuilder::new()
+            .timestamp_range(0, MAX_NANO_TIME)
+            .add_expr(col("foo").eq(lit(42)))
+            .build();
+
+        let expected = p.clone();
+
+        // no rewrite
+        assert_eq!(p.clear_timestamp_if_max_range(), expected);
+    }
+
+    #[test]
+    fn test_clear_timestamp_if_max_range_in_range() {
+        let p = PredicateBuilder::new()
+            .timestamp_range(MIN_NANO_TIME, MAX_NANO_TIME)
+            .add_expr(col("foo").eq(lit(42)))
+            .build();
+
+        let expected = PredicateBuilder::new()
+            .add_expr(col("foo").eq(lit(42)))
+            .build();
+        // rewrite
+        assert_eq!(p.clear_timestamp_if_max_range(), expected);
     }
 }

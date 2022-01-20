@@ -1347,3 +1347,21 @@ impl DbSetup for ChunkOrder {
         vec![scenario]
     }
 }
+
+#[derive(Debug)]
+pub struct MeasurementWithMaxTime {}
+#[async_trait]
+impl DbSetup for MeasurementWithMaxTime {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2262-04-11T23";
+
+        // This is the maximum timestamp that can be represented in the InfluxDB data model:
+        // https://github.com/influxdata/influxdb/blob/540bb66e1381a48a6d1ede4fc3e49c75a7d9f4af/models/time.go#L12-L34
+        let max_nano_time = i64::MAX - 1; // 9223372036854775806
+
+        let lp_lines = vec![format!("cpu,host=server01 value=100 {}", max_nano_time)];
+        let lp_lines = lp_lines.iter().map(|s| s.as_str()).collect();
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu", partition_key).await
+    }
+}
