@@ -221,6 +221,22 @@ async fn test_read_filter_data_exact_predicate() {
 }
 
 #[tokio::test]
+async fn test_read_filter_data_tag_predicate() {
+    let predicate = PredicateBuilder::new()
+        // region = region
+        .add_expr(col("region").eq(col("region")))
+        .build();
+
+    // expect both series to be returned
+    let expected_results = vec![
+        "Series tags={_measurement=cpu, region=west, _field=user}\n  FloatPoints timestamps: [100, 150], values: [23.2, 21.0]",
+        "Series tags={_measurement=disk, region=east, _field=bytes}\n  IntegerPoints timestamps: [200], values: [99]",
+    ];
+
+    run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
 async fn test_read_filter_data_no_pred_with_delete() {
     let predicate = EMPTY_PREDICATE;
     let expected_results = vec![

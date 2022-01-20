@@ -231,7 +231,6 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
     async fn scan(
         &self,
         projection: &Option<Vec<usize>>,
-        _batch_size: usize,
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
@@ -466,7 +465,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             //    1. It will provide a sorted signal(through Datafusion's Distribution::UnspecifiedDistribution)
             //    2. And it will not do anything extra if the input is one partition so won't affect performance
             let sort_exprs = arrow_sort_key_exprs(&output_sort_key, &plan.schema());
-            plan = Arc::new(SortPreservingMergeExec::new(sort_exprs, plan, BATCH_SIZE));
+            plan = Arc::new(SortPreservingMergeExec::new(sort_exprs, plan));
         }
 
         Ok(plan)
@@ -600,7 +599,6 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let plan = Arc::new(SortPreservingMergeExec::new(
             sort_exprs.clone(),
             Arc::new(plan),
-            BATCH_SIZE,
         ));
 
         // Add DeduplicateExc
@@ -2462,7 +2460,7 @@ mod test {
 
         provider.ensure_pk_sort();
 
-        let plan = provider.scan(&None, 1024, &[], None).await.unwrap();
+        let plan = provider.scan(&None, &[], None).await.unwrap();
         let batches = test_collect(plan).await;
 
         for batch in &batches {

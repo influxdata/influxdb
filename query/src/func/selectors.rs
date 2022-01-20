@@ -261,16 +261,6 @@ where
         self.selector.datafusion_state()
     }
 
-    fn update(&mut self, _values: &[ScalarValue]) -> DataFusionResult<()> {
-        unreachable!("Should only be calling update_batch for performance reasons");
-    }
-
-    // this function receives states from other accumulators
-    // (Vec<ScalarValue>) and updates the accumulator.
-    fn merge(&mut self, _states: &[ScalarValue]) -> DataFusionResult<()> {
-        unreachable!("Should only be calling merge_batch for performance reasons");
-    }
-
     // Return the final value of this aggregator.
     fn evaluate(&self) -> DataFusionResult<ScalarValue> {
         self.selector.evaluate(&self.output)
