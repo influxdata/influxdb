@@ -5,6 +5,7 @@ use crate::{
         MockBufferForReading, MockBufferForReadingThatAlwaysErrors, MockBufferForWriting,
         MockBufferForWritingThatAlwaysErrors, MockBufferSharedState,
     },
+    rskafka::{RSKafkaConsumer, RSKafkaProducer},
 };
 use data_types::{server_id::ServerId, write_buffer::WriteBufferConnection};
 use parking_lot::RwLock;
@@ -15,12 +16,6 @@ use std::{
 };
 use time::TimeProvider;
 use trace::TraceCollector;
-
-#[derive(Debug)]
-pub enum WriteBufferConfig {
-    Writing(Arc<dyn WriteBufferWriting>),
-    Reading(Arc<tokio::sync::Mutex<Box<dyn WriteBufferReading>>>),
-}
 
 #[derive(Debug, Clone)]
 enum Mock {
@@ -121,6 +116,16 @@ impl WriteBufferConfigFactory {
                     Arc::new(mock_buffer) as _
                 }
             },
+            "rskafka" => {
+                let rskafa_buffer = RSKafkaProducer::new(
+                    cfg.connection.clone(),
+                    db_name.to_owned(),
+                    cfg.creation_config.as_ref(),
+                    Arc::clone(&self.time_provider),
+                )
+                .await?;
+                Arc::new(rskafa_buffer) as _
+            }
             other => {
                 return Err(format!("Unknown write buffer type: {}", other).into());
             }
@@ -196,6 +201,16 @@ impl WriteBufferConfigFactory {
                     Box::new(mock_buffer) as _
                 }
             },
+            "rskafka" => {
+                let rskafka_buffer = RSKafkaConsumer::new(
+                    cfg.connection.clone(),
+                    db_name.to_owned(),
+                    cfg.creation_config.as_ref(),
+                    trace_collector.map(Arc::clone),
+                )
+                .await?;
+                Box::new(rskafka_buffer) as _
+            }
             other => {
                 return Err(format!("Unknown write buffer type: {}", other).into());
             }
@@ -245,7 +260,10 @@ impl WriteBufferConfigFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{core::test_utils::random_topic_name, mock::MockBufferSharedState};
+    use crate::{
+        core::test_utils::random_topic_name, maybe_skip_kafka_integration,
+        mock::MockBufferSharedState,
+    };
     use data_types::{write_buffer::WriteBufferCreationConfig, DatabaseName};
     use std::{convert::TryFrom, num::NonZeroU32};
     use tempfile::TempDir;
@@ -446,10 +464,49 @@ mod tests {
         WriteBufferConfigFactory::new(time, registry)
     }
 
+    #[tokio::test]
+    async fn test_writing_rskafka() {
+        let conn = maybe_skip_kafka_integration!();
+        let factory = factory();
+        let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
+        let cfg = WriteBufferConnection {
+            type_: "rskafka".to_string(),
+            connection: conn,
+            creation_config: Some(WriteBufferCreationConfig::default()),
+            ..Default::default()
+        };
+
+        let conn = factory
+            .new_config_write(db_name.as_str(), &cfg)
+            .await
+            .unwrap();
+        assert_eq!(conn.type_name(), "rskafka");
+    }
+
+    #[tokio::test]
+    async fn test_reading_rskafka() {
+        let conn = maybe_skip_kafka_integration!();
+        let factory = factory();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
+        let cfg = WriteBufferConnection {
+            type_: "rskafka".to_string(),
+            connection: conn,
+            creation_config: Some(WriteBufferCreationConfig::default()),
+            ..Default::default()
+        };
+
+        let conn = factory
+            .new_config_read(server_id, db_name.as_str(), None, &cfg)
+            .await
+            .unwrap();
+        assert_eq!(conn.type_name(), "rskafka");
+    }
+
     #[cfg(feature = "kafka")]
     mod kafka {
         use super::*;
-        use crate::maybe_skip_kafka_integration;
 
         #[tokio::test]
         async fn test_writing_kafka() {
