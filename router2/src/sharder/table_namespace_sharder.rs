@@ -205,4 +205,26 @@ mod tests {
         let b = hasher.shard("ab", &DatabaseName::try_from("c").unwrap(), &0);
         assert_ne!(a, b);
     }
+
+    // This test ensures hashing key K always maps to bucket B, even after
+    // dependency updates, code changes, etc.
+    //
+    // It is not a problem if these mappings change so long as all the nodes in
+    // the cluster are producing the same mapping of K->B. However, this would
+    // not be the case during a rolling deployment where some nodes are using
+    // one mapping, and new nodes using another.
+    //
+    // This test being updated necessitates a stop-the-world deployment (stop
+    // all routers, deploy new hashing code on all routers, resume serving
+    // traffic) to inconsistently routing of ops. Also prepare a roll-back
+    // strategy would that accounts for this mapping change.
+    #[test]
+    fn test_key_bucket_fixture() {
+        let hasher = TableNamespaceSharder::new(0..1000);
+        let namespace = DatabaseName::try_from("bananas").unwrap();
+
+        assert_eq!(*hasher.shard("42", &namespace, &0), 904);
+        assert_eq!(*hasher.shard("4242", &namespace, &1), 230);
+        assert_eq!(*hasher.shard("bananas", &namespace, &2), 183);
+    }
 }
