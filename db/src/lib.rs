@@ -1654,7 +1654,7 @@ mod tests {
         assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 0);
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 732);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 796);
 
         // write into same chunk again.
         time.inc(Duration::from_secs(1));
@@ -1670,7 +1670,7 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=5 50");
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 796);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 860);
 
         // Still only one chunk open
         assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 1);
@@ -2510,7 +2510,7 @@ mod tests {
             id: ChunkId::new_test(0),
             storage: ChunkStorage::OpenMutableBuffer,
             lifecycle_action: None,
-            memory_bytes: 1038,    // memory_size
+            memory_bytes: 1134,    // memory_size
             object_store_bytes: 0, // os_size
             row_count: 1,
             time_of_last_access: None,
@@ -2768,7 +2768,7 @@ mod tests {
                 id: chunk_summaries[2].id,
                 storage: ChunkStorage::OpenMutableBuffer,
                 lifecycle_action,
-                memory_bytes: 1335,
+                memory_bytes: 1463,
                 object_store_bytes: 0, // no OS chunks
                 row_count: 1,
                 time_of_last_access: None,
@@ -2789,7 +2789,7 @@ mod tests {
             );
         }
 
-        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 1335);
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 1463);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2550);
         assert_eq!(db.catalog.metrics().memory().object_store(), 1523);
     }
