@@ -2,6 +2,7 @@
 //!
 
 use arrow::record_batch::RecordBatch;
+use data_types::delete_predicate::DeletePredicate;
 use std::{collections::BTreeMap, sync::Arc};
 use uuid::Uuid;
 
@@ -195,10 +196,23 @@ pub struct PersistingBatch {
     /// Id of to-be-created parquet file of this data
     pub object_store_id: Uuid,
 
-    /// data to be persisted
-    pub data: Vec<SnapshotBatch>,
+    /// data
+    pub data: Arc<QueryableBatch>,
+}
 
-    /// delete predicates to be appied to the data
-    /// before perssiting
+// Queryable data used for both query and persistence
+#[derive(Debug)]
+pub struct QueryableBatch {
+    /// data
+    pub data: Vec<Arc<SnapshotBatch>>,
+
+    /// Tomstones to be applied on data
     pub deletes: Vec<Tombstone>,
+
+    /// Delete predicates of the tombstones
+    /// Note: this is needed here to return its reference for a trait function
+    pub delete_predicates: Vec<Arc<DeletePredicate>>,
+
+    //// This is needed to return a reference for a trait function
+    pub table_name: String,
 }
