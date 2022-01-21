@@ -6,9 +6,12 @@ edition = "2021"
 
 [dependencies]
 arrow = { version = "7.0", features = ["prettyprint"] }
+hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
+metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch"}
 parking_lot = "0.11.2"
 snafu = "0.7"
+thiserror = "1.0"
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}

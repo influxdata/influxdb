@@ -1726,7 +1726,9 @@ dependencies = [
  "influxdb_iox_client",
  "influxdb_line_protocol",
  "influxdb_storage_client",
+ "ingester",
  "internal_types",
+ "iox_catalog",
  "iox_object_store",
  "itertools",
  "job_registry",
@@ -1858,10 +1860,13 @@ name = "ingester"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "hyper",
  "iox_catalog",
+ "metric",
  "mutable_batch",
  "parking_lot",
  "snafu",
+ "thiserror",
  "uuid",
  "workspace-hack",
 ]

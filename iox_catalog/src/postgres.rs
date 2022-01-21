@@ -16,8 +16,8 @@ use uuid::Uuid;
 const MAX_CONNECTIONS: u32 = 5;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(500);
-#[allow(dead_code)]
-const SCHEMA_NAME: &str = "iox_catalog";
+/// the default schema name to use in Postgres
+pub const SCHEMA_NAME: &str = "iox_catalog";
 
 /// In-memory catalog that implements the `RepoCollection` and individual repo traits.
 #[derive(Debug)]
