@@ -72,6 +72,11 @@ impl Span {
     pub fn child(&self, name: impl Into<Cow<'static, str>>) -> Self {
         self.ctx.child(name)
     }
+
+    /// Link this span to another context.
+    pub fn link(&mut self, other: &SpanContext) {
+        self.ctx.links.push((other.trace_id, other.span_id));
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -176,6 +181,13 @@ impl SpanRecorder {
     /// or None if there is no active span
     pub fn span(&self) -> Option<&Span> {
         self.span.as_ref()
+    }
+
+    /// Link this span to another context.
+    pub fn link(&mut self, other: &SpanContext) {
+        if let Some(span) = self.span.as_mut() {
+            span.link(other);
+        }
     }
 }
 
