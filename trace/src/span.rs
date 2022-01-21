@@ -126,7 +126,7 @@ pub struct SpanRecorder {
     span: Option<Span>,
 }
 
-impl<'a> SpanRecorder {
+impl SpanRecorder {
     pub fn new(mut span: Option<Span>) -> Self {
         if let Some(span) = span.as_mut() {
             span.start = Some(Utc::now());
@@ -179,7 +179,7 @@ impl<'a> SpanRecorder {
     }
 }
 
-impl<'a> Drop for SpanRecorder {
+impl Drop for SpanRecorder {
     fn drop(&mut self) {
         if let Some(mut span) = self.span.take() {
             let now = Utc::now();
