@@ -110,7 +110,7 @@ pub struct CompactingChunk {
     pub delete_predicates: Vec<Arc<DeletePredicate>>,
 }
 
-impl<'a> CompactingChunk<'a> {
+impl<'a> CompactingChunk {
     /// Create a PersistingChunk for a given PesistingBatch
     pub fn new(data: Arc<PersistingBatch>) -> Self {
         // Empty table summary because PersistingBatch does not keep stats
