@@ -15,5 +15,6 @@ predicate = { path = "../predicate" }
 query = { path = "../query" }
 schema = { path = "../schema" }
 snafu = "0.7"
+tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
