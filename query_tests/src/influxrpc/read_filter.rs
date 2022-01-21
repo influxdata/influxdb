@@ -477,7 +477,7 @@ async fn test_read_filter_data_pred_using_regex_match() {
         .build();
 
     let expected_results = vec![
-    "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [200], values: [90.0]",
+        "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [200], values: [90.0]",
     ];
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
@@ -508,7 +508,7 @@ async fn test_read_filter_data_pred_using_regex_match_with_delete() {
         .build();
 
     let expected_results = vec![
-    "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [350], values: [90.0]",
+        "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [350], values: [90.0]",
     ];
     run_read_filter_test_case(
         TwoMeasurementsMultiSeriesWithDelete {},
@@ -536,12 +536,57 @@ async fn test_read_filter_data_pred_using_regex_not_match() {
         .build();
 
     let expected_results = vec![
-    "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [72.4]",
-    "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [250], values: [51.0]",
-    "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [53.4]",
+        "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [72.4]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [250], values: [51.0]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [53.4]",
     ];
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_data_pred_regex_escape() {
+    let predicate = PredicateBuilder::default()
+        // Came from InfluxQL like `SELECT value FROM db0.rp0.status_code WHERE url =~ /https\:\/\/influxdb\.com/`,
+        .build_regex_match_expr("url", r#"https\://influxdb\.com"#)
+        .build();
+
+    // expect one series with influxdb.com
+    let expected_results = vec![
+        "Series tags={_measurement=status_code, url=https://influxdb.com, _field=value}\n  FloatPoints timestamps: [1527018816000000000], values: [418.0]",
+    ];
+
+    run_read_filter_test_case(MeasurementStatusCode {}, predicate, expected_results).await;
+}
+
+pub struct MeasurementStatusCode {}
+#[async_trait]
+impl DbSetup for MeasurementStatusCode {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2018-05-22T19";
+
+        let lp = vec![
+            "status_code,url=http://www.example.com value=404 1527018806000000000",
+            "status_code,url=https://influxdb.com value=418 1527018816000000000",
+        ];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp, "status_code", partition_key).await
+    }
+}
+
+#[tokio::test]
+async fn test_read_filter_data_pred_not_match_regex_escape() {
+    let predicate = PredicateBuilder::default()
+        // Came from InfluxQL like `SELECT value FROM db0.rp0.status_code WHERE url !~ /https\:\/\/influxdb\.com/`,
+        .build_regex_not_match_expr("url", r#"https\://influxdb\.com"#)
+        .build();
+
+    // expect one series with influxdb.com
+    let expected_results = vec![
+        "Series tags={_measurement=status_code, url=http://www.example.com, _field=value}\n  FloatPoints timestamps: [1527018806000000000], values: [404.0]",
+    ];
+
+    run_read_filter_test_case(MeasurementStatusCode {}, predicate, expected_results).await;
 }
 
 #[tokio::test]

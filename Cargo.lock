@@ -3209,6 +3209,7 @@ dependencies = [
  "observability_deps",
  "ordered-float 2.10.0",
  "regex",
+ "regex-syntax",
  "schema",
  "serde_json",
  "snafu",
