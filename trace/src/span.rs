@@ -72,6 +72,11 @@ impl Span {
     pub fn child(&self, name: impl Into<Cow<'static, str>>) -> Self {
         self.ctx.child(name)
     }
+
+    /// Link this span to another context.
+    pub fn link(&mut self, other: &SpanContext) {
+        self.ctx.links.push((other.trace_id, other.span_id));
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -126,7 +131,7 @@ pub struct SpanRecorder {
     span: Option<Span>,
 }
 
-impl<'a> SpanRecorder {
+impl SpanRecorder {
     pub fn new(mut span: Option<Span>) -> Self {
         if let Some(span) = span.as_mut() {
             span.start = Some(Utc::now());
@@ -177,9 +182,16 @@ impl<'a> SpanRecorder {
     pub fn span(&self) -> Option<&Span> {
         self.span.as_ref()
     }
+
+    /// Link this span to another context.
+    pub fn link(&mut self, other: &SpanContext) {
+        if let Some(span) = self.span.as_mut() {
+            span.link(other);
+        }
+    }
 }
 
-impl<'a> Drop for SpanRecorder {
+impl Drop for SpanRecorder {
     fn drop(&mut self) {
         if let Some(mut span) = self.span.take() {
             let now = Utc::now();
