@@ -3,13 +3,13 @@
 
 use std::sync::Arc;
 
-use iox_catalog::interface::{KafkaPartition, KafkaTopic, KafkaTopicId, RepoCollection};
+use iox_catalog::interface::{Catalog, KafkaPartition, KafkaTopic, KafkaTopicId};
 
 /// The [`IngesterServer`] manages the lifecycle and contains all state for
 /// an `ingester` server instance.
 pub struct IngesterServer<'a, T>
 where
-    T: RepoCollection + Send + Sync,
+    T: Catalog,
 {
     /// Kafka Topic assigned to this ingester
     kafka_topic: KafkaTopic,
@@ -21,7 +21,7 @@ where
 
 impl<'a, T> IngesterServer<'a, T>
 where
-    T: RepoCollection + Send + Sync,
+    T: Catalog,
 {
     /// Initialize the Ingester
     pub fn new(topic: KafkaTopic, shard_ids: Vec<KafkaPartition>, catalog: &'a Arc<T>) -> Self {
