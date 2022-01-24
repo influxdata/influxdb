@@ -200,7 +200,7 @@ pub struct PersistingBatch {
     pub data: Arc<QueryableBatch>,
 }
 
-// Queryable data used for both query and persistence
+/// Queryable data used for both query and persistence
 #[derive(Debug)]
 pub struct QueryableBatch {
     /// data
@@ -213,6 +213,6 @@ pub struct QueryableBatch {
     /// Note: this is needed here to return its reference for a trait function
     pub delete_predicates: Vec<Arc<DeletePredicate>>,
 
-    //// This is needed to return a reference for a trait function
+    /// This is needed to return a reference for a trait function
     pub table_name: String,
 }

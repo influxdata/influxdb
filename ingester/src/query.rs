@@ -3,15 +3,22 @@
 use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
-use data_types::{partition_metadata::TableSummary, delete_predicate::DeletePredicate, chunk_metadata::{ChunkId, ChunkAddr, ChunkOrder}};
-use datafusion::physical_plan::{SendableRecordBatchStream, common::SizedRecordBatchStream};
+use data_types::{
+    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
+    delete_predicate::DeletePredicate,
+    partition_metadata::TableSummary,
+};
+use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 use iox_catalog::interface::Tombstone;
-use predicate::{delete_predicate::parse_delete_predicate, predicate::{Predicate, PredicateMatch}};
-use query::{QueryChunkMeta, QueryChunk, exec::stringset::StringSet};
-use schema::{Schema, merge::SchemaMerger, selection::Selection, sort::SortKey};
+use predicate::{
+    delete_predicate::parse_delete_predicate,
+    predicate::{Predicate, PredicateMatch},
+};
+use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
+use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
 use snafu::Snafu;
 
-use crate::data::{SnapshotBatch, QueryableBatch};
+use crate::data::{QueryableBatch, SnapshotBatch};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -28,7 +35,6 @@ pub enum Error {
 /// A specialized `Error` for Ingester's Query errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-
 // todo: move this function to a more appropriate crate
 /// Return the merged schema for RecordBatches
 ///
@@ -44,10 +50,9 @@ pub fn merge_record_batch_schemas(batches: &[Arc<RecordBatch>]) -> Arc<Schema> {
     Arc::new(merger.build())
 }
 
-
 impl QueryableBatch {
+    /// Initilaize a QueryableBatch
     pub fn new(table_name: &str, data: Vec<Arc<SnapshotBatch>>, deletes: Vec<Tombstone>) -> Self {
-
         let mut delete_predicates = vec![];
         for delete in &deletes {
             let delete_predicate = Arc::new(
@@ -170,7 +175,7 @@ impl QueryChunk for QueryableBatch {
     fn read_filter(
         &self,
         _predicate: &Predicate, // no needs because all data will be read for compaction
-        _selection: Selection<'_>,  // no needs because all columns will be read and compact
+        _selection: Selection<'_>, // no needs because all columns will be read and compact
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         let batches: Vec<_> = self.data.iter().map(|s| Arc::clone(&s.data)).collect();
         let stream = SizedRecordBatchStream::new(self.schema().as_arrow(), batches);
@@ -202,11 +207,16 @@ impl QueryChunk for QueryableBatch {
 mod tests {
     use super::*;
 
-    use arrow::{array::{ArrayRef, DictionaryArray, Int64Array, StringArray, BooleanArray, TimestampNanosecondArray, UInt64Array, Float64Array}, datatypes::{Int32Type, DataType, TimeUnit}};
+    use arrow::{
+        array::{
+            ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray,
+            TimestampNanosecondArray, UInt64Array,
+        },
+        datatypes::{DataType, Int32Type, TimeUnit},
+    };
 
     #[tokio::test]
     async fn test_merge_batch_schema() {
-
         // Merge schema of the batches
         // The fileds in the schema are sorted by column name
         let batches = create_batches();
@@ -214,16 +224,26 @@ mod tests {
 
         // Expected Arrow schema
         let arrow_schema = Arc::new(arrow::datatypes::Schema::new(vec![
-            arrow::datatypes::Field::new("dict", DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)), true),
+            arrow::datatypes::Field::new(
+                "dict",
+                DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+                true,
+            ),
             arrow::datatypes::Field::new("int64", DataType::Int64, true),
             arrow::datatypes::Field::new("string", DataType::Utf8, true),
             arrow::datatypes::Field::new("bool", DataType::Boolean, true),
-            arrow::datatypes::Field::new("time", DataType::Timestamp(TimeUnit::Nanosecond, None), false),
+            arrow::datatypes::Field::new(
+                "time",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                false,
+            ),
             arrow::datatypes::Field::new("uint64", DataType::UInt64, false),
             arrow::datatypes::Field::new("float64", DataType::Float64, true),
         ]));
-        let expected_schema = Schema::try_from(arrow_schema).unwrap().sort_fields_by_name();
-        
+        let expected_schema = Schema::try_from(arrow_schema)
+            .unwrap()
+            .sort_fields_by_name();
+
         assert_eq!(
             expected_schema, merged_schema,
             "\nExpected:\n{:#?}\nActual:\n{:#?}",
@@ -237,14 +257,14 @@ mod tests {
     fn create_batches() -> Vec<Arc<RecordBatch>> {
         // Batch 1: <dict, i64, str, bool, time>  & 3 rows
         let dict_array: ArrayRef = Arc::new(
-            vec![Some("a"), None, Some("b")]  
+            vec![Some("a"), None, Some("b")]
                 .into_iter()
                 .collect::<DictionaryArray<Int32Type>>(),
         );
         let int64_array: ArrayRef =
             Arc::new([Some(-1), None, Some(2)].iter().collect::<Int64Array>());
         let string_array: ArrayRef = Arc::new(
-            vec![Some("foo"), Some("and"), Some("bar")] 
+            vec![Some("foo"), Some("and"), Some("bar")]
                 .into_iter()
                 .collect::<StringArray>(),
         );
@@ -263,42 +283,33 @@ mod tests {
             ("int64", int64_array, true),
             ("string", string_array, true),
             ("bool", bool_array, true),
-            ("time", ts_array, false),  // not null
+            ("time", ts_array, false), // not null
         ])
         .unwrap();
 
-
         // Batch 2: <dict, u64, f64, str, bool, time> & 2 rows
         let dict_array: ArrayRef = Arc::new(
-            vec![None, Some("d")]  
+            vec![None, Some("d")]
                 .into_iter()
                 .collect::<DictionaryArray<Int32Type>>(),
-        );  
-        let uint64_array: ArrayRef =
-            Arc::new([Some(1), Some(2)].iter().collect::<UInt64Array>()); // not null
-        let float64_array: ArrayRef = Arc::new(
-            [Some(1.0), Some(2.0)]
-                .iter()
-                .collect::<Float64Array>(),
         );
+        let uint64_array: ArrayRef = Arc::new([Some(1), Some(2)].iter().collect::<UInt64Array>()); // not null
+        let float64_array: ArrayRef =
+            Arc::new([Some(1.0), Some(2.0)].iter().collect::<Float64Array>());
         let string_array: ArrayRef = Arc::new(
-            vec![Some("foo"), Some("bar")] 
+            vec![Some("foo"), Some("bar")]
                 .into_iter()
                 .collect::<StringArray>(),
         );
-        let bool_array: ArrayRef = Arc::new(
-            [Some(true), None] 
-                .iter()
-                .collect::<BooleanArray>(),
-        );
+        let bool_array: ArrayRef = Arc::new([Some(true), None].iter().collect::<BooleanArray>());
         let ts_array: ArrayRef = Arc::new(
             [Some(100), Some(1626823730000000000)] // not null
                 .iter()
                 .collect::<TimestampNanosecondArray>(),
         );
-        let batch2 = RecordBatch::try_from_iter_with_nullable (vec![
+        let batch2 = RecordBatch::try_from_iter_with_nullable(vec![
             ("dict", dict_array, true),
-            ("uint64", uint64_array, false),  // not null
+            ("uint64", uint64_array, false), // not null
             ("float64", float64_array, true),
             ("string", string_array, true),
             ("bool", bool_array, true),

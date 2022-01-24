@@ -1,30 +1,15 @@
 //! This module is responsible for compacting Ingester's data
 
+use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
+use query::{
+    exec::{Executor, ExecutorType},
+    frontend::reorg::ReorgPlanner,
+    QueryChunkMeta,
+};
+use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 
-use arrow::record_batch::RecordBatch;
-use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
-    delete_predicate::DeletePredicate,
-    partition_metadata::TableSummary,
-};
-use datafusion::{
-    error::DataFusionError,
-    physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream},
-};
-use predicate::{
-    delete_predicate::parse_delete_predicate,
-    predicate::{Predicate, PredicateMatch},
-};
-use query::{
-    exec::{stringset::StringSet, Executor, ExecutorType},
-    frontend::reorg::ReorgPlanner,
-    QueryChunk, QueryChunkMeta,
-};
-use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
-use snafu::{ResultExt, Snafu};
-
-use crate::data::{PersistingBatch, QueryableBatch};
+use crate::data::QueryableBatch;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -58,7 +43,6 @@ pub async fn compact(
     executor: &Executor,
     data: Arc<QueryableBatch>,
 ) -> Result<SendableRecordBatchStream> {
-
     // Build logical plan for compaction
     let ctx = executor.new_context(ExecutorType::Reorg);
     let logical_plan = ReorgPlanner::new()
@@ -79,7 +63,6 @@ pub async fn compact(
     Ok(output_stream)
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU64;
@@ -88,68 +71,104 @@ mod tests {
 
     use super::*;
 
-    use arrow::{array::{ArrayRef, DictionaryArray, Int64Array, StringArray, BooleanArray, TimestampNanosecondArray, UInt64Array, Float64Array}, datatypes::{Int32Type, DataType, TimeUnit}};
-    use iox_catalog::interface::{SequenceNumber, SequencerId, TableId, PartitionId};
-    use query::test::{TestChunk, raw_data};
-    use uuid::Uuid;
+    use arrow::record_batch::RecordBatch;
+    use arrow_util::assert_batches_eq;
+    use iox_catalog::interface::SequenceNumber;
+    use query::test::{raw_data, TestChunk};
 
-
-
+    #[ignore]
     #[tokio::test]
-    async fn test_compact() {
-        let batches = create_batches_with_influxtype().await;
-        let persisting_batch = make_queryable_batch(batches);
+    async fn test_compact_no_dedup_no_delete() {
+        let batches = create_record_batches_with_influxtype_no_duplicates().await;
+        let compact_batch = make_queryable_batch(batches);
         let exc = Executor::new(1);
-        
-        let stream = compact(&exc, persisting_batch).await.unwrap();
-        let output_batches = datafusion::physical_plan::common::collect(stream).await.unwrap();
+        let stream = compact(&exc, compact_batch).await.unwrap();
+        let output_batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
 
         println!("output_batches: {:#?}", output_batches);
-        
-        
+
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
+            "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
+            "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &output_batches);
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_compact_with_dedup_no_delete() {
+        let batches = create_batches_with_influxtype().await;
+        let compact_batch = make_queryable_batch(batches);
+        let exc = Executor::new(1);
+
+        let stream = compact(&exc, compact_batch).await.unwrap();
+        let output_batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        // println!("output_batches: {:#?}", output_batches);
         // let table = pretty_format_batches(&[batch]).unwrap();
-
-        // let expected = vec![
-        //     "+------+-------+--------+---------+-------+--------+--------------------------------+",
-        //     "| dict | int64 | uint64 | float64 | bool  | string | time                           |",
-        //     "+------+-------+--------+---------+-------+--------+--------------------------------+",
-        //     "| a    | -1    | 1      | 1       | true  | foo    |                                |",
-        //     "|      |       |        |         |       |        | 1970-01-01T00:00:00.000000100Z |",
-        //     "| b    | 2     | 2      | 2       | false | bar    | 2021-07-20T23:28:50Z           |",
-        //     "+------+-------+--------+---------+-------+--------+--------------------------------+",
-        // ];
-
+        let expected = vec![
+            "+-----------+------+-------------------------------+",
+            "| field_int | tag1 | time                          |",
+            "+-----------+------+-------------------------------+",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+            "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+            "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
+            "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
+            "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
+            "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
+            "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
+            "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
+            "+-----------+------+-------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &output_batches);
     }
 
     // ----------------------------------------------------------------------------------------------
     // Data for testing
-    pub fn make_queryable_batch<'a>(batches: Vec<Arc<RecordBatch>>) -> Arc<QueryableBatch> {
+    pub fn make_queryable_batch(batches: Vec<Arc<RecordBatch>>) -> Arc<QueryableBatch> {
         // make snapshots for the bacthes
         let mut snapshots = vec![];
         let mut seq_num = 1;
         for batch in batches {
             let seq = SequenceNumber::new(seq_num);
-            snapshots.push(make_snapshot_batch(batch, seq, seq ));
-            seq_num = seq_num + 1;
+            snapshots.push(make_snapshot_batch(batch, seq, seq));
+            seq_num += 1;
         }
 
         Arc::new(QueryableBatch::new("test_table", snapshots, vec![]))
     }
 
-    pub fn make_snapshot_batch(batch: Arc<RecordBatch>, min: SequenceNumber, max: SequenceNumber) -> Arc<SnapshotBatch> {
+    pub fn make_snapshot_batch(
+        batch: Arc<RecordBatch>,
+        min: SequenceNumber,
+        max: SequenceNumber,
+    ) -> Arc<SnapshotBatch> {
         Arc::new(SnapshotBatch {
             min_sequencer_number: min,
             max_sequencer_number: max,
             data: batch,
         })
     }
-    
-    // RecordBatches with knowledge of influx metadata 
-    pub async fn create_batches_with_influxtype() -> Vec<Arc<RecordBatch>> {
-        // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
-        let mut batches = vec![];
 
-        // This test covers all kind of chunks: overlap, non-overlap without duplicates within, non-overlap with duplicates within
+    pub async fn create_record_batches_with_influxtype_no_duplicates() -> Vec<Arc<RecordBatch>> {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_id(1)
@@ -169,7 +188,57 @@ mod tests {
                 .with_i64_field_column("field_int")
                 .with_ten_rows_of_data_some_duplicates(),
         );
-        let batch1 = raw_data(&vec![chunk1]).await[0].clone();
+        let batches = raw_data(&[chunk1]).await;
+        let batches: Vec<_> = batches.iter().map(|r| Arc::new(r.clone())).collect();
+
+        // Output data look like this:
+        // let expected = vec![
+        //     "+-----------+------+-------------------------------+",
+        //     "| field_int | tag1 | time                          |",
+        //     "+-----------+------+-------------------------------+",
+        //     "| 1000      | MT   | 1970-01-01 00:00:00.000001    |",
+        //     "| 10        | MT   | 1970-01-01 00:00:00.000007    |",
+        //     "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
+        //     "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
+        //     "| 5         | MT   | 1970-01-01 00:00:00.000000005 |",
+        //     "| 1000      | MT   | 1970-01-01 00:00:00.000002    |",
+        //     "| 20        | MT   | 1970-01-01 00:00:00.000007    |",
+        //     "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
+        //     "| 10        | AL   | 1970-01-01 00:00:00.000000050 |",
+        //     "| 30        | MT   | 1970-01-01 00:00:00.000000005 |",
+        //     "+-----------+------+-------------------------------+",
+        // ];
+
+        batches
+    }
+
+    // RecordBatches with knowledge of influx metadata
+    pub async fn create_batches_with_influxtype() -> Vec<Arc<RecordBatch>> {
+        // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
+        let mut batches = vec![];
+
+        // This test covers all kind of chunks: overlap, non-overlap without duplicates within, non-overlap with duplicates within
+        // todo: may want to simplify the below data of test chunks. these are reuse the current code that cover many commpaction cases
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column_with_full_stats(
+                    Some(5),
+                    Some(7000),
+                    10,
+                    Some(NonZeroU64::new(7).unwrap()),
+                )
+                .with_tag_column_with_full_stats(
+                    "tag1",
+                    Some("AL"),
+                    Some("MT"),
+                    10,
+                    Some(NonZeroU64::new(3).unwrap()),
+                )
+                .with_i64_field_column("field_int")
+                .with_ten_rows_of_data_some_duplicates(),
+        );
+        let batch1 = raw_data(&[chunk1]).await[0].clone();
         //println!("BATCH1: {:#?}", batch1);
         batches.push(Arc::new(batch1));
 
@@ -193,7 +262,7 @@ mod tests {
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
         );
-        let batch2 = raw_data(&vec![chunk2]).await[0].clone();
+        let batch2 = raw_data(&[chunk2]).await[0].clone();
         //println!("BATCH2: {:#?}", batch2);
         batches.push(Arc::new(batch2));
 
@@ -217,7 +286,7 @@ mod tests {
                 .with_i64_field_column("field_int")
                 .with_three_rows_of_data(),
         );
-        let batch3 = raw_data(&vec![chunk3]).await[0].clone();
+        let batch3 = raw_data(&[chunk3]).await[0].clone();
         //println!("BATCH3: {:#?}", batch3);
         batches.push(Arc::new(batch3));
 
@@ -242,9 +311,11 @@ mod tests {
                 .with_may_contain_pk_duplicates(true)
                 .with_four_rows_of_data(),
         );
-        let batch4 = raw_data(&vec![chunk4]).await[0].clone();
+        let batch4 = raw_data(&[chunk4]).await[0].clone();
         //println!("BATCH4: {:#?}", batch4);
         batches.push(Arc::new(batch4));
+
+        // todo: show what output data look like in comments for easier debug
 
         batches
     }
