@@ -14,7 +14,9 @@ dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+ingester = { path = "../ingester" }
 internal_types = { path = "../internal_types" }
+iox_catalog = { path = "../iox_catalog" }
 iox_object_store = { path = "../iox_object_store" }
 job_registry = { path = "../job_registry" }
 logfmt = { path = "../logfmt" }

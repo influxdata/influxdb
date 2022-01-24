@@ -10,6 +10,7 @@ use crate::influxdb_ioxd::{http::error::HttpApiErrorSource, rpc::RpcBuilderInput
 
 pub mod common_state;
 pub mod database;
+pub mod ingester;
 pub mod router;
 pub mod router2;
 pub mod test;
