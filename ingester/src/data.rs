@@ -202,7 +202,7 @@ pub struct PersistingBatch {
 #[derive(Debug)]
 pub struct QueryableBatch {
     /// data
-    pub data: Vec<Arc<SnapshotBatch>>,
+    pub data: Vec<SnapshotBatch>,
 
     /// Tomstones to be applied on data
     pub deletes: Vec<Tombstone>,

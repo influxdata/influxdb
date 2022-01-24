@@ -160,12 +160,12 @@ mod tests {
         batch: Arc<RecordBatch>,
         min: SequenceNumber,
         max: SequenceNumber,
-    ) -> Arc<SnapshotBatch> {
-        Arc::new(SnapshotBatch {
+    ) -> SnapshotBatch {
+        SnapshotBatch {
             min_sequencer_number: min,
             max_sequencer_number: max,
             data: batch,
-        })
+        }
     }
 
     pub async fn create_record_batches_with_influxtype_no_duplicates() -> Vec<Arc<RecordBatch>> {

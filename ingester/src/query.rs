@@ -52,7 +52,7 @@ pub fn merge_record_batch_schemas(batches: &[Arc<RecordBatch>]) -> Arc<Schema> {
 
 impl QueryableBatch {
     /// Initilaize a QueryableBatch
-    pub fn new(table_name: &str, data: Vec<Arc<SnapshotBatch>>, deletes: Vec<Tombstone>) -> Self {
+    pub fn new(table_name: &str, data: Vec<SnapshotBatch>, deletes: Vec<Tombstone>) -> Self {
         let mut delete_predicates = vec![];
         for delete in &deletes {
             let delete_predicate = Arc::new(
