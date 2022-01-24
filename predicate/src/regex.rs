@@ -30,6 +30,11 @@ pub fn regex_match_expr(input: Expr, pattern: String, matches: bool) -> Expr {
     // N.B., this function does not utilise the Arrow regexp compute kernel because
     // in order to act as a filter it needs to return a boolean array of comparison
     // results, not an array of strings as the regex compute kernel does.
+
+    // Attempt to make the pattern compatible with what is accepted by
+    // the golang regexp library which is different than Rust's regexp
+    let pattern = clean_non_meta_escapes(pattern);
+
     let func = move |args: &[ArrayRef]| {
         assert_eq!(args.len(), 1); // only works over a single column at a time.
 
@@ -72,6 +77,79 @@ pub fn regex_match_expr(input: Expr, pattern: String, matches: bool) -> Expr {
     udf.call(vec![input])
 }
 
+fn is_valid_character_after_escape(c: char) -> bool {
+    // same list as https://docs.rs/regex-syntax/0.6.25/src/regex_syntax/ast/parse.rs.html#1445-1538
+    match c {
+        '0'..='7' => true,
+        '8'..='9' => true,
+        'x' | 'u' | 'U' => true,
+        'p' | 'P' => true,
+        'd' | 's' | 'w' | 'D' | 'S' | 'W' => true,
+        _ => regex_syntax::is_meta_character(c),
+    }
+}
+
+/// Removes all `/` patterns that the rust regex library would reject
+/// and rewrites them to their unescaped form.
+///
+/// For example, `\:` is rewritten to `:` as `\:` is not a valid
+/// escape sequence in the `regexp` crate but is valid in golang's
+/// regexp implementation.
+///
+/// This is done for compatibility purposes so that the regular
+/// expression matching in Rust more closely follows the matching in
+/// golang, used by the influx storage rpc.
+///
+/// See <https://github.com/rust-lang/regex/issues/501> for more details
+fn clean_non_meta_escapes(pattern: String) -> String {
+    if pattern.is_empty() {
+        return pattern;
+    }
+
+    #[derive(Debug, Copy, Clone)]
+    enum SlashState {
+        No,
+        Single,
+        Double,
+    }
+
+    let mut next_state = SlashState::No;
+
+    let next_chars = pattern
+        .chars()
+        .map(Some)
+        .skip(1)
+        .chain(std::iter::once(None));
+
+    // emit char based on previous
+    let new_pattern: String = pattern
+        .chars()
+        .zip(next_chars)
+        .filter_map(|(c, next_char)| {
+            let cur_state = next_state;
+            next_state = match (c, cur_state) {
+                ('\\', SlashState::No) => SlashState::Single,
+                ('\\', SlashState::Single) => SlashState::Double,
+                ('\\', SlashState::Double) => SlashState::Single,
+                _ => SlashState::No,
+            };
+
+            // Decide to emit `c` or not
+            match (cur_state, c, next_char) {
+                (SlashState::No, '\\', Some(next_char))
+                | (SlashState::Double, '\\', Some(next_char))
+                    if !is_valid_character_after_escape(next_char) =>
+                {
+                    None
+                }
+                _ => Some(c),
+            }
+        })
+        .collect();
+
+    new_pattern
+}
+
 #[cfg(test)]
 mod test {
     use arrow::{
@@ -87,6 +165,8 @@ mod test {
         prelude::ExecutionContext,
     };
     use std::sync::Arc;
+
+    use super::clean_non_meta_escapes;
 
     #[tokio::test]
     async fn regex_match_expr() {
@@ -219,5 +299,38 @@ mod test {
             .split('\n')
             .map(|s| s.to_owned())
             .collect())
+    }
+
+    #[test]
+    fn test_clean_non_meta_escapes() {
+        let cases = vec![
+            ("", ""),
+            (r#"\"#, r#"\"#),
+            (r#"\\"#, r#"\\"#),
+            // : is not a special meta character
+            (r#"\:"#, r#":"#),
+            // . is a special meta character
+            (r#"\."#, r#"\."#),
+            (r#"foo\"#, r#"foo\"#),
+            (r#"foo\\"#, r#"foo\\"#),
+            (r#"foo\:"#, r#"foo:"#),
+            (r#"foo\xff"#, r#"foo\xff"#),
+            (r#"fo\\o"#, r#"fo\\o"#),
+            (r#"fo\:o"#, r#"fo:o"#),
+            (r#"fo\:o\x123"#, r#"fo:o\x123"#),
+            (r#"fo\:o\x123\:"#, r#"fo:o\x123:"#),
+            (r#"foo\\\:bar"#, r#"foo\\:bar"#),
+            (r#"foo\\\:bar\\\:"#, r#"foo\\:bar\\:"#),
+            ("foo", "foo"),
+        ];
+
+        for (pattern, expected) in cases {
+            let cleaned_pattern = clean_non_meta_escapes(pattern.to_string());
+            assert_eq!(
+                cleaned_pattern, expected,
+                "Expected '{}' to be cleaned to '{}', got '{}'",
+                pattern, expected, cleaned_pattern
+            );
+        }
     }
 }

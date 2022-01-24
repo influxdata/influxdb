@@ -1170,7 +1170,7 @@ mod tests {
 
         // Build delete predicate and expected output
         let del_pred1 = Arc::new(DeletePredicate {
-            range: TimestampRange { start: 0, end: 100 },
+            range: TimestampRange::new(0, 100),
             exprs: vec![DeleteExpr::new(
                 "city".to_string(),
                 data_types::delete_predicate::Op::Eq,
@@ -1192,7 +1192,7 @@ mod tests {
         // let add more delete predicate = simulate second delete
         // Build delete predicate and expected output
         let del_pred2 = Arc::new(DeletePredicate {
-            range: TimestampRange { start: 20, end: 50 },
+            range: TimestampRange::new(20, 50),
             exprs: vec![DeleteExpr::new(
                 "cost".to_string(),
                 data_types::delete_predicate::Op::Ne,

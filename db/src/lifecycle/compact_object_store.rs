@@ -811,7 +811,7 @@ mod tests {
         // Create 3 delete predicates that will delete all cookies in 3 different deletes
 
         let pred1 = Arc::new(DeletePredicate {
-            range: TimestampRange { start: 0, end: 11 },
+            range: TimestampRange::new(0, 11),
             exprs: vec![DeleteExpr::new(
                 "tag1".to_string(),
                 data_types::delete_predicate::Op::Eq,
@@ -819,7 +819,7 @@ mod tests {
             )],
         });
         let pred2 = Arc::new(DeletePredicate {
-            range: TimestampRange { start: 12, end: 21 },
+            range: TimestampRange::new(12, 21),
             exprs: vec![DeleteExpr::new(
                 "tag1".to_string(),
                 data_types::delete_predicate::Op::Eq,
@@ -827,7 +827,7 @@ mod tests {
             )],
         });
         let pred3 = Arc::new(DeletePredicate {
-            range: TimestampRange { start: 22, end: 31 },
+            range: TimestampRange::new(22, 31),
             exprs: vec![DeleteExpr::new(
                 "tag1".to_string(),
                 data_types::delete_predicate::Op::Eq,
@@ -976,7 +976,7 @@ mod tests {
 
         // Delete all
         let predicate = Arc::new(DeletePredicate {
-            range: TimestampRange { start: 0, end: 30 },
+            range: TimestampRange::new(0, 30),
             exprs: vec![],
         });
         db.delete("cpu", predicate).unwrap();

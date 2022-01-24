@@ -124,7 +124,7 @@ impl Predicate {
     /// `range.start <= time and time < range.end`
     fn make_timestamp_predicate_expr(&self) -> Option<Expr> {
         self.range
-            .map(|range| make_range_expr(range.start, range.end, TIME_COLUMN_NAME))
+            .map(|range| make_range_expr(range.start(), range.end(), TIME_COLUMN_NAME))
     }
 
     /// Returns true if ths predicate evaluates to true for all rows
@@ -184,8 +184,8 @@ impl Predicate {
                 // time_expr =  NOT(start <= time_range <= end)
                 // Equivalent to: (time < start OR time > end)
                 let time_expr = col(TIME_COLUMN_NAME)
-                    .lt(lit_timestamp_nano(range.start))
-                    .or(col(TIME_COLUMN_NAME).gt(lit_timestamp_nano(range.end)));
+                    .lt(lit_timestamp_nano(range.start()))
+                    .or(col(TIME_COLUMN_NAME).gt(lit_timestamp_nano(range.end())));
 
                 match expr {
                     None => expr = Some(time_expr),
@@ -215,7 +215,7 @@ impl Predicate {
     /// existing storage engine
     pub fn clear_timestamp_if_max_range(mut self) -> Self {
         self.range = self.range.take().and_then(|range| {
-            if range.start <= MIN_NANO_TIME && range.end >= MAX_NANO_TIME {
+            if range.start() <= MIN_NANO_TIME && range.end() >= MAX_NANO_TIME {
                 None
             } else {
                 Some(range)
@@ -254,7 +254,7 @@ impl fmt::Display for Predicate {
 
         if let Some(range) = &self.range {
             // TODO: could be nice to show this as actual timestamps (not just numbers)?
-            write!(f, " range: [{} - {}]", range.start, range.end)?;
+            write!(f, " range: [{} - {}]", range.start(), range.end())?;
         }
 
         if !self.exprs.is_empty() {
@@ -313,7 +313,7 @@ impl PredicateBuilder {
             "Unexpected re-definition of timestamp range"
         );
 
-        self.inner.range = Some(TimestampRange { start, end });
+        self.inner.range = Some(TimestampRange::new(start, end));
         self
     }
 

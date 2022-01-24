@@ -36,15 +36,17 @@ pub const MAX_NANO_TIME: i64 = i64::MAX - 1;
 /// ```
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Debug, Hash)]
 pub struct TimestampRange {
-    /// Start defines the inclusive lower bound.
-    pub start: i64,
-    /// End defines the exclusive upper bound.
-    pub end: i64,
+    /// Start defines the inclusive lower bound. Minimum value is [MIN_NANO_TIME]
+    start: i64,
+    /// End defines the exclusive upper bound. Maximum value is [MAX_NANO_TIME]
+    end: i64,
 }
 
 impl TimestampRange {
     pub fn new(start: i64, end: i64) -> Self {
         debug_assert!(end >= start);
+        let start = start.max(MIN_NANO_TIME);
+        let end = end.min(MAX_NANO_TIME);
         Self { start, end }
     }
 
@@ -58,6 +60,16 @@ impl TimestampRange {
     /// Returns true if this range contains the value v
     pub fn contains_opt(&self, v: Option<i64>) -> bool {
         Some(true) == v.map(|ts| self.contains(ts))
+    }
+
+    /// Return the timestamp range's end.
+    pub fn end(&self) -> i64 {
+        self.end
+    }
+
+    /// Return the timestamp range's start.
+    pub fn start(&self) -> i64 {
+        self.start
     }
 }
 
@@ -92,6 +104,40 @@ impl TimestampMinMax {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_timestamp_nano_min_max() {
+        let cases = vec![
+            (
+                "MIN/MAX Nanos",
+                TimestampRange::new(MIN_NANO_TIME, MAX_NANO_TIME),
+            ),
+            ("MIN/MAX i64", TimestampRange::new(i64::MIN, i64::MAX)),
+        ];
+
+        for (name, range) in cases {
+            println!("case: {}", name);
+            assert!(!range.contains(i64::MIN));
+            assert!(range.contains(MIN_NANO_TIME));
+            assert!(range.contains(MIN_NANO_TIME + 1));
+            assert!(range.contains(MAX_NANO_TIME - 1));
+            assert!(!range.contains(MAX_NANO_TIME));
+            assert!(!range.contains(i64::MAX));
+        }
+    }
+
+    #[test]
+    fn test_timestamp_i64_min_max_offset() {
+        let range = TimestampRange::new(MIN_NANO_TIME + 1, MAX_NANO_TIME - 1);
+
+        assert!(!range.contains(i64::MIN));
+        assert!(!range.contains(MIN_NANO_TIME));
+        assert!(range.contains(MIN_NANO_TIME + 1));
+        assert!(range.contains(MAX_NANO_TIME - 2));
+        assert!(!range.contains(MAX_NANO_TIME - 1));
+        assert!(!range.contains(MAX_NANO_TIME));
+        assert!(!range.contains(i64::MAX));
+    }
 
     #[test]
     fn test_timestamp_range_contains() {

@@ -179,7 +179,7 @@ async fn write_buffer_deletes() {
     fixture
         .delete(DmlDelete::new(
             DeletePredicate {
-                range: TimestampRange { start: 0, end: 20 },
+                range: TimestampRange::new(0, 20),
                 exprs: vec![DeleteExpr {
                     column: "x".to_string(),
                     op: Op::Eq,

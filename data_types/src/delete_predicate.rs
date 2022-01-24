@@ -169,7 +169,7 @@ mod tests {
     #[test]
     fn test_expr_to_sql_no_expressions() {
         let pred = DeletePredicate {
-            range: TimestampRange { start: 1, end: 2 },
+            range: TimestampRange::new(1, 2),
             exprs: vec![],
         };
         assert_eq!(&pred.expr_sql_string(), "");
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn test_expr_to_sql_operators() {
         let pred = DeletePredicate {
-            range: TimestampRange { start: 1, end: 2 },
+            range: TimestampRange::new(1, 2),
             exprs: vec![
                 DeleteExpr {
                     column: String::from("col1"),
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn test_expr_to_sql_column_escape() {
         let pred = DeletePredicate {
-            range: TimestampRange { start: 1, end: 2 },
+            range: TimestampRange::new(1, 2),
             exprs: vec![
                 DeleteExpr {
                     column: String::from("col 1"),
@@ -226,7 +226,7 @@ mod tests {
     #[test]
     fn test_expr_to_sql_bool() {
         let pred = DeletePredicate {
-            range: TimestampRange { start: 1, end: 2 },
+            range: TimestampRange::new(1, 2),
             exprs: vec![
                 DeleteExpr {
                     column: String::from("col1"),
@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn test_expr_to_sql_i64() {
         let pred = DeletePredicate {
-            range: TimestampRange { start: 1, end: 2 },
+            range: TimestampRange::new(1, 2),
             exprs: vec![
                 DeleteExpr {
                     column: String::from("col1"),
@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn test_expr_to_sql_f64() {
         let pred = DeletePredicate {
-            range: TimestampRange { start: 1, end: 2 },
+            range: TimestampRange::new(1, 2),
             exprs: vec![
                 DeleteExpr {
                     column: String::from("col1"),
@@ -327,7 +327,7 @@ mod tests {
     #[test]
     fn test_expr_to_sql_string() {
         let pred = DeletePredicate {
-            range: TimestampRange { start: 1, end: 2 },
+            range: TimestampRange::new(1, 2),
             exprs: vec![
                 DeleteExpr {
                     column: String::from("col1"),

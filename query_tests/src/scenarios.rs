@@ -279,10 +279,7 @@ impl DbSetup for OneMeasurementManyNullTagsWithDelete {
         // 3 rows of h2o & NY state will be deleted
         let delete_table_name = "h2o";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 400,
-                end: 602,
-            },
+            range: TimestampRange::new(400, 602),
             exprs: vec![DeleteExpr::new(
                 "state".to_string(),
                 data_types::delete_predicate::Op::Eq,
@@ -322,10 +319,7 @@ impl DbSetup for OneMeasurementManyNullTagsWithDeleteAll {
         // all rows of h2o  will be deleted
         let delete_table_name = "h2o";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 100,
-                end: 602,
-            },
+            range: TimestampRange::new(100, 602),
             exprs: vec![],
         };
 
@@ -412,10 +406,7 @@ impl DbSetup for TwoMeasurementsWithDelete {
         // delete 1 row from cpu with timestamp 150
         let table_name = "cpu";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 120,
-                end: 160,
-            },
+            range: TimestampRange::new(120, 160),
             exprs: vec![DeleteExpr::new(
                 "region".to_string(),
                 data_types::delete_predicate::Op::Eq,
@@ -447,10 +438,7 @@ impl DbSetup for TwoMeasurementsWithDeleteAll {
         // which will delete second row of the cpu
         let table_name = "cpu";
         let pred1 = DeletePredicate {
-            range: TimestampRange {
-                start: 120,
-                end: 160,
-            },
+            range: TimestampRange::new(120, 160),
             exprs: vec![DeleteExpr::new(
                 "region".to_string(),
                 data_types::delete_predicate::Op::Eq,
@@ -460,7 +448,7 @@ impl DbSetup for TwoMeasurementsWithDeleteAll {
 
         // delete the first row of the cpu
         let pred2 = DeletePredicate {
-            range: TimestampRange { start: 0, end: 110 },
+            range: TimestampRange::new(0, 110),
             exprs: vec![],
         };
 
@@ -885,10 +873,7 @@ impl DbSetup for OneMeasurementManyFieldsWithDelete {
         // field4 no longer available
         let delete_table_name = "h2o";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 1000,
-                end: 1100,
-            },
+            range: TimestampRange::new(1000, 1100),
             exprs: vec![],
         };
 
@@ -950,10 +935,7 @@ impl DbSetup for EndToEndTestWithDelete {
         // 1 rows of h2o with timestamp 250 will be deleted
         let delete_table_name = "swap";
         let pred = DeletePredicate {
-            range: TimestampRange {
-                start: 6000,
-                end: 6000,
-            },
+            range: TimestampRange::new(6000, 6000),
             exprs: vec![DeleteExpr::new(
                 "name".to_string(),
                 data_types::delete_predicate::Op::Eq,

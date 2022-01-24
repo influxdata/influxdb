@@ -593,7 +593,7 @@ mod tests {
         let meta = DmlMeta::unsequenced(None);
         let delete = DmlDelete::new(
             DeletePredicate {
-                range: TimestampRange { start: 1, end: 2 },
+                range: TimestampRange::new(1, 2),
                 exprs: vec![],
             },
             None,
@@ -615,7 +615,7 @@ mod tests {
         let meta = DmlMeta::unsequenced(None);
         let delete = DmlDelete::new(
             DeletePredicate {
-                range: TimestampRange { start: 3, end: 4 },
+                range: TimestampRange::new(3, 4),
                 exprs: vec![],
             },
             Some(NonEmptyString::new("some_foo").unwrap()),
@@ -630,7 +630,7 @@ mod tests {
         let meta = DmlMeta::unsequenced(None);
         let delete = DmlDelete::new(
             DeletePredicate {
-                range: TimestampRange { start: 5, end: 6 },
+                range: TimestampRange::new(5, 6),
                 exprs: vec![],
             },
             Some(NonEmptyString::new("bar").unwrap()),

@@ -12,8 +12,8 @@
 )]
 
 use crate::interface::{
-    column_type_from_field, ColumnSchema, ColumnType, Error, KafkaPartition, KafkaTopic,
-    NamespaceSchema, QueryPool, RepoCollection, Result, Sequencer, SequencerId, TableId,
+    column_type_from_field, Catalog, ColumnSchema, ColumnType, Error, KafkaPartition, KafkaTopic,
+    NamespaceSchema, QueryPool, Result, Sequencer, SequencerId, TableId,
 };
 use futures::{stream::FuturesOrdered, StreamExt};
 use influxdb_line_protocol::ParsedLine;
@@ -36,10 +36,10 @@ pub mod postgres;
 /// If another writer attempts to create a column of the same name with a different
 /// type at the same time and beats this caller to it, an error will be returned. If another
 /// writer adds the same schema before this one, then this will load that schema here.
-pub async fn validate_or_insert_schema<T: RepoCollection + Sync + Send>(
+pub async fn validate_or_insert_schema(
     lines: Vec<ParsedLine<'_>>,
     schema: &NamespaceSchema,
-    repo: &T,
+    catalog: &dyn Catalog,
 ) -> Result<Option<NamespaceSchema>> {
     // table name to table_id
     let mut new_tables: BTreeMap<String, TableId> = BTreeMap::new();
@@ -66,8 +66,8 @@ pub async fn validate_or_insert_schema<T: RepoCollection + Sync + Send>(
                             None => {
                                 let entry = new_columns.entry(table.id).or_default();
                                 if entry.get(key.as_str()).is_none() {
-                                    let column_repo = repo.column();
-                                    let column = column_repo
+                                    let column = catalog
+                                        .columns()
                                         .create_or_get(key.as_str(), table.id, ColumnType::Tag)
                                         .await?;
                                     entry.insert(
@@ -97,8 +97,8 @@ pub async fn validate_or_insert_schema<T: RepoCollection + Sync + Send>(
                         let entry = new_columns.entry(table.id).or_default();
                         if entry.get(key.as_str()).is_none() {
                             let data_type = column_type_from_field(value);
-                            let column_repo = repo.column();
-                            let column = column_repo
+                            let column = catalog
+                                .columns()
                                 .create_or_get(key.as_str(), table.id, data_type)
                                 .await?;
                             entry.insert(
@@ -113,15 +113,16 @@ pub async fn validate_or_insert_schema<T: RepoCollection + Sync + Send>(
                 }
             }
             None => {
-                let table_repo = repo.table();
-                let new_table = table_repo.create_or_get(table_name, schema.id).await?;
+                let new_table = catalog
+                    .tables()
+                    .create_or_get(table_name, schema.id)
+                    .await?;
                 let new_table_columns = new_columns.entry(new_table.id).or_default();
-
-                let column_repo = repo.column();
 
                 if let Some(tagset) = &line.series.tag_set {
                     for (key, _) in tagset {
-                        let new_column = column_repo
+                        let new_column = catalog
+                            .columns()
                             .create_or_get(key.as_str(), new_table.id, ColumnType::Tag)
                             .await?;
                         new_table_columns.insert(
@@ -135,7 +136,8 @@ pub async fn validate_or_insert_schema<T: RepoCollection + Sync + Send>(
                 }
                 for (key, value) in &line.field_set {
                     let data_type = column_type_from_field(value);
-                    let new_column = column_repo
+                    let new_column = catalog
+                        .columns()
                         .create_or_get(key.as_str(), new_table.id, data_type)
                         .await?;
                     new_table_columns.insert(
@@ -146,7 +148,8 @@ pub async fn validate_or_insert_schema<T: RepoCollection + Sync + Send>(
                         },
                     );
                 }
-                let time_column = column_repo
+                let time_column = catalog
+                    .columns()
                     .create_or_get(TIME_COLUMN, new_table.id, ColumnType::Time)
                     .await?;
                 new_table_columns.insert(
@@ -173,19 +176,25 @@ pub async fn validate_or_insert_schema<T: RepoCollection + Sync + Send>(
 
 /// Creates or gets records in the catalog for the shared kafka topic, query pool, and sequencers for
 /// each of the partitions.
-pub async fn create_or_get_default_records<T: RepoCollection + Sync + Send>(
+pub async fn create_or_get_default_records(
     kafka_partition_count: i32,
-    repo: &T,
+    catalog: &dyn Catalog,
 ) -> Result<(KafkaTopic, QueryPool, BTreeMap<SequencerId, Sequencer>)> {
-    let kafka_repo = repo.kafka_topic();
-    let query_repo = repo.query_pool();
-    let sequencer_repo = repo.sequencer();
-
-    let kafka_topic = kafka_repo.create_or_get(SHARED_KAFKA_TOPIC).await?;
-    let query_pool = query_repo.create_or_get(SHARED_QUERY_POOL).await?;
+    let kafka_topic = catalog
+        .kafka_topics()
+        .create_or_get(SHARED_KAFKA_TOPIC)
+        .await?;
+    let query_pool = catalog
+        .query_pools()
+        .create_or_get(SHARED_QUERY_POOL)
+        .await?;
 
     let sequencers = (1..=kafka_partition_count)
-        .map(|partition| sequencer_repo.create_or_get(&kafka_topic, KafkaPartition::new(partition)))
+        .map(|partition| {
+            catalog
+                .sequencers()
+                .create_or_get(&kafka_topic, KafkaPartition::new(partition))
+        })
         .collect::<FuturesOrdered<_>>()
         .map(|v| {
             let v = v.expect("failed to create sequencer");
@@ -207,13 +216,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_or_insert_schema() {
-        let repo = Arc::new(MemCatalog::new());
+        let repo = MemCatalog::new();
         let (kafka_topic, query_pool, _) = create_or_get_default_records(2, &repo).await.unwrap();
 
         let namespace_name = "validate_schema";
         // now test with a new namespace
         let namespace = repo
-            .namespace()
+            .namespaces()
             .create(namespace_name, "inf", kafka_topic.id, query_pool.id)
             .await
             .unwrap();

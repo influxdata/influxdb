@@ -16,4 +16,5 @@
 pub mod compact;
 pub mod data;
 pub mod query;
+pub mod handler;
 pub mod server;

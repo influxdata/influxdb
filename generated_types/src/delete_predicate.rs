@@ -20,8 +20,8 @@ impl From<DeletePredicate> for proto::Predicate {
     fn from(predicate: DeletePredicate) -> Self {
         proto::Predicate {
             range: Some(proto::TimestampRange {
-                start: predicate.range.start,
-                end: predicate.range.end,
+                start: predicate.range.start(),
+                end: predicate.range.end(),
             }),
             exprs: predicate.exprs.into_iter().map(Into::into).collect(),
         }
@@ -35,10 +35,7 @@ impl TryFrom<proto::Predicate> for DeletePredicate {
         let range = value.range.unwrap_field("range")?;
 
         Ok(Self {
-            range: TimestampRange {
-                start: range.start,
-                end: range.end,
-            },
+            range: TimestampRange::new(range.start, range.end),
             exprs: value.exprs.repeated("exprs")?,
         })
     }

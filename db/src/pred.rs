@@ -37,7 +37,7 @@ pub fn to_read_buffer_predicate(predicate: &Predicate) -> Result<read_buffer::Pr
             // InfluxDB-specific expressions on the time column.
             Ok(match predicate.range {
                 Some(range) => {
-                    read_buffer::Predicate::with_time_range(&exprs, range.start, range.end)
+                    read_buffer::Predicate::with_time_range(&exprs, range.start(), range.end())
                 }
                 None => read_buffer::Predicate::new(exprs),
             })

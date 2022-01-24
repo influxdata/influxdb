@@ -17,3 +17,5 @@ pub mod file;
 pub mod kafka;
 
 pub mod mock;
+
+pub mod rskafka;

@@ -177,7 +177,7 @@ mod tests {
         check_response("delete", response, StatusCode::NO_CONTENT, Some("")).await;
 
         let predicate = DeletePredicate {
-            range: TimestampRange { start: 1, end: 2 },
+            range: TimestampRange::new(1, 2),
             exprs: vec![DeleteExpr {
                 column: String::from("foo"),
                 op: data_types::delete_predicate::Op::Eq,

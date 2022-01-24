@@ -2,16 +2,16 @@
 //! used for testing or for an IOx designed to run without catalog persistence.
 
 use crate::interface::{
-    Column, ColumnId, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
-    KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile, ParquetFileId,
-    ParquetFileRepo, Partition, PartitionId, PartitionRepo, QueryPool, QueryPoolId, QueryPoolRepo,
-    RepoCollection, Result, SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId,
+    Catalog, Column, ColumnId, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic,
+    KafkaTopicId, KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile,
+    ParquetFileId, ParquetFileRepo, Partition, PartitionId, PartitionRepo, QueryPool, QueryPoolId,
+    QueryPoolRepo, Result, SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId,
     TableRepo, Timestamp, Tombstone, TombstoneId, TombstoneRepo,
 };
 use async_trait::async_trait;
 use std::convert::TryFrom;
 use std::fmt::Formatter;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use uuid::Uuid;
 
 /// In-memory catalog that implements the `RepoCollection` and individual repo traits from
@@ -48,41 +48,41 @@ struct MemCollections {
     parquet_files: Vec<ParquetFile>,
 }
 
-impl RepoCollection for Arc<MemCatalog> {
-    fn kafka_topic(&self) -> Arc<dyn KafkaTopicRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn KafkaTopicRepo + Sync + Send>
+impl Catalog for MemCatalog {
+    fn kafka_topics(&self) -> &dyn KafkaTopicRepo {
+        self
     }
 
-    fn query_pool(&self) -> Arc<dyn QueryPoolRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn QueryPoolRepo + Sync + Send>
+    fn query_pools(&self) -> &dyn QueryPoolRepo {
+        self
     }
 
-    fn namespace(&self) -> Arc<dyn NamespaceRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn NamespaceRepo + Sync + Send>
+    fn namespaces(&self) -> &dyn NamespaceRepo {
+        self
     }
 
-    fn table(&self) -> Arc<dyn TableRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn TableRepo + Sync + Send>
+    fn tables(&self) -> &dyn TableRepo {
+        self
     }
 
-    fn column(&self) -> Arc<dyn ColumnRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn ColumnRepo + Sync + Send>
+    fn columns(&self) -> &dyn ColumnRepo {
+        self
     }
 
-    fn sequencer(&self) -> Arc<dyn SequencerRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn SequencerRepo + Sync + Send>
+    fn sequencers(&self) -> &dyn SequencerRepo {
+        self
     }
 
-    fn partition(&self) -> Arc<dyn PartitionRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn PartitionRepo + Sync + Send>
+    fn partitions(&self) -> &dyn PartitionRepo {
+        self
     }
 
-    fn tombstone(&self) -> Arc<dyn TombstoneRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn TombstoneRepo + Sync + Send>
+    fn tombstones(&self) -> &dyn TombstoneRepo {
+        self
     }
 
-    fn parquet_file(&self) -> Arc<dyn ParquetFileRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn ParquetFileRepo + Sync + Send>
+    fn parquet_files(&self) -> &dyn ParquetFileRepo {
+        self
     }
 }
 
@@ -180,7 +180,11 @@ impl TableRepo for MemCatalog {
     async fn create_or_get(&self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
         let mut collections = self.collections.lock().expect("mutex poisoned");
 
-        let table = match collections.tables.iter().find(|t| t.name == name) {
+        let table = match collections
+            .tables
+            .iter()
+            .find(|t| t.name == name && t.namespace_id == namespace_id)
+        {
             Some(t) => t,
             None => {
                 let table = Table {
@@ -250,18 +254,22 @@ impl ColumnRepo for MemCatalog {
     }
 
     async fn list_by_namespace_id(&self, namespace_id: NamespaceId) -> Result<Vec<Column>> {
-        let mut columns = vec![];
-
         let collections = self.collections.lock().expect("mutex poisoned");
-        for t in collections
+
+        let table_ids: Vec<_> = collections
             .tables
             .iter()
             .filter(|t| t.namespace_id == namespace_id)
-        {
-            for c in collections.columns.iter().filter(|c| c.table_id == t.id) {
-                columns.push(c.clone());
-            }
-        }
+            .map(|t| t.id)
+            .collect();
+        println!("tables: {:?}", collections.tables);
+        println!("table_ids: {:?}", table_ids);
+        let columns: Vec<_> = collections
+            .columns
+            .iter()
+            .filter(|c| table_ids.contains(&c.table_id))
+            .cloned()
+            .collect();
 
         Ok(columns)
     }
@@ -488,11 +496,10 @@ impl ParquetFileRepo for MemCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     #[tokio::test]
-    async fn test_mem_repo() {
-        let f = || Arc::new(MemCatalog::new());
-
-        crate::interface::test_helpers::test_repo(f).await;
+    async fn test_catalog() {
+        crate::interface::test_helpers::test_catalog(Arc::new(MemCatalog::new())).await;
     }
 }
