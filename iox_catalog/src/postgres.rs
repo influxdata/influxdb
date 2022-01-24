@@ -1,16 +1,15 @@
 //! A Postgres backed implementation of the Catalog
 
 use crate::interface::{
-    Column, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
+    Catalog, Column, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
     KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile, ParquetFileId,
     ParquetFileRepo, Partition, PartitionId, PartitionRepo, QueryPool, QueryPoolId, QueryPoolRepo,
-    RepoCollection, Result, SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId,
-    TableRepo, Timestamp, Tombstone, TombstoneRepo,
+    Result, SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId, TableRepo,
+    Timestamp, Tombstone, TombstoneRepo,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::info;
 use sqlx::{postgres::PgPoolOptions, Executor, Pool, Postgres};
-use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -62,41 +61,41 @@ impl PostgresCatalog {
     }
 }
 
-impl RepoCollection for Arc<PostgresCatalog> {
-    fn kafka_topic(&self) -> Arc<dyn KafkaTopicRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn KafkaTopicRepo + Sync + Send>
+impl Catalog for PostgresCatalog {
+    fn kafka_topics(&self) -> &dyn KafkaTopicRepo {
+        self
     }
 
-    fn query_pool(&self) -> Arc<dyn QueryPoolRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn QueryPoolRepo + Sync + Send>
+    fn query_pools(&self) -> &dyn QueryPoolRepo {
+        self
     }
 
-    fn namespace(&self) -> Arc<dyn NamespaceRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn NamespaceRepo + Sync + Send>
+    fn namespaces(&self) -> &dyn NamespaceRepo {
+        self
     }
 
-    fn table(&self) -> Arc<dyn TableRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn TableRepo + Sync + Send>
+    fn tables(&self) -> &dyn TableRepo {
+        self
     }
 
-    fn column(&self) -> Arc<dyn ColumnRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn ColumnRepo + Sync + Send>
+    fn columns(&self) -> &dyn ColumnRepo {
+        self
     }
 
-    fn sequencer(&self) -> Arc<dyn SequencerRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn SequencerRepo + Sync + Send>
+    fn sequencers(&self) -> &dyn SequencerRepo {
+        self
     }
 
-    fn partition(&self) -> Arc<dyn PartitionRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn PartitionRepo + Sync + Send>
+    fn partitions(&self) -> &dyn PartitionRepo {
+        self
     }
 
-    fn tombstone(&self) -> Arc<dyn TombstoneRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn TombstoneRepo + Sync + Send>
+    fn tombstones(&self) -> &dyn TombstoneRepo {
+        self
     }
 
-    fn parquet_file(&self) -> Arc<dyn ParquetFileRepo + Sync + Send> {
-        Self::clone(self) as Arc<dyn ParquetFileRepo + Sync + Send>
+    fn parquet_files(&self) -> &dyn ParquetFileRepo {
+        self
     }
 }
 
@@ -586,6 +585,7 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 mod tests {
     use super::*;
     use std::env;
+    use std::sync::Arc;
 
     // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
     macro_rules! maybe_skip_integration {
@@ -624,17 +624,15 @@ mod tests {
         }};
     }
 
-    async fn setup_db() -> Arc<PostgresCatalog> {
+    async fn setup_db() -> PostgresCatalog {
         let dsn = std::env::var("DATABASE_URL").unwrap();
-        Arc::new(
-            PostgresCatalog::connect("test", SCHEMA_NAME, &dsn)
-                .await
-                .unwrap(),
-        )
+        PostgresCatalog::connect("test", SCHEMA_NAME, &dsn)
+            .await
+            .unwrap()
     }
 
     #[tokio::test]
-    async fn test_repo() {
+    async fn test_catalog() {
         // If running an integration test on your laptop, this requires that you have Postgres
         // running and that you've done the sqlx migrations. See the README in this crate for
         // info to set it up.
@@ -642,10 +640,9 @@ mod tests {
 
         let postgres = setup_db().await;
         clear_schema(&postgres.pool).await;
+        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
 
-        let f = || Arc::clone(&postgres);
-
-        crate::interface::test_helpers::test_repo(f).await;
+        crate::interface::test_helpers::test_catalog(postgres).await;
     }
 
     async fn clear_schema(pool: &Pool<Postgres>) {

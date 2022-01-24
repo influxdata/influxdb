@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::server::IngesterServer;
 use iox_catalog::interface::{
-    KafkaPartition, KafkaTopicId, NamespaceId, PartitionId, RepoCollection, SequenceNumber,
-    SequencerId, TableId, Tombstone,
+    Catalog, KafkaPartition, KafkaTopicId, NamespaceId, PartitionId, SequenceNumber, SequencerId,
+    TableId, Tombstone,
 };
 use mutable_batch::MutableBatch;
 use parking_lot::RwLock;
@@ -54,11 +54,9 @@ pub struct Sequencers {
 
 impl Sequencers {
     /// One time initialize Sequencers of this Ingester
-    pub async fn initialize<T: RepoCollection + Send + Sync>(
-        ingester: &IngesterServer<'_, T>,
-    ) -> Result<Self> {
+    pub async fn initialize<T: Catalog>(ingester: &IngesterServer<'_, T>) -> Result<Self> {
         // Get sequencer ids from the catalog
-        let sequencer_repro = ingester.iox_catalog.sequencer();
+        let sequencer_repro = ingester.iox_catalog.sequencers();
         let mut sequencers = BTreeMap::default();
         let topic = ingester.get_topic();
         for shard in ingester.get_kafka_partitions() {
