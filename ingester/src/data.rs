@@ -2,6 +2,7 @@
 //!
 
 use arrow::record_batch::RecordBatch;
+use data_types::delete_predicate::DeletePredicate;
 use std::{collections::BTreeMap, sync::Arc};
 use uuid::Uuid;
 
@@ -167,17 +168,19 @@ pub struct BufferBatch {
 }
 
 /// SnapshotBatch contains data of many contiguous BufferBatches
+#[derive(Debug)]
 pub struct SnapshotBatch {
     /// Min sequencer number of its comebined BufferBatches
     pub min_sequencer_number: SequenceNumber,
     /// Max sequencer number of its comebined BufferBatches
     pub max_sequencer_number: SequenceNumber,
     /// Data of its comebined BufferBatches kept in one RecordBatch
-    pub data: RecordBatch,
+    pub data: Arc<RecordBatch>,
 }
 
 /// PersistingBatch contains all needed info and data for creating
 /// a parquet file for given set of SnapshotBatches
+#[derive(Debug)]
 pub struct PersistingBatch {
     /// Sesquencer id of the data
     pub sequencer_id: SequencerId,
@@ -191,10 +194,23 @@ pub struct PersistingBatch {
     /// Id of to-be-created parquet file of this data
     pub object_store_id: Uuid,
 
-    /// data to be persisted
+    /// data
+    pub data: Arc<QueryableBatch>,
+}
+
+/// Queryable data used for both query and persistence
+#[derive(Debug)]
+pub struct QueryableBatch {
+    /// data
     pub data: Vec<SnapshotBatch>,
 
-    /// delete predicates to be appied to the data
-    /// before perssiting
+    /// Tomstones to be applied on data
     pub deletes: Vec<Tombstone>,
+
+    /// Delete predicates of the tombstones
+    /// Note: this is needed here to return its reference for a trait function
+    pub delete_predicates: Vec<Arc<DeletePredicate>>,
+
+    /// This is needed to return a reference for a trait function
+    pub table_name: String,
 }
