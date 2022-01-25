@@ -166,9 +166,10 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
             }
 
             combined_summary_option = match combined_summary_option {
-                None => Some(chunk.summary().clone()),
+                None => Some(chunk.summary().expect("Chunk should have summary").clone()),
                 Some(mut combined_summary) => {
-                    combined_summary.update_from(chunk.summary());
+                    combined_summary
+                        .update_from(chunk.summary().expect("Chunk should have summary"));
                     Some(combined_summary)
                 }
             }

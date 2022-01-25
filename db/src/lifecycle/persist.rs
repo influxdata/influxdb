@@ -100,7 +100,10 @@ pub fn persist_chunks(
         let time_of_last_write =
             time_of_last_write.expect("Should have had a last write somewhere");
 
-        let key = compute_sort_key(query_chunks.iter().map(|x| x.summary()));
+        let summaries = query_chunks
+            .iter()
+            .map(|x| x.summary().expect("Chunk should have summary"));
+        let key = compute_sort_key(summaries);
         let key_str = format!("\"{}\"", key); // for logging
 
         // build schema

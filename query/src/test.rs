@@ -942,8 +942,8 @@ impl QueryChunk for TestChunk {
 }
 
 impl QueryChunkMeta for TestChunk {
-    fn summary(&self) -> &TableSummary {
-        &self.table_summary
+    fn summary(&self) -> Option<&TableSummary> {
+        Some(&self.table_summary)
     }
 
     fn schema(&self) -> Arc<Schema> {

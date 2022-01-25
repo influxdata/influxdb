@@ -87,7 +87,7 @@ where
     };
 
     let statistics = ChunkMetaStats {
-        summary: chunk.summary(),
+        summary: chunk.summary().expect("Chunk should have summary"),
     };
 
     match pruning_predicate.prune(&statistics) {

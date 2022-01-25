@@ -141,6 +141,7 @@ where
             .map(|key_name| {
                 chunk
                     .summary()
+                    .expect("chunk should have summary")
                     .column(key_name)
                     .expect("can not find column in chunk summary")
             })

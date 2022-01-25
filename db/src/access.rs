@@ -258,7 +258,8 @@ impl PruningObserver for ChunkAccess {
     fn was_pruned(&self, chunk: &Self::Observed) {
         let metrics = self.access_metrics.table_metrics(chunk.table_name());
         metrics.pruned_chunks.inc(1);
-        metrics.pruned_rows.inc(chunk.summary().total_count())
+        let chunk_summary = chunk.summary().expect("Chunk should have summary");
+        metrics.pruned_rows.inc(chunk_summary.total_count())
     }
 
     fn could_not_prune_chunk(&self, chunk: &Self::Observed, reason: &str) {

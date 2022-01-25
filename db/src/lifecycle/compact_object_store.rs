@@ -334,7 +334,10 @@ async fn compact_chunks(db: &Db, query_chunks: &[Arc<DbChunk>]) -> Result<Compac
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     // Compute the sorted output of the compacting result
-    let sort_key = compute_sort_key(query_chunks.iter().map(|x| x.summary()));
+    let summaries = query_chunks
+        .iter()
+        .map(|x| x.summary().expect("Chunk should have summary"));
+    let sort_key = compute_sort_key(summaries);
     let sort_key_str = format!("\"{}\"", sort_key); // for logging
 
     // Merge schema of the compacting chunks

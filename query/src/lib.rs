@@ -39,7 +39,7 @@ pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 /// metadata
 pub trait QueryChunkMeta: Sized {
     /// Return a reference to the summary of the data
-    fn summary(&self) -> &TableSummary;
+    fn summary(&self) -> Option<&TableSummary>;
 
     /// return a reference to the summary of the data held in this chunk
     fn schema(&self) -> Arc<Schema>;
@@ -223,7 +223,7 @@ impl<P> QueryChunkMeta for Arc<P>
 where
     P: QueryChunkMeta,
 {
-    fn summary(&self) -> &TableSummary {
+    fn summary(&self) -> Option<&TableSummary> {
         self.as_ref().summary()
     }
 
@@ -235,6 +235,38 @@ where
         let pred = self.as_ref().delete_predicates();
         debug!(?pred, "Delete predicate in QueryChunkMeta");
         pred
+    }
+}
+
+/// return true if all the chunks inlcude statistics
+pub fn chunks_have_stats<C>(chunks: &[C]) -> bool
+where
+    C: QueryChunkMeta,
+{
+    // If at least one of the provided chunk cannot provide stats,
+    // do not need to compute potential duplicates. We will treat
+    // as all of them have duplicates
+    chunks.iter().all(|c| c.summary().is_some())
+}
+
+pub fn compute_sort_key_for_chunks<'a, C>(schema: &'a Schema, chunks: &'a [C]) -> SortKey<'a>
+where
+    C: QueryChunkMeta,
+{
+    if !chunks_have_stats(chunks) {
+        // chunks have not enough stats, return its  pk that is
+        // sorted lexicographically but time column always last
+        let pk = schema.primary_key();
+        let mut sort_key = SortKey::with_capacity(pk.len());
+        for col in pk {
+            sort_key.push(col, Default::default())
+        }
+        sort_key
+    } else {
+        let summaries = chunks
+            .iter()
+            .map(|x| x.summary().expect("Chunk should have summary"));
+        compute_sort_key(summaries)
     }
 }
 

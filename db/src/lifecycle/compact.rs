@@ -87,7 +87,10 @@ pub(crate) fn compact_chunks(
 
     let fut = async move {
         let fut_now = std::time::Instant::now();
-        let key = compute_sort_key(query_chunks.iter().map(|x| x.summary()));
+        let summaries = query_chunks
+            .iter()
+            .map(|x| x.summary().expect("Chunk should have summary"));
+        let key = compute_sort_key(summaries);
         let key_str = format!("\"{}\"", key); // for logging
 
         // build schema

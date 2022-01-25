@@ -22,7 +22,7 @@ use predicate::predicate::{Predicate, PredicateBuilder};
 use schema::{merge::SchemaMerger, sort::SortKey, Schema};
 
 use crate::{
-    compute_sort_key,
+    chunks_have_stats, compute_sort_key_for_chunks,
     util::{arrow_sort_key_exprs, df_physical_expr},
     QueryChunk,
 };
@@ -387,7 +387,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let mut output_sort_key = SortKey::with_capacity(0);
         if sort_output {
             // Compute the output sort key which is the super key of chunks' keys base on their data cardinality
-            output_sort_key = compute_sort_key(chunks.iter().map(|x| x.summary()));
+            output_sort_key = compute_sort_key_for_chunks(&output_schema, chunks.as_ref());
         }
 
         // find overlapped chunks and put them into the right group
@@ -476,18 +476,23 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///  2. vector of non-overlapped chunks, each have duplicates in itself
     ///  3. vectors of non-overlapped chunks without duplicates
     fn split_overlapped_chunks(&mut self, chunks: Vec<Arc<C>>) -> Result<()> {
-        // Find all groups based on statstics
-        let groups = group_potential_duplicates(chunks).context(InternalChunkGroupingSnafu)?;
+        if !chunks_have_stats(&chunks) {
+            // no statistics, consider all chunks overlap
+            self.overlapped_chunks_set.push(chunks);
+        } else {
+            // Find all groups based on statstics
+            let groups = group_potential_duplicates(chunks).context(InternalChunkGroupingSnafu)?;
 
-        for mut group in groups {
-            if group.len() == 1 {
-                if group[0].may_contain_pk_duplicates() {
-                    self.in_chunk_duplicates_chunks.append(&mut group);
+            for mut group in groups {
+                if group.len() == 1 {
+                    if group[0].may_contain_pk_duplicates() {
+                        self.in_chunk_duplicates_chunks.append(&mut group);
+                    } else {
+                        self.no_duplicates_chunks.append(&mut group);
+                    }
                 } else {
-                    self.no_duplicates_chunks.append(&mut group);
+                    self.overlapped_chunks_set.push(group)
                 }
-            } else {
-                self.overlapped_chunks_set.push(group)
             }
         }
         Ok(())
@@ -563,7 +568,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let sort_key = if !output_sort_key.is_empty() {
             output_sort_key.to_owned()
         } else {
-            compute_sort_key(chunks.iter().map(|x| x.summary()))
+            compute_sort_key_for_chunks(&output_schema, chunks.as_ref())
         };
         trace!(sort_key=?sort_key, "sort key for the input chunks");
 
@@ -644,18 +649,19 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
 
         // Compute the output sort key for this chunk
+        let chunks = vec![chunk];
         let mut sort_key = if !output_sort_key.is_empty() {
             output_sort_key.to_owned()
         } else {
-            compute_sort_key(vec![chunk.summary()].into_iter())
+            compute_sort_key_for_chunks(&output_schema, &chunks)
         };
-        trace!(sort_key=?sort_key,chunk_id=?chunk.id(), "Computed the sort key for the input chunk");
+        trace!(sort_key=?sort_key,chunk_id=?chunks[0].id(), "Computed the sort key for the input chunk");
 
         // Create the 2 bottom nodes IOxReadFilterNode and SortExec
         let plan = Self::build_sort_plan_for_read_filter(
             table_name,
             Arc::clone(&input_schema),
-            Arc::clone(&chunk),
+            Arc::clone(&chunks[0]),
             predicate,
             &sort_key,
         )?;
@@ -663,7 +669,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         // The sort key of this chunk might only the subset of the super sort key
         if !output_sort_key.is_empty() {
             // First get the chunk pk columns
-            let schema = chunk.schema();
+            let schema = chunks[0].schema();
             let key_columns = schema.primary_key();
 
             // Now get the key subset of the super key that includes the chunk's pk columns
@@ -673,7 +679,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         // Add DeduplicateExc
         // Sort exprs for the deduplication
         let sort_exprs = arrow_sort_key_exprs(&sort_key, &plan.schema());
-        trace!(Sort_Exprs=?sort_exprs, chunk_ID=?chunk.id(), "Sort Expression for the deduplicate node of chunk");
+        trace!(Sort_Exprs=?sort_exprs, chunk_ID=?chunks[0].id(), "Sort Expression for the deduplicate node of chunk");
         let plan = Self::add_deduplicate_node(sort_exprs, plan);
 
         // select back to the requested output schema

@@ -561,8 +561,8 @@ impl QueryChunk for DbChunk {
 }
 
 impl QueryChunkMeta for DbChunk {
-    fn summary(&self) -> &TableSummary {
-        self.meta.table_summary.as_ref()
+    fn summary(&self) -> Option<&TableSummary> {
+        Some(self.meta.table_summary.as_ref())
     }
 
     fn schema(&self) -> Arc<Schema> {
