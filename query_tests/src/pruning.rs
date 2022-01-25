@@ -64,12 +64,13 @@ async fn chunk_pruning_sql() {
 
     assert_batches_sorted_eq!(&expected, &batches);
 
-    let attributes = Attributes::from(&[("db_name", "placeholder"), ("table_name", "cpu")]);
+    let database_attributes = Attributes::from(&[("db_name", "placeholder")]);
+    let table_attributes = Attributes::from(&[("db_name", "placeholder"), ("table_name", "cpu")]);
     // Validate that the chunk was pruned using the metrics
     let pruned_chunks = metric_registry
         .get_instrument::<Metric<U64Counter>>("query_access_pruned_chunks")
         .unwrap()
-        .get_observer(&attributes)
+        .get_observer(&table_attributes)
         .unwrap()
         .fetch();
     assert_eq!(pruned_chunks, 1);
@@ -78,10 +79,28 @@ async fn chunk_pruning_sql() {
     let pruned_rows = metric_registry
         .get_instrument::<Metric<U64Counter>>("query_access_pruned_rows")
         .unwrap()
-        .get_observer(&attributes)
+        .get_observer(&table_attributes)
         .unwrap()
         .fetch();
     assert_eq!(pruned_rows, 3);
+
+    // Validate that it recorded that pruning took place
+    let prune_count = metric_registry
+        .get_instrument::<Metric<U64Counter>>("query_access_prune")
+        .unwrap()
+        .get_observer(&database_attributes)
+        .unwrap()
+        .fetch();
+    assert_eq!(prune_count, 2);
+
+    // Validate that it recorded that the catalog was snapshotted
+    let snapshot_count = metric_registry
+        .get_instrument::<Metric<U64Counter>>("query_access_catalog_snapshot")
+        .unwrap()
+        .get_observer(&database_attributes)
+        .unwrap()
+        .fetch();
+    assert_eq!(snapshot_count, 1);
 }
 
 #[tokio::test]

@@ -15,7 +15,7 @@ use datafusion::{
 };
 use hashbrown::HashMap;
 use job_registry::JobRegistry;
-use metric::{Attributes, Metric, U64Counter};
+use metric::{Attributes, DurationCounter, Metric, U64Counter};
 use observability_deps::tracing::debug;
 use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
 use predicate::predicate::{Predicate, PredicateBuilder};
@@ -25,6 +25,7 @@ use query::{
     QueryChunk, QueryChunkMeta, QueryCompletedToken, QueryDatabase, DEFAULT_SCHEMA,
 };
 use schema::Schema;
+use std::time::Instant;
 use std::{any::Any, sync::Arc};
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 use time::TimeProvider;
@@ -37,16 +38,57 @@ const QUERY_LOG_SIZE: usize = 100;
 struct AccessMetrics {
     /// The database name
     db_name: Arc<str>,
+
+    /// Total time spent snapshotting catalog
+    catalog_snapshot_duration: DurationCounter,
+    /// Total number of catalog snapshots
+    catalog_snapshot_count: U64Counter,
+
+    /// Total time spent pruning chunks
+    prune_duration: DurationCounter,
+    /// Total number of times pruned chunks
+    prune_count: U64Counter,
+
     /// Total number of chunks pruned via statistics
     pruned_chunks: Metric<U64Counter>,
     /// Total number of rows pruned using statistics
     pruned_rows: Metric<U64Counter>,
+
     /// Keyed by table name
     tables: Mutex<HashMap<Arc<str>, TableAccessMetrics>>,
 }
 
 impl AccessMetrics {
     fn new(registry: &metric::Registry, db_name: Arc<str>) -> Self {
+        let attributes = Attributes::from([("db_name", db_name.to_string().into())]);
+        let catalog_snapshot_duration = registry
+            .register_metric::<DurationCounter>(
+                "query_access_catalog_snapshot_duration",
+                "Total time spent snapshotting catalog",
+            )
+            .recorder(attributes.clone());
+
+        let catalog_snapshot_count = registry
+            .register_metric::<U64Counter>(
+                "query_access_catalog_snapshot",
+                "Total number of catalog snapshots",
+            )
+            .recorder(attributes.clone());
+
+        let prune_duration = registry
+            .register_metric::<DurationCounter>(
+                "query_access_prune_duration",
+                "Total time spent pruning chunks",
+            )
+            .recorder(attributes.clone());
+
+        let prune_count = registry
+            .register_metric::<U64Counter>(
+                "query_access_prune",
+                "Total number of times pruned chunks",
+            )
+            .recorder(attributes);
+
         let pruned_chunks = registry.register_metric(
             "query_access_pruned_chunks",
             "Number of chunks pruned using metadata",
@@ -58,6 +100,10 @@ impl AccessMetrics {
         );
 
         Self {
+            catalog_snapshot_duration,
+            catalog_snapshot_count,
+            prune_duration,
+            prune_count,
             db_name,
             pruned_chunks,
             pruned_rows,
@@ -173,10 +219,17 @@ impl ChunkAccess {
         let partition_key = predicate.partition_key.as_deref();
         let table_names: TableNameFilter<'_> = predicate.table_names.as_ref().into();
 
+        let start = Instant::now();
+
         // Apply initial partition key / table name pruning
         let chunks = self
             .catalog
             .filtered_chunks(table_names, partition_key, DbChunk::snapshot);
+
+        self.access_metrics.catalog_snapshot_count.inc(1);
+        self.access_metrics
+            .catalog_snapshot_duration
+            .inc(start.elapsed());
 
         self.prune_chunks(chunks, predicate)
     }
@@ -184,11 +237,18 @@ impl ChunkAccess {
 
 impl ChunkPruner<DbChunk> for ChunkAccess {
     fn prune_chunks(&self, chunks: Vec<Arc<DbChunk>>, predicate: &Predicate) -> Vec<Arc<DbChunk>> {
+        let start = Instant::now();
+
         // TODO: call "apply_predicate" here too for additional
         // metadata based pruning
 
         debug!(num_chunks=chunks.len(), %predicate, "Attempting to prune chunks");
-        prune_chunks(self, chunks, predicate)
+        let pruned = prune_chunks(self, chunks, predicate);
+
+        self.access_metrics.prune_count.inc(1);
+        self.access_metrics.prune_duration.inc(start.elapsed());
+
+        pruned
     }
 }
 
