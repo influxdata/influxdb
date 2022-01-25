@@ -15,7 +15,7 @@ use hashbrown::HashMap;
 use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
 use mutable_batch::writer::Writer;
 use mutable_batch::MutableBatch;
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 
 /// Error type for line protocol conversion
 #[derive(Debug, Snafu)]
@@ -49,6 +49,74 @@ pub struct PayloadStatistics {
     pub num_lines: usize,
 }
 
+/// Converts line protocol to a set of [`MutableBatch`]
+#[derive(Debug)]
+pub struct LinesConverter {
+    /// The timestamp for non-timestamped rows
+    default_time: i64,
+    /// The multiplier to convert input timestamps to nanoseconds
+    timestamp_base: i64,
+    /// The statistics
+    stats: PayloadStatistics,
+    /// The current batches
+    batches: HashMap<String, MutableBatch>,
+}
+
+impl LinesConverter {
+    /// Create a new [`LinesConverter`]
+    pub fn new(default_time: i64) -> Self {
+        Self {
+            default_time,
+            timestamp_base: 1,
+            stats: Default::default(),
+            batches: Default::default(),
+        }
+    }
+
+    /// Sets a multiplier to convert line protocol timestamps to nanoseconds
+    pub fn set_timestamp_base(&mut self, timestamp_base: i64) {
+        self.timestamp_base = timestamp_base
+    }
+
+    /// Write some line protocol data
+    pub fn write_lp(&mut self, lines: &str) -> Result<()> {
+        for (line_idx, maybe_line) in parse_lines(lines).enumerate() {
+            let mut line = maybe_line.context(LineProtocolSnafu { line: line_idx + 1 })?;
+
+            if let Some(t) = line.timestamp.as_mut() {
+                *t *= self.timestamp_base
+            }
+
+            self.stats.num_lines += 1;
+            self.stats.num_fields += line.field_set.len();
+
+            let measurement = line.series.measurement.as_str();
+
+            let (_, batch) = self
+                .batches
+                .raw_entry_mut()
+                .from_key(measurement)
+                .or_insert_with(|| (measurement.to_string(), MutableBatch::new()));
+
+            // TODO: Reuse writer
+            let mut writer = Writer::new(batch, 1);
+            write_line(&mut writer, &line, self.default_time)
+                .context(WriteSnafu { line: line_idx + 1 })?;
+            writer.commit();
+        }
+        Ok(())
+    }
+
+    /// Consume this [`LinesConverter`] returning the [`MutableBatch`]
+    /// and the [`PayloadStatistics`] for the written data
+    pub fn finish(self) -> Result<(HashMap<String, MutableBatch>, PayloadStatistics)> {
+        match self.batches.is_empty() {
+            false => Ok((self.batches, self.stats)),
+            true => Err(Error::EmptyPayload),
+        }
+    }
+}
+
 /// Converts the provided lines of line protocol to a set of [`MutableBatch`]
 /// keyed by measurement name
 pub fn lines_to_batches(lines: &str, default_time: i64) -> Result<HashMap<String, MutableBatch>> {
@@ -61,29 +129,9 @@ pub fn lines_to_batches_stats(
     lines: &str,
     default_time: i64,
 ) -> Result<(HashMap<String, MutableBatch>, PayloadStatistics)> {
-    let mut stats = PayloadStatistics::default();
-    let mut batches = HashMap::new();
-    for (line_idx, maybe_line) in parse_lines(lines).enumerate() {
-        let line = maybe_line.context(LineProtocolSnafu { line: line_idx + 1 })?;
-
-        stats.num_lines += 1;
-        stats.num_fields += line.field_set.len();
-
-        let measurement = line.series.measurement.as_str();
-
-        let (_, batch) = batches
-            .raw_entry_mut()
-            .from_key(measurement)
-            .or_insert_with(|| (measurement.to_string(), MutableBatch::new()));
-
-        // TODO: Reuse writer
-        let mut writer = Writer::new(batch, 1);
-        write_line(&mut writer, &line, default_time).context(WriteSnafu { line: line_idx + 1 })?;
-        writer.commit();
-    }
-    ensure!(!batches.is_empty(), EmptyPayloadSnafu);
-
-    Ok((batches, stats))
+    let mut converter = LinesConverter::new(default_time);
+    converter.write_lp(lines)?;
+    converter.finish()
 }
 
 /// Writes the [`ParsedLine`] to the [`MutableBatch`]

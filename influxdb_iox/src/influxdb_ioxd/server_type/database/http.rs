@@ -282,6 +282,7 @@ async fn query(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::influxdb_ioxd::http::dml::test_utils::assert_write_precision;
     use crate::influxdb_ioxd::{
         http::{
             dml::test_utils::{
@@ -297,7 +298,7 @@ mod tests {
         server_type::common_state::CommonServerState,
     };
     use arrow::record_batch::RecordBatch;
-    use arrow_util::assert_batches_eq;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
     use db::Db;
     use dml::DmlWrite;
@@ -337,22 +338,31 @@ mod tests {
     }
 
     async fn assert_dbwrite(test_server: TestServer<DatabaseServerType>, write: DmlWrite) {
-        let (table_name, mutable_batch) = write.tables().next().unwrap();
+        assert_dbwrites(test_server, &[write]).await
+    }
+
+    async fn assert_dbwrites(test_server: TestServer<DatabaseServerType>, writes: &[DmlWrite]) {
+        let expected_batches: Vec<_> = writes.iter().flat_map(|w| w.tables()).collect();
+        let table = expected_batches.first().unwrap().0;
+        assert!(expected_batches.iter().all(|(t, _)| *t == table));
 
         let test_db = test_server
             .server_type()
             .server
             .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
             .expect("Database exists");
-        let batches = run_query(test_db, &format!("select * from {}", table_name)).await;
 
-        let expected = arrow_util::display::pretty_format_batches(&[mutable_batch
-            .to_arrow(Selection::All)
-            .unwrap()])
-        .unwrap();
-        let expected = expected.split('\n');
+        let actual_batches = run_query(test_db, &format!("select * from {}", table)).await;
 
-        assert_batches_eq!(expected, &batches);
+        let records: Vec<_> = expected_batches
+            .into_iter()
+            .map(|(_, batch)| batch.to_arrow(Selection::All).unwrap())
+            .collect();
+
+        let expected = arrow_util::display::pretty_format_batches(&records).unwrap();
+        let expected: Vec<_> = expected.split('\n').collect();
+
+        assert_batches_sorted_eq!(expected, &actual_batches);
     }
 
     #[tokio::test]
@@ -366,6 +376,13 @@ mod tests {
     #[tokio::test]
     async fn test_write_metrics() {
         assert_write_metrics(setup_server().await, true).await;
+    }
+
+    #[tokio::test]
+    async fn test_write_precision() {
+        let test_server = setup_server().await;
+        let writes = assert_write_precision(&test_server).await;
+        assert_dbwrites(test_server, &writes).await;
     }
 
     #[tokio::test]

@@ -2,17 +2,19 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::Utc;
+use hyper::{Body, Method, Request, Response, StatusCode};
+use serde::Deserialize;
+use snafu::{OptionExt, ResultExt, Snafu};
+
 use data_types::{
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     non_empty::NonEmptyString,
     DatabaseName,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
-use hyper::{Body, Method, Request, Response, StatusCode};
+use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::debug;
 use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
-use serde::Deserialize;
-use snafu::{OptionExt, ResultExt, Snafu};
 
 use crate::influxdb_ioxd::{http::utils::parse_body, server_type::ServerType};
 
@@ -209,7 +211,11 @@ pub trait HttpDrivenDml: ServerType {
         // contain a timestamp
         let default_time = Utc::now().timestamp_nanos();
 
-        let (tables, stats) = match mutable_batch_lp::lines_to_batches_stats(body, default_time) {
+        let mut converter = LinesConverter::new(default_time);
+        converter.set_timestamp_base(write_info.precision.timestamp_base());
+        let maybe_batches = converter.write_lp(body).and_then(|_| converter.finish());
+
+        let (tables, stats) = match maybe_batches {
             Ok(x) => x,
             Err(mutable_batch_lp::Error::EmptyPayload) => {
                 debug!("nothing to write");
@@ -364,19 +370,53 @@ pub trait HttpDrivenDml: ServerType {
 }
 
 #[derive(Debug, Deserialize)]
+enum Precision {
+    #[serde(rename = "s")]
+    Seconds,
+    #[serde(rename = "ms")]
+    Milliseconds,
+    #[serde(rename = "us")]
+    Microseconds,
+    #[serde(rename = "ns")]
+    Nanoseconds,
+}
+
+impl Default for Precision {
+    fn default() -> Self {
+        Self::Nanoseconds
+    }
+}
+
+impl Precision {
+    /// Returns the multiplier to convert to nanosecond timestamps
+    fn timestamp_base(&self) -> i64 {
+        match self {
+            Precision::Seconds => 1_000_000_000,
+            Precision::Milliseconds => 1_000_000,
+            Precision::Microseconds => 1_000,
+            Precision::Nanoseconds => 1,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
 /// Body of the request to the dml endpoints
-pub struct WriteInfo {
-    pub org: String,
-    pub bucket: String,
+struct WriteInfo {
+    org: String,
+    bucket: String,
+
+    #[serde(default)]
+    precision: Precision,
 }
 
 #[cfg(test)]
 pub mod test_utils {
-    use dml::DmlWrite;
     use http::{header::CONTENT_ENCODING, StatusCode};
+    use reqwest::Client;
+
+    use dml::DmlWrite;
     use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Histogram};
     use mutable_batch_lp::lines_to_batches;
-    use reqwest::Client;
 
     use crate::influxdb_ioxd::{
         http::test_utils::{check_response, TestServer},
@@ -474,6 +514,61 @@ pub mod test_utils {
             Some(""),
         )
         .await;
+    }
+
+    /// Assert that writes respect precision, returns the writes that were generated
+    pub async fn assert_write_precision<T>(test_server: &TestServer<T>) -> Vec<DmlWrite>
+    where
+        T: ServerType,
+    {
+        let client = Client::new();
+        let bucket_name = "MyBucket";
+        let org_name = "MyOrg";
+
+        let precisions = [
+            ("s", StatusCode::NO_CONTENT, ""),
+            ("ms", StatusCode::NO_CONTENT, ""),
+            ("us", StatusCode::NO_CONTENT, ""),
+            ("ns", StatusCode::NO_CONTENT, ""),
+            (
+                "",
+                StatusCode::BAD_REQUEST,
+                "unknown variant ``, expected one of `s`, `ms`, `us`, `ns`",
+            ),
+            (
+                "seconds",
+                StatusCode::BAD_REQUEST,
+                "unknown variant `seconds`, expected one of `s`, `ms`, `us`, `ns`",
+            ),
+        ];
+
+        for (precision, status, body) in precisions {
+            let r = client
+                .post(&format!(
+                    "{}/api/v2/write?bucket={}&org={}&precision={}",
+                    test_server.url(),
+                    bucket_name,
+                    org_name,
+                    precision
+                ))
+                .body("cpu bar=1 2")
+                .send()
+                .await;
+
+            check_response("write", r, status, Some(body)).await;
+        }
+
+        let expected_lp = [
+            "cpu bar=1 2000000000",
+            "cpu bar=1 2000000",
+            "cpu bar=1 2000",
+            "cpu bar=1 2",
+        ];
+
+        expected_lp
+            .iter()
+            .map(|lp| DmlWrite::new(lines_to_batches(lp, 0).unwrap(), Default::default()))
+            .collect()
     }
 
     /// Assert that write metrics work.

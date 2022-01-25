@@ -102,7 +102,8 @@ mod tests {
         http::{
             dml::test_utils::{
                 assert_delete_bad_request, assert_delete_unknown_database, assert_gzip_write,
-                assert_write, assert_write_metrics, assert_write_to_invalid_database,
+                assert_write, assert_write_metrics, assert_write_precision,
+                assert_write_to_invalid_database,
             },
             test_utils::{
                 assert_health, assert_metrics, assert_tracing, check_response, TestServer,
@@ -145,6 +146,13 @@ mod tests {
     #[tokio::test]
     async fn test_write_metrics() {
         assert_write_metrics(test_server().await, false).await;
+    }
+
+    #[tokio::test]
+    async fn test_write_precision() {
+        let test_server = test_server().await;
+        let writes = assert_write_precision(&test_server).await;
+        assert_dbwrites(test_server, writes.into_iter().map(DmlOperation::Write)).await;
     }
 
     #[tokio::test]
@@ -246,7 +254,10 @@ mod tests {
         TestServer::new(server_type)
     }
 
-    async fn assert_dbwrite(test_server: TestServer<RouterServerType>, write: DmlOperation) {
+    async fn assert_dbwrites(
+        test_server: TestServer<RouterServerType>,
+        writes: impl IntoIterator<Item = DmlOperation> + Send,
+    ) {
         let grpc_client = test_server
             .server_type()
             .server
@@ -254,7 +265,17 @@ mod tests {
             .grpc_client("1")
             .await
             .unwrap();
+
         let grpc_client = grpc_client.as_any().downcast_ref::<MockClient>().unwrap();
-        grpc_client.assert_writes(&[(String::from("MyOrg_MyBucket"), write)]);
+        let operations: Vec<_> = writes
+            .into_iter()
+            .map(|o| (String::from("MyOrg_MyBucket"), o))
+            .collect();
+
+        grpc_client.assert_writes(&operations);
+    }
+
+    async fn assert_dbwrite(test_server: TestServer<RouterServerType>, write: DmlOperation) {
+        assert_dbwrites(test_server, std::iter::once(write)).await
     }
 }
