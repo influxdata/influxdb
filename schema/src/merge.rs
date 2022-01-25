@@ -1,4 +1,9 @@
-use arrow::datatypes::{DataType as ArrowDataType, Field};
+use std::sync::Arc;
+
+use arrow::{
+    datatypes::{DataType as ArrowDataType, Field},
+    record_batch::RecordBatch,
+};
 use hashbrown::hash_map::RawEntryMut;
 use hashbrown::HashMap;
 use snafu::Snafu;
@@ -65,6 +70,20 @@ fn nullable_to_str(nullability: bool) -> &'static str {
     } else {
         "can not be null"
     }
+}
+
+/// Return the merged schema for RecordBatches
+///
+/// This is infallable because the schemas of chunks within a
+/// partition are assumed to be compatible because that schema was
+/// enforced as part of writing into the partition
+pub fn merge_record_batch_schemas(batches: &[Arc<RecordBatch>]) -> Arc<Schema> {
+    let mut merger = SchemaMerger::new();
+    for batch in batches {
+        let schema = Schema::try_from(batch.schema()).expect("Schema conversion error");
+        merger = merger.merge(&schema).expect("Schemas compatible");
+    }
+    Arc::new(merger.build())
 }
 
 /// Schema Merger

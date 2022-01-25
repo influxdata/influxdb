@@ -9,6 +9,7 @@ use crate::{
     exec::stringset::{StringSet, StringSetRef},
     Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
 };
+use arrow::array::UInt64Array;
 use arrow::{
     array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
     datatypes::{DataType, Int32Type, TimeUnit},
@@ -549,6 +550,7 @@ impl TestChunk {
             .iter()
             .map(|(_influxdb_column_type, field)| match field.data_type() {
                 DataType::Int64 => Arc::new(Int64Array::from(vec![1000, 10, 70])) as ArrayRef,
+                DataType::UInt64 => Arc::new(UInt64Array::from(vec![1000, 10, 70])) as ArrayRef,
                 DataType::Utf8 => match field.name().as_str() {
                     "tag1" => Arc::new(StringArray::from(vec!["WA", "VT", "UT"])) as ArrayRef,
                     "tag2" => Arc::new(StringArray::from(vec!["SC", "NC", "RI"])) as ArrayRef,

@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
+use arrow_util::util::merge_record_batches;
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
     delete_predicate::DeletePredicate,
@@ -15,40 +16,30 @@ use predicate::{
     predicate::{Predicate, PredicateMatch},
 };
 use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
-use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
-use snafu::Snafu;
+use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
+use snafu::{ResultExt, Snafu};
 
 use crate::data::{QueryableBatch, SnapshotBatch};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Error while building delete predicate from start time, {}, stop time, {}, and serialized predicate, {}", min, max, predicate))]
+    #[snafu(display("Internal error while building delete predicate from start time, {}, stop time, {}, and serialized predicate, {}", min, max, predicate))]
     DeletePredicate {
         source: predicate::delete_predicate::Error,
         min: String,
         max: String,
         predicate: String,
     },
+
+    // #[snafu(display("Internal error while adding NULL columns into a record batch"))]
+    // PaddNulls { source: arrow::error::ArrowError },
+    #[snafu(display("Internal error while concat record batches {}", source))]
+    ConcatBatches { source: arrow::error::ArrowError },
 }
 
 /// A specialized `Error` for Ingester's Query errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-// todo: move this function to a more appropriate crate
-/// Return the merged schema for RecordBatches
-///
-/// This is infallable because the schemas of chunks within a
-/// partition are assumed to be compatible because that schema was
-/// enforced as part of writing into the partition
-pub fn merge_record_batch_schemas(batches: &[Arc<RecordBatch>]) -> Arc<Schema> {
-    let mut merger = SchemaMerger::new();
-    for batch in batches {
-        let schema = Schema::try_from(batch.schema()).expect("Schema conversion error");
-        merger = merger.merge(&schema).expect("schemas compatible");
-    }
-    Arc::new(merger.build())
-}
 
 impl QueryableBatch {
     /// Initilaize a QueryableBatch
@@ -179,8 +170,22 @@ impl QueryChunk for QueryableBatch {
         _predicate: &Predicate, // no needs because all data will be read for compaction
         _selection: Selection<'_>, // no needs because all columns will be read and compact
     ) -> Result<SendableRecordBatchStream, Self::Error> {
+        // Get all record batches from their snapshots
         let batches: Vec<_> = self.data.iter().map(|s| Arc::clone(&s.data)).collect();
-        let stream = SizedRecordBatchStream::new(self.schema().as_arrow(), batches);
+
+        // Combine record batches into one bacth and padding null values as needed
+        // Schema of all record batches after mergeing
+        let schema = merge_record_batch_schemas(&batches);
+        let batch =
+            merge_record_batches(schema.as_arrow(), batches).context(ConcatBatchesSnafu {})?;
+
+        let mut stream_batches = vec![];
+        if let Some(batch) = batch {
+            stream_batches.push(Arc::new(batch));
+        }
+
+        // Return sream of data
+        let stream = SizedRecordBatchStream::new(self.schema().as_arrow(), stream_batches);
         Ok(Box::pin(stream))
     }
 

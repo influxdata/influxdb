@@ -60,6 +60,7 @@ pub async fn compact(
         .execute_stream(physical_plan)
         .await
         .context(ExecutePlanSnafu {})?;
+
     Ok(output_stream)
 }
 
@@ -188,8 +189,6 @@ mod tests {
         assert_batches_eq!(&expected, &output_batches);
     }
 
-    // TODO: FIX BUG
-    #[ignore]
     #[tokio::test]
     async fn test_compact_many_batches_different_columns_with_duplicates() {
         // create many-batches input data
@@ -214,20 +213,81 @@ mod tests {
         // verify compacted data
         // data is sorted and all duplicates are removed
         let expected = vec![
-            "+-----------+------+--------------------------------+",
-            "| field_int | tag1 | time                           |",
-            "+-----------+------+--------------------------------+",
-            "| 100       | AL   | 1970-01-01T00:00:00.000000050Z |",
-            "| 70        | CT   | 1970-01-01T00:00:00.000000100Z |",
-            "| 70        | CT   | 1970-01-01T00:00:00.000000500Z |",
-            "| 30        | MT   | 1970-01-01T00:00:00.000000005Z |",
-            "| 1000      | MT   | 1970-01-01T00:00:00.000001Z    |",
-            "| 1000      | MT   | 1970-01-01T00:00:00.000002Z    |",
-            "| 5         | MT   | 1970-01-01T00:00:00.000005Z    |",
-            "| 10        | MT   | 1970-01-01T00:00:00.000007Z    |",
-            "+-----------+------+--------------------------------+",
+            "+-----------+------------+------+------+--------------------------------+",
+            "| field_int | field_int2 | tag1 | tag2 | time                           |",
+            "+-----------+------------+------+------+--------------------------------+",
+            "| 10        |            | AL   |      | 1970-01-01T00:00:00.000000050Z |",
+            "| 100       | 100        | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
+            "| 70        |            | CT   |      | 1970-01-01T00:00:00.000000100Z |",
+            "| 70        |            | CT   |      | 1970-01-01T00:00:00.000000500Z |",
+            "| 70        | 70         | CT   | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 30        |            | MT   |      | 1970-01-01T00:00:00.000000005Z |",
+            "| 1000      |            | MT   |      | 1970-01-01T00:00:00.000001Z    |",
+            "| 1000      |            | MT   |      | 1970-01-01T00:00:00.000002Z    |",
+            "| 20        |            | MT   |      | 1970-01-01T00:00:00.000007Z    |",
+            "| 5         | 5          | MT   | AL   | 1970-01-01T00:00:00.000005Z    |",
+            "| 10        | 10         | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 1000      | 1000       | MT   | CT   | 1970-01-01T00:00:00.000001Z    |",
+            "+-----------+------------+------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &output_batches);
+    }
+
+    #[tokio::test]
+    async fn test_compact_many_batches_different_columns_different_order_with_duplicates() {
+        // create many-batches input data
+        let batches = create_batches_with_influxtype_different_columns_different_order().await;
+
+        // build queryable batch from the inout batches
+        let compact_batch = make_queryable_batch(batches);
+
+        // verify PK
+        let schema = compact_batch.schema();
+        let pk = schema.primary_key();
+        let expected_pk = vec!["tag1", "tag2", "time"];
+        assert_eq!(expected_pk, pk);
+
+        // compact
+        let exc = Executor::new(1);
+        let stream = compact(&exc, compact_batch).await.unwrap();
+        let output_batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        // verify compacted data
+        // data is sorted and all duplicates are removed
+        let expected = vec![
+            "+-----------+------+------+--------------------------------+",
+            "| field_int | tag1 | tag2 | time                           |",
+            "+-----------+------+------+--------------------------------+",
+            "| 5         |      | AL   | 1970-01-01T00:00:00.000005Z    |",
+            "| 10        |      | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 70        |      | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 1000      |      | CT   | 1970-01-01T00:00:00.000001Z    |",
+            "| 100       |      | MA   | 1970-01-01T00:00:00.000000050Z |",
+            "| 10        | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
+            "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000500Z |",
+            "| 30        | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
+            "| 20        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000001Z    |",
+            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000002Z    |",
+            "+-----------+------+------+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &output_batches);
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Schemas compatible")]
+    async fn test_compact_many_batches_same_columns_different_types() {
+        // create many-batches input data
+        let batches = create_batches_with_influxtype_same_columns_different_type().await;
+
+        // build queryable batch from the input batches
+        let compact_batch = make_queryable_batch(batches);
+
+        // the schema merge will thorw a panic
+        compact_batch.schema();
     }
 
     // ----------------------------------------------------------------------------------------------
@@ -471,30 +531,123 @@ mod tests {
         assert_batches_eq!(&expected, &[batch2.clone()]);
         batches.push(Arc::new(batch2));
 
-        // verify data from both batches
+        batches
+    }
+
+    // RecordBatches with knowledge of influx metadata
+    pub async fn create_batches_with_influxtype_different_columns_different_order(
+    ) -> Vec<Arc<RecordBatch>> {
+        // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
+        let mut batches = vec![];
+
+        // chunk1 with 10 rows and 3 columns
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_tag_column("tag2")
+                .with_ten_rows_of_data_some_duplicates(),
+        );
+        let batch1 = raw_data(&[chunk1]).await[0].clone();
         let expected = vec![
-            "+-----------+------+--------------------------------+----+--------------------------------+",
-            "| field_int | tag1 | time                           |    |                                |",
-            "+-----------+------+--------------------------------+----+--------------------------------+",
-            "| 1000      | MT   | 1970-01-01T00:00:00.000001Z    |    |                                |",
-            "| 10        | MT   | 1970-01-01T00:00:00.000007Z    |    |                                |",
-            "| 70        | CT   | 1970-01-01T00:00:00.000000100Z |    |                                |",
-            "| 100       | AL   | 1970-01-01T00:00:00.000000050Z |    |                                |",
-            "| 5         | MT   | 1970-01-01T00:00:00.000000005Z |    |                                |",
-            "| 1000      | MT   | 1970-01-01T00:00:00.000002Z    |    |                                |",
-            "| 20        | MT   | 1970-01-01T00:00:00.000007Z    |    |                                |",
-            "| 70        | CT   | 1970-01-01T00:00:00.000000500Z |    |                                |",
-            "| 10        | AL   | 1970-01-01T00:00:00.000000050Z |    |                                |",
-            "| 30        | MT   | 1970-01-01T00:00:00.000000005Z |    |                                |",
-            "| 1000      | 1000 | MT                             | CT | 1970-01-01T00:00:00.000001Z    |",
-            "| 10        | 10   | MT                             | AL | 1970-01-01T00:00:00.000007Z    |",
-            "| 70        | 70   | CT                             | CT | 1970-01-01T00:00:00.000000100Z |",
-            "| 100       | 100  | AL                             | MA | 1970-01-01T00:00:00.000000050Z |",
-            "| 5         | 5    | MT                             | AL | 1970-01-01T00:00:00.000005Z    |",
-            "+-----------+------+--------------------------------+----+--------------------------------+",
+            "+-----------+------+------+--------------------------------+",
+            "| field_int | tag1 | tag2 | time                           |",
+            "+-----------+------+------+--------------------------------+",
+            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000001Z    |",
+            "| 10        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 100       | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
+            "| 5         | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
+            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000002Z    |",
+            "| 20        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000500Z |",
+            "| 10        | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
+            "| 30        | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
+            "+-----------+------+------+--------------------------------+",
         ];
-        let b: Vec<_> = batches.iter().map(|b| (**b).clone()).collect();
-        assert_batches_eq!(&expected, &b);
+        assert_batches_eq!(&expected, &[batch1.clone()]);
+        batches.push(Arc::new(batch1));
+
+        // chunk2 having duplicate data with chunk 1
+        // mmore columns
+        let chunk2 = Arc::new(
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column()
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data(),
+        );
+        let batch2 = raw_data(&[chunk2]).await[0].clone();
+        let expected = vec![
+            "+-----------+------+--------------------------------+",
+            "| field_int | tag2 | time                           |",
+            "+-----------+------+--------------------------------+",
+            "| 1000      | CT   | 1970-01-01T00:00:00.000001Z    |",
+            "| 10        | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 70        | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 100       | MA   | 1970-01-01T00:00:00.000000050Z |",
+            "| 5         | AL   | 1970-01-01T00:00:00.000005Z    |",
+            "+-----------+------+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &[batch2.clone()]);
+        batches.push(Arc::new(batch2));
+
+        batches
+    }
+
+    // RecordBatches with knowledge of influx metadata
+    pub async fn create_batches_with_influxtype_same_columns_different_type(
+    ) -> Vec<Arc<RecordBatch>> {
+        // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
+        let mut batches = vec![];
+
+        // chunk1
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_three_rows_of_data(),
+        );
+        let batch1 = raw_data(&[chunk1]).await[0].clone();
+        let expected = vec![
+            "+-----------+------+-----------------------------+",
+            "| field_int | tag1 | time                        |",
+            "+-----------+------+-----------------------------+",
+            "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
+            "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
+            "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
+            "+-----------+------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected, &[batch1.clone()]);
+        batches.push(Arc::new(batch1));
+
+        // chunk2 having duplicate data with chunk 1
+        // mmore columns
+        let chunk2 = Arc::new(
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column()
+                .with_u64_column("field_int") //  u64 type but on existing name "field_int" used for i64 in chunk 1
+                .with_tag_column("tag2")
+                .with_three_rows_of_data(),
+        );
+        let batch2 = raw_data(&[chunk2]).await[0].clone();
+        let expected = vec![
+            "+-----------+------+-----------------------------+",
+            "| field_int | tag2 | time                        |",
+            "+-----------+------+-----------------------------+",
+            "| 1000      | SC   | 1970-01-01T00:00:00.000008Z |",
+            "| 10        | NC   | 1970-01-01T00:00:00.000010Z |",
+            "| 70        | RI   | 1970-01-01T00:00:00.000020Z |",
+            "+-----------+------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected, &[batch2.clone()]);
+        batches.push(Arc::new(batch2));
 
         batches
     }
