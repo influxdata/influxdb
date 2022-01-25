@@ -30,10 +30,13 @@ pub enum DmlError {
 /// A composable, abstract handler of DML requests.
 #[async_trait]
 pub trait DmlHandler: Debug + Send + Sync {
-    /// The type of error a [`DmlHandler`] implementation produces.
+    /// The type of error a [`DmlHandler`] implementation produces for write
+    /// requests.
     ///
     /// All errors must be mappable into the concrete [`DmlError`] type.
-    type Error: Into<DmlError>;
+    type WriteError: Into<DmlError>;
+    /// The error type of the delete handler.
+    type DeleteError: Into<DmlError>;
 
     /// Write `batches` to `namespace`.
     async fn write(
@@ -41,7 +44,7 @@ pub trait DmlHandler: Debug + Send + Sync {
         namespace: DatabaseName<'static>,
         batches: HashMap<String, MutableBatch>,
         span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), Self::WriteError>;
 
     /// Delete the data specified in `delete`.
     async fn delete<'a>(
@@ -50,5 +53,5 @@ pub trait DmlHandler: Debug + Send + Sync {
         table_name: impl Into<String> + Send + Sync + 'a,
         predicate: DeletePredicate,
         span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), Self::DeleteError>;
 }

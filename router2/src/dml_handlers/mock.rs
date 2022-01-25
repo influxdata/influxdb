@@ -69,14 +69,15 @@ macro_rules! record_and_return {
 
 #[async_trait]
 impl DmlHandler for Arc<MockDmlHandler> {
-    type Error = DmlError;
+    type WriteError = DmlError;
+    type DeleteError = DmlError;
 
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
         batches: HashMap<String, MutableBatch>,
         _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Self::WriteError> {
         record_and_return!(
             self,
             MockDmlHandlerCall::Write {
@@ -93,7 +94,7 @@ impl DmlHandler for Arc<MockDmlHandler> {
         table: impl Into<String> + Send + Sync + 'a,
         predicate: DeletePredicate,
         _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Self::DeleteError> {
         record_and_return!(
             self,
             MockDmlHandlerCall::Delete {

@@ -16,14 +16,15 @@ pub struct NopDmlHandler;
 
 #[async_trait]
 impl DmlHandler for NopDmlHandler {
-    type Error = DmlError;
+    type WriteError = DmlError;
+    type DeleteError = DmlError;
 
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
         batches: HashMap<String, MutableBatch>,
         _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Self::WriteError> {
         info!(%namespace, ?batches, "dropping write operation");
         Ok(())
     }
@@ -34,7 +35,7 @@ impl DmlHandler for NopDmlHandler {
         table: impl Into<String> + Send + Sync + 'a,
         predicate: DeletePredicate,
         _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Self::DeleteError> {
         let table = table.into();
         info!(%namespace, %table, ?predicate, "dropping delete operation");
         Ok(())
