@@ -227,7 +227,7 @@ impl MockBufferSharedState {
 
 #[derive(Debug)]
 pub struct MockBufferForWriting {
-    state: MockBufferSharedState,
+    state: Arc<MockBufferSharedState>,
     time_provider: Arc<dyn TimeProvider>,
 }
 
@@ -247,9 +247,13 @@ impl MockBufferForWriting {
         }
 
         Ok(Self {
-            state,
+            state: state.into(),
             time_provider,
         })
+    }
+
+    pub fn state(&self) -> Arc<MockBufferSharedState> {
+        Arc::clone(&self.state)
     }
 }
 

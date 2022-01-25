@@ -30,6 +30,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tonic = "0.6"
 trace = { path = "../trace/" }
 workspace-hack = { path = "../workspace-hack"}
+write_buffer = { path = "../write_buffer" }
 
 [dev-dependencies]
 assert_matches = "1.5"

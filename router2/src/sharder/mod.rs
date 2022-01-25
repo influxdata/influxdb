@@ -5,3 +5,6 @@ pub use r#trait::*;
 
 mod table_namespace_sharder;
 pub use table_namespace_sharder::*;
+
+#[cfg(test)]
+pub mod mock;

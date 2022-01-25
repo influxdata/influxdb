@@ -3764,6 +3764,7 @@ dependencies = [
  "tonic",
  "trace",
  "workspace-hack",
+ "write_buffer",
 ]
 
 [[package]]
