@@ -62,18 +62,21 @@ pub fn update_catalog_after_persisting(
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-
     use iox_catalog::{
         interface::{KafkaTopic, KafkaTopicId},
         mem::MemCatalog,
     };
     use uuid::Uuid;
-
+    use object_store::ObjectStore;
     use crate::{
         catalog_update::update_catalog_after_persisting,
         handler::IngestHandlerImpl,
         test_util::{make_persisting_batch, make_persisting_batch_with_meta},
     };
+
+    fn object_store() -> Arc<ObjectStore> {
+        Arc::new(ObjectStore::new_in_memory())
+    }
 
     #[tokio::test]
     async fn test_update_batch_removed() {
@@ -85,6 +88,7 @@ mod tests {
             },
             vec![],
             Arc::new(MemCatalog::new()),
+            object_store(),
         );
 
         // Make a persisting batch, tombstones and thier metadata after compaction
@@ -112,6 +116,7 @@ mod tests {
             },
             vec![],
             Arc::new(MemCatalog::new()),
+            object_store(),
         );
 
         // Make a persisting batch, tombstones and thier metadata after compaction

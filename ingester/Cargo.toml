@@ -13,6 +13,7 @@ hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch"}
+object_store = { path = "../object_store" }
 parking_lot = "0.11.2"
 predicate = { path = "../predicate" }
 query = { path = "../query" }
