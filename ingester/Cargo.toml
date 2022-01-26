@@ -23,4 +23,6 @@ thiserror = "1.0"
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 
-
+[dev-dependencies]
+mutable_batch_lp = { path = "../mutable_batch_lp" }
+test_helpers = { path = "../test_helpers" }

@@ -1,19 +1,18 @@
-//! Data for the lifecycle of the Ingeter
-//!
-
-use arrow::record_batch::RecordBatch;
-use data_types::delete_predicate::DeletePredicate;
-use std::{collections::BTreeMap, sync::Arc};
-use uuid::Uuid;
+//! Data for the lifecycle of the Ingester
 
 use crate::handler::IngestHandlerImpl;
+use arrow::record_batch::RecordBatch;
+use data_types::delete_predicate::DeletePredicate;
 use iox_catalog::interface::{
     KafkaPartition, KafkaTopicId, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
     Tombstone,
 };
 use mutable_batch::MutableBatch;
 use parking_lot::RwLock;
+use schema::selection::Selection;
 use snafu::{OptionExt, ResultExt, Snafu};
+use std::{collections::BTreeMap, sync::Arc};
+use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -44,7 +43,7 @@ pub enum Error {
 /// A specialized `Error` for Ingester Data errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Ingester Data: a Mapp of Shard ID to its Data
+/// Ingester Data: a Map of Shard ID to its Data
 #[derive(Default)]
 pub struct Sequencers {
     // This map gets set up on initialization of the ingester so it won't ever be modified.
@@ -158,6 +157,44 @@ pub struct DataBuffer {
     //    Queriers that may not have loaded the parquet files from object
     //    storage yet. But this will be decided after MVP.
 }
+
+impl DataBuffer {
+    /// Move `BufferBatch`es to a `SnapshotBatch`.
+    pub fn snapshot(&mut self) -> Result<(), mutable_batch::Error> {
+        if !self.buffer.is_empty() {
+            let min_sequencer_number = self
+                .buffer
+                .first()
+                .expect("Buffer isn't empty in this block")
+                .sequencer_number;
+            let max_sequencer_number = self
+                .buffer
+                .last()
+                .expect("Buffer isn't empty in this block")
+                .sequencer_number;
+            assert!(min_sequencer_number <= max_sequencer_number);
+
+            let mut batches = self.buffer.iter();
+            let first_batch = batches.next().expect("Buffer isn't empty in this block");
+            let mut mutable_batch = first_batch.data.clone();
+
+            for batch in batches {
+                mutable_batch.extend_from(&batch.data)?;
+            }
+
+            self.snapshots.push(Arc::new(SnapshotBatch {
+                min_sequencer_number,
+                max_sequencer_number,
+                data: Arc::new(mutable_batch.to_arrow(Selection::All)?),
+            }));
+
+            self.buffer.clear();
+        }
+
+        Ok(())
+    }
+}
+
 /// BufferBatch is a MutauableBatch with its ingesting order, sequencer_number, that
 /// helps the ingester keep the batches of data in thier ingesting order
 pub struct BufferBatch {
@@ -170,9 +207,9 @@ pub struct BufferBatch {
 /// SnapshotBatch contains data of many contiguous BufferBatches
 #[derive(Debug)]
 pub struct SnapshotBatch {
-    /// Min sequencer number of its comebined BufferBatches
+    /// Min sequencer number of its combined BufferBatches
     pub min_sequencer_number: SequenceNumber,
-    /// Max sequencer number of its comebined BufferBatches
+    /// Max sequencer number of its combined BufferBatches
     pub max_sequencer_number: SequenceNumber,
     /// Data of its comebined BufferBatches kept in one RecordBatch
     pub data: Arc<RecordBatch>,
@@ -213,4 +250,152 @@ pub struct QueryableBatch {
 
     /// This is needed to return a reference for a trait function
     pub table_name: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
+    use test_helpers::assert_error;
+
+    #[test]
+    fn snapshot_empty_buffer_adds_no_snapshots() {
+        let mut data_buffer = DataBuffer::default();
+
+        data_buffer.snapshot().unwrap();
+
+        assert!(data_buffer.snapshots.is_empty());
+    }
+
+    #[test]
+    fn snapshot_buffer_one_buffer_batch_moves_to_snapshots() {
+        let mut data_buffer = DataBuffer::default();
+
+        let seq_num1 = SequenceNumber::new(1);
+        let (_, mutable_batch1) =
+            lp_to_mutable_batch(r#"foo,t1=asdf iv=1i,uv=774u,fv=1.0,bv=true,sv="hi" 1"#);
+        let buffer_batch1 = BufferBatch {
+            sequencer_number: seq_num1,
+            data: mutable_batch1,
+        };
+        let record_batch1 = buffer_batch1.data.to_arrow(Selection::All).unwrap();
+        data_buffer.buffer.push(buffer_batch1);
+
+        data_buffer.snapshot().unwrap();
+
+        assert!(data_buffer.buffer.is_empty());
+        assert_eq!(data_buffer.snapshots.len(), 1);
+
+        let snapshot = &data_buffer.snapshots[0];
+        assert_eq!(snapshot.min_sequencer_number, seq_num1);
+        assert_eq!(snapshot.max_sequencer_number, seq_num1);
+        assert_eq!(&*snapshot.data, &record_batch1);
+    }
+
+    #[test]
+    fn snapshot_buffer_multiple_buffer_batches_combines_into_a_snapshot() {
+        let mut data_buffer = DataBuffer::default();
+
+        let seq_num1 = SequenceNumber::new(1);
+        let (_, mut mutable_batch1) =
+            lp_to_mutable_batch(r#"foo,t1=asdf iv=1i,uv=774u,fv=1.0,bv=true,sv="hi" 1"#);
+        let buffer_batch1 = BufferBatch {
+            sequencer_number: seq_num1,
+            data: mutable_batch1.clone(),
+        };
+        data_buffer.buffer.push(buffer_batch1);
+
+        let seq_num2 = SequenceNumber::new(2);
+        let (_, mutable_batch2) =
+            lp_to_mutable_batch(r#"foo,t1=aoeu iv=2i,uv=1u,fv=12.0,bv=false,sv="bye" 10000"#);
+        let buffer_batch2 = BufferBatch {
+            sequencer_number: seq_num2,
+            data: mutable_batch2.clone(),
+        };
+        data_buffer.buffer.push(buffer_batch2);
+
+        data_buffer.snapshot().unwrap();
+
+        assert!(data_buffer.buffer.is_empty());
+        assert_eq!(data_buffer.snapshots.len(), 1);
+
+        let snapshot = &data_buffer.snapshots[0];
+        assert_eq!(snapshot.min_sequencer_number, seq_num1);
+        assert_eq!(snapshot.max_sequencer_number, seq_num2);
+
+        mutable_batch1.extend_from(&mutable_batch2).unwrap();
+        let combined_record_batch = mutable_batch1.to_arrow(Selection::All).unwrap();
+        assert_eq!(&*snapshot.data, &combined_record_batch);
+    }
+
+    #[test]
+    fn snapshot_buffer_different_but_compatible_schemas() {
+        let mut data_buffer = DataBuffer::default();
+
+        let seq_num1 = SequenceNumber::new(1);
+        // Missing tag `t1`
+        let (_, mut mutable_batch1) =
+            lp_to_mutable_batch(r#"foo iv=1i,uv=774u,fv=1.0,bv=true,sv="hi" 1"#);
+        let buffer_batch1 = BufferBatch {
+            sequencer_number: seq_num1,
+            data: mutable_batch1.clone(),
+        };
+        data_buffer.buffer.push(buffer_batch1);
+
+        let seq_num2 = SequenceNumber::new(2);
+        // Missing field `iv`
+        let (_, mutable_batch2) =
+            lp_to_mutable_batch(r#"foo,t1=aoeu uv=1u,fv=12.0,bv=false,sv="bye" 10000"#);
+        let buffer_batch2 = BufferBatch {
+            sequencer_number: seq_num2,
+            data: mutable_batch2.clone(),
+        };
+        data_buffer.buffer.push(buffer_batch2);
+
+        data_buffer.snapshot().unwrap();
+
+        assert!(data_buffer.buffer.is_empty());
+        assert_eq!(data_buffer.snapshots.len(), 1);
+
+        let snapshot = &data_buffer.snapshots[0];
+        assert_eq!(snapshot.min_sequencer_number, seq_num1);
+        assert_eq!(snapshot.max_sequencer_number, seq_num2);
+
+        mutable_batch1.extend_from(&mutable_batch2).unwrap();
+        let combined_record_batch = mutable_batch1.to_arrow(Selection::All).unwrap();
+        assert_eq!(&*snapshot.data, &combined_record_batch);
+    }
+
+    #[test]
+    fn snapshot_buffer_error_leaves_data_buffer_as_is() {
+        let mut data_buffer = DataBuffer::default();
+
+        let seq_num1 = SequenceNumber::new(1);
+        let (_, mutable_batch1) =
+            lp_to_mutable_batch(r#"foo,t1=asdf iv=1i,uv=774u,fv=1.0,bv=true,sv="hi" 1"#);
+        let buffer_batch1 = BufferBatch {
+            sequencer_number: seq_num1,
+            data: mutable_batch1,
+        };
+        data_buffer.buffer.push(buffer_batch1);
+
+        let seq_num2 = SequenceNumber::new(2);
+        // Create a type mismatch
+        let (_, mutable_batch2) = lp_to_mutable_batch(r#"foo iv=false 10000"#);
+        let buffer_batch2 = BufferBatch {
+            sequencer_number: seq_num2,
+            data: mutable_batch2,
+        };
+        data_buffer.buffer.push(buffer_batch2);
+
+        assert_error!(
+            data_buffer.snapshot(),
+            mutable_batch::Error::WriterError {
+                source: mutable_batch::writer::Error::TypeMismatch { .. }
+            }
+        );
+
+        assert_eq!(data_buffer.buffer.len(), 2);
+        assert!(data_buffer.snapshots.is_empty());
+    }
 }
