@@ -37,10 +37,6 @@ use self::overlap::group_potential_duplicates;
 pub(crate) use deduplicate::DeduplicateExec;
 pub(crate) use physical::IOxReadFilterNode;
 
-// TODO(edd): temp experiment - should wire in `_batch_size` in the
-// table provider.
-pub const BATCH_SIZE: usize = 1025 * 25;
-
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display(
