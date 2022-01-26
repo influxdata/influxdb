@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::dml_handler::DmlHandler;
+use trace::TraceCollector;
 
 use self::{grpc::GrpcDelegate, http::HttpDelegate};
 
@@ -14,6 +15,7 @@ pub mod http;
 #[derive(Debug, Default)]
 pub struct RouterServer<D> {
     metrics: Arc<metric::Registry>,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
 
     http: HttpDelegate<D>,
     grpc: GrpcDelegate,
@@ -22,9 +24,15 @@ pub struct RouterServer<D> {
 impl<D> RouterServer<D> {
     /// Initialise a new [`RouterServer`] using the provided HTTP and gRPC
     /// handlers.
-    pub fn new(http: HttpDelegate<D>, grpc: GrpcDelegate, metrics: Arc<metric::Registry>) -> Self {
+    pub fn new(
+        http: HttpDelegate<D>,
+        grpc: GrpcDelegate,
+        metrics: Arc<metric::Registry>,
+        trace_collector: Option<Arc<dyn TraceCollector>>,
+    ) -> Self {
         Self {
             metrics,
+            trace_collector,
             http,
             grpc,
         }
@@ -33,6 +41,11 @@ impl<D> RouterServer<D> {
     /// Return the [`metric::Registry`] used by the router.
     pub fn metric_registry(&self) -> Arc<metric::Registry> {
         Arc::clone(&self.metrics)
+    }
+
+    /// Trace collector associated with this server.
+    pub fn trace_collector(&self) -> &Option<Arc<dyn TraceCollector>> {
+        &self.trace_collector
     }
 }
 

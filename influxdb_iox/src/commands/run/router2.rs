@@ -80,7 +80,12 @@ pub async fn command(config: Config) -> Result<()> {
         config.run_config.max_http_request_size,
         NopDmlHandler::default(),
     );
-    let router_server = RouterServer::new(http, Default::default(), metrics);
+    let router_server = RouterServer::new(
+        http,
+        Default::default(),
+        metrics,
+        common_state.trace_collector(),
+    );
     let server_type = Arc::new(RouterServerType::new(router_server, &common_state));
 
     info!("starting router2");
