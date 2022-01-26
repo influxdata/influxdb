@@ -93,6 +93,7 @@ uuid = { version = "0.8", features = ["v4"] }
 tikv-jemalloc-sys = { version = "0.4.0", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
 heappy = { git = "https://github.com/mkmik/heappy", rev = "1770cd0cde556d121e7f017538ddda0e1778126a", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 workspace-hack = { path = "../workspace-hack"}
+write_buffer = { path = "../write_buffer" }
 
 [dev-dependencies]
 # Workspace dependencies, in alphabetical order

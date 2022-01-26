@@ -22,9 +22,9 @@ pub struct RouterServer<D> {
 impl<D> RouterServer<D> {
     /// Initialise a new [`RouterServer`] using the provided HTTP and gRPC
     /// handlers.
-    pub fn new(http: HttpDelegate<D>, grpc: GrpcDelegate) -> Self {
+    pub fn new(http: HttpDelegate<D>, grpc: GrpcDelegate, metrics: Arc<metric::Registry>) -> Self {
         Self {
-            metrics: Default::default(),
+            metrics,
             http,
             grpc,
         }
