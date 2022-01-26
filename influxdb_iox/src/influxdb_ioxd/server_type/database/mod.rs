@@ -448,7 +448,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_tracing() {
-        let collector = Arc::new(RingBufferTraceCollector::new(100));
+        let collector = Arc::new(RingBufferTraceCollector::new(1000));
         let (addr, server, join) = tracing_server(&collector).await;
         let conn = jaeger_client(addr, "34f8495:35e32:0:1").await;
 
