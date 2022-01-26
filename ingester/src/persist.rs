@@ -253,9 +253,124 @@ impl TryClone for MemWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::datatypes::Schema;
+    use datafusion::physical_plan::{common::SizedRecordBatchStream, EmptyRecordBatchStream};
+    use futures::{stream, TryStreamExt};
+    use iox_catalog::{interface::Catalog, mem::MemCatalog};
+    use parquet::schema::types::ColumnPath;
+    use query::test::{raw_data, TestChunk};
 
     fn object_store() -> Arc<ObjectStore> {
         Arc::new(ObjectStore::new_in_memory())
+    }
+
+    async fn list_all(object_store: &ObjectStore) -> Result<Vec<Path>, object_store::Error> {
+        object_store
+            .list(None)
+            .await?
+            .map_ok(|v| stream::iter(v).map(Ok))
+            .try_flatten()
+            .try_collect()
+            .await
+    }
+
+    #[tokio::test]
+    async fn empty_stream_writes_nothing() {
+        let namespace_id = NamespaceId::new(1);
+        let table_id = TableId::new(2);
+        let sequencer_id = SequencerId::new(3);
+        let partition_id = PartitionId::new(4);
+        let min_seq_num = SequenceNumber::new(5);
+        let max_seq_num = SequenceNumber::new(6);
+
+        let schema = Arc::new(Schema::empty());
+        let stream = Box::pin(EmptyRecordBatchStream::new(schema));
+
+        let object_store = object_store();
+
+        let catalog = MemCatalog::new();
+        let parquet_file_repo = catalog.parquet_files();
+
+        persist(
+            namespace_id,
+            table_id,
+            sequencer_id,
+            partition_id,
+            IoxMetadata {},
+            min_seq_num,
+            max_seq_num,
+            Timestamp::new(7),
+            Timestamp::new(8),
+            stream,
+            &object_store,
+            parquet_file_repo,
+        )
+        .await
+        .unwrap();
+
+        assert!(list_all(&object_store).await.unwrap().is_empty());
+        assert!(parquet_file_repo
+            .list_by_sequencer_greater_than(sequencer_id, min_seq_num)
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn stream_with_data_writes_to_object_store_and_catalog() {
+        let namespace_id = NamespaceId::new(1);
+        let table_id = TableId::new(2);
+        let sequencer_id = SequencerId::new(3);
+        let partition_id = PartitionId::new(4);
+        let min_seq_num = SequenceNumber::new(5);
+        let max_seq_num = SequenceNumber::new(6);
+
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column() //_with_full_stats(
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_three_rows_of_data(),
+        );
+        let batches: Vec<_> = raw_data(&[chunk1])
+            .await
+            .into_iter()
+            .map(Arc::new)
+            .collect();
+        assert_eq!(batches.len(), 1);
+        let schema = batches[0].schema();
+        let stream = Box::pin(SizedRecordBatchStream::new(schema, batches));
+
+        let object_store = object_store();
+
+        let catalog = MemCatalog::new();
+        let parquet_file_repo = catalog.parquet_files();
+
+        persist(
+            namespace_id,
+            table_id,
+            sequencer_id,
+            partition_id,
+            IoxMetadata {},
+            min_seq_num,
+            max_seq_num,
+            Timestamp::new(7),
+            Timestamp::new(8),
+            stream,
+            &object_store,
+            parquet_file_repo,
+        )
+        .await
+        .unwrap();
+
+        let obj_store_paths = list_all(&object_store).await.unwrap();
+        assert_eq!(obj_store_paths.len(), 1);
+        let catalog_parquet_files = parquet_file_repo
+            .list_by_sequencer_greater_than(sequencer_id, min_seq_num)
+            .await
+            .unwrap();
+        assert_eq!(catalog_parquet_files.len(), 1);
     }
 
     #[test]
@@ -280,5 +395,15 @@ mod tests {
             path.to_raw(),
             format!("1/2/3/4/{}.parquet", object_store_id)
         );
+    }
+
+    #[test]
+    fn writer_props_have_compression() {
+        // should be writing with compression
+        let props = writer_props(&[]);
+
+        // arbitrary column name to get default values
+        let col_path: ColumnPath = "default".into();
+        assert_eq!(props.compression(&col_path), Compression::ZSTD);
     }
 }
