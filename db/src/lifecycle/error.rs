@@ -37,6 +37,16 @@ pub enum Error {
         chunk_id: u32,
     },
 
+    #[snafu(display(
+        "Error building Read Buffer chunk for table '{}' : {}",
+        table_name,
+        source
+    ))]
+    ReadBufferChunkBuilderError {
+        source: read_buffer::Error,
+        table_name: String,
+    },
+
     #[snafu(display("Error reading from object store: {}", source))]
     ReadingObjectStore {
         source: parquet_file::storage::Error,

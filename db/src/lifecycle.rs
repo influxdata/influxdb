@@ -357,29 +357,34 @@ fn collect_rub(
     partition_addr: &PartitionAddr,
     metric_registry: &metric::Registry,
 ) -> impl futures::Future<Output = Result<Option<read_buffer::RBChunk>>> {
-    use futures::{future, StreamExt, TryStreamExt};
+    use futures::{future, TryStreamExt};
 
     let db_name = partition_addr.db_name.to_string();
-    let table_name = partition_addr.table_name.to_string();
+    let table_name = Arc::clone(&partition_addr.table_name);
     let chunk_metrics = read_buffer::ChunkMetrics::new(metric_registry, db_name);
 
     async move {
-        let mut adapted_stream = stream.try_filter(|batch| future::ready(batch.num_rows() > 0));
+        let schema = stream.schema();
+        let adapted_stream = stream.try_filter(|batch| future::ready(batch.num_rows() > 0));
 
-        let first_batch = match adapted_stream.next().await {
-            Some(rb_result) => rb_result?,
-            // At least one RecordBatch is required to create a read_buffer::Chunk
-            None => return Ok(None),
-        };
-        let mut chunk = read_buffer::RBChunk::new(table_name, first_batch, chunk_metrics);
+        let mut chunk_builder = read_buffer::RBChunkBuilder::new(table_name.as_ref(), schema)
+            .with_metrics(chunk_metrics);
 
         adapted_stream
-            .try_for_each(|batch| {
-                chunk.upsert_table(batch);
-                future::ready(Ok(()))
-            })
+            .try_for_each(|batch| future::ready(chunk_builder.push_record_batch(batch)))
             .await?;
 
+        // The adapted stream may not have yielded any non-empty record batches.
+        if chunk_builder.is_empty() {
+            return Ok(None);
+        }
+
+        let chunk = chunk_builder
+            .build()
+            .map_err(|e| Error::ReadBufferChunkBuilderError {
+                table_name: table_name.to_string(),
+                source: e,
+            })?;
         Ok(Some(chunk))
     }
 }

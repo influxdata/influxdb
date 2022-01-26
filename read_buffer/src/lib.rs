@@ -10,7 +10,7 @@ mod value;
 
 // Identifiers that are exported as part of the public API.
 pub use self::schema::*;
-pub use chunk::{Chunk as RBChunk, ChunkMetrics, Error};
+pub use chunk::{Chunk as RBChunk, ChunkBuilder as RBChunkBuilder, ChunkMetrics, Error};
 pub use row_group::{BinaryExpr, Predicate};
 pub use table::ReadFilterResults;
 
