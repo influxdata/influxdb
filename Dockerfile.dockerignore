@@ -2,4 +2,5 @@
 target/
 tests/
 docker/
+!.git/
 !docker/entrypoint.sh
