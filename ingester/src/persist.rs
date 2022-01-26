@@ -8,7 +8,10 @@ use iox_catalog::interface::{
     Error as CatalogError, NamespaceId, ParquetFileRepo, PartitionId, SequenceNumber, SequencerId,
     TableId, Timestamp,
 };
-use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+use object_store::{
+    path::{ObjectStorePath, Path},
+    ObjectStore, ObjectStoreApi,
+};
 use parking_lot::Mutex;
 use parquet::{
     arrow::ArrowWriter,
@@ -72,15 +75,6 @@ pub async fn persist(
 ) -> Result<()> {
     let object_store_id = Uuid::new_v4();
 
-    let mut parquet_file_object_store_path = object_store.new_path();
-    parquet_file_object_store_path.push_all_dirs(&[
-        namespace_id.to_string().as_str(),
-        table_id.to_string().as_str(),
-        sequencer_id.to_string().as_str(),
-        partition_id.to_string().as_str(),
-    ]);
-    parquet_file_object_store_path.set_file_name(format!("{}.parquet", object_store_id));
-
     let schema = stream.schema();
 
     let data = parquet_stream_to_bytes(stream, schema, metadata)
@@ -94,8 +88,17 @@ pub async fn persist(
 
     let bytes = Bytes::from(data);
 
+    let path = parquet_file_object_store_path(
+        object_store,
+        namespace_id,
+        table_id,
+        sequencer_id,
+        partition_id,
+        object_store_id,
+    );
+
     object_store
-        .put(&parquet_file_object_store_path, bytes)
+        .put(&path, bytes)
         .await
         .context(WritingToObjectStoreSnafu)?;
 
@@ -114,6 +117,28 @@ pub async fn persist(
         .context(CreatingParquetFileInCatalogSnafu)?;
 
     Ok(())
+}
+
+fn parquet_file_object_store_path(
+    object_store: &ObjectStore,
+    namespace_id: NamespaceId,
+    table_id: TableId,
+    sequencer_id: SequencerId,
+    partition_id: PartitionId,
+    object_store_id: Uuid,
+) -> Path {
+    let mut path = object_store.new_path();
+
+    path.push_all_dirs(&[
+        namespace_id.to_string().as_str(),
+        table_id.to_string().as_str(),
+        sequencer_id.to_string().as_str(),
+        partition_id.to_string().as_str(),
+    ]);
+
+    path.set_file_name(format!("{}.parquet", object_store_id));
+
+    path
 }
 
 #[derive(Debug, Snafu)]
@@ -222,5 +247,38 @@ impl TryClone for MemWriter {
         Ok(Self {
             mem: Arc::clone(&self.mem),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn object_store() -> Arc<ObjectStore> {
+        Arc::new(ObjectStore::new_in_memory())
+    }
+
+    #[test]
+    fn parquet_file_path_in_object_storage() {
+        let object_store = object_store();
+        let namespace_id = NamespaceId::new(1);
+        let table_id = TableId::new(2);
+        let sequencer_id = SequencerId::new(3);
+        let partition_id = PartitionId::new(4);
+        let object_store_id = Uuid::new_v4();
+
+        let path = parquet_file_object_store_path(
+            &object_store,
+            namespace_id,
+            table_id,
+            sequencer_id,
+            partition_id,
+            object_store_id,
+        );
+
+        assert_eq!(
+            path.to_raw(),
+            format!("1/2/3/4/{}.parquet", object_store_id)
+        );
     }
 }
