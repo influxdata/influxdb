@@ -7,15 +7,20 @@ edition = "2021"
 [dependencies]
 arrow = { version = "8.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
+base64 = "0.13"
+bytes = "1.0"
 datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
+futures = "0.3"
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch"}
 object_store = { path = "../object_store" }
 parking_lot = "0.11.2"
+parquet = "8.0"
 predicate = { path = "../predicate" }
+prost = "0.9"
 query = { path = "../query" }
 schema = { path = "../schema" }
 snafu = "0.7"
