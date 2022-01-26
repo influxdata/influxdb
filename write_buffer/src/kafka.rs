@@ -752,6 +752,7 @@ mod tests {
         num::NonZeroU32,
         sync::atomic::{AtomicU32, Ordering},
     };
+    use test_helpers::maybe_start_logging;
     use time::TimeProvider;
     use trace::{RingBufferTraceCollector, TraceCollector};
 
@@ -852,6 +853,7 @@ mod tests {
     #[tokio::test]
     async fn test_generic() {
         let conn = maybe_skip_kafka_integration!();
+        maybe_start_logging();
 
         perform_generic_tests(KafkaTestAdapter::new(conn)).await;
     }

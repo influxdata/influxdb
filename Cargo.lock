@@ -4570,6 +4570,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "tempfile",
+ "tracing-log",
  "tracing-subscriber",
  "workspace-hack",
 ]
@@ -5473,6 +5474,7 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-core",
+ "tracing-log",
  "tracing-subscriber",
  "uuid",
 ]
@@ -5499,6 +5501,7 @@ dependencies = [
  "rdkafka",
  "rskafka",
  "tempfile",
+ "test_helpers",
  "time 0.1.0",
  "tokio",
  "tokio-util",

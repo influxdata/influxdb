@@ -78,21 +78,25 @@ static LOG_SETUP: Once = Once::new();
 /// environment variable. If RUST_LOG isn't specifies, defaults to
 /// "debug"
 pub fn start_logging() {
+    use tracing_log::LogTracer;
+    use tracing_subscriber::{filter::EnvFilter, FmtSubscriber};
+
     // ensure the global has been initialized
     LOG_SETUP.call_once(|| {
         // honor any existing RUST_LOG level
         if std::env::var("RUST_LOG").is_err() {
             std::env::set_var("RUST_LOG", "debug");
         }
-        // Configure the logger to write to stderr and install it
-        let output_stream = std::io::stderr;
 
-        use tracing_subscriber::{prelude::*, EnvFilter};
+        LogTracer::init().expect("Cannot init log->trace integration");
 
-        tracing_subscriber::registry()
-            .with(EnvFilter::from_default_env())
-            .with(tracing_subscriber::fmt::layer().with_writer(output_stream))
-            .init();
+        let subscriber = FmtSubscriber::builder()
+            .with_env_filter(EnvFilter::from_default_env())
+            .with_test_writer()
+            .finish();
+
+        observability_deps::tracing::subscriber::set_global_default(subscriber)
+            .expect("setting default subscriber failed");
     })
 }
 
