@@ -1,32 +1,49 @@
 use std::{collections::VecDeque, fmt::Debug, sync::Arc};
 
+use data_types::delete_predicate::DeletePredicate;
+use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
 
 use super::Sharder;
 
 #[derive(Debug, Clone)]
-pub struct MockSharderCall<P> {
+pub enum MockSharderPayload {
+    MutableBatch(MutableBatch),
+    DeletePredicate(DeletePredicate),
+}
+
+impl MockSharderPayload {
+    pub fn mutable_batch(&self) -> &MutableBatch {
+        match self {
+            Self::MutableBatch(v) => v,
+            _ => panic!("payload is not a mutable batch"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MockSharderCall {
     pub table_name: String,
     pub namespace: String,
-    pub payload: P,
+    pub payload: MockSharderPayload,
 }
 
 #[derive(Debug, Default)]
-struct Inner<T, P> {
-    calls: Vec<MockSharderCall<P>>,
+struct Inner<T> {
+    calls: Vec<MockSharderCall>,
     shard_return: VecDeque<T>,
 }
 
-impl<T, P> Inner<T, P> {
-    fn record_call(&mut self, call: MockSharderCall<P>) {
+impl<T> Inner<T> {
+    fn record_call(&mut self, call: MockSharderCall) {
         self.calls.push(call);
     }
 }
 
 #[derive(Debug)]
-pub struct MockSharder<T, P>(Mutex<Inner<T, P>>);
+pub struct MockSharder<T>(Mutex<Inner<T>>);
 
-impl<T, P> Default for MockSharder<T, P> {
+impl<T> Default for MockSharder<T> {
     fn default() -> Self {
         Self(Mutex::new(Inner {
             calls: Default::default(),
@@ -35,10 +52,7 @@ impl<T, P> Default for MockSharder<T, P> {
     }
 }
 
-impl<T, P> MockSharder<T, P>
-where
-    P: Clone,
-{
+impl<T> MockSharder<T> {
     /// Return the values specified in `ret` in sequence for calls to `shard`,
     /// starting from the front.
     ///
@@ -50,14 +64,13 @@ where
         self
     }
 
-    pub fn calls(&self) -> Vec<MockSharderCall<P>> {
+    pub fn calls(&self) -> Vec<MockSharderCall> {
         self.0.lock().calls.clone()
     }
 }
 
-impl<T, P> Sharder<P> for Arc<MockSharder<T, P>>
+impl<T> Sharder<MutableBatch> for Arc<MockSharder<T>>
 where
-    P: Debug + Send + Sync + Clone,
     T: Debug + Send + Sync,
 {
     type Item = T;
@@ -66,13 +79,40 @@ where
         &self,
         table: &str,
         namespace: &data_types::DatabaseName<'_>,
-        payload: &P,
+        payload: &MutableBatch,
     ) -> &Self::Item {
         let mut guard = self.0.lock();
         guard.record_call(MockSharderCall {
             table_name: table.to_string(),
             namespace: namespace.to_string(),
-            payload: payload.clone(),
+            payload: MockSharderPayload::MutableBatch(payload.clone()),
+        });
+        Box::leak(Box::new(
+            guard
+                .shard_return
+                .pop_front()
+                .expect("no shard mock value to return"),
+        ))
+    }
+}
+
+impl<T> Sharder<DeletePredicate> for Arc<MockSharder<T>>
+where
+    T: Debug + Send + Sync,
+{
+    type Item = T;
+
+    fn shard(
+        &self,
+        table: &str,
+        namespace: &data_types::DatabaseName<'_>,
+        payload: &DeletePredicate,
+    ) -> &Self::Item {
+        let mut guard = self.0.lock();
+        guard.record_call(MockSharderCall {
+            table_name: table.to_string(),
+            namespace: namespace.to_string(),
+            payload: MockSharderPayload::DeletePredicate(payload.clone()),
         });
         Box::leak(Box::new(
             guard

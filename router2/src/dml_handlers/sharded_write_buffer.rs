@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, non_empty::NonEmptyString, DatabaseName};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -16,7 +17,7 @@ use thiserror::Error;
 use trace::ctx::SpanContext;
 use write_buffer::core::WriteBufferError;
 
-use crate::{sequencer::Sequencer, sharder::Sharder};
+use crate::{dml_handlers::DmlHandler, sequencer::Sequencer, sharder::Sharder};
 
 /// Errors occurring while writing to one or more write buffer shards.
 #[derive(Debug, Error)]
@@ -71,12 +72,16 @@ impl<S> ShardedWriteBuffer<S> {
     }
 }
 
-impl<S> ShardedWriteBuffer<S>
+#[async_trait]
+impl<S> DmlHandler for ShardedWriteBuffer<S>
 where
-    S: Sharder<MutableBatch, Item = Arc<Sequencer>>,
+    S: Sharder<MutableBatch, Item = Arc<Sequencer>>
+        + Sharder<DeletePredicate, Item = Arc<Sequencer>>,
 {
+    type Error = ShardError;
+
     /// Shard `writes` and dispatch the resultant DML operations.
-    pub async fn write(
+    async fn write(
         &self,
         namespace: DatabaseName<'static>,
         writes: HashMap<String, MutableBatch>,
@@ -114,15 +119,10 @@ where
 
         parallel_enqueue(iter).await
     }
-}
 
-impl<S> ShardedWriteBuffer<S>
-where
-    S: Sharder<DeletePredicate, Item = Arc<Sequencer>>,
-{
     /// Shard `predicate` and dispatch it to the appropriate shard.
-    pub async fn delete<'a>(
-        &'a self,
+    async fn delete<'a>(
+        &self,
         namespace: DatabaseName<'static>,
         table_name: impl Into<String> + Send + Sync + 'a,
         predicate: DeletePredicate,
@@ -190,7 +190,10 @@ mod tests {
 
     use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
 
-    use crate::sharder::mock::{MockSharder, MockSharderCall};
+    use crate::{
+        dml_handlers::DmlHandler,
+        sharder::mock::{MockSharder, MockSharderCall},
+    };
 
     use super::*;
 
@@ -246,15 +249,9 @@ mod tests {
         // Assert the sharder saw all the tables
         let calls = sharder.calls();
         assert_eq!(calls.len(), 3);
-        assert!(calls
-            .iter()
-            .any(|v| v.table_name == "bananas" && v.payload.rows() == 2));
-        assert!(calls
-            .iter()
-            .any(|v| v.table_name == "platanos" && v.payload.rows() == 1));
-        assert!(calls
-            .iter()
-            .any(|v| v.table_name == "another" && v.payload.rows() == 1));
+        assert!(calls.iter().any(|v| v.table_name == "bananas"));
+        assert!(calls.iter().any(|v| v.table_name == "platanos"));
+        assert!(calls.iter().any(|v| v.table_name == "another"));
 
         // All writes were dispatched to the same shard, which should observe
         // one op containing all writes lines (asserting that all the writes for
@@ -312,16 +309,16 @@ mod tests {
         assert_eq!(calls.len(), 4);
         assert!(calls
             .iter()
-            .any(|v| v.table_name == "bananas" && v.payload.rows() == 1));
+            .any(|v| v.table_name == "bananas" && v.payload.mutable_batch().rows() == 1));
         assert!(calls
             .iter()
-            .any(|v| v.table_name == "platanos" && v.payload.rows() == 1));
+            .any(|v| v.table_name == "platanos" && v.payload.mutable_batch().rows() == 1));
         assert!(calls
             .iter()
-            .any(|v| v.table_name == "another" && v.payload.rows() == 1));
+            .any(|v| v.table_name == "another" && v.payload.mutable_batch().rows() == 1));
         assert!(calls
             .iter()
-            .any(|v| v.table_name == "table" && v.payload.rows() == 1));
+            .any(|v| v.table_name == "table" && v.payload.mutable_batch().rows() == 1));
 
         // The write buffer for shard 1 should observe 1 write containing 3 rows.
         let mut got = write_buffer1_state.get_messages(shard1.id() as _);

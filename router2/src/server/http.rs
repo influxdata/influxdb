@@ -14,7 +14,7 @@ use thiserror::Error;
 use time::{SystemProvider, TimeProvider};
 use trace::ctx::SpanContext;
 
-use crate::dml_handler::{DmlError, DmlHandler};
+use crate::dml_handlers::{DmlError, DmlHandler};
 
 /// Errors returned by the `router2` HTTP request handler.
 #[derive(Debug, Error)]
@@ -77,14 +77,16 @@ impl Error {
             Error::InvalidGzip(_) => StatusCode::BAD_REQUEST,
             Error::NonUtf8ContentHeader(_) => StatusCode::BAD_REQUEST,
             Error::NonUtf8Body(_) => StatusCode::BAD_REQUEST,
+            Error::ParseLineProtocol(_) => StatusCode::BAD_REQUEST,
+            Error::ParseDelete(_) => StatusCode::BAD_REQUEST,
+            Error::RequestSizeExceeded(_) => StatusCode::PAYLOAD_TOO_LARGE,
             Error::InvalidContentEncoding(_) => {
                 // https://www.rfc-editor.org/rfc/rfc7231#section-6.5.13
                 StatusCode::UNSUPPORTED_MEDIA_TYPE
             }
-            Error::RequestSizeExceeded(_) => StatusCode::PAYLOAD_TOO_LARGE,
-            Error::ParseLineProtocol(_) => StatusCode::BAD_REQUEST,
-            Error::DmlHandler(DmlError::Internal(_)) => StatusCode::INTERNAL_SERVER_ERROR,
-            Error::ParseDelete(_) => StatusCode::BAD_REQUEST,
+            Error::DmlHandler(DmlError::Internal(_) | DmlError::WriteBuffer(_)) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
         }
     }
 }
@@ -199,9 +201,20 @@ where
             Err(e) => return Err(Error::ParseLineProtocol(e)),
         };
 
+        debug!(
+            num_lines=stats.num_lines,
+            num_fields=stats.num_fields,
+            body_size=body.len(),
+            %namespace,
+            org=%account.org,
+            bucket=%account.bucket,
+            "routing write",
+        );
+
         self.dml_handler
-            .write(namespace, batches, stats, body.len(), span_ctx)
-            .await?;
+            .write(namespace, batches, span_ctx)
+            .await
+            .map_err(Into::into)?;
 
         Ok(())
     }
@@ -227,9 +240,22 @@ where
             &parsed_delete.predicate,
         )?;
 
+        debug!(
+            table_name=%parsed_delete.table_name,
+            predicate = %parsed_delete.predicate,
+            start=%parsed_delete.start_time,
+            stop=%parsed_delete.stop_time,
+            body_size=body.len(),
+            %namespace,
+            org=%account.org,
+            bucket=%account.bucket,
+            "routing delete"
+        );
+
         self.dml_handler
             .delete(namespace, parsed_delete.table_name, predicate, span_ctx)
-            .await?;
+            .await
+            .map_err(Into::into)?;
 
         Ok(())
     }
@@ -308,7 +334,7 @@ mod tests {
     use flate2::{write::GzEncoder, Compression};
     use hyper::header::HeaderValue;
 
-    use crate::dml_handler::mock::{MockDmlHandler, MockDmlHandlerCall};
+    use crate::dml_handlers::mock::{MockDmlHandler, MockDmlHandlerCall};
 
     use super::*;
 
@@ -365,7 +391,6 @@ mod tests {
                 #[tokio::test]
                 async fn [<test_http_handler_ $name _ $encoding>]() {
                     let body = $body;
-                    let want_body_len = body.len();
 
                     // Optionally generate a fragment of code to encode the body
                     let body = test_http_handler!(encoding=$encoding, body);
@@ -397,12 +422,6 @@ mod tests {
 
                     let calls = dml_handler.calls();
                     assert_matches!(calls.as_slice(), $($want_dml_calls)+);
-
-                    // If this was a write op, ensure the body length matches
-                    // the above input.
-                    if let Some(MockDmlHandlerCall::Write{body_len, ..}) = calls.get(0) {
-                        assert_eq!(*body_len, want_body_len);
-                    }
                 }
             }
         };

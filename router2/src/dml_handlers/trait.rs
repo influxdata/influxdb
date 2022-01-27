@@ -5,9 +5,10 @@ use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
-use mutable_batch_lp::PayloadStatistics;
 use thiserror::Error;
 use trace::ctx::SpanContext;
+
+use super::ShardError;
 
 /// Errors emitted by a [`DmlHandler`] implementation during DML request
 /// processing.
@@ -17,23 +18,30 @@ pub enum DmlError {
     #[error("database {0} does not exist")]
     DatabaseNotFound(String),
 
+    /// An error sharding the writes and pushing them to the write buffer.
+    #[error(transparent)]
+    WriteBuffer(#[from] ShardError),
+
     /// An unknown error occured while processing the DML request.
     #[error("internal dml handler error: {0}")]
     Internal(Box<dyn std::error::Error + Send + Sync>),
 }
 
-/// An abstract handler of DML requests.
+/// A composable, abstract handler of DML requests.
 #[async_trait]
 pub trait DmlHandler: Debug + Send + Sync {
+    /// The type of error a [`DmlHandler`] implementation produces.
+    ///
+    /// All errors must be mappable into the concrete [`DmlError`] type.
+    type Error: Into<DmlError>;
+
     /// Write `batches` to `namespace`.
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
         batches: HashMap<String, MutableBatch>,
-        payload_stats: PayloadStatistics,
-        body_len: usize,
         span_ctx: Option<SpanContext>,
-    ) -> Result<(), DmlError>;
+    ) -> Result<(), Self::Error>;
 
     /// Delete the data specified in `delete`.
     async fn delete<'a>(
@@ -42,5 +50,5 @@ pub trait DmlHandler: Debug + Send + Sync {
         table_name: impl Into<String> + Send + Sync + 'a,
         predicate: DeletePredicate,
         span_ctx: Option<SpanContext>,
-    ) -> Result<(), DmlError>;
+    ) -> Result<(), Self::Error>;
 }

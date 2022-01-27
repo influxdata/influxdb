@@ -6,7 +6,7 @@ use std::{
 use async_trait::async_trait;
 use hyper::{Body, Request, Response};
 use metric::Registry;
-use router2::{dml_handler::DmlHandler, server::RouterServer};
+use router2::{dml_handlers::DmlHandler, server::RouterServer};
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 

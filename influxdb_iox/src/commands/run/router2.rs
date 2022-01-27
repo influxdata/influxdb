@@ -15,10 +15,9 @@ use crate::{
 use data_types::write_buffer::WriteBufferConnection;
 use observability_deps::tracing::*;
 use router2::{
-    dml_handler::nop::NopDmlHandler,
+    dml_handlers::ShardedWriteBuffer,
     sequencer::Sequencer,
     server::{http::HttpDelegate, RouterServer},
-    sharded_write_buffer::ShardedWriteBuffer,
     sharder::TableNamespaceSharder,
 };
 use thiserror::Error;
@@ -73,13 +72,9 @@ pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let metrics = Arc::new(metric::Registry::default());
 
-    // This will be used by the proper DML handler.
-    let _write_buffer = init_write_buffer(&config, "iox_shared", Arc::clone(&metrics)).await?;
+    let write_buffer = init_write_buffer(&config, "iox_shared", Arc::clone(&metrics)).await?;
 
-    let http = HttpDelegate::new(
-        config.run_config.max_http_request_size,
-        NopDmlHandler::default(),
-    );
+    let http = HttpDelegate::new(config.run_config.max_http_request_size, write_buffer);
     let router_server = RouterServer::new(
         http,
         Default::default(),
@@ -100,7 +95,7 @@ async fn init_write_buffer(
     config: &Config,
     topic: &str,
     metrics: Arc<metric::Registry>,
-) -> Result<ShardedWriteBuffer<TableNamespaceSharder<Sequencer>>> {
+) -> Result<ShardedWriteBuffer<TableNamespaceSharder<Arc<Sequencer>>>> {
     let write_buffer_config = WriteBufferConnection {
         type_: config.write_buffer_type.clone(),
         connection: config.write_buffer_connection_string.clone(),
@@ -129,6 +124,7 @@ async fn init_write_buffer(
         shards
             .into_iter()
             .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer)))
+            .map(Arc::new)
             .collect::<TableNamespaceSharder<_>>(),
     ))
 }

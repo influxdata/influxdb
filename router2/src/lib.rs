@@ -25,8 +25,7 @@
 )]
 #![allow(clippy::missing_docs_in_private_items)]
 
-pub mod dml_handler;
+pub mod dml_handlers;
 pub mod sequencer;
 pub mod server;
-pub mod sharded_write_buffer;
 pub mod sharder;

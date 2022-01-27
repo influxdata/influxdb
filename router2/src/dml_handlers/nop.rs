@@ -5,7 +5,6 @@ use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
-use mutable_batch_lp::PayloadStatistics;
 use observability_deps::tracing::*;
 use trace::ctx::SpanContext;
 
@@ -17,14 +16,14 @@ pub struct NopDmlHandler;
 
 #[async_trait]
 impl DmlHandler for NopDmlHandler {
+    type Error = DmlError;
+
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
         batches: HashMap<String, MutableBatch>,
-        _payload_stats: PayloadStatistics,
-        _body_len: usize,
         _span_ctx: Option<SpanContext>,
-    ) -> Result<(), DmlError> {
+    ) -> Result<(), Self::Error> {
         info!(%namespace, ?batches, "dropping write operation");
         Ok(())
     }
@@ -35,7 +34,7 @@ impl DmlHandler for NopDmlHandler {
         table: impl Into<String> + Send + Sync + 'a,
         predicate: DeletePredicate,
         _span_ctx: Option<SpanContext>,
-    ) -> Result<(), DmlError> {
+    ) -> Result<(), Self::Error> {
         let table = table.into();
         info!(%namespace, %table, ?predicate, "dropping delete operation");
         Ok(())

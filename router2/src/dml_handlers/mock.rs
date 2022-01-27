@@ -5,7 +5,6 @@ use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
-use mutable_batch_lp::PayloadStatistics;
 use parking_lot::Mutex;
 use trace::ctx::SpanContext;
 
@@ -16,8 +15,6 @@ pub enum MockDmlHandlerCall {
     Write {
         namespace: String,
         batches: HashMap<String, MutableBatch>,
-        payload_stats: PayloadStatistics,
-        body_len: usize,
     },
     Delete {
         namespace: String,
@@ -72,21 +69,19 @@ macro_rules! record_and_return {
 
 #[async_trait]
 impl DmlHandler for Arc<MockDmlHandler> {
+    type Error = DmlError;
+
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
         batches: HashMap<String, MutableBatch>,
-        payload_stats: PayloadStatistics,
-        body_len: usize,
         _span_ctx: Option<SpanContext>,
-    ) -> Result<(), DmlError> {
+    ) -> Result<(), Self::Error> {
         record_and_return!(
             self,
             MockDmlHandlerCall::Write {
                 namespace: namespace.into(),
                 batches,
-                payload_stats,
-                body_len,
             },
             write_return
         )
@@ -98,7 +93,7 @@ impl DmlHandler for Arc<MockDmlHandler> {
         table: impl Into<String> + Send + Sync + 'a,
         predicate: DeletePredicate,
         _span_ctx: Option<SpanContext>,
-    ) -> Result<(), DmlError> {
+    ) -> Result<(), Self::Error> {
         record_and_return!(
             self,
             MockDmlHandlerCall::Delete {

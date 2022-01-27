@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::dml_handler::DmlHandler;
+use crate::dml_handlers::DmlHandler;
 use trace::TraceCollector;
 
 use self::{grpc::GrpcDelegate, http::HttpDelegate};
