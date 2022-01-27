@@ -5,7 +5,7 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2021"
 
 [dependencies]
-arrow = { version = "7.0", features = ["prettyprint"] }
+arrow = { version = "8.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }

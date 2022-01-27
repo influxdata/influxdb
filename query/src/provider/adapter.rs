@@ -242,10 +242,8 @@ mod tests {
         record_batch::RecordBatch,
     };
     use arrow_util::assert_batches_eq;
-    use datafusion::physical_plan::{
-        common::{collect, SizedRecordBatchStream},
-        metrics::ExecutionPlanMetricsSet,
-    };
+    use datafusion::physical_plan::{common::collect, metrics::ExecutionPlanMetricsSet};
+    use datafusion_util::stream_from_batch;
     use test_helpers::assert_contains;
 
     #[tokio::test]
@@ -253,10 +251,9 @@ mod tests {
         let batch = make_batch();
 
         let output_schema = batch.schema();
-        let input_stream = SizedRecordBatchStream::new(batch.schema(), vec![Arc::new(batch)]);
+        let input_stream = stream_from_batch(batch);
         let adapter_stream =
-            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema, baseline_metrics())
-                .unwrap();
+            SchemaAdapterStream::try_new(input_stream, output_schema, baseline_metrics()).unwrap();
 
         let output = collect(Box::pin(adapter_stream))
             .await
@@ -283,10 +280,9 @@ mod tests {
             Field::new("c", DataType::Utf8, false),
             Field::new("a", DataType::Int32, false),
         ]));
-        let input_stream = SizedRecordBatchStream::new(batch.schema(), vec![Arc::new(batch)]);
+        let input_stream = stream_from_batch(batch);
         let adapter_stream =
-            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema, baseline_metrics())
-                .unwrap();
+            SchemaAdapterStream::try_new(input_stream, output_schema, baseline_metrics()).unwrap();
 
         let output = collect(Box::pin(adapter_stream))
             .await
@@ -314,10 +310,9 @@ mod tests {
             Field::new("d", DataType::Float32, false),
             Field::new("a", DataType::Int32, false),
         ]));
-        let input_stream = SizedRecordBatchStream::new(batch.schema(), vec![Arc::new(batch)]);
+        let input_stream = stream_from_batch(batch);
         let adapter_stream =
-            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema, baseline_metrics())
-                .unwrap();
+            SchemaAdapterStream::try_new(input_stream, output_schema, baseline_metrics()).unwrap();
 
         let output = collect(Box::pin(adapter_stream))
             .await
@@ -343,9 +338,8 @@ mod tests {
             Field::new("c", DataType::Utf8, false),
             Field::new("a", DataType::Int32, false),
         ]));
-        let input_stream = SizedRecordBatchStream::new(batch.schema(), vec![Arc::new(batch)]);
-        let res =
-            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema, baseline_metrics());
+        let input_stream = stream_from_batch(batch);
+        let res = SchemaAdapterStream::try_new(input_stream, output_schema, baseline_metrics());
 
         assert_contains!(
             res.unwrap_err().to_string(),
@@ -363,9 +357,8 @@ mod tests {
             Field::new("b", DataType::Int32, false),
             Field::new("a", DataType::Int32, false),
         ]));
-        let input_stream = SizedRecordBatchStream::new(batch.schema(), vec![Arc::new(batch)]);
-        let res =
-            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema, baseline_metrics());
+        let input_stream = stream_from_batch(batch);
+        let res = SchemaAdapterStream::try_new(input_stream, output_schema, baseline_metrics());
 
         assert_contains!(res.unwrap_err().to_string(), "input field 'c' had type 'Utf8' which is different than output field 'c' which had type 'Float32'");
     }

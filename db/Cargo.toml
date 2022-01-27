@@ -5,7 +5,7 @@ authors = ["pauldix <paul@pauldix.net>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
-arrow = { version = "7.0", features = ["prettyprint"] }
+arrow = { version = "8.0", features = ["prettyprint"] }
 async-trait = "0.1"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }

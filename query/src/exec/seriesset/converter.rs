@@ -490,7 +490,7 @@ mod tests {
         record_batch::RecordBatch,
     };
     use arrow_util::assert_batches_eq;
-    use datafusion::physical_plan::common::SizedRecordBatchStream;
+    use datafusion_util::{stream_from_batch, stream_from_schema};
     use test_helpers::{str_pair_vec_to_vec, str_vec_to_arc_vec};
 
     use super::*;
@@ -498,7 +498,7 @@ mod tests {
     #[tokio::test]
     async fn test_convert_empty() {
         let schema = Arc::new(Schema::new(vec![]));
-        let empty_iterator = Box::pin(SizedRecordBatchStream::new(schema, vec![]));
+        let empty_iterator = stream_from_schema(schema);
 
         let table_name = "foo";
         let tag_columns = [];
@@ -849,9 +849,6 @@ mod tests {
     }
 
     fn batch_to_iterator(batch: RecordBatch) -> SendableRecordBatchStream {
-        Box::pin(SizedRecordBatchStream::new(
-            batch.schema(),
-            vec![Arc::new(batch)],
-        ))
+        stream_from_batch(batch)
     }
 }

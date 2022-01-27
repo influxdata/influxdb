@@ -5,6 +5,8 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
+use datafusion::physical_plan::common::SizedRecordBatchStream;
+use datafusion::physical_plan::metrics::{BaselineMetrics, ExecutionPlanMetricsSet};
 use datafusion::physical_plan::{collect, ExecutionPlan};
 use datafusion::{
     arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch},
@@ -199,6 +201,27 @@ impl RecordBatchStream for AdapterStream {
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
     }
+}
+
+/// Create a SendableRecordBatchStream a RecordBatch
+pub fn stream_from_batch(batch: RecordBatch) -> SendableRecordBatchStream {
+    stream_from_batches(vec![Arc::new(batch)])
+}
+
+/// Create a SendableRecordBatchStream from Vec of RecordBatches with the same schema
+pub fn stream_from_batches(batches: Vec<Arc<RecordBatch>>) -> SendableRecordBatchStream {
+    let dummy_metrics = ExecutionPlanMetricsSet::new();
+    let baseline_metrics = BaselineMetrics::new(&dummy_metrics, 0);
+    let stream = SizedRecordBatchStream::new(batches[0].schema(), batches, baseline_metrics);
+    Box::pin(stream)
+}
+
+/// Create a SendableRecordBatchStream that sends back no RecordBatches with a specific schema
+pub fn stream_from_schema(schema: SchemaRef) -> SendableRecordBatchStream {
+    let dummy_metrics = ExecutionPlanMetricsSet::new();
+    let baseline_metrics = BaselineMetrics::new(&dummy_metrics, 0);
+    let stream = SizedRecordBatchStream::new(schema, vec![], baseline_metrics);
+    Box::pin(stream)
 }
 
 /// Execute the [ExecutionPlan] with a default [RuntimeEnv] and

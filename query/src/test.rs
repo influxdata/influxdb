@@ -22,7 +22,8 @@ use data_types::{
     delete_predicate::DeletePredicate,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
 };
-use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
+use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion_util::stream_from_batches;
 use futures::StreamExt;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
@@ -871,8 +872,7 @@ impl QueryChunk for TestChunk {
         self.predicates.lock().push(predicate.clone());
 
         let batches = self.table_data.clone();
-        let stream = SizedRecordBatchStream::new(batches[0].schema(), batches);
-        Ok(Box::pin(stream))
+        Ok(stream_from_batches(batches))
     }
 
     /// Returns true if data of this chunk is sorted

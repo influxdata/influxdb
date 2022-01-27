@@ -84,9 +84,9 @@ dependencies = [
 
 [[package]]
 name = "arrow"
-version = "7.0.0"
+version = "8.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66ec0a5964feebf378e2fc6db9530e712657b8edf72aa17b1b277b0f52a48e2d"
+checksum = "ce240772a007c63658c1d335bb424fd1019b87895dee899b7bf70e85b2d24e5f"
 dependencies = [
  "bitflags",
  "chrono",
@@ -109,9 +109,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-flight"
-version = "7.0.0"
+version = "8.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76c02bce74a675af058d1fb7d810a015769f2a01aad2aea505c4c913394dd4e8"
+checksum = "8ec7c637d2edd6969eeb63793584e0a3d17f99559b872ab73f47aea186aef50a"
 dependencies = [
  "arrow",
  "base64 0.13.0",
@@ -132,7 +132,7 @@ dependencies = [
  "arrow",
  "chrono",
  "comfy-table",
- "hashbrown",
+ "hashbrown 0.11.2",
  "num-traits",
  "rand",
  "snafu",
@@ -851,14 +851,14 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "6.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ad392fd529f9f8631b90271f7dbf3a4f2feadb7b#ad392fd529f9f8631b90271f7dbf3a4f2feadb7b"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=63d24bf5bd0d34e84ccc10c9bc51b5bb754017b1#63d24bf5bd0d34e84ccc10c9bc51b5bb754017b1"
 dependencies = [
  "ahash",
  "arrow",
  "async-trait",
  "chrono",
  "futures",
- "hashbrown",
+ "hashbrown 0.12.0",
  "lazy_static",
  "log",
  "num_cpus",
@@ -898,7 +898,7 @@ dependencies = [
  "datafusion_util",
  "dml",
  "futures",
- "hashbrown",
+ "hashbrown 0.11.2",
  "internal_types",
  "iox_object_store",
  "itertools",
@@ -1019,7 +1019,7 @@ version = "0.1.0"
 dependencies = [
  "arrow_util",
  "data_types",
- "hashbrown",
+ "hashbrown 0.11.2",
  "mutable_batch",
  "mutable_batch_lp",
  "ordered-float 2.10.0",
@@ -1469,12 +1469,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c21d40587b92fa6a6c6e3c1bdbf87d75511db5672f9c93175574b3a00df1758"
+dependencies = [
+ "ahash",
+]
+
+[[package]]
 name = "hashlink"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7249a3129cbc1ffccd74857f81464a323a152173cdb134e0fd81bc803b29facf"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.11.2",
 ]
 
 [[package]]
@@ -1652,7 +1661,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "282a6247722caba404c065016bbfa522806e51714c34f5dfc3e4a3a46fcb4223"
 dependencies = [
  "autocfg",
- "hashbrown",
+ "hashbrown 0.11.2",
 ]
 
 [[package]]
@@ -1717,7 +1726,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
- "hashbrown",
+ "hashbrown 0.11.2",
  "heappy",
  "hex",
  "http",
@@ -2162,7 +2171,7 @@ version = "0.1.0"
 dependencies = [
  "data_types",
  "futures",
- "hashbrown",
+ "hashbrown 0.11.2",
  "internal_types",
  "observability_deps",
  "parking_lot",
@@ -2400,7 +2409,7 @@ dependencies = [
  "arrow_util",
  "chrono",
  "data_types",
- "hashbrown",
+ "hashbrown 0.11.2",
  "itertools",
  "rand",
  "schema",
@@ -2413,7 +2422,7 @@ name = "mutable_batch_lp"
 version = "0.1.0"
 dependencies = [
  "arrow_util",
- "hashbrown",
+ "hashbrown 0.11.2",
  "influxdb_line_protocol",
  "mutable_batch",
  "schema",
@@ -2428,7 +2437,7 @@ dependencies = [
  "arrow_util",
  "dml",
  "generated_types",
- "hashbrown",
+ "hashbrown 0.11.2",
  "mutable_batch",
  "mutable_batch_lp",
  "schema",
@@ -2876,9 +2885,9 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "7.0.0"
+version = "8.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c718575b34e488fa78d4f0286356abb8466573cb17ae8faa96ffd871ca6e8c6"
+checksum = "2d5a6492e0b849fd458bc9364aee4c8a9882b3cc21b2576767162725f69d2ad8"
 dependencies = [
  "arrow",
  "base64 0.13.0",
@@ -3386,7 +3395,7 @@ dependencies = [
  "datafusion 0.1.0",
  "datafusion_util",
  "futures",
- "hashbrown",
+ "hashbrown 0.11.2",
  "itertools",
  "libc",
  "observability_deps",
@@ -3576,7 +3585,7 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "either",
- "hashbrown",
+ "hashbrown 0.11.2",
  "itertools",
  "metric",
  "observability_deps",
@@ -3719,7 +3728,7 @@ dependencies = [
  "cache_loader_async",
  "data_types",
  "dml",
- "hashbrown",
+ "hashbrown 0.11.2",
  "influxdb_iox_client",
  "metric",
  "mutable_batch",
@@ -3748,7 +3757,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
- "hashbrown",
+ "hashbrown 0.11.2",
  "hyper",
  "metric",
  "mutable_batch",
@@ -3973,7 +3982,7 @@ name = "schema"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "hashbrown",
+ "hashbrown 0.11.2",
  "indexmap",
  "itertools",
  "snafu",
@@ -4116,7 +4125,7 @@ dependencies = [
  "futures",
  "futures-util",
  "generated_types",
- "hashbrown",
+ "hashbrown 0.11.2",
  "influxdb_iox_client",
  "influxdb_line_protocol",
  "internal_types",
@@ -4951,7 +4960,7 @@ name = "trace_http"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown",
+ "hashbrown 0.11.2",
  "http",
  "http-body",
  "itertools",
@@ -5055,7 +5064,7 @@ name = "tracker"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown",
+ "hashbrown 0.11.2",
  "lock_api",
  "metric",
  "observability_deps",
@@ -5436,6 +5445,7 @@ name = "workspace-hack"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "arrow",
  "base64 0.13.0",
  "bitflags",
  "byteorder",
@@ -5450,7 +5460,7 @@ dependencies = [
  "futures-task",
  "futures-util",
  "getrandom",
- "hashbrown",
+ "hashbrown 0.11.2",
  "hyper",
  "indexmap",
  "log",
@@ -5460,6 +5470,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "once_cell",
+ "parquet",
  "rand",
  "regex",
  "regex-automata",

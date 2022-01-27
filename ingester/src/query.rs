@@ -9,7 +9,11 @@ use data_types::{
     delete_predicate::DeletePredicate,
     partition_metadata::TableSummary,
 };
-use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
+use datafusion::physical_plan::{
+    common::SizedRecordBatchStream,
+    metrics::{BaselineMetrics, ExecutionPlanMetricsSet},
+    SendableRecordBatchStream,
+};
 use iox_catalog::interface::Tombstone;
 use predicate::{
     delete_predicate::parse_delete_predicate,
@@ -185,7 +189,10 @@ impl QueryChunk for QueryableBatch {
         }
 
         // Return sream of data
-        let stream = SizedRecordBatchStream::new(self.schema().as_arrow(), stream_batches);
+        let dummy_metrics = ExecutionPlanMetricsSet::new();
+        let baseline_metrics = BaselineMetrics::new(&dummy_metrics, 0);
+        let stream =
+            SizedRecordBatchStream::new(self.schema().as_arrow(), stream_batches, baseline_metrics);
         Ok(Box::pin(stream))
     }
 

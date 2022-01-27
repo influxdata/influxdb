@@ -44,8 +44,8 @@ tracker = { path = "../tracker" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "7.0", features = ["prettyprint"] }
-arrow-flight = "7.0"
+arrow = { version = "8.0", features = ["prettyprint"] }
+arrow-flight = "8.0"
 async-trait = "0.1"
 backtrace = "0.3"
 byteorder = "1.3.4"
@@ -68,7 +68,7 @@ log = "0.4"
 num_cpus = "1.13.0"
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
 parking_lot = "0.11.2"
-parquet = "7.0"
+parquet = "8.0"
 pin-project = "1.0"
 pprof = { version = "0.6", default-features = false, features = ["flamegraph", "protobuf"], optional = true }
 prost = "0.9"

@@ -10,7 +10,7 @@ use observability_deps::tracing::{debug, trace};
 use predicate::predicate::Predicate;
 
 use crate::{
-    statistics::{max_to_scalar, min_to_scalar},
+    statistics::{max_to_scalar, min_to_scalar, null_count_as_scalar},
     QueryChunkMeta,
 };
 
@@ -141,6 +141,12 @@ impl<'a> PruningStatistics for ChunkMetaStats<'a> {
         // object, so we are always evaluating the pruning predicate
         // on a single chunk at a time
         1
+    }
+
+    fn null_counts(&self, column: &Column) -> Option<ArrayRef> {
+        self.column_summary(&column.name)
+            .map(|c| null_count_as_scalar(&c.stats))
+            .map(|s| s.to_array_of_size(1))
     }
 }
 

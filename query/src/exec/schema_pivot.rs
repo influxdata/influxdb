@@ -300,6 +300,7 @@ impl ExecutionPlan for SchemaPivotExec {
         Ok(Box::pin(SizedRecordBatchStream::new(
             self.schema(),
             batches,
+            baseline_metrics,
         )))
     }
 

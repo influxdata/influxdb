@@ -12,6 +12,7 @@ use arrow::{
     array::{Array, ArrayRef, BooleanArray},
     compute::{self, filter_record_batch},
     datatypes::SchemaRef,
+    error::ArrowError,
     error::Result as ArrowResult,
     record_batch::RecordBatch,
 };
@@ -274,17 +275,16 @@ impl StreamSplitExec {
                 Err(e) => {
                     debug!(%e, "error joining task");
                     for tx in &txs {
-                        let err = DataFusionError::Execution(format!("Join Error: {}", e));
-                        let err = Err(err.into_arrow_external_error());
-                        tx.send(err).await.ok();
+                        let err: ArrowError =
+                            DataFusionError::Execution(format!("Join Error: {}", e)).into();
+                        tx.send(Err(err)).await.ok();
                     }
                 }
                 Ok(Err(e)) => {
                     debug!(%e, "error in work function");
                     for tx in &txs {
-                        let err = DataFusionError::Execution(e.to_string());
-                        let err = Err(err.into_arrow_external_error());
-                        tx.send(err).await.ok();
+                        let err: ArrowError = DataFusionError::Execution(e.to_string()).into();
+                        tx.send(Err(err)).await.ok();
                     }
                 }
                 // Input task completed successfully

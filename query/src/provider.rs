@@ -1055,7 +1055,7 @@ mod test {
     use std::num::NonZeroU64;
 
     use arrow::datatypes::DataType;
-    use arrow_util::assert_batches_eq;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use datafusion_util::test_collect;
     use schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
 
@@ -2280,7 +2280,9 @@ mod test {
             "| 10        | MT   | 1970-01-01T00:00:00.000007Z    |",
             "+-----------+------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &batch);
+        // Since output is partially sorted, allow order to vary and
+        // test to still pass
+        assert_batches_sorted_eq!(&expected, &batch);
     }
 
     #[tokio::test]

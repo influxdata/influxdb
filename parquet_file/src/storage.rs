@@ -346,8 +346,7 @@ mod tests {
     use arrow::array::{ArrayRef, StringArray};
     use arrow_util::assert_batches_eq;
     use data_types::chunk_metadata::{ChunkId, ChunkOrder};
-    use datafusion::physical_plan::common::SizedRecordBatchStream;
-    use datafusion_util::MemoryStream;
+    use datafusion_util::{stream_from_batch, MemoryStream};
     use parquet::schema::types::ColumnPath;
     use time::Time;
 
@@ -427,10 +426,7 @@ mod tests {
 
         // write the data in
         let schema = batch.schema();
-        let input_stream = Box::pin(SizedRecordBatchStream::new(
-            batch.schema(),
-            vec![Arc::new(batch)],
-        ));
+        let input_stream = stream_from_batch(batch);
         let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
