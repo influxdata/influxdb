@@ -85,8 +85,8 @@ Examples:
     # Run the InfluxDB IOx server with extra verbose logging
     influxdb_iox run database -v
 
-    # Run InfluxDB IOx with full debug logging specified with RUST_LOG
-    RUST_LOG=debug influxdb_iox run database
+    # Run InfluxDB IOx with full debug logging specified with LOG_FILTER
+    LOG_FILTER=debug influxdb_iox run database
 
 Command are generally structured in the form:
     <type of object> <action> <arguments>
