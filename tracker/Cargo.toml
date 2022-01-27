@@ -8,7 +8,7 @@ description = "Utilities for tracking resource utilisation within IOx"
 [dependencies]
 
 futures = "0.3"
-hashbrown = "0.11"
+hashbrown = "0.12"
 lock_api = "0.4.4"
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }

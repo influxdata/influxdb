@@ -15,7 +15,7 @@ data_types = { path = "../data_types" }
 db = { path = "../db" }
 futures = "0.3"
 generated_types = { path = "../generated_types", features = ["data_types_conversions"] }
-hashbrown = "0.11"
+hashbrown = "0.12"
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }

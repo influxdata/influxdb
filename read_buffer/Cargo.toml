@@ -17,7 +17,7 @@ croaring = "0.5"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 either = "1.6.1"
-hashbrown = "0.11"
+hashbrown = "0.12"
 itertools = "0.10.1"
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }

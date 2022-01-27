@@ -9,7 +9,7 @@ description = "Distributed tracing support for HTTP services"
 
 trace = { path = "../trace" }
 futures = "0.3"
-hashbrown = "0.11"
+hashbrown = "0.12"
 http = "0.2"
 http-body = "0.4"
 itertools = "0.10"

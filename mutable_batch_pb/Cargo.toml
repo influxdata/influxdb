@@ -8,7 +8,7 @@ description = "Conversion logic for binary write protocol <-> MutableBatch"
 arrow_util = { path = "../arrow_util" }
 dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
-hashbrown = "0.11"
+hashbrown = "0.12"
 mutable_batch = { path = "../mutable_batch" }
 schema = { path = "../schema" }
 snafu = "0.7"

@@ -11,7 +11,7 @@ arrow = { version = "8.0", features = ["prettyprint"] }
 # used by arrow anyway (needed for printing workaround)
 chrono = { version = "0.4", default-features = false }
 comfy-table = { version = "5.0", default-features = false }
-hashbrown = "0.11"
+hashbrown = "0.12"
 num-traits = "0.2"
 snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}

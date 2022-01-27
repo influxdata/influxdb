@@ -13,7 +13,7 @@ dml = { path = "../dml" }
 flate2 = "1.0"
 futures = "0.3.19"
 generated_types = { path = "../generated_types" }
-hashbrown = "0.11"
+hashbrown = "0.12"
 hyper = "0.14"
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
