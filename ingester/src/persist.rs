@@ -2,6 +2,7 @@
 
 use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use bytes::Bytes;
+use generated_types::influxdata::iox::ingest::v1 as proto;
 use iox_catalog::interface::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
 use object_store::{
     path::{ObjectStorePath, Path},
@@ -13,6 +14,7 @@ use parquet::{
     basic::Compression,
     file::{metadata::KeyValue, properties::WriterProperties, writer::TryClone},
 };
+use prost::Message;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},
@@ -22,6 +24,11 @@ use time::Time;
 use uuid::Uuid;
 
 /// IOx-specific metadata.
+///
+/// # Serialization
+/// This will serialized as base64-encoded [Protocol Buffers 3] into the file-level key-value
+/// Parquet metadata (under [`METADATA_KEY`]).
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct IoxMetadata {
     /// The uuid used as the location of the parquet file in the OS.
     /// This uuid will later be used as the catalog's ParquetFileId
@@ -69,7 +76,26 @@ pub struct IoxMetadata {
 impl IoxMetadata {
     /// Convert to protobuf v3 message.
     fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
-        unimplemented!()
+        let proto_msg = proto::IoxMetadata {
+            object_store_id: self.object_store_id.as_bytes().to_vec(),
+            creation_timestamp: Some(self.creation_timestamp.date_time().into()),
+            namespace_id: self.namespace_id.get(),
+            namespace: self.namespace.to_string(),
+            sequencer_id: self.sequencer_id.get() as i32,
+            table_id: self.table_id.get(),
+            table_name: self.table_name.to_string(),
+            partition_id: self.partition_id.get(),
+            partition_key: self.partition_key.to_string(),
+            time_of_first_write: Some(self.time_of_first_write.date_time().into()),
+            time_of_last_write: Some(self.time_of_last_write.date_time().into()),
+            min_sequence_number: self.min_sequence_number.get(),
+            max_sequence_number: self.max_sequence_number.get(),
+        };
+
+        let mut buf = Vec::new();
+        proto_msg.encode(&mut buf)?;
+
+        Ok(buf)
     }
 }
 

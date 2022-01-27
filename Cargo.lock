@@ -1912,6 +1912,7 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "futures",
+ "generated_types",
  "hyper",
  "iox_catalog",
  "metric",
