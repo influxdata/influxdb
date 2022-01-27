@@ -2,10 +2,11 @@
 
 use async_trait::async_trait;
 use influxdb_line_protocol::FieldValue;
+use schema::{InfluxColumnType, InfluxFieldType};
 use snafu::{OptionExt, Snafu};
-use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::Formatter;
+use std::{collections::BTreeMap, fmt::Debug};
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
@@ -42,6 +43,12 @@ pub enum Error {
 
     #[snafu(display("parquet_file record {} not found", id))]
     ParquetRecordNotFound { id: ParquetFileId },
+
+    #[snafu(display("cannot derive valid column schema from column {}: {}", name, source))]
+    InvalidColumn {
+        source: Box<dyn std::error::Error + Send>,
+        name: String,
+    },
 }
 
 /// A specialized `Error` for Catalog errors
@@ -248,7 +255,7 @@ impl std::fmt::Display for ParquetFileId {
 
 /// Trait that contains methods for working with the catalog
 #[async_trait]
-pub trait Catalog: Send + Sync {
+pub trait Catalog: Send + Sync + Debug {
     /// repo for kafka topics
     fn kafka_topics(&self) -> &dyn KafkaTopicRepo;
     /// repo fo rquery pools
@@ -483,38 +490,6 @@ impl NamespaceSchema {
             query_pool_id,
         }
     }
-
-    /// Adds tables and columns to the `NamespaceSchema`. These are created
-    /// incrementally while validating the schema for a write and this helper
-    /// method takes them in to add them to the schema.
-    pub fn add_tables_and_columns(
-        &mut self,
-        new_tables: BTreeMap<String, TableId>,
-        new_columns: BTreeMap<TableId, BTreeMap<String, ColumnSchema>>,
-    ) {
-        for (table_name, table_id) in new_tables {
-            self.tables
-                .entry(table_name)
-                .or_insert_with(|| TableSchema::new(table_id));
-        }
-
-        for (table_id, new_columns) in new_columns {
-            let table = self
-                .get_table_mut(table_id)
-                .expect("table must be in namespace to add columns");
-            table.add_columns(new_columns);
-        }
-    }
-
-    fn get_table_mut(&mut self, table_id: TableId) -> Option<&mut TableSchema> {
-        for table in self.tables.values_mut() {
-            if table.id == table_id {
-                return Some(table);
-            }
-        }
-
-        None
-    }
 }
 
 /// Gets the namespace schema including all tables and columns.
@@ -600,11 +575,19 @@ impl TableSchema {
         }
     }
 
-    /// Add the map of columns to the `TableSchema`
-    pub fn add_columns(&mut self, columns: BTreeMap<String, ColumnSchema>) {
-        for (name, column) in columns {
-            self.columns.insert(name, column);
-        }
+    /// Add `col` to this table schema.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if a column of the same name already exists in
+    /// `self`, or the provided [`Column`] cannot be converted into a valid
+    /// [`ColumnSchema`].
+    pub fn add_column(&mut self, col: &Column) {
+        let old = self.columns.insert(
+            col.name.clone(),
+            ColumnSchema::try_from(col).expect("column is invalid"),
+        );
+        assert!(old.is_none());
     }
 }
 
@@ -665,6 +648,22 @@ impl ColumnSchema {
                 | (FieldValue::Boolean(_), ColumnType::Bool)
         )
     }
+
+    /// Returns true if `mb_column` is of the same type as `self`.
+    pub fn matches_type(&self, mb_column: &mutable_batch::column::Column) -> bool {
+        self.column_type == mb_column.influx_type()
+    }
+}
+
+impl TryFrom<&Column> for ColumnSchema {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(c: &Column) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: c.id,
+            column_type: ColumnType::try_from(c.column_type)?,
+        })
+    }
 }
 
 /// The column data type
@@ -706,7 +705,7 @@ impl std::fmt::Display for ColumnType {
 impl TryFrom<i16> for ColumnType {
     type Error = Box<dyn std::error::Error>;
 
-    fn try_from(value: i16) -> std::prelude::rust_2015::Result<Self, Self::Error> {
+    fn try_from(value: i16) -> Result<Self, Self::Error> {
         match value {
             x if x == Self::I64 as i16 => Ok(Self::I64),
             x if x == Self::U64 as i16 => Ok(Self::U64),
@@ -716,6 +715,36 @@ impl TryFrom<i16> for ColumnType {
             x if x == Self::Time as i16 => Ok(Self::Time),
             x if x == Self::Tag as i16 => Ok(Self::Tag),
             _ => Err("invalid column value".into()),
+        }
+    }
+}
+
+impl From<InfluxColumnType> for ColumnType {
+    fn from(value: InfluxColumnType) -> Self {
+        match value {
+            InfluxColumnType::Tag => Self::Tag,
+            InfluxColumnType::Field(InfluxFieldType::Float) => Self::F64,
+            InfluxColumnType::Field(InfluxFieldType::Integer) => Self::I64,
+            InfluxColumnType::Field(InfluxFieldType::UInteger) => Self::U64,
+            InfluxColumnType::Field(InfluxFieldType::String) => Self::String,
+            InfluxColumnType::Field(InfluxFieldType::Boolean) => Self::Bool,
+            InfluxColumnType::Timestamp => Self::Time,
+            // The "IOx" data model is unused.
+            InfluxColumnType::IOx(_) => unimplemented!(),
+        }
+    }
+}
+
+impl PartialEq<InfluxColumnType> for ColumnType {
+    fn eq(&self, got: &InfluxColumnType) -> bool {
+        match self {
+            Self::I64 => matches!(got, InfluxColumnType::Field(InfluxFieldType::Integer)),
+            Self::U64 => matches!(got, InfluxColumnType::Field(InfluxFieldType::UInteger)),
+            Self::F64 => matches!(got, InfluxColumnType::Field(InfluxFieldType::Float)),
+            Self::Bool => matches!(got, InfluxColumnType::Field(InfluxFieldType::Boolean)),
+            Self::String => matches!(got, InfluxColumnType::Field(InfluxFieldType::String)),
+            Self::Time => matches!(got, InfluxColumnType::Timestamp),
+            Self::Tag => matches!(got, InfluxColumnType::Tag),
         }
     }
 }
