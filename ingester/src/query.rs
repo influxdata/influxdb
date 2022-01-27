@@ -14,7 +14,9 @@ use datafusion::physical_plan::{
     metrics::{BaselineMetrics, ExecutionPlanMetricsSet},
     SendableRecordBatchStream,
 };
-use iox_catalog::interface::Tombstone;
+use iox_catalog::interface::{
+    SequenceNumber, SequencerId, TableId, Timestamp, Tombstone, TombstoneId,
+};
 use predicate::{
     delete_predicate::parse_delete_predicate,
     predicate::{Predicate, PredicateMatch},
@@ -217,6 +219,27 @@ impl QueryChunk for QueryableBatch {
     }
 }
 
+/// Create tombstone for testing
+pub fn create_tombstone(
+    id: i64,
+    table_id: i32,
+    seq_id: i16,
+    seq_num: i64,
+    min_time: i64,
+    max_time: i64,
+    predicate: &str,
+) -> Tombstone {
+    Tombstone {
+        id: TombstoneId::new(id),
+        table_id: TableId::new(table_id),
+        sequencer_id: SequencerId::new(seq_id),
+        sequence_number: SequenceNumber::new(seq_num),
+        min_time: Timestamp::new(min_time),
+        max_time: Timestamp::new(max_time),
+        serialized_predicate: predicate.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,11 +251,15 @@ mod tests {
         },
         datatypes::{DataType, Int32Type, TimeUnit},
     };
+    use data_types::{
+        delete_predicate::{DeleteExpr, Op, Scalar},
+        timestamp::TimestampRange,
+    };
 
     #[tokio::test]
     async fn test_merge_batch_schema() {
         // Merge schema of the batches
-        // The fileds in the schema are sorted by column name
+        // The fields in the schema are sorted by column name
         let batches = create_batches();
         let merged_schema = (&*merge_record_batch_schemas(&batches)).clone();
 
@@ -265,8 +292,49 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_tombstones_to_delete_predicates() {
+        // create tombstones
+        let tombstones = vec![
+            create_tombstone(1, 1, 1, 1, 100, 200, "temp=10"),
+            create_tombstone(1, 1, 1, 2, 100, 350, "temp!=10 and city=Boston"),
+        ];
+
+        // This new queryable batch will convert tombstone to delete predicates
+        let query_batch = QueryableBatch::new("test_table", vec![], tombstones);
+        let predicates = query_batch.delete_predicates();
+        let expected = vec![
+            Arc::new(DeletePredicate {
+                range: TimestampRange::new(100, 200),
+                exprs: vec![DeleteExpr {
+                    column: String::from("temp"),
+                    op: Op::Eq,
+                    scalar: Scalar::I64(10),
+                }],
+            }),
+            Arc::new(DeletePredicate {
+                range: TimestampRange::new(100, 350),
+                exprs: vec![
+                    DeleteExpr {
+                        column: String::from("temp"),
+                        op: Op::Ne,
+                        scalar: Scalar::I64(10),
+                    },
+                    DeleteExpr {
+                        column: String::from("city"),
+                        op: Op::Eq,
+                        scalar: Scalar::String(String::from(r#"Boston"#)),
+                    },
+                ],
+            }),
+        ];
+
+        assert_eq!(expected, predicates);
+    }
+
     // ----------------------------------------------------------------------------------------------
     // Data for testing
+
     // Create pure RecordBatches without knowledge of Influx datatype
     fn create_batches() -> Vec<Arc<RecordBatch>> {
         // Batch 1: <dict, i64, str, bool, time>  & 3 rows

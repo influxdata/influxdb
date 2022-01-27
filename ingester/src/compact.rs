@@ -66,13 +66,13 @@ pub async fn compact(
 
 #[cfg(test)]
 mod tests {
-    use crate::data::SnapshotBatch;
+    use crate::{data::SnapshotBatch, query::create_tombstone};
 
     use super::*;
 
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
-    use iox_catalog::interface::SequenceNumber;
+    use iox_catalog::interface::{SequenceNumber, Tombstone};
     use query::test::{raw_data, TestChunk};
 
     #[tokio::test]
@@ -80,7 +80,7 @@ mod tests {
         // create input data
         let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
 
-        // build queryable batch from the inout batches
+        // build queryable batch from the input batches
         let compact_batch = make_queryable_batch(batches);
 
         // verify PK
@@ -111,11 +111,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_compact_one_batch_no_dupilcates_with_deletes() {
+        test_helpers::maybe_start_logging();
+
+        // create input data
+        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
+        let tombstones = vec![create_tombstone(1, 1, 1, 1, 0, 200000, "tag1=UT")];
+
+        // build queryable batch from the input batches
+        let compact_batch = make_queryable_batch_with_deletes(batches, tombstones);
+
+        // verify PK
+        let schema = compact_batch.schema();
+        let pk = schema.primary_key();
+        let expected_pk = vec!["tag1", "time"];
+        assert_eq!(expected_pk, pk);
+
+        // compact
+        let exc = Executor::new(1);
+        let stream = compact(&exc, compact_batch).await.unwrap();
+        let output_batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        // verify compacted data
+        // row with "tag1=UT" no longer avaialble
+        let expected = vec![
+            "+-----------+------+-----------------------------+",
+            "| field_int | tag1 | time                        |",
+            "+-----------+------+-----------------------------+",
+            "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
+            "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
+            "+-----------+------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected, &output_batches);
+    }
+
+    #[tokio::test]
     async fn test_compact_one_batch_with_duplicates() {
         // create input data
         let batches = create_one_record_batch_with_influxtype_duplicates().await;
 
-        // build queryable batch from the inout batches
+        // build queryable batch from the input batches
         let compact_batch = make_queryable_batch(batches);
 
         // verify PK
@@ -154,7 +191,7 @@ mod tests {
         // create many-batches input data
         let batches = create_batches_with_influxtype().await;
 
-        // build queryable batch from the inout batches
+        // build queryable batch from the input batches
         let compact_batch = make_queryable_batch(batches);
 
         // verify PK
@@ -194,7 +231,7 @@ mod tests {
         // create many-batches input data
         let batches = create_batches_with_influxtype_different_columns().await;
 
-        // build queryable batch from the inout batches
+        // build queryable batch from the input batches
         let compact_batch = make_queryable_batch(batches);
 
         // verify PK
@@ -234,12 +271,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compact_many_batches_different_columns_different_order_with_duplicates() {
+    async fn test_compact_many_batches_different_columns_different_order_with_duplicates_with_deletes(
+    ) {
         // create many-batches input data
         let batches = create_batches_with_influxtype_different_columns_different_order().await;
+        let tombstones = vec![create_tombstone(
+            1,
+            1,
+            1,
+            1,
+            0,
+            200000,
+            "tag2=CT and field_int=1000",
+        )];
 
-        // build queryable batch from the inout batches
-        let compact_batch = make_queryable_batch(batches);
+        // build queryable batch from the input batches
+        let compact_batch = make_queryable_batch_with_deletes(batches, tombstones);
 
         // verify PK
         let schema = compact_batch.schema();
@@ -256,6 +303,7 @@ mod tests {
 
         // verify compacted data
         // data is sorted and all duplicates are removed
+        // all rows with "tag2=CT and field_int=1000" are also removed
         let expected = vec![
             "+-----------+------+------+--------------------------------+",
             "| field_int | tag1 | tag2 | time                           |",
@@ -263,15 +311,12 @@ mod tests {
             "| 5         |      | AL   | 1970-01-01T00:00:00.000005Z    |",
             "| 10        |      | AL   | 1970-01-01T00:00:00.000007Z    |",
             "| 70        |      | CT   | 1970-01-01T00:00:00.000000100Z |",
-            "| 1000      |      | CT   | 1970-01-01T00:00:00.000001Z    |",
             "| 100       |      | MA   | 1970-01-01T00:00:00.000000050Z |",
             "| 10        | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
             "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000100Z |",
             "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000500Z |",
             "| 30        | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
             "| 20        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
-            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000001Z    |",
-            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000002Z    |",
             "+-----------+------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &output_batches);
@@ -293,6 +338,13 @@ mod tests {
     // ----------------------------------------------------------------------------------------------
     // Data for testing
     pub fn make_queryable_batch(batches: Vec<Arc<RecordBatch>>) -> Arc<QueryableBatch> {
+        make_queryable_batch_with_deletes(batches, vec![])
+    }
+
+    pub fn make_queryable_batch_with_deletes(
+        batches: Vec<Arc<RecordBatch>>,
+        tombstones: Vec<Tombstone>,
+    ) -> Arc<QueryableBatch> {
         // make snapshots for the bacthes
         let mut snapshots = vec![];
         let mut seq_num = 1;
@@ -302,7 +354,7 @@ mod tests {
             seq_num += 1;
         }
 
-        Arc::new(QueryableBatch::new("test_table", snapshots, vec![]))
+        Arc::new(QueryableBatch::new("test_table", snapshots, tombstones))
     }
 
     pub fn make_snapshot_batch(
