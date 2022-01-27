@@ -1,13 +1,8 @@
 //! Persist compacted data to parquet files in object storage
 
-use arrow::{datatypes::SchemaRef, error::ArrowError};
+use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use bytes::Bytes;
-use datafusion::physical_plan::SendableRecordBatchStream;
-use futures::StreamExt;
-use iox_catalog::interface::{
-    NamespaceId, PartitionId, SequenceNumber, SequencerId,
-    TableId, Timestamp,
-};
+use iox_catalog::interface::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
 use object_store::{
     path::{ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
@@ -23,15 +18,58 @@ use std::{
     io::{Cursor, Seek, SeekFrom, Write},
     sync::Arc,
 };
+use time::Time;
 use uuid::Uuid;
 
 /// IOx-specific metadata.
-#[allow(missing_copy_implementations)]
-pub struct IoxMetadata {}
+pub struct IoxMetadata {
+    /// The uuid used as the location of the parquet file in the OS.
+    /// This uuid will later be used as the catalog's ParquetFileId
+    pub object_store_id: Uuid,
+
+    /// Timestamp when this file was created.
+    pub creation_timestamp: Time,
+
+    /// namespace id of the data
+    pub namespace_id: NamespaceId,
+
+    /// namespace name of the data
+    pub namespace: Arc<str>,
+
+    /// sequencer id of the data
+    pub sequencer_id: SequencerId,
+
+    /// table id of the data
+    pub table_id: TableId,
+
+    /// table name of the data
+    pub table_name: Arc<str>,
+
+    /// partition id of the data
+    pub partition_id: PartitionId,
+
+    /// parittion key of the data
+    pub partition_key: Arc<str>,
+
+    /// Time of the first write of the data
+    /// This is also the min value of the column `time`
+    pub time_of_first_write: Time,
+
+    /// Time of the last write of the data
+    /// This is also the max value of the column `time`
+    pub time_of_last_write: Time,
+
+    /// sequence number of the first write
+    pub min_sequence_number: SequenceNumber,
+
+    /// sequence number of the last write
+    pub max_sequence_number: SequenceNumber,
+}
 
 impl IoxMetadata {
-    pub(crate) fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
-        Ok(vec![])
+    /// Convert to protobuf v3 message.
+    fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
+        unimplemented!()
     }
 }
 
@@ -46,7 +84,7 @@ pub const METADATA_KEY: &str = "IOX:metadata";
 #[allow(missing_docs)]
 pub enum Error {
     #[snafu(display("Error converting the parquet stream to bytes: {}", source))]
-    ConvertingToBytes { source: ParquetStreamToBytesError },
+    ConvertingToBytes { source: ParquetBytesError },
 
     #[snafu(display("Error writing to object store: {}", source))]
     WritingToObjectStore { source: object_store::Error },
@@ -57,41 +95,29 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Write the given data to the given location in the given object storage
 pub async fn persist(
-    namespace_id: NamespaceId,
-    table_id: TableId,
-    sequencer_id: SequencerId,
-    partition_id: PartitionId,
-    metadata: IoxMetadata,
-    min_sequence_number: SequenceNumber,
-    max_sequence_number: SequenceNumber,
-    min_time: Timestamp,
-    max_time: Timestamp,
-    stream: SendableRecordBatchStream,
+    metadata: &IoxMetadata,
+    record_batches: &[RecordBatch],
     object_store: &ObjectStore,
 ) -> Result<()> {
-    let object_store_id = Uuid::new_v4();
+    if record_batches.is_empty() {
+        return Ok(());
+    }
+    let schema = record_batches
+        .first()
+        .expect("record_batches.is_empty was just checked")
+        .schema();
 
-    let schema = stream.schema();
-
-    let data = parquet_stream_to_bytes(stream, schema, metadata)
+    let data = parquet_bytes(metadata, record_batches, schema)
         .await
         .context(ConvertingToBytesSnafu)?;
 
-    // no data
     if data.is_empty() {
         return Ok(());
     }
 
     let bytes = Bytes::from(data);
 
-    let path = parquet_file_object_store_path(
-        object_store,
-        namespace_id,
-        table_id,
-        sequencer_id,
-        partition_id,
-        object_store_id,
-    );
+    let path = parquet_file_object_store_path(metadata, object_store);
 
     object_store
         .put(&path, bytes)
@@ -101,31 +127,24 @@ pub async fn persist(
     Ok(())
 }
 
-fn parquet_file_object_store_path(
-    object_store: &ObjectStore,
-    namespace_id: NamespaceId,
-    table_id: TableId,
-    sequencer_id: SequencerId,
-    partition_id: PartitionId,
-    object_store_id: Uuid,
-) -> Path {
+fn parquet_file_object_store_path(metadata: &IoxMetadata, object_store: &ObjectStore) -> Path {
     let mut path = object_store.new_path();
 
     path.push_all_dirs(&[
-        namespace_id.to_string().as_str(),
-        table_id.to_string().as_str(),
-        sequencer_id.to_string().as_str(),
-        partition_id.to_string().as_str(),
+        metadata.namespace_id.to_string().as_str(),
+        metadata.table_id.to_string().as_str(),
+        metadata.sequencer_id.to_string().as_str(),
+        metadata.partition_id.to_string().as_str(),
     ]);
 
-    path.set_file_name(format!("{}.parquet", object_store_id));
+    path.set_file_name(format!("{}.parquet", metadata.object_store_id));
 
     path
 }
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
-pub enum ParquetStreamToBytesError {
+pub enum ParquetBytesError {
     #[snafu(display("Cannot encode metadata: {}", source))]
     MetadataEncodeFailure { source: prost::EncodeError },
 
@@ -133,9 +152,6 @@ pub enum ParquetStreamToBytesError {
     OpeningParquetWriter {
         source: parquet::errors::ParquetError,
     },
-
-    #[snafu(display("Error reading stream while creating snapshot: {}", source))]
-    ReadingStream { source: ArrowError },
 
     #[snafu(display("Error writing Parquet to memory: {}", source))]
     WritingParquetToMemory {
@@ -151,28 +167,21 @@ pub enum ParquetStreamToBytesError {
     WritingToMemWriter {},
 }
 
-/// Convert the given stream of RecordBatches to bytes
-async fn parquet_stream_to_bytes(
-    mut stream: SendableRecordBatchStream,
+/// Convert the given metadata and RecordBatches to parquet file bytes
+async fn parquet_bytes(
+    metadata: &IoxMetadata,
+    record_batches: &[RecordBatch],
     schema: SchemaRef,
-    metadata: IoxMetadata,
-) -> Result<Vec<u8>, ParquetStreamToBytesError> {
+) -> Result<Vec<u8>, ParquetBytesError> {
     let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailureSnafu)?;
-
     let props = writer_props(&metadata_bytes);
 
     let mem_writer = MemWriter::default();
     {
         let mut writer = ArrowWriter::try_new(mem_writer.clone(), schema, Some(props))
             .context(OpeningParquetWriterSnafu)?;
-        let mut no_stream_data = true;
-        while let Some(batch) = stream.next().await {
-            no_stream_data = false;
-            let batch = batch.context(ReadingStreamSnafu)?;
-            writer.write(&batch).context(WritingParquetToMemorySnafu)?;
-        }
-        if no_stream_data {
-            return Ok(vec![]);
+        for batch in record_batches {
+            writer.write(batch).context(WritingParquetToMemorySnafu)?;
         }
         writer.close().context(ClosingParquetWriterSnafu)?;
     } // drop the reference to the MemWriter that the SerializedFileWriter has
@@ -235,11 +244,14 @@ impl TryClone for MemWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::datatypes::Schema;
-    use datafusion::physical_plan::{common::SizedRecordBatchStream, EmptyRecordBatchStream};
-    use futures::{stream, TryStreamExt};
+    use futures::{stream, StreamExt, TryStreamExt};
+    use iox_catalog::interface::NamespaceId;
     use parquet::schema::types::ColumnPath;
     use query::test::{raw_data, TestChunk};
+
+    fn now() -> Time {
+        Time::from_timestamp(0, 0)
+    }
 
     fn object_store() -> Arc<ObjectStore> {
         Arc::new(ObjectStore::new_in_memory())
@@ -256,108 +268,90 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn empty_stream_writes_nothing() {
-        let namespace_id = NamespaceId::new(1);
-        let table_id = TableId::new(2);
-        let sequencer_id = SequencerId::new(3);
-        let partition_id = PartitionId::new(4);
-        let min_seq_num = SequenceNumber::new(5);
-        let max_seq_num = SequenceNumber::new(6);
-
-        let schema = Arc::new(Schema::empty());
-        let stream = Box::pin(EmptyRecordBatchStream::new(schema));
-
+    async fn empty_list_writes_nothing() {
+        let metadata = IoxMetadata {
+            object_store_id: Uuid::new_v4(),
+            creation_timestamp: now(),
+            namespace_id: NamespaceId::new(1),
+            namespace: "mydata".into(),
+            sequencer_id: SequencerId::new(2),
+            table_id: TableId::new(3),
+            table_name: "temperature".into(),
+            partition_id: PartitionId::new(4),
+            partition_key: "somehour".into(),
+            time_of_first_write: now(),
+            time_of_last_write: now(),
+            min_sequence_number: SequenceNumber::new(5),
+            max_sequence_number: SequenceNumber::new(6),
+        };
         let object_store = object_store();
 
-        persist(
-            namespace_id,
-            table_id,
-            sequencer_id,
-            partition_id,
-            IoxMetadata {},
-            min_seq_num,
-            max_seq_num,
-            Timestamp::new(7),
-            Timestamp::new(8),
-            stream,
-            &object_store,
-        )
-        .await
-        .unwrap();
+        persist(&metadata, &[], &object_store).await.unwrap();
 
         assert!(list_all(&object_store).await.unwrap().is_empty());
     }
 
-    // TODO: SizedRecordBatchStream changed its API, need to figure out
-    // #[tokio::test]
-    // async fn stream_with_data_writes_to_object_store() {
-    //     let namespace_id = NamespaceId::new(1);
-    //     let table_id = TableId::new(2);
-    //     let sequencer_id = SequencerId::new(3);
-    //     let partition_id = PartitionId::new(4);
-    //     let min_seq_num = SequenceNumber::new(5);
-    //     let max_seq_num = SequenceNumber::new(6);
-    //
-    //     let chunk1 = Arc::new(
-    //         TestChunk::new("t")
-    //             .with_id(1)
-    //             .with_time_column() //_with_full_stats(
-    //             .with_tag_column("tag1")
-    //             .with_i64_field_column("field_int")
-    //             .with_three_rows_of_data(),
-    //     );
-    //     let batches: Vec<_> = raw_data(&[chunk1])
-    //         .await
-    //         .into_iter()
-    //         .map(Arc::new)
-    //         .collect();
-    //     assert_eq!(batches.len(), 1);
-    //     let schema = batches[0].schema();
-    //     let stream = Box::pin(SizedRecordBatchStream::new(schema, batches));
-    //
-    //     let object_store = object_store();
-    //
-    //     persist(
-    //         namespace_id,
-    //         table_id,
-    //         sequencer_id,
-    //         partition_id,
-    //         IoxMetadata {},
-    //         min_seq_num,
-    //         max_seq_num,
-    //         Timestamp::new(7),
-    //         Timestamp::new(8),
-    //         stream,
-    //         &object_store,
-    //     )
-    //     .await
-    //     .unwrap();
-    //
-    //     let obj_store_paths = list_all(&object_store).await.unwrap();
-    //     assert_eq!(obj_store_paths.len(), 1);
-    // }
+    #[tokio::test]
+    async fn list_with_batches_writes_to_object_store() {
+        let metadata = IoxMetadata {
+            object_store_id: Uuid::new_v4(),
+            creation_timestamp: now(),
+            namespace_id: NamespaceId::new(1),
+            namespace: "mydata".into(),
+            sequencer_id: SequencerId::new(2),
+            table_id: TableId::new(3),
+            table_name: "temperature".into(),
+            partition_id: PartitionId::new(4),
+            partition_key: "somehour".into(),
+            time_of_first_write: now(),
+            time_of_last_write: now(),
+            min_sequence_number: SequenceNumber::new(5),
+            max_sequence_number: SequenceNumber::new(6),
+        };
+
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column() //_with_full_stats(
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_three_rows_of_data(),
+        );
+        let batches = raw_data(&[chunk1]).await;
+        assert_eq!(batches.len(), 1);
+
+        let object_store = object_store();
+
+        persist(&metadata, &batches, &object_store).await.unwrap();
+
+        let obj_store_paths = list_all(&object_store).await.unwrap();
+        assert_eq!(obj_store_paths.len(), 1);
+    }
 
     #[test]
     fn parquet_file_path_in_object_storage() {
         let object_store = object_store();
-        let namespace_id = NamespaceId::new(1);
-        let table_id = TableId::new(2);
-        let sequencer_id = SequencerId::new(3);
-        let partition_id = PartitionId::new(4);
-        let object_store_id = Uuid::new_v4();
+        let metadata = IoxMetadata {
+            object_store_id: Uuid::new_v4(),
+            creation_timestamp: now(),
+            namespace_id: NamespaceId::new(1),
+            namespace: "mydata".into(),
+            sequencer_id: SequencerId::new(3),
+            table_id: TableId::new(2),
+            table_name: "temperature".into(),
+            partition_id: PartitionId::new(4),
+            partition_key: "somehour".into(),
+            time_of_first_write: now(),
+            time_of_last_write: now(),
+            min_sequence_number: SequenceNumber::new(5),
+            max_sequence_number: SequenceNumber::new(6),
+        };
 
-        let path = parquet_file_object_store_path(
-            &object_store,
-            namespace_id,
-            table_id,
-            sequencer_id,
-            partition_id,
-            object_store_id,
-        );
+        let path = parquet_file_object_store_path(&metadata, &object_store);
 
         assert_eq!(
             path.to_raw(),
-            format!("1/2/3/4/{}.parquet", object_store_id)
+            format!("1/2/3/4/{}.parquet", metadata.object_store_id)
         );
     }
 
