@@ -182,6 +182,7 @@ pub async fn test_delete_on_router() {
     let mut stream = write_buffer.streams().into_values().next().unwrap();
     let delete_actual = stream.stream.next().await.unwrap().unwrap();
     let delete_expected = DmlDelete::new(
+        &db_name,
         pred,
         NonEmptyString::new(table),
         // We don't care about the metadata here, timestamps and sequence numbers are hard to guess

@@ -88,6 +88,7 @@ impl WriteBufferWriting for RSKafkaProducer {
         let headers = IoxHeaders::new(
             ContentType::Protobuf,
             operation.meta().span_context().cloned(),
+            operation.namespace().to_string(),
         );
 
         let mut buf = Vec::new();

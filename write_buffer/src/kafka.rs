@@ -101,6 +101,7 @@ impl WriteBufferWriting for KafkaBufferProducer {
         let headers = IoxHeaders::new(
             ContentType::Protobuf,
             operation.meta().span_context().cloned(),
+            operation.namespace().to_string(),
         );
 
         let mut buf = Vec::new();
@@ -888,7 +889,7 @@ mod tests {
         let adapter = KafkaTestAdapter::new(conn);
         let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
 
-        let headers = IoxHeaders::new(ContentType::Protobuf, None);
+        let headers = IoxHeaders::new(ContentType::Protobuf, None, "namespace".to_owned());
         let mut owned_headers = OwnedHeaders::new();
         for (name, value) in headers.headers() {
             owned_headers = owned_headers.add(name, value.as_bytes());
@@ -1012,7 +1013,7 @@ mod tests {
         let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
 
         // Send some data into the buffer and read it out
-        write_to_writer(&writer, entry_1, sequencer_id, None).await;
+        write_to_writer(&context.database_name, &writer, entry_1, sequencer_id, None).await;
         stream.stream.next().await.unwrap().unwrap();
 
         let metric: Metric<U64Histogram> = context
@@ -1028,7 +1029,7 @@ mod tests {
             .unwrap()
             .fetch();
 
-        assert_eq!(observation.total, 197, "Observation: {:#?}", observation);
+        assert_eq!(observation.total, 257, "Observation: {:#?}", observation);
         assert_eq!(
             observation.buckets.len(),
             8,

@@ -134,6 +134,7 @@ impl DistributedTest {
     pub async fn write(&self, lp: &str) {
         self.router
             .write(DmlOperation::Write(DmlWrite::new(
+                self.consumer_db.name().as_ref(),
                 lines_to_batches(lp, 0).unwrap(),
                 Default::default(),
             )))
@@ -178,6 +179,7 @@ async fn write_buffer_deletes() {
     // Send a delete over the write buffer
     fixture
         .delete(DmlDelete::new(
+            db_name.as_str(),
             DeletePredicate {
                 range: TimestampRange::new(0, 20),
                 exprs: vec![DeleteExpr {

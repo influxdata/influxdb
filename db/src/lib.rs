@@ -1318,7 +1318,7 @@ pub mod test_helpers {
         let tables = lines_to_batches(lp, 0).unwrap();
         let mut table_names: Vec<_> = tables.keys().cloned().collect();
 
-        let write = DmlOperation::Write(DmlWrite::new(tables, Default::default()));
+        let write = DmlOperation::Write(DmlWrite::new("test_db", tables, Default::default()));
         db.store_operation(&write)?;
 
         table_names.sort_unstable();
@@ -1504,7 +1504,7 @@ mod tests {
         let db = immutable_db().await;
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DmlOperation::Write(DmlWrite::new(tables, Default::default()));
+        let write = DmlOperation::Write(DmlWrite::new("test_db", tables, Default::default()));
         let res = db.store_operation(&write);
         assert_contains!(
             res.unwrap_err().to_string(),
@@ -1517,7 +1517,7 @@ mod tests {
         // Validate that writes are rejected if this database is reading from the write buffer
         let db = immutable_db().await;
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DmlOperation::Write(DmlWrite::new(tables, Default::default()));
+        let write = DmlOperation::Write(DmlWrite::new("test_db", tables, Default::default()));
         let res = db.store_operation(&write);
         assert_contains!(
             res.unwrap_err().to_string(),
@@ -1554,7 +1554,7 @@ mod tests {
         "#;
 
         let tables = lines_to_batches(lp, 0).unwrap();
-        let write = DmlOperation::Write(DmlWrite::new(tables, Default::default()));
+        let write = DmlOperation::Write(DmlWrite::new("test_db", tables, Default::default()));
 
         // This should succeed and start chunks in the MUB
         db.store_operation(&write).unwrap();
@@ -1568,7 +1568,7 @@ mod tests {
             .to_string();
 
         let tables = lines_to_batches(&lp, 0).unwrap();
-        let write = DmlOperation::Write(DmlWrite::new(tables, Default::default()));
+        let write = DmlOperation::Write(DmlWrite::new("test_db", tables, Default::default()));
 
         // This should return an error because there was at least one error in the loop
         let err = db.store_operation(&write).unwrap_err();
@@ -2373,7 +2373,7 @@ mod tests {
         time.inc(Duration::from_secs(1));
 
         let tables = lines_to_batches("cpu bar=true 10", 0).unwrap();
-        let write = DmlOperation::Write(DmlWrite::new(tables, Default::default()));
+        let write = DmlOperation::Write(DmlWrite::new("test_db", tables, Default::default()));
         db.store_operation(&write).unwrap_err();
         {
             let partition = db.catalog.partition("cpu", partition_key).unwrap();

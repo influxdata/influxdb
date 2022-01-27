@@ -234,6 +234,7 @@ mod tests {
         client_grpc.poison();
 
         let write = DmlOperation::Write(DmlWrite::new(
+            "my_db",
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         ));
@@ -339,6 +340,7 @@ mod tests {
         );
 
         let write_1 = DmlOperation::Write(DmlWrite::new(
+            "my_db",
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         ));
@@ -352,6 +354,7 @@ mod tests {
         client_2.poison();
 
         let write_2 = DmlOperation::Write(DmlWrite::new(
+            "my_db",
             lines_to_batches("foo x=2 2", 0).unwrap(),
             Default::default(),
         ));

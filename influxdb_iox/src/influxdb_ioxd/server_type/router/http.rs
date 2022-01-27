@@ -192,7 +192,12 @@ mod tests {
                 scalar: data_types::delete_predicate::Scalar::I64(1),
             }],
         };
-        let delete = DmlDelete::new(predicate, None, DmlMeta::unsequenced(None));
+        let delete = DmlDelete::new(
+            "MyOrg_MyBucket",
+            predicate,
+            None,
+            DmlMeta::unsequenced(None),
+        );
         assert_dbwrite(test_server, DmlOperation::Delete(delete)).await;
     }
 

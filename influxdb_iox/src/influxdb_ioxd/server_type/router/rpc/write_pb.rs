@@ -28,7 +28,11 @@ impl write_service_server::WriteService for PBWriteService {
                 }
             })?;
 
-        let write = DmlOperation::Write(DmlWrite::new(tables, DmlMeta::unsequenced(span_ctx)));
+        let write = DmlOperation::Write(DmlWrite::new(
+            &database_batch.database_name,
+            tables,
+            DmlMeta::unsequenced(span_ctx),
+        ));
 
         let router = self
             .server

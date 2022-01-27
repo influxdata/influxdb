@@ -1726,7 +1726,7 @@ mod tests {
 
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
         let db = server.db(&db_name).unwrap();
-        let write = DmlWrite::new(tables, Default::default());
+        let write = DmlWrite::new(db_name.as_str(), tables, Default::default());
         db.store_write(&write).unwrap();
 
         // get chunk ID
@@ -1934,7 +1934,7 @@ mod tests {
 
         // can only write to successfully created DBs
         let tables = lines_to_batches("cpu foo=1 10", 0).unwrap();
-        let write = DmlWrite::new(tables, Default::default());
+        let write = DmlWrite::new(foo_db_name.as_str(), tables, Default::default());
         server
             .db(&foo_db_name)
             .unwrap()
@@ -2368,7 +2368,7 @@ mod tests {
 
         let db = server.db(&db_name_catalog_broken).unwrap();
         let tables = lines_to_batches("cpu bar=1 10", 0).unwrap();
-        let write = DmlWrite::new(tables, Default::default());
+        let write = DmlWrite::new(db_name_catalog_broken.as_str(), tables, Default::default());
         db.store_write(&write).unwrap();
 
         // 5. cannot wipe if DB was just created

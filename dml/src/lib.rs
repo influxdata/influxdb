@@ -160,6 +160,14 @@ impl DmlOperation {
             }
         }
     }
+
+    /// Namespace associated with this operation
+    pub fn namespace(&self) -> &str {
+        match self {
+            DmlOperation::Write(w) => w.namespace(),
+            DmlOperation::Delete(d) => d.namespace(),
+        }
+    }
 }
 
 impl From<DmlWrite> for DmlOperation {
@@ -177,6 +185,8 @@ impl From<DmlDelete> for DmlOperation {
 /// A collection of writes to potentially multiple tables within the same database
 #[derive(Debug, Clone)]
 pub struct DmlWrite {
+    /// The namespace being written to
+    namespace: String,
     /// Writes to individual tables keyed by table name
     tables: HashMap<String, MutableBatch>,
     /// Write metadata
@@ -195,7 +205,11 @@ impl DmlWrite {
     /// - `tables` is empty
     /// - a MutableBatch is empty
     /// - a MutableBatch lacks an i64 "time" column
-    pub fn new(tables: HashMap<String, MutableBatch>, meta: DmlMeta) -> Self {
+    pub fn new(
+        namespace: impl Into<String>,
+        tables: HashMap<String, MutableBatch>,
+        meta: DmlMeta,
+    ) -> Self {
         assert_ne!(tables.len(), 0);
 
         let mut stats = StatValues::new_empty();
@@ -215,11 +229,17 @@ impl DmlWrite {
         }
 
         Self {
+            namespace: namespace.into(),
             tables,
             meta,
             min_timestamp: stats.min.unwrap(),
             max_timestamp: stats.max.unwrap(),
         }
+    }
+
+    /// Namespace associated with this write
+    pub fn namespace(&self) -> &str {
+        &self.namespace
     }
 
     /// Metadata associated with this write
@@ -274,7 +294,12 @@ impl DmlWrite {
 
         batches
             .into_iter()
-            .map(|(shard_id, tables)| (shard_id, Self::new(tables, self.meta.clone())))
+            .map(|(shard_id, tables)| {
+                (
+                    shard_id,
+                    Self::new(&self.namespace, tables, self.meta.clone()),
+                )
+            })
             .collect()
     }
 
@@ -296,6 +321,7 @@ impl DmlWrite {
 /// A delete operation
 #[derive(Debug, Clone, PartialEq)]
 pub struct DmlDelete {
+    namespace: String,
     predicate: DeletePredicate,
     table_name: Option<NonEmptyString>,
     meta: DmlMeta,
@@ -304,15 +330,22 @@ pub struct DmlDelete {
 impl DmlDelete {
     /// Create a new [`DmlDelete`]
     pub fn new(
+        namespace: impl Into<String>,
         predicate: DeletePredicate,
         table_name: Option<NonEmptyString>,
         meta: DmlMeta,
     ) -> Self {
         Self {
+            namespace: namespace.into(),
             predicate,
             table_name,
             meta,
         }
+    }
+
+    /// Namespace associated with this delete
+    pub fn namespace(&self) -> &str {
+        &self.namespace
     }
 
     /// Returns the table_name for this delete
@@ -424,6 +457,7 @@ pub mod test_util {
 
     /// Asserts two writes are equal
     pub fn assert_writes_eq(a: &DmlWrite, b: &DmlWrite) {
+        assert_eq!(a.namespace, b.namespace);
         assert_eq!(a.meta(), b.meta());
 
         assert_eq!(a.table_count(), b.table_count());
@@ -592,6 +626,7 @@ mod tests {
         // Deletes w/o table name go to all shards
         let meta = DmlMeta::unsequenced(None);
         let delete = DmlDelete::new(
+            "test_db",
             DeletePredicate {
                 range: TimestampRange::new(1, 2),
                 exprs: vec![],
@@ -614,6 +649,7 @@ mod tests {
         // Deletes are matched by table name regex
         let meta = DmlMeta::unsequenced(None);
         let delete = DmlDelete::new(
+            "test_db",
             DeletePredicate {
                 range: TimestampRange::new(3, 4),
                 exprs: vec![],
@@ -629,6 +665,7 @@ mod tests {
         // Deletes can be matched by hash-ring
         let meta = DmlMeta::unsequenced(None);
         let delete = DmlDelete::new(
+            "test_db",
             DeletePredicate {
                 range: TimestampRange::new(5, 6),
                 exprs: vec![],
@@ -644,6 +681,7 @@ mod tests {
 
     fn db_write(lines: &[&str], meta: &DmlMeta) -> DmlWrite {
         DmlWrite::new(
+            "test_db",
             lines_to_batches(&lines.join("\n"), 0).unwrap(),
             meta.clone(),
         )

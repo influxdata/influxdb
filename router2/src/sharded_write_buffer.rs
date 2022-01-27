@@ -99,7 +99,7 @@ where
         }
 
         let iter = collated.into_iter().map(|(sequencer, batch)| {
-            let dml = DmlWrite::new(batch, DmlMeta::unsequenced(span_ctx.clone()));
+            let dml = DmlWrite::new(&namespace, batch, DmlMeta::unsequenced(span_ctx.clone()));
 
             trace!(
                 sequencer_id=%sequencer.id(),
@@ -134,6 +134,7 @@ where
         trace!(sequencer_id=%sequencer.id(), %table_name, %namespace, "routing delete to shard");
 
         let dml = DmlDelete::new(
+            &namespace,
             predicate,
             NonEmptyString::new(table_name),
             DmlMeta::unsequenced(span_ctx),

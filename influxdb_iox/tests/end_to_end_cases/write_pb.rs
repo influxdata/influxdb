@@ -56,6 +56,7 @@ pub async fn test_write_pb_router() {
     let mut stream = write_buffer.streams().into_values().next().unwrap();
     let write_actual = stream.stream.next().await.unwrap().unwrap();
     let write_expected = DmlWrite::new(
+        &db_name,
         lines_to_batches("mytable mycol1=5 3", 0).unwrap(),
         // We don't care about the metadata here, timestamps and sequence numbers are hard to guess
         write_actual.meta().clone(),

@@ -31,7 +31,11 @@ impl write_service_server::WriteService for PBWriteService {
                 }
             })?;
 
-        let write = DmlWrite::new(tables, DmlMeta::unsequenced(span_ctx));
+        let write = DmlWrite::new(
+            &database_batch.database_name,
+            tables,
+            DmlMeta::unsequenced(span_ctx),
+        );
 
         let db_name = DatabaseName::new(&database_batch.database_name)
             .scope("database_batch.database_name")?;

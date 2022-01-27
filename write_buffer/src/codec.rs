@@ -31,6 +31,9 @@ pub const HEADER_CONTENT_TYPE: &str = "content-type";
 /// Message header for tracing context.
 pub const HEADER_TRACE_CONTEXT: &str = "uber-trace-id";
 
+/// Message header for namespace.
+pub const HEADER_NAMESPACE: &str = "iox-namespace";
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ContentType {
     Protobuf,
@@ -41,14 +44,20 @@ pub enum ContentType {
 pub struct IoxHeaders {
     content_type: ContentType,
     span_context: Option<SpanContext>,
+    namespace: String,
 }
 
 impl IoxHeaders {
     /// Create new headers with sane default values and given span context.
-    pub fn new(content_type: ContentType, span_context: Option<SpanContext>) -> Self {
+    pub fn new(
+        content_type: ContentType,
+        span_context: Option<SpanContext>,
+        namespace: String,
+    ) -> Self {
         Self {
             content_type,
             span_context,
+            namespace,
         }
     }
 
@@ -59,6 +68,7 @@ impl IoxHeaders {
     ) -> Result<Self, WriteBufferError> {
         let mut span_context = None;
         let mut content_type = None;
+        let mut namespace = None;
 
         for (name, value) in headers {
             let name = name.as_ref();
@@ -91,11 +101,19 @@ impl IoxHeaders {
                     }
                 }
             }
+
+            if name.eq_ignore_ascii_case(HEADER_NAMESPACE) {
+                namespace = Some(
+                    String::from_utf8(value.as_ref().to_vec())
+                        .map_err(|e| format!("Error decoding namespace header: {}", e))?,
+                );
+            }
         }
 
         Ok(Self {
             content_type: content_type.ok_or_else(|| "No content type header".to_string())?,
             span_context,
+            namespace: namespace.unwrap_or_default(),
         })
     }
 
@@ -117,17 +135,22 @@ impl IoxHeaders {
             ContentType::Protobuf => CONTENT_TYPE_PROTOBUF.into(),
         };
 
-        std::iter::once((HEADER_CONTENT_TYPE, content_type)).chain(
-            self.span_context
-                .as_ref()
-                .map(|ctx| {
-                    (
-                        HEADER_TRACE_CONTEXT,
-                        format_jaeger_trace_context(ctx).into(),
-                    )
-                })
-                .into_iter(),
-        )
+        std::iter::once((HEADER_CONTENT_TYPE, content_type))
+            .chain(
+                self.span_context
+                    .as_ref()
+                    .map(|ctx| {
+                        (
+                            HEADER_TRACE_CONTEXT,
+                            format_jaeger_trace_context(ctx).into(),
+                        )
+                    })
+                    .into_iter(),
+            )
+            .chain(std::iter::once((
+                HEADER_NAMESPACE,
+                self.namespace.clone().into(),
+            )))
     }
 }
 
@@ -153,11 +176,16 @@ pub fn decode(
                     let tables = decode_database_batch(&write)
                         .map_err(|e| format!("failed to decode database batch: {}", e))?;
 
-                    Ok(DmlOperation::Write(DmlWrite::new(tables, meta)))
+                    Ok(DmlOperation::Write(DmlWrite::new(
+                        headers.namespace,
+                        tables,
+                        meta,
+                    )))
                 }
                 Payload::Delete(delete) => {
                     let predicate = delete.predicate.required("predicate")?;
                     Ok(DmlOperation::Delete(DmlDelete::new(
+                        headers.namespace,
                         predicate,
                         NonEmptyString::new(delete.table_name),
                         meta,
@@ -209,7 +237,11 @@ mod tests {
 
         let span_context_parent = SpanContext::new(Arc::clone(&collector));
         let span_context = span_context_parent.child("foo").ctx;
-        let iox_headers1 = IoxHeaders::new(ContentType::Protobuf, Some(span_context));
+        let iox_headers1 = IoxHeaders::new(
+            ContentType::Protobuf,
+            Some(span_context),
+            "namespace".to_owned(),
+        );
 
         let encoded: Vec<_> = iox_headers1
             .headers()
@@ -223,6 +255,7 @@ mod tests {
             iox_headers1.span_context.as_ref().unwrap(),
             iox_headers2.span_context.as_ref().unwrap(),
         );
+        assert_eq!(iox_headers1.namespace, iox_headers2.namespace);
     }
 
     #[test]
@@ -233,6 +266,7 @@ mod tests {
             ("conTent-Type", CONTENT_TYPE_PROTOBUF),
             ("uber-trace-id", "1:2:3:1"),
             ("uber-trace-ID", "5:6:7:1"),
+            ("iOx-Namespace", "namespace"),
         ];
 
         let actual = IoxHeaders::from_headers(headers.into_iter(), Some(&collector)).unwrap();
@@ -241,6 +275,8 @@ mod tests {
         let span_context = actual.span_context.unwrap();
         assert_eq!(span_context.trace_id.get(), 5);
         assert_eq!(span_context.span_id.get(), 6);
+
+        assert_eq!(actual.namespace, "namespace");
     }
 
     #[test]
@@ -249,7 +285,11 @@ mod tests {
 
         let span_context = SpanContext::new(Arc::clone(&collector));
 
-        let iox_headers1 = IoxHeaders::new(ContentType::Protobuf, Some(span_context));
+        let iox_headers1 = IoxHeaders::new(
+            ContentType::Protobuf,
+            Some(span_context),
+            "namespace".to_owned(),
+        );
 
         let encoded: Vec<_> = iox_headers1
             .headers()

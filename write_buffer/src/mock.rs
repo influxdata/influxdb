@@ -164,7 +164,7 @@ impl MockBufferSharedState {
     pub fn push_lp(&self, sequence: Sequence, lp: &str) {
         let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
         let meta = DmlMeta::sequenced(sequence, time::Time::from_timestamp_nanos(0), None, 0);
-        self.push_write(DmlWrite::new(tables, meta))
+        self.push_write(DmlWrite::new("foo", tables, meta))
     }
 
     /// Push error to specified sequencer.
@@ -618,7 +618,7 @@ mod tests {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         let tables = lines_to_batches("upc user=1 100", 0).unwrap();
-        state.push_write(DmlWrite::new(tables, DmlMeta::unsequenced(None)));
+        state.push_write(DmlWrite::new("test_db", tables, DmlMeta::unsequenced(None)));
     }
 
     #[test]
@@ -751,7 +751,7 @@ mod tests {
         let writer = MockBufferForWritingThatAlwaysErrors {};
 
         let tables = lines_to_batches("upc user=1 100", 0).unwrap();
-        let operation = DmlOperation::Write(DmlWrite::new(tables, Default::default()));
+        let operation = DmlOperation::Write(DmlWrite::new("test_db", tables, Default::default()));
 
         assert_eq!(
             writer

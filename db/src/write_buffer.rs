@@ -17,7 +17,7 @@ use trace::span::SpanRecorder;
 use write_buffer::core::{FetchHighWatermark, WriteBufferError, WriteBufferReading};
 
 use self::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
-mod metrics;
+pub mod metrics;
 
 /// A `WriteBufferConsumer` is created from a `Db` and a `WriteBufferReading` and
 /// sinks records from the inbound streams into the `Db`
@@ -295,10 +295,12 @@ mod tests {
         let ingest_ts1 = Time::from_timestamp_millis(42);
         let ingest_ts2 = Time::from_timestamp_millis(1337);
         write_buffer_state.push_write(DmlWrite::new(
+            "test_db",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
             DmlMeta::sequenced(Sequence::new(0, 0), ingest_ts1, None, 50),
         ));
         write_buffer_state.push_write(DmlWrite::new(
+            "test_db",
             lines_to_batches("cpu bar=2 20\ncpu bar=3 30", 0).unwrap(),
             DmlMeta::sequenced(Sequence::new(0, 7), ingest_ts2, None, 150),
         ));

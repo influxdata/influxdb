@@ -169,14 +169,17 @@ mod tests {
         let client = MockClient::default();
 
         let write1 = DmlOperation::Write(DmlWrite::new(
+            "test_db",
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         ));
         let write2 = DmlOperation::Write(DmlWrite::new(
+            "test_db",
             lines_to_batches("foo x=2 2", 0).unwrap(),
             Default::default(),
         ));
         let write3 = DmlOperation::Write(DmlWrite::new(
+            "test_db",
             lines_to_batches("foo x=3 3", 0).unwrap(),
             Default::default(),
         ));
@@ -203,6 +206,7 @@ mod tests {
         let client = MockClient::default();
 
         let write1 = DmlOperation::Write(DmlWrite::new(
+            "test_db",
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         ));
@@ -219,6 +223,7 @@ mod tests {
         let client = MockClient::default();
 
         let write = DmlOperation::Write(DmlWrite::new(
+            "test_db",
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         ));
@@ -235,10 +240,12 @@ mod tests {
         let client = MockClient::default();
 
         let write1 = DmlOperation::Write(DmlWrite::new(
+            "test_db",
             lines_to_batches("foo x=1 1", 0).unwrap(),
             Default::default(),
         ));
         let write2 = DmlOperation::Write(DmlWrite::new(
+            "test_db",
             lines_to_batches("foo x=2 2", 0).unwrap(),
             Default::default(),
         ));

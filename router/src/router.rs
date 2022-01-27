@@ -409,6 +409,7 @@ mod tests {
             10,
         );
         let delete = DmlOperation::Delete(DmlDelete::new(
+            "test_db",
             DeletePredicate {
                 range: TimestampRange::new(1, 2),
                 exprs: vec![],
@@ -423,6 +424,7 @@ mod tests {
 
     fn db_write(lines: &[&str], meta: &DmlMeta) -> DmlOperation {
         DmlOperation::Write(DmlWrite::new(
+            "test_db",
             lines_to_batches(&lines.join("\n"), 0).unwrap(),
             meta.clone(),
         ))

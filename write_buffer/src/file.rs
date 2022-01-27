@@ -194,6 +194,7 @@ impl WriteBufferWriting for FileBufferProducer {
         let iox_headers = IoxHeaders::new(
             ContentType::Protobuf,
             operation.meta().span_context().cloned(),
+            operation.namespace().to_string(),
         );
 
         for (name, value) in iox_headers.headers() {
@@ -764,10 +765,10 @@ mod tests {
         let entry_3 = "upc,region=east user=3 300";
         let entry_4 = "upc,region=east user=4 400";
 
-        let w1 = write(&writer, entry_1, sequencer_id, None).await;
-        let w2 = write(&writer, entry_2, sequencer_id, None).await;
-        let w3 = write(&writer, entry_3, sequencer_id, None).await;
-        let w4 = write(&writer, entry_4, sequencer_id, None).await;
+        let w1 = write(&ctx.database_name, &writer, entry_1, sequencer_id, None).await;
+        let w2 = write(&ctx.database_name, &writer, entry_2, sequencer_id, None).await;
+        let w3 = write(&ctx.database_name, &writer, entry_3, sequencer_id, None).await;
+        let w4 = write(&ctx.database_name, &writer, entry_4, sequencer_id, None).await;
 
         remove_entry(
             &ctx.path,
@@ -801,8 +802,8 @@ mod tests {
         let entry_1 = "upc,region=east user=1 100";
         let entry_2 = "upc,region=east user=2 200";
 
-        let w1 = write(&writer, entry_1, sequencer_id, None).await;
-        let w2 = write(&writer, entry_2, sequencer_id, None).await;
+        let w1 = write(&ctx.database_name, &writer, entry_1, sequencer_id, None).await;
+        let w2 = write(&ctx.database_name, &writer, entry_2, sequencer_id, None).await;
 
         remove_entry(
             &ctx.path,

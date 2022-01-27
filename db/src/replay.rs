@@ -771,6 +771,7 @@ mod tests {
                     Step::Delete(deletes) => {
                         for delete in deletes {
                             let delete = DmlDelete::new(
+                                db_name,
                                 delete.predicate,
                                 delete.table_name.and_then(NonEmptyString::new),
                                 DmlMeta::sequenced(

@@ -28,7 +28,7 @@ impl delete_service_server::DeleteService for DeleteService {
 
         let table_name = NonEmptyString::new(table_name);
         let meta = DmlMeta::unsequenced(span_ctx);
-        let op = DmlOperation::Delete(DmlDelete::new(predicate, table_name, meta));
+        let op = DmlOperation::Delete(DmlDelete::new(&db_name, predicate, table_name, meta));
 
         let router = self
             .server

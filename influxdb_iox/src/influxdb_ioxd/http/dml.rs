@@ -239,7 +239,7 @@ pub trait HttpDrivenDml: ServerType {
             "inserting lines into database",
         );
 
-        let write = DmlWrite::new(tables, DmlMeta::unsequenced(span_ctx));
+        let write = DmlWrite::new(&db_name, tables, DmlMeta::unsequenced(span_ctx));
 
         match self.write(&db_name, DmlOperation::Write(write)).await {
             Ok(_) => {
@@ -321,6 +321,7 @@ pub trait HttpDrivenDml: ServerType {
             .context(BuildingDeletePredicateSnafu { input: body })?;
 
         let delete = DmlDelete::new(
+            &db_name,
             predicate,
             NonEmptyString::new(table_name),
             DmlMeta::unsequenced(span_ctx),
@@ -452,7 +453,11 @@ pub mod test_utils {
 
         check_response("write", response, StatusCode::NO_CONTENT, Some("")).await;
 
-        DmlWrite::new(lines_to_batches(lp_data, 0).unwrap(), Default::default())
+        DmlWrite::new(
+            "MyOrg_MyBucket",
+            lines_to_batches(lp_data, 0).unwrap(),
+            Default::default(),
+        )
     }
 
     /// Assert that GZIP-compressed writes work.
@@ -484,7 +489,11 @@ pub mod test_utils {
 
         check_response("gzip_write", response, StatusCode::NO_CONTENT, Some("")).await;
 
-        DmlWrite::new(lines_to_batches(lp_data, 0).unwrap(), Default::default())
+        DmlWrite::new(
+            "MyOrg_MyBucket",
+            lines_to_batches(lp_data, 0).unwrap(),
+            Default::default(),
+        )
     }
 
     /// Assert that write to an invalid database behave as expected.
@@ -567,7 +576,13 @@ pub mod test_utils {
 
         expected_lp
             .iter()
-            .map(|lp| DmlWrite::new(lines_to_batches(lp, 0).unwrap(), Default::default()))
+            .map(|lp| {
+                DmlWrite::new(
+                    "MyOrg_MyBucket",
+                    lines_to_batches(lp, 0).unwrap(),
+                    Default::default(),
+                )
+            })
             .collect()
     }
 

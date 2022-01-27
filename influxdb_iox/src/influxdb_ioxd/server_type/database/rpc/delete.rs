@@ -31,7 +31,7 @@ impl delete_service_server::DeleteService for DeleteService {
 
         let table_name = NonEmptyString::new(table_name);
         let meta = DmlMeta::unsequenced(span_ctx);
-        let delete = DmlDelete::new(predicate, table_name, meta);
+        let delete = DmlDelete::new(&db_name, predicate, table_name, meta);
 
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).scope("db_name")?;

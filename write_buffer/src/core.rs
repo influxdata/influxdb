@@ -42,7 +42,7 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
         let tables = mutable_batch_lp::lines_to_batches(lp, default_time).map_err(Box::new)?;
         self.store_operation(
             sequencer_id,
-            &DmlOperation::Write(DmlWrite::new(tables, Default::default())),
+            &DmlOperation::Write(DmlWrite::new("test_db", tables, Default::default())),
         )
         .await
     }
@@ -180,17 +180,23 @@ pub mod test_utils {
         test_sequencer_ids(&adapter).await;
         test_span_context(&adapter).await;
         test_unknown_sequencer_write(&adapter).await;
+        test_multi_namespaces(&adapter).await;
     }
 
     /// Writes line protocol and returns the [`DmlWrite`] that was written
     pub async fn write(
+        namespace: &str,
         writer: &impl WriteBufferWriting,
         lp: &str,
         sequencer_id: u32,
         span_context: Option<&SpanContext>,
     ) -> DmlWrite {
         let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
-        let write = DmlWrite::new(tables, DmlMeta::unsequenced(span_context.cloned()));
+        let write = DmlWrite::new(
+            namespace,
+            tables,
+            DmlMeta::unsequenced(span_context.cloned()),
+        );
         let operation = DmlOperation::Write(write);
 
         let meta = writer
@@ -237,15 +243,15 @@ pub mod test_utils {
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
 
         // adding content allows us to get results
-        let w1 = write(&writer, entry_1, sequencer_id, None).await;
+        let w1 = write("namespace", &writer, entry_1, sequencer_id, None).await;
         assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
 
         // stream is pending again
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
 
         // adding more data unblocks the stream
-        let w2 = write(&writer, entry_2, sequencer_id, None).await;
-        let w3 = write(&writer, entry_3, sequencer_id, None).await;
+        let w2 = write("namespace", &writer, entry_2, sequencer_id, None).await;
+        let w3 = write("namespace", &writer, entry_3, sequencer_id, None).await;
 
         assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w2);
         assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w3);
@@ -274,9 +280,9 @@ pub mod test_utils {
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
 
-        let w1 = write(&writer, entry_1, 0, None).await;
-        let w2 = write(&writer, entry_2, 0, None).await;
-        let w3 = write(&writer, entry_3, 0, None).await;
+        let w1 = write("namespace", &writer, entry_1, 0, None).await;
+        let w2 = write("namespace", &writer, entry_2, 0, None).await;
+        let w3 = write("namespace", &writer, entry_3, 0, None).await;
 
         // creating stream, drop stream, re-create it => still starts at first entry
         let mut streams = reader.streams();
@@ -342,15 +348,15 @@ pub mod test_utils {
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
 
         // entries arrive at the right target stream
-        let w1 = write(&writer, entry_1, sequencer_id_1, None).await;
+        let w1 = write("namespace", &writer, entry_1, sequencer_id_1, None).await;
         assert_write_op_eq(&stream_1.stream.next().await.unwrap().unwrap(), &w1);
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
 
-        let w2 = write(&writer, entry_2, sequencer_id_2, None).await;
+        let w2 = write("namespace", &writer, entry_2, sequencer_id_2, None).await;
         assert!(stream_1.stream.poll_next_unpin(&mut cx).is_pending());
         assert_write_op_eq(&stream_2.stream.next().await.unwrap().unwrap(), &w2);
 
-        let w3 = write(&writer, entry_3, sequencer_id_1, None).await;
+        let w3 = write("namespace", &writer, entry_3, sequencer_id_1, None).await;
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
         assert_write_op_eq(&stream_1.stream.next().await.unwrap().unwrap(), &w3);
 
@@ -388,9 +394,9 @@ pub mod test_utils {
         let sequencer_id_1 = set_pop_first(&mut sequencer_ids_1).unwrap();
         let sequencer_id_2 = set_pop_first(&mut sequencer_ids_1).unwrap();
 
-        let w_east_1 = write(&writer_1, entry_east_1, sequencer_id_1, None).await;
-        let w_west_1 = write(&writer_1, entry_west_1, sequencer_id_2, None).await;
-        let w_east_2 = write(&writer_2, entry_east_2, sequencer_id_1, None).await;
+        let w_east_1 = write("namespace", &writer_1, entry_east_1, sequencer_id_1, None).await;
+        let w_west_1 = write("namespace", &writer_1, entry_west_1, sequencer_id_2, None).await;
+        let w_east_2 = write("namespace", &writer_2, entry_east_2, sequencer_id_1, None).await;
 
         assert_reader_content(
             &mut reader_1,
@@ -433,9 +439,9 @@ pub mod test_utils {
 
         let writer = context.writing(true).await.unwrap();
 
-        let w_east_1 = write(&writer, entry_east_1, 0, None).await;
-        let w_east_2 = write(&writer, entry_east_2, 0, None).await;
-        let w_west_1 = write(&writer, entry_west_1, 1, None).await;
+        let w_east_1 = write("namespace", &writer, entry_east_1, 0, None).await;
+        let w_east_2 = write("namespace", &writer, entry_east_2, 0, None).await;
+        let w_west_1 = write("namespace", &writer, entry_west_1, 1, None).await;
 
         let mut reader_1 = context.reading(true).await.unwrap();
         let mut reader_2 = context.reading(true).await.unwrap();
@@ -459,7 +465,7 @@ pub mod test_utils {
 
         // seek to far end and then add data
         reader_1.seek(0, 1_000_000).await.unwrap();
-        write(&writer, entry_east_3, 0, None).await;
+        write("namespace", &writer, entry_east_3, 0, None).await;
 
         let mut streams = reader_1.streams();
         assert_eq!(streams.len(), 2);
@@ -503,9 +509,9 @@ pub mod test_utils {
         assert_eq!((stream_2.fetch_high_watermark)().await.unwrap(), 0);
 
         // high water mark moves
-        write(&writer, entry_east_1, sequencer_id_1, None).await;
-        let w1 = write(&writer, entry_east_2, sequencer_id_1, None).await;
-        let w2 = write(&writer, entry_west_1, sequencer_id_2, None).await;
+        write("namespace", &writer, entry_east_1, sequencer_id_1, None).await;
+        let w1 = write("namespace", &writer, entry_east_2, sequencer_id_1, None).await;
+        let w2 = write("namespace", &writer, entry_west_1, sequencer_id_2, None).await;
         assert_eq!(
             (stream_1.fetch_high_watermark)().await.unwrap(),
             w1.meta().sequence().unwrap().number + 1
@@ -541,7 +547,7 @@ pub mod test_utils {
         assert_eq!(streams.len(), 1);
         let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
 
-        let write = write(&writer, entry, sequencer_id, None).await;
+        let write = write("namespace", &writer, entry, sequencer_id, None).await;
         let reported_ts = write.meta().producer_ts().unwrap();
 
         // advance time
@@ -620,17 +626,31 @@ pub mod test_utils {
         let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
 
         // 1: no context
-        write(&writer, entry, sequencer_id, None).await;
+        write("namespace", &writer, entry, sequencer_id, None).await;
 
         // 2: some context
         let collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span_context_1 = SpanContext::new(Arc::clone(&collector));
-        write(&writer, entry, sequencer_id, Some(&span_context_1)).await;
+        write(
+            "namespace",
+            &writer,
+            entry,
+            sequencer_id,
+            Some(&span_context_1),
+        )
+        .await;
 
         // 2: another context
         let span_context_parent = SpanContext::new(collector);
         let span_context_2 = span_context_parent.child("foo").ctx;
-        write(&writer, entry, sequencer_id, Some(&span_context_2)).await;
+        write(
+            "namespace",
+            &writer,
+            entry,
+            sequencer_id,
+            Some(&span_context_2),
+        )
+        .await;
 
         // check write 1
         let write_1 = stream.stream.next().await.unwrap().unwrap();
@@ -655,7 +675,7 @@ pub mod test_utils {
         let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
         let tables = mutable_batch_lp::lines_to_batches("upc user=1 100", 0).unwrap();
-        let write = DmlWrite::new(tables, Default::default());
+        let write = DmlWrite::new("foo", tables, Default::default());
         let operation = DmlOperation::Write(write);
 
         let writer = context.writing(true).await.unwrap();
@@ -666,6 +686,33 @@ pub mod test_utils {
             .store_operation(sequencer_id, &operation)
             .await
             .unwrap_err();
+    }
+
+    /// Test usage w/ multiple namespaces.
+    ///
+    /// Tests that:
+    /// - namespace names or propagated correctly from writer to reader
+    /// - all namespaces end up in a single stream
+    async fn test_multi_namespaces<T>(adapter: &T)
+    where
+        T: TestAdapter,
+    {
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
+
+        let entry_1 = "upc,region=east user=1 100";
+        let entry_2 = "upc,region=east user=2 200";
+
+        let writer = context.writing(true).await.unwrap();
+        let mut reader = context.reading(true).await.unwrap();
+
+        let mut sequencer_ids = writer.sequencer_ids();
+        assert_eq!(sequencer_ids.len(), 1);
+        let sequencer_id = set_pop_first(&mut sequencer_ids).unwrap();
+
+        let w1 = write("namespace_1", &writer, entry_2, sequencer_id, None).await;
+        let w2 = write("namespace_2", &writer, entry_1, sequencer_id, None).await;
+
+        assert_reader_content(&mut reader, &[(sequencer_id, &[&w1, &w2])]).await;
     }
 
     /// Assert that the content of the reader is as expected.
