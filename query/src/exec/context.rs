@@ -9,6 +9,7 @@ use arrow::record_batch::RecordBatch;
 use datafusion::{
     catalog::catalog::CatalogProvider,
     execution::context::{ExecutionContextState, QueryPlanner},
+    execution::{DiskManager, MemoryManager},
     logical_plan::{LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
         coalesce_partitions::CoalescePartitionsExec,
@@ -143,8 +144,8 @@ pub struct IOxExecutionConfig {
     /// Executor to run on
     exec: DedicatedExecutor,
 
-    /// Target parallelism for query execution
-    target_partitions: Option<usize>,
+    /// DataFusion configuration
+    execution_config: ExecutionConfig,
 
     /// Default catalog
     default_catalog: Option<Arc<dyn CatalogProvider>>,
@@ -159,22 +160,47 @@ impl fmt::Debug for IOxExecutionConfig {
     }
 }
 
+const BATCH_SIZE: usize = 1000;
+
 impl IOxExecutionConfig {
     pub(super) fn new(exec: DedicatedExecutor) -> Self {
+        let execution_config = ExecutionConfig::new()
+            .with_batch_size(BATCH_SIZE)
+            .create_default_catalog_and_schema(true)
+            .with_information_schema(true)
+            .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
+            .with_query_planner(Arc::new(IOxQueryPlanner {}));
+
         Self {
             exec,
-            target_partitions: None,
+            execution_config,
             default_catalog: None,
             span_ctx: None,
         }
     }
 
     /// Set execution concurrency
-    pub fn with_target_partitions(self, target_partitions: usize) -> Self {
-        Self {
-            target_partitions: Some(target_partitions),
-            ..self
-        }
+    pub fn with_target_partitions(mut self, target_partitions: usize) -> Self {
+        self.execution_config = self
+            .execution_config
+            .with_target_partitions(target_partitions);
+        self
+    }
+
+    /// Set the [MemoryManager]
+    pub fn with_memory_manager(mut self, memory_manager: Arc<MemoryManager>) -> Self {
+        self.execution_config = self
+            .execution_config
+            .with_existing_memory_manager(memory_manager);
+        self
+    }
+
+    /// Set the [DiskManager]
+    pub fn with_disk_manager(mut self, disk_manager: Arc<DiskManager>) -> Self {
+        self.execution_config = self
+            .execution_config
+            .with_existing_disk_manager(disk_manager);
+        self
     }
 
     /// Set the default catalog provider
@@ -192,20 +218,7 @@ impl IOxExecutionConfig {
 
     /// Create an ExecutionContext suitable for executing DataFusion plans
     pub fn build(self) -> IOxExecutionContext {
-        const BATCH_SIZE: usize = 1000;
-
-        let mut config = ExecutionConfig::new()
-            .with_batch_size(BATCH_SIZE)
-            .create_default_catalog_and_schema(true)
-            .with_information_schema(true)
-            .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
-            .with_query_planner(Arc::new(IOxQueryPlanner {}));
-
-        if let Some(target_partitions) = self.target_partitions {
-            config = config.with_target_partitions(target_partitions)
-        }
-
-        let inner = ExecutionContext::with_config(config);
+        let inner = ExecutionContext::with_config(self.execution_config);
 
         if let Some(default_catalog) = self.default_catalog {
             inner.register_catalog(DEFAULT_CATALOG, default_catalog);

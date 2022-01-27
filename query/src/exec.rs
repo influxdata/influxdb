@@ -17,7 +17,9 @@ use std::sync::Arc;
 
 use datafusion::{
     self,
+    execution::{runtime_env::RuntimeEnv, DiskManager, MemoryManager},
     logical_plan::{normalize_col, plan::Extension, Expr, LogicalPlan},
+    prelude::ExecutionConfig,
 };
 
 pub use context::{IOxExecutionConfig, IOxExecutionContext};
@@ -51,6 +53,12 @@ pub struct Executor {
 
     /// The default configuration options with which to create contexts
     config: ExecutorConfig,
+
+    /// The DataFusion [MemoryManager] used for all queries run in this executor
+    memory_manager: Arc<MemoryManager>,
+
+    /// The DataFusion DiskManager used for all queries run in this executor
+    disk_manager: Arc<DiskManager>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,10 +83,15 @@ impl Executor {
         let query_exec = DedicatedExecutor::new("IOx Query Executor Thread", config.num_threads);
         let reorg_exec = DedicatedExecutor::new("IOx Reorg Executor Thread", config.num_threads);
 
+        let runtime =
+            RuntimeEnv::new(ExecutionConfig::default().runtime).expect("creating runtime");
+
         Self {
             query_exec,
             reorg_exec,
             config,
+            memory_manager: runtime.memory_manager,
+            disk_manager: runtime.disk_manager,
         }
     }
 
@@ -87,7 +100,10 @@ impl Executor {
     /// Note that this context (and all its clones) will be shut down once `Executor` is dropped.
     pub fn new_execution_config(&self, executor_type: ExecutorType) -> IOxExecutionConfig {
         let exec = self.executor(executor_type).clone();
-        IOxExecutionConfig::new(exec).with_target_partitions(self.config.target_query_partitions)
+        IOxExecutionConfig::new(exec)
+            .with_target_partitions(self.config.target_query_partitions)
+            .with_memory_manager(Arc::clone(&self.memory_manager))
+            .with_disk_manager(Arc::clone(&self.disk_manager))
     }
 
     /// Create a new execution context, suitable for executing a new query or system task
