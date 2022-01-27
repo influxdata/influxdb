@@ -2,8 +2,9 @@
 
 use super::DbScenario;
 use data_types::{chunk_metadata::ChunkId, delete_predicate::DeletePredicate};
+use db::test_helpers::chunk_ids_rub;
 use db::{
-    test_helpers::{read_buffer_table_chunk_ids, write_lp},
+    test_helpers::write_lp,
     utils::{count_mub_table_chunks, count_os_table_chunks, count_rub_table_chunks, make_db},
     Db,
 };
@@ -373,7 +374,7 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     if let ChunkStage::Os = chunk_stage {
         for table in &tables {
             // retrieve its chunk_id first
-            let rub_chunk_ids = read_buffer_table_chunk_ids(&db, table.as_str(), partition_key);
+            let rub_chunk_ids = chunk_ids_rub(&db, Some(table.as_str()), Some(partition_key));
             assert_eq!(rub_chunk_ids.len(), 1);
             db.unload_read_buffer(table.as_str(), partition_key, rub_chunk_ids[0])
                 .unwrap();

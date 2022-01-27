@@ -1,5 +1,6 @@
 use datafusion::logical_plan::{col, lit};
-use predicate::predicate::{Predicate, PredicateBuilder};
+use predicate::predicate::PredicateBuilder;
+use predicate::rpc_predicate::InfluxRpcPredicate;
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,
@@ -12,8 +13,11 @@ use crate::scenarios::*;
 ///
 /// runs table_column_names(predicate) and compares it to the expected
 /// output
-async fn run_tag_keys_test_case<D>(db_setup: D, predicate: Predicate, expected_tag_keys: Vec<&str>)
-where
+async fn run_tag_keys_test_case<D>(
+    db_setup: D,
+    predicate: InfluxRpcPredicate,
+    expected_tag_keys: Vec<&str>,
+) where
     D: DbSetup,
 {
     test_helpers::maybe_start_logging();
@@ -48,18 +52,27 @@ where
 
 #[tokio::test]
 async fn list_tag_columns_with_no_tags() {
-    let predicate = PredicateBuilder::default().build();
-    run_tag_keys_test_case(OneMeasurementNoTags {}, predicate, vec![]).await;
+    run_tag_keys_test_case(
+        OneMeasurementNoTags {},
+        InfluxRpcPredicate::default(),
+        vec![],
+    )
+    .await;
 
     let predicate = PredicateBuilder::default().timestamp_range(0, 1000).build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
     run_tag_keys_test_case(OneMeasurementNoTags {}, predicate, vec![]).await;
 }
 
 #[tokio::test]
 async fn list_tag_columns_no_predicate() {
-    let predicate = PredicateBuilder::default().build();
     let expected_tag_keys = vec!["borough", "city", "county", "state"];
-    run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
+    run_tag_keys_test_case(
+        TwoMeasurementsManyNulls {},
+        InfluxRpcPredicate::default(),
+        expected_tag_keys,
+    )
+    .await;
 }
 
 // NGA todo: add delete tests when TwoMeasurementsManyNullsWithDelete available
@@ -69,6 +82,7 @@ async fn list_tag_columns_timestamp() {
     let predicate = PredicateBuilder::default()
         .timestamp_range(150, 201)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["city", "state"];
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
@@ -78,6 +92,7 @@ async fn list_tag_columns_predicate() {
     let predicate = PredicateBuilder::default()
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["city", "county", "state"];
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
@@ -91,6 +106,7 @@ async fn list_tag_columns_measurement_pred() {
         .timestamp_range(450, 550)
         .add_expr(col("_measurement").eq(lit("o2"))) // _measurement=o2
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["city", "state"];
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
@@ -101,13 +117,14 @@ async fn list_tag_columns_timestamp_and_predicate() {
         .timestamp_range(150, 201)
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["city", "state"];
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
 
 #[tokio::test]
 async fn list_tag_columns_measurement_name() {
-    let predicate = PredicateBuilder::default().table("o2").build();
+    let predicate = InfluxRpcPredicate::new_table("o2", Default::default());
     let expected_tag_keys = vec!["borough", "city", "state"];
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
@@ -115,9 +132,9 @@ async fn list_tag_columns_measurement_name() {
 #[tokio::test]
 async fn list_tag_columns_measurement_name_and_timestamp() {
     let predicate = PredicateBuilder::default()
-        .table("o2")
         .timestamp_range(150, 201)
         .build();
+    let predicate = InfluxRpcPredicate::new_table("o2", predicate);
     let expected_tag_keys = vec!["city", "state"];
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
@@ -125,9 +142,9 @@ async fn list_tag_columns_measurement_name_and_timestamp() {
 #[tokio::test]
 async fn list_tag_columns_measurement_name_and_predicate() {
     let predicate = PredicateBuilder::default()
-        .table("o2")
         .add_expr(col("state").eq(lit("NY"))) // state=NY
         .build();
+    let predicate = InfluxRpcPredicate::new_table("o2", predicate);
     let expected_tag_keys = vec!["borough", "city", "state"];
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
@@ -135,10 +152,10 @@ async fn list_tag_columns_measurement_name_and_predicate() {
 #[tokio::test]
 async fn list_tag_columns_measurement_name_and_predicate_and_timestamp() {
     let predicate = PredicateBuilder::default()
-        .table("o2")
         .timestamp_range(1, 550)
         .add_expr(col("state").eq(lit("NY"))) // state=NY
         .build();
+    let predicate = InfluxRpcPredicate::new_table("o2", predicate);
     let expected_tag_keys = vec!["city", "state"];
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
@@ -149,6 +166,7 @@ async fn list_tag_name_end_to_end() {
         .timestamp_range(0, 10000)
         .add_expr(col("host").eq(lit("server01")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["host", "name", "region"];
     run_tag_keys_test_case(EndToEndTest {}, predicate, expected_tag_keys).await;
 }
@@ -159,6 +177,7 @@ async fn list_tag_name_end_to_end_with_delete() {
         .timestamp_range(0, 10000)
         .add_expr(col("host").eq(lit("server01")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["host", "region"];
     run_tag_keys_test_case(EndToEndTestWithDelete {}, predicate, expected_tag_keys).await;
 }
@@ -169,6 +188,7 @@ async fn list_tag_name_max_time() {
     let predicate = PredicateBuilder::default()
         .timestamp_range(-9223372036854775806, 9223372036854775806)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["host"];
     run_tag_keys_test_case(MeasurementWithMaxTime {}, predicate, expected_tag_keys).await;
 }
@@ -180,6 +200,7 @@ async fn list_tag_name_max_i64() {
         // outside valid timestamp range
         .timestamp_range(i64::MIN, i64::MAX)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["host"];
     run_tag_keys_test_case(MeasurementWithMaxTime {}, predicate, expected_tag_keys).await;
 }
@@ -190,6 +211,7 @@ async fn list_tag_name_max_time_less_one() {
     let predicate = PredicateBuilder::default()
         .timestamp_range(-9223372036854775806, 9223372036854775805) // one less than max timestamp
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec![];
     run_tag_keys_test_case(MeasurementWithMaxTime {}, predicate, expected_tag_keys).await;
 }
@@ -200,6 +222,7 @@ async fn list_tag_name_max_time_greater_one() {
     let predicate = PredicateBuilder::default()
         .timestamp_range(-9223372036854775805, 9223372036854775806) // one more than min timestamp
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec![];
     run_tag_keys_test_case(MeasurementWithMaxTime {}, predicate, expected_tag_keys).await;
 }

@@ -21,7 +21,6 @@ use schema::TIME_COLUMN_NAME;
 /// This `Predicate` represents the empty predicate (aka that
 /// evaluates to true for all rows).
 pub const EMPTY_PREDICATE: Predicate = Predicate {
-    table_names: None,
     field_columns: None,
     exprs: vec![],
     range: None,
@@ -53,10 +52,6 @@ pub enum PredicateMatch {
 /// restrictions that only apply to certain types of columns.
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
 pub struct Predicate {
-    /// Optional table restriction. If present, restricts the results
-    /// to only tables whose names are in `table_names`
-    pub table_names: Option<BTreeSet<String>>,
-
     /// Optional field restriction. If present, restricts the results to only
     /// tables which have *at least one* of the fields in field_columns.
     pub field_columns: Option<BTreeSet<String>>,
@@ -100,15 +95,6 @@ impl Predicate {
         }
 
         builder.build()
-    }
-
-    /// Return true if results from this table should be included in
-    /// results
-    pub fn should_include_table(&self, table_name: &str) -> bool {
-        match &self.table_names {
-            None => true, // No table name restriction on predicate
-            Some(table_names) => table_names.contains(table_name),
-        }
     }
 
     /// Return true if the field should be included in results
@@ -213,7 +199,7 @@ impl Predicate {
     ///
     /// This is used in certain cases to retain compatibility with the
     /// existing storage engine
-    pub fn clear_timestamp_if_max_range(mut self) -> Self {
+    pub(crate) fn clear_timestamp_if_max_range(mut self) -> Self {
         self.range = self.range.take().and_then(|range| {
             if range.start() <= MIN_NANO_TIME && range.end() >= MAX_NANO_TIME {
                 None
@@ -239,10 +225,6 @@ impl fmt::Display for Predicate {
         }
 
         write!(f, "Predicate")?;
-
-        if let Some(table_names) = &self.table_names {
-            write!(f, " table_names: {{{}}}", iter_to_str(table_names))?;
-        }
 
         if let Some(field_columns) = &self.field_columns {
             write!(f, " field_columns: {{{}}}", iter_to_str(field_columns))?;
@@ -350,41 +332,6 @@ impl PredicateBuilder {
     fn regex_match_expr(mut self, column: &str, pattern: impl Into<String>, matches: bool) -> Self {
         let expr = crate::regex::regex_match_expr(col(column), pattern.into(), matches);
         self.inner.exprs.push(expr);
-        self
-    }
-
-    /// Adds an optional table name restriction to the existing list
-    pub fn table_option(self, table: Option<String>) -> Self {
-        if let Some(table) = table {
-            self.tables(vec![table])
-        } else {
-            self
-        }
-    }
-
-    /// Set the table restriction to `table`
-    pub fn table(self, table: impl Into<String>) -> Self {
-        self.tables(vec![table.into()])
-    }
-
-    /// Sets table name restrictions from something that can iterate
-    /// over items that can be converted into `Strings`
-    pub fn tables<I, S>(mut self, tables: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        // We need to distinguish predicates like `table_name In
-        // (foo, bar)` and `table_name = foo and table_name = bar` in order to handle
-        // this
-        assert!(
-            self.inner.table_names.is_none(),
-            "Multiple table predicate specification not yet supported"
-        );
-
-        let table_names: BTreeSet<String> = tables.into_iter().map(|s| s.into()).collect();
-
-        self.inner.table_names = Some(table_names);
         self
     }
 
@@ -639,12 +586,11 @@ mod tests {
         let p = PredicateBuilder::new()
             .timestamp_range(1, 100)
             .add_expr(col("foo").eq(lit(42)))
-            .table("my_table")
             .field_columns(vec!["f1", "f2"])
             .partition_key("the_key")
             .build();
 
-        assert_eq!(p.to_string(), "Predicate table_names: {my_table} field_columns: {f1, f2} partition_key: 'the_key' range: [1 - 100] exprs: [#foo = Int32(42)]");
+        assert_eq!(p.to_string(), "Predicate field_columns: {f1, f2} partition_key: 'the_key' range: [1 - 100] exprs: [#foo = Int32(42)]");
     }
 
     #[test]

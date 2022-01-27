@@ -25,6 +25,7 @@ use data_types::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::stream_from_batches;
 use futures::StreamExt;
+use hashbrown::HashSet;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use schema::selection::Selection;
@@ -118,11 +119,12 @@ impl QueryDatabase for TestDatabase {
             .collect()
     }
 
-    fn chunks(&self, _predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+    fn chunks(&self, table_name: &str, _predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         let partitions = self.partitions.lock();
         partitions
             .values()
             .flat_map(|x| x.values())
+            .filter(|x| x.table_name == table_name)
             .cloned()
             .collect()
     }
@@ -154,6 +156,18 @@ impl QueryDatabase for TestDatabase {
         _query_text: impl Into<String>,
     ) -> QueryCompletedToken<'_> {
         QueryCompletedToken::new(|| {})
+    }
+
+    fn table_names(&self) -> Vec<String> {
+        let mut values = HashSet::new();
+        let partitions = self.partitions.lock();
+        for chunks in partitions.values() {
+            for chunk in chunks.values() {
+                values.get_or_insert_owned(&chunk.table_name);
+            }
+        }
+
+        values.into_iter().collect()
     }
 }
 
@@ -900,14 +914,7 @@ impl QueryChunk for TestChunk {
             return Ok(predicate_match);
         }
 
-        // otherwise fall back to basic filtering based on table name predicate.
-        let predicate_match = if !predicate.should_include_table(&self.table_name) {
-            PredicateMatch::Zero
-        } else {
-            PredicateMatch::Unknown
-        };
-
-        Ok(predicate_match)
+        Ok(PredicateMatch::Unknown)
     }
 
     fn column_values(

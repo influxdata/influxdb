@@ -1,6 +1,7 @@
 use arrow::datatypes::DataType;
 use datafusion::logical_plan::{col, lit};
-use predicate::predicate::{Predicate, PredicateBuilder};
+use predicate::predicate::PredicateBuilder;
+use predicate::rpc_predicate::InfluxRpcPredicate;
 use query::{
     exec::fieldlist::{Field, FieldList},
     frontend::influxrpc::InfluxRpcPlanner,
@@ -15,7 +16,7 @@ use crate::scenarios::*;
 /// output
 async fn run_field_columns_test_case<D>(
     db_setup: D,
-    predicate: Predicate,
+    predicate: InfluxRpcPredicate,
     expected_fields: FieldList,
 ) where
     D: DbSetup,
@@ -49,17 +50,16 @@ async fn run_field_columns_test_case<D>(
 
 #[tokio::test]
 async fn test_field_columns_empty_database() {
-    let predicate = PredicateBuilder::default().build();
     let expected_fields = FieldList::default();
-    run_field_columns_test_case(NoData {}, predicate, expected_fields).await;
+    run_field_columns_test_case(NoData {}, InfluxRpcPredicate::default(), expected_fields).await;
 }
 
 #[tokio::test]
 async fn test_field_columns_no_predicate() {
     let predicate = PredicateBuilder::default()
-        .table("NoSuchTable")
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .build();
+    let predicate = InfluxRpcPredicate::new_table("NoSuchTable", predicate);
     let expected_fields = FieldList::default();
     run_field_columns_test_case(TwoMeasurementsManyFields {}, predicate, expected_fields).await;
 }
@@ -70,9 +70,9 @@ async fn test_field_columns_no_predicate() {
 async fn test_field_columns_with_pred() {
     // get only fields from h20 (but both chunks)
     let predicate = PredicateBuilder::default()
-        .table("h2o")
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .build();
+    let predicate = InfluxRpcPredicate::new_table("h2o", predicate);
 
     let expected_fields = FieldList {
         fields: vec![
@@ -103,6 +103,7 @@ async fn test_field_columns_measurement_pred() {
     let predicate = PredicateBuilder::default()
         .add_expr(col("_measurement").eq(lit("h2o")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {
         fields: vec![
@@ -130,10 +131,10 @@ async fn test_field_columns_measurement_pred() {
 #[tokio::test]
 async fn test_field_columns_with_ts_pred() {
     let predicate = PredicateBuilder::default()
-        .table("h2o")
         .timestamp_range(200, 300)
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .build();
+    let predicate = InfluxRpcPredicate::new_table("h2o", predicate);
 
     let expected_fields = FieldList {
         fields: vec![Field {
@@ -151,6 +152,7 @@ async fn test_field_name_plan() {
     test_helpers::maybe_start_logging();
 
     let predicate = PredicateBuilder::default().timestamp_range(0, 2000).build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {
         fields: vec![
@@ -185,6 +187,7 @@ async fn test_field_name_plan_with_delete() {
     test_helpers::maybe_start_logging();
 
     let predicate = PredicateBuilder::default().timestamp_range(0, 2000).build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {
         fields: vec![

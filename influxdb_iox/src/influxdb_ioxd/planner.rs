@@ -2,7 +2,6 @@
 use std::sync::Arc;
 
 use datafusion::physical_plan::ExecutionPlan;
-use predicate::predicate::Predicate;
 use query::{
     exec::IOxExecutionContext,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
@@ -12,6 +11,7 @@ use query::{
 };
 
 pub use datafusion::error::{DataFusionError as Error, Result};
+use predicate::rpc_predicate::InfluxRpcPredicate;
 
 /// Query planner that plans queries on a separate threadpool.
 ///
@@ -49,7 +49,7 @@ impl Planner {
     pub async fn table_names<D>(
         &self,
         database: Arc<D>,
-        predicate: Predicate,
+        predicate: InfluxRpcPredicate,
     ) -> Result<StringSetPlan>
     where
         D: QueryDatabase + 'static,
@@ -67,7 +67,11 @@ impl Planner {
 
     /// Creates a plan as described on
     /// [`InfluxRpcPlanner::tag_keys`], on a separate threadpool
-    pub async fn tag_keys<D>(&self, database: Arc<D>, predicate: Predicate) -> Result<StringSetPlan>
+    pub async fn tag_keys<D>(
+        &self,
+        database: Arc<D>,
+        predicate: InfluxRpcPredicate,
+    ) -> Result<StringSetPlan>
     where
         D: QueryDatabase + 'static,
     {
@@ -88,7 +92,7 @@ impl Planner {
         &self,
         database: Arc<D>,
         tag_name: impl Into<String> + Send,
-        predicate: Predicate,
+        predicate: InfluxRpcPredicate,
     ) -> Result<StringSetPlan>
     where
         D: QueryDatabase + 'static,
@@ -110,7 +114,7 @@ impl Planner {
     pub async fn field_columns<D>(
         &self,
         database: Arc<D>,
-        predicate: Predicate,
+        predicate: InfluxRpcPredicate,
     ) -> Result<FieldListPlan>
     where
         D: QueryDatabase + 'static,
@@ -131,7 +135,7 @@ impl Planner {
     pub async fn read_filter<D>(
         &self,
         database: Arc<D>,
-        predicate: Predicate,
+        predicate: InfluxRpcPredicate,
     ) -> Result<SeriesSetPlans>
     where
         D: QueryDatabase + 'static,
@@ -152,7 +156,7 @@ impl Planner {
     pub async fn read_group<D>(
         &self,
         database: Arc<D>,
-        predicate: Predicate,
+        predicate: InfluxRpcPredicate,
         agg: Aggregate,
         group_columns: Vec<String>,
     ) -> Result<SeriesSetPlans>
@@ -175,7 +179,7 @@ impl Planner {
     pub async fn read_window_aggregate<D>(
         &self,
         database: Arc<D>,
-        predicate: Predicate,
+        predicate: InfluxRpcPredicate,
         agg: Aggregate,
         every: WindowDuration,
         offset: WindowDuration,

@@ -11,7 +11,8 @@ use data_types::{
     timestamp::TimestampRange,
 };
 use datafusion::logical_plan::{col, lit};
-use predicate::predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE};
+use predicate::predicate::PredicateBuilder;
+use predicate::rpc_predicate::InfluxRpcPredicate;
 use query::frontend::influxrpc::InfluxRpcPlanner;
 
 #[derive(Debug)]
@@ -120,7 +121,7 @@ impl DbSetup for TwoMeasurementsMultiSeriesWithDeleteAll {
 /// output
 async fn run_read_filter_test_case<D>(
     db_setup: D,
-    predicate: Predicate,
+    predicate: InfluxRpcPredicate,
     expected_results: Vec<&str>,
 ) where
     D: DbSetup,
@@ -152,15 +153,13 @@ async fn run_read_filter_test_case<D>(
 
 #[tokio::test]
 async fn test_read_filter_no_data_no_pred() {
-    let predicate = EMPTY_PREDICATE;
     let expected_results = vec![] as Vec<&str>;
 
-    run_read_filter_test_case(NoData {}, predicate, expected_results).await;
+    run_read_filter_test_case(NoData {}, InfluxRpcPredicate::default(), expected_results).await;
 }
 
 #[tokio::test]
 async fn test_read_filter_data_no_pred() {
-    let predicate = EMPTY_PREDICATE;
     let expected_results = vec![
     "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100, 250], values: [70.4, 72.4]",
     "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [200, 350], values: [90.0, 90.0]",
@@ -168,7 +167,12 @@ async fn test_read_filter_data_no_pred() {
     "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
     ];
 
-    run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
+    run_read_filter_test_case(
+        TwoMeasurementsMultiSeries {},
+        InfluxRpcPredicate::default(),
+        expected_results,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -178,6 +182,7 @@ async fn test_read_filter_data_exclusive_predicate() {
         // range.start <= ts < range.end
         .timestamp_range(349, 350)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![];
 
@@ -190,6 +195,7 @@ async fn test_read_filter_data_inclusive_predicate() {
         // should return  350 row!
         .timestamp_range(350, 351)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [350], values: [90.0]",
@@ -204,6 +210,7 @@ async fn test_read_filter_data_exact_predicate() {
         // should return  250 rows!
         .timestamp_range(250, 251)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [72.4]",
@@ -220,6 +227,7 @@ async fn test_read_filter_data_tag_predicate() {
         // region = region
         .add_expr(col("region").eq(col("region")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // expect both series to be returned
     let expected_results = vec![
@@ -232,7 +240,6 @@ async fn test_read_filter_data_tag_predicate() {
 
 #[tokio::test]
 async fn test_read_filter_data_no_pred_with_delete() {
-    let predicate = EMPTY_PREDICATE;
     let expected_results = vec![
     "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100], values: [70.4]",
     "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [350], values: [90.0]",
@@ -242,7 +249,7 @@ async fn test_read_filter_data_no_pred_with_delete() {
 
     run_read_filter_test_case(
         TwoMeasurementsMultiSeriesWithDelete {},
-        predicate,
+        InfluxRpcPredicate::default(),
         expected_results,
     )
     .await;
@@ -250,7 +257,6 @@ async fn test_read_filter_data_no_pred_with_delete() {
 
 #[tokio::test]
 async fn test_read_filter_data_no_pred_with_delete_all() {
-    let predicate = EMPTY_PREDICATE;
     // nothing from h2o table because all rows were deleted
     let expected_results = vec![
     "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
@@ -259,7 +265,7 @@ async fn test_read_filter_data_no_pred_with_delete_all() {
 
     run_read_filter_test_case(
         TwoMeasurementsMultiSeriesWithDeleteAll {},
-        predicate,
+        InfluxRpcPredicate::default(),
         expected_results,
     )
     .await;
@@ -272,6 +278,7 @@ async fn test_read_filter_data_filter() {
         .timestamp_range(200, 300)
         .add_expr(col("state").eq(lit("CA"))) // state=CA
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [200], values: [90.0]",
@@ -289,6 +296,7 @@ async fn test_read_filter_data_filter() {
         .timestamp_range(200, 300)
         .add_expr(col("state").not_eq(lit("MA"))) // state=CA
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
 }
@@ -300,6 +308,8 @@ async fn test_read_filter_data_filter_with_delete() {
         .timestamp_range(200, 300)
         .add_expr(col("state").eq(lit("CA"))) // state=CA
         .build();
+
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![];
 
@@ -316,6 +326,8 @@ async fn test_read_filter_data_filter_with_delete() {
         .add_expr(col("state").not_eq(lit("MA"))) // state=CA
         .build();
 
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
     run_read_filter_test_case(
         TwoMeasurementsMultiSeriesWithDelete {},
         predicate,
@@ -329,6 +341,8 @@ async fn test_read_filter_data_filter_with_delete() {
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .add_expr(col("_measurement").eq(lit("h2o")))
         .build();
+
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100], values: [70.4]",
@@ -349,6 +363,7 @@ async fn test_read_filter_data_filter_fields() {
         .field_columns(vec!["other_temp"])
         .add_expr(col("state").eq(lit("CA"))) // state=CA
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // Only expect other_temp in this location
     let expected_results = vec![
@@ -367,6 +382,7 @@ async fn test_read_filter_data_filter_measurement_pred() {
         .timestamp_range(200, 400)
         .add_expr(col("_measurement").eq(lit("o2")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // Only expect other_temp in this location
     let expected_results = vec![
@@ -381,6 +397,7 @@ async fn test_read_filter_data_pred_refers_to_non_existent_column() {
     let predicate = PredicateBuilder::default()
         .add_expr(col("tag_not_in_h20").eq(lit("foo")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![] as Vec<&str>;
 
@@ -392,6 +409,7 @@ async fn test_read_filter_data_pred_refers_to_non_existent_column_with_delete() 
     let predicate = PredicateBuilder::default()
         .add_expr(col("tag_not_in_h20").eq(lit("foo")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![] as Vec<&str>;
 
@@ -404,6 +422,7 @@ async fn test_read_filter_data_pred_no_columns() {
     let predicate = PredicateBuilder::default()
         .add_expr(lit("foo").eq(lit("foo")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=cpu, region=west, _field=user}\n  FloatPoints timestamps: [100, 150], values: [23.2, 21.0]",
@@ -419,6 +438,7 @@ async fn test_read_filter_data_pred_no_columns_with_delete() {
     let predicate = PredicateBuilder::default()
         .add_expr(lit("foo").eq(lit("foo")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=cpu, region=west, _field=user}\n  FloatPoints timestamps: [100], values: [23.2]",
@@ -434,6 +454,7 @@ async fn test_read_filter_data_pred_no_columns_with_delete_all() {
     let predicate = PredicateBuilder::default()
         .add_expr(lit("foo").eq(lit("foo")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // Only table disk has no deleted data
     let expected_results = vec![
@@ -450,6 +471,7 @@ async fn test_read_filter_data_pred_refers_to_good_and_non_existent_columns() {
         .add_expr(col("state").eq(lit("MA")))
         .add_expr(col("tag_not_in_h20").eq(lit("foo")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![] as Vec<&str>;
 
@@ -475,6 +497,7 @@ async fn test_read_filter_data_pred_using_regex_match() {
         // will match CA state
         .build_regex_match_expr("state", "C.*")
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [200], values: [90.0]",
@@ -490,6 +513,7 @@ async fn test_read_filter_data_pred_using_regex_match_with_delete() {
         // will match CA state
         .build_regex_match_expr("state", "C.*")
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // the selected row was soft deleted
     let expected_results = vec![];
@@ -506,6 +530,7 @@ async fn test_read_filter_data_pred_using_regex_match_with_delete() {
         // will match CA state
         .build_regex_match_expr("state", "C.*")
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [350], values: [90.0]",
@@ -534,6 +559,7 @@ async fn test_read_filter_data_pred_using_regex_not_match() {
         // will filter out any rows with a state that matches "CA"
         .build_regex_not_match_expr("state", "C.*")
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [72.4]",
@@ -550,6 +576,7 @@ async fn test_read_filter_data_pred_regex_escape() {
         // Came from InfluxQL like `SELECT value FROM db0.rp0.status_code WHERE url =~ /https\:\/\/influxdb\.com/`,
         .build_regex_match_expr("url", r#"https\://influxdb\.com"#)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // expect one series with influxdb.com
     let expected_results = vec![
@@ -580,6 +607,7 @@ async fn test_read_filter_data_pred_not_match_regex_escape() {
         // Came from InfluxQL like `SELECT value FROM db0.rp0.status_code WHERE url !~ /https\:\/\/influxdb\.com/`,
         .build_regex_not_match_expr("url", r#"https\://influxdb\.com"#)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // expect one series with influxdb.com
     let expected_results = vec![
@@ -600,6 +628,7 @@ async fn test_read_filter_data_pred_unsupported_in_scan() {
     let predicate = PredicateBuilder::default()
         .add_expr(col("state").eq(lit("CA")).or(col("reading").gt(lit(0))))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // Note these results include data from both o2 and h2o
     let expected_results = vec![
@@ -622,6 +651,7 @@ async fn test_read_filter_data_pred_unsupported_in_scan_with_delete() {
     let predicate = PredicateBuilder::default()
         .add_expr(col("state").eq(lit("CA")).or(col("reading").gt(lit(0))))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // Note these results include data from both o2 and h2o
     let expected_results = vec![
@@ -710,7 +740,6 @@ impl DbSetup for MeasurementsSortableTagsWithDelete {
 #[tokio::test]
 async fn test_read_filter_data_plan_order() {
     test_helpers::maybe_start_logging();
-    let predicate = Predicate::default();
     let expected_results = vec![
         "Series tags={_measurement=h2o, city=Boston, state=CA, _field=temp}\n  FloatPoints timestamps: [250], values: [70.3]",
         "Series tags={_measurement=h2o, city=Boston, state=MA, _field=other}\n  FloatPoints timestamps: [250], values: [5.0]",
@@ -720,13 +749,17 @@ async fn test_read_filter_data_plan_order() {
         "Series tags={_measurement=h2o, city=Kingston, state=MA, zz_tag=B, _field=temp}\n  FloatPoints timestamps: [100], values: [70.2]",
     ];
 
-    run_read_filter_test_case(MeasurementsSortableTags {}, predicate, expected_results).await;
+    run_read_filter_test_case(
+        MeasurementsSortableTags {},
+        InfluxRpcPredicate::default(),
+        expected_results,
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn test_read_filter_data_plan_order_with_delete() {
     test_helpers::maybe_start_logging();
-    let predicate = Predicate::default();
     let expected_results = vec![
         "Series tags={_measurement=h2o, city=Boston, state=MA, _field=other}\n  FloatPoints timestamps: [250], values: [5.0]",
         "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [250], values: [70.5]",
@@ -737,7 +770,7 @@ async fn test_read_filter_data_plan_order_with_delete() {
 
     run_read_filter_test_case(
         MeasurementsSortableTagsWithDelete {},
-        predicate,
+        InfluxRpcPredicate::default(),
         expected_results,
     )
     .await;
@@ -772,6 +805,7 @@ async fn test_read_filter_filter_on_value() {
         .add_expr(col("_value").eq(lit(1.77)))
         .add_expr(col("_field").eq(lit("load4")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=system, host=host.local, _field=load4}\n  FloatPoints timestamps: [1527018806000000000, 1527018826000000000], values: [1.77, 1.77]",
@@ -788,6 +822,7 @@ async fn test_read_filter_on_field() {
     // (_field = 'temp')
     let p1 = col("_field").eq(lit("temp"));
     let predicate = PredicateBuilder::default().add_expr(p1).build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [50, 100000], values: [70.4, 70.4]",
@@ -808,6 +843,7 @@ async fn test_read_filter_on_field_single_measurement() {
         .eq(lit("temp"))
         .and(col("_measurement").eq(lit("h2o")));
     let predicate = PredicateBuilder::default().add_expr(p1).build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
         "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [50, 100000], values: [70.4, 70.4]",
@@ -830,6 +866,7 @@ async fn test_read_filter_on_field_multi_measurement() {
         .eq(lit("temp"))
         .and(col("_measurement").eq(lit("o2")));
     let predicate = PredicateBuilder::default().add_expr(p1.or(p2)).build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // SHOULD NOT contain temp from h2o
     let expected_results = vec![

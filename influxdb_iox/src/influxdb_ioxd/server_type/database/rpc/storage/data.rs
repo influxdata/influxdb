@@ -6,12 +6,10 @@ use std::{collections::BTreeSet, fmt, sync::Arc};
 use arrow::datatypes::DataType as ArrowDataType;
 
 use observability_deps::tracing::trace;
-use query::{
-    exec::{
-        fieldlist::FieldList,
-        seriesset::series::{self, Either},
-    },
-    frontend::influxrpc::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME},
+use predicate::rpc_predicate::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME};
+use query::exec::{
+    fieldlist::FieldList,
+    seriesset::series::{self, Either},
 };
 
 use generated_types::{

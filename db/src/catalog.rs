@@ -1,5 +1,4 @@
 //! This module contains the implementation of the InfluxDB IOx Metadata catalog
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use data_types::chunk_metadata::ChunkId;
@@ -48,34 +47,6 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/// Specify which tables are to be matched when filtering
-/// catalog chunks
-#[derive(Debug, Clone, Copy)]
-pub enum TableNameFilter<'a> {
-    /// Include all tables
-    AllTables,
-    /// Only include tables that appear in the named set
-    NamedTables(&'a BTreeSet<String>),
-}
-
-impl<'a> From<Option<&'a BTreeSet<String>>> for TableNameFilter<'a> {
-    /// Creates a [`TableNameFilter`] from an [`Option`].
-    ///
-    /// If the Option is `None`, all table names will be included in
-    /// the results.
-    ///
-    /// If the Option is `Some(set)`, only table names which apear in
-    /// `set` will be included in the results.
-    ///
-    /// Note `Some(empty set)` will not match anything
-    fn from(v: Option<&'a BTreeSet<String>>) -> Self {
-        match v {
-            Some(names) => Self::NamedTables(names),
-            None => Self::AllTables,
-        }
-    }
-}
 
 /// InfluxDB IOx Metadata Catalog
 ///
@@ -264,16 +235,12 @@ impl Catalog {
     }
 
     pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {
-        let partition_key = None;
-        let table_names = TableNameFilter::AllTables;
-        self.filtered_chunks(table_names, partition_key, CatalogChunk::summary)
+        self.filtered_chunks(None, None, CatalogChunk::summary)
     }
 
     pub fn detailed_chunk_summaries(&self) -> Vec<(Arc<TableSummary>, DetailedChunkSummary)> {
-        let partition_key = None;
-        let table_names = TableNameFilter::AllTables;
         // TODO: Having two summaries with overlapping information seems unfortunate
-        self.filtered_chunks(table_names, partition_key, |chunk| {
+        self.filtered_chunks(None, None, |chunk| {
             (chunk.table_summary(), chunk.detailed_summary())
         })
     }
@@ -294,13 +261,11 @@ impl Catalog {
 
     /// Calls `map` with every chunk and returns a collection of the results
     ///
-    /// If `partition_key` is Some(partition_key) only returns chunks
-    /// from the specified partition.
-    ///
-    /// `table_names` specifies which tables to include
+    /// If `table_name` is `Some` restricts to chunks in that table.
+    /// If `partition_key` is `Some` restricts to chunks in that partition.
     pub fn filtered_chunks<F, C>(
         &self,
-        table_names: TableNameFilter<'_>,
+        table_name: Option<&str>,
         partition_key: Option<&str>,
         map: F,
     ) -> Vec<C>
@@ -308,13 +273,9 @@ impl Catalog {
         F: Fn(&CatalogChunk) -> C + Copy,
     {
         let tables = self.tables.read();
-        let tables = match table_names {
-            TableNameFilter::AllTables => itertools::Either::Left(tables.values()),
-            TableNameFilter::NamedTables(named_tables) => itertools::Either::Right(
-                named_tables
-                    .iter()
-                    .flat_map(|table_name| tables.get(table_name.as_str()).into_iter()),
-            ),
+        let tables = match table_name {
+            Some(name) => itertools::Either::Right(tables.get(name).into_iter()),
+            None => itertools::Either::Left(tables.values()),
         };
 
         let partitions = tables.flat_map(|table| match partition_key {
@@ -542,7 +503,6 @@ mod tests {
 
     #[test]
     fn filtered_chunks() {
-        use TableNameFilter::*;
         let catalog = Catalog::test();
 
         let p1 = catalog.get_or_create_partition("table1", "p1");
@@ -552,22 +512,18 @@ mod tests {
         create_open_chunk(&p2);
         create_open_chunk(&p3);
 
-        let a = catalog.filtered_chunks(AllTables, None, |_| ());
+        let a = catalog.filtered_chunks(None, None, |_| ());
 
-        let b = catalog.filtered_chunks(NamedTables(&make_set("table1")), None, |_| ());
+        let b = catalog.filtered_chunks(Some("table1"), None, |_| ());
 
-        let c = catalog.filtered_chunks(NamedTables(&make_set("table2")), None, |_| ());
+        let c = catalog.filtered_chunks(Some("table2"), None, |_| ());
 
-        let d = catalog.filtered_chunks(NamedTables(&make_set("table2")), Some("p2"), |_| ());
+        let d = catalog.filtered_chunks(Some("table2"), Some("p2"), |_| ());
 
         assert_eq!(a.len(), 3);
         assert_eq!(b.len(), 1);
         assert_eq!(c.len(), 2);
         assert_eq!(d.len(), 1);
-    }
-
-    fn make_set(s: impl Into<String>) -> BTreeSet<String> {
-        std::iter::once(s.into()).collect()
     }
 
     fn as_sorted<T>(mut v: Vec<T>) -> Vec<T>

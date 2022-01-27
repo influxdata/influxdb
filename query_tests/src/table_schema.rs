@@ -1,7 +1,6 @@
 //! Tests for the table_names implementation
 
 use arrow::datatypes::DataType;
-use predicate::predicate::PredicateBuilder;
 use query::{QueryChunk, QueryChunkMeta, QueryDatabase};
 use schema::selection::Selection;
 use schema::{builder::SchemaBuilder, sort::SortKey, Schema, TIME_COLUMN_NAME};
@@ -35,9 +34,8 @@ async fn run_table_schema_test_case<D>(
 
         // Make sure at least one table has data
         let mut chunks_with_table = 0;
-        let predicate = PredicateBuilder::new().table(table_name).build();
 
-        for chunk in db.chunks(&predicate) {
+        for chunk in db.chunks(table_name, &Default::default()) {
             if chunk.table_name().as_ref() == table_name {
                 chunks_with_table += 1;
                 let actual_schema = chunk.schema().select(selection).unwrap();

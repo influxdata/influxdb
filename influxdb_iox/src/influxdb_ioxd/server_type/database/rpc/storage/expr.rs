@@ -5,6 +5,7 @@
 //! RPCPredicate --> query::Predicates
 //!
 //! Aggregates / windows --> query::GroupByAndAggregate
+use std::collections::BTreeSet;
 use std::{convert::TryFrom, fmt};
 
 use datafusion::{
@@ -16,16 +17,18 @@ use generated_types::{
     aggregate::AggregateType as RPCAggregateType, node::Comparison as RPCComparison,
     node::Logical as RPCLogical, node::Value as RPCValue, read_group_request::Group as RPCGroup,
     Aggregate as RPCAggregate, Duration as RPCDuration, Node as RPCNode, Predicate as RPCPredicate,
-    Window as RPCWindow,
+    TimestampRange as RPCTimestampRange, Window as RPCWindow,
 };
 
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use observability_deps::tracing::warn;
-use predicate::{predicate::PredicateBuilder, regex::regex_match_expr};
-use query::{
-    frontend::influxrpc::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME},
-    group_by::{Aggregate as QueryAggregate, WindowDuration},
+use predicate::rpc_predicate::InfluxRpcPredicate;
+use predicate::{
+    predicate::PredicateBuilder,
+    regex::regex_match_expr,
+    rpc_predicate::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME},
 };
+use query::group_by::{Aggregate as QueryAggregate, WindowDuration};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -146,15 +149,21 @@ pub enum GroupByAndAggregate {
     },
 }
 
-/// A trait for adding gRPC specific nodes to the generic predicate builder
-pub trait AddRpcNode
-where
-    Self: Sized,
-{
-    fn rpc_predicate(self, predicate: Option<RPCPredicate>) -> Result<Self>;
+#[derive(Debug, Default)]
+pub struct InfluxRpcPredicateBuilder {
+    table_names: Option<BTreeSet<String>>,
+    inner: PredicateBuilder,
 }
 
-impl AddRpcNode for PredicateBuilder {
+impl InfluxRpcPredicateBuilder {
+    /// Sets the timestamp range
+    pub fn set_range(mut self, range: Option<RPCTimestampRange>) -> Self {
+        if let Some(range) = range {
+            self.inner = self.inner.timestamp_range(range.start, range.end)
+        }
+        self
+    }
+
     /// Adds the predicates represented by the Node (predicate tree)
     /// into predicates that can be evaluted by the storage system
     ///
@@ -173,7 +182,7 @@ impl AddRpcNode for PredicateBuilder {
     ///
     /// This code pulls apart the predicates, if any, into a StoragePredicate
     /// that breaks the predicate apart
-    fn rpc_predicate(self, rpc_predicate: Option<RPCPredicate>) -> Result<Self> {
+    pub fn rpc_predicate(self, rpc_predicate: Option<RPCPredicate>) -> Result<Self> {
         match rpc_predicate {
             // no input predicate, is fine
             None => Ok(self),
@@ -191,6 +200,40 @@ impl AddRpcNode for PredicateBuilder {
                 }
             }
         }
+    }
+
+    /// Adds an optional table name restriction to the existing list
+    pub fn table_option(self, table: Option<String>) -> Self {
+        if let Some(table) = table {
+            self.tables(vec![table])
+        } else {
+            self
+        }
+    }
+
+    /// Sets table name restrictions from something that can iterate
+    /// over items that can be converted into `Strings`
+    pub fn tables<I, S>(mut self, tables: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        // We need to distinguish predicates like `table_name In
+        // (foo, bar)` and `table_name = foo and table_name = bar` in order to handle
+        // this
+        assert!(
+            self.table_names.is_none(),
+            "Multiple table predicate specification not yet supported"
+        );
+
+        let table_names: BTreeSet<String> = tables.into_iter().map(|s| s.into()).collect();
+
+        self.table_names = Some(table_names);
+        self
+    }
+
+    pub fn build(self) -> InfluxRpcPredicate {
+        InfluxRpcPredicate::new(self.table_names, self.inner.build())
     }
 }
 
@@ -246,7 +289,10 @@ fn normalize_node(node: RPCNode) -> Result<RPCNode> {
 ///
 /// It recognizes special predicate patterns. If no patterns are
 /// matched, it falls back to a generic DataFusion Expr
-fn convert_simple_node(builder: PredicateBuilder, node: RPCNode) -> Result<PredicateBuilder> {
+fn convert_simple_node(
+    mut builder: InfluxRpcPredicateBuilder,
+    node: RPCNode,
+) -> Result<InfluxRpcPredicateBuilder> {
     if let Ok(in_list) = InList::try_from(&node) {
         let InList { lhs, value_list } = in_list;
 
@@ -256,15 +302,17 @@ fn convert_simple_node(builder: PredicateBuilder, node: RPCNode) -> Result<Predi
                 // add the table names as a predicate
                 return Ok(builder.tables(value_list));
             } else if tag_name.is_field() {
-                return Ok(builder.field_columns(value_list));
+                builder.inner = builder.inner.field_columns(value_list);
+                return Ok(builder);
             }
         }
     }
 
     // If no special case applies, fall back to generic conversion
     let expr = convert_node_to_expr(node)?;
+    builder.inner = builder.inner.add_expr(expr);
 
-    Ok(builder.add_expr(expr))
+    Ok(builder)
 }
 
 /// converts a tree of (a AND (b AND c)) into [a, b, c]
@@ -785,16 +833,25 @@ fn format_comparison(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 #[cfg(test)]
 mod tests {
     use generated_types::node::Type as RPCNodeType;
+    use predicate::predicate::Predicate;
     use std::collections::BTreeSet;
 
     use super::*;
 
+    fn table_predicate(predicate: InfluxRpcPredicate) -> Predicate {
+        let predicates = predicate.table_predicates(|| std::iter::once("foo".to_string()));
+        assert_eq!(predicates.len(), 1);
+        predicates.into_iter().next().unwrap().1
+    }
+
     #[test]
     fn test_convert_predicate_none() {
-        let predicate = PredicateBuilder::default()
+        let predicate = InfluxRpcPredicateBuilder::default()
             .rpc_predicate(None)
             .unwrap()
             .build();
+
+        let predicate = table_predicate(predicate);
 
         assert!(predicate.exprs.is_empty());
     }
@@ -803,7 +860,7 @@ mod tests {
     fn test_convert_predicate_empty() {
         let rpc_predicate = RPCPredicate { root: None };
 
-        let res = PredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
+        let res = InfluxRpcPredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
 
         let expected_error = "Unexpected empty predicate: Node";
         let actual_error = res.unwrap_err().to_string();
@@ -823,11 +880,12 @@ mod tests {
             root: Some(comparison),
         };
 
-        let predicate = PredicateBuilder::default()
+        let predicate = InfluxRpcPredicateBuilder::default()
             .rpc_predicate(Some(rpc_predicate))
             .expect("successfully converting predicate")
             .build();
 
+        let predicate = table_predicate(predicate);
         let converted_expr = &predicate.exprs;
 
         assert_eq!(
@@ -866,18 +924,28 @@ mod tests {
         // _measurement != "foo"
         let rpc_predicate = make_tagref_not_equal_predicate(TAG_KEY_MEASUREMENT, "foo");
 
-        let predicate = PredicateBuilder::default()
+        let predicate = InfluxRpcPredicateBuilder::default()
             .rpc_predicate(Some(rpc_predicate))
             .expect("successfully converting predicate")
             .build();
 
-        let expected_exprs = vec![col("_measurement").not_eq(lit("foo"))];
+        let tables = ["foo", "bar"];
 
-        assert_eq!(
-            &expected_exprs, &predicate.exprs,
-            "expected '{:#?}' doesn't match actual '{:#?}'",
-            expected_exprs, predicate.exprs,
-        );
+        let table_predicates =
+            predicate.table_predicates(|| tables.iter().map(ToString::to_string));
+        assert_eq!(table_predicates.len(), 2);
+
+        for (expected_table, (table, predicate)) in tables.iter().zip(table_predicates) {
+            assert_eq!(*expected_table, &table);
+
+            let expected_exprs = vec![lit(table).not_eq(lit("foo"))];
+
+            assert_eq!(
+                &expected_exprs, &predicate.exprs,
+                "expected '{:#?}' doesn't match actual '{:#?}'",
+                expected_exprs, predicate.exprs,
+            );
+        }
     }
 
     #[test]
@@ -885,10 +953,11 @@ mod tests {
         // _field != "bar"
         let rpc_predicate = make_tagref_not_equal_predicate(TAG_KEY_FIELD, "bar");
 
-        let predicate = PredicateBuilder::default()
+        let predicate = InfluxRpcPredicateBuilder::default()
             .rpc_predicate(Some(rpc_predicate))
             .expect("successfully converting predicate")
             .build();
+        let predicate = table_predicate(predicate);
 
         let expected_exprs = vec![col("_field").not_eq(lit("bar"))];
 
@@ -911,7 +980,7 @@ mod tests {
             root: Some(comparison),
         };
 
-        let res = PredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
+        let res = InfluxRpcPredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
 
         let expected_error = "Error creating predicate: Unsupported number of children in binary operator Gt: 0 (must be 2)";
         let actual_error = res.unwrap_err().to_string();
@@ -942,7 +1011,7 @@ mod tests {
             root: Some(comparison),
         };
 
-        let res = PredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
+        let res = InfluxRpcPredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
 
         let expected_error = "Error creating predicate: Unknown comparison node type: 42";
         let actual_error = res.unwrap_err().to_string();
@@ -973,7 +1042,7 @@ mod tests {
             root: Some(comparison),
         };
 
-        let res = PredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
+        let res = InfluxRpcPredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
 
         let expected_error = "Error creating predicate: Unknown logical node type: 42";
         let actual_error = res.unwrap_err().to_string();
@@ -993,13 +1062,16 @@ mod tests {
             root: Some(field_selection),
         };
 
-        let predicate = PredicateBuilder::default()
+        let predicate = InfluxRpcPredicateBuilder::default()
             .rpc_predicate(Some(rpc_predicate))
             .unwrap()
             .build();
 
+        assert!(predicate.table_names().is_none());
+
+        let predicate = table_predicate(predicate);
+
         assert!(predicate.exprs.is_empty());
-        assert!(predicate.table_names.is_none());
         assert_eq!(predicate.field_columns, Some(to_set(&["field1"])));
         assert!(predicate.range.is_none());
     }
@@ -1019,13 +1091,16 @@ mod tests {
             root: Some(wrapped),
         };
 
-        let predicate = PredicateBuilder::default()
+        let predicate = InfluxRpcPredicateBuilder::default()
             .rpc_predicate(Some(rpc_predicate))
             .unwrap()
             .build();
 
+        assert!(predicate.table_names().is_none());
+
+        let predicate = table_predicate(predicate);
+
         assert!(predicate.exprs.is_empty());
-        assert!(predicate.table_names.is_none());
         assert_eq!(predicate.field_columns, Some(to_set(&["field1"])));
         assert!(predicate.range.is_none());
     }
@@ -1039,13 +1114,16 @@ mod tests {
             root: Some(selection),
         };
 
-        let predicate = PredicateBuilder::default()
+        let predicate = InfluxRpcPredicateBuilder::default()
             .rpc_predicate(Some(rpc_predicate))
             .unwrap()
             .build();
 
+        assert!(predicate.table_names().is_none());
+
+        let predicate = table_predicate(predicate);
+
         assert!(predicate.exprs.is_empty());
-        assert!(predicate.table_names.is_none());
         assert_eq!(
             predicate.field_columns,
             Some(to_set(&["field1", "field2", "field3"]))
@@ -1066,10 +1144,14 @@ mod tests {
             root: Some(selection),
         };
 
-        let predicate = PredicateBuilder::default()
+        let predicate = InfluxRpcPredicateBuilder::default()
             .rpc_predicate(Some(rpc_predicate))
             .unwrap()
             .build();
+
+        assert!(predicate.table_names().is_none());
+
+        let predicate = table_predicate(predicate);
 
         let converted_expr = &predicate.exprs;
 
@@ -1078,7 +1160,6 @@ mod tests {
             "expected '{:#?}' doesn't match actual '{:#?}'",
             expected_expr, converted_expr
         );
-        assert!(predicate.table_names.is_none());
 
         assert_eq!(predicate.field_columns, Some(to_set(&["field1", "field2"])));
         assert!(predicate.range.is_none());
@@ -1092,13 +1173,15 @@ mod tests {
             root: Some(measurement_selection),
         };
 
-        let predicate = PredicateBuilder::default()
+        let predicate = InfluxRpcPredicateBuilder::default()
             .rpc_predicate(Some(rpc_predicate))
             .unwrap()
             .build();
 
+        assert_eq!(predicate.table_names(), Some(&to_set(&["m1"])));
+        let predicate = table_predicate(predicate);
+
         assert!(predicate.exprs.is_empty());
-        assert_eq!(predicate.table_names, Some(to_set(&["m1"])));
         assert!(predicate.field_columns.is_none());
         assert!(predicate.range.is_none());
     }

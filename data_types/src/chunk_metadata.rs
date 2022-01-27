@@ -86,6 +86,21 @@ impl ChunkStorage {
             Self::ObjectStoreOnly => "ObjectStoreOnly",
         }
     }
+
+    /// Returns true if has data in the mutable buffer
+    pub fn has_mutable_buffer(&self) -> bool {
+        matches!(self, Self::OpenMutableBuffer | Self::ClosedMutableBuffer)
+    }
+
+    /// Returns true if has data in the read buffer
+    pub fn has_read_buffer(&self) -> bool {
+        matches!(self, Self::ReadBuffer | Self::ReadBufferAndObjectStore)
+    }
+
+    /// Returns true if has data in object storage
+    pub fn has_object_store(&self) -> bool {
+        matches!(self, Self::ReadBufferAndObjectStore | Self::ObjectStoreOnly)
+    }
 }
 
 /// Any lifecycle action currently in progress for this chunk

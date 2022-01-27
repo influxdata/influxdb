@@ -1,6 +1,7 @@
 //! Tests for the Influx gRPC queries
 use datafusion::logical_plan::{col, lit};
-use predicate::predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE};
+use predicate::predicate::PredicateBuilder;
+use predicate::rpc_predicate::InfluxRpcPredicate;
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,
@@ -10,8 +11,11 @@ use crate::scenarios::*;
 
 /// runs table_names(predicate) and compares it to the expected
 /// output
-async fn run_table_names_test_case<D>(db_setup: D, predicate: Predicate, expected_names: Vec<&str>)
-where
+async fn run_table_names_test_case<D>(
+    db_setup: D,
+    predicate: InfluxRpcPredicate,
+    expected_names: Vec<&str>,
+) where
     D: DbSetup,
 {
     test_helpers::maybe_start_logging();
@@ -47,12 +51,17 @@ where
 
 #[tokio::test]
 async fn list_table_names_no_data_no_pred() {
-    run_table_names_test_case(NoData {}, EMPTY_PREDICATE, vec![]).await;
+    run_table_names_test_case(NoData {}, InfluxRpcPredicate::default(), vec![]).await;
 }
 
 #[tokio::test]
 async fn list_table_names_no_data_pred() {
-    run_table_names_test_case(TwoMeasurements {}, EMPTY_PREDICATE, vec!["cpu", "disk"]).await;
+    run_table_names_test_case(
+        TwoMeasurements {},
+        InfluxRpcPredicate::default(),
+        vec!["cpu", "disk"],
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -70,12 +79,12 @@ async fn list_table_names_no_data_passes() {
 async fn list_table_names_no_non_null_data_passes() {
     // only a single row with a null field passes this predicate (expect no table names)
     let predicate = PredicateBuilder::default()
-        .table("o2")
         // only get last row of o2 (timestamp = 300)
         .timestamp_range(200, 400)
         // model predicate like _field='reading' which last row does not have
         .field_columns(vec!["reading"])
         .build();
+    let predicate = InfluxRpcPredicate::new_table("o2", predicate);
 
     run_table_names_test_case(TwoMeasurementsManyFields {}, predicate, vec![]).await;
 }
@@ -86,7 +95,6 @@ async fn list_table_names_no_non_null_general_data_passes() {
     // (expect no table names) -- has a general purpose predicate to
     // force a generic plan
     let predicate = PredicateBuilder::default()
-        .table("o2")
         // only get last row of o2 (timestamp = 300)
         .timestamp_range(200, 400)
         // model predicate like _field='reading' which last row does not have
@@ -94,6 +102,7 @@ async fn list_table_names_no_non_null_general_data_passes() {
         // (state = CA) OR (temp > 50)
         .add_expr(col("state").eq(lit("CA")).or(col("temp").gt(lit(50))))
         .build();
+    let predicate = InfluxRpcPredicate::new_table("o2", predicate);
 
     run_table_names_test_case(TwoMeasurementsManyFields {}, predicate, vec![]).await;
 }
@@ -102,7 +111,7 @@ async fn list_table_names_no_non_null_general_data_passes() {
 async fn list_table_names_no_data_pred_with_delete() {
     run_table_names_test_case(
         TwoMeasurementsWithDelete {},
-        EMPTY_PREDICATE,
+        InfluxRpcPredicate::default(),
         vec!["cpu", "disk"],
     )
     .await;
@@ -112,7 +121,7 @@ async fn list_table_names_no_data_pred_with_delete() {
 async fn list_table_names_no_data_pred_with_delete_all() {
     run_table_names_test_case(
         TwoMeasurementsWithDeleteAll {},
-        EMPTY_PREDICATE,
+        InfluxRpcPredicate::default(),
         vec!["disk"],
     )
     .await;
@@ -203,8 +212,11 @@ async fn list_table_names_data_pred_250_300_with_delete_all() {
 // https://github.com/influxdata/influxdb_iox/issues/762
 
 // make a single timestamp predicate between r1 and r2
-fn tsp(r1: i64, r2: i64) -> Predicate {
-    PredicateBuilder::default().timestamp_range(r1, r2).build()
+fn tsp(r1: i64, r2: i64) -> InfluxRpcPredicate {
+    InfluxRpcPredicate::new(
+        None,
+        PredicateBuilder::default().timestamp_range(r1, r2).build(),
+    )
 }
 
 fn to_stringset(v: &[&str]) -> StringSetRef {

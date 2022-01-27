@@ -71,7 +71,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 impl From<DeletePredicate> for crate::predicate::Predicate {
     fn from(pred: DeletePredicate) -> Self {
         Self {
-            table_names: None,
             field_columns: None,
             partition_key: None,
             range: Some(pred.range),

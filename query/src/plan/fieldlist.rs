@@ -12,6 +12,12 @@ impl FieldListPlan {
         Self::default()
     }
 
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            plans: Vec::with_capacity(capacity),
+        }
+    }
+
     /// Append a new plan to this list of plans
     pub fn append(mut self, plan: LogicalPlan) -> Self {
         self.plans.push(plan);

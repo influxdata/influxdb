@@ -9,7 +9,7 @@ use crate::{
         chunk::{CatalogChunk, ChunkStage},
         partition::Partition,
         table::TableSchemaUpsertHandle,
-        Catalog, TableNameFilter,
+        Catalog,
     },
     lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     write::{DeleteFilter, DeleteFilterNone, WriteFilter, WriteFilterNone},
@@ -832,22 +832,17 @@ impl Db {
         LockableChunk::load_read_buffer(chunk.write()).context(LifecycleSnafu)
     }
 
-    /// Return chunk summary information for all chunks in the specified
-    /// partition across all storage systems
-    pub fn partition_chunk_summaries(&self, partition_key: &str) -> Vec<ChunkSummary> {
-        self.partition_tables_chunk_summaries(TableNameFilter::AllTables, partition_key)
-    }
-
-    /// Return chunk summary information for all chunks in the specified
-    /// tables and partition across all storage systems
-    pub fn partition_tables_chunk_summaries(
+    /// Return chunk summary information for all chunks
+    ///
+    /// If `table_name` is `Some` restricts to chunks in that table.
+    /// If `partition_key` is `Some` restricts to chunks in that partition.
+    pub fn filtered_chunk_summaries(
         &self,
-        table_name_filter: TableNameFilter<'_>,
-        partition_key: &str,
+        table_name: Option<&str>,
+        partition_key: Option<&str>,
     ) -> Vec<ChunkSummary> {
-        let partition_key = Some(partition_key);
         self.catalog
-            .filtered_chunks(table_name_filter, partition_key, CatalogChunk::summary)
+            .filtered_chunks(table_name, partition_key, CatalogChunk::summary)
     }
 
     /// Return Summary information for all columns in all chunks in the
@@ -1208,20 +1203,24 @@ impl Db {
 impl QueryDatabase for Db {
     type Chunk = DbChunk;
 
-    fn chunks(&self, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
-        self.catalog_access.chunks(predicate)
-    }
-
     fn partition_addrs(&self) -> Vec<PartitionAddr> {
         self.catalog_access.partition_addrs()
     }
 
-    fn chunk_summaries(&self) -> Vec<ChunkSummary> {
-        self.catalog_access.chunk_summaries()
+    fn table_names(&self) -> Vec<String> {
+        self.catalog_access.table_names()
     }
 
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
         self.catalog_access.table_schema(table_name)
+    }
+
+    fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+        self.catalog_access.chunks(table_name, predicate)
+    }
+
+    fn chunk_summaries(&self) -> Vec<ChunkSummary> {
+        self.catalog_access.chunk_summaries()
     }
 
     fn record_query(
@@ -1308,10 +1307,8 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
 pub mod test_helpers {
     use super::*;
     use arrow::record_batch::RecordBatch;
-    use data_types::chunk_metadata::ChunkStorage;
     use mutable_batch_lp::lines_to_batches;
     use query::frontend::sql::SqlQueryPlanner;
-    use std::collections::BTreeSet;
 
     /// Try to write lineprotocol data and return all tables that where written.
     pub fn try_write_lp(db: &Db, lp: &str) -> Result<Vec<String>, DmlError> {
@@ -1358,82 +1355,46 @@ pub mod test_helpers {
         ctx.collect(physical_plan).await.unwrap()
     }
 
-    pub fn mutable_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
-        mutable_tables_chunk_ids(db, TableNameFilter::AllTables, partition_key)
-    }
-
-    pub fn mutable_tables_chunk_ids(
+    /// Returns the [`ChunkId`] of every chunk containing data in the mutable buffer
+    pub fn chunk_ids_mub(
         db: &Db,
-        tables: TableNameFilter<'_>,
-        partition_key: &str,
+        table_name: Option<&str>,
+        partition_key: Option<&str>,
     ) -> Vec<ChunkId> {
         let mut chunk_ids: Vec<ChunkId> = db
-            .partition_tables_chunk_summaries(tables, partition_key)
+            .filtered_chunk_summaries(table_name, partition_key)
             .into_iter()
-            .filter_map(|chunk| match chunk.storage {
-                ChunkStorage::OpenMutableBuffer | ChunkStorage::ClosedMutableBuffer => {
-                    Some(chunk.id)
-                }
-                _ => None,
-            })
+            .filter_map(|chunk| chunk.storage.has_mutable_buffer().then(|| chunk.id))
             .collect();
         chunk_ids.sort_unstable();
         chunk_ids
     }
 
-    pub fn read_buffer_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
-        read_buffer_tables_chunk_ids(db, TableNameFilter::AllTables, partition_key)
-    }
-
-    pub fn read_buffer_table_chunk_ids(
+    /// Returns the [`ChunkId`] of every chunk containing data in the read buffer
+    pub fn chunk_ids_rub(
         db: &Db,
-        table_name: &str,
-        partition_key: &str,
-    ) -> Vec<ChunkId> {
-        let mut table_names = BTreeSet::new();
-        table_names.insert(table_name.to_string());
-        read_buffer_tables_chunk_ids(
-            db,
-            TableNameFilter::NamedTables(&table_names),
-            partition_key,
-        )
-    }
-
-    pub fn read_buffer_tables_chunk_ids(
-        db: &Db,
-        tables: TableNameFilter<'_>,
-        partition_key: &str,
+        table_name: Option<&str>,
+        partition_key: Option<&str>,
     ) -> Vec<ChunkId> {
         let mut chunk_ids: Vec<ChunkId> = db
-            .partition_tables_chunk_summaries(tables, partition_key)
+            .filtered_chunk_summaries(table_name, partition_key)
             .into_iter()
-            .filter_map(|chunk| match chunk.storage {
-                ChunkStorage::ReadBuffer => Some(chunk.id),
-                ChunkStorage::ReadBufferAndObjectStore => Some(chunk.id),
-                _ => None,
-            })
+            .filter_map(|chunk| chunk.storage.has_read_buffer().then(|| chunk.id))
             .collect();
         chunk_ids.sort_unstable();
         chunk_ids
     }
 
-    pub fn parquet_file_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
-        parquet_file_tables_chunk_ids(db, TableNameFilter::AllTables, partition_key)
-    }
-
-    pub fn parquet_file_tables_chunk_ids(
+    /// Returns the [`ChunkId`] of every chunk containing data in object storage
+    pub fn chunk_ids_parquet(
         db: &Db,
-        tables: TableNameFilter<'_>,
-        partition_key: &str,
+        table_name: Option<&str>,
+        partition_key: Option<&str>,
     ) -> Vec<ChunkId> {
         let mut chunk_ids: Vec<ChunkId> = db
-            .partition_tables_chunk_summaries(tables, partition_key)
+            .filtered_chunk_summaries(table_name, partition_key)
             .into_iter()
-            .filter_map(|chunk| match chunk.storage {
-                ChunkStorage::ReadBufferAndObjectStore => Some(chunk.id),
-                ChunkStorage::ObjectStoreOnly => Some(chunk.id),
-                _ => None,
-            })
+            .filter_map(|chunk| chunk.storage.has_object_store().then(|| chunk.id))
             .collect();
         chunk_ids.sort_unstable();
         chunk_ids
@@ -1443,12 +1404,10 @@ pub mod test_helpers {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::{chunk_ids_mub, chunk_ids_parquet, chunk_ids_rub};
     use crate::{
         catalog::chunk::ChunkStage,
-        test_helpers::{
-            mutable_chunk_ids, parquet_file_chunk_ids, read_buffer_chunk_ids, run_query,
-            try_write_lp, write_lp,
-        },
+        test_helpers::{run_query, try_write_lp, write_lp},
         utils::{make_db, make_db_time, TestDb},
     };
     use ::test_helpers::{assert_contains, assert_error};
@@ -1894,8 +1853,8 @@ mod tests {
         assert_ne!(mb_chunk.id(), rb_chunk.id());
 
         // we should have chunks in both the read buffer only
-        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key).len(), 1);
+        assert!(chunk_ids_mub(&db, None, Some(partition_key)).is_empty());
+        assert_eq!(chunk_ids_rub(&db, None, Some(partition_key)).len(), 1);
 
         // data should be readable
         let expected = vec![
@@ -1922,7 +1881,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            read_buffer_chunk_ids(&db, partition_key),
+            chunk_ids_rub(&db, None, Some(partition_key)),
             vec![] as Vec<ChunkId>
         );
 
@@ -1978,7 +1937,7 @@ mod tests {
 
         // no other read buffer data should be present
         assert_eq!(
-            read_buffer_chunk_ids(&db, partition_key),
+            chunk_ids_rub(&db, None, Some(partition_key)),
             vec![compacted_rb_chunk.id()]
         );
         assert_ne!(old_rb_chunk.id(), compacted_rb_chunk.id());
@@ -2155,9 +2114,9 @@ mod tests {
         assert_ne!(mb_chunk.id(), pq_chunk.id());
 
         // we should have chunks in both the read buffer only
-        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key).len(), 1);
-        assert_eq!(parquet_file_chunk_ids(&db, partition_key).len(), 1);
+        assert!(chunk_ids_mub(&db, None, Some(partition_key)).is_empty());
+        assert_eq!(chunk_ids_rub(&db, None, Some(partition_key)).len(), 1);
+        assert_eq!(chunk_ids_parquet(&db, None, Some(partition_key)).len(), 1);
 
         // Verify data written to the parquet file in object store
         //
@@ -2251,10 +2210,13 @@ mod tests {
         let pq_chunk_id = pq_chunk.id();
 
         // we should have chunks in both the read buffer only
-        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![pq_chunk_id]);
+        assert!(chunk_ids_mub(&db, None, Some(partition_key)).is_empty());
         assert_eq!(
-            parquet_file_chunk_ids(&db, partition_key),
+            chunk_ids_rub(&db, None, Some(partition_key)),
+            vec![pq_chunk_id]
+        );
+        assert_eq!(
+            chunk_ids_parquet(&db, None, Some(partition_key)),
             vec![pq_chunk_id]
         );
 
@@ -2275,10 +2237,10 @@ mod tests {
         assert_eq!(pq_chunk_id, pq_chunk.id());
 
         // we should only have chunk in os
-        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
-        assert!(read_buffer_chunk_ids(&db, partition_key).is_empty());
+        assert!(chunk_ids_mub(&db, None, Some(partition_key)).is_empty());
+        assert!(chunk_ids_rub(&db, None, Some(partition_key)).is_empty());
         assert_eq!(
-            parquet_file_chunk_ids(&db, partition_key),
+            chunk_ids_parquet(&db, None, Some(partition_key)),
             vec![pq_chunk_id]
         );
 
@@ -2466,9 +2428,9 @@ mod tests {
         write_lp(&db, "cpu bar=1 10");
         write_lp(&db, "cpu bar=1 20");
 
-        assert_eq!(mutable_chunk_ids(&db, partition_key).len(), 1);
+        assert_eq!(chunk_ids_mub(&db, None, Some(partition_key)).len(), 1);
         assert_eq!(
-            read_buffer_chunk_ids(&db, partition_key),
+            chunk_ids_rub(&db, None, Some(partition_key)),
             vec![] as Vec<ChunkId>
         );
 
@@ -2485,8 +2447,8 @@ mod tests {
 
         write_lp(&db, "cpu bar=1 40");
 
-        assert_eq!(mutable_chunk_ids(&db, partition_key).len(), 2);
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key).len(), 1);
+        assert_eq!(chunk_ids_mub(&db, None, Some(partition_key)).len(), 2);
+        assert_eq!(chunk_ids_rub(&db, None, Some(partition_key)).len(), 1);
     }
 
     #[tokio::test]
@@ -2502,7 +2464,7 @@ mod tests {
 
         print!("Partitions: {:?}", db.partition_addrs());
 
-        let chunk_summaries = db.partition_chunk_summaries("1970-01-05T15");
+        let chunk_summaries = db.filtered_chunk_summaries(None, Some("1970-01-05T15"));
 
         let expected = vec![ChunkSummary {
             partition_key: Arc::from("1970-01-05T15"),
@@ -2955,9 +2917,9 @@ mod tests {
             .unwrap();
 
         // we should have chunks in both the read buffer only
-        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key).len(), 1);
-        assert_eq!(parquet_file_chunk_ids(&db, partition_key).len(), 1);
+        assert!(chunk_ids_mub(&db, None, Some(partition_key)).is_empty());
+        assert_eq!(chunk_ids_rub(&db, None, Some(partition_key)).len(), 1);
+        assert_eq!(chunk_ids_parquet(&db, None, Some(partition_key)).len(), 1);
     }
 
     #[tokio::test]
@@ -3189,7 +3151,7 @@ mod tests {
 
         // ==================== check: DB state ====================
         // Re-created DB should have an "object store only"-chunk
-        assert_eq!(chunks.len(), db.chunks(&Default::default()).len());
+        assert_eq!(chunks.len(), chunk_ids_parquet(&db, None, None).len());
         for (table_name, partition_key, chunk_id) in &chunks {
             let (chunk, _order) = db.chunk(table_name, partition_key, *chunk_id).unwrap();
             let chunk = chunk.read();
@@ -3526,7 +3488,7 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=1 10");
 
         let partition_key = "1970-01-01T00";
-        let chunks = db.partition_chunk_summaries(partition_key);
+        let chunks = db.filtered_chunk_summaries(None, Some(partition_key));
         assert_eq!(chunks.len(), 1);
         let chunk_id = chunks[0].id;
 
@@ -3561,7 +3523,10 @@ mod tests {
         let partition_key = "1970-01-01T00";
 
         // two chunks created
-        assert_eq!(db.partition_chunk_summaries(partition_key).len(), 2);
+        assert_eq!(
+            db.filtered_chunk_summaries(None, Some(partition_key)).len(),
+            2
+        );
 
         // We don't support dropping unpersisted chunks from a persisted DB because we would forget the write buffer
         // progress (partition checkpoints are only created when new parquet files are stored).
@@ -3581,7 +3546,10 @@ mod tests {
         db.drop_partition("cpu", partition_key).await.unwrap();
 
         // no chunks left
-        assert_eq!(db.partition_chunk_summaries(partition_key), vec![]);
+        assert_eq!(
+            db.filtered_chunk_summaries(None, Some(partition_key)),
+            vec![]
+        );
     }
 
     #[tokio::test]

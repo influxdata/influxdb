@@ -117,13 +117,16 @@ pub trait QueryDatabase: Debug + Send + Sync {
     /// Return the partition keys for data in this DB
     fn partition_addrs(&self) -> Vec<PartitionAddr>;
 
+    /// Returns a list of table names in this DB
+    fn table_names(&self) -> Vec<String>;
+
     /// Schema for a specific table if the table exists.
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>>;
 
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate. If possible, chunks which have no rows that can
     /// possibly match the predicate may be omitted.
-    fn chunks(&self, predicate: &Predicate) -> Vec<Arc<Self::Chunk>>;
+    fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>>;
 
     /// Return a summary of all chunks in this database, in all partitions
     fn chunk_summaries(&self) -> Vec<ChunkSummary>;

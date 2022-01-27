@@ -11,11 +11,9 @@ use arrow::{
     bitmap::Bitmap,
     datatypes::DataType as ArrowDataType,
 };
+use predicate::rpc_predicate::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME};
 
-use crate::{
-    exec::{field::FieldIndex, seriesset::SeriesSet},
-    frontend::influxrpc::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME},
-};
+use crate::exec::{field::FieldIndex, seriesset::SeriesSet};
 use snafu::Snafu;
 
 #[derive(Debug, Snafu)]

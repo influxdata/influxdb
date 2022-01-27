@@ -296,10 +296,6 @@ impl QueryChunk for DbChunk {
     }
 
     fn apply_predicate_to_metadata(&self, predicate: &Predicate) -> Result<PredicateMatch> {
-        if !predicate.should_include_table(self.table_name().as_ref()) {
-            return Ok(PredicateMatch::Zero);
-        }
-
         let pred_result = match &self.state {
             State::MutableBuffer { chunk, .. } => {
                 if predicate.has_exprs() || chunk.has_timerange(&predicate.range) {

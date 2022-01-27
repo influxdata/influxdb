@@ -5,7 +5,8 @@ use std::io::Read;
 // current-thread executor
 use db::Db;
 use flate2::read::GzDecoder;
-use predicate::predicate::{Predicate, PredicateBuilder};
+use predicate::predicate::PredicateBuilder;
+use predicate::rpc_predicate::InfluxRpcPredicate;
 use query::{
     exec::{Executor, ExecutorType},
     frontend::influxrpc::InfluxRpcPlanner,
@@ -59,11 +60,14 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
     let planner = InfluxRpcPlanner::new();
 
     let predicates = vec![
-        (PredicateBuilder::default().build(), "no_pred"),
+        (InfluxRpcPredicate::default(), "no_pred"),
         (
-            PredicateBuilder::default()
-                .add_expr(col("tag3").eq(lit("value49")))
-                .build(),
+            InfluxRpcPredicate::new(
+                None,
+                PredicateBuilder::default()
+                    .add_expr(col("tag3").eq(lit("value49")))
+                    .build(),
+            ),
             "with_pred_tag_3=value49",
         ),
     ];
@@ -73,7 +77,9 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
         let mut group = c.benchmark_group(format!("read_filter/{}", scenario_name));
 
         for (predicate, pred_name) in &predicates {
-            let chunks = db.partition_chunk_summaries("2021-04-26T13").len();
+            let chunks = db
+                .filtered_chunk_summaries(None, Some("2021-04-26T13"))
+                .len();
             // The number of expected frames, based on the expected number of
             // individual series keys.
             let exp_data_frames = if predicate.is_empty() { 10000 } else { 200 } * chunks;
@@ -105,7 +111,7 @@ async fn build_and_execute_plan(
     planner: &InfluxRpcPlanner,
     executor: &Executor,
     db: &Db,
-    predicate: Predicate,
+    predicate: InfluxRpcPredicate,
     exp_data_frames: usize,
 ) {
     let plan = planner

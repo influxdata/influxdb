@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, timestamp::TimestampRange};
 use datafusion::prelude::*;
 use db::{test_helpers::write_lp, utils::make_db};
-use predicate::predicate::{Predicate, PredicateBuilder};
+use predicate::predicate::PredicateBuilder;
+use predicate::rpc_predicate::InfluxRpcPredicate;
 use query::{
     frontend::influxrpc::InfluxRpcPlanner,
     group_by::{Aggregate, WindowDuration},
@@ -17,7 +18,7 @@ use query::{
 /// output
 async fn run_read_window_aggregate_test_case<D>(
     db_setup: D,
-    predicate: Predicate,
+    predicate: InfluxRpcPredicate,
     agg: Aggregate,
     every: WindowDuration,
     offset: WindowDuration,
@@ -58,14 +59,20 @@ async fn run_read_window_aggregate_test_case<D>(
 
 #[tokio::test]
 async fn test_read_window_aggregate_no_data_no_pred() {
-    let predicate = Predicate::default();
     let agg = Aggregate::Mean;
     let every = WindowDuration::from_nanoseconds(200);
     let offset = WindowDuration::from_nanoseconds(0);
     let expected_results = vec![] as Vec<&str>;
 
-    run_read_window_aggregate_test_case(NoData {}, predicate, agg, every, offset, expected_results)
-        .await;
+    run_read_window_aggregate_test_case(
+        NoData {},
+        InfluxRpcPredicate::default(),
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
 }
 
 struct MeasurementForWindowAggregate {}
@@ -107,6 +114,7 @@ async fn test_read_window_aggregate_nanoseconds() {
         .add_expr(col("city").eq(lit("Boston")).or(col("city").eq(lit("LA"))))
         .timestamp_range(100, 450)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Mean;
     let every = WindowDuration::from_nanoseconds(200);
@@ -140,6 +148,7 @@ async fn test_read_window_aggregate_nanoseconds_measurement_pred() {
         )
         .timestamp_range(100, 450)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Mean;
     let every = WindowDuration::from_nanoseconds(200);
@@ -167,6 +176,7 @@ async fn test_read_window_aggregate_nanoseconds_measurement_count() {
     let predicate = PredicateBuilder::default()
         .timestamp_range(100, 450)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Count;
     let every = WindowDuration::from_nanoseconds(200);
@@ -247,8 +257,6 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
 
 #[tokio::test]
 async fn test_read_window_aggregate_months() {
-    let predicate = PredicateBuilder::default().build();
-
     let agg = Aggregate::Mean;
     let every = WindowDuration::from_months(1, false);
     let offset = WindowDuration::from_months(0, false);
@@ -260,7 +268,7 @@ async fn test_read_window_aggregate_months() {
 
     run_read_window_aggregate_test_case(
         MeasurementForWindowAggregateMonths {},
-        predicate,
+        InfluxRpcPredicate::default(),
         agg,
         every,
         offset,
@@ -359,6 +367,7 @@ async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697() {
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
         .timestamp_range(1609459201000000001, 1609459201000000031)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Min;
     let every = WindowDuration::from_nanoseconds(10);
@@ -391,6 +400,7 @@ async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697_with_delet
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
         .timestamp_range(1609459201000000001, 1609459201000000031)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Min;
     let every = WindowDuration::from_nanoseconds(10);
@@ -433,6 +443,7 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
         .timestamp_range(1609459201000000001, 1609459201000000031)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Sum;
     let every = WindowDuration::from_nanoseconds(10);
@@ -468,6 +479,7 @@ async fn test_grouped_series_set_plan_group_aggregate_filter_on_field() {
         .timestamp_range(1609459201000000001, 1609459201000000031)
         .add_expr(col("_field").eq(lit("foo")))
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Sum;
     let every = WindowDuration::from_nanoseconds(10);
@@ -497,6 +509,7 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697_with_delet
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
         .timestamp_range(1609459201000000001, 1609459201000000031)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Sum;
     let every = WindowDuration::from_nanoseconds(10);
@@ -564,6 +577,7 @@ async fn test_read_window_aggregate_overflow() {
     let predicate = PredicateBuilder::default()
         .timestamp_range(1609459201000000001, 1609459201000000024)
         .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Max;
     // Note the giant window (every=9223372036854775807)

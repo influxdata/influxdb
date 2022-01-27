@@ -1,11 +1,7 @@
 //! This module contains the interface to the Catalog / Chunks used by
 //! the query engine
 
-use super::{
-    catalog::{Catalog, TableNameFilter},
-    chunk::DbChunk,
-    query_log::QueryLog,
-};
+use super::{catalog::Catalog, chunk::DbChunk, query_log::QueryLog};
 use crate::system_tables;
 use async_trait::async_trait;
 use data_types::{chunk_metadata::ChunkSummary, partition_metadata::PartitionAddr};
@@ -18,7 +14,7 @@ use job_registry::JobRegistry;
 use metric::{Attributes, DurationCounter, Metric, U64Counter};
 use observability_deps::tracing::debug;
 use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
-use predicate::predicate::{Predicate, PredicateBuilder};
+use predicate::predicate::Predicate;
 use query::{
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
@@ -212,19 +208,18 @@ impl ChunkAccess {
         }
     }
 
-    /// Returns all chunks that may have data that passes the
+    /// Returns all chunks from `table_name` that may have data that passes the
     /// specified predicates. The chunks are pruned as aggressively as
     /// possible based on metadata.
-    fn candidate_chunks(&self, predicate: &Predicate) -> Vec<Arc<DbChunk>> {
-        let partition_key = predicate.partition_key.as_deref();
-        let table_names: TableNameFilter<'_> = predicate.table_names.as_ref().into();
-
+    fn candidate_chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<DbChunk>> {
         let start = Instant::now();
 
         // Apply initial partition key / table name pruning
-        let chunks = self
-            .catalog
-            .filtered_chunks(table_names, partition_key, DbChunk::snapshot);
+        let chunks = self.catalog.filtered_chunks(
+            Some(table_name),
+            predicate.partition_key.as_deref(),
+            DbChunk::snapshot,
+        );
 
         self.access_metrics.catalog_snapshot_count.inc(1);
         self.access_metrics
@@ -275,17 +270,12 @@ impl PruningObserver for ChunkAccess {
 impl QueryDatabase for QueryCatalogAccess {
     type Chunk = DbChunk;
 
-    /// Return a covering set of chunks for a particular partition
-    fn chunks(&self, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
-        self.chunk_access.candidate_chunks(predicate)
-    }
-
     fn partition_addrs(&self) -> Vec<PartitionAddr> {
         self.catalog.partition_addrs()
     }
 
-    fn chunk_summaries(&self) -> Vec<ChunkSummary> {
-        self.catalog.chunk_summaries()
+    fn table_names(&self) -> Vec<String> {
+        self.catalog.table_names()
     }
 
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
@@ -293,6 +283,15 @@ impl QueryDatabase for QueryCatalogAccess {
             .table(table_name)
             .ok()
             .map(|table| Arc::clone(&table.schema().read()))
+    }
+
+    /// Return a covering set of chunks for a particular table and predicate
+    fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+        self.chunk_access.candidate_chunks(table_name, predicate)
+    }
+
+    fn chunk_summaries(&self) -> Vec<ChunkSummary> {
+        self.catalog.chunk_summaries()
     }
 
     fn record_query(
@@ -369,9 +368,10 @@ impl SchemaProvider for DbSchemaProvider {
         builder =
             builder.add_pruner(Arc::clone(&self.chunk_access) as Arc<dyn ChunkPruner<DbChunk>>);
 
-        let predicate = PredicateBuilder::new().table(table_name).build();
-
-        for chunk in self.chunk_access.candidate_chunks(&predicate) {
+        for chunk in self
+            .chunk_access
+            .candidate_chunks(table_name, &Default::default())
+        {
             builder = builder.add_chunk(chunk);
         }
 

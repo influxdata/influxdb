@@ -5,7 +5,8 @@ use std::io::Read;
 // current-thread executor
 use db::Db;
 use flate2::read::GzDecoder;
-use predicate::predicate::{Predicate, PredicateBuilder};
+use predicate::predicate::PredicateBuilder;
+use predicate::rpc_predicate::InfluxRpcPredicate;
 use query::{
     exec::{Executor, ExecutorType},
     frontend::influxrpc::InfluxRpcPlanner,
@@ -58,11 +59,14 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
     let planner = InfluxRpcPlanner::new();
 
     let predicates = vec![
-        (PredicateBuilder::default().build(), "no_pred"),
+        (InfluxRpcPredicate::default(), "no_pred"),
         (
-            PredicateBuilder::default()
-                .add_expr(col("tag2").eq(lit("value321")))
-                .build(),
+            InfluxRpcPredicate::new(
+                None,
+                PredicateBuilder::default()
+                    .add_expr(col("tag2").eq(lit("value321")))
+                    .build(),
+            ),
             "with_pred",
         ),
     ];
@@ -105,7 +109,7 @@ async fn run_tag_values_query(
     executor: &Executor,
     db: &Db,
     tag_key: &str,
-    predicate: Predicate,
+    predicate: InfluxRpcPredicate,
 ) {
     let plan = planner
         .tag_values(db, tag_key, predicate)

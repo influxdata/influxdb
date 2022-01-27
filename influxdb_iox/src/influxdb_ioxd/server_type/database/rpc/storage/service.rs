@@ -25,7 +25,6 @@ use generated_types::{
     TimestampRange,
 };
 use observability_deps::tracing::{error, info, trace};
-use predicate::predicate::PredicateBuilder;
 use query::{
     exec::{
         fieldlist::FieldList, seriesset::converter::Error as SeriesSetError,
@@ -42,7 +41,7 @@ use crate::influxdb_ioxd::{
             fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
             tag_keys_to_byte_vecs,
         },
-        expr::{self, AddRpcNode, GroupByAndAggregate, Loggable, SpecialTagKeys},
+        expr::{self, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable, SpecialTagKeys},
         input::GrpcInputs,
         StorageService,
     },
@@ -774,20 +773,6 @@ where
     }
 }
 
-trait SetRange {
-    /// sets the timestamp range to range, if present
-    fn set_range(self, range: Option<TimestampRange>) -> Self;
-}
-impl SetRange for PredicateBuilder {
-    fn set_range(self, range: Option<TimestampRange>) -> Self {
-        if let Some(range) = range {
-            self.timestamp_range(range.start, range.end)
-        } else {
-            self
-        }
-    }
-}
-
 fn get_database_name(input: &impl GrpcInputs) -> Result<DatabaseName<'static>, Status> {
     org_and_bucket_to_database(input.org_id()?.to_string(), &input.bucket_name()?)
         .map_err(|e| Status::internal(e.to_string()))
@@ -813,7 +798,7 @@ where
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
     let db_name = db_name.as_str();
 
-    let predicate = PredicateBuilder::default()
+    let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(range)
         .rpc_predicate(rpc_predicate)
         .context(ConvertingPredicateSnafu {
@@ -861,7 +846,7 @@ where
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
     let db_name = db_name.as_str();
 
-    let predicate = PredicateBuilder::default()
+    let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(range)
         .table_option(measurement)
         .rpc_predicate(rpc_predicate)
@@ -907,7 +892,7 @@ where
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
-    let predicate = PredicateBuilder::default()
+    let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(range)
         .table_option(measurement)
         .rpc_predicate(rpc_predicate)
@@ -1034,7 +1019,7 @@ where
 
     let rpc_predicate_string = format!("{:?}", req.predicate);
 
-    let predicate = PredicateBuilder::default()
+    let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(req.range)
         .rpc_predicate(req.predicate)
         .context(ConvertingPredicateSnafu {
@@ -1084,7 +1069,7 @@ where
 
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
-    let predicate = PredicateBuilder::default()
+    let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(range)
         .rpc_predicate(rpc_predicate)
         .context(ConvertingPredicateSnafu {
@@ -1141,7 +1126,7 @@ where
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
-    let predicate = PredicateBuilder::default()
+    let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(range)
         .table_option(measurement)
         .rpc_predicate(rpc_predicate)
@@ -1366,7 +1351,7 @@ mod tests {
         Client as StorageClient, OrgAndBucket,
     };
     use panic_logging::SendPanicsToTracing;
-    use predicate::predicate::PredicateMatch;
+    use predicate::predicate::{PredicateBuilder, PredicateMatch};
     use query::{
         exec::Executor,
         test::{TestChunk, TestDatabase, TestError},
@@ -1706,7 +1691,6 @@ mod tests {
         let expected_predicate = PredicateBuilder::default()
             .timestamp_range(150, 200)
             .add_expr(make_state_ma_expr())
-            .table("m4")
             .build();
 
         assert!(
@@ -1728,7 +1712,7 @@ mod tests {
         let db_info = org_and_bucket();
 
         // predicate specifies m4, so this is filtered out
-        let chunk = TestChunk::new("my_table").with_error("This is an error");
+        let chunk = TestChunk::new("m5").with_error("This is an error");
 
         fixture
             .test_storage
@@ -2261,7 +2245,7 @@ mod tests {
 
         let db_info = org_and_bucket();
 
-        let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
+        let chunk = TestChunk::new("m5").with_error("Sugar we are going down");
 
         fixture
             .test_storage
@@ -2745,7 +2729,7 @@ mod tests {
 
         let db_info = org_and_bucket();
 
-        let chunk = TestChunk::new("t").with_error("Sugar we are going down");
+        let chunk = TestChunk::new("TheMeasurement").with_error("Sugar we are going down");
 
         fixture
             .test_storage

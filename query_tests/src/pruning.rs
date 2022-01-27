@@ -8,6 +8,7 @@ use db::{
 };
 use metric::{Attributes, Metric, U64Counter};
 use predicate::predicate::PredicateBuilder;
+use predicate::rpc_predicate::InfluxRpcPredicate;
 use query::{
     exec::{stringset::StringSet, ExecutionContextProvider, ExecutorType},
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
@@ -117,6 +118,7 @@ async fn chunk_pruning_influxrpc() {
         // bar < 3.0
         .add_expr(col("bar").lt(lit(3.0)))
         .build();
+    let rpc_predicate = InfluxRpcPredicate::new(None, predicate);
 
     let mut expected = StringSet::new();
     expected.insert("cpu".into());
@@ -124,7 +126,7 @@ async fn chunk_pruning_influxrpc() {
     let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
     let plan = InfluxRpcPlanner::new()
-        .table_names(db.as_ref(), predicate)
+        .table_names(db.as_ref(), rpc_predicate)
         .unwrap();
 
     let result = ctx.to_string_set(plan).await.unwrap();

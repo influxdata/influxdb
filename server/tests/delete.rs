@@ -138,7 +138,7 @@ async fn delete_predicate_preservation() {
     // ==================== check: delete predicates ====================
 
     let closure_check_delete_predicates = |db: &Db| {
-        for chunk in db.chunks(&Default::default()) {
+        for chunk in db.chunks(table_name, &Default::default()) {
             let partition_key = chunk.addr().partition_key.as_ref();
             if partition_key == "part_b" {
                 // Strictly speaking not required because the chunk was persisted AFTER the delete predicate was
