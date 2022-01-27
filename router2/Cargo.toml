@@ -34,4 +34,10 @@ write_buffer = { path = "../write_buffer" }
 
 [dev-dependencies]
 assert_matches = "1.5"
+criterion = "0.3.3"
 paste = "1.0.6"
+rand = "0.8.3"
+
+[[bench]]
+name = "sharder"
+harness = false
