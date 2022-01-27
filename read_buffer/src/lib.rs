@@ -3,6 +3,7 @@
 #![allow(dead_code, clippy::too_many_arguments)]
 mod chunk;
 mod column;
+mod metrics;
 mod row_group;
 mod schema;
 mod table;
@@ -10,7 +11,8 @@ mod value;
 
 // Identifiers that are exported as part of the public API.
 pub use self::schema::*;
-pub use chunk::{Chunk as RBChunk, ChunkBuilder as RBChunkBuilder, ChunkMetrics, Error};
+pub use chunk::{Chunk as RBChunk, ChunkBuilder as RBChunkBuilder, Error};
+pub use metrics::Metrics as ChunkMetrics;
 pub use row_group::{BinaryExpr, Predicate};
 pub use table::ReadFilterResults;
 
