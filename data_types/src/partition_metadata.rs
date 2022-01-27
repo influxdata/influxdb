@@ -158,7 +158,6 @@ impl TableSummary {
 // Replicate this enum here as it can't be derived from the existing statistics
 #[derive(Debug, PartialEq, Clone)]
 pub enum InfluxDbType {
-    IOx,
     Tag,
     Field,
     Timestamp,
@@ -167,7 +166,6 @@ pub enum InfluxDbType {
 impl InfluxDbType {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::IOx => "IOx",
             Self::Tag => "Tag",
             Self::Field => "Field",
             Self::Timestamp => "Timestamp",

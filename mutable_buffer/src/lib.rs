@@ -146,7 +146,6 @@ impl MBChunk {
                 name: column_name.clone(),
                 stats: c.stats(),
                 influxdb_type: Some(match c.influx_type() {
-                    InfluxColumnType::IOx(_) => InfluxDbType::IOx,
                     InfluxColumnType::Tag => InfluxDbType::Tag,
                     InfluxColumnType::Field(_) => InfluxDbType::Field,
                     InfluxColumnType::Timestamp => InfluxDbType::Timestamp,

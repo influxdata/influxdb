@@ -729,8 +729,6 @@ impl From<InfluxColumnType> for ColumnType {
             InfluxColumnType::Field(InfluxFieldType::String) => Self::String,
             InfluxColumnType::Field(InfluxFieldType::Boolean) => Self::Bool,
             InfluxColumnType::Timestamp => Self::Time,
-            // The "IOx" data model is unused.
-            InfluxColumnType::IOx(_) => unimplemented!(),
         }
     }
 }

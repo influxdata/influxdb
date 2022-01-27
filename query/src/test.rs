@@ -477,7 +477,6 @@ impl TestChunk {
 
         if add_column_summary {
             let influxdb_type = col_type.map(|t| match t {
-                InfluxColumnType::IOx(_) => todo!(),
                 InfluxColumnType::Tag => InfluxDbType::Tag,
                 InfluxColumnType::Field(_) => InfluxDbType::Field,
                 InfluxColumnType::Timestamp => InfluxDbType::Timestamp,

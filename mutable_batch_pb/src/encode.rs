@@ -52,7 +52,6 @@ fn encode_column(column_name: &str, column: &Column) -> PbColumn {
         InfluxColumnType::Tag => SemanticType::Tag,
         InfluxColumnType::Field(_) => SemanticType::Field,
         InfluxColumnType::Timestamp => SemanticType::Time,
-        InfluxColumnType::IOx(_) => SemanticType::Iox,
     };
 
     match column.data() {

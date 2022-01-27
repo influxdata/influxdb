@@ -17,7 +17,7 @@ use snafu::{ResultExt, Snafu};
 use arrow_util::bitset::BitSet;
 use arrow_util::string::PackedStringArray;
 use data_types::partition_metadata::{StatValues, Statistics};
-use schema::{IOxValueType, InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
+use schema::{InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
 
 /// A "dictionary ID" (DID) is a compact numeric representation of an interned
 /// string in the dictionary. The same string always maps the same DID.
@@ -108,30 +108,26 @@ impl Column {
         let total_count = row_count as u64;
 
         let data = match column_type {
-            InfluxColumnType::IOx(IOxValueType::Boolean)
-            | InfluxColumnType::Field(InfluxFieldType::Boolean) => {
+            InfluxColumnType::Field(InfluxFieldType::Boolean) => {
                 let mut data = BitSet::new();
                 data.append_unset(row_count);
                 ColumnData::Bool(data, StatValues::new_all_null(total_count, None))
             }
-            InfluxColumnType::IOx(IOxValueType::U64)
-            | InfluxColumnType::Field(InfluxFieldType::UInteger) => ColumnData::U64(
+            InfluxColumnType::Field(InfluxFieldType::UInteger) => ColumnData::U64(
                 vec![0; row_count],
                 StatValues::new_all_null(total_count, None),
             ),
-            InfluxColumnType::IOx(IOxValueType::F64)
-            | InfluxColumnType::Field(InfluxFieldType::Float) => ColumnData::F64(
+            InfluxColumnType::Field(InfluxFieldType::Float) => ColumnData::F64(
                 vec![0.0; row_count],
                 StatValues::new_all_null(total_count, None),
             ),
-            InfluxColumnType::IOx(IOxValueType::I64)
-            | InfluxColumnType::Field(InfluxFieldType::Integer)
-            | InfluxColumnType::Timestamp => ColumnData::I64(
-                vec![0; row_count],
-                StatValues::new_all_null(total_count, None),
-            ),
-            InfluxColumnType::IOx(IOxValueType::String)
-            | InfluxColumnType::Field(InfluxFieldType::String) => ColumnData::String(
+            InfluxColumnType::Field(InfluxFieldType::Integer) | InfluxColumnType::Timestamp => {
+                ColumnData::I64(
+                    vec![0; row_count],
+                    StatValues::new_all_null(total_count, None),
+                )
+            }
+            InfluxColumnType::Field(InfluxFieldType::String) => ColumnData::String(
                 PackedStringArray::new_empty(row_count),
                 StatValues::new_all_null(total_count, Some(1)),
             ),
@@ -140,7 +136,6 @@ impl Column {
                 Default::default(),
                 StatValues::new_all_null(total_count, Some(1)),
             ),
-            InfluxColumnType::IOx(IOxValueType::Bytes) => todo!(),
         };
 
         Self {
@@ -282,8 +277,8 @@ impl Column {
                         .context(CreatingArrowArraySnafu)?;
                     Arc::new(TimestampNanosecondArray::from(data))
                 }
-                InfluxColumnType::IOx(IOxValueType::I64)
-                | InfluxColumnType::Field(InfluxFieldType::Integer) => {
+
+                InfluxColumnType::Field(InfluxFieldType::Integer) => {
                     let data = ArrayDataBuilder::new(DataType::Int64)
                         .len(data.len())
                         .add_buffer(data.iter().cloned().collect())

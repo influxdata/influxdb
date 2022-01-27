@@ -62,9 +62,10 @@ message Column {
     string column_name = 1;
 
     enum SemanticType {
+        reserved 1; // SEMANTIC_TYPE_IOX (native IOx)
+        reserved "SEMANTIC_TYPE_IOX";
+
         SEMANTIC_TYPE_UNSPECIFIED = 0;
-        // "Native" semantic type (value types: i64, f64, u64, string, bool, bytes)
-        SEMANTIC_TYPE_IOX = 1;
         // InfluxDB/TSM tag (value type string only)
         SEMANTIC_TYPE_TAG = 2;
         // InfluxDB/TSM field (value types: i64, f64, u64, string, bool)

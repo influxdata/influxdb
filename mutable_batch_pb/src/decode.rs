@@ -198,7 +198,6 @@ pub fn write_table_batch(batch: &mut MutableBatch, table_batch: &TableBatch) -> 
                     RepeatLastElement::new(values.i64_values.iter().cloned()),
                 )
             }
-            InfluxColumnType::IOx(_) => unimplemented!(),
         }
         .context(WriteSnafu {
             column: &column.column_name,
