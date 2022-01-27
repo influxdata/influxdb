@@ -1,5 +1,6 @@
 use super::partition::Partition;
 use crate::catalog::metrics::TableMetrics;
+use crate::CatalogChunk;
 use data_types::partition_metadata::{PartitionAddr, PartitionSummary};
 use hashbrown::HashMap;
 use schema::{
@@ -108,6 +109,31 @@ impl Table {
 
     pub fn partition_summaries(&self) -> impl Iterator<Item = PartitionSummary> + '_ {
         self.partitions.values().filter_map(|x| x.read().summary())
+    }
+
+    /// Calls `map` with every chunk and returns a collection of the results
+    ///
+    /// If `partition_key` is `Some` restricts to chunks in that partition.
+    pub fn filtered_chunks<F, C>(&self, partition_key: Option<&str>, map: F) -> Vec<C>
+    where
+        F: Fn(&CatalogChunk) -> C + Copy,
+    {
+        let partitions = match partition_key {
+            Some(partition_key) => {
+                itertools::Either::Left(self.partition(partition_key).into_iter())
+            }
+            None => itertools::Either::Right(self.partitions()),
+        };
+
+        let mut chunks = Vec::with_capacity(partitions.size_hint().1.unwrap_or_default());
+        for partition in partitions {
+            let partition = partition.read();
+            chunks.extend(partition.chunks().into_iter().map(|chunk| {
+                let chunk = chunk.read();
+                map(&chunk)
+            }))
+        }
+        chunks
     }
 
     pub fn name(&self) -> &Arc<str> {

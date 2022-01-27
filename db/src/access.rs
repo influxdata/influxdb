@@ -13,12 +13,12 @@ use hashbrown::HashMap;
 use job_registry::JobRegistry;
 use metric::{Attributes, DurationCounter, Metric, U64Counter};
 use observability_deps::tracing::debug;
-use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
+use parking_lot::Mutex;
 use predicate::predicate::Predicate;
 use query::{
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
-    QueryChunk, QueryChunkMeta, QueryCompletedToken, QueryDatabase, DEFAULT_SCHEMA,
+    QueryChunkMeta, QueryCompletedToken, QueryDatabase, DEFAULT_SCHEMA,
 };
 use schema::Schema;
 use std::time::Instant;
@@ -51,7 +51,7 @@ struct AccessMetrics {
     pruned_rows: Metric<U64Counter>,
 
     /// Keyed by table name
-    tables: Mutex<HashMap<Arc<str>, TableAccessMetrics>>,
+    tables: Mutex<HashMap<String, Arc<TableAccessMetrics>>>,
 }
 
 impl AccessMetrics {
@@ -107,23 +107,22 @@ impl AccessMetrics {
         }
     }
 
-    fn table_metrics(&self, table: &Arc<str>) -> MappedMutexGuard<'_, TableAccessMetrics> {
-        MutexGuard::map(self.tables.lock(), |tables| {
-            let (_, metrics) = tables.raw_entry_mut().from_key(table).or_insert_with(|| {
-                let attributes = Attributes::from([
-                    ("db_name", self.db_name.to_string().into()),
-                    ("table_name", table.to_string().into()),
-                ]);
+    fn table_metrics(&self, table: &str) -> Arc<TableAccessMetrics> {
+        let mut tables = self.tables.lock();
+        let (_, metrics) = tables.raw_entry_mut().from_key(table).or_insert_with(|| {
+            let attributes = Attributes::from([
+                ("db_name", self.db_name.to_string().into()),
+                ("table_name", table.to_string().into()),
+            ]);
 
-                let metrics = TableAccessMetrics {
-                    pruned_chunks: self.pruned_chunks.recorder(attributes.clone()),
-                    pruned_rows: self.pruned_rows.recorder(attributes),
-                };
+            let metrics = TableAccessMetrics {
+                pruned_chunks: self.pruned_chunks.recorder(attributes.clone()),
+                pruned_rows: self.pruned_rows.recorder(attributes),
+            };
 
-                (Arc::clone(table), metrics)
-            });
-            metrics
-        })
+            (table.to_string(), Arc::new(metrics))
+        });
+        Arc::clone(metrics)
     }
 }
 
@@ -214,31 +213,42 @@ impl ChunkAccess {
     fn candidate_chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<DbChunk>> {
         let start = Instant::now();
 
-        // Apply initial partition key / table name pruning
-        let chunks = self.catalog.filtered_chunks(
-            Some(table_name),
-            predicate.partition_key.as_deref(),
-            DbChunk::snapshot,
-        );
+        // Get chunks and schema as a single transaction
+        let (chunks, schema) = {
+            let table = match self.catalog.table(table_name).ok() {
+                Some(table) => table,
+                None => return vec![],
+            };
+
+            let schema = Arc::clone(&table.schema().read());
+            let chunks =
+                table.filtered_chunks(predicate.partition_key.as_deref(), DbChunk::snapshot);
+
+            (chunks, schema)
+        };
 
         self.access_metrics.catalog_snapshot_count.inc(1);
         self.access_metrics
             .catalog_snapshot_duration
             .inc(start.elapsed());
 
-        self.prune_chunks(chunks, predicate)
+        self.prune_chunks(table_name, schema, chunks, predicate)
     }
 }
 
 impl ChunkPruner<DbChunk> for ChunkAccess {
-    fn prune_chunks(&self, chunks: Vec<Arc<DbChunk>>, predicate: &Predicate) -> Vec<Arc<DbChunk>> {
+    fn prune_chunks(
+        &self,
+        table_name: &str,
+        table_schema: Arc<Schema>,
+        chunks: Vec<Arc<DbChunk>>,
+        predicate: &Predicate,
+    ) -> Vec<Arc<DbChunk>> {
         let start = Instant::now();
 
-        // TODO: call "apply_predicate" here too for additional
-        // metadata based pruning
-
         debug!(num_chunks=chunks.len(), %predicate, "Attempting to prune chunks");
-        let pruned = prune_chunks(self, chunks, predicate);
+        let observer = self.access_metrics.table_metrics(table_name);
+        let pruned = prune_chunks(observer.as_ref(), table_schema, chunks, predicate);
 
         self.access_metrics.prune_count.inc(1);
         self.access_metrics.prune_duration.inc(start.elapsed());
@@ -247,22 +257,13 @@ impl ChunkPruner<DbChunk> for ChunkAccess {
     }
 }
 
-impl PruningObserver for ChunkAccess {
+impl PruningObserver for TableAccessMetrics {
     type Observed = DbChunk;
 
     fn was_pruned(&self, chunk: &Self::Observed) {
-        let metrics = self.access_metrics.table_metrics(chunk.table_name());
-        metrics.pruned_chunks.inc(1);
         let chunk_summary = chunk.summary().expect("Chunk should have summary");
-        metrics.pruned_rows.inc(chunk_summary.total_count())
-    }
-
-    fn could_not_prune_chunk(&self, chunk: &Self::Observed, reason: &str) {
-        debug!(
-            chunk_id=%chunk.id().get(),
-            reason,
-            "could not prune chunk from query",
-        )
+        self.pruned_chunks.inc(1);
+        self.pruned_rows.inc(chunk_summary.total_count())
     }
 }
 

@@ -92,7 +92,13 @@ enum ColumnType {
 /// Something that can prune chunks based on their metadata
 pub trait ChunkPruner<C: QueryChunk>: Sync + Send + std::fmt::Debug {
     /// prune `chunks`, if possible, based on predicate.
-    fn prune_chunks(&self, chunks: Vec<Arc<C>>, predicate: &Predicate) -> Vec<Arc<C>>;
+    fn prune_chunks(
+        &self,
+        table_name: &str,
+        table_schema: Arc<Schema>,
+        chunks: Vec<Arc<C>>,
+        predicate: &Predicate,
+    ) -> Vec<Arc<C>>;
 }
 
 /// Builds a `ChunkTableProvider` from a series of `QueryChunk`s
@@ -243,7 +249,12 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
         // metadata using the pushed down predicate (e.g. in SQL).
         let chunks: Vec<Arc<C>> = self.chunks.to_vec();
         let num_initial_chunks = chunks.len();
-        let chunks = self.chunk_pruner.prune_chunks(chunks, &predicate);
+        let chunks = self.chunk_pruner.prune_chunks(
+            self.table_name(),
+            self.iox_schema(),
+            chunks,
+            &predicate,
+        );
         debug!(%predicate, num_initial_chunks, num_final_chunks=chunks.len(), "pruned with pushed down predicates");
 
         // Figure out the schema of the requested output
@@ -1045,7 +1056,13 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
 /// A pruner that does not do pruning (suitable if no additional pruning is possible)
 struct NoOpPruner {}
 impl<C: QueryChunk> ChunkPruner<C> for NoOpPruner {
-    fn prune_chunks(&self, chunks: Vec<Arc<C>>, _predicate: &Predicate) -> Vec<Arc<C>> {
+    fn prune_chunks(
+        &self,
+        _table_name: &str,
+        _table_schema: Arc<Schema>,
+        chunks: Vec<Arc<C>>,
+        _predicate: &Predicate,
+    ) -> Vec<Arc<C>> {
         chunks
     }
 }

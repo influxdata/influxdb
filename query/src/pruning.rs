@@ -1,18 +1,22 @@
 //! Implementation of statistics based pruning
 
-use arrow::array::ArrayRef;
-use data_types::partition_metadata::{ColumnSummary, TableSummary};
+use std::sync::Arc;
+
+use arrow::array::{
+    ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray, UInt64Array,
+};
+use arrow::datatypes::{DataType, Int32Type, TimeUnit};
+
+use data_types::partition_metadata::{StatValues, Statistics};
 use datafusion::{
-    logical_plan::{Column, Expr},
+    logical_plan::Column,
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
 };
 use observability_deps::tracing::{debug, trace};
 use predicate::predicate::Predicate;
+use schema::Schema;
 
-use crate::{
-    statistics::{max_to_scalar, min_to_scalar, null_count_as_scalar},
-    QueryChunkMeta,
-};
+use crate::{group_by::Aggregate, QueryChunkMeta};
 
 /// Something that cares to be notified when pruning of chunks occurs
 pub trait PruningObserver {
@@ -23,41 +27,71 @@ pub trait PruningObserver {
 
     /// Called when no pruning can happen at all for some reason
     fn could_not_prune(&self, _reason: &str) {}
-
-    /// Called when the specified chunk could not be pruned, for some reason
-    fn could_not_prune_chunk(&self, _chunk: &Self::Observed, _reason: &str) {}
 }
 
 /// Given a Vec of prunable items, returns a possibly smaller set
 /// filtering those that can not pass the predicate.
-pub fn prune_chunks<C, P, O>(observer: &O, summaries: Vec<C>, predicate: &Predicate) -> Vec<C>
+///
+/// TODO(raphael): Perhaps this should return `Result<Vec<bool>>` instead of
+/// the [`PruningObserver`] plumbing
+pub fn prune_chunks<C, O>(
+    observer: &O,
+    table_schema: Arc<Schema>,
+    chunks: Vec<Arc<C>>,
+    predicate: &Predicate,
+) -> Vec<Arc<C>>
 where
-    C: AsRef<P>,
-    P: QueryChunkMeta,
-    O: PruningObserver<Observed = P>,
+    C: QueryChunkMeta,
+    O: PruningObserver<Observed = C>,
 {
-    let num_chunks = summaries.len();
+    let num_chunks = chunks.len();
     trace!(num_chunks, %predicate, "Pruning chunks");
 
     let filter_expr = match predicate.filter_expr() {
         Some(expr) => expr,
         None => {
             observer.could_not_prune("No expression on predicate");
-            return summaries;
+            return chunks;
         }
     };
     trace!(%filter_expr, "Filter_expr of pruning chunks");
 
-    // TODO: performance optimization: batch the chunk pruning by
-    // grouping the chunks with the same types for all columns
-    // together and then creating a single PruningPredicate for each
-    // group.
-    let pruned_summaries: Vec<_> = summaries
-        .into_iter()
-        .filter(|c| must_keep(observer, c.as_ref(), &filter_expr))
-        .collect();
+    let pruning_predicate = match PruningPredicate::try_new(&filter_expr, table_schema.as_arrow()) {
+        Ok(p) => p,
+        Err(e) => {
+            observer.could_not_prune("Can not create pruning predicate");
+            trace!(%e, ?filter_expr, "Can not create pruning predicate");
+            return chunks;
+        }
+    };
 
-    let num_remaining_chunks = pruned_summaries.len();
+    let statistics = ChunkPruningStatistics {
+        table_schema: table_schema.as_ref(),
+        chunks: chunks.as_slice(),
+    };
+
+    let results = match pruning_predicate.prune(&statistics) {
+        Ok(results) => results,
+        Err(e) => {
+            observer.could_not_prune("Can not create pruning predicate");
+            trace!(%e, ?filter_expr, "Can not create pruning predicate");
+            return chunks;
+        }
+    };
+
+    assert_eq!(chunks.len(), results.len());
+
+    let mut pruned_chunks = Vec::with_capacity(chunks.len());
+    for (chunk, keep) in chunks.into_iter().zip(results) {
+        match keep {
+            true => pruned_chunks.push(chunk),
+            false => {
+                observer.was_pruned(chunk.as_ref());
+            }
+        }
+    }
+
+    let num_remaining_chunks = pruned_chunks.len();
     debug!(
         %predicate,
         num_chunks,
@@ -65,98 +99,140 @@ where
         num_remaining_chunks,
         "Pruned chunks"
     );
-    pruned_summaries
+    pruned_chunks
 }
 
-/// returns true if rows in chunk may pass the predicate
-fn must_keep<P, O>(observer: &O, chunk: &P, filter_expr: &Expr) -> bool
+/// Wraps a collection of [`QueryChunkMeta`] and implements the [`PruningStatistics`]
+/// interface required by [`PruningPredicate`]
+struct ChunkPruningStatistics<'a, C> {
+    table_schema: &'a Schema,
+    chunks: &'a [Arc<C>],
+}
+
+impl<'a, C: QueryChunkMeta> ChunkPruningStatistics<'a, C> {
+    /// Returns the [`DataType`] for `column`
+    fn column_type(&self, column: &Column) -> Option<&DataType> {
+        let index = self.table_schema.find_index_of(&column.name)?;
+        Some(self.table_schema.field(index).1.data_type())
+    }
+
+    /// Returns an iterator that for each chunk returns the [`Statistics`]
+    /// for the provided `column` if any
+    fn column_summaries<'b: 'a>(
+        &self,
+        column: &'b Column,
+    ) -> impl Iterator<Item = Option<&Statistics>> + 'a {
+        self.chunks
+            .iter()
+            .map(|chunk| Some(&chunk.summary()?.column(&column.name)?.stats))
+    }
+}
+
+impl<'a, C> PruningStatistics for ChunkPruningStatistics<'a, C>
 where
-    P: QueryChunkMeta,
-    O: PruningObserver<Observed = P>,
+    C: QueryChunkMeta,
 {
-    trace!(?filter_expr, schema=?chunk.schema(), "creating pruning predicate");
-
-    let pruning_predicate = match PruningPredicate::try_new(filter_expr, chunk.schema().as_arrow())
-    {
-        Ok(p) => p,
-        Err(e) => {
-            observer.could_not_prune_chunk(chunk, "Can not create pruning predicate");
-            trace!(%e, ?filter_expr, "Can not create pruning predicate");
-            return true;
-        }
-    };
-
-    let statistics = ChunkMetaStats {
-        summary: chunk.summary().expect("Chunk should have summary"),
-    };
-
-    match pruning_predicate.prune(&statistics) {
-        Ok(results) => {
-            // Boolean array for each row in stats, false if the
-            // stats could not pass the predicate
-            let must_keep = results[0]; // 0 as ChunkMetaStats returns a single row
-            if !must_keep {
-                observer.was_pruned(chunk)
-            }
-            must_keep
-        }
-        Err(e) => {
-            observer.could_not_prune_chunk(chunk, "Can not evaluate pruning predicate");
-            trace!(%e, ?filter_expr, "Can not evauate pruning predicate");
-            true
-        }
-    }
-}
-
-// struct to implement pruning
-struct ChunkMetaStats<'a> {
-    summary: &'a TableSummary,
-}
-impl<'a> ChunkMetaStats<'a> {
-    fn column_summary(&self, column: &str) -> Option<&ColumnSummary> {
-        let summary = self.summary.columns.iter().find(|c| c.name == column);
-        summary
-    }
-}
-
-impl<'a> PruningStatistics for ChunkMetaStats<'a> {
     fn min_values(&self, column: &Column) -> Option<ArrayRef> {
-        let min = self
-            .column_summary(&column.name)
-            .and_then(|c| min_to_scalar(&c.influxdb_type, &c.stats))
-            .map(|s| s.to_array_of_size(1));
-        min
+        let data_type = self.column_type(column)?;
+        let summaries = self.column_summaries(column);
+        collect_pruning_stats(data_type, summaries, Aggregate::Min)
     }
 
     fn max_values(&self, column: &Column) -> Option<ArrayRef> {
-        let max = self
-            .column_summary(&column.name)
-            .and_then(|c| max_to_scalar(&c.influxdb_type, &c.stats))
-            .map(|s| s.to_array_of_size(1));
-        max
+        let data_type = self.column_type(column)?;
+        let summaries = self.column_summaries(column);
+        collect_pruning_stats(data_type, summaries, Aggregate::Max)
     }
 
     fn num_containers(&self) -> usize {
-        // We don't (yet) group multiple table summaries into a single
-        // object, so we are always evaluating the pruning predicate
-        // on a single chunk at a time
-        1
+        self.chunks.len()
     }
 
     fn null_counts(&self, column: &Column) -> Option<ArrayRef> {
-        self.column_summary(&column.name)
-            .map(|c| null_count_as_scalar(&c.stats))
-            .map(|s| s.to_array_of_size(1))
+        let null_counts = self
+            .column_summaries(column)
+            .map(|x| x.map(|s| s.null_count()));
+
+        Some(Arc::new(UInt64Array::from_iter(null_counts)))
+    }
+}
+
+/// Collects an [`ArrayRef`] containing the aggregate statistic corresponding to
+/// `aggregate` for each of the provided [`Statistics`]
+fn collect_pruning_stats<'a>(
+    data_type: &DataType,
+    statistics: impl Iterator<Item = Option<&'a Statistics>>,
+    aggregate: Aggregate,
+) -> Option<ArrayRef> {
+    match data_type {
+        DataType::Int64 | DataType::Timestamp(TimeUnit::Nanosecond, None) => {
+            let values = statistics.map(|s| match &s {
+                Some(Statistics::I64(v)) => get_aggregate(v, aggregate),
+                _ => &None,
+            });
+            Some(Arc::new(Int64Array::from_iter(values)))
+        }
+        DataType::UInt64 => {
+            let values = statistics.map(|s| match &s {
+                Some(Statistics::U64(v)) => get_aggregate(v, aggregate),
+                _ => &None,
+            });
+            Some(Arc::new(UInt64Array::from_iter(values)))
+        }
+        DataType::Float64 => {
+            let values = statistics.map(|s| match &s {
+                Some(Statistics::F64(v)) => get_aggregate(v, aggregate),
+                _ => &None,
+            });
+            Some(Arc::new(Float64Array::from_iter(values)))
+        }
+        DataType::Boolean => {
+            let values = statistics.map(|s| match &s {
+                Some(Statistics::Bool(v)) => get_aggregate(v, aggregate),
+                _ => &None,
+            });
+            Some(Arc::new(BooleanArray::from_iter(values)))
+        }
+        DataType::Utf8 => {
+            let values = statistics.map(|s| match &s {
+                Some(Statistics::String(v)) => get_aggregate(v, aggregate),
+                _ => &None,
+            });
+            Some(Arc::new(StringArray::from_iter(values)))
+        }
+        DataType::Dictionary(key, value)
+            if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
+        {
+            let values = statistics.map(|s| match &s {
+                Some(Statistics::String(v)) => get_aggregate(v, aggregate).as_deref(),
+                _ => None,
+            });
+            Some(Arc::new(DictionaryArray::<Int32Type>::from_iter(values)))
+        }
+        _ => None,
+    }
+}
+
+/// Returns the aggregate statistic corresponding to `aggregate` from `stats`
+fn get_aggregate<T>(stats: &StatValues<T>, aggregate: Aggregate) -> &Option<T> {
+    match aggregate {
+        Aggregate::Min => &stats.min,
+        Aggregate::Max => &stats.max,
+        _ => &None,
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::{test::TestChunk, QueryChunk};
+    use std::{cell::RefCell, sync::Arc};
+
     use datafusion::logical_plan::{col, lit};
     use predicate::predicate::PredicateBuilder;
-    use std::{cell::RefCell, sync::Arc};
+    use schema::merge::SchemaMerger;
+
+    use crate::{test::TestChunk, QueryChunk};
+
+    use super::*;
 
     #[test]
     fn test_empty() {
@@ -165,7 +241,7 @@ mod test {
         let c1 = Arc::new(TestChunk::new("chunk1"));
 
         let predicate = PredicateBuilder::new().build();
-        let pruned = prune_chunks(&observer, vec![c1], &predicate);
+        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
         assert_eq!(
             observer.events(),
@@ -190,7 +266,7 @@ mod test {
             .add_expr(col("column1").gt(lit(100.0)))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1], &predicate);
+        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
         assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
         assert!(pruned.is_empty())
     }
@@ -212,7 +288,7 @@ mod test {
             .add_expr(col("column1").gt(lit(100)))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1], &predicate);
+        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
         assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
         assert!(pruned.is_empty())
@@ -235,7 +311,7 @@ mod test {
             .add_expr(col("column1").gt(lit(100)))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1], &predicate);
+        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
         assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
         assert!(pruned.is_empty())
@@ -256,7 +332,7 @@ mod test {
 
         let predicate = PredicateBuilder::new().add_expr(col("column1")).build();
 
-        let pruned = prune_chunks(&observer, vec![c1], &predicate);
+        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
         assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
         assert!(pruned.is_empty())
@@ -281,7 +357,7 @@ mod test {
             .add_expr(col("column1").gt(lit("z")))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1], &predicate);
+        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
         assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
         assert!(pruned.is_empty())
@@ -303,7 +379,7 @@ mod test {
             .add_expr(col("column1").lt(lit(100.0)))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1], &predicate);
+        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
         assert!(observer.events().is_empty());
         assert_eq!(names(&pruned), vec!["chunk1"]);
     }
@@ -325,7 +401,7 @@ mod test {
             .add_expr(col("column1").lt(lit(100)))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1], &predicate);
+        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
         assert!(observer.events().is_empty());
         assert_eq!(names(&pruned), vec!["chunk1"]);
@@ -348,7 +424,7 @@ mod test {
             .add_expr(col("column1").lt(lit(100)))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1], &predicate);
+        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
         assert!(observer.events().is_empty());
         assert_eq!(names(&pruned), vec!["chunk1"]);
@@ -369,7 +445,7 @@ mod test {
 
         let predicate = PredicateBuilder::new().add_expr(col("column1")).build();
 
-        let pruned = prune_chunks(&observer, vec![c1], &predicate);
+        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
         assert!(observer.events().is_empty());
         assert_eq!(names(&pruned), vec!["chunk1"]);
@@ -394,10 +470,18 @@ mod test {
             .add_expr(col("column1").lt(lit("z")))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1], &predicate);
+        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
         assert!(observer.events().is_empty());
         assert_eq!(names(&pruned), vec!["chunk1"]);
+    }
+
+    fn merge_schema(chunks: &[Arc<TestChunk>]) -> Arc<Schema> {
+        let mut merger = SchemaMerger::new();
+        for chunk in chunks {
+            merger = merger.merge(chunk.schema().as_ref()).unwrap();
+        }
+        Arc::new(merger.build())
     }
 
     #[test]
@@ -432,7 +516,10 @@ mod test {
             .add_expr(col("column1").gt(lit(100)))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1, c2, c3, c4], &predicate);
+        let chunks = vec![c1, c2, c3, c4];
+        let schema = merge_schema(&chunks);
+
+        let pruned = prune_chunks(&observer, schema, chunks, &predicate);
 
         assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
         assert_eq!(names(&pruned), vec!["chunk2", "chunk3", "chunk4"]);
@@ -488,7 +575,10 @@ mod test {
             .add_expr(col("column1").gt(lit(100)))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1, c2, c3, c4, c5, c6], &predicate);
+        let chunks = vec![c1, c2, c3, c4, c5, c6];
+        let schema = merge_schema(&chunks);
+
+        let pruned = prune_chunks(&observer, schema, chunks, &predicate);
 
         assert_eq!(
             observer.events(),
@@ -527,15 +617,12 @@ mod test {
             .add_expr(col("column1").gt(lit(100)))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1, c2, c3], &predicate);
+        let chunks = vec![c1, c2, c3];
+        let schema = merge_schema(&chunks);
 
-        assert_eq!(
-            observer.events(),
-            vec![
-                "chunk1: Pruned",
-                "chunk3: Could not prune chunk: Can not evaluate pruning predicate"
-            ]
-        );
+        let pruned = prune_chunks(&observer, schema, chunks, &predicate);
+
+        assert_eq!(observer.events(), vec!["chunk1: Pruned",]);
         assert_eq!(names(&pruned), vec!["chunk2", "chunk3"]);
     }
 
@@ -591,111 +678,16 @@ mod test {
             .add_expr(col("column1").gt(lit(100)).and(col("column2").lt(lit(5))))
             .build();
 
-        let pruned = prune_chunks(&observer, vec![c1, c2, c3, c4, c5, c6], &predicate);
+        let chunks = vec![c1, c2, c3, c4, c5, c6];
+        let schema = merge_schema(&chunks);
+
+        let pruned = prune_chunks(&observer, schema, chunks, &predicate);
 
         assert_eq!(
             observer.events(),
             vec!["chunk2: Pruned", "chunk3: Pruned", "chunk5: Pruned"]
         );
         assert_eq!(names(&pruned), vec!["chunk1", "chunk4", "chunk6"]);
-    }
-
-    #[test]
-    fn test_pruned_incompatible_types() {
-        test_helpers::maybe_start_logging();
-        // Ensure pruning doesn't error / works when some chunks
-        // return stats of incompatible types
-
-        // column1 < 100
-        //   c1: column1 ["0", "9"] --> not pruned (types are different)
-        //   c2: column1 ["1000", "2000"] --> not pruned (types are still different)
-        //   c3: column1 [1000, 2000] --> pruned (types are correct)
-
-        let observer = TestObserver::new();
-        let c1 = Arc::new(
-            TestChunk::new("chunk1").with_string_field_column_with_stats(
-                "column1",
-                Some("0"),
-                Some("9"),
-            ),
-        );
-
-        let c2 = Arc::new(
-            TestChunk::new("chunk2").with_string_field_column_with_stats(
-                "column1",
-                Some("1000"),
-                Some("2000"),
-            ),
-        );
-
-        let c3 = Arc::new(TestChunk::new("chunk3").with_i64_field_column_with_stats(
-            "column1",
-            Some(1000),
-            Some(2000),
-        ));
-
-        let predicate = PredicateBuilder::new()
-            .add_expr(col("column1").lt(lit(100)))
-            .build();
-
-        let pruned = prune_chunks(&observer, vec![c1, c2, c3], &predicate);
-
-        assert_eq!(
-            observer.events(),
-            vec![
-                "chunk1: Could not prune chunk: Can not create pruning predicate",
-                "chunk2: Could not prune chunk: Can not create pruning predicate",
-                "chunk3: Pruned",
-            ]
-        );
-        assert_eq!(names(&pruned), vec!["chunk1", "chunk2"]);
-    }
-
-    #[test]
-    fn test_pruned_different_types() {
-        test_helpers::maybe_start_logging();
-        // Ensure pruning works even when different chunks have
-        // different types for the columns
-
-        // column1 < 100
-        //   c1: column1 [0i64, 1000i64]  --> not pruned (in range)
-        //   c2: column1 [0u64, 1000u64] --> not pruned (note types are different)
-        //   c3: column1 [1000i64, 2000i64] --> pruned (out of range)
-        //   c4: column1 [1000u64, 2000u64] --> pruned (types are different)
-
-        let observer = TestObserver::new();
-        let c1 = Arc::new(TestChunk::new("chunk1").with_i64_field_column_with_stats(
-            "column1",
-            Some(0),
-            Some(1000),
-        ));
-
-        let c2 = Arc::new(TestChunk::new("chunk2").with_u64_field_column_with_stats(
-            "column1",
-            Some(0),
-            Some(1000),
-        ));
-
-        let c3 = Arc::new(TestChunk::new("chunk3").with_i64_field_column_with_stats(
-            "column1",
-            Some(1000),
-            Some(2000),
-        ));
-
-        let c4 = Arc::new(TestChunk::new("chunk4").with_u64_field_column_with_stats(
-            "column1",
-            Some(1000),
-            Some(2000),
-        ));
-
-        let predicate = PredicateBuilder::new()
-            .add_expr(col("column1").lt(lit(100)))
-            .build();
-
-        let pruned = prune_chunks(&observer, vec![c1, c2, c3, c4], &predicate);
-
-        assert_eq!(observer.events(), vec!["chunk3: Pruned", "chunk4: Pruned"]);
-        assert_eq!(names(&pruned), vec!["chunk1", "chunk2"]);
     }
 
     fn names(pruned: &[Arc<TestChunk>]) -> Vec<&str> {
@@ -728,12 +720,6 @@ mod test {
             self.events
                 .borrow_mut()
                 .push(format!("Could not prune: {}", reason))
-        }
-
-        fn could_not_prune_chunk(&self, chunk: &Self::Observed, reason: &str) {
-            self.events
-                .borrow_mut()
-                .push(format!("{}: Could not prune chunk: {}", chunk, reason))
         }
     }
 }

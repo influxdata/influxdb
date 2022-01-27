@@ -273,27 +273,16 @@ impl Catalog {
         F: Fn(&CatalogChunk) -> C + Copy,
     {
         let tables = self.tables.read();
-        let tables = match table_name {
-            Some(name) => itertools::Either::Right(tables.get(name).into_iter()),
-            None => itertools::Either::Left(tables.values()),
-        };
-
-        let partitions = tables.flat_map(|table| match partition_key {
-            Some(partition_key) => {
-                itertools::Either::Left(table.partition(partition_key).into_iter())
-            }
-            None => itertools::Either::Right(table.partitions()),
-        });
-
-        let mut chunks = Vec::with_capacity(partitions.size_hint().1.unwrap_or_default());
-        for partition in partitions {
-            let partition = partition.read();
-            chunks.extend(partition.chunks().into_iter().map(|chunk| {
-                let chunk = chunk.read();
-                map(&chunk)
-            }))
+        match table_name {
+            Some(name) => match tables.get(name) {
+                Some(table) => table.filtered_chunks(partition_key, map),
+                None => vec![],
+            },
+            None => tables
+                .values()
+                .flat_map(|table| table.filtered_chunks(partition_key, map))
+                .collect(),
         }
-        chunks
     }
 
     /// Return a list of all table names in the catalog

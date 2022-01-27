@@ -49,11 +49,6 @@ pub(crate) fn max_to_scalar(
     }
 }
 
-/// Converts stats.null_count to an appropriate `ScalarValue`
-pub(crate) fn null_count_as_scalar(stats: &IOxStatistics) -> ScalarValue {
-    ScalarValue::UInt64(Some(stats.null_count()))
-}
-
 /// Creates a DataFusion `Statistics` object from an IOx `TableSummary`
 pub(crate) fn df_from_iox(schema: &Schema, summary: &TableSummary) -> DFStatistics {
     // reorder the column statistics so DF sees them in the same order
