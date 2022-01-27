@@ -1926,7 +1926,6 @@ name = "iox_catalog"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "chrono",
  "dotenv",
  "futures",
  "influxdb_line_protocol",
