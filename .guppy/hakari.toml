@@ -12,9 +12,10 @@ resolver = "2"
 # Add triples corresponding to platforms commonly used by developers here.
 # https://doc.rust-lang.org/rustc/platform-support.html
 platforms = [
-    # "x86_64-unknown-linux-gnu",
-    # "x86_64-apple-darwin",
-    # "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
 ]
 
 # Write out exact versions rather than a semver range. (Defaults to false.)
@@ -35,7 +36,6 @@ workspace-members = [
     "iox_data_generator",
     "mutable_batch_tests",
     "server_benchmarks",
-    "trogging",
 ]
 third-party = [
     { name = "azure_core", git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "cb5aba657fe378009c38e979434b2bc93ac0a3d5" },
@@ -47,4 +47,19 @@ third-party = [
     { name = "rusoto_credential" },
     { name = "rusoto_s3" },
     { name = "tikv-jemalloc-sys" },
+]
+
+#
+# Packages specified in final-excludes will be removed from the output at the very end.
+# This means that any transitive dependencies of theirs will still be included.
+#
+# Workspace crates excluded from the final output will not depend on the workspace-hack crate,
+# and cargo hakari manage-deps will remove dependency edges rather than adding them.
+#
+
+[final-excludes]
+workspace-members = [
+    # We don't want trogging to depend on workspace-hack so it can be used directly from the git repository
+    # but we want its tracing-subscriber feature flags to propagate into the workspace-hack
+    "trogging"
 ]

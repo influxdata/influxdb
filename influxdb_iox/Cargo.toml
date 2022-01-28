@@ -42,6 +42,7 @@ trace_exporters = { path = "../trace_exporters" }
 trace_http = { path = "../trace_http" }
 tracker = { path = "../tracker" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
+write_buffer = { path = "../write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
 arrow = { version = "8.0", features = ["prettyprint"] }
@@ -88,12 +89,10 @@ tonic-health = "0.5.0"
 tonic-reflection = "0.3.0"
 tower = "0.4"
 uuid = { version = "0.8", features = ["v4"] }
-
 # jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
 tikv-jemalloc-sys = { version = "0.4.0", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
 heappy = { git = "https://github.com/mkmik/heappy", rev = "1770cd0cde556d121e7f017538ddda0e1778126a", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 workspace-hack = { path = "../workspace-hack"}
-write_buffer = { path = "../write_buffer" }
 
 [dev-dependencies]
 # Workspace dependencies, in alphabetical order

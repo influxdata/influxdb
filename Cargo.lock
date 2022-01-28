@@ -5569,6 +5569,7 @@ dependencies = [
  "hashbrown 0.12.0",
  "hyper",
  "indexmap",
+ "libc",
  "log",
  "memchr",
  "nom",
@@ -5582,6 +5583,7 @@ dependencies = [
  "regex-automata",
  "regex-syntax",
  "reqwest",
+ "scopeguard",
  "serde",
  "serde_json",
  "sha2",
@@ -5596,6 +5598,7 @@ dependencies = [
  "tracing-log",
  "tracing-subscriber",
  "uuid",
+ "winapi",
 ]
 
 [[package]]

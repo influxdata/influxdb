@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 client_util = { path = "../client_util" }
-generated_types = { path = "../generated_types" }
+generated_types = { path = "../generated_types", default-features=false }
 prost = "0.9"
 tonic = { version = "0.6" }
 futures-util = { version = "0.3" }

@@ -9,7 +9,7 @@ data_types = { path = "../data_types" }
 dml = { path = "../dml" }
 dotenv = "0.15.0"
 futures = "0.3"
-generated_types = { path = "../generated_types", features = ["data_types_conversions"] }
+generated_types = { path = "../generated_types" }
 http = "0.2"
 httparse = "1.5"
 metric = { path = "../metric" }

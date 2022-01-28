@@ -27,5 +27,5 @@ prost-build = "0.9"
 pbjson-build = "0.2"
 
 [features]
-default = []
+default = ["data_types_conversions"]
 data_types_conversions = ["data_types"]
