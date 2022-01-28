@@ -66,13 +66,21 @@ pub struct Config {
     /// The address to the write buffer.
     #[clap(long = "--write-buffer-addr", env = "INFLUXDB_IOX_WRITE_BUFFER_ADDR")]
     pub(crate) write_buffer_connection_string: String,
+
+    /// Write buffer topic/database that should be used.
+    #[clap(
+        long = "--write-buffer-topic",
+        env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
+        default_value = "iox-shared"
+    )]
+    pub(crate) write_buffer_topic: String,
 }
 
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let metrics = Arc::new(metric::Registry::default());
 
-    let write_buffer = init_write_buffer(&config, "iox_shared", Arc::clone(&metrics)).await?;
+    let write_buffer = init_write_buffer(&config, Arc::clone(&metrics)).await?;
 
     let http = HttpDelegate::new(config.run_config.max_http_request_size, write_buffer);
     let router_server = RouterServer::new(
@@ -93,7 +101,6 @@ pub async fn command(config: Config) -> Result<()> {
 /// namespace & table name.
 async fn init_write_buffer(
     config: &Config,
-    topic: &str,
     metrics: Arc<metric::Registry>,
 ) -> Result<ShardedWriteBuffer<TableNamespaceSharder<Arc<Sequencer>>>> {
     let write_buffer_config = WriteBufferConnection {
@@ -106,7 +113,7 @@ async fn init_write_buffer(
     let write_buffer = WriteBufferConfigFactory::new(Arc::new(SystemProvider::default()), metrics);
     let write_buffer = Arc::new(
         write_buffer
-            .new_config_write(topic, &write_buffer_config)
+            .new_config_write(&config.write_buffer_topic, &write_buffer_config)
             .await?,
     );
 
@@ -118,7 +125,11 @@ async fn init_write_buffer(
     let shards: BTreeSet<_> = write_buffer.sequencer_ids();
     //          ^ don't change this to an unordered set
 
-    info!(%topic, shards=shards.len(), "connected to write buffer topic");
+    info!(
+        topic = config.write_buffer_topic.as_str(),
+        shards = shards.len(),
+        "connected to write buffer topic",
+    );
 
     Ok(ShardedWriteBuffer::new(
         shards
