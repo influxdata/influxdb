@@ -59,24 +59,40 @@ pub struct Config {
     pub(crate) run_config: RunConfig,
 
     /// Postgres connection string
-    #[clap(env = "INFLUXDB_IOX_CATALOG_DNS")]
+    #[clap(long = "--catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DNS")]
     pub catalog_dsn: String,
 
-    /// Kafka connection string
-    #[clap(env = "INFLUXDB_IOX_KAFKA_CONNECTION")]
-    pub kafka_connection: String,
+    /// The type of write buffer to use.
+    ///
+    /// Valid options are: file, kafka, rskafka
+    #[clap(long = "--write-buffer", env = "INFLUXDB_IOX_WRITE_BUFFER_TYPE")]
+    pub(crate) write_buffer_type: String,
 
-    /// Kafka topic name
-    #[clap(env = "INFLUXDB_IOX_KAFKA_TOPIC")]
-    pub kafka_topic: String,
+    /// The address to the write buffer.
+    #[clap(long = "--write-buffer-addr", env = "INFLUXDB_IOX_WRITE_BUFFER_ADDR")]
+    pub(crate) write_buffer_connection_string: String,
 
-    /// Kafka partition number to start (inclusive) range with
-    #[clap(env = "INFLUXDB_IOX_KAFKA_PARTITION_RANGE_START")]
-    pub kafka_partition_range_start: i32,
+    /// Write buffer topic/database that should be used.
+    #[clap(
+        long = "--write-buffer-topic",
+        env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
+        default_value = "iox-shared"
+    )]
+    pub(crate) write_buffer_topic: String,
 
-    /// Kafka partition number to end (inclusive) range with
-    #[clap(env = "INFLUXDB_IOX_KAFKA_PARTITION_RANGE_END")]
-    pub kafka_partition_range_end: i32,
+    /// Write buffer partition number to start (inclusive) range with
+    #[clap(
+        long = "--write-buffer-partition-range-start",
+        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START"
+    )]
+    pub write_buffer_partition_range_start: i32,
+
+    /// Write buffer partition number to end (inclusive) range with
+    #[clap(
+        long = "--write-buffer-partition-range-start",
+        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END"
+    )]
+    pub write_buffer_partition_range_end: i32,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -93,14 +109,14 @@ pub async fn command(config: Config) -> Result<()> {
 
     let kafka_topic = match catalog
         .kafka_topics()
-        .get_by_name(&config.kafka_topic)
+        .get_by_name(&config.write_buffer_topic)
         .await?
     {
         Some(k) => k,
-        None => return Err(Error::KafkaTopicNotFound(config.kafka_topic)),
+        None => return Err(Error::KafkaTopicNotFound(config.write_buffer_topic)),
     };
-    let kafka_partitions: Vec<_> = (config.kafka_partition_range_start
-        ..config.kafka_partition_range_end)
+    let kafka_partitions: Vec<_> = (config.write_buffer_partition_range_start
+        ..config.write_buffer_partition_range_end)
         .map(KafkaPartition::new)
         .collect();
 
