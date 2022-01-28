@@ -89,7 +89,8 @@ func (cmd *Command) Run(args ...string) error {
 		if err := cmd.backupMetastore(); err != nil {
 			return err
 		}
-		err = cmd.backupShard(cmd.database, cmd.retentionPolicy, cmd.shardID)
+		// Pass true for verifyLocation so we verify that db and rp are correct if given
+		err = cmd.backupShard(cmd.database, cmd.retentionPolicy, cmd.shardID, true)
 
 	} else if cmd.retentionPolicy != "" {
 		// always backup the metastore
@@ -210,7 +211,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 
 	// Ensure that only one arg is specified.
 	if fs.NArg() != 1 {
-		return errors.New("Exactly one backup path is required.")
+		return errors.New("exactly one backup path is required")
 	}
 	cmd.path = fs.Arg(0)
 
@@ -219,18 +220,65 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	return err
 }
 
-func (cmd *Command) backupShard(db, rp, sid string) (err error) {
+// backupShard will backup a single shard. sid is the shard ID as a decimal string and
+// must be given. db and rp are the database and retention policy the shard belongs to,
+// respectively. For both db and rp, if they are not given the snapshot service will
+// be queried to find their correct value. Also for both db and rp, if they are given
+// and verifyLocation is true, then the snapshotter service will be queried and the value
+// will be checked against the databases value. If there is a mismatch, an error is returned.
+func (cmd *Command) backupShard(db, rp, sid string, verifyLocation bool) (err error) {
 	reqType := snapshotter.RequestShardBackup
 	if !cmd.isBackup {
 		reqType = snapshotter.RequestShardExport
 	}
 
-	id, err := strconv.ParseUint(sid, 10, 64)
+	shardId, err := strconv.ParseUint(sid, 10, 64)
 	if err != nil {
 		return err
 	}
 
-	shardArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, fmt.Sprintf(backup_util.BackupFilePattern, db, rp, id)))
+	// Get info about shard retention policy and database to fill-in missing db / rp
+	if db == "" || rp == "" || verifyLocation {
+		infoReq := &snapshotter.Request{
+			Type:           snapshotter.RequestDatabaseInfo,
+			BackupDatabase: db, // use db if we did happen to get it to limit result set
+		}
+
+		infoResponse, err := cmd.requestInfo(infoReq)
+		if err != nil {
+			return err
+		}
+
+		var shardFound bool
+		for _, path := range infoResponse.Paths {
+			checkDb, checkRp, checkSid, err := backup_util.DBRetentionAndShardFromPath(path)
+			if err != nil {
+				return fmt.Errorf("error while finding shard's db/rp: %w", err)
+			}
+			if sid == checkSid {
+				// Found the shard, now fill-in / check db and rp
+				if db == "" {
+					db = checkDb
+				} else if verifyLocation && db != checkDb {
+					return fmt.Errorf("expected shard %d in database '%s', but found '%s'", shardId, db, checkDb)
+				}
+
+				if rp == "" {
+					rp = checkRp
+				} else if verifyLocation && rp != checkRp {
+					return fmt.Errorf("expected shard %d with retention policy '%s', but found '%s'", shardId, rp, checkRp)
+				}
+
+				shardFound = true
+				break
+			}
+		}
+		if !shardFound {
+			return fmt.Errorf("did not find shard %d", shardId)
+		}
+	}
+
+	shardArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, fmt.Sprintf(backup_util.BackupFilePattern, db, rp, shardId)))
 	if err != nil {
 		return err
 	}
@@ -246,7 +294,7 @@ func (cmd *Command) backupShard(db, rp, sid string) (err error) {
 		Type:                  reqType,
 		BackupDatabase:        db,
 		BackupRetentionPolicy: rp,
-		ShardID:               id,
+		ShardID:               shardId,
 		Since:                 cmd.since,
 		ExportStart:           cmd.start,
 		ExportEnd:             cmd.end,
@@ -306,15 +354,11 @@ func (cmd *Command) backupShard(db, rp, sid string) (err error) {
 		if err != nil {
 			return err
 		}
-		var shardID uint64
-		shardID, err = strconv.ParseUint(sid, 10, 64)
-		if err != nil {
-			return err
-		}
+
 		cmd.manifest.Files = append(cmd.manifest.Files, backup_util.Entry{
 			Database:     db,
 			Policy:       rp,
-			ShardID:      shardID,
+			ShardID:      shardId,
 			FileName:     filename,
 			Size:         cw.Total,
 			LastModified: 0,
@@ -378,7 +422,8 @@ func (cmd *Command) backupResponsePaths(response *snapshotter.Response) error {
 			return err
 		}
 
-		err = cmd.backupShard(db, rp, id)
+		// Don't need to verify db and rp, we know they're correct here
+		err = cmd.backupShard(db, rp, id, false)
 
 		if err != nil && !cmd.continueOnError {
 			cmd.StderrLogger.Printf("error (%s) when backing up db: %s, rp %s, shard %s. continuing backup on remaining shards", err, db, rp, id)
@@ -417,7 +462,7 @@ func (cmd *Command) backupMetastore() (retErr error) {
 		}
 
 		if n < 8 {
-			return errors.New("Not enough bytes data to verify")
+			return errors.New("not enough bytes data to verify")
 		}
 
 		magic := binary.BigEndian.Uint64(magicByte[:])
