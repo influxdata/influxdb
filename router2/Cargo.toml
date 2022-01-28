@@ -34,10 +34,14 @@ write_buffer = { path = "../write_buffer" }
 
 [dev-dependencies]
 assert_matches = "1.5"
-criterion = "0.3.3"
+criterion = { version = "0.3.4", features = ["async_tokio", "html_reports"] }
 paste = "1.0.6"
 rand = "0.8.3"
 
 [[bench]]
 name = "sharder"
+harness = false
+
+[[bench]]
+name = "e2e"
 harness = false
