@@ -104,7 +104,7 @@ pub fn compute_timenanosecond_min_max_for_one_record_bacth(
 
 /// Compact a given persisting batch
 /// Return compacted data with its metadata
-pub async fn compact_persting_batch(
+pub async fn compact_persisting_batch(
     time_provider: Arc<dyn TimeProvider>,
     executor: &Executor,
     namespace_id: i32,
@@ -232,7 +232,7 @@ mod tests {
         // compact
         let exc = Executor::new(1);
         let time_provider = Arc::new(SystemProvider::new());
-        let (output_batches, meta) = compact_persting_batch(
+        let (output_batches, meta) = compact_persisting_batch(
             time_provider,
             &exc,
             1,
