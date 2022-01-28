@@ -78,7 +78,8 @@ where
     S: Sharder<MutableBatch, Item = Arc<Sequencer>>
         + Sharder<DeletePredicate, Item = Arc<Sequencer>>,
 {
-    type Error = ShardError;
+    type WriteError = ShardError;
+    type DeleteError = ShardError;
 
     /// Shard `writes` and dispatch the resultant DML operations.
     async fn write(
