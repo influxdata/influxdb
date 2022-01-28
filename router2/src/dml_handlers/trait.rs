@@ -38,9 +38,9 @@ pub trait DmlHandler: Debug + Send + Sync {
     /// requests.
     ///
     /// All errors must be mappable into the concrete [`DmlError`] type.
-    type WriteError: Error + Into<DmlError>;
+    type WriteError: Error + Into<DmlError> + Send;
     /// The error type of the delete handler.
-    type DeleteError: Error + Into<DmlError>;
+    type DeleteError: Error + Into<DmlError> + Send;
 
     /// Write `batches` to `namespace`.
     async fn write(

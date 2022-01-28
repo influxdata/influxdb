@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dashmap::{mapref::entry::Entry, DashMap};
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 use hashbrown::HashMap;
 use iox_catalog::{
@@ -10,6 +9,7 @@ use iox_catalog::{
 };
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
+use parking_lot::RwLock;
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
@@ -85,11 +85,7 @@ pub struct SchemaValidator<D> {
     inner: D,
     catalog: Arc<dyn Catalog>,
 
-    // A map guarded by locks sharded by key.
-    //
-    // No documentation is provided as to the read/write bias or other locking
-    // semantics.
-    cache: DashMap<DatabaseName<'static>, Arc<NamespaceSchema>>,
+    cache: RwLock<HashMap<DatabaseName<'static>, Arc<NamespaceSchema>>>,
 }
 
 impl<D> SchemaValidator<D> {
@@ -137,14 +133,10 @@ where
     ) -> Result<(), Self::WriteError> {
         // Load the namespace schema from the cache, falling back to pulling it
         // from the global catalog (if it exists).
-        let schema = match self.cache.entry(namespace.clone()) {
-            Entry::Occupied(v) => {
-                trace!(%namespace, "schema cache hit");
-                Arc::clone(v.get())
-            }
-            Entry::Vacant(v) => {
-                trace!(%namespace, "schema cache miss");
-
+        let schema = self.cache.read().get(&namespace).map(Arc::clone);
+        let schema = match schema {
+            Some(v) => v,
+            None => {
                 // Pull the schema from the global catalog or error if it does
                 // not exist.
                 let schema = get_schema_by_name(&namespace, &*self.catalog)
@@ -155,9 +147,11 @@ where
                     })
                     .map(Arc::new)?;
 
-                v.insert(Arc::clone(&schema));
-                trace!(%namespace, "schema cache populated");
+                self.cache
+                    .write()
+                    .insert(namespace.clone(), Arc::clone(&schema));
 
+                trace!(%namespace, "schema cache populated");
                 schema
             }
         };
@@ -181,7 +175,7 @@ where
                 // This call MAY overwrite a more-up-to-date cache entry if
                 // racing with another request for the same namespace, but the
                 // cache will eventually converge in subsequent requests.
-                self.cache.insert(namespace.clone(), v);
+                self.cache.write().insert(namespace.clone(), v);
                 trace!(%namespace, "schema cache updated");
             }
             None => {
@@ -262,14 +256,11 @@ mod tests {
 
     fn assert_cache<D>(handler: &SchemaValidator<D>, table: &str, col: &str, want: ColumnType) {
         // The cache should be populated.
-        let cached = handler
-            .cache
+        let cached = handler.cache.read();
+        let ns = cached
             .get(&NAMESPACE.try_into().unwrap())
             .expect("cache should be populated");
-        let table = cached
-            .tables
-            .get(table)
-            .expect("table should exist in cache");
+        let table = ns.tables.get(table).expect("table should exist in cache");
         assert_eq!(
             table
                 .columns
@@ -320,7 +311,7 @@ mod tests {
         assert!(mock.calls().is_empty());
 
         // The cache should not have retained the schema.
-        assert!(handler.cache.is_empty());
+        assert!(handler.cache.read().is_empty());
     }
 
     #[tokio::test]
@@ -422,7 +413,7 @@ mod tests {
         });
 
         // Deletes have no effect on the cache.
-        assert!(handler.cache.is_empty());
+        assert!(handler.cache.read().is_empty());
     }
 
     #[tokio::test]
@@ -455,6 +446,6 @@ mod tests {
         assert_matches!(mock.calls().as_slice(), [MockDmlHandlerCall::Delete { .. }]);
 
         // Deletes have no effect on the cache.
-        assert!(handler.cache.is_empty());
+        assert!(handler.cache.read().is_empty());
     }
 }
