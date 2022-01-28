@@ -112,10 +112,10 @@ pub async fn compact_persting_batch(
     table_name: &str,
     partition_key: &str,
     batch: Arc<PersistingBatch>,
-) -> Result<(Vec<RecordBatch>, Option<IoxMetadata>)> {
+) -> Result<Option<(Vec<RecordBatch>, IoxMetadata)>> {
     // Nothing to compact
     if batch.data.data.is_empty() {
-        return Ok((vec![], None));
+        return Ok(None);
     }
 
     // Compact
@@ -127,7 +127,7 @@ pub async fn compact_persting_batch(
 
     // No data after compaction
     if output_batches.iter().all(|b| b.num_rows() == 0) {
-        return Ok((vec![], None));
+        return Ok(None);
     }
 
     // Compute min and max of the `time` column
@@ -152,7 +152,7 @@ pub async fn compact_persting_batch(
         max_sequence_number: max_seq,
     };
 
-    Ok((output_batches, Some(meta)))
+    Ok(Some((output_batches, meta)))
 }
 
 /// Compact a given Queryable Batch
@@ -242,8 +242,8 @@ mod tests {
             persisting_batch,
         )
         .await
+        .unwrap()
         .unwrap();
-        let meta = meta.unwrap();
 
         // verify compacted data
         // should be the same as the input but sorted on tag1 & time
