@@ -27,7 +27,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Write the given data to the given location in the given object storage
 pub async fn persist(
     metadata: &IoxMetadata,
-    record_batches: &[RecordBatch],
+    record_batches: Vec<RecordBatch>,
     object_store: &ObjectStore,
 ) -> Result<()> {
     if record_batches.is_empty() {
@@ -120,7 +120,7 @@ mod tests {
         };
         let object_store = object_store();
 
-        persist(&metadata, &[], &object_store).await.unwrap();
+        persist(&metadata, vec![], &object_store).await.unwrap();
 
         assert!(list_all(&object_store).await.unwrap().is_empty());
     }
@@ -156,7 +156,7 @@ mod tests {
 
         let object_store = object_store();
 
-        persist(&metadata, &batches, &object_store).await.unwrap();
+        persist(&metadata, batches, &object_store).await.unwrap();
 
         let obj_store_paths = list_all(&object_store).await.unwrap();
         assert_eq!(obj_store_paths.len(), 1);
