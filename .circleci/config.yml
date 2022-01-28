@@ -33,6 +33,7 @@ jobs:
             set -x
             mkdir -p ./tarball
             TARBALL_NAME="./tarball/influxdb-src-${CIRCLE_SHA1}.tar.gz"
+            # TODO: set version info (do this last)
             tar --exclude-vcs --exclude './tarball' -vczf "${TARBALL_NAME}" .
       - store_artifacts:
           path: tarball/
@@ -73,6 +74,62 @@ jobs:
             - /go/pkg/mod
             - /root/.cargo
             - /root/.cache/go-build
+  build_packages:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+      image: ubuntu-2004:202107-02
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Build packages
+          command: |
+            set -x
+            WORKING_DIR=$(pwd)
+            OUTDIR=${WORKING_DIR}/packages
+            mkdir -p ${OUTDIR}/race
+
+            # Plutonium debs and rpms
+            # linux
+            "${WORKING_DIR}/releng/packages/build.bash" \
+              -s "/tmp/workspace/tarball/plutonium-src-${CIRCLE_SHA1}.tar.gz" \
+              -b "/tmp/workspace/bins/plutonium_bin_linux_amd64-${CIRCLE_SHA1}.tar.gz" \
+              -O linux -A amd64 \
+              -o "$OUTDIR"
+
+      - store_artifacts:
+          path: packages/
+      - persist_to_workspace:
+          root: .
+          paths:
+            - packages
+  test_pkgs_64bit:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+      image: ubuntu-2004:202107-02
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Test 64 bit packages install
+          command: |
+            set -x
+            export WORKING_DIR=$(pwd)
+            # Using subshells with find to get full path of real package files, rather than predicting or hardcoding
+            # The glob pattern with -prune causes find to only return files rooted in packages,
+            # thereby avoiding files whose names would match, but are in subdirectories, i.e. packages/static.
+            "${WORKING_DIR}/releng/packages/spec/clean_install/run.bash" -D \
+              -d "$(find "/tmp/workspace/packages"/* -prune -name 'influxdb-data*amd64.deb')" \
+              -m "$(find "/tmp/workspace/packages"/* -prune -name 'influxdb-meta*amd64.deb')"
+
+            "${WORKING_DIR}/releng/packages/spec/clean_install/run.bash" -R \
+              -d "$(find "/tmp/workspace/packages"/* -prune -name 'influxdb-data*x86_64.rpm')" \
+              -m "$(find "/tmp/workspace/packages"/* -prune -name 'influxdb-meta*x86_64.rpm')"
+
   static_code_checks:
     docker:
       - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
