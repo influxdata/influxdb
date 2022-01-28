@@ -50,7 +50,7 @@ pub fn persist_chunks(
     let mut time_of_last_write: Option<Time> = None;
     let mut query_chunks = vec![];
     let mut delete_predicates_before: HashSet<Arc<DeletePredicate>> = HashSet::new();
-    let mut min_order = ChunkOrder::MAX;
+    let mut max_order = ChunkOrder::MIN;
     for mut chunk in chunks {
         // Sanity-check
         assert!(Arc::ptr_eq(&db, &chunk.data().db));
@@ -71,7 +71,7 @@ pub fn persist_chunks(
 
         delete_predicates_before.extend(chunk.delete_predicates().iter().cloned());
 
-        min_order = min_order.min(chunk.order());
+        max_order = max_order.max(chunk.order());
 
         chunk.set_writing_to_object_store(&registration)?;
         query_chunks.push(DbChunk::snapshot(&*chunk));
@@ -169,7 +169,7 @@ pub fn persist_chunks(
                     time_of_last_write,
                     Arc::clone(&schema),
                     delete_predicates.clone(),
-                    min_order,
+                    max_order,
                     None,
                 );
             }
@@ -192,14 +192,14 @@ pub fn persist_chunks(
                 time_of_last_write,
                 schema,
                 delete_predicates,
-                min_order,
+                max_order,
                 db.persisted_chunk_id_override.lock().as_ref().cloned(),
             );
             let to_persist = LockableCatalogChunk {
                 db,
                 chunk: Arc::clone(new_chunk),
                 id: new_chunk_id,
-                order: min_order,
+                order: max_order,
             };
             let to_persist = to_persist.write();
 

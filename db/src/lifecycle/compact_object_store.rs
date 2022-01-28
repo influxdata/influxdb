@@ -114,7 +114,7 @@ pub(crate) fn compact_object_store_chunks(
                 database_checkpoint: compacting_os_chunks.database_checkpoint.clone(),
                 time_of_first_write: compacting_os_chunks.time_of_first_write,
                 time_of_last_write: compacting_os_chunks.time_of_last_write,
-                chunk_order: compacting_os_chunks.min_order,
+                chunk_order: compacting_os_chunks.max_order,
             };
             let compacted_and_persisted_chunk = persist_stream_to_chunk(
                 &db,
@@ -300,7 +300,7 @@ fn mark_chunks_to_compact(
         delete_predicates,
         compacted_parquet_file_paths,
         os_chunks,
-        min_order,
+        max_order,
         database_checkpoint,
         partition_checkpoint,
         partition,
@@ -317,7 +317,7 @@ struct CompactingOsChunks {
     delete_predicates: HashSet<Arc<DeletePredicate>>,
     compacted_parquet_file_paths: Vec<ParquetFilePath>,
     os_chunks: Vec<Arc<DbChunk>>,
-    min_order: ChunkOrder,
+    max_order: ChunkOrder,
     database_checkpoint: DatabaseCheckpoint,
     partition_checkpoint: PartitionCheckpoint,
     partition: Arc<RwLock<Partition>>,
