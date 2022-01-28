@@ -1,5 +1,5 @@
 use crate::chunk::{ChunkMetrics, ParquetChunk};
-use crate::metadata::IoxMetadata;
+use crate::metadata::IoxMetadataOld;
 use crate::storage::Storage;
 use crate::test_utils::{
     create_partition_and_database_checkpoint, make_iox_object_store, make_record_batch, TestSize,
@@ -66,13 +66,13 @@ impl ChunkGenerator {
         &self.partition
     }
 
-    pub async fn generate(&mut self) -> Option<(ParquetChunk, IoxMetadata)> {
+    pub async fn generate(&mut self) -> Option<(ParquetChunk, IoxMetadataOld)> {
         let id = self.next_chunk;
         self.next_chunk += 1;
         self.generate_id(id).await
     }
 
-    pub async fn generate_id(&mut self, id: u32) -> Option<(ParquetChunk, IoxMetadata)> {
+    pub async fn generate_id(&mut self, id: u32) -> Option<(ParquetChunk, IoxMetadataOld)> {
         let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
             Arc::clone(&self.partition.table_name),
             Arc::clone(&self.partition.partition_key),
@@ -82,7 +82,7 @@ impl ChunkGenerator {
         let chunk_order = ChunkOrder::new(id).unwrap();
         let chunk_addr = ChunkAddr::new(&self.partition, chunk_id);
 
-        let metadata = IoxMetadata {
+        let metadata = IoxMetadataOld {
             creation_timestamp: Time::from_timestamp(10, 20),
             table_name: Arc::clone(&self.partition.table_name),
             partition_key: Arc::clone(&self.partition.partition_key),

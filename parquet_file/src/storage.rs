@@ -30,7 +30,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::metadata::{IoxMetadata, IoxParquetMetaData, METADATA_KEY};
+use crate::metadata::{IoxMetadataOld, IoxParquetMetaData, METADATA_KEY};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -105,7 +105,7 @@ impl Storage {
         &self,
         chunk_addr: ChunkAddr,
         stream: SendableRecordBatchStream,
-        metadata: IoxMetadata,
+        metadata: IoxMetadataOld,
     ) -> Result<Option<(ParquetFilePath, usize, IoxParquetMetaData)>> {
         // Create full path location of this file in object store
         let path = ParquetFilePath::new(&chunk_addr);
@@ -141,7 +141,7 @@ impl Storage {
     async fn parquet_stream_to_bytes(
         mut stream: SendableRecordBatchStream,
         schema: SchemaRef,
-        metadata: IoxMetadata,
+        metadata: IoxMetadataOld,
     ) -> Result<Vec<u8>> {
         let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailureSnafu)?;
 
@@ -358,7 +358,7 @@ mod tests {
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
         );
-        let metadata = IoxMetadata {
+        let metadata = IoxMetadataOld {
             creation_timestamp: Time::from_timestamp_nanos(3453),
             table_name,
             partition_key,
@@ -431,7 +431,7 @@ mod tests {
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
         );
-        let metadata = IoxMetadata {
+        let metadata = IoxMetadataOld {
             creation_timestamp: Time::from_timestamp_nanos(43069346),
             table_name: Arc::clone(&table_name),
             partition_key: Arc::clone(&partition_key),

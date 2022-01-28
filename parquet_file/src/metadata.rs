@@ -125,7 +125,7 @@ pub const METADATA_VERSION: u32 = 10;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
-/// This will contain [`IoxMetadata`] serialized as base64-encoded [Protocol Buffers 3].
+/// This will contain [`IoxMetadataOld`] serialized as base64-encoded [Protocol Buffers 3].
 ///
 /// [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
 pub const METADATA_KEY: &str = "IOX:metadata";
@@ -260,7 +260,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// [Catalog Properties]: https://github.com/influxdata/influxdb_iox/blob/main/docs/catalog_persistence.md#13-properties
 /// [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct IoxMetadata {
+pub struct IoxMetadataOld {
     /// Timestamp when this file was created.
     pub creation_timestamp: Time,
 
@@ -287,7 +287,7 @@ pub struct IoxMetadata {
     pub chunk_order: ChunkOrder,
 }
 
-impl IoxMetadata {
+impl IoxMetadataOld {
     /// Read from protobuf message
     fn from_protobuf(data: &[u8]) -> Result<Self> {
         // extract protobuf message from bytes
@@ -637,7 +637,7 @@ impl DecodedIoxParquetMetaData {
     }
 
     /// Read IOx metadata from file-level key-value parquet metadata.
-    pub fn read_iox_metadata(&self) -> Result<IoxMetadata> {
+    pub fn read_iox_metadata(&self) -> Result<IoxMetadataOld> {
         // find file-level key-value metadata entry
         let kv = self
             .md
@@ -656,7 +656,7 @@ impl DecodedIoxParquetMetaData {
             .context(IoxMetadataBrokenSnafu)?;
 
         // convert to Rust object
-        IoxMetadata::from_protobuf(proto_bytes.as_slice())
+        IoxMetadataOld::from_protobuf(proto_bytes.as_slice())
     }
 
     /// Read IOx schema from parquet metadata.
@@ -987,7 +987,7 @@ mod tests {
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
         );
-        let metadata = IoxMetadata {
+        let metadata = IoxMetadataOld {
             creation_timestamp: Time::from_timestamp(3234, 0),
             table_name,
             partition_key,
@@ -1009,7 +1009,7 @@ mod tests {
 
         // decoding should fail now
         assert_eq!(
-            IoxMetadata::from_protobuf(&proto_bytes)
+            IoxMetadataOld::from_protobuf(&proto_bytes)
                 .unwrap_err()
                 .to_string(),
             format!(
