@@ -47,7 +47,7 @@ pub(crate) fn compact_chunks(
     let mut time_of_first_write: Option<Time> = None;
     let mut time_of_last_write: Option<Time> = None;
     let mut delete_predicates_before: HashSet<Arc<DeletePredicate>> = HashSet::new();
-    let mut min_order = ChunkOrder::MAX;
+    let mut max_order = ChunkOrder::MIN;
     let query_chunks = chunks
         .into_iter()
         .map(|mut chunk| {
@@ -69,7 +69,7 @@ pub(crate) fn compact_chunks(
 
             delete_predicates_before.extend(chunk.delete_predicates().iter().cloned());
 
-            min_order = min_order.min(chunk.order());
+            max_order = max_order.max(chunk.order());
 
             chunk.set_compacting(&registration)?;
             Ok(DbChunk::snapshot(&*chunk))
@@ -146,7 +146,7 @@ pub(crate) fn compact_chunks(
             time_of_last_write,
             schema,
             delete_predicates,
-            min_order,
+            max_order,
             None,
         );
 
