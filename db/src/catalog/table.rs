@@ -2,6 +2,7 @@ use super::partition::Partition;
 use crate::catalog::metrics::TableMetrics;
 use crate::CatalogChunk;
 use data_types::partition_metadata::{PartitionAddr, PartitionSummary};
+use data_types::timestamp::TimestampRange;
 use hashbrown::HashMap;
 use schema::{
     builder::SchemaBuilder,
@@ -114,7 +115,14 @@ impl Table {
     /// Calls `map` with every chunk and returns a collection of the results
     ///
     /// If `partition_key` is `Some` restricts to chunks in that partition.
-    pub fn filtered_chunks<F, C>(&self, partition_key: Option<&str>, map: F) -> Vec<C>
+    /// If `timestamp_range` is `Some` restricts to chunks with timestamps overlapping that range.
+    ///
+    pub fn filtered_chunks<F, C>(
+        &self,
+        partition_key: Option<&str>,
+        timestamp_range: Option<TimestampRange>,
+        map: F,
+    ) -> Vec<C>
     where
         F: Fn(&CatalogChunk) -> C + Copy,
     {
@@ -128,9 +136,14 @@ impl Table {
         let mut chunks = Vec::with_capacity(partitions.size_hint().1.unwrap_or_default());
         for partition in partitions {
             let partition = partition.read();
-            chunks.extend(partition.chunks().into_iter().map(|chunk| {
+            chunks.extend(partition.chunks().into_iter().flat_map(|chunk| {
                 let chunk = chunk.read();
-                map(&chunk)
+                if let (Some(range), Some(min_max)) = (timestamp_range, chunk.timestamp_min_max()) {
+                    if !min_max.overlaps(range) {
+                        return None;
+                    }
+                }
+                Some(map(&chunk))
             }))
         }
         chunks

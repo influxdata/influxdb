@@ -1,6 +1,7 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
+use crate::timestamp::TimestampMinMax;
 use observability_deps::tracing::warn;
 use std::{
     borrow::{Borrow, Cow},
@@ -375,6 +376,14 @@ impl Statistics {
             Self::F64(v) => v.update_for_nulls(num_nulls),
             Self::Bool(v) => v.update_for_nulls(num_nulls),
             Self::String(v) => v.update_for_nulls(num_nulls),
+        }
+    }
+
+    /// Convert this to [`TimestampMinMax`] if possible
+    pub fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        match self {
+            Statistics::I64(stats) => Some(TimestampMinMax::new(stats.min?, stats.max?)),
+            _ => None,
         }
     }
 }

@@ -1,4 +1,5 @@
 use crate::catalog::metrics::StorageRecorder;
+use data_types::timestamp::TimestampMinMax;
 use data_types::{
     chunk_metadata::{
         ChunkAddr, ChunkColumnSummary, ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkStorage,
@@ -13,7 +14,7 @@ use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use parquet_file::chunk::ParquetChunk;
 use read_buffer::RBChunk;
-use schema::Schema;
+use schema::{Schema, TIME_COLUMN_NAME};
 use snafu::Snafu;
 use std::sync::Arc;
 use time::{Time, TimeProvider};
@@ -643,6 +644,18 @@ impl CatalogChunk {
         };
 
         DetailedChunkSummary { inner, columns }
+    }
+
+    /// Returns the timestamp range of this chunk if known
+    pub fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        match &self.stage {
+            ChunkStage::Open { mb_chunk, .. } => mb_chunk.timestamp_min_max(),
+            ChunkStage::Frozen { meta, .. } | ChunkStage::Persisted { meta, .. } => meta
+                .table_summary
+                .column(TIME_COLUMN_NAME)?
+                .stats
+                .timestamp_min_max(),
+        }
     }
 
     /// Return the summary information about the table stored in this Chunk

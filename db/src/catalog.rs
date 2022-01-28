@@ -275,12 +275,12 @@ impl Catalog {
         let tables = self.tables.read();
         match table_name {
             Some(name) => match tables.get(name) {
-                Some(table) => table.filtered_chunks(partition_key, map),
+                Some(table) => table.filtered_chunks(partition_key, None, map),
                 None => vec![],
             },
             None => tables
                 .values()
-                .flat_map(|table| table.filtered_chunks(partition_key, map))
+                .flat_map(|table| table.filtered_chunks(partition_key, None, map))
                 .collect(),
         }
     }

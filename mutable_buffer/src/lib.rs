@@ -18,10 +18,11 @@ use arrow::record_batch::RecordBatch;
 use parking_lot::Mutex;
 
 use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummary};
+use data_types::timestamp::TimestampMinMax;
 pub use mutable_batch::{Error, Result};
 use mutable_batch::{MutableBatch, WritePayload};
 use schema::selection::Selection;
-use schema::{InfluxColumnType, Schema};
+use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
 use snapshot::ChunkSnapshot;
 
 pub mod snapshot;
@@ -194,6 +195,15 @@ impl MBChunk {
     /// Return the number of rows in this chunk
     pub fn rows(&self) -> usize {
         self.mutable_batch.rows()
+    }
+
+    /// Returns the timestamp range of this chunk if known
+    pub fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        self.mutable_batch
+            .column(TIME_COLUMN_NAME)
+            .ok()?
+            .stats()
+            .timestamp_min_max()
     }
 }
 

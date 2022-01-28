@@ -221,8 +221,11 @@ impl ChunkAccess {
             };
 
             let schema = Arc::clone(&table.schema().read());
-            let chunks =
-                table.filtered_chunks(predicate.partition_key.as_deref(), DbChunk::snapshot);
+            let chunks = table.filtered_chunks(
+                predicate.partition_key.as_deref(),
+                predicate.range,
+                DbChunk::snapshot,
+            );
 
             (chunks, schema)
         };
@@ -369,6 +372,7 @@ impl SchemaProvider for DbSchemaProvider {
         builder =
             builder.add_pruner(Arc::clone(&self.chunk_access) as Arc<dyn ChunkPruner<DbChunk>>);
 
+        // TODO: Better chunk pruning (#3570)
         for chunk in self
             .chunk_access
             .candidate_chunks(table_name, &Default::default())
@@ -384,5 +388,50 @@ impl SchemaProvider for DbSchemaProvider {
 
     fn table_exist(&self, name: &str) -> bool {
         self.catalog.table(name).is_ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_helpers::write_lp;
+    use crate::utils::make_db;
+    use predicate::predicate::PredicateBuilder;
+
+    #[tokio::test]
+    async fn test_filtered_chunks() {
+        let partition_key = "1970-01-01T00";
+        let db = make_db().await.db;
+
+        write_lp(&db, "cpu foo=1 1");
+        write_lp(&db, "cpu foo=1 2");
+
+        db.compact_partition("cpu", partition_key).await.unwrap();
+
+        write_lp(&db, "cpu foo=1 3");
+
+        db.compact_chunks("cpu", partition_key, |c| c.storage().1.has_mutable_buffer())
+            .await
+            .unwrap();
+
+        write_lp(&db, "cpu foo=1 4");
+
+        let predicate = Default::default();
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 3);
+
+        let predicate = PredicateBuilder::new().timestamp_range(0, 1).build();
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 0);
+
+        let predicate = PredicateBuilder::new().timestamp_range(0, 2).build();
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 1);
+
+        let predicate = PredicateBuilder::new().timestamp_range(2, 3).build();
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 1);
+
+        let predicate = PredicateBuilder::new().timestamp_range(2, 4).build();
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 2);
+
+        let predicate = PredicateBuilder::new().timestamp_range(2, 5).build();
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 3);
     }
 }
