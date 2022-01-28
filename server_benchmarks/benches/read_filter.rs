@@ -44,7 +44,8 @@ async fn setup_scenarios() -> Vec<DbScenario> {
     let mut lp = String::new();
     gz.read_to_string(&mut lp).unwrap();
 
-    let db = query_tests::scenarios::make_two_chunk_scenarios("2021-04-26T13", &lp, &lp).await;
+    let db =
+        query_tests::scenarios::util::make_two_chunk_scenarios("2021-04-26T13", &lp, &lp).await;
     db
 }
 

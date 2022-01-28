@@ -1,7 +1,10 @@
 //! Tests for the Influx gRPC queries
 use crate::{
     influxrpc::util::run_series_set_plan,
-    scenarios::{util::all_scenarios_for_one_chunk, *},
+    scenarios::{
+        util::{all_scenarios_for_one_chunk, make_two_chunk_scenarios, rollover_and_load},
+        *,
+    },
 };
 use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, timestamp::TimestampRange};

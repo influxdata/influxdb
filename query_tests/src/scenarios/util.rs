@@ -609,3 +609,230 @@ pub async fn make_contiguous_os_chunks(
 
     (db, chunk_ids)
 }
+
+/// This function loads one chunk of lp data into MUB only
+///
+pub(crate) async fn make_one_chunk_mub_scenario(data: &str) -> Vec<DbScenario> {
+    // Scenario 1: One open chunk in MUB
+    let db = make_db().await.db;
+    write_lp(&db, data);
+    let scenario = DbScenario {
+        scenario_name: "Data in open chunk of mutable buffer".into(),
+        db,
+    };
+
+    vec![scenario]
+}
+
+/// This function loads one chunk of lp data into RUB only
+///
+pub(crate) async fn make_one_chunk_rub_scenario(
+    partition_key: &str,
+    data: &str,
+) -> Vec<DbScenario> {
+    // Scenario 1: One closed chunk in RUB
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data);
+    for table_name in &table_names {
+        db.rollover_partition(table_name, partition_key)
+            .await
+            .unwrap();
+        db.compact_partition(table_name, partition_key)
+            .await
+            .unwrap();
+    }
+    let scenario = DbScenario {
+        scenario_name: "Data in read buffer".into(),
+        db,
+    };
+
+    vec![scenario]
+}
+
+/// This function loads two chunks of lp data into 4 different scenarios
+///
+/// Data in single open mutable buffer chunk
+/// Data in one open mutable buffer chunk, one closed mutable chunk
+/// Data in one open mutable buffer chunk, one read buffer chunk
+/// Data in one two read buffer chunks,
+pub async fn make_two_chunk_scenarios(
+    partition_key: &str,
+    data1: &str,
+    data2: &str,
+) -> Vec<DbScenario> {
+    let db = make_db().await.db;
+    write_lp(&db, data1);
+    write_lp(&db, data2);
+    let scenario1 = DbScenario {
+        scenario_name: "Data in single open chunk of mutable buffer".into(),
+        db,
+    };
+
+    // spread across 2 mutable buffer chunks
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data1);
+    for table_name in &table_names {
+        db.rollover_partition(table_name, partition_key)
+            .await
+            .unwrap();
+    }
+    write_lp(&db, data2);
+    let scenario2 = DbScenario {
+        scenario_name: "Data in one open chunk and one closed chunk of mutable buffer".into(),
+        db,
+    };
+
+    // spread across 1 mutable buffer, 1 read buffer chunks
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data1);
+    for table_name in &table_names {
+        db.compact_partition(table_name, partition_key)
+            .await
+            .unwrap();
+    }
+    write_lp(&db, data2);
+    let scenario3 = DbScenario {
+        scenario_name: "Data in open chunk of mutable buffer, and one chunk of read buffer".into(),
+        db,
+    };
+
+    // in 2 read buffer chunks
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data1);
+    for table_name in &table_names {
+        db.compact_partition(table_name, partition_key)
+            .await
+            .unwrap();
+    }
+    let table_names = write_lp(&db, data2);
+    for table_name in &table_names {
+        // Compact just the last chunk
+        db.compact_open_chunk(table_name, partition_key)
+            .await
+            .unwrap();
+    }
+    let scenario4 = DbScenario {
+        scenario_name: "Data in two read buffer chunks".into(),
+        db,
+    };
+
+    // in 2 read buffer chunks that also loaded into object store
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data1);
+    for table_name in &table_names {
+        db.persist_partition(table_name, partition_key, true)
+            .await
+            .unwrap();
+    }
+    let table_names = write_lp(&db, data2);
+    for table_name in &table_names {
+        db.persist_partition(table_name, partition_key, true)
+            .await
+            .unwrap();
+    }
+    let scenario5 = DbScenario {
+        scenario_name: "Data in two read buffer chunks and two parquet file chunks".into(),
+        db,
+    };
+
+    // Scenario 6: Two closed chunk in OS only
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data1);
+    for table_name in &table_names {
+        let id = db
+            .persist_partition(table_name, partition_key, true)
+            .await
+            .unwrap()
+            .unwrap()
+            .id();
+        db.unload_read_buffer(table_name, partition_key, id)
+            .unwrap();
+    }
+    let table_names = write_lp(&db, data2);
+    for table_name in &table_names {
+        let id = db
+            .persist_partition(table_name, partition_key, true)
+            .await
+            .unwrap()
+            .unwrap()
+            .id();
+
+        db.unload_read_buffer(table_name, partition_key, id)
+            .unwrap();
+    }
+    let scenario6 = DbScenario {
+        scenario_name: "Data in 2 parquet chunks in object store only".into(),
+        db,
+    };
+
+    // Scenario 7: in a single chunk resulting from compacting MUB and RUB
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data1);
+    for table_name in &table_names {
+        // put chunk 1 into RUB
+        db.compact_partition(table_name, partition_key)
+            .await
+            .unwrap();
+    }
+    let table_names = write_lp(&db, data2); // write to MUB
+    for table_name in &table_names {
+        // compact chunks into a single RUB chunk
+        db.compact_partition(table_name, partition_key)
+            .await
+            .unwrap();
+    }
+    let scenario7 = DbScenario {
+        scenario_name: "Data in one compacted read buffer chunk".into(),
+        db,
+    };
+
+    vec![
+        scenario1, scenario2, scenario3, scenario4, scenario5, scenario6, scenario7,
+    ]
+}
+
+/// Rollover the mutable buffer and load chunk 0 to the read buffer and object store
+pub async fn rollover_and_load(db: &Arc<Db>, partition_key: &str, table_name: &str) {
+    db.persist_partition(table_name, partition_key, true)
+        .await
+        .unwrap();
+}
+
+// // This function loads one chunk of lp data into RUB for testing predicate pushdown
+pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
+    partition_key: &str,
+    data: &str,
+) -> Vec<DbScenario> {
+    // Scenario 1: One closed chunk in RUB
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data);
+    for table_name in &table_names {
+        db.compact_partition(table_name, partition_key)
+            .await
+            .unwrap();
+    }
+    let scenario1 = DbScenario {
+        scenario_name: "--------------------- Data in read buffer".into(),
+        db,
+    };
+
+    // Scenario 2: One closed chunk in Parquet only
+    let db = make_db().await.db;
+    let table_names = write_lp(&db, data);
+    for table_name in &table_names {
+        let id = db
+            .persist_partition(table_name, partition_key, true)
+            .await
+            .unwrap()
+            .unwrap()
+            .id();
+        db.unload_read_buffer(table_name, partition_key, id)
+            .unwrap();
+    }
+    let scenario2 = DbScenario {
+        scenario_name: "--------------------- Data in object store only ".into(),
+        db,
+    };
+
+    vec![scenario1, scenario2]
+}

@@ -2,8 +2,8 @@
 use crate::{
     influxrpc::util::run_series_set_plan,
     scenarios::{
-        make_two_chunk_scenarios, util::all_scenarios_for_one_chunk, DbScenario, DbSetup, NoData,
-        TwoMeasurementsManyFields, TwoMeasurementsManyFieldsOneChunk,
+        util::{all_scenarios_for_one_chunk, make_two_chunk_scenarios},
+        DbScenario, DbSetup, NoData, TwoMeasurementsManyFields, TwoMeasurementsManyFieldsOneChunk,
     },
 };
 
