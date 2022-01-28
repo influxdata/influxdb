@@ -317,45 +317,88 @@ async fn measurement_fields_endpoint(
 }
 
 #[tokio::test]
-pub async fn regex_operator_test() {
-    let fixture = ServerFixture::create_shared(ServerType::Database).await;
-    let mut management = fixture.management_client();
-    let mut storage_client = StorageClient::new(fixture.grpc_channel());
-    let mut write = fixture.write_client();
-
-    let scenario = Scenario::new();
-    scenario.create_database(&mut management).await;
-
-    load_read_group_data(&mut write, &scenario).await;
-
-    let read_source = scenario.read_source();
-
-    // read_group(group_keys: region, agg: None)
-    let read_filter_request = ReadFilterRequest {
-        read_source: read_source.clone(),
-        range: Some(TimestampRange {
+pub async fn read_filter_regex_operator() {
+    do_read_filter_test(
+        read_group_data(),
+        TimestampRange {
             start: 0,
             end: 2001, // include all data
-        }),
-        predicate: Some(make_regex_match_predicate("host", "^b.+")),
-        ..Default::default()
-    };
+        },
+        make_regex_match_predicate("host", "^b.+"),
+        vec![
+            "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_system, type: 0",
+            "FloatPointsFrame, timestamps: [1000, 2000], values: \"20,21\"",
+            "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_user, type: 0",
+            "FloatPointsFrame, timestamps: [1000, 2000], values: \"81,82\"",
+            "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_system, type: 0",
+            "FloatPointsFrame, timestamps: [1000, 2000], values: \"40,41\"",
+            "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_user, type: 0",
+            "FloatPointsFrame, timestamps: [1000, 2000], values: \"51,52\"",
+        ],
+    )
+    .await
+}
 
-    let expected_frames = vec![
-        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_system, type: 0",
-        "FloatPointsFrame, timestamps: [1000, 2000], values: \"20,21\"",
-        "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_user, type: 0",
-        "FloatPointsFrame, timestamps: [1000, 2000], values: \"81,82\"",
-        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_system, type: 0",
-        "FloatPointsFrame, timestamps: [1000, 2000], values: \"40,41\"",
-        "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_user, type: 0",
-        "FloatPointsFrame, timestamps: [1000, 2000], values: \"51,52\"",
-    ];
+#[tokio::test]
+// fixed in https://github.com/influxdata/influxdb_iox/pull/3557
+#[ignore]
+pub async fn read_filter_empty_tag_eq() {
+    do_read_filter_test(
+        vec!["cpu value=1 1000", "cpu,host=server01 value=2 2000"],
+        TimestampRange {
+            start: 0,
+            end: 2001, // include all data
+        },
+        // https://github.com/influxdata/influxdb_iox/issues/3430
+        // host = '' means where host is not present
+        make_tag_predicate("host", ""),
+        vec![
+            "SeriesFrame, tags: _measurement=cpu,_field=value, type: 0",
+            "FloatPointsFrame, timestamps: [1000], values: \"1\"",
+        ],
+    )
+    .await
+}
 
-    assert_eq!(
-        do_read_filter_request(&mut storage_client, read_filter_request).await,
-        expected_frames,
-    );
+#[tokio::test]
+// fixed in https://github.com/influxdata/influxdb_iox/pull/3557
+#[ignore]
+pub async fn read_filter_empty_tag_not_regex() {
+    do_read_filter_test(
+        vec!["cpu value=1 1000", "cpu,host=server01 value=2 2000"],
+        TimestampRange {
+            start: 0,
+            end: 2001, // include all data
+        },
+        // https://github.com/influxdata/influxdb_iox/issues/3434
+        // host !~ /^server01$/ means where host doesn't start with `server01`
+        make_not_regex_match_predicate("host", "^server01"),
+        vec![
+            "SeriesFrame, tags: _measurement=cpu,_field=value, type: 0",
+            "FloatPointsFrame, timestamps: [1000], values: \"1\"",
+        ],
+    )
+    .await
+}
+
+#[tokio::test]
+// fixed in https://github.com/influxdata/influxdb_iox/pull/3557
+#[ignore]
+pub async fn read_filter_empty_tag_regex() {
+    do_read_filter_test(
+        vec!["cpu value=1 1000", "cpu,host=server01 value=2 2000"],
+        TimestampRange {
+            start: 0,
+            end: 2001, // include all data
+        },
+        // host =~ /.+/ means where host is at least one character
+        make_regex_match_predicate("host", ".+"),
+        vec![
+            "SeriesFrame, tags: _measurement=cpu,host=server01,_field=value, type: 0",
+            "FloatPointsFrame, timestamps: [2000], values: \"2\"",
+        ],
+    )
+    .await
 }
 
 /// Creates and loads the common data for read_group
@@ -367,15 +410,18 @@ async fn read_group_setup() -> (ServerFixture, Scenario) {
     let scenario = Scenario::new();
     scenario.create_database(&mut management).await;
 
-    load_read_group_data(&mut write, &scenario).await;
+    let line_protocol = read_group_data().join("\n");
+
+    scenario
+        .write_data(&mut write, line_protocol)
+        .await
+        .expect("Wrote cpu line protocol data");
+
     (fixture, scenario)
 }
 
-async fn load_read_group_data(
-    client: &mut influxdb_iox_client::write::Client,
-    scenario: &Scenario,
-) {
-    let line_protocol = vec![
+fn read_group_data() -> Vec<&'static str> {
+    vec![
         "cpu,cpu=cpu1,host=foo  usage_user=71.0,usage_system=10.0 1000",
         "cpu,cpu=cpu1,host=foo  usage_user=72.0,usage_system=11.0 2000",
         "cpu,cpu=cpu1,host=bar  usage_user=81.0,usage_system=20.0 1000",
@@ -385,16 +431,10 @@ async fn load_read_group_data(
         "cpu,cpu=cpu2,host=bar  usage_user=51.0,usage_system=40.0 1000",
         "cpu,cpu=cpu2,host=bar  usage_user=52.0,usage_system=41.0 2000",
     ]
-    .join("\n");
-
-    scenario
-        .write_data(client, line_protocol)
-        .await
-        .expect("Wrote cpu line protocol data");
 }
 
 /// Standalone test for read_group with group keys and no aggregate
-/// assumes that load_read_group_data has been previously run
+/// assumes that read_group_data has been previously loaded
 #[tokio::test]
 async fn test_read_group_none_agg() {
     let (fixture, scenario) = read_group_setup().await;
@@ -489,7 +529,7 @@ async fn test_read_group_none_agg_with_predicate() {
 
 // Standalone test for read_group with group keys and an actual
 // "aggregate" (not a "selector" style).  assumes that
-// load_read_group_data has been previously run
+// read_group_data has been previously loaded
 #[tokio::test]
 async fn test_read_group_sum_agg() {
     let (fixture, scenario) = read_group_setup().await;
@@ -594,7 +634,7 @@ async fn test_read_group_count_agg() {
 
 // Standalone test for read_group with group keys and an actual
 // "selector" function last.  assumes that
-// load_read_group_data has been previously run
+// read_group_data has been previously loaded
 #[tokio::test]
 async fn test_read_group_last_agg() {
     let (fixture, scenario) = read_group_setup().await;
@@ -727,6 +767,49 @@ pub async fn read_window_aggregate_test() {
     );
 }
 
+/// Sends the specified line protocol to a server with the timestamp/ predicate
+/// predicate, and compares it against expected frames
+async fn do_read_filter_test(
+    input_lines: Vec<&str>,
+    range: TimestampRange,
+    predicate: Predicate,
+    expected_frames: Vec<&str>,
+) {
+    let fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let mut management = fixture.management_client();
+    let mut storage_client = StorageClient::new(fixture.grpc_channel());
+    let mut write_client = fixture.write_client();
+
+    let scenario = Scenario::new();
+    scenario.create_database(&mut management).await;
+
+    let line_protocol = input_lines.join("\n");
+
+    scenario
+        .write_data(&mut write_client, line_protocol)
+        .await
+        .expect("Wrote line protocol data");
+
+    let read_source = scenario.read_source();
+
+    println!(
+        "Sending read_filter request with range {:?} and predicate {:?}",
+        range, predicate
+    );
+
+    let read_filter_request = ReadFilterRequest {
+        read_source: read_source.clone(),
+        range: Some(range),
+        predicate: Some(predicate),
+        ..Default::default()
+    };
+
+    assert_eq!(
+        do_read_filter_request(&mut storage_client, read_filter_request).await,
+        expected_frames,
+    );
+}
+
 /// Create a predicate representing tag_name=tag_value in the horrible gRPC
 /// structs
 fn make_tag_predicate(tag_name: impl Into<String>, tag_value: impl Into<String>) -> Predicate {
@@ -750,20 +833,38 @@ fn make_tag_predicate(tag_name: impl Into<String>, tag_value: impl Into<String>)
     }
 }
 
-// Create a predicate representing tag_name ~= /pattern/
-//
-// The constitution of this request was formed by looking at a real request
-// made to storage, which looked like this:
-//
-// root:<
-//         node_type:COMPARISON_EXPRESSION
-//         children:<node_type:TAG_REF tag_ref_value:"tag_key_name" >
-//         children:<node_type:LITERAL regex_value:"pattern" >
-//         comparison:REGEX
-// >
+/// Create a predicate representing tag_name ~= /pattern/
 fn make_regex_match_predicate(
     tag_key_name: impl Into<String>,
     pattern: impl Into<String>,
+) -> Predicate {
+    make_regex_predicate(tag_key_name, pattern, Comparison::Regex)
+}
+
+/// Create a predicate representing tag_name !~ /pattern/
+fn make_not_regex_match_predicate(
+    tag_key_name: impl Into<String>,
+    pattern: impl Into<String>,
+) -> Predicate {
+    make_regex_predicate(tag_key_name, pattern, Comparison::NotRegex)
+}
+
+/// Create a predicate representing tag_name <op> /pattern/
+///
+/// where op is `Regex` or `NotRegEx`
+/// The constitution of this request was formed by looking at a real request
+/// made to storage, which looked like this:
+///
+/// root:<
+///         node_type:COMPARISON_EXPRESSION
+///         children:<node_type:TAG_REF tag_ref_value:"tag_key_name" >
+///         children:<node_type:LITERAL regex_value:"pattern" >
+///         comparison:REGEX
+/// >
+fn make_regex_predicate(
+    tag_key_name: impl Into<String>,
+    pattern: impl Into<String>,
+    comparison: Comparison,
 ) -> Predicate {
     Predicate {
         root: Some(Node {
@@ -780,7 +881,7 @@ fn make_regex_match_predicate(
                     value: Some(Value::RegexValue(pattern.into())),
                 },
             ],
-            value: Some(Value::Comparison(Comparison::Regex as _)),
+            value: Some(Value::Comparison(comparison as _)),
         }),
     }
 }
