@@ -71,6 +71,25 @@ impl QueryableBatch {
             table_name: table_name.to_string(),
         }
     }
+
+    /// return min and max of all the snapshots
+    pub fn min_max_sequence_numbers(&self) -> (SequenceNumber, SequenceNumber) {
+        let min = self
+            .data
+            .first()
+            .expect("The Queryable Batch should not empty")
+            .min_sequencer_number;
+
+        let max = self
+            .data
+            .first()
+            .expect("The Queryable Batch should not empty")
+            .max_sequencer_number;
+
+        assert!(min <= max);
+
+        (min, max)
+    }
 }
 
 impl QueryChunkMeta for QueryableBatch {
