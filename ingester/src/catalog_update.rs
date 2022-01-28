@@ -1,12 +1,11 @@
 //! Module to update the catalog during ingesting
 
-use std::sync::Arc;
-
+use crate::{data::PersistingBatch, handler::IngestHandlerImpl};
 use iox_catalog::interface::Tombstone;
+use parquet_file::metadata::IoxMetadata;
 use snafu::{ResultExt, Snafu};
+use std::sync::Arc;
 use uuid::Uuid;
-
-use crate::{compact::IoxMetadata, data::PersistingBatch, handler::IngestHandlerImpl};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -61,18 +60,18 @@ pub fn update_catalog_after_persisting(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use iox_catalog::{
-        interface::{KafkaTopic, KafkaTopicId},
-        mem::MemCatalog,
-    };
-    use uuid::Uuid;
-    use object_store::ObjectStore;
     use crate::{
         catalog_update::update_catalog_after_persisting,
         handler::IngestHandlerImpl,
         test_util::{make_persisting_batch, make_persisting_batch_with_meta},
     };
+    use iox_catalog::{
+        interface::{KafkaTopic, KafkaTopicId},
+        mem::MemCatalog,
+    };
+    use object_store::ObjectStore;
+    use std::sync::Arc;
+    use uuid::Uuid;
 
     fn object_store() -> Arc<ObjectStore> {
         Arc::new(ObjectStore::new_in_memory())

@@ -1,8 +1,10 @@
 //! This module is responsible for compacting Ingester's data
 
+use crate::data::{PersistingBatch, QueryableBatch};
 use arrow::{array::TimestampNanosecondArray, record_batch::RecordBatch};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
-use iox_catalog::interface::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
+use iox_catalog::interface::NamespaceId;
+use parquet_file::metadata::IoxMetadata;
 use query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
@@ -12,9 +14,6 @@ use schema::TIME_COLUMN_NAME;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use time::{Time, TimeProvider};
-use uuid::Uuid;
-
-use crate::data::{PersistingBatch, QueryableBatch};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -53,60 +52,6 @@ pub enum Error {
 
 /// A specialized `Error` for Ingester's Compact errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-// todo: this struct will be moved to persist.rs
-/// Metadata stored with each parquet file
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct IoxMetadata {
-    /// The uuid used as the location of the parquet file in the OS.
-    /// This uuid will later be used as the catalog's ParquetFileId
-    pub object_store_id: Uuid,
-
-    /// Timestamp when this file was created.
-    pub creation_timestamp: Time,
-
-    /// sequencer id of the data
-    pub sequencer_id: SequencerId,
-
-    /// namesapce id of the data
-    pub namespace_id: NamespaceId,
-
-    /// namespace name
-    pub namespace_name: Arc<str>,
-
-    /// table id of the data
-    pub table_id: TableId,
-
-    /// table name of the data
-    pub table_name: Arc<str>,
-
-    /// partition id of the data
-    pub partition_id: PartitionId,
-
-    /// parittion key of the data
-    pub partition_key: Arc<str>,
-
-    /// Time of the first write of the data
-    /// This is also the min value of the column `time`
-    pub time_of_first_write: Time,
-
-    /// Time of the last write of the data
-    /// This is also the max value of the column `time`
-    pub time_of_last_write: Time,
-
-    /// sequence number of the first write
-    pub min_sequence_number: SequenceNumber,
-
-    /// sequence number of the last write
-    pub max_sequence_number: SequenceNumber,
-}
-
-impl IoxMetadata {
-    /// verify uuid
-    pub fn match_object_store_id(&self, uuid: Uuid) -> bool {
-        uuid == self.object_store_id
-    }
-}
 
 /// Return min and max for column `time` of the given set of record batches
 pub fn compute_timenanosecond_min_max(batches: &[RecordBatch]) -> Result<(i64, i64)> {
@@ -249,6 +194,7 @@ mod tests {
     };
     use arrow_util::assert_batches_eq;
     use time::SystemProvider;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_compact_persisting_batch_on_one_record_batch_no_dupilcates() {

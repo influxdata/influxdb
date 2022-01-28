@@ -16,7 +16,7 @@ message IoxMetadata {
   int32 namespace_id = 3;
 
   // Unique name of the namespace.
-  string namespace = 4;
+  string namespace_name = 4;
 
   // Unique sequencer ID.
   int32 sequencer_id = 5;

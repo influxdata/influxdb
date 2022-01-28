@@ -475,7 +475,7 @@ pub struct IoxMetadata {
     pub namespace_id: NamespaceId,
 
     /// namespace name of the data
-    pub namespace: Arc<str>,
+    pub namespace_name: Arc<str>,
 
     /// sequencer id of the data
     pub sequencer_id: SequencerId,
@@ -514,7 +514,7 @@ impl IoxMetadata {
             object_store_id: self.object_store_id.as_bytes().to_vec(),
             creation_timestamp: Some(self.creation_timestamp.date_time().into()),
             namespace_id: self.namespace_id.get(),
-            namespace: self.namespace.to_string(),
+            namespace_name: self.namespace_name.to_string(),
             sequencer_id: self.sequencer_id.get() as i32,
             table_id: self.table_id.get(),
             table_name: self.table_name.to_string(),
@@ -530,6 +530,11 @@ impl IoxMetadata {
         proto_msg.encode(&mut buf)?;
 
         Ok(buf)
+    }
+
+    /// verify uuid
+    pub fn match_object_store_id(&self, uuid: Uuid) -> bool {
+        uuid == self.object_store_id
     }
 }
 

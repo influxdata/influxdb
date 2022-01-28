@@ -1,21 +1,17 @@
 //! Test setups and data for ingetser crate
 
-use std::sync::Arc;
-
+use crate::data::{PersistingBatch, QueryableBatch, SnapshotBatch};
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
 use iox_catalog::interface::{
     NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp, Tombstone,
     TombstoneId,
 };
+use parquet_file::metadata::IoxMetadata;
 use query::test::{raw_data, TestChunk};
+use std::sync::Arc;
 use time::{SystemProvider, Time, TimeProvider};
 use uuid::Uuid;
-
-use crate::{
-    compact::IoxMetadata,
-    data::{PersistingBatch, QueryableBatch, SnapshotBatch},
-};
 
 /// Create a persting batch, some tombstones and corresponding metadata fot them after compaction
 pub async fn make_persisting_batch_with_meta() -> (Arc<PersistingBatch>, Vec<Tombstone>, IoxMetadata)
