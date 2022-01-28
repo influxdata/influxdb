@@ -90,7 +90,9 @@ use data_types::{
     chunk_metadata::{ChunkId, ChunkOrder},
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
 };
+use generated_types::influxdata::iox::ingest::v1 as proto;
 use generated_types::influxdata::iox::preserved_catalog::v1 as preserved_catalog;
+use iox_catalog::interface::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
 use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
@@ -114,6 +116,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 use time::Time;
+use uuid::Uuid;
 
 /// Current version for serialized metadata.
 ///
@@ -445,6 +448,82 @@ impl IoxMetadataOld {
             partition_checkpoint: Some(proto_partition_checkpoint),
             database_checkpoint: Some(proto_database_checkpoint),
             chunk_order: self.chunk_order.get(),
+        };
+
+        let mut buf = Vec::new();
+        proto_msg.encode(&mut buf)?;
+
+        Ok(buf)
+    }
+}
+
+/// IOx-specific metadata.
+///
+/// # Serialization
+/// This will serialized as base64-encoded [Protocol Buffers 3] into the file-level key-value
+/// Parquet metadata (under [`METADATA_KEY`]).
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct IoxMetadata {
+    /// The uuid used as the location of the parquet file in the OS.
+    /// This uuid will later be used as the catalog's ParquetFileId
+    pub object_store_id: Uuid,
+
+    /// Timestamp when this file was created.
+    pub creation_timestamp: Time,
+
+    /// namespace id of the data
+    pub namespace_id: NamespaceId,
+
+    /// namespace name of the data
+    pub namespace: Arc<str>,
+
+    /// sequencer id of the data
+    pub sequencer_id: SequencerId,
+
+    /// table id of the data
+    pub table_id: TableId,
+
+    /// table name of the data
+    pub table_name: Arc<str>,
+
+    /// partition id of the data
+    pub partition_id: PartitionId,
+
+    /// parittion key of the data
+    pub partition_key: Arc<str>,
+
+    /// Time of the first write of the data
+    /// This is also the min value of the column `time`
+    pub time_of_first_write: Time,
+
+    /// Time of the last write of the data
+    /// This is also the max value of the column `time`
+    pub time_of_last_write: Time,
+
+    /// sequence number of the first write
+    pub min_sequence_number: SequenceNumber,
+
+    /// sequence number of the last write
+    pub max_sequence_number: SequenceNumber,
+}
+
+impl IoxMetadata {
+    /// Convert to protobuf v3 message.
+    pub(crate) fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
+        let proto_msg = proto::IoxMetadata {
+            object_store_id: self.object_store_id.as_bytes().to_vec(),
+            creation_timestamp: Some(self.creation_timestamp.date_time().into()),
+            namespace_id: self.namespace_id.get(),
+            namespace: self.namespace.to_string(),
+            sequencer_id: self.sequencer_id.get() as i32,
+            table_id: self.table_id.get(),
+            table_name: self.table_name.to_string(),
+            partition_id: self.partition_id.get(),
+            partition_key: self.partition_key.to_string(),
+            time_of_first_write: Some(self.time_of_first_write.date_time().into()),
+            time_of_last_write: Some(self.time_of_last_write.date_time().into()),
+            min_sequence_number: self.min_sequence_number.get(),
+            max_sequence_number: self.max_sequence_number.get(),
         };
 
         let mut buf = Vec::new();

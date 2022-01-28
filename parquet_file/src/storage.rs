@@ -30,7 +30,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::metadata::{IoxMetadataOld, IoxParquetMetaData, METADATA_KEY};
+use crate::metadata::{IoxMetadata, IoxMetadataOld, IoxParquetMetaData, METADATA_KEY};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -159,6 +159,28 @@ impl Storage {
             }
             if no_stream_data {
                 return Ok(vec![]);
+            }
+            writer.close().context(ClosingParquetWriterSnafu)?;
+        } // drop the reference to the MemWriter that the SerializedFileWriter has
+
+        mem_writer.into_inner().context(WritingToMemWriterSnafu)
+    }
+
+    /// Convert the given metadata and RecordBatches to parquet file bytes
+    pub async fn parquet_bytes(
+        record_batches: &[RecordBatch],
+        schema: SchemaRef,
+        metadata: &IoxMetadata,
+    ) -> Result<Vec<u8>> {
+        let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailureSnafu)?;
+        let props = Self::writer_props(&metadata_bytes);
+
+        let mem_writer = MemWriter::default();
+        {
+            let mut writer = ArrowWriter::try_new(mem_writer.clone(), schema, Some(props))
+                .context(OpeningParquetWriterSnafu)?;
+            for batch in record_batches {
+                writer.write(batch).context(WritingParquetToMemorySnafu)?;
             }
             writer.close().context(ClosingParquetWriterSnafu)?;
         } // drop the reference to the MemWriter that the SerializedFileWriter has
