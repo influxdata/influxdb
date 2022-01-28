@@ -90,7 +90,7 @@ use data_types::{
     chunk_metadata::{ChunkId, ChunkOrder},
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
 };
-use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
+use generated_types::influxdata::iox::preserved_catalog::v1 as preserved_catalog;
 use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
@@ -291,7 +291,7 @@ impl IoxMetadata {
     /// Read from protobuf message
     fn from_protobuf(data: &[u8]) -> Result<Self> {
         // extract protobuf message from bytes
-        let proto_msg = proto::IoxMetadata::decode(data)
+        let proto_msg = preserved_catalog::IoxMetadata::decode(data)
             .map_err(|err| Box::new(err) as _)
             .context(IoxMetadataBrokenSnafu)?;
 
@@ -392,17 +392,17 @@ impl IoxMetadata {
 
     /// Convert to protobuf v3 message.
     pub(crate) fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
-        let proto_partition_checkpoint = proto::PartitionCheckpoint {
+        let proto_partition_checkpoint = preserved_catalog::PartitionCheckpoint {
             sequencer_numbers: self
                 .partition_checkpoint
                 .sequencer_numbers_iter()
                 .map(|(sequencer_id, min_max)| {
                     (
                         sequencer_id,
-                        proto::OptionalMinMaxSequence {
+                        preserved_catalog::OptionalMinMaxSequence {
                             min: min_max
                                 .min()
-                                .map(|min| proto::OptionalUint64 { value: min }),
+                                .map(|min| preserved_catalog::OptionalUint64 { value: min }),
                             max: min_max.max(),
                         },
                     )
@@ -416,17 +416,17 @@ impl IoxMetadata {
             ),
         };
 
-        let proto_database_checkpoint = proto::DatabaseCheckpoint {
+        let proto_database_checkpoint = preserved_catalog::DatabaseCheckpoint {
             sequencer_numbers: self
                 .database_checkpoint
                 .sequencer_numbers_iter()
                 .map(|(sequencer_id, min_max)| {
                     (
                         sequencer_id,
-                        proto::OptionalMinMaxSequence {
+                        preserved_catalog::OptionalMinMaxSequence {
                             min: min_max
                                 .min()
-                                .map(|min| proto::OptionalUint64 { value: min }),
+                                .map(|min| preserved_catalog::OptionalUint64 { value: min }),
                             max: min_max.max(),
                         },
                     )
@@ -434,7 +434,7 @@ impl IoxMetadata {
                 .collect(),
         };
 
-        let proto_msg = proto::IoxMetadata {
+        let proto_msg = preserved_catalog::IoxMetadata {
             version: METADATA_VERSION,
             creation_timestamp: Some(self.creation_timestamp.date_time().into()),
             time_of_first_write: Some(self.time_of_first_write.date_time().into()),
@@ -1002,7 +1002,7 @@ mod tests {
         let proto_bytes = metadata.to_protobuf().unwrap();
 
         // tamper message
-        let mut proto_msg = proto::IoxMetadata::decode(proto_bytes.as_slice()).unwrap();
+        let mut proto_msg = preserved_catalog::IoxMetadata::decode(proto_bytes.as_slice()).unwrap();
         proto_msg.version = 42;
         let mut proto_bytes = Vec::new();
         proto_msg.encode(&mut proto_bytes).unwrap();
