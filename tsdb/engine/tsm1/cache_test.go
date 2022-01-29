@@ -541,8 +541,7 @@ func TestCache_Deduplicate_Concurrent(t *testing.T) {
 // Ensure the CacheLoader can correctly load from a single segment, even if it's corrupted.
 func TestCacheLoader_LoadSingle(t *testing.T) {
 	// Create a WAL segment.
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	w := NewWALSegmentWriter(f)
 
@@ -613,8 +612,7 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 // Ensure the CacheLoader can correctly load from two segments, even if one is corrupted.
 func TestCacheLoader_LoadDouble(t *testing.T) {
 	// Create a WAL segment.
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f1, f2 := mustTempFile(dir), mustTempFile(dir)
 	w1, w2 := NewWALSegmentWriter(f1), NewWALSegmentWriter(f2)
 
@@ -678,8 +676,7 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 // Ensure the CacheLoader can load deleted series
 func TestCacheLoader_LoadDeleted(t *testing.T) {
 	// Create a WAL segment.
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	w := NewWALSegmentWriter(f)
 
@@ -779,14 +776,6 @@ func TestCache_Split(t *testing.T) {
 			t.Fatalf("missing key, exp %s, got %v", key, nil)
 		}
 	}
-}
-
-func mustTempDir() string {
-	dir, err := os.MkdirTemp("", "tsm1-test")
-	if err != nil {
-		panic(fmt.Sprintf("failed to create temp dir: %v", err))
-	}
-	return dir
 }
 
 func mustTempFile(dir string) *os.File {

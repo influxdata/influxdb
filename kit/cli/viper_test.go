@@ -185,9 +185,7 @@ func Test_NewProgram(t *testing.T) {
 	for _, tt := range tests {
 		for _, writer := range configWriters {
 			fn := func(t *testing.T) {
-				testDir, err := ioutil.TempDir("", "")
-				require.NoError(t, err)
-				defer os.RemoveAll(testDir)
+				testDir := t.TempDir()
 
 				confFile, err := writer.writeFn(testDir, config)
 				require.NoError(t, err)
@@ -383,9 +381,7 @@ func Test_ConfigPrecedence(t *testing.T) {
 
 	for _, tt := range tests {
 		fn := func(t *testing.T) {
-			testDir, err := ioutil.TempDir("", "")
-			require.NoError(t, err)
-			defer os.RemoveAll(testDir)
+			testDir := t.TempDir()
 			defer setEnvVar("TEST_CONFIG_PATH", testDir)()
 
 			if tt.writeJson {
@@ -430,9 +426,7 @@ func Test_ConfigPrecedence(t *testing.T) {
 }
 
 func Test_ConfigPathDotDirectory(t *testing.T) {
-	testDir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
-	defer os.RemoveAll(testDir)
+	testDir := t.TempDir()
 
 	tests := []struct {
 		name string
@@ -461,7 +455,7 @@ func Test_ConfigPathDotDirectory(t *testing.T) {
 			configDir := filepath.Join(testDir, tc.dir)
 			require.NoError(t, os.Mkdir(configDir, 0700))
 
-			_, err = writeTomlConfig(configDir, config)
+			_, err := writeTomlConfig(configDir, config)
 			require.NoError(t, err)
 			defer setEnvVar("TEST_CONFIG_PATH", configDir)()
 
@@ -488,9 +482,7 @@ func Test_ConfigPathDotDirectory(t *testing.T) {
 }
 
 func Test_LoadConfigCwd(t *testing.T) {
-	testDir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
-	defer os.RemoveAll(testDir)
+	testDir := t.TempDir()
 
 	pwd, err := os.Getwd()
 	require.NoError(t, err)

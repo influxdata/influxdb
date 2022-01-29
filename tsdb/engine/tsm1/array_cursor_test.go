@@ -20,14 +20,6 @@ type keyValues struct {
 	values []Value
 }
 
-func MustTempDir() string {
-	dir, err := os.MkdirTemp("", "tsm1-test")
-	if err != nil {
-		panic(fmt.Sprintf("failed to create temp dir: %v", err))
-	}
-	return dir
-}
-
 func MustTempFile(dir string) *os.File {
 	f, err := os.CreateTemp(dir, "tsm1test")
 	if err != nil {
@@ -72,8 +64,7 @@ func newFiles(dir string, values ...keyValues) ([]string, error) {
 
 func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 	t.Run("cache", func(t *testing.T) {
-		dir := MustTempDir()
-		defer os.RemoveAll(dir)
+		dir := t.TempDir()
 		fs := NewFileStore(dir, tsdb.EngineTags{})
 
 		const START, END = 10, 1
@@ -95,8 +86,7 @@ func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 		}
 	})
 	t.Run("tsm", func(t *testing.T) {
-		dir := MustTempDir()
-		defer os.RemoveAll(dir)
+		dir := t.TempDir()
 		fs := NewFileStore(dir, tsdb.EngineTags{})
 
 		const START, END = 10, 1
@@ -132,8 +122,7 @@ func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 }
 
 func TestFileStore_DuplicatePoints(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	fs := NewFileStore(dir, tsdb.EngineTags{})
 
 	makeVals := func(ts ...int64) []Value {
@@ -217,8 +206,7 @@ func (p Int64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // When calling `nextTSM`, a single block of 1200 timestamps will be returned and the
 // array cursor must chuck the values in the Next call.
 func TestFileStore_MergeBlocksLargerThat1000_SecondEntirelyContained(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	fs := NewFileStore(dir, tsdb.EngineTags{})
 
 	// makeVals creates count points starting at ts and incrementing by step
@@ -319,8 +307,7 @@ func (a *FloatArray) Swap(i, j int) {
 // To verify intersecting data from the second file replaces the first, the values differ,
 // so the enumerated results can be compared with the expected output.
 func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	fs := NewFileStore(dir, tsdb.EngineTags{})
 
 	// makeVals creates count points starting at ts and incrementing by step
@@ -413,8 +400,7 @@ func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing
 }
 
 func TestFileStore_SeekBoundaries(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	fs := NewFileStore(dir, tsdb.EngineTags{})
 
 	// makeVals creates count points starting at ts and incrementing by step

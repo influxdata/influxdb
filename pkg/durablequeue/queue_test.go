@@ -606,11 +606,7 @@ func ReadSegment(segment *segment) string {
 }
 
 func TestSegment_repair(t *testing.T) {
-	dir, err := ioutil.TempDir("", "hh_queue")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	examples := []struct {
 		In       *TestSegment

@@ -76,11 +76,10 @@ type Test struct {
 func NewTest(t *testing.T) *Test {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "verify-seriesfile-")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	// create a series file in the directory
-	err = func() error {
+	err := func() error {
 		seriesFile := tsdb.NewSeriesFile(dir)
 		if err := seriesFile.Open(); err != nil {
 			return err
@@ -128,7 +127,6 @@ func NewTest(t *testing.T) *Test {
 		return seriesFile.Close()
 	}()
 	if err != nil {
-		os.RemoveAll(dir)
 		t.Fatal(err)
 	}
 

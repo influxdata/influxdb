@@ -374,7 +374,7 @@ func TestEngine_Digest_Concurrent(t *testing.T) {
 
 // Ensure that the engine will backup any TSM files created since the passed in time
 func TestEngine_Backup(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	// Generate temporary file.
@@ -509,7 +509,7 @@ func TestEngine_Export(t *testing.T) {
 	p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
 	p3 := MustParsePointString("cpu,host=C value=1.3 3000000000")
 
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	// Write those points to the engine.
@@ -1826,14 +1826,13 @@ func TestEngine_LastModified(t *testing.T) {
 }
 
 func TestEngine_SnapshotsDisabled(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	// Generate temporary file.
-	dir, _ := os.MkdirTemp("", "tsm")
+	dir := t.TempDir()
 	walPath := filepath.Join(dir, "wal")
 	os.MkdirAll(walPath, 0777)
-	defer os.RemoveAll(dir)
 
 	// Create a tsm1 engine.
 	db := path.Base(dir)
@@ -2593,10 +2592,7 @@ type Engine struct {
 func NewEngine(tb testing.TB, index string) (*Engine, error) {
 	tb.Helper()
 
-	root, err := os.MkdirTemp("", "tsm1-")
-	if err != nil {
-		panic(err)
-	}
+	root := tb.TempDir()
 
 	db := "db0"
 	dbPath := filepath.Join(root, "data", db)
@@ -2608,7 +2604,7 @@ func NewEngine(tb testing.TB, index string) (*Engine, error) {
 	// Setup series file.
 	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.SeriesFileDirectory))
 	sfile.Logger = zaptest.NewLogger(tb)
-	if err = sfile.Open(); err != nil {
+	if err := sfile.Open(); err != nil {
 		return nil, err
 	}
 
@@ -2766,17 +2762,13 @@ type SeriesFile struct {
 }
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
-func NewSeriesFile() *SeriesFile {
-	dir, err := os.MkdirTemp("", "tsdb-series-file-")
-	if err != nil {
-		panic(err)
-	}
-	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(dir)}
+func NewSeriesFile(tb testing.TB) *SeriesFile {
+	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(tb.TempDir())}
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
-func MustOpenSeriesFile() *SeriesFile {
-	f := NewSeriesFile()
+func MustOpenSeriesFile(tb testing.TB) *SeriesFile {
+	f := NewSeriesFile(tb)
 	if err := f.Open(); err != nil {
 		panic(err)
 	}

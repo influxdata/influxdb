@@ -17,8 +17,7 @@ import (
 
 //  Tests compacting a Cache snapshot into a single TSM file
 func TestCompactor_Snapshot(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(1, float64(1))
 	v2 := tsm1.NewValue(1, float64(1))
@@ -91,8 +90,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 }
 
 func TestCompactor_CompactFullLastTimestamp(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	var vals tsm1.Values
 	ts := int64(1e9)
@@ -144,8 +142,7 @@ func TestCompactor_CompactFullLastTimestamp(t *testing.T) {
 
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_CompactFull(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
@@ -248,8 +245,7 @@ func TestCompactor_CompactFull(t *testing.T) {
 
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_DecodeError(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
@@ -304,8 +300,7 @@ func TestCompactor_DecodeError(t *testing.T) {
 
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(4, 1.1)
@@ -375,8 +370,7 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(4, 1.1)
@@ -454,8 +448,7 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 }
 
 func TestCompactor_Compact_UnsortedBlocks(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 2 TSM files with different data and one new point
 	a1 := tsm1.NewValue(4, 1.1)
@@ -522,8 +515,7 @@ func TestCompactor_Compact_UnsortedBlocks(t *testing.T) {
 }
 
 func TestCompactor_Compact_UnsortedBlocksOverlapping(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files where two blocks are overlapping and with unsorted order
 	a1 := tsm1.NewValue(1, 1.1)
@@ -597,8 +589,7 @@ func TestCompactor_Compact_UnsortedBlocksOverlapping(t *testing.T) {
 
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
@@ -692,8 +683,7 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 // Ensures that a full compaction will skip over blocks that have the full
 // range of time contained in the block tombstoned
 func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
@@ -794,8 +784,7 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 // Ensures that a full compaction will decode and combine blocks with
 // partial tombstoned values
 func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
@@ -898,8 +887,7 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 // multiple tombstoned ranges within the block e.g. (t1, t2, t3, t4)
 // having t2 and t3 removed
 func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
@@ -1009,8 +997,7 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	if testing.Short() || os.Getenv("CI") != "" || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping max keys compaction test")
 	}
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write two files where the first contains a single key with the maximum
 	// number of full blocks that can fit in a TSM file
@@ -1088,8 +1075,7 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 
 // Tests that a single TSM file can be read and iterated over
 func TestTSMKeyIterator_Single(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{
@@ -1140,8 +1126,7 @@ func TestTSMKeyIterator_Single(t *testing.T) {
 // No data is lost but the same point time/value would exist in two files until
 // compaction corrects it.
 func TestTSMKeyIterator_Duplicate(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(1, int64(1))
 	v2 := tsm1.NewValue(1, int64(2))
@@ -1195,8 +1180,7 @@ func TestTSMKeyIterator_Duplicate(t *testing.T) {
 // Tests that deleted keys are not seen during iteration with
 // TSM files.
 func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(2, int64(1))
 	points1 := map[string][]tsm1.Value{
@@ -1264,8 +1248,7 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 // Tests that deleted keys are not seen during iteration with
 // TSM files.
 func TestTSMKeyIterator_SingleDeletes(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(10, int64(1))
 	v2 := tsm1.NewValue(20, int64(1))
@@ -1346,8 +1329,7 @@ func TestTSMKeyIterator_SingleDeletes(t *testing.T) {
 
 // Tests that the TSMKeyIterator will abort if the interrupt channel is closed
 func TestTSMKeyIterator_Abort(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{

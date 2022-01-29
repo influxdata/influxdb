@@ -95,8 +95,7 @@ func Test_DumpWal_Find_Duplicates_Present(t *testing.T) {
 func newTempWal(t *testing.T, validExt bool, withDuplicate bool) (string, string) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "dump-wal")
-	require.NoError(t, err)
+	dir := t.TempDir()
 	var file *os.File
 
 	if !validExt {
@@ -105,7 +104,7 @@ func newTempWal(t *testing.T, validExt bool, withDuplicate bool) (string, string
 		return dir, file.Name()
 	}
 
-	file, err = os.CreateTemp(dir, "dumpwaltest*"+"."+tsm1.WALFileExtension)
+	file, err := os.CreateTemp(dir, "dumpwaltest*"+"."+tsm1.WALFileExtension)
 	require.NoError(t, err)
 
 	p1 := tsm1.NewValue(10, 1.1)

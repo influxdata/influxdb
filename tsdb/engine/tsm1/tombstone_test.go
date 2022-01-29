@@ -10,8 +10,7 @@ import (
 )
 
 func TestTombstoner_Add(t *testing.T) {
-	dir := MustTempDir()
-	defer func() { os.RemoveAll(dir) }()
+	dir := t.TempDir()
 
 	f := MustTempFile(dir)
 	ts := tsm1.NewTombstoner(f.Name(), nil)
@@ -58,8 +57,7 @@ func TestTombstoner_Add(t *testing.T) {
 }
 
 func TestTombstoner_Add_LargeKey(t *testing.T) {
-	dir := MustTempDir()
-	defer func() { os.RemoveAll(dir) }()
+	dir := t.TempDir()
 
 	f := MustTempFile(dir)
 	ts := tsm1.NewTombstoner(f.Name(), nil)
@@ -107,8 +105,7 @@ func TestTombstoner_Add_LargeKey(t *testing.T) {
 }
 
 func TestTombstoner_Add_Multiple(t *testing.T) {
-	dir := MustTempDir()
-	defer func() { os.RemoveAll(dir) }()
+	dir := t.TempDir()
 
 	f := MustTempFile(dir)
 	ts := tsm1.NewTombstoner(f.Name(), nil)
@@ -170,8 +167,7 @@ func TestTombstoner_Add_Multiple(t *testing.T) {
 }
 
 func TestTombstoner_Add_Empty(t *testing.T) {
-	dir := MustTempDir()
-	defer func() { os.RemoveAll(dir) }()
+	dir := t.TempDir()
 
 	f := MustTempFile(dir)
 	ts := tsm1.NewTombstoner(f.Name(), nil)
@@ -199,8 +195,7 @@ func TestTombstoner_Add_Empty(t *testing.T) {
 }
 
 func TestTombstoner_Delete(t *testing.T) {
-	dir := MustTempDir()
-	defer func() { os.RemoveAll(dir) }()
+	dir := t.TempDir()
 
 	f := MustTempFile(dir)
 	ts := tsm1.NewTombstoner(f.Name(), nil)
@@ -237,8 +232,7 @@ func TestTombstoner_Delete(t *testing.T) {
 }
 
 func TestTombstoner_ReadV1(t *testing.T) {
-	dir := MustTempDir()
-	defer func() { os.RemoveAll(dir) }()
+	dir := t.TempDir()
 
 	f := MustTempFile(dir)
 	if err := os.WriteFile(f.Name(), []byte("foo\n"), 0x0600); err != nil {
@@ -279,8 +273,7 @@ func TestTombstoner_ReadV1(t *testing.T) {
 }
 
 func TestTombstoner_ReadEmptyV1(t *testing.T) {
-	dir := MustTempDir()
-	defer func() { os.RemoveAll(dir) }()
+	dir := t.TempDir()
 
 	f := MustTempFile(dir)
 	f.Close()

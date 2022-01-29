@@ -154,10 +154,10 @@ type tsmParams struct {
 
 func createTSMFile(t *testing.T, params tsmParams) (string, string) {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "deletetsm")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	var file *os.File
+	var err error
 	if !params.improperExt {
 		file, err = os.CreateTemp(dir, "*."+tsm1.TSMFileExtension)
 	} else {

@@ -187,8 +187,7 @@ type tsmParams struct {
 func makeTSMFile(t *testing.T, params tsmParams) (string, string) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "dumptsm")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	ext := tsm1.TSMFileExtension
 	if params.wrongExt {

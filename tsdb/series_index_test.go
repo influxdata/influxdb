@@ -10,8 +10,7 @@ import (
 )
 
 func TestSeriesIndex_Count(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	idx := tsdb.NewSeriesIndex(filepath.Join(dir, "index"))
 	if err := idx.Open(); err != nil {
@@ -30,8 +29,7 @@ func TestSeriesIndex_Count(t *testing.T) {
 }
 
 func TestSeriesIndex_Delete(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	idx := tsdb.NewSeriesIndex(filepath.Join(dir, "index"))
 	if err := idx.Open(); err != nil {
@@ -53,8 +51,7 @@ func TestSeriesIndex_Delete(t *testing.T) {
 }
 
 func TestSeriesIndex_FindIDBySeriesKey(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	idx := tsdb.NewSeriesIndex(filepath.Join(dir, "index"))
 	if err := idx.Open(); err != nil {
@@ -86,8 +83,7 @@ func TestSeriesIndex_FindIDBySeriesKey(t *testing.T) {
 }
 
 func TestSeriesIndex_FindOffsetByID(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	idx := tsdb.NewSeriesIndex(filepath.Join(dir, "index"))
 	if err := idx.Open(); err != nil {

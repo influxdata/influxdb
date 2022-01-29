@@ -44,16 +44,7 @@ func newTestClient(t *testing.T) (*bolt.Client, func(), error) {
 }
 
 func TestClientOpen(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Fatalf("unable to create temporary test directory %v", err)
-	}
-
-	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Fatalf("unable to delete temporary test directory %s: %v", tempDir, err)
-		}
-	}()
+	tempDir := t.TempDir()
 
 	boltFile := filepath.Join(tempDir, "test", "bolt.db")
 

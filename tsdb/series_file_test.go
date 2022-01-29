@@ -54,7 +54,7 @@ func TestParseSeriesKeyInto(t *testing.T) {
 
 // Ensure that broken series files are closed
 func TestSeriesFile_Open_WhenFileCorrupt_ShouldReturnErr(t *testing.T) {
-	f := NewBrokenSeriesFile([]byte{0, 0, 0, 0, 0})
+	f := NewBrokenSeriesFile(t, []byte{0, 0, 0, 0, 0})
 	defer f.Close()
 	f.Logger = zaptest.NewLogger(t)
 
@@ -320,16 +320,13 @@ type SeriesFile struct {
 }
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
-func NewSeriesFile() *SeriesFile {
-	dir, err := ioutil.TempDir("", "tsdb-series-file-")
-	if err != nil {
-		panic(err)
-	}
+func NewSeriesFile(tb testing.TB) *SeriesFile {
+	dir := tb.TempDir()
 	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(dir)}
 }
 
-func NewBrokenSeriesFile(content []byte) *SeriesFile {
-	sFile := NewSeriesFile()
+func NewBrokenSeriesFile(tb testing.TB, content []byte) *SeriesFile {
+	sFile := NewSeriesFile(tb)
 	fPath := sFile.Path()
 	sFile.Open()
 	sFile.SeriesFile.Close()
@@ -349,7 +346,7 @@ func NewBrokenSeriesFile(content []byte) *SeriesFile {
 func MustOpenSeriesFile(tb testing.TB) *SeriesFile {
 	tb.Helper()
 
-	f := NewSeriesFile()
+	f := NewSeriesFile(tb)
 	f.Logger = zaptest.NewLogger(tb)
 	if err := f.Open(); err != nil {
 		panic(err)

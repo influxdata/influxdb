@@ -31,8 +31,7 @@ import (
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 	tmpShard := filepath.Join(tmpDir, "shard")
 	tmpWal := filepath.Join(tmpDir, "wal")
 
@@ -100,8 +99,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 }
 
 func TestShardRebuildIndex(t *testing.T) {
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 	tmpShard := filepath.Join(tmpDir, "shard")
 	tmpWal := filepath.Join(tmpDir, "wal")
 
@@ -178,8 +176,7 @@ func TestShardRebuildIndex(t *testing.T) {
 }
 
 func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 	tmpShard := filepath.Join(tmpDir, "shard")
 	tmpWal := filepath.Join(tmpDir, "wal")
 
@@ -228,8 +225,7 @@ func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
 }
 
 func TestWriteTimeTag(t *testing.T) {
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 	tmpShard := filepath.Join(tmpDir, "shard")
 	tmpWal := filepath.Join(tmpDir, "wal")
 
@@ -278,8 +274,7 @@ func TestWriteTimeTag(t *testing.T) {
 }
 
 func TestWriteTimeField(t *testing.T) {
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 	tmpShard := filepath.Join(tmpDir, "shard")
 	tmpWal := filepath.Join(tmpDir, "wal")
 
@@ -313,8 +308,7 @@ func TestWriteTimeField(t *testing.T) {
 }
 
 func TestShardWriteAddNewField(t *testing.T) {
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 	tmpShard := filepath.Join(tmpDir, "shard")
 	tmpWal := filepath.Join(tmpDir, "wal")
 
@@ -365,8 +359,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 	if testing.Short() || runtime.GOOS == "windows" {
 		t.Skip("Skipping on short and windows")
 	}
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 	tmpShard := filepath.Join(tmpDir, "shard")
 	tmpWal := filepath.Join(tmpDir, "wal")
 
@@ -453,8 +446,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 	tmpShard := filepath.Join(tmpDir, "shard")
 	tmpWal := filepath.Join(tmpDir, "wal")
 
@@ -603,8 +595,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 // Ensures that when a shard is closed, it removes any series meta-data
 // from the index.
 func TestShard_Close_RemoveIndex(t *testing.T) {
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 	tmpShard := filepath.Join(tmpDir, "shard")
 	tmpWal := filepath.Join(tmpDir, "wal")
 
@@ -1518,8 +1509,7 @@ _reserved,region=uswest value="foo" 0
 }
 
 func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	path := filepath.Join(dir, "fields.idx")
 	mf, err := tsdb.NewMeasurementFieldSet(path)
@@ -1553,8 +1543,7 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 }
 
 func TestMeasurementFieldSet_Corrupt(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	path := filepath.Join(dir, "fields.idx")
 	func() {
@@ -1592,8 +1581,7 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 	}
 }
 func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	path := filepath.Join(dir, "fields.idx")
 	mf, err := tsdb.NewMeasurementFieldSet(path)
@@ -1636,8 +1624,7 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 }
 
 func TestMeasurementFieldSet_InvalidFormat(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	path := filepath.Join(dir, "fields.idx")
 
@@ -1654,8 +1641,7 @@ func TestMeasurementFieldSet_InvalidFormat(t *testing.T) {
 
 func TestMeasurementFieldSet_ConcurrentSave(t *testing.T) {
 	var iterations int
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	if testing.Short() {
 		iterations = 50
@@ -2209,10 +2195,7 @@ func NewShards(tb testing.TB, index string, n int) Shards {
 	tb.Helper()
 
 	// Create temporary path for data and WAL.
-	dir, err := ioutil.TempDir("", "influxdb-tsdb-")
-	if err != nil {
-		panic(err)
-	}
+	dir := tb.TempDir()
 
 	sfile := MustOpenSeriesFile(tb)
 
@@ -2305,14 +2288,6 @@ func (sh *Shard) MustWritePointsString(s string) {
 	if err := sh.WritePoints(context.Background(), a); err != nil {
 		panic(err)
 	}
-}
-
-func MustTempDir() (string, func()) {
-	dir, err := ioutil.TempDir("", "shard-test")
-	if err != nil {
-		panic(fmt.Sprintf("failed to create temp dir: %v", err))
-	}
-	return dir, func() { os.RemoveAll(dir) }
 }
 
 type seriesIterator struct {

@@ -13,7 +13,7 @@ import (
 )
 
 func TestDigest_None(t *testing.T) {
-	dir := MustTempDir()
+	dir := t.TempDir()
 	dataDir := filepath.Join(dir, "data")
 	if err := os.Mkdir(dataDir, 0755); err != nil {
 		t.Fatalf("create data dir: %v", err)
@@ -62,7 +62,7 @@ func TestDigest_None(t *testing.T) {
 }
 
 func TestDigest_One(t *testing.T) {
-	dir := MustTempDir()
+	dir := t.TempDir()
 	dataDir := filepath.Join(dir, "data")
 	if err := os.Mkdir(dataDir, 0755); err != nil {
 		t.Fatalf("create data dir: %v", err)
@@ -125,7 +125,7 @@ func TestDigest_One(t *testing.T) {
 }
 
 func TestDigest_TimeFilter(t *testing.T) {
-	dir := MustTempDir()
+	dir := t.TempDir()
 	dataDir := filepath.Join(dir, "data")
 	if err := os.Mkdir(dataDir, 0755); err != nil {
 		t.Fatalf("create data dir: %v", err)
@@ -206,7 +206,7 @@ func TestDigest_TimeFilter(t *testing.T) {
 }
 
 func TestDigest_KeyFilter(t *testing.T) {
-	dir := MustTempDir()
+	dir := t.TempDir()
 	dataDir := filepath.Join(dir, "data")
 	if err := os.Mkdir(dataDir, 0755); err != nil {
 		t.Fatalf("create data dir: %v", err)
@@ -284,8 +284,7 @@ func TestDigest_KeyFilter(t *testing.T) {
 
 func TestDigest_Manifest(t *testing.T) {
 	// Create temp directory to hold test files.
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	digestFile := filepath.Join(dir, tsm1.DigestFilename)
 

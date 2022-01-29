@@ -47,8 +47,7 @@ func TestTSMWriter_Write_NoValues(t *testing.T) {
 }
 
 func TestTSMWriter_Write_Single(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := MustTempFile(dir)
 
 	w, err := tsm1.NewTSMWriter(f)
@@ -113,8 +112,7 @@ func TestTSMWriter_Write_Single(t *testing.T) {
 }
 
 func TestTSMWriter_Write_Multiple(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := MustTempFile(dir)
 
 	w, err := tsm1.NewTSMWriter(f)
@@ -174,8 +172,7 @@ func TestTSMWriter_Write_Multiple(t *testing.T) {
 }
 
 func TestTSMWriter_Write_MultipleKeyValues(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := MustTempFile(dir)
 
 	w, err := tsm1.NewTSMWriter(f)
@@ -242,8 +239,7 @@ func TestTSMWriter_Write_MultipleKeyValues(t *testing.T) {
 
 // Tests that writing keys in reverse is able to read them back.
 func TestTSMWriter_Write_SameKey(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := MustTempFile(dir)
 
 	w, err := tsm1.NewTSMWriter(f)
@@ -311,8 +307,7 @@ func TestTSMWriter_Write_SameKey(t *testing.T) {
 // Tests that calling Read returns all the values for block matching the key
 // and timestamp
 func TestTSMWriter_Read_Multiple(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := MustTempFile(dir)
 
 	w, err := tsm1.NewTSMWriter(f)
@@ -395,8 +390,7 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 }
 
 func TestTSMWriter_WriteBlock_Empty(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := MustTempFile(dir)
 
 	w, err := tsm1.NewTSMWriter(f)
@@ -429,8 +423,7 @@ func TestTSMWriter_WriteBlock_Empty(t *testing.T) {
 }
 
 func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := MustTempFile(dir)
 
 	w, err := tsm1.NewTSMWriter(f)
@@ -544,8 +537,7 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 }
 
 func TestTSMWriter_WriteBlock_MaxKey(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := MustTempFile(dir)
 
 	w, err := tsm1.NewTSMWriter(f)
@@ -564,8 +556,7 @@ func TestTSMWriter_WriteBlock_MaxKey(t *testing.T) {
 }
 
 func TestTSMWriter_Write_MaxKey(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := MustTempFile(dir)
 	defer f.Close()
 

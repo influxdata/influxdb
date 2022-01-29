@@ -369,10 +369,7 @@ func MustNewIndex(tb testing.TB, index string, eopts ...EngineOption) *Index {
 		opt(&opts)
 	}
 
-	rootPath, err := os.MkdirTemp("", "influxdb-tsdb")
-	if err != nil {
-		panic(err)
-	}
+	rootPath := tb.TempDir()
 
 	seriesPath, err := os.MkdirTemp(rootPath, tsdb.SeriesFileDirectory)
 	if err != nil {

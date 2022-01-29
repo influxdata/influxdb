@@ -21,12 +21,10 @@ type testInfo struct {
 }
 
 func TestVerifies_InvalidFileType(t *testing.T) {
-	path, err := os.MkdirTemp("", "verify-wal")
-	require.NoError(t, err)
+	path := t.TempDir()
 
-	_, err = os.CreateTemp(path, "verifywaltest*"+".txt")
+	_, err := os.CreateTemp(path, "verifywaltest*"+".txt")
 	require.NoError(t, err)
-	defer os.RemoveAll(path)
 
 	runCommand(testInfo{
 		t:           t,
@@ -108,8 +106,7 @@ func runCommand(args testInfo) {
 func newTempWALValid(t *testing.T) string {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "verify-wal")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	w := tsm1.NewWAL(dir, 0, 0, tsdb.EngineTags{})
 	defer w.Close()
@@ -129,7 +126,7 @@ func newTempWALValid(t *testing.T) string {
 		"cpu,host=A#!~#unsigned": {p5},
 	}
 
-	_, err = w.WriteMulti(context.Background(), values)
+	_, err := w.WriteMulti(context.Background(), values)
 	require.NoError(t, err)
 
 	return dir
@@ -138,8 +135,7 @@ func newTempWALValid(t *testing.T) string {
 func newTempWALInvalid(t *testing.T, empty bool) (string, *os.File) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "verify-wal")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	file, err := os.CreateTemp(dir, "verifywaltest*."+tsm1.WALFileExtension)
 	require.NoError(t, err)

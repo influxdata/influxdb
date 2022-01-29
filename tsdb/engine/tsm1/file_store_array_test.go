@@ -2,7 +2,6 @@ package tsm1_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -310,8 +309,7 @@ func TestFileStore_Array(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := MustTempDir()
-			defer os.RemoveAll(dir)
+			dir := t.TempDir()
 			fs := tsm1.NewFileStore(dir, tsdb.EngineTags{})
 
 			files, err := newFiles(dir, tc.data...)

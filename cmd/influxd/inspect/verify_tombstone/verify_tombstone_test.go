@@ -21,12 +21,10 @@ const (
 
 // Run tests on a directory with no Tombstone files
 func TestVerifies_InvalidFileType(t *testing.T) {
-	path, err := os.MkdirTemp("", "verify-tombstone")
-	require.NoError(t, err)
+	path := t.TempDir()
 
-	_, err = os.CreateTemp(path, "verifytombstonetest*"+".txt")
+	_, err := os.CreateTemp(path, "verifytombstonetest*"+".txt")
 	require.NoError(t, err)
-	defer os.RemoveAll(path)
 
 	verify := NewVerifyTombstoneCommand()
 	verify.SetArgs([]string{"--engine-path", path})
@@ -136,8 +134,7 @@ func TestTombstone_VeryVeryVerbose(t *testing.T) {
 func NewTempTombstone(t *testing.T) (string, *os.File) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "verify-tombstone")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	file, err := os.CreateTemp(dir, "verifytombstonetest*"+"."+tsm1.TombstoneFileExtension)
 	require.NoError(t, err)

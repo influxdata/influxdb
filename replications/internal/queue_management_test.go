@@ -327,8 +327,7 @@ func TestStartReplicationQueuesMultipleWithPartialDelete(t *testing.T) {
 func initQueueManager(t *testing.T) (string, *durableQueueManager) {
 	t.Helper()
 
-	enginePath, err := os.MkdirTemp("", "engine")
-	require.NoError(t, err)
+	enginePath := t.TempDir()
 	queuePath := filepath.Join(enginePath, "replicationq")
 
 	logger := zaptest.NewLogger(t)
@@ -378,9 +377,7 @@ func getTestRemoteWriter(t *testing.T, expected string, returning error, wg *syn
 func TestEnqueueData(t *testing.T) {
 	t.Parallel()
 
-	queuePath, err := os.MkdirTemp("", "testqueue")
-	require.NoError(t, err)
-	defer os.RemoveAll(queuePath)
+	queuePath := t.TempDir()
 
 	logger := zaptest.NewLogger(t)
 	qm := NewDurableQueueManager(logger, queuePath, metrics.NewReplicationsMetrics(), replicationsMock.NewMockHttpConfigStore(nil))
