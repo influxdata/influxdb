@@ -31,12 +31,28 @@ jobs:
           name: Build source tarball
           command: |
             set -x
+
+            INFLUXDB_VERSION=$(git describe --tags HEAD | sed 's|^v||')
+
+            printf '{
+                "version": "%s",
+                "branch": "%s",
+                "sha": "%s"
+            }' "${INFLUXDB_VERSION}" "${CIRCLE_BRANCH}" "${CIRCLE_SHA1}" >"$(pwd)/.metadata.json"
+
+            #
+            # Prebuild the man pages so that consumers of the source tarball don't have to build it themselves.
+            (cd man && make build && gzip -9 ./*.1)
+
             mkdir -p ./tarball
             TARBALL_NAME="./tarball/influxdb-src-${CIRCLE_SHA1}.tar.gz"
-            # TODO: set version info (do this last)
-            tar --exclude-vcs --exclude './tarball' -vczf "${TARBALL_NAME}" .
+            tar --exclude-vcs --exclude './tarball' --transform 'flags=r;s|^|influxdb/|' -vczf "${TARBALL_NAME}" .
       - store_artifacts:
           path: tarball/
+      - persist_to_workspace:
+          root: .
+          paths:
+            - tarball
       - run:
           name: Build binaries
           command: |
@@ -56,18 +72,33 @@ jobs:
             export CC=/usr/local/bin/xcc.sh
             export CGO_ENABLED=1
 
+            INFLUXDB_VERSION=$(git describe --tags HEAD | sed 's|^v||')
+
             # linux amd64 (static build)
             TMPOUTDIR=$(mktemp -d)
             export GOOS=linux
             export GOARCH=amd64
-            for cmd in github.com/influxdata/influxdb/cmd/{influxd,influx,influx_inspect} ; do
-              go build -o $TMPOUTDIR/$(basename $cmd) -tags "netgo osusergo static_build" -ldflags="-s -extldflags \"-fno-PIC -Wl,-z,stack-size=8388608\"" $cmd
-
+            for cmd in github.com/influxdata/influxdb/cmd/{influxd,influx,influx_inspect}
+            do
+              go build \
+                -o "${TMPOUTDIR}/$(basename $cmd)" \
+                -tags "netgo osusergo static_build" \
+                -ldflags="-s
+                  -X main.version=\"${INFLUXDB_VERSION}\"
+                  -X main.branch=\"${CIRCLE_BRANCH}\"
+                  -X main.commit=\"${CIRCLE_SHA1}\"
+                  -extldflags \"-fno-PIC -Wl,-z,stack-size=8388608\"" \
+                ${cmd}
             done
+
             mkdir -p ./bins
             tarsum $TMPOUTDIR ./bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz
       - store_artifacts:
           path: bins/
+      - persist_to_workspace:
+          root: .
+          paths:
+              - bins 
       - save_cache:
           key: influxdb-cache-v1-{{ checksum "go.mod" }}
           paths:
