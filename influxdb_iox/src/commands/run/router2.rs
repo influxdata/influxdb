@@ -14,9 +14,10 @@ use crate::{
         },
     },
 };
+use iox_catalog::interface::QueryPoolId;
 use observability_deps::tracing::*;
 use router2::{
-    dml_handlers::{SchemaValidator, ShardedWriteBuffer},
+    dml_handlers::{NamespaceAutocreation, SchemaValidator, ShardedWriteBuffer},
     namespace_cache::MemoryNamespaceCache,
     sequencer::Sequencer,
     server::{http::HttpDelegate, RouterServer},
@@ -83,7 +84,35 @@ pub async fn command(config: Config) -> Result<()> {
     .await?;
 
     let ns_cache = Arc::new(MemoryNamespaceCache::default());
-    let handler_stack = SchemaValidator::new(write_buffer, catalog, ns_cache);
+    let handler_stack =
+        SchemaValidator::new(write_buffer, Arc::clone(&catalog), Arc::clone(&ns_cache));
+
+    // Look up the kafka topic ID needed to populate namespace creation
+    // requests.
+    //
+    // This code / auto-creation is for architecture testing purposes only - a
+    // prod deployment would expect namespaces to be explicitly created and this
+    // layer would be removed.
+    let topic_id = catalog
+        .kafka_topics()
+        .get_by_name(&config.write_buffer_config.topic)
+        .await?
+        .map(|v| v.id)
+        .unwrap_or_else(|| {
+            panic!(
+                "no kafka topic named {} in catalog",
+                &config.write_buffer_config.topic
+            )
+        });
+
+    let handler_stack = NamespaceAutocreation::new(
+        catalog,
+        ns_cache,
+        topic_id,
+        QueryPoolId::new(1),
+        "inf".to_owned(),
+        handler_stack,
+    );
 
     let http = HttpDelegate::new(config.run_config.max_http_request_size, handler_stack);
     let router_server = RouterServer::new(
