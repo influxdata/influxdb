@@ -9,7 +9,7 @@ use crate::interface::{
 };
 use async_trait::async_trait;
 use observability_deps::tracing::info;
-use sqlx::{postgres::PgPoolOptions, Executor, Pool, Postgres};
+use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Executor, Pool, Postgres};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -18,6 +18,8 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(500);
 /// the default schema name to use in Postgres
 pub const SCHEMA_NAME: &str = "iox_catalog";
+
+static MIGRATOR: Migrator = sqlx::migrate!();
 
 /// In-memory catalog that implements the `RepoCollection` and individual repo traits.
 #[derive(Debug)]
@@ -43,7 +45,7 @@ impl PostgresCatalog {
                     // Tag the connection with the provided application name.
                     c.execute(sqlx::query("SET application_name = '$1';").bind(app_name))
                         .await?;
-                    let search_path_query = format!("SET search_path TO {}", schema_name);
+                    let search_path_query = format!("SET search_path TO public,{}", schema_name);
                     c.execute(sqlx::query(&search_path_query)).await?;
 
                     Ok(())
@@ -61,7 +63,17 @@ impl PostgresCatalog {
     }
 }
 
+#[async_trait]
 impl Catalog for PostgresCatalog {
+    async fn setup(&self) -> Result<(), Error> {
+        MIGRATOR
+            .run(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e.into() })?;
+
+        Ok(())
+    }
+
     fn kafka_topics(&self) -> &dyn KafkaTopicRepo {
         self
     }
@@ -639,6 +651,7 @@ mod tests {
         maybe_skip_integration!();
 
         let postgres = setup_db().await;
+        postgres.setup().await.unwrap();
         clear_schema(&postgres.pool).await;
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
 

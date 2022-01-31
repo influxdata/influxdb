@@ -1,7 +1,5 @@
 -- Add migration script here
 -- iox_shared schema
-BEGIN;
-
 CREATE SCHEMA IF NOT EXISTS iox_catalog;
 
 CREATE TABLE IF NOT EXISTS iox_catalog.kafka_topic
@@ -233,4 +231,3 @@ ALTER TABLE IF EXISTS iox_catalog.processed_tombstone
     ON UPDATE NO ACTION
        ON DELETE NO ACTION
 	NOT VALID;
-END;

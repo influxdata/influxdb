@@ -11,12 +11,11 @@ user and password filled in:
 DATABASE_URL=postgres://<postgres user>:<postgres password>@localhost/iox_shared
 ```
 
-You'll then need to create the database and run the migrations. You can do this via the sqlx command line.
+You'll then need to create the database. You can do this via the sqlx command line.
 
 ```
 cargo install sqlx-cli
 sqlx database create
-sqlx migrate run
 ```
 
 This will set up the database based on the files in `./migrations` in this crate. SQLx also creates a table

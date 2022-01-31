@@ -256,22 +256,33 @@ impl std::fmt::Display for ParquetFileId {
 /// Trait that contains methods for working with the catalog
 #[async_trait]
 pub trait Catalog: Send + Sync + Debug {
+    /// Setup catalog for usage and apply possible migrations.
+    async fn setup(&self) -> Result<(), Error>;
+
     /// repo for kafka topics
     fn kafka_topics(&self) -> &dyn KafkaTopicRepo;
+
     /// repo fo rquery pools
     fn query_pools(&self) -> &dyn QueryPoolRepo;
+
     /// repo for namespaces
     fn namespaces(&self) -> &dyn NamespaceRepo;
+
     /// repo for tables
     fn tables(&self) -> &dyn TableRepo;
+
     /// repo for columns
     fn columns(&self) -> &dyn ColumnRepo;
+
     /// repo for sequencers
     fn sequencers(&self) -> &dyn SequencerRepo;
+
     /// repo for partitions
     fn partitions(&self) -> &dyn PartitionRepo;
+
     /// repo for tombstones
     fn tombstones(&self) -> &dyn TombstoneRepo;
+
     /// repo for parquet_files
     fn parquet_files(&self) -> &dyn ParquetFileRepo;
 }
@@ -839,6 +850,7 @@ pub(crate) mod test_helpers {
     use std::sync::Arc;
 
     pub(crate) async fn test_catalog(catalog: Arc<dyn Catalog>) {
+        test_setup(Arc::clone(&catalog)).await;
         test_kafka_topic(Arc::clone(&catalog)).await;
         test_query_pool(Arc::clone(&catalog)).await;
         test_namespace(Arc::clone(&catalog)).await;
@@ -848,6 +860,11 @@ pub(crate) mod test_helpers {
         test_partition(Arc::clone(&catalog)).await;
         test_tombstone(Arc::clone(&catalog)).await;
         test_parquet_file(Arc::clone(&catalog)).await;
+    }
+
+    async fn test_setup(catalog: Arc<dyn Catalog>) {
+        catalog.setup().await.expect("first catalog setup");
+        catalog.setup().await.expect("second catalog setup");
     }
 
     async fn test_kafka_topic(catalog: Arc<dyn Catalog>) {

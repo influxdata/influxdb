@@ -48,7 +48,13 @@ struct MemCollections {
     parquet_files: Vec<ParquetFile>,
 }
 
+#[async_trait]
 impl Catalog for MemCatalog {
+    async fn setup(&self) -> Result<(), Error> {
+        // nothing to do
+        Ok(())
+    }
+
     fn kafka_topics(&self) -> &dyn KafkaTopicRepo {
         self
     }
