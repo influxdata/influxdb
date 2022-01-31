@@ -18,7 +18,6 @@ fi
 
 OS=""
 ARCH=""
-STATIC=""
 
 while getopts hO:A:s arg; do
   case "$arg" in
@@ -26,7 +25,6 @@ while getopts hO:A:s arg; do
     O) OS="$OPTARG";;
     # For backwards compatibility, ensure the packages say i386 if using GOARCH=386.
     A) ARCH="$(echo "$OPTARG" | sed 's/386/i386/')";;
-    s) STATIC="1";;
   esac
 done
 
@@ -48,6 +46,7 @@ PKG_ROOT="/pkg/$ARCHIVE_ROOT_NAME"
 mkdir -p /ibin
 (cd /ibin && tar xzf /influxdb-bin.tar.gz)
 
+# TODO: $STATIC is always 0
 if [ "$OS" == "linux" ] && [ "$STATIC" == "1" ]; then
   # Static linux packages get only the binaries and the conf file in the root directory,
   # plus the man pages in the full path.
