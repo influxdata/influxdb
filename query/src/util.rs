@@ -6,10 +6,11 @@ use arrow::{compute::SortOptions, datatypes::Schema as ArrowSchema, record_batch
 
 use datafusion::{
     error::DataFusionError,
+    execution::context::ExecutionProps,
     logical_plan::{DFSchema, Expr, LogicalPlan, LogicalPlanBuilder},
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
-        planner::DefaultPhysicalPlanner,
+        planner::create_physical_expr,
         ExecutionPlan, PhysicalExpr,
     },
 };
@@ -68,11 +69,7 @@ pub fn df_physical_expr(
     input: &dyn ExecutionPlan,
     expr: Expr,
 ) -> std::result::Result<Arc<dyn PhysicalExpr>, DataFusionError> {
-    // To create a physical expression for a logical expression we need appropriate
-    // PhysicalPlanner and ExecutionContextState, however, our given logical expression is very basic
-    // and any planner or context will work
-    let physical_planner = DefaultPhysicalPlanner::default();
-    let ctx_state = datafusion::execution::context::ExecutionContextState::new();
+    let execution_props = ExecutionProps::new();
 
     let input_physical_schema = input.schema();
     let input_logical_schema: DFSchema = input_physical_schema.as_ref().clone().try_into()?;
@@ -81,10 +78,10 @@ pub fn df_physical_expr(
     trace!(%input_logical_schema, "input logical schema");
     trace!(%input_physical_schema, "input physical schema");
 
-    physical_planner.create_physical_expr(
+    create_physical_expr(
         &expr,
         &input_logical_schema,
         &input_physical_schema,
-        &ctx_state,
+        &execution_props,
     )
 }

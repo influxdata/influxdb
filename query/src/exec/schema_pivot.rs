@@ -38,7 +38,9 @@ use datafusion::{
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
     physical_plan::{
         common::SizedRecordBatchStream,
-        metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
+        metrics::{
+            BaselineMetrics, ExecutionPlanMetricsSet, MemTrackingMetrics, MetricsSet, RecordOutput,
+        },
         DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
         Statistics,
     },
@@ -297,10 +299,11 @@ impl ExecutionPlan for SchemaPivotExec {
                 .record_output(&baseline_metrics)?;
 
         let batches = vec![Arc::new(batch)];
+        let mem_metrics = MemTrackingMetrics::new(&self.metrics, partition);
         Ok(Box::pin(SizedRecordBatchStream::new(
             self.schema(),
             batches,
-            baseline_metrics,
+            mem_metrics,
         )))
     }
 
