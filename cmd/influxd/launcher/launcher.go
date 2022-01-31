@@ -733,7 +733,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		SourceService:                   sourceSvc,
 		VariableService:                 variableSvc,
 		PasswordsService:                ts.PasswordsService,
-		InfluxQLService:                 storageQueryService,
 		InfluxqldService:                iqlquery.NewProxyExecutor(m.log, qe),
 		FluxService:                     storageQueryService,
 		FluxLanguageService:             fluxlang.DefaultService,

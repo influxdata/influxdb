@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"sort"
 	"time"
 
 	"github.com/NYTimes/gziphandler"
@@ -31,7 +30,6 @@ import (
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
-	"github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/pkg/errors"
 	prom "github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -60,15 +58,12 @@ type FluxBackend struct {
 // NewFluxBackend returns a new instance of FluxBackend.
 func NewFluxBackend(log *zap.Logger, b *APIBackend) *FluxBackend {
 	return &FluxBackend{
-		HTTPErrorHandler:   b.HTTPErrorHandler,
-		log:                log,
-		FluxLogEnabled:     b.FluxLogEnabled,
-		QueryEventRecorder: b.QueryEventRecorder,
-		AlgoWProxy:         b.AlgoWProxy,
-		ProxyQueryService: routingQueryService{
-			InfluxQLService: b.InfluxQLService,
-			DefaultService:  b.FluxService,
-		},
+		HTTPErrorHandler:    b.HTTPErrorHandler,
+		log:                 log,
+		FluxLogEnabled:      b.FluxLogEnabled,
+		QueryEventRecorder:  b.QueryEventRecorder,
+		AlgoWProxy:          b.AlgoWProxy,
+		ProxyQueryService:   b.FluxService,
 		OrganizationService: b.OrganizationService,
 		FluxLanguageService: b.FluxLanguageService,
 		Flagger:             b.Flagger,
@@ -657,39 +652,4 @@ func QueryHealthCheck(url string, insecureSkipVerify bool) check.Response {
 	}
 
 	return healthResponse
-}
-
-// routingQueryService routes queries to specific query services based on their compiler type.
-type routingQueryService struct {
-	// InfluxQLService handles queries with compiler type of "influxql"
-	InfluxQLService query.ProxyQueryService
-	// DefaultService handles all other queries
-	DefaultService query.ProxyQueryService
-}
-
-func (s routingQueryService) Check(ctx context.Context) check.Response {
-	// Produce combined check response
-	response := check.Response{
-		Name:   "internal-routingQueryService",
-		Status: check.StatusPass,
-	}
-	def := s.DefaultService.Check(ctx)
-	influxql := s.InfluxQLService.Check(ctx)
-	if def.Status == check.StatusFail {
-		response.Status = def.Status
-		response.Message = def.Message
-	} else if influxql.Status == check.StatusFail {
-		response.Status = influxql.Status
-		response.Message = influxql.Message
-	}
-	response.Checks = []check.Response{def, influxql}
-	sort.Sort(response.Checks)
-	return response
-}
-
-func (s routingQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
-	if req.Request.Compiler.CompilerType() == influxql.CompilerType {
-		return s.InfluxQLService.Query(ctx, w, req)
-	}
-	return s.DefaultService.Query(ctx, w, req)
 }

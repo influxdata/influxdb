@@ -9,8 +9,6 @@ import (
 	"io/ioutil"
 	"mime"
 	"net/http"
-	"regexp"
-	"strconv"
 	"time"
 	"unicode/utf8"
 
@@ -22,8 +20,6 @@ import (
 	"github.com/influxdata/influxdb/v2/jsonweb"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
-	transpiler "github.com/influxdata/influxdb/v2/query/influxql"
-	"github.com/influxdata/influxql"
 )
 
 // QueryRequest is a flux query request.
@@ -36,9 +32,6 @@ type QueryRequest struct {
 	AST     json.RawMessage `json:"ast,omitempty"`
 	Dialect QueryDialect    `json:"dialect"`
 	Now     time.Time       `json:"now"`
-
-	// InfluxQL fields
-	Bucket string `json:"bucket,omitempty"`
 
 	Org *influxdb.Organization `json:"-"`
 
@@ -93,12 +86,8 @@ func (r QueryRequest) Validate() error {
 		return errors.New(`request body requires either query or AST`)
 	}
 
-	if r.Type != "flux" && r.Type != "influxql" {
+	if r.Type != "flux" {
 		return fmt.Errorf(`unknown query type: %s`, r.Type)
-	}
-
-	if r.Type == "influxql" && r.Bucket == "" {
-		return fmt.Errorf("bucket parameter is required for influxql queries")
 	}
 
 	if len(r.Dialect.CommentPrefix) > 1 {
@@ -149,8 +138,6 @@ func (r QueryRequest) Analyze(l fluxlang.FluxLanguageService) (*QueryAnalysis, e
 	switch r.Type {
 	case "flux":
 		return r.analyzeFluxQuery(l)
-	case "influxql":
-		return r.analyzeInfluxQLQuery()
 	}
 
 	return nil, fmt.Errorf("unknown query request type %s", r.Type)
@@ -181,61 +168,6 @@ func (r QueryRequest) analyzeFluxQuery(l fluxlang.FluxLanguageService) (*QueryAn
 	return a, nil
 }
 
-func (r QueryRequest) analyzeInfluxQLQuery() (*QueryAnalysis, error) {
-	a := &QueryAnalysis{}
-	_, err := influxql.ParseQuery(r.Query)
-	if err == nil {
-		a.Errors = []queryParseError{}
-		return a, nil
-	}
-
-	ms := influxqlParseErrorRE.FindAllStringSubmatch(err.Error(), -1)
-	a.Errors = make([]queryParseError, 0, len(ms))
-	for _, m := range ms {
-		if len(m) != 4 {
-			return nil, fmt.Errorf("influxql query error is not formatted as expected: got %d matches expected 4", len(m))
-		}
-		msg := m[1]
-		lineStr := m[2]
-		line, err := strconv.Atoi(lineStr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse line number from error mesage: %s -> %v", lineStr, err)
-		}
-		charStr := m[3]
-		char, err := strconv.Atoi(charStr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse character number from error mesage: %s -> %v", charStr, err)
-		}
-
-		a.Errors = append(a.Errors, queryParseError{
-			Line:      line,
-			Column:    columnFromCharacter(r.Query, char),
-			Character: char,
-			Message:   msg,
-		})
-	}
-
-	return a, nil
-}
-
-func columnFromCharacter(q string, char int) int {
-	col := 0
-	for i, c := range q {
-		if c == '\n' {
-			col = 0
-		}
-
-		if i == char {
-			break
-		}
-		col++
-	}
-
-	return col
-}
-
-var influxqlParseErrorRE = regexp.MustCompile(`^(.+) at line (\d+), char (\d+)$`)
-
 // ProxyRequest returns a request to proxy from the flux.
 func (r QueryRequest) ProxyRequest() (*query.ProxyRequest, error) {
 	return r.proxyRequest(time.Now)
@@ -255,12 +187,6 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	var compiler flux.Compiler
 	if r.Query != "" {
 		switch r.Type {
-		case "influxql":
-			compiler = &transpiler.Compiler{
-				Now:    &n,
-				Query:  r.Query,
-				Bucket: r.Bucket,
-			}
 		case "flux":
 			fallthrough
 		default:
@@ -290,25 +216,20 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	if r.PreferNoContent {
 		dialect = &query.NoContentDialect{}
 	} else {
-		if r.Type == "influxql" {
-			// Use default transpiler dialect
-			dialect = &transpiler.Dialect{}
-		} else {
-			// TODO(nathanielc): Use commentPrefix and dateTimeFormat
-			// once they are supported.
-			encConfig := csv.ResultEncoderConfig{
-				NoHeader:    noHeader,
-				Delimiter:   delimiter,
-				Annotations: r.Dialect.Annotations,
+		// TODO(nathanielc): Use commentPrefix and dateTimeFormat
+		// once they are supported.
+		encConfig := csv.ResultEncoderConfig{
+			NoHeader:    noHeader,
+			Delimiter:   delimiter,
+			Annotations: r.Dialect.Annotations,
+		}
+		if r.PreferNoContentWithError {
+			dialect = &query.NoContentWithErrorDialect{
+				ResultEncoderConfig: encConfig,
 			}
-			if r.PreferNoContentWithError {
-				dialect = &query.NoContentWithErrorDialect{
-					ResultEncoderConfig: encConfig,
-				}
-			} else {
-				dialect = &csv.Dialect{
-					ResultEncoderConfig: encConfig,
-				}
+		} else {
+			dialect = &csv.Dialect{
+				ResultEncoderConfig: encConfig,
 			}
 		}
 	}

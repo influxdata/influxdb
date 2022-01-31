@@ -16,7 +16,6 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/influxdata/influxdb/v2/query"
-	"github.com/influxdata/influxdb/v2/query/influxql"
 	"go.uber.org/zap"
 )
 
@@ -169,13 +168,6 @@ func decodeSourceQueryRequest(r *http.Request) (*query.ProxyRequest, error) {
 	case lang.FluxCompilerType:
 		req.Request.Compiler = lang.FluxCompiler{
 			Query: request.Query,
-		}
-	case influxql.CompilerType:
-		req.Request.Compiler = &influxql.Compiler{
-			Cluster: request.Cluster,
-			DB:      request.DB,
-			RP:      request.RP,
-			Query:   request.Query,
 		}
 	default:
 		return nil, fmt.Errorf("compiler type not supported")

@@ -88,7 +88,6 @@ type APIBackend struct {
 	SourceService                   influxdb.SourceService
 	VariableService                 influxdb.VariableService
 	PasswordsService                influxdb.PasswordsService
-	InfluxQLService                 query.ProxyQueryService
 	InfluxqldService                influxql.ProxyQueryService
 	FluxService                     query.ProxyQueryService
 	FluxLanguageService             fluxlang.FluxLanguageService
@@ -214,11 +213,11 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	writeBackend := NewWriteBackend(b.Logger.With(zap.String("handler", "write")), b)
 	h.Mount(prefixWrite, NewWriteHandler(b.Logger, writeBackend,
 		WithMaxBatchSizeBytes(b.MaxBatchSizeBytes),
-		//WithParserOptions(
+		// WithParserOptions(
 		//	models.WithParserMaxBytes(b.WriteParserMaxBytes),
 		//	models.WithParserMaxLines(b.WriteParserMaxLines),
 		//	models.WithParserMaxValues(b.WriteParserMaxValues),
-		//),
+		// ),
 	))
 
 	for _, o := range opts {
