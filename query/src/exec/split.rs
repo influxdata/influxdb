@@ -433,15 +433,15 @@ fn negate(v: &ColumnarValue) -> Result<ColumnarValue> {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
-
     use arrow::array::{Int64Array, StringArray};
     use arrow_util::assert_batches_sorted_eq;
     use datafusion::{
-        logical_plan::{col, lit, DFSchema},
-        physical_plan::{memory::MemoryExec, planner::DefaultPhysicalPlanner},
+        logical_plan::{col, lit},
+        physical_plan::memory::MemoryExec,
     };
     use datafusion_util::test_collect_partition;
+
+    use crate::util::df_physical_expr;
 
     use super::*;
 
@@ -474,7 +474,7 @@ mod tests {
 
         let input = make_input(vec![vec![batch0, batch1]]);
         // int_col < 3
-        let split_expr = compile_expr(input.as_ref(), col("int_col").lt(lit(3)));
+        let split_expr = df_physical_expr(input.as_ref(), col("int_col").lt(lit(3))).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> = Arc::new(StreamSplitExec::new(input, split_expr));
 
         let output0 = test_collect_partition(Arc::clone(&split_exec), 0).await;
@@ -513,7 +513,7 @@ mod tests {
 
         let input = make_input(vec![vec![batch0]]);
         // use `false` to send all outputs to second stream
-        let split_expr = compile_expr(input.as_ref(), lit(false));
+        let split_expr = df_physical_expr(input.as_ref(), lit(false)).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> = Arc::new(StreamSplitExec::new(input, split_expr));
 
         let output0 = test_collect_partition(Arc::clone(&split_exec), 0).await;
@@ -546,7 +546,7 @@ mod tests {
 
         let input = make_input(vec![vec![batch0]]);
         // int_col < 3
-        let split_expr = compile_expr(input.as_ref(), col("int_col").lt(lit(3)));
+        let split_expr = df_physical_expr(input.as_ref(), col("int_col").lt(lit(3))).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> = Arc::new(StreamSplitExec::new(input, split_expr));
 
         let output0 = test_collect_partition(Arc::clone(&split_exec), 0).await;
@@ -586,7 +586,7 @@ mod tests {
 
         let input = make_input(vec![vec![batch0]]);
         // int_col (not a boolean)
-        let split_expr = compile_expr(input.as_ref(), col("int_col"));
+        let split_expr = df_physical_expr(input.as_ref(), col("int_col")).unwrap();
         let split_exec: Arc<dyn ExecutionPlan> = Arc::new(StreamSplitExec::new(input, split_expr));
 
         test_collect_partition(split_exec, 0).await;
@@ -604,28 +604,5 @@ mod tests {
         let input =
             MemoryExec::try_new(&partitions, schema, projection).expect("Created MemoryExec");
         Arc::new(input)
-    }
-
-    fn compile_expr(input: &dyn ExecutionPlan, expr: Expr) -> Arc<dyn PhysicalExpr> {
-        let physical_planner = DefaultPhysicalPlanner::default();
-        // we should probably get a handle to the one in the default
-        // physical planner somehow,..
-        let ctx_state = datafusion::execution::context::ExecutionContextState::new();
-
-        let input_physical_schema = input.schema();
-        let input_logical_schema: DFSchema = input_physical_schema
-            .as_ref()
-            .clone()
-            .try_into()
-            .expect("could not make logical schema");
-
-        physical_planner
-            .create_physical_expr(
-                &expr,
-                &input_logical_schema,
-                &input_physical_schema,
-                &ctx_state,
-            )
-            .expect("creating physical expression")
     }
 }

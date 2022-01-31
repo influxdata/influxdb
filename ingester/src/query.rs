@@ -11,7 +11,7 @@ use data_types::{
 };
 use datafusion::physical_plan::{
     common::SizedRecordBatchStream,
-    metrics::{BaselineMetrics, ExecutionPlanMetricsSet},
+    metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics},
     SendableRecordBatchStream,
 };
 use iox_catalog::interface::{SequenceNumber, Tombstone};
@@ -209,9 +209,9 @@ impl QueryChunk for QueryableBatch {
 
         // Return sream of data
         let dummy_metrics = ExecutionPlanMetricsSet::new();
-        let baseline_metrics = BaselineMetrics::new(&dummy_metrics, 0);
+        let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
         let stream =
-            SizedRecordBatchStream::new(self.schema().as_arrow(), stream_batches, baseline_metrics);
+            SizedRecordBatchStream::new(self.schema().as_arrow(), stream_batches, mem_metrics);
         Ok(Box::pin(stream))
     }
 
