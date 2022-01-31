@@ -1,0 +1,47 @@
+syntax = "proto3";
+package influxdata.iox.ingest.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// IOx-specific metadata that will be serialized into the file-level key-value Parquet metadata
+// under a single key.
+message IoxMetadata {
+  // Object store ID. Used in the parquet filename. 16 bytes in big-endian order.
+  bytes object_store_id = 1;
+
+  // Timestamp when this file was created.
+  google.protobuf.Timestamp creation_timestamp = 2;
+
+  // Unique namespace ID.
+  int32 namespace_id = 3;
+
+  // Unique name of the namespace.
+  string namespace_name = 4;
+
+  // Unique sequencer ID.
+  int32 sequencer_id = 5;
+
+  // Unique table ID.
+  int32 table_id = 6;
+
+  // Table that holds this parquet file.
+  string table_name = 7;
+
+  // Unique partition ID.
+  int64 partition_id = 8;
+
+  // Partition key of the partition that holds this parquet file.
+  string partition_key = 9;
+
+  // Wallclock timestamp of when the first data in this file was received by IOx.
+  google.protobuf.Timestamp time_of_first_write = 10;
+
+  // Wallclock timestamp of when the last data in this file was received by IOx.
+  google.protobuf.Timestamp time_of_last_write = 11;
+
+  // The minimum sequence number from a sequencer in this parquet file.
+  int64 min_sequence_number = 12;
+
+  // The maximum sequence number from a sequencer in this parquet file.
+  int64 max_sequence_number = 13;
+}

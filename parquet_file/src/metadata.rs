@@ -90,7 +90,9 @@ use data_types::{
     chunk_metadata::{ChunkId, ChunkOrder},
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
 };
-use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
+use generated_types::influxdata::iox::ingest::v1 as proto;
+use generated_types::influxdata::iox::preserved_catalog::v1 as preserved_catalog;
+use iox_catalog::interface::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
 use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
@@ -114,6 +116,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 use time::Time;
+use uuid::Uuid;
 
 /// Current version for serialized metadata.
 ///
@@ -125,7 +128,7 @@ pub const METADATA_VERSION: u32 = 10;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
-/// This will contain [`IoxMetadata`] serialized as base64-encoded [Protocol Buffers 3].
+/// This will contain [`IoxMetadataOld`] serialized as base64-encoded [Protocol Buffers 3].
 ///
 /// [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
 pub const METADATA_KEY: &str = "IOX:metadata";
@@ -260,7 +263,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// [Catalog Properties]: https://github.com/influxdata/influxdb_iox/blob/main/docs/catalog_persistence.md#13-properties
 /// [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct IoxMetadata {
+pub struct IoxMetadataOld {
     /// Timestamp when this file was created.
     pub creation_timestamp: Time,
 
@@ -287,11 +290,11 @@ pub struct IoxMetadata {
     pub chunk_order: ChunkOrder,
 }
 
-impl IoxMetadata {
+impl IoxMetadataOld {
     /// Read from protobuf message
     fn from_protobuf(data: &[u8]) -> Result<Self> {
         // extract protobuf message from bytes
-        let proto_msg = proto::IoxMetadata::decode(data)
+        let proto_msg = preserved_catalog::IoxMetadata::decode(data)
             .map_err(|err| Box::new(err) as _)
             .context(IoxMetadataBrokenSnafu)?;
 
@@ -392,17 +395,17 @@ impl IoxMetadata {
 
     /// Convert to protobuf v3 message.
     pub(crate) fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
-        let proto_partition_checkpoint = proto::PartitionCheckpoint {
+        let proto_partition_checkpoint = preserved_catalog::PartitionCheckpoint {
             sequencer_numbers: self
                 .partition_checkpoint
                 .sequencer_numbers_iter()
                 .map(|(sequencer_id, min_max)| {
                     (
                         sequencer_id,
-                        proto::OptionalMinMaxSequence {
+                        preserved_catalog::OptionalMinMaxSequence {
                             min: min_max
                                 .min()
-                                .map(|min| proto::OptionalUint64 { value: min }),
+                                .map(|min| preserved_catalog::OptionalUint64 { value: min }),
                             max: min_max.max(),
                         },
                     )
@@ -416,17 +419,17 @@ impl IoxMetadata {
             ),
         };
 
-        let proto_database_checkpoint = proto::DatabaseCheckpoint {
+        let proto_database_checkpoint = preserved_catalog::DatabaseCheckpoint {
             sequencer_numbers: self
                 .database_checkpoint
                 .sequencer_numbers_iter()
                 .map(|(sequencer_id, min_max)| {
                     (
                         sequencer_id,
-                        proto::OptionalMinMaxSequence {
+                        preserved_catalog::OptionalMinMaxSequence {
                             min: min_max
                                 .min()
-                                .map(|min| proto::OptionalUint64 { value: min }),
+                                .map(|min| preserved_catalog::OptionalUint64 { value: min }),
                             max: min_max.max(),
                         },
                     )
@@ -434,7 +437,7 @@ impl IoxMetadata {
                 .collect(),
         };
 
-        let proto_msg = proto::IoxMetadata {
+        let proto_msg = preserved_catalog::IoxMetadata {
             version: METADATA_VERSION,
             creation_timestamp: Some(self.creation_timestamp.date_time().into()),
             time_of_first_write: Some(self.time_of_first_write.date_time().into()),
@@ -451,6 +454,87 @@ impl IoxMetadata {
         proto_msg.encode(&mut buf)?;
 
         Ok(buf)
+    }
+}
+
+/// IOx-specific metadata.
+///
+/// # Serialization
+/// This will serialized as base64-encoded [Protocol Buffers 3] into the file-level key-value
+/// Parquet metadata (under [`METADATA_KEY`]).
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct IoxMetadata {
+    /// The uuid used as the location of the parquet file in the OS.
+    /// This uuid will later be used as the catalog's ParquetFileId
+    pub object_store_id: Uuid,
+
+    /// Timestamp when this file was created.
+    pub creation_timestamp: Time,
+
+    /// namespace id of the data
+    pub namespace_id: NamespaceId,
+
+    /// namespace name of the data
+    pub namespace_name: Arc<str>,
+
+    /// sequencer id of the data
+    pub sequencer_id: SequencerId,
+
+    /// table id of the data
+    pub table_id: TableId,
+
+    /// table name of the data
+    pub table_name: Arc<str>,
+
+    /// partition id of the data
+    pub partition_id: PartitionId,
+
+    /// parittion key of the data
+    pub partition_key: Arc<str>,
+
+    /// Time of the first write of the data
+    /// This is also the min value of the column `time`
+    pub time_of_first_write: Time,
+
+    /// Time of the last write of the data
+    /// This is also the max value of the column `time`
+    pub time_of_last_write: Time,
+
+    /// sequence number of the first write
+    pub min_sequence_number: SequenceNumber,
+
+    /// sequence number of the last write
+    pub max_sequence_number: SequenceNumber,
+}
+
+impl IoxMetadata {
+    /// Convert to protobuf v3 message.
+    pub(crate) fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
+        let proto_msg = proto::IoxMetadata {
+            object_store_id: self.object_store_id.as_bytes().to_vec(),
+            creation_timestamp: Some(self.creation_timestamp.date_time().into()),
+            namespace_id: self.namespace_id.get(),
+            namespace_name: self.namespace_name.to_string(),
+            sequencer_id: self.sequencer_id.get() as i32,
+            table_id: self.table_id.get(),
+            table_name: self.table_name.to_string(),
+            partition_id: self.partition_id.get(),
+            partition_key: self.partition_key.to_string(),
+            time_of_first_write: Some(self.time_of_first_write.date_time().into()),
+            time_of_last_write: Some(self.time_of_last_write.date_time().into()),
+            min_sequence_number: self.min_sequence_number.get(),
+            max_sequence_number: self.max_sequence_number.get(),
+        };
+
+        let mut buf = Vec::new();
+        proto_msg.encode(&mut buf)?;
+
+        Ok(buf)
+    }
+
+    /// verify uuid
+    pub fn match_object_store_id(&self, uuid: Uuid) -> bool {
+        uuid == self.object_store_id
     }
 }
 
@@ -637,7 +721,7 @@ impl DecodedIoxParquetMetaData {
     }
 
     /// Read IOx metadata from file-level key-value parquet metadata.
-    pub fn read_iox_metadata(&self) -> Result<IoxMetadata> {
+    pub fn read_iox_metadata(&self) -> Result<IoxMetadataOld> {
         // find file-level key-value metadata entry
         let kv = self
             .md
@@ -656,7 +740,7 @@ impl DecodedIoxParquetMetaData {
             .context(IoxMetadataBrokenSnafu)?;
 
         // convert to Rust object
-        IoxMetadata::from_protobuf(proto_bytes.as_slice())
+        IoxMetadataOld::from_protobuf(proto_bytes.as_slice())
     }
 
     /// Read IOx schema from parquet metadata.
@@ -987,7 +1071,7 @@ mod tests {
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
         );
-        let metadata = IoxMetadata {
+        let metadata = IoxMetadataOld {
             creation_timestamp: Time::from_timestamp(3234, 0),
             table_name,
             partition_key,
@@ -1002,14 +1086,14 @@ mod tests {
         let proto_bytes = metadata.to_protobuf().unwrap();
 
         // tamper message
-        let mut proto_msg = proto::IoxMetadata::decode(proto_bytes.as_slice()).unwrap();
+        let mut proto_msg = preserved_catalog::IoxMetadata::decode(proto_bytes.as_slice()).unwrap();
         proto_msg.version = 42;
         let mut proto_bytes = Vec::new();
         proto_msg.encode(&mut proto_bytes).unwrap();
 
         // decoding should fail now
         assert_eq!(
-            IoxMetadata::from_protobuf(&proto_bytes)
+            IoxMetadataOld::from_protobuf(&proto_bytes)
                 .unwrap_err()
                 .to_string(),
             format!(

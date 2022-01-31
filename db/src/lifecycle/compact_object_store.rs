@@ -27,7 +27,7 @@ use observability_deps::tracing::info;
 use parquet_catalog::interface::CatalogParquetInfo;
 use parquet_file::{
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
-    metadata::IoxMetadata,
+    metadata::IoxMetadataOld,
     storage::Storage,
 };
 use persistence_windows::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint};
@@ -105,7 +105,7 @@ pub(crate) fn compact_object_store_chunks(
             let _guard = db.cleanup_lock.read().await;
 
             // Step 4.1: Write the chunk as a parquet file into the object store
-            let iox_metadata = IoxMetadata {
+            let iox_metadata = IoxMetadataOld {
                 creation_timestamp: db.time_provider.now(),
                 table_name: Arc::clone(&partition_addr.table_name),
                 partition_key: Arc::clone(&partition_addr.partition_key),
@@ -241,7 +241,7 @@ fn mark_chunks_to_compact(
             max_order = max_order.max(chunk.order());
             chunk_ids.insert(chunk.id());
 
-            // read IoxMetadata from the parquet chunk's  metadata
+            // read IoxMetadataOld from the parquet chunk's  metadata
             if let Some(parquet_chunk) = chunk.parquet_chunk() {
                 let iox_parquet_metadata = parquet_chunk.parquet_metadata();
                 let iox_metadata = iox_parquet_metadata
@@ -373,7 +373,7 @@ async fn persist_stream_to_chunk<'a>(
     db: &'a Db,
     partition_addr: &'a PartitionAddr,
     stream: SendableRecordBatchStream,
-    iox_metadata: IoxMetadata,
+    iox_metadata: IoxMetadataOld,
 ) -> Result<Option<Arc<ParquetChunk>>> {
     // Create a storage to save data of this chunk
     let storage = Storage::new(Arc::clone(&db.iox_object_store));
@@ -438,7 +438,7 @@ async fn update_preserved_catalog(
 
 async fn update_in_memory_catalog(
     chunk_ids: &[ChunkId],
-    iox_metadata: IoxMetadata,
+    iox_metadata: IoxMetadataOld,
     parquet_chunk: Option<Arc<ParquetChunk>>,
     partition: Arc<RwLock<Partition>>,
     delete_predicates_before: HashSet<Arc<DeletePredicate>>,

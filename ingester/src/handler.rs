@@ -1,9 +1,9 @@
 //! Ingest handler
 
-use std::sync::{Arc, Mutex};
-
 use iox_catalog::interface::{Catalog, KafkaPartition, KafkaTopic, KafkaTopicId};
+use object_store::ObjectStore;
 use std::fmt::Formatter;
+use std::sync::{Arc, Mutex};
 
 use crate::data::{DataBuffer, PersistingBatch};
 
@@ -20,6 +20,8 @@ pub struct IngestHandlerImpl {
     pub iox_catalog: Arc<dyn Catalog>,
     /// In-memory data of this ingester
     pub data: Mutex<DataBuffer>,
+    /// Object store for persistence of parquet files
+    object_store: Arc<ObjectStore>,
 }
 
 impl std::fmt::Debug for IngestHandlerImpl {
@@ -34,12 +36,14 @@ impl IngestHandlerImpl {
         topic: KafkaTopic,
         shard_ids: Vec<KafkaPartition>,
         catalog: Arc<dyn Catalog>,
+        object_store: Arc<ObjectStore>,
     ) -> Self {
         Self {
             kafka_topic: topic,
             kafka_partitions: shard_ids,
             iox_catalog: catalog,
             data: Default::default(),
+            object_store,
         }
     }
 

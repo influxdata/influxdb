@@ -9,7 +9,7 @@ use bytes::Bytes;
 use data_types::chunk_metadata::ChunkAddr;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::AdapterStream;
-use futures::StreamExt;
+use futures::{stream, Stream, StreamExt};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::GetResult;
 use observability_deps::tracing::debug;
@@ -27,10 +27,11 @@ use schema::selection::Selection;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},
+    marker::Unpin,
     sync::Arc,
 };
 
-use crate::metadata::{IoxMetadata, IoxParquetMetaData, METADATA_KEY};
+use crate::metadata::{IoxMetadata, IoxMetadataOld, IoxParquetMetaData, METADATA_KEY};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -105,7 +106,7 @@ impl Storage {
         &self,
         chunk_addr: ChunkAddr,
         stream: SendableRecordBatchStream,
-        metadata: IoxMetadata,
+        metadata: IoxMetadataOld,
     ) -> Result<Option<(ParquetFilePath, usize, IoxParquetMetaData)>> {
         // Create full path location of this file in object store
         let path = ParquetFilePath::new(&chunk_addr);
@@ -137,15 +138,40 @@ impl Storage {
             .build()
     }
 
-    /// Convert the given stream of RecordBatches to bytes
+    /// Convert the given stream of RecordBatches to bytes. This should be deleted when switching
+    /// over to use `ingester` only.
     async fn parquet_stream_to_bytes(
-        mut stream: SendableRecordBatchStream,
+        stream: SendableRecordBatchStream,
         schema: SchemaRef,
-        metadata: IoxMetadata,
+        metadata: IoxMetadataOld,
     ) -> Result<Vec<u8>> {
         let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailureSnafu)?;
 
-        let props = Self::writer_props(&metadata_bytes);
+        Self::record_batches_to_parquet_bytes(stream, schema, &metadata_bytes).await
+    }
+
+    /// Convert the given metadata and RecordBatches to parquet file bytes. Used by `ingester`.
+    pub async fn parquet_bytes(
+        record_batches: Vec<RecordBatch>,
+        schema: SchemaRef,
+        metadata: &IoxMetadata,
+    ) -> Result<Vec<u8>> {
+        let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailureSnafu)?;
+
+        let stream = Box::pin(stream::iter(record_batches.into_iter().map(Ok)));
+
+        Self::record_batches_to_parquet_bytes(stream, schema, &metadata_bytes).await
+    }
+
+    /// Share code between `parquet_stream_to_bytes` and `parquet_bytes`. When
+    /// `parquet_stream_to_bytes` is deleted, this code can be moved into `parquet_bytes` and
+    /// made simpler by using a plain `Iter` rather than a `Stream`.
+    async fn record_batches_to_parquet_bytes(
+        mut stream: impl Stream<Item = ArrowResult<RecordBatch>> + Send + Sync + Unpin,
+        schema: SchemaRef,
+        metadata_bytes: &[u8],
+    ) -> Result<Vec<u8>> {
+        let props = Self::writer_props(metadata_bytes);
 
         let mem_writer = MemWriter::default();
         {
@@ -358,7 +384,7 @@ mod tests {
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
         );
-        let metadata = IoxMetadata {
+        let metadata = IoxMetadataOld {
             creation_timestamp: Time::from_timestamp_nanos(3453),
             table_name,
             partition_key,
@@ -431,7 +457,7 @@ mod tests {
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
         );
-        let metadata = IoxMetadata {
+        let metadata = IoxMetadataOld {
             creation_timestamp: Time::from_timestamp_nanos(43069346),
             table_name: Arc::clone(&table_name),
             partition_key: Arc::clone(&partition_key),

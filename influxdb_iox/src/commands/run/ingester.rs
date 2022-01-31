@@ -1,7 +1,5 @@
 //! Implementation of command line option for running ingester
 
-use std::sync::Arc;
-
 use crate::{
     clap_blocks::run_config::RunConfig,
     influxdb_ioxd::{
@@ -12,12 +10,17 @@ use crate::{
         },
     },
 };
-use ingester::handler::IngestHandlerImpl;
-use ingester::server::grpc::GrpcDelegate;
-use ingester::server::{http::HttpDelegate, IngesterServer};
-use iox_catalog::interface::{Catalog, KafkaPartition};
-use iox_catalog::postgres::PostgresCatalog;
+use ingester::{
+    handler::IngestHandlerImpl,
+    server::{grpc::GrpcDelegate, http::HttpDelegate, IngesterServer},
+};
+use iox_catalog::{
+    interface::{Catalog, KafkaPartition},
+    postgres::PostgresCatalog,
+};
+use object_store::ObjectStore;
 use observability_deps::tracing::*;
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -36,6 +39,9 @@ pub enum Error {
 
     #[error("Kafka topic {0} not found in the catalog")]
     KafkaTopicNotFound(String),
+
+    #[error("Cannot parse object store config: {0}")]
+    ObjectStoreParsing(#[from] crate::clap_blocks::object_store::ParseError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -120,10 +126,16 @@ pub async fn command(config: Config) -> Result<()> {
         .map(KafkaPartition::new)
         .collect();
 
+    let object_store = Arc::new(
+        ObjectStore::try_from(&config.run_config.object_store_config)
+            .map_err(Error::ObjectStoreParsing)?,
+    );
+
     let ingest_handler = Arc::new(IngestHandlerImpl::new(
         kafka_topic,
         kafka_partitions,
         catalog,
+        object_store,
     ));
     let http = HttpDelegate::new(Arc::clone(&ingest_handler));
     let grpc = GrpcDelegate::new(ingest_handler);

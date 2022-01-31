@@ -12,10 +12,12 @@
     clippy::clone_on_ref_ptr
 )]
 #![allow(dead_code)]
+
 pub mod catalog_update;
 pub mod compact;
 pub mod data;
 pub mod handler;
+pub mod persist;
 pub mod query;
 pub mod server;
 pub mod test_util;

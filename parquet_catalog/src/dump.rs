@@ -441,7 +441,7 @@ File {
             Ok(
                 Metadata {
                     iox_metadata: Ok(
-                        IoxMetadata {
+                        IoxMetadataOld {
                             creation_timestamp: 1970-01-01T00:00:10.000000020+00:00,
                             time_of_first_write: 1970-01-01T00:00:30.000000040+00:00,
                             time_of_last_write: 1970-01-01T00:00:50.000000060+00:00,

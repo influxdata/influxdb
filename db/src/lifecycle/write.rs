@@ -19,7 +19,7 @@ use observability_deps::tracing::{debug, warn};
 use parquet_catalog::interface::CatalogParquetInfo;
 use parquet_file::{
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
-    metadata::IoxMetadata,
+    metadata::IoxMetadataOld,
     storage::Storage,
 };
 use persistence_windows::{
@@ -117,7 +117,7 @@ pub(super) fn write_chunk_to_object_store(
             //
             // IMPORTANT: Writing must take place while holding the cleanup lock, otherwise the file might be deleted
             //            between creation and the transaction commit.
-            let metadata = IoxMetadata {
+            let metadata = IoxMetadataOld {
                 creation_timestamp: db.time_provider.now(),
                 table_name: Arc::clone(&table_name),
                 partition_key: Arc::clone(&partition_key),

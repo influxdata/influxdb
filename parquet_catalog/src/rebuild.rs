@@ -175,7 +175,7 @@ mod tests {
     use datafusion_util::MemoryStream;
     use parquet::arrow::ArrowWriter;
     use parquet_file::{
-        metadata::IoxMetadata,
+        metadata::IoxMetadataOld,
         storage::{MemWriter, Storage},
         test_utils::{create_partition_and_database_checkpoint, make_record_batch, TestSize},
     };
@@ -370,7 +370,7 @@ mod tests {
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
         );
-        let metadata = IoxMetadata {
+        let metadata = IoxMetadataOld {
             creation_timestamp: Time::from_timestamp_nanos(0),
             table_name: Arc::clone(&table_name),
             partition_key: Arc::clone(&partition_key),
