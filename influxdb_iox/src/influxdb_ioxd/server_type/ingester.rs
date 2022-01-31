@@ -11,8 +11,8 @@ use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 use crate::influxdb_ioxd::{
-    http::error::{HttpApiError, HttpApiErrorSource},
-    rpc::RpcBuilderInput,
+    http::error::{HttpApiError, HttpApiErrorCode, HttpApiErrorSource},
+    rpc::{serve_builder, setup_builder, RpcBuilderInput},
     server_type::{common_state::CommonServerState, RpcError, ServerType},
 };
 use ingester::handler::IngestHandler;
@@ -36,38 +36,32 @@ impl<I: IngestHandler> IngesterServerType<I> {
 
 #[async_trait]
 impl<I: IngestHandler + Sync + Send + Debug + 'static> ServerType for IngesterServerType<I> {
-    type RouteError = IoxHttpErrorAdaptor;
+    type RouteError = IoxHttpError;
 
-    /// Return the [`metric::Registry`] used by the router.
+    /// Return the [`metric::Registry`] used by the ingester.
     fn metric_registry(&self) -> Arc<Registry> {
         self.server.metric_registry()
     }
 
-    /// Returns the trace collector for router traces.
+    /// Returns the trace collector for ingester traces.
     fn trace_collector(&self) -> Option<Arc<dyn TraceCollector>> {
         self.trace_collector.as_ref().map(Arc::clone)
     }
 
-    /// Dispatches `req` to the router [`HttpDelegate`] delegate.
-    ///
-    /// [`HttpDelegate`]: router2::server::http::HttpDelegate
+    /// Just return "not found".
     async fn route_http_request(
         &self,
         _req: Request<Body>,
     ) -> Result<Response<Body>, Self::RouteError> {
-        unimplemented!();
+        Err(IoxHttpError::NotFound)
     }
 
-    /// Registers the services exposed by the router [`GrpcDelegate`] delegate.
-    ///
-    /// [`GrpcDelegate`]: router2::server::grpc::GrpcDelegate
-    async fn server_grpc(self: Arc<Self>, _builder_input: RpcBuilderInput) -> Result<(), RpcError> {
-        unimplemented!()
-        // let builder = setup_builder!(builder_input, self);
-        // add_service!(builder, self.server.grpc().write_service());
-        // serve_builder!(builder);
-        //
-        // Ok(())
+    /// Provide a placeholder gRPC service.
+    async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
+        let builder = setup_builder!(builder_input, self);
+        serve_builder!(builder);
+
+        Ok(())
     }
 
     async fn join(self: Arc<Self>) {
@@ -79,22 +73,30 @@ impl<I: IngestHandler + Sync + Send + Debug + 'static> ServerType for IngesterSe
     }
 }
 
-/// This adaptor converts the `ingester` http error type into a type that
-/// satisfies the requirements of influxdb_ioxd's runner framework, keeping the
-/// two decoupled.
+/// Simple error struct, we're not really providing an HTTP interface for the ingester.
 #[derive(Debug)]
-pub struct IoxHttpErrorAdaptor(router2::server::http::Error);
+pub enum IoxHttpError {
+    NotFound,
+}
 
-impl Display for IoxHttpErrorAdaptor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.0, f)
+impl IoxHttpError {
+    fn status_code(&self) -> HttpApiErrorCode {
+        match self {
+            IoxHttpError::NotFound => HttpApiErrorCode::NotFound,
+        }
     }
 }
 
-impl std::error::Error for IoxHttpErrorAdaptor {}
+impl Display for IoxHttpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
-impl HttpApiErrorSource for IoxHttpErrorAdaptor {
+impl std::error::Error for IoxHttpError {}
+
+impl HttpApiErrorSource for IoxHttpError {
     fn to_http_api_error(&self) -> HttpApiError {
-        HttpApiError::new(self.0.as_status_code(), self.to_string())
+        HttpApiError::new(self.status_code(), self.to_string())
     }
 }
