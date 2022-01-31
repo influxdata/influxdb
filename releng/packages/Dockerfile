@@ -1,4 +1,4 @@
-FROM ruby:2.4.1-alpine3.6
+FROM ruby:2.6-alpine3.9
 
 RUN apk add --no-cache \
       bash \
@@ -11,7 +11,7 @@ RUN apk add --no-cache \
       tar \
       zip
 
-RUN gem install fpm -v 1.8.1
+RUN gem install fpm -v 1.11.0
 
 COPY fs/ /
 

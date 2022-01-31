@@ -58,7 +58,9 @@ function testManpages() {
 
 function testInstall() {
   if [ "$TYPE" == "deb" ]; then
-    dpkg -i /data.deb
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install --assume-yes /data.deb
   elif [ "$TYPE" == "rpm" ]; then
     yum localinstall -y /data.rpm
   else
