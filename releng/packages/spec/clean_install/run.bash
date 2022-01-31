@@ -62,8 +62,8 @@ if [ -n "$IS_DEB" ]; then
 fi
 
 if [ -n "$IS_RPM" ]; then
-  # Latest is the most recent LTS, and Rolling is the most recent release.
-  for BASE_IMAGE in centos:7 centos:8 ; do
+  for BASE_IMAGE in centos:7
+  do
     if [ -n "$PKG" ]; then
       dockerTest "$PKG" /data.rpm -R
     fi
