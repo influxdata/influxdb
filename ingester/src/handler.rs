@@ -1,9 +1,11 @@
 //! Ingest handler
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use iox_catalog::interface::{Catalog, KafkaPartition, KafkaTopic, KafkaTopicId};
 use std::fmt::Formatter;
+
+use crate::data::{DataBuffer, PersistingBatch};
 
 /// The [`IngestHandler`] handles all ingest from kafka, persistence and queries
 pub trait IngestHandler {}
@@ -16,6 +18,8 @@ pub struct IngestHandlerImpl {
     kafka_partitions: Vec<KafkaPartition>,
     /// Catalog of this ingester
     pub iox_catalog: Arc<dyn Catalog>,
+    /// In-memory data of this ingester
+    pub data: Mutex<DataBuffer>,
 }
 
 impl std::fmt::Debug for IngestHandlerImpl {
@@ -35,6 +39,7 @@ impl IngestHandlerImpl {
             kafka_topic: topic,
             kafka_partitions: shard_ids,
             iox_catalog: catalog,
+            data: Default::default(),
         }
     }
 
@@ -56,6 +61,22 @@ impl IngestHandlerImpl {
     /// Return Kafka Partitions
     pub fn get_kafka_partitions(&self) -> Vec<KafkaPartition> {
         self.kafka_partitions.clone()
+    }
+
+    /// Add a persisting batch to the Buffer
+    // todo: This should be invoked inside the event `persist`
+    pub fn add_persisting_batch(&mut self, batch: Arc<PersistingBatch>) {
+        let mut data = self.data.lock().expect("mutex poisoned");
+
+        data.add_persisting_batch(batch)
+            // todo: this will be replaced with more appropriate action when this function is invoked inside the `persist` event
+            .expect("Cannot add more persisting batch.");
+    }
+
+    /// Return true if at least a batch is persisting
+    pub fn is_persisting(&self) -> bool {
+        let data = self.data.lock().expect("mutex poisoned");
+        data.persisting.is_some()
     }
 }
 

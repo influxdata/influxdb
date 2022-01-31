@@ -14,9 +14,7 @@ use datafusion::physical_plan::{
     metrics::{BaselineMetrics, ExecutionPlanMetricsSet},
     SendableRecordBatchStream,
 };
-use iox_catalog::interface::{
-    SequenceNumber, SequencerId, TableId, Timestamp, Tombstone, TombstoneId,
-};
+use iox_catalog::interface::{SequenceNumber, Tombstone};
 use predicate::{
     delete_predicate::parse_delete_predicate,
     predicate::{Predicate, PredicateMatch},
@@ -238,29 +236,10 @@ impl QueryChunk for QueryableBatch {
     }
 }
 
-/// Create tombstone for testing
-pub fn create_tombstone(
-    id: i64,
-    table_id: i32,
-    seq_id: i16,
-    seq_num: i64,
-    min_time: i64,
-    max_time: i64,
-    predicate: &str,
-) -> Tombstone {
-    Tombstone {
-        id: TombstoneId::new(id),
-        table_id: TableId::new(table_id),
-        sequencer_id: SequencerId::new(seq_id),
-        sequence_number: SequenceNumber::new(seq_num),
-        min_time: Timestamp::new(min_time),
-        max_time: Timestamp::new(max_time),
-        serialized_predicate: predicate.to_string(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::test_util::create_tombstone;
+
     use super::*;
 
     use arrow::{

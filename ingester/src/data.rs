@@ -38,6 +38,15 @@ pub enum Error {
         kafka_topic_id: KafkaTopicId,
         kafka_partition: KafkaPartition,
     },
+
+    #[snafu(display("The persisting is in progress. Cannot accept more persisting batch"))]
+    PersistingNotEmpty,
+
+    #[snafu(display("Nothing in the Persisting list to get removed"))]
+    PersistingEmpty,
+
+    #[snafu(display("The given batch does not match any in the Persisting list. Nothing is removed from the Persisting list"))]
+    PersistingNotMatch,
 }
 
 /// A specialized `Error` for Ingester Data errors
@@ -139,11 +148,11 @@ pub struct DataBuffer {
     ///  . A background persist is called
     ///  . A read request from Querier
     /// The `buffer` will be empty when this happens.
-    snapshots: Vec<Arc<SnapshotBatch>>,
+    pub snapshots: Vec<Arc<SnapshotBatch>>,
     /// When a persist is called, data in `buffer` will be moved to a `snapshot`
     /// and then all `snapshots` will be moved to a `persisting`.
     /// Both `buffer` and 'snaphots` will be empty when this happens.
-    persisting: Option<Arc<PersistingBatch>>,
+    pub persisting: Option<Arc<PersistingBatch>>,
     // Extra Notes:
     //  . In MVP, we will only persist a set of sanpshots at a time.
     //    In later version, multiple perssiting operations may be happenning concurrently but
@@ -193,6 +202,35 @@ impl DataBuffer {
 
         Ok(())
     }
+
+    /// Add a persiting batch into the buffer persisting list
+    /// Note: For now, there is at most one persisting batch at a time but
+    /// the plan is to process several of them a time as needed
+    pub fn add_persisting_batch(&mut self, batch: Arc<PersistingBatch>) -> Result<()> {
+        if self.persisting.is_some() {
+            return Err(Error::PersistingNotEmpty);
+        } else {
+            self.persisting = Some(batch);
+        }
+
+        Ok(())
+    }
+
+    /// Remove the given PersistingBatch that was persisted
+    pub fn remove_persisting_batch(&mut self, batch: &Arc<PersistingBatch>) -> Result<()> {
+        if let Some(persisting_batch) = &self.persisting {
+            if persisting_batch == batch {
+                // found. Remove this batch from the memory
+                self.persisting = None;
+            } else {
+                return Err(Error::PersistingNotMatch);
+            }
+        } else {
+            return Err(Error::PersistingEmpty);
+        }
+
+        Ok(())
+    }
 }
 
 /// BufferBatch is a MutauableBatch with its ingesting order, sequencer_number, that
@@ -205,7 +243,7 @@ pub struct BufferBatch {
 }
 
 /// SnapshotBatch contains data of many contiguous BufferBatches
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SnapshotBatch {
     /// Min sequencer number of its combined BufferBatches
     pub min_sequencer_number: SequenceNumber,
@@ -217,7 +255,7 @@ pub struct SnapshotBatch {
 
 /// PersistingBatch contains all needed info and data for creating
 /// a parquet file for given set of SnapshotBatches
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct PersistingBatch {
     /// Sesquencer id of the data
     pub sequencer_id: SequencerId,
@@ -236,7 +274,7 @@ pub struct PersistingBatch {
 }
 
 /// Queryable data used for both query and persistence
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct QueryableBatch {
     /// data
     pub data: Vec<SnapshotBatch>,
