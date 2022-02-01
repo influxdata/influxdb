@@ -2333,12 +2333,13 @@ impl<'row_group> ReadAggregateResult<'row_group> {
 
         // Now create a permutation by looking at how the row_offsets have been
         // ordered in the `group_keys` array.
-        let perm = permutation::Permutation::from_vec(
+        let perm = permutation::Permutation::oneline(
             group_keys
                 .iter()
                 .map(|gk| gk.row_offset)
                 .collect::<Vec<_>>(),
-        );
+        )
+        .inverse();
         assert_eq!(perm.len(), self.rows());
 
         // Apply that permutation to all of the columns.
