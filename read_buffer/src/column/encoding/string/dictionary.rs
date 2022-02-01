@@ -796,7 +796,7 @@ impl<'a> From<Vec<&str>> for Dictionary {
     fn from(vec: Vec<&str>) -> Self {
         let mut enc = Self::default();
         for v in vec {
-            enc.push(v.to_string());
+            enc.push(v.to_owned());
         }
         enc
     }
@@ -817,7 +817,7 @@ impl<'a> From<Vec<Option<&str>>> for Dictionary {
         let mut drle = Self::default();
         for v in vec {
             match v {
-                Some(x) => drle.push(x.to_string()),
+                Some(x) => drle.push(x.to_owned()),
                 None => drle.push_none(),
             }
         }
@@ -874,23 +874,23 @@ mod test {
     #[test]
     fn with_dictionary() {
         let mut dictionary = BTreeSet::new();
-        dictionary.insert("hello".to_string());
-        dictionary.insert("world".to_string());
+        dictionary.insert("hello".to_owned());
+        dictionary.insert("world".to_owned());
 
         let enc = Dictionary::with_dictionary(dictionary);
         assert_eq!(
             enc.entries,
-            vec![None, Some("hello".to_string()), Some("world".to_string()),]
+            vec![None, Some("hello".to_owned()), Some("world".to_owned()),]
         );
     }
 
     #[test]
     fn size() {
         let mut enc = Dictionary::default();
-        enc.push_additional(Some("east".to_string()), 3);
-        enc.push_additional(Some("north".to_string()), 1);
-        enc.push_additional(Some("east".to_string()), 5);
-        enc.push_additional(Some("south".to_string()), 2);
+        enc.push_additional(Some("east".to_owned()), 3);
+        enc.push_additional(Some("north".to_owned()), 1);
+        enc.push_additional(Some("east".to_owned()), 5);
+        enc.push_additional(Some("south".to_owned()), 2);
         enc.push_none();
         enc.push_none();
         enc.push_none();
@@ -909,9 +909,9 @@ mod test {
             enc.entries,
             vec![
                 None,
-                Some("east".to_string()),
-                Some("north".to_string()),
-                Some("south".to_string())
+                Some("east".to_owned()),
+                Some("north".to_owned()),
+                Some("south".to_owned())
             ]
         );
         assert_eq!(
@@ -923,10 +923,10 @@ mod test {
         let mut enc = Dictionary::default();
         enc.encoded_data.reserve_exact(40);
         enc.entries.reserve_exact(39); // account for already-allocated NULL element
-        enc.push_additional(Some("east".to_string()), 3);
-        enc.push_additional(Some("north".to_string()), 1);
-        enc.push_additional(Some("east".to_string()), 5);
-        enc.push_additional(Some("south".to_string()), 2);
+        enc.push_additional(Some("east".to_owned()), 3);
+        enc.push_additional(Some("north".to_owned()), 1);
+        enc.push_additional(Some("east".to_owned()), 5);
+        enc.push_additional(Some("south".to_owned()), 2);
         enc.push_additional(None, 4);
 
         // Self - 24+24+8 = 56 bytes (two vectors, a bool and padding)
@@ -941,10 +941,10 @@ mod test {
     #[test]
     fn null_count() {
         let mut enc = Dictionary::default();
-        enc.push_additional(Some("east".to_string()), 3);
+        enc.push_additional(Some("east".to_owned()), 3);
         assert_eq!(enc.null_count(), 0);
 
-        enc.push_additional(Some("west".to_string()), 1);
+        enc.push_additional(Some("west".to_owned()), 1);
         assert_eq!(enc.null_count(), 0);
 
         enc.push_none();
@@ -958,8 +958,8 @@ mod test {
     #[test]
     fn size_raw() {
         let mut enc = Dictionary::default();
-        enc.push_additional(Some("a longer string".to_string()), 3);
-        enc.push_additional(Some("south".to_string()), 2);
+        enc.push_additional(Some("a longer string".to_owned()), 3);
+        enc.push_additional(Some("south".to_owned()), 2);
         enc.push_none();
         enc.push_none();
         enc.push_none();
@@ -984,8 +984,8 @@ mod test {
     #[should_panic]
     fn push_wrong_order() {
         let mut enc = Dictionary::default();
-        enc.push("b".to_string());
-        enc.push("a".to_string());
+        enc.push("b".to_owned());
+        enc.push("a".to_owned());
     }
 
     #[test]
@@ -996,7 +996,7 @@ mod test {
 
         assert!(!enc.has_non_null_value(&[0, 1]));
 
-        enc.push("b".to_string());
+        enc.push("b".to_owned());
         assert!(enc.has_non_null_value(&[0, 1, 2]));
         assert!(enc.has_non_null_value(&[2]));
         assert!(!enc.has_non_null_value(&[0, 1]));
@@ -1010,7 +1010,7 @@ mod test {
 
         assert!(!enc.has_any_non_null_value());
 
-        enc.push("b".to_string());
+        enc.push("b".to_owned());
         assert!(enc.has_any_non_null_value());
     }
 }

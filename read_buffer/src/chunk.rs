@@ -264,7 +264,7 @@ impl Chunk {
                 if !table_meta.has_column(column_name) {
                     return ColumnDoesNotExistSnafu {
                         column_name: column_name.to_string(),
-                        table_name: self.table.name().to_string(),
+                        table_name: self.table.name().to_owned(),
                     }
                     .fail();
                 }

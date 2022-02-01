@@ -44,7 +44,7 @@ impl Default for RLE {
         assert_eq!(NULL_ID, 0);
 
         Self {
-            index_entries: vec!["".to_string()],
+            index_entries: vec!["".to_owned()],
             index_row_ids: vec![RowIDs::new_bitmap()], // index 0 for NULL value
             run_lengths: Vec::new(),
             contains_null: false,
@@ -910,7 +910,7 @@ impl<'a> From<Vec<&str>> for RLE {
     fn from(vec: Vec<&str>) -> Self {
         let mut drle = Self::default();
         for v in vec {
-            drle.push(v.to_string());
+            drle.push(v.to_owned());
         }
         drle
     }
@@ -931,7 +931,7 @@ impl<'a> From<Vec<Option<&str>>> for RLE {
         let mut drle = Self::default();
         for v in vec {
             match v {
-                Some(x) => drle.push(x.to_string()),
+                Some(x) => drle.push(x.to_owned()),
                 None => drle.push_none(),
             }
         }
@@ -959,7 +959,7 @@ impl<'a> From<StringArray> for RLE {
             if arr.is_null(i) {
                 drle.push_none();
             } else {
-                drle.push(arr.value(i).to_string());
+                drle.push(arr.value(i).to_owned());
             }
         }
         drle
@@ -990,8 +990,8 @@ mod test {
     #[test]
     fn with_dictionary() {
         let mut dictionary = BTreeSet::new();
-        dictionary.insert("hello".to_string());
-        dictionary.insert("world".to_string());
+        dictionary.insert("hello".to_owned());
+        dictionary.insert("world".to_owned());
 
         let drle = RLE::with_dictionary(dictionary);
         assert_eq!(drle.index_entries.as_slice(), &["", "hello", "world"]);
@@ -1001,10 +1001,10 @@ mod test {
     #[test]
     fn size() {
         let mut enc = RLE::default();
-        enc.push_additional(Some("east".to_string()), 3);
-        enc.push_additional(Some("north".to_string()), 1);
-        enc.push_additional(Some("east".to_string()), 5);
-        enc.push_additional(Some("south".to_string()), 2);
+        enc.push_additional(Some("east".to_owned()), 3);
+        enc.push_additional(Some("north".to_owned()), 1);
+        enc.push_additional(Some("east".to_owned()), 5);
+        enc.push_additional(Some("south".to_owned()), 2);
         enc.push_none();
         enc.push_none();
         enc.push_none();
@@ -1022,10 +1022,10 @@ mod test {
         enc.index_entries.reserve_exact(39); // account for already-allocated NULL element
         enc.run_lengths.reserve_exact(40);
 
-        enc.push_additional(Some("east".to_string()), 3);
-        enc.push_additional(Some("north".to_string()), 1);
-        enc.push_additional(Some("east".to_string()), 5);
-        enc.push_additional(Some("south".to_string()), 2);
+        enc.push_additional(Some("east".to_owned()), 3);
+        enc.push_additional(Some("north".to_owned()), 1);
+        enc.push_additional(Some("east".to_owned()), 5);
+        enc.push_additional(Some("south".to_owned()), 2);
         enc.push_none();
         enc.push_none();
         enc.push_none();
@@ -1042,10 +1042,10 @@ mod test {
     #[test]
     fn null_count() {
         let mut enc = RLE::default();
-        enc.push_additional(Some("east".to_string()), 3);
+        enc.push_additional(Some("east".to_owned()), 3);
         assert_eq!(enc.null_count(), 0);
 
-        enc.push_additional(Some("west".to_string()), 1);
+        enc.push_additional(Some("west".to_owned()), 1);
         assert_eq!(enc.null_count(), 0);
 
         enc.push_none();
@@ -1059,8 +1059,8 @@ mod test {
     #[test]
     fn size_raw() {
         let mut enc = RLE::default();
-        enc.push_additional(Some("a longer string".to_string()), 3);
-        enc.push_additional(Some("south".to_string()), 2);
+        enc.push_additional(Some("a longer string".to_owned()), 3);
+        enc.push_additional(Some("south".to_owned()), 2);
         enc.push_none();
         enc.push_none();
         enc.push_none();
@@ -1085,7 +1085,7 @@ mod test {
     #[should_panic]
     fn push_wrong_order() {
         let mut enc = RLE::default();
-        enc.push("b".to_string());
-        enc.push("a".to_string());
+        enc.push("b".to_owned());
+        enc.push("a".to_owned());
     }
 }

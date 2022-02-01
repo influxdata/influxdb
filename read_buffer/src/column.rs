@@ -1543,7 +1543,7 @@ mod test {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
-                    range: Some(("hello".to_string(), "world".to_string())),
+                    range: Some(("hello".to_owned(), "world".to_owned())),
                     properties: ColumnProperties {
                         has_pre_computed_row_ids: true
                     }
@@ -1569,7 +1569,7 @@ mod test {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
-                    range: Some(("hello".to_string(), "world".to_string())),
+                    range: Some(("hello".to_owned(), "world".to_owned())),
                     properties: ColumnProperties {
                         has_pre_computed_row_ids: true
                     }

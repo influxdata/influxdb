@@ -271,7 +271,7 @@ impl From<&[f64]> for FloatEncoding {
                 NoOpTranscoder {}, // No transcoding of values (store as physical type f64)
             ));
             let name = enc.name();
-            return Self::F64(enc, name.to_string());
+            return Self::F64(enc, name.to_owned());
         }
 
         // Don't apply a compression encoding to the column

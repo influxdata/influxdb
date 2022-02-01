@@ -320,9 +320,9 @@ mod test {
     }
 
     fn _push(mut enc: Encoding) {
-        enc.push_additional(Some("hello".to_string()), 1);
+        enc.push_additional(Some("hello".to_owned()), 1);
         enc.push_additional(None, 3);
-        enc.push("world".to_string());
+        enc.push("world".to_owned());
 
         let name = enc.debug_name();
         assert_eq!(
@@ -342,7 +342,7 @@ mod test {
             name
         );
 
-        enc.push_additional(Some("zoo".to_string()), 3);
+        enc.push_additional(Some("zoo".to_owned()), 3);
         enc.push_none();
         assert_eq!(
             enc.all_values(vec![]),
@@ -369,7 +369,7 @@ mod test {
     // tests a defect I discovered.
     #[test]
     fn push_additional_first_run_length() {
-        let dictionary = vec!["world".to_string(), "hello".to_string()]
+        let dictionary = vec!["world".to_owned(), "hello".to_owned()]
             .into_iter()
             .collect::<BTreeSet<String>>();
 
@@ -386,8 +386,8 @@ mod test {
     fn _push_additional_first_run_length(mut enc: Encoding) {
         let name = enc.debug_name();
 
-        enc.push_additional(Some("world".to_string()), 1);
-        enc.push_additional(Some("hello".to_string()), 1);
+        enc.push_additional(Some("world".to_owned()), 1);
+        enc.push_additional(Some("hello".to_owned()), 1);
 
         assert_eq!(
             enc.all_values(vec![]),
@@ -398,8 +398,8 @@ mod test {
         assert_eq!(enc.all_encoded_values(vec![]), vec![2, 1], "{}", name);
 
         enc = Encoding::RLE(RLE::default());
-        enc.push_additional(Some("hello".to_string()), 1);
-        enc.push_additional(Some("world".to_string()), 1);
+        enc.push_additional(Some("hello".to_owned()), 1);
+        enc.push_additional(Some("world".to_owned()), 1);
 
         assert_eq!(
             enc.all_values(vec![]),
@@ -424,11 +424,11 @@ mod test {
 
     fn _row_ids_filter_equal(mut enc: Encoding) {
         let name = enc.debug_name();
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
-        enc.push_additional(Some("north".to_string()), 1); // 3
-        enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
+        enc.push_additional(Some("east".to_owned()), 3); // 0, 1, 2
+        enc.push_additional(Some("north".to_owned()), 1); // 3
+        enc.push_additional(Some("east".to_owned()), 5); // 4, 5, 6, 7, 8
         enc.push_none(); // 9
-        enc.push_additional(Some("south".to_string()), 2); // 10, 11
+        enc.push_additional(Some("south".to_owned()), 2); // 10, 11
 
         let ids = enc.row_ids_filter("east", &cmp::Operator::Equal, RowIDs::Vector(vec![]));
         assert_eq!(
@@ -471,8 +471,8 @@ mod test {
 
     fn _row_ids_filter_equal_no_null(mut enc: Encoding) {
         let name = enc.debug_name();
-        enc.push_additional(Some("east".to_string()), 2);
-        enc.push_additional(Some("west".to_string()), 1);
+        enc.push_additional(Some("east".to_owned()), 2);
+        enc.push_additional(Some("west".to_owned()), 1);
 
         let ids = enc.row_ids_filter("abba", &cmp::Operator::NotEqual, RowIDs::Vector(vec![]));
         assert_eq!(ids, RowIDs::Vector(vec![0, 1, 2]), "{}", name);
@@ -493,14 +493,14 @@ mod test {
     fn _row_ids_filter_cmp(mut enc: Encoding) {
         let name = enc.debug_name();
 
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
-        enc.push_additional(Some("north".to_string()), 1); // 3
-        enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
-        enc.push_additional(Some("south".to_string()), 2); // 9, 10
-        enc.push_additional(Some("west".to_string()), 1); // 11
-        enc.push_additional(Some("north".to_string()), 1); // 12
+        enc.push_additional(Some("east".to_owned()), 3); // 0, 1, 2
+        enc.push_additional(Some("north".to_owned()), 1); // 3
+        enc.push_additional(Some("east".to_owned()), 5); // 4, 5, 6, 7, 8
+        enc.push_additional(Some("south".to_owned()), 2); // 9, 10
+        enc.push_additional(Some("west".to_owned()), 1); // 11
+        enc.push_additional(Some("north".to_owned()), 1); // 12
         enc.push_none(); // 13
-        enc.push_additional(Some("west".to_string()), 5); // 14, 15, 16, 17, 18
+        enc.push_additional(Some("west".to_owned()), 5); // 14, 15, 16, 17, 18
 
         let ids = enc.row_ids_filter("east", &cmp::Operator::LTE, RowIDs::Vector(vec![]));
         assert_eq!(
@@ -625,7 +625,7 @@ mod test {
 
         for enc in encodings.iter_mut() {
             let name = enc.debug_name();
-            enc.push("east".to_string());
+            enc.push("east".to_owned());
 
             let ids = enc.row_ids_filter("east", &cmp::Operator::GT, RowIDs::Vector(vec![]));
             assert!(ids.is_empty(), "{}", name);
@@ -661,7 +661,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_cmp_with_null() {
-        let dictionary = vec!["east".to_string(), "south".to_string(), "west".to_string()]
+        let dictionary = vec!["east".to_owned(), "south".to_owned(), "west".to_owned()]
             .into_iter()
             .collect::<BTreeSet<String>>();
 
@@ -672,10 +672,10 @@ mod test {
 
         for enc in encodings.iter_mut() {
             let name = enc.debug_name();
-            enc.push("south".to_string());
-            enc.push("west".to_string());
+            enc.push("south".to_owned());
+            enc.push("west".to_owned());
             enc.push_none();
-            enc.push("east".to_string());
+            enc.push("east".to_owned());
 
             let ids = enc.row_ids_filter("west", &cmp::Operator::GT, RowIDs::Vector(vec![]));
             assert!(ids.is_empty(), "{}", name);
@@ -723,11 +723,11 @@ mod test {
 
     fn _row_ids_null(mut enc: Encoding) {
         let name = enc.debug_name();
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
+        enc.push_additional(Some("east".to_owned()), 3); // 0, 1, 2
         enc.push_additional(None, 3); // 3, 4, 5
-        enc.push_additional(Some("north".to_string()), 1); // 6
+        enc.push_additional(Some("north".to_owned()), 1); // 6
         enc.push_additional(None, 2); // 7, 8
-        enc.push_additional(Some("south".to_string()), 2); // 9, 10
+        enc.push_additional(Some("south".to_owned()), 2); // 9, 10
 
         // essentially `WHERE value IS NULL`
         let ids = enc.row_ids_null(RowIDs::Vector(vec![]));
@@ -753,10 +753,10 @@ mod test {
     fn _group_row_ids(mut enc: Encoding) {
         let name = enc.debug_name();
 
-        enc.push_additional(Some("east".to_string()), 4); // 0, 1, 2, 3
-        enc.push_additional(Some("west".to_string()), 2); // 4, 5
+        enc.push_additional(Some("east".to_owned()), 4); // 0, 1, 2, 3
+        enc.push_additional(Some("west".to_owned()), 2); // 4, 5
         enc.push_none(); // 6
-        enc.push_additional(Some("zoo".to_string()), 1); // 7
+        enc.push_additional(Some("zoo".to_owned()), 1); // 7
 
         match enc {
             Encoding::RLE(_) => {
@@ -804,10 +804,10 @@ mod test {
         let name = enc.debug_name();
         assert!(enc.dictionary().is_empty());
 
-        enc.push_additional(Some("east".to_string()), 23);
-        enc.push_additional(Some("west".to_string()), 2);
+        enc.push_additional(Some("east".to_owned()), 23);
+        enc.push_additional(Some("west".to_owned()), 2);
         enc.push_none();
-        enc.push_additional(Some("zoo".to_string()), 1);
+        enc.push_additional(Some("zoo".to_owned()), 1);
 
         assert_eq!(enc.dictionary(), vec!["east", "west", "zoo"], "{}", name);
     }
@@ -825,15 +825,15 @@ mod test {
     }
 
     fn _value(mut enc: Encoding) {
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
-        enc.push_additional(Some("north".to_string()), 1); // 3
-        enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
-        enc.push_additional(Some("south".to_string()), 2); // 9, 10
+        enc.push_additional(Some("east".to_owned()), 3); // 0, 1, 2
+        enc.push_additional(Some("north".to_owned()), 1); // 3
+        enc.push_additional(Some("east".to_owned()), 5); // 4, 5, 6, 7, 8
+        enc.push_additional(Some("south".to_owned()), 2); // 9, 10
         enc.push_none(); // 11
 
-        assert_eq!(enc.value(3), Some(&"north".to_string()));
-        assert_eq!(enc.value(0), Some(&"east".to_string()));
-        assert_eq!(enc.value(10), Some(&"south".to_string()));
+        assert_eq!(enc.value(3), Some(&"north".to_owned()));
+        assert_eq!(enc.value(0), Some(&"east".to_owned()));
+        assert_eq!(enc.value(10), Some(&"south".to_owned()));
         assert_eq!(enc.value(11), None);
     }
 
@@ -841,11 +841,11 @@ mod test {
     #[should_panic]
     fn value_bounds() {
         let mut enc = RLE::default();
-        enc.push("b".to_string());
+        enc.push("b".to_owned());
         enc.value(100);
 
         let mut enc = Dictionary::default();
-        enc.push("b".to_string());
+        enc.push("b".to_owned());
         enc.value(100);
     }
 
@@ -864,10 +864,10 @@ mod test {
     fn _values(mut enc: Encoding) {
         let name = enc.debug_name();
 
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
-        enc.push_additional(Some("north".to_string()), 1); // 3
-        enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
-        enc.push_additional(Some("south".to_string()), 2); // 9, 10
+        enc.push_additional(Some("east".to_owned()), 3); // 0, 1, 2
+        enc.push_additional(Some("north".to_owned()), 1); // 3
+        enc.push_additional(Some("east".to_owned()), 5); // 4, 5, 6, 7, 8
+        enc.push_additional(Some("south".to_owned()), 2); // 9, 10
         enc.push_none(); // 11
 
         let mut dst = Vec::with_capacity(1000);
@@ -925,10 +925,10 @@ mod test {
     fn _encoded_values(mut enc: Encoding) {
         let name = enc.debug_name();
 
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
-        enc.push_additional(Some("north".to_string()), 1); // 3
-        enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
-        enc.push_additional(Some("south".to_string()), 2); // 9, 10
+        enc.push_additional(Some("east".to_owned()), 3); // 0, 1, 2
+        enc.push_additional(Some("north".to_owned()), 1); // 3
+        enc.push_additional(Some("east".to_owned()), 5); // 4, 5, 6, 7, 8
+        enc.push_additional(Some("south".to_owned()), 2); // 9, 10
         enc.push_none(); // 11
 
         let mut encoded = enc.encoded_values(&[0], vec![]);
@@ -956,9 +956,9 @@ mod test {
     fn _all_encoded_values(mut enc: Encoding) {
         let name = enc.debug_name();
 
-        enc.push_additional(Some("east".to_string()), 3);
+        enc.push_additional(Some("east".to_owned()), 3);
         enc.push_additional(None, 2);
-        enc.push_additional(Some("north".to_string()), 2);
+        enc.push_additional(Some("north".to_owned()), 2);
 
         let dst = Vec::with_capacity(100);
         let dst = enc.all_encoded_values(dst);
@@ -1026,7 +1026,7 @@ mod test {
     fn _distinct_values(mut enc: Encoding) {
         let name = enc.debug_name();
 
-        enc.push_additional(Some("east".to_string()), 3);
+        enc.push_additional(Some("east".to_owned()), 3);
 
         let values = enc.distinct_values((0..3).collect::<Vec<_>>().into_iter(), BTreeSet::new());
         assert_eq!(
@@ -1036,9 +1036,9 @@ mod test {
             name,
         );
 
-        enc.push_additional(Some("north".to_string()), 1); // 3
-        enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
-        enc.push_additional(Some("south".to_string()), 2); // 9, 10
+        enc.push_additional(Some("north".to_owned()), 1); // 3
+        enc.push_additional(Some("east".to_owned()), 5); // 4, 5, 6, 7, 8
+        enc.push_additional(Some("south".to_owned()), 2); // 9, 10
         enc.push_none(); // 11
 
         let values = enc.distinct_values((0..12).collect::<Vec<_>>().into_iter(), BTreeSet::new());
@@ -1112,10 +1112,10 @@ mod test {
     #[test]
     fn has_non_null_value() {
         let mut enc = Encoding::RLE(RLE::default());
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
-        enc.push_additional(Some("north".to_string()), 1); // 3
-        enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
-        enc.push_additional(Some("south".to_string()), 2); // 9, 10
+        enc.push_additional(Some("east".to_owned()), 3); // 0, 1, 2
+        enc.push_additional(Some("north".to_owned()), 1); // 3
+        enc.push_additional(Some("east".to_owned()), 5); // 4, 5, 6, 7, 8
+        enc.push_additional(Some("south".to_owned()), 2); // 9, 10
         enc.push_none(); // 11
 
         assert!(enc.has_non_null_value(&[0]));
@@ -1135,13 +1135,13 @@ mod test {
     #[test]
     fn min() {
         let mut enc = Encoding::RLE(RLE::default());
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
+        enc.push_additional(Some("east".to_owned()), 3); // 0, 1, 2
         enc.push_additional(None, 2); // 3, 4
-        enc.push_additional(Some("north".to_string()), 2); // 5, 6
+        enc.push_additional(Some("north".to_owned()), 2); // 5, 6
 
-        assert_eq!(enc.min(&[0, 1, 2]), Some(&"east".to_string()));
-        assert_eq!(enc.min(&[0, 1, 2, 3, 4, 5, 6]), Some(&"east".to_string()));
-        assert_eq!(enc.min(&[4, 5, 6]), Some(&"north".to_string()));
+        assert_eq!(enc.min(&[0, 1, 2]), Some(&"east".to_owned()));
+        assert_eq!(enc.min(&[0, 1, 2, 3, 4, 5, 6]), Some(&"east".to_owned()));
+        assert_eq!(enc.min(&[4, 5, 6]), Some(&"north".to_owned()));
         assert_eq!(enc.min(&[3]), None);
         assert_eq!(enc.min(&[3, 4]), None);
 
@@ -1153,13 +1153,13 @@ mod test {
     #[test]
     fn max() {
         let mut enc = Encoding::RLE(RLE::default());
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
+        enc.push_additional(Some("east".to_owned()), 3); // 0, 1, 2
         enc.push_additional(None, 2); // 3, 4
-        enc.push_additional(Some("north".to_string()), 2); // 5, 6
+        enc.push_additional(Some("north".to_owned()), 2); // 5, 6
 
-        assert_eq!(enc.max(&[0, 1, 2]), Some(&"east".to_string()));
-        assert_eq!(enc.max(&[0, 1, 2, 3, 4, 5, 6]), Some(&"north".to_string()));
-        assert_eq!(enc.max(&[4, 5, 6]), Some(&"north".to_string()));
+        assert_eq!(enc.max(&[0, 1, 2]), Some(&"east".to_owned()));
+        assert_eq!(enc.max(&[0, 1, 2, 3, 4, 5, 6]), Some(&"north".to_owned()));
+        assert_eq!(enc.max(&[4, 5, 6]), Some(&"north".to_owned()));
         assert_eq!(enc.max(&[3]), None);
         assert_eq!(enc.max(&[3, 4]), None);
 
@@ -1174,9 +1174,9 @@ mod test {
     #[test]
     fn count() {
         let mut enc = Encoding::RLE(RLE::default());
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
+        enc.push_additional(Some("east".to_owned()), 3); // 0, 1, 2
         enc.push_additional(None, 2); // 3, 4
-        enc.push_additional(Some("north".to_string()), 2); // 5, 6
+        enc.push_additional(Some("north".to_owned()), 2); // 5, 6
 
         assert_eq!(enc.count(&[0, 1, 2]), 3);
         assert_eq!(enc.count(&[0, 1, 2, 3, 4, 5, 6]), 5);
