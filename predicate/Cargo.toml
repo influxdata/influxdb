@@ -9,6 +9,7 @@ chrono = { version = "0.4", default-features = false }
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
+generated_types = { path = "../generated_types" }
 itertools = "0.10"
 observability_deps = { path = "../observability_deps" }
 ordered-float = "2"

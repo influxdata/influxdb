@@ -3313,6 +3313,7 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
+ "generated_types",
  "itertools",
  "observability_deps",
  "ordered-float 2.10.0",
