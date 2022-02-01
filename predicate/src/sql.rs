@@ -273,38 +273,42 @@ mod test {
         // the sql statement correctly, the RPCNode for the literal would not
         // have the quoting present.
         let literal = parts[2].replace("'", "").replace("\"", "");
-        make_comparison_node(
-            RPCNode {
-                node_type: RPCType::TagRef as i32,
-                children: vec![],
-                value: Some(RPCValue::TagRefValue(parts[0].as_bytes().to_owned())),
-            },
-            rpc_op_from_str(parts[1]),
-            RPCNode {
-                node_type: RPCType::Literal as i32,
-                children: vec![],
-                value: Some(RPCValue::StringValue(literal)),
-            },
-        )
-        .unwrap()
+        RPCNode {
+            node_type: RPCType::ComparisonExpression as i32,
+            children: vec![
+                RPCNode {
+                    node_type: RPCType::TagRef as i32,
+                    children: vec![],
+                    value: Some(RPCValue::TagRefValue(parts[0].as_bytes().to_owned())),
+                },
+                RPCNode {
+                    node_type: RPCType::Literal as i32,
+                    children: vec![],
+                    value: Some(RPCValue::StringValue(literal)),
+                },
+            ],
+            value: Some(RPCValue::Comparison(rpc_op_from_str(parts[1]) as i32)),
+        }
     }
 
     // Creates a simple field comparison expression.
     fn make_field_expr(field_key: &str, op: &str, value: RPCValue) -> RPCNode {
-        make_comparison_node(
-            RPCNode {
-                node_type: RPCType::FieldRef as i32,
-                children: vec![],
-                value: Some(RPCValue::FieldRefValue(field_key.to_owned())),
-            },
-            rpc_op_from_str(op),
-            RPCNode {
-                node_type: RPCType::Literal as i32,
-                children: vec![],
-                value: Some(value),
-            },
-        )
-        .unwrap()
+        RPCNode {
+            node_type: RPCType::ComparisonExpression as i32,
+            children: vec![
+                RPCNode {
+                    node_type: RPCType::FieldRef as i32,
+                    children: vec![],
+                    value: Some(RPCValue::FieldRefValue(field_key.to_owned())),
+                },
+                RPCNode {
+                    node_type: RPCType::Literal as i32,
+                    children: vec![],
+                    value: Some(value),
+                },
+            ],
+            value: Some(RPCValue::Comparison(rpc_op_from_str(op) as i32)),
+        }
     }
 
     macro_rules! make_field_expr_types {
