@@ -35,13 +35,14 @@ jobs:
           command: |
             set -x
 
-            INFLUXDB_VERSION=$(git describe --tags HEAD | sed 's|^v||')
+            INFLUXDB_COMMIT=$(git rev-parse --short HEAD)
+            INFLUXDB_VERSION=$(git describe --exact-match --tags HEAD 2>/dev/null || printf '%s' "${INFLUXDB_COMMIT}" | sed 's|^v||')
 
             printf '{
                 "version": "%s",
                 "branch": "%s",
                 "sha": "%s"
-            }' "${INFLUXDB_VERSION}" "${CIRCLE_BRANCH}" "${CIRCLE_SHA1}" >"$(pwd)/.metadata.json"
+            }' "${INFLUXDB_VERSION}" "${CIRCLE_BRANCH}" "${INFLUXDB_COMMIT}" >"$(pwd)/.metadata.json"
 
             #
             # Prebuild the man pages so that consumers of the source tarball don't have to build it themselves.
@@ -73,7 +74,8 @@ jobs:
             export CC=/usr/local/bin/xcc.sh
             export CGO_ENABLED=1
 
-            INFLUXDB_VERSION=$(git describe --tags HEAD | sed 's|^v||')
+            INFLUXDB_COMMIT=$(git rev-parse --short HEAD)
+            INFLUXDB_VERSION=$(git describe --exact-match --tags HEAD 2>/dev/null || printf '%s' "${INFLUXDB_COMMIT}" | sed 's|^v||')
 
             # linux amd64 (static build)
             TMPOUTDIR=$(mktemp -d)
@@ -85,9 +87,9 @@ jobs:
                 -o "${TMPOUTDIR}/$(basename $cmd)" \
                 -tags "netgo osusergo static_build" \
                 -ldflags="-s
-                  -X main.version=\"${INFLUXDB_VERSION}\"
-                  -X main.branch=\"${CIRCLE_BRANCH}\"
-                  -X main.commit=\"${CIRCLE_SHA1}\"
+                  -X main.version=${INFLUXDB_VERSION}
+                  -X main.branch=${CIRCLE_BRANCH}
+                  -X main.commit=${INFLUXDB_COMMIT}
                   -extldflags \"-fno-PIC -Wl,-z,stack-size=8388608\"" \
                 ${cmd}
             done
@@ -314,3 +316,9 @@ workflows:
             - unit_test
             - unit_test_tsi
             - unit_test_race
+      - build_packages:
+          requires:
+            - build_binaries
+      - test_pkgs_64bit:
+          requires:
+            - build_packages
