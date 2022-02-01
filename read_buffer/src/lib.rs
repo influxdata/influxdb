@@ -1,5 +1,10 @@
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
-#![warn(clippy::clone_on_ref_ptr, clippy::use_self)]
+#![warn(
+    clippy::clone_on_ref_ptr,
+    clippy::use_self,
+    clippy::str_to_string,
+    clippy::string_to_string
+)]
 #![allow(dead_code, clippy::too_many_arguments)]
 mod chunk;
 mod column;
