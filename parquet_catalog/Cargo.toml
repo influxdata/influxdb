@@ -19,7 +19,7 @@ observability_deps = { path = "../observability_deps" }
 parquet = "8.0"
 parquet_file = { path = "../parquet_file" }
 parquet-format = "4.0"
-parking_lot = "0.11.1"
+parking_lot = "0.12"
 pbjson-types = "0.2"
 persistence_windows = { path = "../persistence_windows" }
 predicate = { path = "../predicate" }

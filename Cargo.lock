@@ -668,6 +668,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccaeedb56da03b09f598226e25e80088cb4cd25f316e6e4df7d695f0feeb1403"
 
 [[package]]
+name = "crc32c"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee6b9c9389584bcba988bd0836086789b7f87ad91892d6a83d5291dbb24524b5"
+dependencies = [
+ "rustc_version",
+]
+
+[[package]]
 name = "crc32fast"
 version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -921,7 +930,7 @@ dependencies = [
  "object_store",
  "observability_deps",
  "once_cell",
- "parking_lot",
+ "parking_lot 0.12.0",
  "parquet_catalog",
  "parquet_file",
  "persistence_windows",
@@ -1152,7 +1161,7 @@ checksum = "fcef756dea9cf3db5ce73759cf0467330427a786b47711b8d6c97620d718ceb9"
 dependencies = [
  "cfg-if",
  "rustix",
- "windows-sys",
+ "windows-sys 0.30.0",
 ]
 
 [[package]]
@@ -1292,7 +1301,7 @@ checksum = "62007592ac46aa7c2b6416f7deb9a8a8f63a01e0f1d6e1787d5630170db2b63e"
 dependencies = [
  "futures-core",
  "lock_api",
- "parking_lot",
+ "parking_lot 0.11.2",
 ]
 
 [[package]]
@@ -1727,7 +1736,7 @@ dependencies = [
  "futures",
  "mockito",
  "once_cell",
- "parking_lot",
+ "parking_lot 0.12.0",
  "reqwest",
  "serde",
  "serde_json",
@@ -1791,7 +1800,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "panic_logging",
- "parking_lot",
+ "parking_lot 0.12.0",
  "parquet",
  "parquet_catalog",
  "parquet_file",
@@ -1919,7 +1928,7 @@ dependencies = [
  "mutable_batch",
  "mutable_batch_lp",
  "object_store",
- "parking_lot",
+ "parking_lot 0.12.0",
  "parquet",
  "parquet_file",
  "predicate",
@@ -1961,7 +1970,7 @@ name = "internal_types"
 version = "0.1.0"
 dependencies = [
  "futures",
- "parking_lot",
+ "parking_lot 0.12.0",
  "time 0.1.0",
  "tokio",
  "workspace-hack",
@@ -2075,7 +2084,7 @@ version = "0.1.0"
 dependencies = [
  "data_types",
  "metric",
- "parking_lot",
+ "parking_lot 0.12.0",
  "time 0.1.0",
  "tokio",
  "tracker",
@@ -2233,7 +2242,7 @@ dependencies = [
  "hashbrown 0.12.0",
  "internal_types",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "time 0.1.0",
  "tokio",
  "tracker",
@@ -2248,9 +2257,9 @@ checksum = "95f5690fef754d905294c56f7ac815836f2513af966aa47f2e07ac79be07827f"
 
 [[package]]
 name = "lock_api"
-version = "0.4.5"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "712a4d093c9976e24e7dbca41db895dabcbac38eb5f4045393d17a95bdfb1109"
+checksum = "88943dd7ef4a2e5a4bfa2753aaab3013e34ce2533d1996fb18ef591e315e2b3b"
 dependencies = [
  "scopeguard",
 ]
@@ -2270,7 +2279,7 @@ version = "0.1.0"
 dependencies = [
  "observability_deps",
  "once_cell",
- "parking_lot",
+ "parking_lot 0.12.0",
  "regex",
  "tracing-subscriber",
  "workspace-hack",
@@ -2363,7 +2372,7 @@ dependencies = [
 name = "metric"
 version = "0.1.0"
 dependencies = [
- "parking_lot",
+ "parking_lot 0.12.0",
  "workspace-hack",
 ]
 
@@ -2536,7 +2545,7 @@ dependencies = [
  "mutable_batch",
  "mutable_batch_lp",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "schema",
  "snafu",
  "test_helpers",
@@ -2827,7 +2836,7 @@ version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da32515d9f6e6e489d7bc9d84c71b060db7247dc035bbe44eac88cf87486d8d5"
 dependencies = [
- "parking_lot",
+ "parking_lot 0.11.2",
 ]
 
 [[package]]
@@ -2949,7 +2958,17 @@ checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
 dependencies = [
  "instant",
  "lock_api",
- "parking_lot_core",
+ "parking_lot_core 0.8.5",
+]
+
+[[package]]
+name = "parking_lot"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87f5ec2493a61ac0506c0f4199f99070cbe83857b0337006a30f3e6719b8ef58"
+dependencies = [
+ "lock_api",
+ "parking_lot_core 0.9.0",
 ]
 
 [[package]]
@@ -2964,6 +2983,19 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "winapi",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2f4f894f3865f6c0e02810fc597300f34dc2510f66400da262d8ae10e75767d"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "redox_syscall",
+ "smallvec",
+ "windows-sys 0.29.0",
 ]
 
 [[package]]
@@ -3012,7 +3044,7 @@ dependencies = [
  "metric",
  "object_store",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "parquet",
  "parquet-format",
  "parquet_file",
@@ -3050,7 +3082,7 @@ dependencies = [
  "metric",
  "object_store",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "parquet",
  "parquet-format",
  "pbjson-types",
@@ -3288,7 +3320,7 @@ dependencies = [
  "libc",
  "log",
  "nix",
- "parking_lot",
+ "parking_lot 0.11.2",
  "prost",
  "prost-build",
  "prost-derive",
@@ -3422,7 +3454,7 @@ dependencies = [
  "fnv",
  "lazy_static",
  "memchr",
- "parking_lot",
+ "parking_lot 0.11.2",
  "thiserror",
 ]
 
@@ -3496,7 +3528,7 @@ dependencies = [
  "itertools",
  "libc",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "pin-project",
  "predicate",
  "regex",
@@ -3687,7 +3719,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "packers",
- "parking_lot",
+ "parking_lot 0.12.0",
  "permutation",
  "rand",
  "rand_distr",
@@ -3832,7 +3864,7 @@ dependencies = [
  "mutable_batch_lp",
  "mutable_batch_pb",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "regex",
  "snafu",
  "time 0.1.0",
@@ -3861,7 +3893,7 @@ dependencies = [
  "mutable_batch",
  "mutable_batch_lp",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "paste",
  "predicate",
  "rand",
@@ -3880,14 +3912,14 @@ dependencies = [
 [[package]]
 name = "rskafka"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/rskafka.git?rev=8a2ae6b372aaf831a4586c5732a7881bda612674#8a2ae6b372aaf831a4586c5732a7881bda612674"
+source = "git+https://github.com/influxdata/rskafka.git?rev=9d1ddd9ed22d8c6ae111ec4e4eeecd548516a491#9d1ddd9ed22d8c6ae111ec4e4eeecd548516a491"
 dependencies = [
  "async-trait",
  "bytes",
- "crc",
+ "crc32c",
  "futures",
  "integer-encoding 3.0.2",
- "parking_lot",
+ "parking_lot 0.12.0",
  "pin-project-lite",
  "rand",
  "rustls",
@@ -4250,7 +4282,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "parquet_catalog",
  "persistence_windows",
  "query",
@@ -4498,7 +4530,7 @@ dependencies = [
  "md-5",
  "memchr",
  "once_cell",
- "parking_lot",
+ "parking_lot 0.11.2",
  "percent-encoding",
  "rand",
  "serde",
@@ -4692,7 +4724,7 @@ version = "0.1.0"
 dependencies = [
  "dotenv",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "tempfile",
  "tracing-log",
  "tracing-subscriber",
@@ -4792,7 +4824,7 @@ name = "time"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "parking_lot",
+ "parking_lot 0.12.0",
  "workspace-hack",
 ]
 
@@ -4853,7 +4885,7 @@ dependencies = [
  "mio",
  "num_cpus",
  "once_cell",
- "parking_lot",
+ "parking_lot 0.11.2",
  "pin-project-lite",
  "signal-hook-registry",
  "tokio-macros",
@@ -5048,7 +5080,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "rand",
  "workspace-hack",
 ]
@@ -5080,7 +5112,7 @@ dependencies = [
  "itertools",
  "metric",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "pin-project",
  "snafu",
  "tower",
@@ -5182,7 +5214,7 @@ dependencies = [
  "lock_api",
  "metric",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "pin-project",
  "time 0.1.0",
  "tokio",
@@ -5498,16 +5530,35 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "windows-sys"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ceb069ac8b2117d36924190469735767f0990833935ab430155e71a44bafe148"
+dependencies = [
+ "windows_aarch64_msvc 0.29.0",
+ "windows_i686_gnu 0.29.0",
+ "windows_i686_msvc 0.29.0",
+ "windows_x86_64_gnu 0.29.0",
+ "windows_x86_64_msvc 0.29.0",
+]
+
+[[package]]
+name = "windows-sys"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "030b7ff91626e57a05ca64a07c481973cbb2db774e4852c9c7ca342408c6a99a"
 dependencies = [
- "windows_aarch64_msvc",
- "windows_i686_gnu",
- "windows_i686_msvc",
- "windows_x86_64_gnu",
- "windows_x86_64_msvc",
+ "windows_aarch64_msvc 0.30.0",
+ "windows_i686_gnu 0.30.0",
+ "windows_i686_msvc 0.30.0",
+ "windows_x86_64_gnu 0.30.0",
+ "windows_x86_64_msvc 0.30.0",
 ]
+
+[[package]]
+name = "windows_aarch64_msvc"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3d027175d00b01e0cbeb97d6ab6ebe03b12330a35786cbaca5252b1c4bf5d9b"
 
 [[package]]
 name = "windows_aarch64_msvc"
@@ -5517,9 +5568,21 @@ checksum = "29277a4435d642f775f63c7d1faeb927adba532886ce0287bd985bffb16b6bca"
 
 [[package]]
 name = "windows_i686_gnu"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8793f59f7b8e8b01eda1a652b2697d87b93097198ae85f823b969ca5b89bba58"
+
+[[package]]
+name = "windows_i686_gnu"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1145e1989da93956c68d1864f32fb97c8f561a8f89a5125f6a2b7ea75524e4b8"
+
+[[package]]
+name = "windows_i686_msvc"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8602f6c418b67024be2996c512f5f995de3ba417f4c75af68401ab8756796ae4"
 
 [[package]]
 name = "windows_i686_msvc"
@@ -5529,9 +5592,21 @@ checksum = "d4a09e3a0d4753b73019db171c1339cd4362c8c44baf1bcea336235e955954a6"
 
 [[package]]
 name = "windows_x86_64_gnu"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3d615f419543e0bd7d2b3323af0d86ff19cbc4f816e6453f36a2c2ce889c354"
+
+[[package]]
+name = "windows_x86_64_gnu"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ca64fcb0220d58db4c119e050e7af03c69e6f4f415ef69ec1773d9aab422d5a"
+
+[[package]]
+name = "windows_x86_64_msvc"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11d95421d9ed3672c280884da53201a5c46b7b2765ca6faf34b0d71cf34a3561"
 
 [[package]]
 name = "windows_x86_64_msvc"
@@ -5622,7 +5697,7 @@ dependencies = [
  "mutable_batch_lp",
  "mutable_batch_pb",
  "observability_deps",
- "parking_lot",
+ "parking_lot 0.12.0",
  "pin-project",
  "prost",
  "rdkafka",
