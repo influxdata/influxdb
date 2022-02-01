@@ -44,6 +44,7 @@ pub fn expr_to_rpc_node(expr: Expr) -> Result<RPCNode> {
 // Builds an RPCNode given the value Expr and the converted children
 fn build_node(expr: &Expr) -> Result<RPCNode> {
     match expr {
+        Expr::Nested(expr) => make_node(RPCType::ParenExpression, vec![build_node(expr)?], None),
         Expr::Cast { expr, data_type } => match data_type {
             sqlparser::ast::DataType::Custom(ident) => {
                 if let Some(Ident { value, .. }) = ident.0.get(0) {
@@ -156,11 +157,15 @@ fn make_tag_name(tag_name: String) -> Vec<u8> {
 }
 
 // Create an RPCNode.
-fn make_node(node_type: RPCType, children: Vec<RPCNode>, value: RPCValue) -> Result<RPCNode> {
+fn make_node(
+    node_type: RPCType,
+    children: Vec<RPCNode>,
+    value: Option<RPCValue>,
+) -> Result<RPCNode> {
     Ok(RPCNode {
         node_type: node_type as i32,
         children,
-        value: Some(value),
+        value,
     })
 }
 
@@ -169,7 +174,7 @@ fn make_comparison_node(left: RPCNode, cmp: RPCComparison, right: RPCNode) -> Re
     make_node(
         RPCType::ComparisonExpression,
         vec![left, right],
-        RPCValue::Comparison(cmp as i32),
+        Some(RPCValue::Comparison(cmp as i32)),
     )
 }
 
@@ -178,13 +183,13 @@ fn make_logical_node(left: RPCNode, op: RPCLogical, right: RPCNode) -> Result<RP
     make_node(
         RPCType::LogicalExpression,
         vec![left, right],
-        RPCValue::Logical(op as i32),
+        Some(RPCValue::Logical(op as i32)),
     )
 }
 
 // Create a leaf node.
 fn make_leaf(node_type: RPCType, value: RPCValue) -> Result<RPCNode> {
-    make_node(node_type, vec![], value)
+    make_node(node_type, vec![], Some(value))
 }
 
 // Creates an RPC literal leaf node
@@ -393,6 +398,41 @@ mod test {
         )
         .unwrap();
 
+        assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node);
+
+        let expr = make_sql_expr("env = 'usa' OR env = 'eu' OR env = 'asia'");
+        let exp_rpc_node = make_logical_node(
+            make_logical_node(
+                make_tag_expr("env = usa"),
+                RPCLogical::Or,
+                make_tag_expr("env = eu"),
+            )
+            .unwrap(),
+            RPCLogical::Or,
+            make_tag_expr("env = asia"),
+        )
+        .unwrap();
+
+        assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node);
+    }
+
+    #[test]
+    fn test_from_sql_expr_nested() {
+        let expr = make_sql_expr("env = 'usa' OR (env = 'eu' AND temp::field = 'on')");
+
+        let left_rpc_expr = make_tag_expr("env = 'usa'");
+        let right_rpc_expr = RPCNode {
+            node_type: RPCType::ParenExpression as i32,
+            children: vec![make_logical_node(
+                make_tag_expr("env = eu"),
+                RPCLogical::And,
+                make_field_expr_str("temp", "=", "on".to_string()),
+            )
+            .unwrap()],
+            value: None,
+        };
+        let exp_rpc_node =
+            make_logical_node(left_rpc_expr, RPCLogical::Or, right_rpc_expr).unwrap();
         assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node);
     }
 }
