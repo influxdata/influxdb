@@ -9,7 +9,7 @@ use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
     logical_plan::{
-        binary_expr, when, DFSchema, DFSchemaRef, Expr, ExprRewriter, LogicalPlan,
+        binary_expr, lit, when, DFSchema, DFSchemaRef, Expr, ExprRewriter, LogicalPlan,
         LogicalPlanBuilder,
     },
     prelude::col,
@@ -1815,16 +1815,19 @@ impl<'a> ExprRewriter for MissingColumnsToNull<'a> {
         //
         // Until then, we need to know what type of expr the column is
         // being compared with, so workaround by finding the datatype of the other arg
-        if let Expr::BinaryExpr { left, op, right } = expr {
-            let left = self.rewrite_op_arg(*left, &right)?;
-            let right = self.rewrite_op_arg(*right, &left)?;
-            Ok(Expr::BinaryExpr {
-                left: Box::new(left),
-                op,
-                right: Box::new(right),
-            })
-        } else {
-            Ok(expr)
+        match expr {
+            Expr::BinaryExpr { left, op, right } => {
+                let left = self.rewrite_op_arg(*left, &right)?;
+                let right = self.rewrite_op_arg(*right, &left)?;
+                Ok(Expr::BinaryExpr {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                })
+            }
+            Expr::IsNull(expr) if self.is_null_column(&expr) => Ok(lit(true)),
+            Expr::IsNotNull(expr) if self.is_null_column(&expr) => Ok(lit(false)),
+            expr => Ok(expr),
         }
     }
 }
@@ -1906,6 +1909,26 @@ mod tests {
         // int < 5 OR unknown != "foo"
         let expr = col("int").lt(lit(5)).or(col("unknown").not_eq(lit("foo")));
         let expected = col("int").lt(lit(5)).or(utf8_null.not_eq(lit("foo")));
+        assert_rewrite(&schema, &expr, &expected);
+
+        // int IS NULL
+        let expr = col("int").is_null();
+        let expected = expr.clone();
+        assert_rewrite(&schema, &expr, &expected);
+
+        // unknown IS NULL --> true
+        let expr = col("unknown").is_null();
+        let expected = lit(true);
+        assert_rewrite(&schema, &expr, &expected);
+
+        // int IS NOT NULL
+        let expr = col("int").is_not_null();
+        let expected = expr.clone();
+        assert_rewrite(&schema, &expr, &expected);
+
+        // unknown IS NOT NULL --> false
+        let expr = col("unknown").is_not_null();
+        let expected = lit(false);
         assert_rewrite(&schema, &expr, &expected);
     }
 
