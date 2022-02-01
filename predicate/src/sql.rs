@@ -2,11 +2,15 @@
 //! RPC Nodes (predicates).
 use generated_types::{
     node::Comparison as RPCComparison, node::Logical as RPCLogical, node::Type as RPCType,
-    node::Value as RPCValue, Node as RPCNode,
+    node::Value as RPCValue, Node as RPCNode, Predicate as RPCPredicate,
 };
 
-use snafu::Snafu;
-use sqlparser::ast::{BinaryOperator as Operator, Expr, Ident, Value};
+use snafu::{ResultExt, Snafu};
+use sqlparser::{
+    ast::{BinaryOperator as Operator, Expr, Ident, Value},
+    parser::Parser,
+    tokenizer::Tokenizer,
+};
 
 const TAG_KEY_FIELD: [u8; 1] = [255];
 const TAG_KEY_MEASUREMENT: [u8; 1] = [0];
@@ -14,8 +18,13 @@ const TAG_KEY_MEASUREMENT: [u8; 1] = [0];
 /// Parse Error
 #[derive(Debug, Snafu)]
 pub enum Error {
+    #[snafu(display("unable to parse '{:?}' ", source))]
+    ExprParseError {
+        source: sqlparser::parser::ParserError,
+    },
+
     #[snafu(display("unable to parse '{}' into numerical value", value))]
-    ParseError { value: String, msg: String },
+    NumericalParseError { value: String, msg: String },
 
     #[snafu(display("unexpected value '{:?}'", value))]
     UnexpectedValue { value: Value },
@@ -36,9 +45,39 @@ pub enum Error {
 /// Result type for Parser Cient
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Converts a sub-set of Datafusion expressions into RPCNodes.
-pub fn expr_to_rpc_node(expr: Expr) -> Result<RPCNode> {
-    build_node(&expr)
+/// Parses and then converts a SQL expression to and InfluxRPC predicate node.
+///
+/// Expects expressions like the following:
+///
+///   * server = 'host' AND "temp"::field > 22
+///   * "env"::tag = 'eu' OR "env"::tag = 'us' OR "env"::tag = 'asia'
+///   * "host" = 'a' AND ("temp"::field > 100.3 OR "cpu"::field = 'cpu-1')
+///   * "_measurement" = 'cpu'
+///
+/// Notes:
+///
+///   * Tag keys can be optionally surrounded in double quotes.
+///   * Use the identifiers ::tag or ::field to explicitly denote whether the
+///     expression is on a tag or a field.
+///   * The omission of ::field indicates that the expression is on a tag.
+///   * Numbers are parsed into integers where possible, but fall back to floats
+///   * Use parentheses to denote precedence.
+///   * _measurement and _field will be correctly converted into the binary format.
+///  
+/// Unsupported:
+///   * Regex operators are not yet supported.
+///   * Unsigned integers cannot yet be supported because there is no current
+///     way to denote them (we need to add a `u` suffix support).
+///
+pub fn expr_to_rpc_predicate(expr: &str) -> Result<RPCPredicate> {
+    let dialect = sqlparser::dialect::GenericDialect {};
+    let mut tokenizer = Tokenizer::new(&dialect, expr);
+    let tokens = tokenizer.tokenize().unwrap();
+    let mut parser = Parser::new(tokens, &dialect);
+
+    Ok(RPCPredicate {
+        root: Some(build_node(&parser.parse_expr().context(ExprParseSnafu)?)?),
+    })
 }
 
 // Builds an RPCNode given the value Expr and the converted children
@@ -123,10 +162,12 @@ fn parse_number(number: &str) -> Result<RPCValue, Error> {
     match number.parse::<i64>() {
         Ok(n) => Ok(RPCValue::IntValue(n)),
         Err(_) => {
-            let f = number.parse::<f64>().map_err(|e| Error::ParseError {
-                value: number.to_string(),
-                msg: e.to_string(),
-            })?;
+            let f = number
+                .parse::<f64>()
+                .map_err(|e| Error::NumericalParseError {
+                    value: number.to_string(),
+                    msg: e.to_string(),
+                })?;
             Ok(RPCValue::FloatValue(f))
         }
     }
@@ -199,8 +240,6 @@ fn make_lit(value: RPCValue) -> Result<RPCNode> {
 
 #[cfg(test)]
 mod test {
-    use sqlparser::{parser::Parser, tokenizer::Tokenizer};
-
     use super::*;
 
     // helper functions to programmatically create RPC node.
@@ -285,14 +324,9 @@ mod test {
         (make_field_expr_str, String, StringValue),
     }
 
-    // Create a sqlparser Expr from an input string.
-    fn make_sql_expr(input: &str) -> Expr {
-        let dialect = sqlparser::dialect::GenericDialect {};
-        let mut tokenizer = Tokenizer::new(&dialect, input);
-        let tokens = tokenizer.tokenize().unwrap();
-        let mut parser = Parser::new(tokens, &dialect);
-
-        parser.parse_expr().unwrap()
+    fn make_sql_expr(input: &str) -> RPCNode {
+        let parsed = expr_to_rpc_predicate(input).unwrap();
+        parsed.root.unwrap()
     }
 
     #[test]
@@ -306,49 +340,44 @@ mod test {
             .collect::<Vec<_>>();
 
         for expr_str in exprs {
-            let exrp = make_sql_expr(&expr_str);
+            let expr = make_sql_expr(&expr_str);
             let exp_rpc_node = make_tag_expr(&expr_str);
-            assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node)
+            assert_eq!(expr, exp_rpc_node)
         }
 
         // Using the double quoted syntax for a tag key.
         let expr = make_sql_expr(r#""my,stuttering,tag,key" != 'foo'"#);
         let exp_rpc_node = make_tag_expr("my,stuttering,tag,key != 'foo'");
-        assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node);
+        assert_eq!(expr, exp_rpc_node);
 
         // Using the explicit ::tag syntax works.
-        let exrp = make_sql_expr("server::tag = 'foo'");
+        let expr = make_sql_expr("server::tag = 'foo'");
         let exp_rpc_node = make_tag_expr("server = 'foo'");
-        assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node);
+        assert_eq!(expr, exp_rpc_node);
 
         // Using the syntax "server"::tag also works.
-        let exrp = make_sql_expr(r#""server"::tag = 'foo'"#);
+        let expr = make_sql_expr(r#""server"::tag = 'foo'"#);
         let exp_rpc_node = make_tag_expr("server = 'foo'");
-        assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node);
+        assert_eq!(expr, exp_rpc_node);
 
         // Converting a binary expression with a regex matches is not
         // currently implemented.
-        let expr = make_sql_expr("server ~ Abc");
-        assert!(matches!(
-            expr_to_rpc_node(expr),
-            Err(Error::UnexpectedBinaryOperator { .. })
-        ));
+        let expr = expr_to_rpc_predicate("server ~ Abc");
+        assert!(matches!(expr, Err(Error::UnexpectedBinaryOperator { .. })));
     }
 
     #[test]
     fn test_from_sql_expr_invalid_tag_comparisons() {
-        let expr = make_sql_expr("server::foo = 'bar'");
-        let got = expr_to_rpc_node(expr);
-        assert!(matches!(got, Err(Error::UnsupportedIdentType { .. })));
+        let expr = expr_to_rpc_predicate("server::foo = 'bar'");
+        assert!(matches!(expr, Err(Error::UnsupportedIdentType { .. })));
 
-        let expr = make_sql_expr("22.32::field != 'abc'");
-        let got = expr_to_rpc_node(expr);
-        assert!(matches!(got, Err(Error::UnexpectedExprType { .. })));
+        let expr = expr_to_rpc_predicate("22.32::field != 'abc'");
+        assert!(matches!(expr, Err(Error::UnexpectedExprType { .. })));
     }
 
     #[test]
     fn test_from_sql_expr_special_key_comparison() {
-        let exrp = make_sql_expr("_measurement = 'cpu'");
+        let expr = make_sql_expr("_measurement = 'cpu'");
         let exp_rpc_node = make_comparison_node(
             RPCNode {
                 node_type: RPCType::TagRef as i32,
@@ -363,9 +392,9 @@ mod test {
             },
         )
         .unwrap();
-        assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node);
+        assert_eq!(expr, exp_rpc_node);
 
-        let exrp = make_sql_expr("_field = 'cpu'");
+        let expr = make_sql_expr("_field = 'cpu'");
         let exp_rpc_node = make_comparison_node(
             RPCNode {
                 node_type: RPCType::TagRef as i32,
@@ -380,7 +409,7 @@ mod test {
             },
         )
         .unwrap();
-        assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node);
+        assert_eq!(expr, exp_rpc_node);
     }
 
     #[test]
@@ -410,7 +439,7 @@ mod test {
             ];
 
             for (expr, exp_rpc_node) in exprs {
-                assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node)
+                assert_eq!(expr, exp_rpc_node)
             }
         }
     }
@@ -425,7 +454,7 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node);
+        assert_eq!(expr, exp_rpc_node);
 
         let expr = make_sql_expr(r#" "server" = 'a' OR env = 'us-west'"#);
         let exp_rpc_node = make_logical_node(
@@ -435,7 +464,7 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node);
+        assert_eq!(expr, exp_rpc_node);
 
         let expr = make_sql_expr("env = 'usa' OR env = 'eu' OR env = 'asia'");
         let exp_rpc_node = make_logical_node(
@@ -450,7 +479,7 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node);
+        assert_eq!(expr, exp_rpc_node);
     }
 
     #[test]
@@ -470,6 +499,6 @@ mod test {
         };
         let exp_rpc_node =
             make_logical_node(left_rpc_expr, RPCLogical::Or, right_rpc_expr).unwrap();
-        assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node);
+        assert_eq!(expr, exp_rpc_node);
     }
 }
