@@ -1912,9 +1912,9 @@ mod test {
 
         // bytes
         let arr = vec![
-            "Pop Song 89".to_string(),
-            "Orange Crush".to_string(),
-            "Stand".to_string(),
+            "Pop Song 89".to_owned(),
+            "Orange Crush".to_owned(),
+            "Stand".to_owned(),
         ];
         let values = Values::ByteArray(vec![
             Some(arr[0].as_bytes()),
@@ -1990,7 +1990,7 @@ mod test {
         let eleven = OwnedValue::Scalar(Scalar::I64(11));
         let twenty_two = OwnedValue::Scalar(Scalar::I64(22));
         let thirty_three = OwnedValue::Scalar(Scalar::I64(33));
-        let string = OwnedValue::String("foo".to_string());
+        let string = OwnedValue::String("foo".to_owned());
 
         let mut v1 = OwnedValue::new_null();
 
@@ -2020,7 +2020,7 @@ mod test {
         let eleven = OwnedValue::Scalar(Scalar::I64(11));
         let twenty_two = OwnedValue::Scalar(Scalar::I64(22));
         let thirty_three = OwnedValue::Scalar(Scalar::I64(33));
-        let string = OwnedValue::String("foo".to_string());
+        let string = OwnedValue::String("foo".to_owned());
 
         let mut v1 = OwnedValue::new_null();
 

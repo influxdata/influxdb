@@ -370,7 +370,7 @@ impl Table {
                 matches!(ct, ColumnType::Tag(_)),
                 UnsupportedColumnOperationSnafu {
                     msg: format!("column type must be ColumnType::Tag, got {:?}", ct),
-                    column_name: ct.as_str().to_string(),
+                    column_name: ct.as_str().to_owned(),
                 },
             )
         }
@@ -1121,12 +1121,9 @@ mod test {
     #[test]
     fn meta_data_update_with() {
         let columns = vec![
+            ("time".to_owned(), ColumnType::create_time(&[100, 200, 300])),
             (
-                "time".to_string(),
-                ColumnType::create_time(&[100, 200, 300]),
-            ),
-            (
-                "region".to_string(),
+                "region".to_owned(),
                 ColumnType::create_tag(&["west", "west", "north"]),
             ),
         ];
@@ -1145,9 +1142,9 @@ mod test {
         );
 
         let columns = vec![
-            ("time".to_string(), ColumnType::create_time(&[10, 400])),
+            ("time".to_owned(), ColumnType::create_time(&[10, 400])),
             (
-                "region".to_string(),
+                "region".to_owned(),
                 ColumnType::create_tag(&["east", "south"]),
             ),
         ];
@@ -1175,12 +1172,12 @@ mod test {
         let col_e = ColumnType::Field(Column::from(BooleanArray::from(vec![true])));
 
         let columns = vec![
-            ("time".to_string(), time),
-            ("i64_col".to_string(), col_a),
-            ("u64_col".to_string(), col_b),
-            ("f64_col".to_string(), col_c),
-            ("str_col".to_string(), col_d),
-            ("bool_col".to_string(), col_e),
+            ("time".to_owned(), time),
+            ("i64_col".to_owned(), col_a),
+            ("u64_col".to_owned(), col_b),
+            ("f64_col".to_owned(), col_c),
+            ("str_col".to_owned(), col_d),
+            ("bool_col".to_owned(), col_e),
         ];
         let row_group = RowGroup::new(1, columns);
 
@@ -1233,12 +1230,9 @@ mod test {
     #[test]
     fn meta_data_update_with_null() {
         let columns = vec![
+            ("time".to_owned(), ColumnType::create_time(&[100, 200, 300])),
             (
-                "time".to_string(),
-                ColumnType::create_time(&[100, 200, 300]),
-            ),
-            (
-                "region".to_string(),
+                "region".to_owned(),
                 ColumnType::create_tag_opt(&[None, None, None]),
             ),
         ];
@@ -1249,9 +1243,9 @@ mod test {
 
         // add a second column
         let columns = vec![
-            ("time".to_string(), ColumnType::create_time(&[10, 400])),
+            ("time".to_owned(), ColumnType::create_time(&[10, 400])),
             (
-                "region".to_string(),
+                "region".to_owned(),
                 ColumnType::create_tag(&["east", "south"]),
             ),
         ];
@@ -1271,7 +1265,7 @@ mod test {
     #[test]
     fn add_remove_row_groups() {
         let tc = ColumnType::Time(Column::from(&[0_i64, 2, 3][..]));
-        let columns = vec![("time".to_string(), tc)];
+        let columns = vec![("time".to_owned(), tc)];
 
         let rg = RowGroup::new(3, columns);
         let mut table = Table::with_row_group("cpu", rg);
@@ -1280,7 +1274,7 @@ mod test {
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5][..]));
-        let columns = vec![("time".to_string(), tc)];
+        let columns = vec![("time".to_owned(), tc)];
         let rg = RowGroup::new(5, columns);
         table.add_row_group(rg);
 
@@ -1314,14 +1308,14 @@ mod test {
     fn column_sizes() {
         let tc = ColumnType::Time(Column::from(&[10_i64, 20, 30][..]));
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
-        let columns = vec![("time".to_string(), tc), ("count".to_string(), fc)];
+        let columns = vec![("time".to_owned(), tc), ("count".to_owned(), fc)];
         let row_group = RowGroup::new(3, columns);
         let mut table = Table::with_row_group("cpu", row_group);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
-        let columns = vec![("time".to_string(), tc), ("count".to_string(), fc)];
+        let columns = vec![("time".to_owned(), tc), ("count".to_owned(), fc)];
         let rg = RowGroup::new(6, columns);
         table.add_row_group(rg);
 
@@ -1345,9 +1339,9 @@ mod test {
         let rc = ColumnType::Tag(Column::from(&["south", "north", "east"][..]));
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
         let columns = vec![
-            ("time".to_string(), tc),
-            ("region".to_string(), rc),
-            ("count".to_string(), fc),
+            ("time".to_owned(), tc),
+            ("region".to_owned(), rc),
+            ("count".to_owned(), fc),
         ];
         let row_group = RowGroup::new(3, columns);
         let mut table = Table::with_row_group("cpu", row_group);
@@ -1359,9 +1353,9 @@ mod test {
         ));
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
         let columns = vec![
-            ("time".to_string(), tc),
-            ("region".to_string(), rc),
-            ("count".to_string(), fc),
+            ("time".to_owned(), tc),
+            ("region".to_owned(), rc),
+            ("count".to_owned(), fc),
         ];
         let rg = RowGroup::new(6, columns);
         table.add_row_group(rg);
@@ -1427,9 +1421,9 @@ mod test {
         ));
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
         let columns = vec![
-            ("time".to_string(), tc),
-            ("region".to_string(), rc),
-            ("count".to_string(), fc),
+            ("time".to_owned(), tc),
+            ("region".to_owned(), rc),
+            ("count".to_owned(), fc),
         ];
 
         let rg = RowGroup::new(6, columns);
@@ -1457,9 +1451,9 @@ mod test {
         let rc = ColumnType::Tag(Column::from(&["south", "north", "east"][..]));
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
         let columns = vec![
-            ("time".to_string(), tc),
-            ("region".to_string(), rc),
-            ("count".to_string(), fc),
+            ("time".to_owned(), tc),
+            ("region".to_owned(), rc),
+            ("count".to_owned(), fc),
         ];
         let row_group = RowGroup::new(3, columns);
         table.add_row_group(row_group);
@@ -1558,12 +1552,9 @@ mod test {
     fn read_aggregate_no_groups() {
         // Build first row group.
         let columns = vec![
+            ("time".to_owned(), ColumnType::create_time(&[100, 200, 300])),
             (
-                "time".to_string(),
-                ColumnType::create_time(&[100, 200, 300]),
-            ),
-            (
-                "region".to_string(),
+                "region".to_owned(),
                 ColumnType::create_tag(&["west", "west", "east"]),
             ),
         ];
@@ -1572,9 +1563,9 @@ mod test {
 
         // Build another row group.
         let columns = vec![
-            ("time".to_string(), ColumnType::create_time(&[2, 3])),
+            ("time".to_owned(), ColumnType::create_time(&[2, 3])),
             (
-                "region".to_string(),
+                "region".to_owned(),
                 ColumnType::create_tag(&["north", "north"]),
             ),
         ];
@@ -1707,7 +1698,7 @@ west,host-b,100
         // Build a row group.
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3][..]));
         let rc = ColumnType::Tag(Column::from(&["west", "south", "north"][..]));
-        let columns = vec![("time".to_string(), tc), ("region".to_string(), rc)];
+        let columns = vec![("time".to_owned(), tc), ("region".to_owned(), rc)];
 
         let rg = RowGroup::new(3, columns);
         let mut table = Table::with_row_group("cpu", rg);
@@ -1715,7 +1706,7 @@ west,host-b,100
         // add another row group
         let tc = ColumnType::Time(Column::from(&[200_i64, 300, 400][..]));
         let rc = ColumnType::Tag(Column::from(vec![Some("north"), None, None].as_slice()));
-        let columns = vec![("time".to_string(), tc), ("region".to_string(), rc)];
+        let columns = vec![("time".to_owned(), tc), ("region".to_owned(), rc)];
 
         let rg = RowGroup::new(3, columns);
         table.add_row_group(rg);
@@ -1797,8 +1788,8 @@ west,host-b,100
         let tc = ColumnType::Time(Column::from(&[-29_i64, -100, 3, 2][..]));
         let rc = ColumnType::Tag(Column::from(&["west", "south", "north", "west"][..]));
         let columns = vec![
-            (row_group::TIME_COLUMN_NAME.to_string(), tc),
-            ("region".to_string(), rc),
+            (row_group::TIME_COLUMN_NAME.to_owned(), tc),
+            ("region".to_owned(), rc),
         ];
 
         let rg = RowGroup::new(4, columns);

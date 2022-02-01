@@ -445,7 +445,7 @@ impl From<arrow::array::StringArray> for StringEncoding {
             }
 
             match prev {
-                Some(x) => data.push_additional(Some(x.to_string()), count),
+                Some(x) => data.push_additional(Some(x.to_owned()), count),
                 None => data.push_additional(None, count),
             }
             prev = next;
@@ -454,7 +454,7 @@ impl From<arrow::array::StringArray> for StringEncoding {
 
         // Add final batch to column if any
         match prev {
-            Some(x) => data.push_additional(Some(x.to_string()), count),
+            Some(x) => data.push_additional(Some(x.to_owned()), count),
             None => data.push_additional(None, count),
         };
 
@@ -510,7 +510,7 @@ impl From<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>> for String
             }
 
             match prev {
-                Some(x) => data.push_additional(Some(values.value(x as usize).to_string()), count),
+                Some(x) => data.push_additional(Some(values.value(x as usize).to_owned()), count),
                 None => data.push_additional(None, count),
             }
             prev = next;
@@ -519,7 +519,7 @@ impl From<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>> for String
 
         // Add final batch to column if any
         match prev {
-            Some(x) => data.push_additional(Some(values.value(x as usize).to_string()), count),
+            Some(x) => data.push_additional(Some(values.value(x as usize).to_owned()), count),
             None => data.push_additional(None, count),
         };
 

@@ -2553,9 +2553,9 @@ mod test {
     fn size() {
         let mut columns = vec![];
         let rc = ColumnType::Tag(Column::from(&[Some("west"), Some("west"), None, None][..]));
-        columns.push(("region".to_string(), rc));
+        columns.push(("region".to_owned(), rc));
         let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600][..]));
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
 
         let row_group = RowGroup::new(4, columns);
 
@@ -2567,9 +2567,9 @@ mod test {
         let track = ColumnType::Tag(Column::from(
             &[Some("Thinking"), Some("of"), Some("a"), Some("place")][..],
         ));
-        columns.push(("track".to_string(), track));
+        columns.push(("track".to_owned(), track));
         let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600][..]));
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
 
         let row_group = RowGroup::new(4, columns);
 
@@ -2580,11 +2580,11 @@ mod test {
     fn row_ids_from_predicates() {
         let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600, 300, 300][..]));
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
         let rc = ColumnType::Tag(Column::from(
             &["west", "west", "east", "west", "south", "north"][..],
         ));
-        columns.push(("region".to_string(), rc));
+        columns.push(("region".to_owned(), rc));
         let row_group = RowGroup::new(6, columns);
 
         // Closed partially covering "time range" predicate
@@ -2663,11 +2663,11 @@ mod test {
     fn row_ids_from_delete_predicates() {
         let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600, 300, 300][..]));
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
         let rc = ColumnType::Tag(Column::from(
             &["west", "west", "east", "west", "south", "north"][..],
         ));
-        columns.push(("region".to_string(), rc));
+        columns.push(("region".to_owned(), rc));
         let row_group = RowGroup::new(6, columns);
 
         // No predicates means nothing to delete
@@ -2760,7 +2760,7 @@ mod test {
     fn _read_filter_setup() -> RowGroup {
         let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6, 8][..]));
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
 
         let rc = ColumnType::Tag(Column::from(
             &[
@@ -2773,15 +2773,15 @@ mod test {
                 None,
             ][..],
         ));
-        columns.push(("region".to_string(), rc));
+        columns.push(("region".to_owned(), rc));
 
         let mc = ColumnType::Tag(Column::from(
             &["GET", "POST", "POST", "POST", "PUT", "GET", "PATCH"][..],
         ));
-        columns.push(("method".to_string(), mc));
+        columns.push(("method".to_owned(), mc));
 
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10, 29][..]));
-        columns.push(("count".to_string(), fc));
+        columns.push(("count".to_owned(), fc));
 
         RowGroup::new(7, columns)
     }
@@ -2919,25 +2919,25 @@ POST,west,2
     fn read_filter_bug_1860() {
         let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[200_i64, 300, 400, 500, 600][..]));
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
 
         let city = ColumnType::Tag(Column::from(
             &[Some("Boston"), None, None, Some("NYC"), Some("NYC")][..],
         ));
-        columns.push(("city".to_string(), city));
+        columns.push(("city".to_owned(), city));
 
         let state = ColumnType::Tag(Column::from(
             &[Some("MA"), Some("CA"), Some("NY"), Some("NY"), Some("NY")][..],
         ));
-        columns.push(("state".to_string(), state));
+        columns.push(("state".to_owned(), state));
 
         let borough = ColumnType::Tag(Column::from(
             &[None, None, None, None, Some("Brooklyn")][..],
         ));
-        columns.push(("borough".to_string(), borough));
+        columns.push(("borough".to_owned(), borough));
 
         let temp = ColumnType::Field(Column::from(&[50.4, 79.0, 60.8, 61.0, 61.0][..]));
-        columns.push(("temp".to_string(), temp));
+        columns.push(("temp".to_owned(), temp));
 
         let row_group = RowGroup::new(5, columns);
 
@@ -3020,17 +3020,17 @@ POST,west,2
     fn read_aggregate() {
         let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
 
         let rc = ColumnType::Tag(Column::from(
             &["west", "west", "east", "west", "south", "north"][..],
         ));
-        columns.push(("region".to_string(), rc));
+        columns.push(("region".to_owned(), rc));
 
         let mc = ColumnType::Tag(Column::from(
             &["GET", "POST", "POST", "POST", "PUT", "GET"][..],
         ));
-        columns.push(("method".to_string(), mc));
+        columns.push(("method".to_owned(), mc));
 
         let ec = ColumnType::Tag(Column::from(
             &[
@@ -3042,20 +3042,20 @@ POST,west,2
                 None,
             ][..],
         ));
-        columns.push(("env".to_string(), ec));
+        columns.push(("env".to_owned(), ec));
 
         let c = ColumnType::Tag(Column::from(
             &["Alpha", "Alpha", "Bravo", "Bravo", "Alpha", "Alpha"][..],
         ));
-        columns.push(("letters".to_string(), c));
+        columns.push(("letters".to_owned(), c));
 
         let c = ColumnType::Tag(Column::from(
             &["one", "two", "two", "two", "one", "three"][..],
         ));
-        columns.push(("numbers".to_string(), c));
+        columns.push(("numbers".to_owned(), c));
 
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
-        columns.push(("counter".to_string(), fc));
+        columns.push(("counter".to_owned(), fc));
 
         let row_group = RowGroup::new(6, columns);
 
@@ -3252,17 +3252,17 @@ west,POST,304,101,203
     fn row_aggregate_could_satisfy_predicate() {
         let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
 
         let rc = ColumnType::Tag(Column::from(
             &["west", "west", "east", "west", "south", "north"][..],
         ));
-        columns.push(("region".to_string(), rc));
+        columns.push(("region".to_owned(), rc));
 
         let mc = ColumnType::Tag(Column::from(
             &["GET", "GET", "GET", "GET", "GET", "GET"][..],
         ));
-        columns.push(("method".to_string(), mc));
+        columns.push(("method".to_owned(), mc));
 
         let row_group = RowGroup::new(6, columns);
 
@@ -3308,17 +3308,17 @@ west,POST,304,101,203
     fn row_aggregate_satisfies_predicate() {
         let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
 
         let rc = ColumnType::Tag(Column::from(
             &["west", "west", "east", "west", "south", "north"][..],
         ));
-        columns.push(("region".to_string(), rc));
+        columns.push(("region".to_owned(), rc));
 
         let mc = ColumnType::Tag(Column::from(
             &["GET", "GET", "GET", "GET", "GET", "GET"][..],
         ));
-        columns.push(("method".to_string(), mc));
+        columns.push(("method".to_owned(), mc));
 
         let row_group = RowGroup::new(6, columns);
 
@@ -3724,18 +3724,18 @@ west,host-c,pro,10,6
     fn column_names_setup() -> RowGroup {
         let mut columns = vec![];
         let rc = ColumnType::Tag(Column::from(&[Some("west"), Some("west"), None, None][..]));
-        columns.push(("region".to_string(), rc));
+        columns.push(("region".to_owned(), rc));
         let track = ColumnType::Tag(Column::from(
             &[Some("Thinking"), Some("of"), Some("a"), Some("place")][..],
         ));
-        columns.push(("track".to_string(), track));
+        columns.push(("track".to_owned(), track));
         let temp = ColumnType::Field(Column::from(
             &[Some("hot"), Some("cold"), Some("cold"), Some("warm")][..],
         ));
-        columns.push(("temp".to_string(), temp));
+        columns.push(("temp".to_owned(), temp));
 
         let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600][..]));
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
         RowGroup::new(4, columns)
     }
 
@@ -3790,12 +3790,12 @@ west,host-c,pro,10,6
         // part of the result-set from the row group.
         let mut columns = vec![];
         let rc = ColumnType::Tag(Column::from(&[Some("prod")][..]));
-        columns.push(("env".to_string(), rc));
+        columns.push(("env".to_owned(), rc));
         let tc = ColumnType::Time(Column::from(&[100_i64][..]));
         let temp = ColumnType::Field(Column::from(&[Some("hot")][..]));
-        columns.push(("temp".to_string(), temp));
+        columns.push(("temp".to_owned(), temp));
 
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
         let row_group = RowGroup::new(1, columns);
 
         row_group.column_names(&Predicate::default(), &[], Selection::All, &mut dst);
@@ -3961,13 +3961,13 @@ west,host-c,pro,10,6
     }
 
     fn to_map(arr: Vec<(&str, &[&str])>) -> BTreeMap<String, BTreeSet<String>> {
-        arr.iter()
+        arr.into_iter()
             .map(|(k, values)| {
                 (
-                    k.to_string(),
+                    k.to_owned(),
                     values
                         .iter()
-                        .map(|s| s.to_string())
+                        .map(|&s| s.to_owned())
                         .collect::<BTreeSet<_>>(),
                 )
             })
@@ -3979,13 +3979,13 @@ west,host-c,pro,10,6
         // Build a row group.
         let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3][..]));
-        columns.push(("time".to_string(), tc));
+        columns.push(("time".to_owned(), tc));
 
         let rc = ColumnType::Tag(Column::from(&["west", "south", "north"][..]));
-        columns.push(("region".to_string(), rc));
+        columns.push(("region".to_owned(), rc));
 
         let ec = ColumnType::Tag(Column::from(&["prod", "stag", "stag"][..]));
-        columns.push(("env".to_string(), ec));
+        columns.push(("env".to_owned(), ec));
 
         let rg = RowGroup::new(3, columns);
 
