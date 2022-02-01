@@ -5655,6 +5655,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "once_cell",
+ "parking_lot 0.11.2",
  "parquet",
  "rand",
  "regex",
