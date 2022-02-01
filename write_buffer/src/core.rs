@@ -111,7 +111,7 @@ pub mod test_utils {
         time::Duration,
     };
     use time::{Time, TimeProvider};
-    use trace::{ctx::SpanContext, RingBufferTraceCollector, TraceCollector};
+    use trace::{ctx::SpanContext, span::Span, RingBufferTraceCollector};
     use uuid::Uuid;
 
     /// Generated random topic name for testing.
@@ -157,6 +157,9 @@ pub mod test_utils {
 
         /// Create new reader.
         async fn reading(&self, creation_config: bool) -> Result<Self::Reading, WriteBufferError>;
+
+        /// Trace collector that is used in this context.
+        fn trace_collector(&self) -> Arc<RingBufferTraceCollector>;
     }
 
     /// Generic test suite that must be passed by all proper write buffer implementations.
@@ -629,8 +632,8 @@ pub mod test_utils {
         write("namespace", &writer, entry, sequencer_id, None).await;
 
         // 2: some context
-        let collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
-        let span_context_1 = SpanContext::new(Arc::clone(&collector));
+        let collector = context.trace_collector();
+        let span_context_1 = SpanContext::new(Arc::clone(&collector) as Arc<_>);
         write(
             "namespace",
             &writer,
@@ -641,7 +644,7 @@ pub mod test_utils {
         .await;
 
         // 2: another context
-        let span_context_parent = SpanContext::new(collector);
+        let span_context_parent = SpanContext::new(Arc::clone(&collector) as Arc<_>);
         let span_context_2 = span_context_parent.child("foo").ctx;
         write(
             "namespace",
@@ -659,12 +662,12 @@ pub mod test_utils {
         // check write 2
         let write_2 = stream.stream.next().await.unwrap().unwrap();
         let actual_context_1 = write_2.meta().span_context().unwrap();
-        assert_span_context_eq(actual_context_1, &span_context_1);
+        assert_span_context_eq_or_linked(&span_context_1, actual_context_1, collector.spans());
 
         // check write 3
         let write_3 = stream.stream.next().await.unwrap().unwrap();
         let actual_context_2 = write_3.meta().span_context().unwrap();
-        assert_span_context_eq(actual_context_2, &span_context_2);
+        assert_span_context_eq_or_linked(&span_context_2, actual_context_2, collector.spans());
     }
 
     /// Test that writing to an unknown sequencer produces an error
@@ -770,16 +773,35 @@ pub mod test_utils {
         }
     }
 
-    /// Asserts that given span context are the same.
+    /// Asserts that given span context are the same or that `second` links back to `first`.
     ///
     /// "Same" means:
     /// - identical trace ID
     /// - identical span ID
     /// - identical parent span ID
-    pub(crate) fn assert_span_context_eq(lhs: &SpanContext, rhs: &SpanContext) {
-        assert_eq!(lhs.trace_id, rhs.trace_id);
-        assert_eq!(lhs.span_id, rhs.span_id);
-        assert_eq!(lhs.parent_span_id, rhs.parent_span_id);
+    pub(crate) fn assert_span_context_eq_or_linked(
+        first: &SpanContext,
+        second: &SpanContext,
+        spans: Vec<Span>,
+    ) {
+        // search for links
+        for span in spans {
+            if (span.ctx.trace_id == second.trace_id) && (span.ctx.span_id == second.span_id) {
+                // second context was emitted as span
+
+                // check if it links to first context
+                for (trace_id, span_id) in span.ctx.links {
+                    if (trace_id == first.trace_id) && (span_id == first.span_id) {
+                        return;
+                    }
+                }
+            }
+        }
+
+        // no link found
+        assert_eq!(first.trace_id, second.trace_id);
+        assert_eq!(first.span_id, second.span_id);
+        assert_eq!(first.parent_span_id, second.parent_span_id);
     }
 
     /// Pops first entry from map.

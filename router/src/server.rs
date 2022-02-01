@@ -71,7 +71,8 @@ impl RouterServer {
                 Arc::clone(&metric_registry),
             ))
         });
-        let connection_pool = Arc::new(ConnectionPool::new(use_mock_grpc, wb_factory).await);
+        let connection_pool =
+            Arc::new(ConnectionPool::new(use_mock_grpc, wb_factory, trace_collector.clone()).await);
 
         Self {
             server_id: RwLock::new(None),

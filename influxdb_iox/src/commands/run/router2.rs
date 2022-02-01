@@ -22,6 +22,7 @@ use router2::{
 };
 use thiserror::Error;
 use time::SystemProvider;
+use trace::TraceCollector;
 use write_buffer::{config::WriteBufferConfigFactory, core::WriteBufferError};
 
 #[derive(Debug, Error)]
@@ -80,7 +81,12 @@ pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let metrics = Arc::new(metric::Registry::default());
 
-    let write_buffer = init_write_buffer(&config, Arc::clone(&metrics)).await?;
+    let write_buffer = init_write_buffer(
+        &config,
+        Arc::clone(&metrics),
+        common_state.trace_collector(),
+    )
+    .await?;
 
     let http = HttpDelegate::new(config.run_config.max_http_request_size, write_buffer);
     let router_server = RouterServer::new(
@@ -102,6 +108,7 @@ pub async fn command(config: Config) -> Result<()> {
 async fn init_write_buffer(
     config: &Config,
     metrics: Arc<metric::Registry>,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
 ) -> Result<ShardedWriteBuffer<TableNamespaceSharder<Arc<Sequencer>>>> {
     let write_buffer_config = WriteBufferConnection {
         type_: config.write_buffer_type.clone(),
@@ -113,7 +120,11 @@ async fn init_write_buffer(
     let write_buffer = WriteBufferConfigFactory::new(Arc::new(SystemProvider::default()), metrics);
     let write_buffer = Arc::new(
         write_buffer
-            .new_config_write(&config.write_buffer_topic, &write_buffer_config)
+            .new_config_write(
+                &config.write_buffer_topic,
+                trace_collector.as_ref(),
+                &write_buffer_config,
+            )
             .await?,
     );
 

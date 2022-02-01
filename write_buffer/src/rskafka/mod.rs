@@ -4,41 +4,40 @@ use std::{
         atomic::{AtomicI64, Ordering},
         Arc,
     },
+    time::Duration,
 };
 
 use async_trait::async_trait;
 use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
 use dml::{DmlMeta, DmlOperation};
 use futures::{FutureExt, StreamExt};
-use observability_deps::tracing::debug;
-use rskafka::{
-    client::{
-        consumer::StreamConsumerBuilder,
-        error::{Error as RSKafkaError, ProtocolError},
-        partition::PartitionClient,
-        ClientBuilder,
-    },
-    record::Record,
+use rskafka::client::{
+    consumer::StreamConsumerBuilder,
+    error::{Error as RSKafkaError, ProtocolError},
+    partition::PartitionClient,
+    producer::{BatchProducer, BatchProducerBuilder},
+    ClientBuilder,
 };
 use time::{Time, TimeProvider};
 use trace::TraceCollector;
 
 use crate::{
-    codec::{ContentType, IoxHeaders},
+    codec::IoxHeaders,
     core::{
         FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
         WriteBufferWriting, WriteStream,
     },
 };
 
+use self::aggregator::DmlAggregator;
+
+mod aggregator;
+
 type Result<T, E = WriteBufferError> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub struct RSKafkaProducer {
-    database_name: String,
-    time_provider: Arc<dyn TimeProvider>,
-    // TODO: batched writes
-    partition_clients: BTreeMap<u32, PartitionClient>,
+    producers: BTreeMap<u32, BatchProducer<DmlAggregator>>,
 }
 
 impl RSKafkaProducer {
@@ -47,21 +46,34 @@ impl RSKafkaProducer {
         database_name: String,
         creation_config: Option<&WriteBufferCreationConfig>,
         time_provider: Arc<dyn TimeProvider>,
+        trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Result<Self> {
         let partition_clients = setup_topic(conn, database_name.clone(), creation_config).await?;
+        let producers = partition_clients
+            .into_iter()
+            .map(|(sequencer_id, partition_client)| {
+                let producer = BatchProducerBuilder::new(Arc::new(partition_client))
+                    .with_linger(Duration::from_millis(100))
+                    .build(DmlAggregator::new(
+                        trace_collector.clone(),
+                        database_name.clone(),
+                        1024 * 500,
+                        sequencer_id,
+                        Arc::clone(&time_provider),
+                    ));
 
-        Ok(Self {
-            database_name,
-            time_provider,
-            partition_clients,
-        })
+                (sequencer_id, producer)
+            })
+            .collect();
+
+        Ok(Self { producers })
     }
 }
 
 #[async_trait]
 impl WriteBufferWriting for RSKafkaProducer {
     fn sequencer_ids(&self) -> BTreeSet<u32> {
-        self.partition_clients.keys().copied().collect()
+        self.producers.keys().copied().collect()
     }
 
     async fn store_operation(
@@ -69,59 +81,15 @@ impl WriteBufferWriting for RSKafkaProducer {
         sequencer_id: u32,
         operation: &DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
-        let partition_client = self
-            .partition_clients
+        let producer = self
+            .producers
             .get(&sequencer_id)
             .ok_or_else::<WriteBufferError, _>(|| {
                 format!("Unknown partition: {}", sequencer_id).into()
             })?;
 
-        // truncate milliseconds from timestamps because that's what Kafka supports
-        let now = operation
-            .meta()
-            .producer_ts()
-            .unwrap_or_else(|| self.time_provider.now());
-
-        let timestamp_millis = now.date_time().timestamp_millis();
-        let timestamp = Time::from_timestamp_millis(timestamp_millis);
-
-        let headers = IoxHeaders::new(
-            ContentType::Protobuf,
-            operation.meta().span_context().cloned(),
-            operation.namespace().to_string(),
-        );
-
-        let mut buf = Vec::new();
-        crate::codec::encode_operation(&self.database_name, operation, &mut buf)?;
-        let buf_len = buf.len();
-
-        let record = Record {
-            key: Default::default(),
-            value: buf,
-            headers: headers
-                .headers()
-                .map(|(k, v)| (k.to_owned(), v.as_bytes().to_vec()))
-                .collect(),
-            timestamp: rskafka::time::OffsetDateTime::from_unix_timestamp_nanos(
-                timestamp_millis as i128 * 1_000_000,
-            )?,
-        };
-
-        let kafka_write_size = record.approximate_size();
-
-        debug!(db_name=%self.database_name, partition=sequencer_id, size=buf_len, "writing to kafka");
-
-        let offsets = partition_client.produce(vec![record]).await?;
-        let offset = offsets[0];
-
-        debug!(db_name=%self.database_name, %offset, partition=sequencer_id, size=buf_len, "wrote to kafka");
-
-        Ok(DmlMeta::sequenced(
-            Sequence::new(sequencer_id, offset.try_into()?),
-            timestamp,
-            operation.meta().span_context().cloned(),
-            kafka_write_size,
-        ))
+        // TODO: don't clone!
+        Ok(producer.produce(operation.clone()).await?)
     }
 
     fn type_name(&self) -> &'static str {
@@ -294,7 +262,12 @@ async fn setup_topic(
         // create topic
         if let Some(creation_config) = creation_config {
             match controller_client
-                .create_topic(&database_name, creation_config.n_sequencers.get() as i32, 1)
+                .create_topic(
+                    &database_name,
+                    creation_config.n_sequencers.get() as i32,
+                    1,
+                    5_000,
+                )
                 .await
             {
                 Ok(_) => {}
@@ -316,11 +289,16 @@ async fn setup_topic(
 mod tests {
     use std::num::NonZeroU32;
 
+    use data_types::{delete_predicate::DeletePredicate, timestamp::TimestampRange};
+    use dml::{DmlDelete, DmlWrite};
     use futures::{stream::FuturesUnordered, TryStreamExt};
-    use trace::RingBufferTraceCollector;
+    use trace::{ctx::SpanContext, RingBufferTraceCollector};
 
     use crate::{
-        core::test_utils::{perform_generic_tests, random_topic_name, TestAdapter, TestContext},
+        core::test_utils::{
+            assert_span_context_eq_or_linked, map_pop_first, perform_generic_tests,
+            random_topic_name, set_pop_first, TestAdapter, TestContext,
+        },
         maybe_skip_kafka_integration,
     };
 
@@ -350,6 +328,7 @@ mod tests {
                 database_name: random_topic_name(),
                 n_sequencers,
                 time_provider,
+                trace_collector: Arc::new(RingBufferTraceCollector::new(100)),
             }
         }
     }
@@ -359,6 +338,7 @@ mod tests {
         database_name: String,
         n_sequencers: NonZeroU32,
         time_provider: Arc<dyn TimeProvider>,
+        trace_collector: Arc<RingBufferTraceCollector>,
     }
 
     impl RSKafkaTestContext {
@@ -382,20 +362,23 @@ mod tests {
                 self.database_name.clone(),
                 self.creation_config(creation_config).as_ref(),
                 Arc::clone(&self.time_provider),
+                Some(self.trace_collector() as Arc<_>),
             )
             .await
         }
 
         async fn reading(&self, creation_config: bool) -> Result<Self::Reading, WriteBufferError> {
-            let collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
-
             RSKafkaConsumer::new(
                 self.conn.clone(),
                 self.database_name.clone(),
                 self.creation_config(creation_config).as_ref(),
-                Some(collector),
+                Some(self.trace_collector() as Arc<_>),
             )
             .await
+        }
+
+        fn trace_collector(&self) -> Arc<RingBufferTraceCollector> {
+            Arc::clone(&self.trace_collector)
         }
     }
 
@@ -433,5 +416,159 @@ mod tests {
             .collect();
 
         while jobs.try_next().await.unwrap().is_some() {}
+    }
+
+    #[tokio::test]
+    async fn test_batching() {
+        let conn = maybe_skip_kafka_integration!();
+        let adapter = RSKafkaTestAdapter::new(conn);
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+        let trace_collector = ctx.trace_collector();
+
+        let producer = ctx.writing(true).await.unwrap();
+
+        let sequencer_id = set_pop_first(&mut producer.sequencer_ids()).unwrap();
+
+        let (w1_1, w1_2, w2_1, d1_1, d1_2, w1_3, w1_4, w2_2) = tokio::join!(
+            // ns1: batch 1
+            write("ns1", &producer, &trace_collector, sequencer_id),
+            write("ns1", &producer, &trace_collector, sequencer_id),
+            // ns2: batch 1, part A
+            write("ns2", &producer, &trace_collector, sequencer_id),
+            // ns1: batch 2
+            delete("ns1", &producer, &trace_collector, sequencer_id),
+            // ns1: batch 3
+            delete("ns1", &producer, &trace_collector, sequencer_id),
+            // ns1: batch 4
+            write("ns1", &producer, &trace_collector, sequencer_id),
+            write("ns1", &producer, &trace_collector, sequencer_id),
+            // ns2: batch 1, part B
+            write("ns2", &producer, &trace_collector, sequencer_id),
+        );
+
+        // ensure that write operations were fused
+        assert_eq!(w1_1.sequence().unwrap(), w1_2.sequence().unwrap());
+        assert_ne!(w1_2.sequence().unwrap(), d1_1.sequence().unwrap());
+        assert_ne!(d1_1.sequence().unwrap(), d1_2.sequence().unwrap());
+        assert_ne!(d1_2.sequence().unwrap(), w1_3.sequence().unwrap());
+        assert_eq!(w1_3.sequence().unwrap(), w1_4.sequence().unwrap());
+        assert_ne!(w1_4.sequence().unwrap(), w1_1.sequence().unwrap());
+
+        assert_ne!(w2_1.sequence().unwrap(), w1_1.sequence().unwrap());
+        assert_eq!(w2_1.sequence().unwrap(), w2_2.sequence().unwrap());
+
+        let mut consumer = ctx.reading(true).await.unwrap();
+        let mut streams = consumer.streams();
+        assert_eq!(streams.len(), 1);
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+
+        // get output, note that the write operations were fused
+        let op_w1_12 = stream.stream.next().await.unwrap().unwrap();
+        let op_d1_1 = stream.stream.next().await.unwrap().unwrap();
+        let op_d1_2 = stream.stream.next().await.unwrap().unwrap();
+        let op_w1_34 = stream.stream.next().await.unwrap().unwrap();
+        let op_w2_12 = stream.stream.next().await.unwrap().unwrap();
+
+        // ensure that sequence numbers map as expected
+        assert_eq!(
+            op_w1_12.meta().sequence().unwrap(),
+            w1_1.sequence().unwrap(),
+        );
+        assert_eq!(
+            op_w1_12.meta().sequence().unwrap(),
+            w1_2.sequence().unwrap(),
+        );
+        assert_eq!(op_d1_1.meta().sequence().unwrap(), d1_1.sequence().unwrap(),);
+        assert_eq!(op_d1_2.meta().sequence().unwrap(), d1_2.sequence().unwrap(),);
+        assert_eq!(
+            op_w1_34.meta().sequence().unwrap(),
+            w1_3.sequence().unwrap(),
+        );
+        assert_eq!(
+            op_w1_34.meta().sequence().unwrap(),
+            w1_4.sequence().unwrap(),
+        );
+        assert_eq!(
+            op_w2_12.meta().sequence().unwrap(),
+            w2_1.sequence().unwrap(),
+        );
+        assert_eq!(
+            op_w2_12.meta().sequence().unwrap(),
+            w2_2.sequence().unwrap(),
+        );
+
+        // check tracing span links
+        assert_span_context_eq_or_linked(
+            w1_1.span_context().unwrap(),
+            op_w1_12.meta().span_context().unwrap(),
+            trace_collector.spans(),
+        );
+        assert_span_context_eq_or_linked(
+            w1_2.span_context().unwrap(),
+            op_w1_12.meta().span_context().unwrap(),
+            trace_collector.spans(),
+        );
+        assert_span_context_eq_or_linked(
+            d1_1.span_context().unwrap(),
+            op_d1_1.meta().span_context().unwrap(),
+            trace_collector.spans(),
+        );
+        assert_span_context_eq_or_linked(
+            d1_2.span_context().unwrap(),
+            op_d1_2.meta().span_context().unwrap(),
+            trace_collector.spans(),
+        );
+        assert_span_context_eq_or_linked(
+            w1_3.span_context().unwrap(),
+            op_w1_34.meta().span_context().unwrap(),
+            trace_collector.spans(),
+        );
+        assert_span_context_eq_or_linked(
+            w1_4.span_context().unwrap(),
+            op_w1_34.meta().span_context().unwrap(),
+            trace_collector.spans(),
+        );
+        assert_span_context_eq_or_linked(
+            w2_1.span_context().unwrap(),
+            op_w2_12.meta().span_context().unwrap(),
+            trace_collector.spans(),
+        );
+        assert_span_context_eq_or_linked(
+            w2_2.span_context().unwrap(),
+            op_w2_12.meta().span_context().unwrap(),
+            trace_collector.spans(),
+        );
+    }
+
+    async fn write(
+        namespace: &str,
+        producer: &RSKafkaProducer,
+        trace_collector: &Arc<RingBufferTraceCollector>,
+        sequencer_id: u32,
+    ) -> DmlMeta {
+        let span_ctx = SpanContext::new(Arc::clone(trace_collector) as Arc<_>);
+        let tables = mutable_batch_lp::lines_to_batches("table foo=1", 0).unwrap();
+        let write = DmlWrite::new(namespace, tables, DmlMeta::unsequenced(Some(span_ctx)));
+        let op = DmlOperation::Write(write);
+        producer.store_operation(sequencer_id, &op).await.unwrap()
+    }
+
+    async fn delete(
+        namespace: &str,
+        producer: &RSKafkaProducer,
+        trace_collector: &Arc<RingBufferTraceCollector>,
+        sequencer_id: u32,
+    ) -> DmlMeta {
+        let span_ctx = SpanContext::new(Arc::clone(trace_collector) as Arc<_>);
+        let op = DmlOperation::Delete(DmlDelete::new(
+            namespace,
+            DeletePredicate {
+                range: TimestampRange::new(0, 1),
+                exprs: vec![],
+            },
+            None,
+            DmlMeta::unsequenced(Some(span_ctx)),
+        ));
+        producer.store_operation(sequencer_id, &op).await.unwrap()
     }
 }

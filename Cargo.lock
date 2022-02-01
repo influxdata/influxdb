@@ -3880,12 +3880,13 @@ dependencies = [
 [[package]]
 name = "rskafka"
 version = "0.1.0"
-source = "git+https://github.com/influxdata/rskafka.git?rev=63cf0a541b864d5376b2f96537a5bbb610d0e4bc#63cf0a541b864d5376b2f96537a5bbb610d0e4bc"
+source = "git+https://github.com/influxdata/rskafka.git?rev=8a2ae6b372aaf831a4586c5732a7881bda612674#8a2ae6b372aaf831a4586c5732a7881bda612674"
 dependencies = [
  "async-trait",
  "bytes",
  "crc",
  "futures",
+ "integer-encoding 3.0.2",
  "parking_lot",
  "pin-project-lite",
  "rand",
@@ -3895,7 +3896,6 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tracing",
- "varint-rs",
 ]
 
 [[package]]
@@ -5296,12 +5296,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "varint-rs"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f54a172d0620933a27a4360d3db3e2ae0dd6cceae9730751a036bbf182c4b23"
-
-[[package]]
 name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5620,9 +5614,11 @@ dependencies = [
  "dotenv",
  "futures",
  "generated_types",
+ "hashbrown 0.12.0",
  "http",
  "httparse",
  "metric",
+ "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "observability_deps",
@@ -5631,6 +5627,7 @@ dependencies = [
  "prost",
  "rdkafka",
  "rskafka",
+ "schema",
  "tempfile",
  "test_helpers",
  "time 0.1.0",
