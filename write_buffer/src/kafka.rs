@@ -7,7 +7,7 @@ use rdkafka::{
     consumer::{BaseConsumer, Consumer, ConsumerContext, StreamConsumer},
     error::KafkaError,
     message::{Headers, OwnedHeaders},
-    producer::{FutureProducer, FutureRecord},
+    producer::{FutureProducer, FutureRecord, Producer},
     types::RDKafkaErrorCode,
     util::Timeout,
     ClientConfig, ClientContext, Message, Offset, TopicPartitionList,
@@ -61,7 +61,7 @@ pub struct KafkaBufferProducer {
     conn: String,
     database_name: String,
     time_provider: Arc<dyn TimeProvider>,
-    producer: FutureProducer<ClientContextImpl>,
+    producer: Arc<FutureProducer<ClientContextImpl>>,
     partitions: BTreeSet<u32>,
 }
 
@@ -138,6 +138,16 @@ impl WriteBufferWriting for KafkaBufferProducer {
         ))
     }
 
+    async fn flush(&self) {
+        let producer = Arc::clone(&self.producer);
+
+        tokio::task::spawn_blocking(move || {
+            producer.flush(Timeout::Never);
+        })
+        .await
+        .expect("subtask failed");
+    }
+
     fn type_name(&self) -> &'static str {
         "kafka"
     }
@@ -186,7 +196,7 @@ impl KafkaBufferProducer {
             conn,
             database_name,
             time_provider,
-            producer,
+            producer: Arc::new(producer),
             partitions,
         })
     }
