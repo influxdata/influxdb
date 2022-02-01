@@ -46,40 +46,38 @@ fn build_node(expr: &Expr) -> Result<RPCNode> {
     match expr {
         Expr::Cast { expr, data_type } => match data_type {
             sqlparser::ast::DataType::Custom(ident) => {
-                if !ident.0.is_empty() {
-                    if let Some(Ident { value, .. }) = ident.0.get(0) {
-                        match value.as_str() {
-                            "field" => {
-                                // extract field key identifier
-                                if let Expr::Identifier(field) = &**expr {
-                                    return make_leaf(
-                                        RPCType::FieldRef,
-                                        RPCValue::FieldRefValue(field.value.clone()),
-                                    );
-                                }
-                                return UnexpectedExprTypeSnafu {
-                                    expr: *expr.clone(),
-                                }
-                                .fail();
+                if let Some(Ident { value, .. }) = ident.0.get(0) {
+                    // See https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#syntax
+                    match value.as_str() {
+                        "field" => {
+                            // extract field key identifier
+                            if let Expr::Identifier(field) = &**expr {
+                                return make_leaf(
+                                    RPCType::FieldRef,
+                                    RPCValue::FieldRefValue(field.value.clone()),
+                                );
                             }
-                            "tag" => {
-                                // extract tag key identifier
-                                if let Expr::Identifier(tag) = &**expr {
-                                    return make_leaf(
-                                        RPCType::TagRef,
-                                        RPCValue::TagRefValue(make_tag_name(tag.value.clone())),
-                                    );
-                                }
-                                return UnexpectedExprTypeSnafu {
-                                    expr: *expr.clone(),
-                                }
-                                .fail();
+                            return UnexpectedExprTypeSnafu {
+                                expr: *expr.clone(),
                             }
-                            _ => todo!(),
+                            .fail();
                         }
-                    }
+                        "tag" => {
+                            // extract tag key identifier
+                            if let Expr::Identifier(tag) = &**expr {
+                                return make_leaf(
+                                    RPCType::TagRef,
+                                    RPCValue::TagRefValue(make_tag_name(tag.value.clone())),
+                                );
+                            }
+                            return UnexpectedExprTypeSnafu {
+                                expr: *expr.clone(),
+                            }
+                            .fail();
+                        }
+                        _ => {} // fall through
+                    };
                 }
-
                 UnsupportedIdentTypeSnafu {
                     ident: ident.to_string(),
                 }
@@ -91,15 +89,8 @@ fn build_node(expr: &Expr) -> Result<RPCNode> {
             .fail(),
         },
         Expr::Identifier(c) => {
-            // See https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#syntax
-            // This allows one to specify whether a column name should map to
-            // a field or tag.
-            if let Some(stripped) = c.value.strip_suffix("::field") {
-                return make_leaf(
-                    RPCType::FieldRef,
-                    RPCValue::FieldRefValue(stripped.to_owned()),
-                );
-            }
+            // Identifiers with no casting syntax (no :: present) are treated
+            // as tag keys.
             make_leaf(
                 RPCType::TagRef,
                 RPCValue::TagRefValue(make_tag_name(c.value.clone())),
@@ -238,7 +229,6 @@ mod test {
         // the sql statement correctly, the RPCNode for the literal would not
         // have the quoting present.
         let literal = parts[2].replace("'", "").replace("\"", "");
-
         make_comparison_node(
             RPCNode {
                 node_type: RPCType::TagRef as i32,
@@ -316,6 +306,21 @@ mod test {
             assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node)
         }
 
+        // Using the double quoted syntax for a tag key.
+        let expr = make_sql_expr(r#""my,stuttering,tag,key" != 'foo'"#);
+        let exp_rpc_node = make_tag_expr("my,stuttering,tag,key != 'foo'");
+        assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node);
+
+        // Using the explicit ::tag syntax works.
+        let exrp = make_sql_expr("server::tag = 'foo'");
+        let exp_rpc_node = make_tag_expr("server = 'foo'");
+        assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node);
+
+        // Using the syntax "server"::tag also works.
+        let exrp = make_sql_expr("\"server\"::tag = 'foo'");
+        let exp_rpc_node = make_tag_expr("server = 'foo'");
+        assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node);
+
         // Converting a binary expression with a regex matches is not
         // currently implemented.
         let expr = make_sql_expr("server ~ Abc");
@@ -323,6 +328,17 @@ mod test {
             expr_to_rpc_node(expr),
             Err(Error::UnexpectedBinaryOperator { .. })
         ));
+    }
+
+    #[test]
+    fn test_from_sql_expr_invalid_tag_comparisons() {
+        let expr = make_sql_expr("server::foo = 'bar'");
+        let got = expr_to_rpc_node(expr);
+        assert!(matches!(got, Err(Error::UnsupportedIdentType { .. })));
+
+        let expr = make_sql_expr("22.32::field != 'abc'");
+        let got = expr_to_rpc_node(expr);
+        assert!(matches!(got, Err(Error::UnexpectedExprType { .. })));
     }
 
     #[test]
@@ -360,10 +376,22 @@ mod test {
     #[test]
     fn test_from_sql_expr_logical_node() {
         let expr = make_sql_expr("temp::field >= 22.9 AND env = 'us-west'");
+        let exp_rpc_node = make_logical_node(
+            make_field_expr_f64("temp", ">=", 22.9),
+            RPCLogical::And,
+            make_tag_expr("env = us-west"),
+        )
+        .unwrap();
 
-        let left = make_field_expr_f64("temp", ">=", 22.9);
-        let right = make_tag_expr("env = us-west");
-        let exp_rpc_node = make_logical_node(left, RPCLogical::And, right).unwrap();
+        assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node);
+
+        let expr = make_sql_expr(r#" "server" = 'a' OR env = 'us-west'"#);
+        let exp_rpc_node = make_logical_node(
+            make_tag_expr(r#"server = a"#),
+            RPCLogical::Or,
+            make_tag_expr("env = us-west"),
+        )
+        .unwrap();
 
         assert_eq!(expr_to_rpc_node(expr).unwrap(), exp_rpc_node);
     }
