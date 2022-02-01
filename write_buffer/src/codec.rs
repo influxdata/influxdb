@@ -227,7 +227,7 @@ pub fn encode_operation(
 mod tests {
     use trace::RingBufferTraceCollector;
 
-    use crate::core::test_utils::assert_span_context_eq;
+    use crate::core::test_utils::assert_span_context_eq_or_linked;
 
     use super::*;
 
@@ -251,9 +251,10 @@ mod tests {
         let iox_headers2 = IoxHeaders::from_headers(encoded, Some(&collector)).unwrap();
 
         assert_eq!(iox_headers1.content_type, iox_headers2.content_type);
-        assert_span_context_eq(
+        assert_span_context_eq_or_linked(
             iox_headers1.span_context.as_ref().unwrap(),
             iox_headers2.span_context.as_ref().unwrap(),
+            vec![],
         );
         assert_eq!(iox_headers1.namespace, iox_headers2.namespace);
     }

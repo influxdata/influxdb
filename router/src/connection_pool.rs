@@ -3,6 +3,7 @@ use std::sync::Arc;
 use cache_loader_async::cache_api::LoadingCache;
 use data_types::write_buffer::WriteBufferConnection;
 use observability_deps::tracing::debug;
+use trace::TraceCollector;
 use write_buffer::{
     config::WriteBufferConfigFactory,
     core::{WriteBufferError, WriteBufferWriting},
@@ -46,7 +47,11 @@ impl ConnectionPool {
     /// Create new connection pool.
     ///
     /// If `use_mock_grpc` is set only mock gRPC clients are created.
-    pub async fn new(use_mock_grpc: bool, wb_factory: Arc<WriteBufferConfigFactory>) -> Self {
+    pub async fn new(
+        use_mock_grpc: bool,
+        wb_factory: Arc<WriteBufferConfigFactory>,
+        trace_collector: Option<Arc<dyn TraceCollector>>,
+    ) -> Self {
         // Note: this function is async even though it does not contain any `.await` calls because `LoadingCache::new`
         // requires tokio to be running and even if documented people will forget about this.
 
@@ -71,9 +76,10 @@ impl ConnectionPool {
 
         let write_buffer_producers = LoadingCache::new(move |key: KeyWriteBufferProducer| {
             let wb_factory = Arc::clone(&wb_factory);
+            let trace_collector = trace_collector.clone();
             async move {
                 wb_factory
-                    .new_config_write(&key.0, &key.1)
+                    .new_config_write(&key.0, trace_collector.as_ref(), &key.1)
                     .await
                     .map_err(|e| Arc::new(EWrapper(e)) as ConnectionError)
             }
@@ -98,6 +104,7 @@ impl ConnectionPool {
                 time_provider,
                 metric_registry,
             )),
+            None,
         )
         .await
     }
@@ -151,6 +158,7 @@ mod tests {
                 Arc::clone(&time_provider),
                 Arc::clone(&metric_registry),
             )),
+            None,
         )
         .await;
         // connection will fail
@@ -162,6 +170,7 @@ mod tests {
                 time_provider,
                 metric_registry,
             )),
+            None,
         )
         .await;
         let client2 = pool2.grpc_client("foo").await.unwrap();

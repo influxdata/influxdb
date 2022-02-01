@@ -3,7 +3,7 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use crate::{
-    clap_blocks::run_config::RunConfig,
+    clap_blocks::{run_config::RunConfig, write_buffer::WriteBufferConfig},
     influxdb_ioxd::{
         self,
         server_type::{
@@ -12,7 +12,6 @@ use crate::{
         },
     },
 };
-use data_types::write_buffer::WriteBufferConnection;
 use observability_deps::tracing::*;
 use router2::{
     dml_handlers::ShardedWriteBuffer,
@@ -21,8 +20,8 @@ use router2::{
     sharder::TableNamespaceSharder,
 };
 use thiserror::Error;
-use time::SystemProvider;
-use write_buffer::{config::WriteBufferConfigFactory, core::WriteBufferError};
+use trace::TraceCollector;
+use write_buffer::core::WriteBufferError;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -57,30 +56,20 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) run_config: RunConfig,
 
-    /// The type of write buffer to use.
-    ///
-    /// Valid options are: file, kafka, rskafka
-    #[clap(long = "--write-buffer", env = "INFLUXDB_IOX_WRITE_BUFFER_TYPE")]
-    pub(crate) write_buffer_type: String,
-
-    /// The address to the write buffer.
-    #[clap(long = "--write-buffer-addr", env = "INFLUXDB_IOX_WRITE_BUFFER_ADDR")]
-    pub(crate) write_buffer_connection_string: String,
-
-    /// Write buffer topic/database that should be used.
-    #[clap(
-        long = "--write-buffer-topic",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
-        default_value = "iox-shared"
-    )]
-    pub(crate) write_buffer_topic: String,
+    #[clap(flatten)]
+    pub(crate) write_buffer_config: WriteBufferConfig,
 }
 
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let metrics = Arc::new(metric::Registry::default());
 
-    let write_buffer = init_write_buffer(&config, Arc::clone(&metrics)).await?;
+    let write_buffer = init_write_buffer(
+        &config,
+        Arc::clone(&metrics),
+        common_state.trace_collector(),
+    )
+    .await?;
 
     let http = HttpDelegate::new(config.run_config.max_http_request_size, write_buffer);
     let router_server = RouterServer::new(
@@ -102,18 +91,12 @@ pub async fn command(config: Config) -> Result<()> {
 async fn init_write_buffer(
     config: &Config,
     metrics: Arc<metric::Registry>,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
 ) -> Result<ShardedWriteBuffer<TableNamespaceSharder<Arc<Sequencer>>>> {
-    let write_buffer_config = WriteBufferConnection {
-        type_: config.write_buffer_type.clone(),
-        connection: config.write_buffer_connection_string.clone(),
-        connection_config: Default::default(),
-        creation_config: None,
-    };
-
-    let write_buffer = WriteBufferConfigFactory::new(Arc::new(SystemProvider::default()), metrics);
     let write_buffer = Arc::new(
-        write_buffer
-            .new_config_write(&config.write_buffer_topic, &write_buffer_config)
+        config
+            .write_buffer_config
+            .init_write_buffer(metrics, trace_collector)
             .await?,
     );
 
@@ -126,7 +109,7 @@ async fn init_write_buffer(
     //          ^ don't change this to an unordered set
 
     info!(
-        topic = config.write_buffer_topic.as_str(),
+        topic = config.write_buffer_config.topic.as_str(),
         shards = shards.len(),
         "connected to write buffer topic",
     );

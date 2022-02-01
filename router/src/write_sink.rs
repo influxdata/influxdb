@@ -227,7 +227,7 @@ mod tests {
             metric_registry,
         ));
         wb_factory.register_always_fail_mock(String::from("failing_wb"));
-        let connection_pool = Arc::new(ConnectionPool::new(true, wb_factory).await);
+        let connection_pool = Arc::new(ConnectionPool::new(true, wb_factory, None).await);
 
         let client_grpc = connection_pool.grpc_client("1.2.3.4").await.unwrap();
         let client_grpc = client_grpc.as_any().downcast_ref::<MockClient>().unwrap();

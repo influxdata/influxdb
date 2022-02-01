@@ -5,8 +5,7 @@ authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
-
-parking_lot = "0.11"
+parking_lot = "0.12"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order

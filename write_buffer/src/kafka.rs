@@ -755,7 +755,7 @@ mod tests {
     };
     use test_helpers::maybe_start_logging;
     use time::TimeProvider;
-    use trace::{RingBufferTraceCollector, TraceCollector};
+    use trace::RingBufferTraceCollector;
 
     struct KafkaTestAdapter {
         conn: String,
@@ -783,6 +783,7 @@ mod tests {
                 n_sequencers,
                 time_provider,
                 metric_registry: metric::Registry::new(),
+                trace_collector: Arc::new(RingBufferTraceCollector::new(100)),
             }
         }
     }
@@ -794,6 +795,7 @@ mod tests {
         n_sequencers: NonZeroU32,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: metric::Registry,
+        trace_collector: Arc<RingBufferTraceCollector>,
     }
 
     impl KafkaTestContext {
@@ -836,18 +838,20 @@ mod tests {
             let server_id = self.server_id_counter.fetch_add(1, Ordering::SeqCst);
             let server_id = ServerId::try_from(server_id).unwrap();
 
-            let collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
-
             KafkaBufferConsumer::new(
                 &self.conn,
                 server_id,
                 &self.database_name,
                 &self.connection_config(),
                 self.creation_config(creation_config).as_ref(),
-                Some(&collector),
+                Some(&(self.trace_collector() as Arc<_>)),
                 &self.metric_registry,
             )
             .await
+        }
+
+        fn trace_collector(&self) -> Arc<RingBufferTraceCollector> {
+            Arc::clone(&self.trace_collector)
         }
     }
 

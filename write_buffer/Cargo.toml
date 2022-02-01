@@ -10,17 +10,20 @@ dml = { path = "../dml" }
 dotenv = "0.15.0"
 futures = "0.3"
 generated_types = { path = "../generated_types" }
+hashbrown = "0.12"
 http = "0.2"
 httparse = "1.5"
 metric = { path = "../metric" }
+mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
 observability_deps = { path = "../observability_deps" }
-parking_lot = "0.11.2"
+parking_lot = "0.12"
 pin-project = "1.0"
 prost = "0.9"
 rdkafka = { version = "0.28.0", optional = true }
-rskafka = { git = "https://github.com/influxdata/rskafka.git", rev="63cf0a541b864d5376b2f96537a5bbb610d0e4bc" }
+rskafka = { git = "https://github.com/influxdata/rskafka.git", rev="9d1ddd9ed22d8c6ae111ec4e4eeecd548516a491" }
+schema = { path = "../schema" }
 time = { path = "../time" }
 tokio = { version = "1.13", features = ["fs", "macros", "parking_lot", "rt", "sync", "time"] }
 tokio-util = "0.6.9"

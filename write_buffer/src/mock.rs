@@ -546,6 +546,7 @@ mod tests {
 
     use mutable_batch_lp::lines_to_batches;
     use time::TimeProvider;
+    use trace::RingBufferTraceCollector;
 
     use crate::core::test_utils::{map_pop_first, perform_generic_tests, TestAdapter, TestContext};
 
@@ -566,6 +567,7 @@ mod tests {
                 state: MockBufferSharedState::uninitialized(),
                 n_sequencers,
                 time_provider,
+                trace_collector: Arc::new(RingBufferTraceCollector::new(100)),
             }
         }
     }
@@ -574,6 +576,7 @@ mod tests {
         state: MockBufferSharedState,
         n_sequencers: NonZeroU32,
         time_provider: Arc<dyn TimeProvider>,
+        trace_collector: Arc<RingBufferTraceCollector>,
     }
 
     impl MockTestContext {
@@ -604,6 +607,10 @@ mod tests {
                 self.state.clone(),
                 self.creation_config(creation_config).as_ref(),
             )
+        }
+
+        fn trace_collector(&self) -> Arc<RingBufferTraceCollector> {
+            Arc::clone(&self.trace_collector)
         }
     }
 
