@@ -92,6 +92,12 @@ impl WriteBufferWriting for RSKafkaProducer {
         Ok(producer.produce(operation.clone()).await?)
     }
 
+    async fn flush(&self) {
+        for producer in self.producers.values() {
+            producer.flush().await;
+        }
+    }
+
     fn type_name(&self) -> &'static str {
         "rskafka"
     }
