@@ -1,7 +1,9 @@
 //! Implementation of command line option for running ingester
 
 use crate::{
-    clap_blocks::run_config::RunConfig,
+    clap_blocks::{
+        catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
+    },
     influxdb_ioxd::{
         self,
         server_type::{
@@ -14,10 +16,7 @@ use ingester::{
     handler::IngestHandlerImpl,
     server::{grpc::GrpcDelegate, http::HttpDelegate, IngesterServer},
 };
-use iox_catalog::{
-    interface::{Catalog, KafkaPartition},
-    postgres::PostgresCatalog,
-};
+use iox_catalog::interface::KafkaPartition;
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use std::sync::Arc;
@@ -64,27 +63,11 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) run_config: RunConfig,
 
-    /// Postgres connection string
-    #[clap(long = "--catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DNS")]
-    pub catalog_dsn: String,
+    #[clap(flatten)]
+    pub(crate) catalog_dsn: CatalogDsnConfig,
 
-    /// The type of write buffer to use.
-    ///
-    /// Valid options are: file, kafka, rskafka
-    #[clap(long = "--write-buffer", env = "INFLUXDB_IOX_WRITE_BUFFER_TYPE")]
-    pub(crate) write_buffer_type: String,
-
-    /// The address to the write buffer.
-    #[clap(long = "--write-buffer-addr", env = "INFLUXDB_IOX_WRITE_BUFFER_ADDR")]
-    pub(crate) write_buffer_connection_string: String,
-
-    /// Write buffer topic/database that should be used.
-    #[clap(
-        long = "--write-buffer-topic",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
-        default_value = "iox-shared"
-    )]
-    pub(crate) write_buffer_topic: String,
+    #[clap(flatten)]
+    pub(crate) write_buffer_config: WriteBufferConfig,
 
     /// Write buffer partition number to start (inclusive) range with
     #[clap(
@@ -104,22 +87,15 @@ pub struct Config {
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
-    let catalog: Arc<dyn Catalog> = Arc::new(
-        PostgresCatalog::connect(
-            "ingester",
-            iox_catalog::postgres::SCHEMA_NAME,
-            &config.catalog_dsn,
-        )
-        .await?,
-    );
+    let catalog = config.catalog_dsn.get_catalog("ingester").await?;
 
     let kafka_topic = match catalog
         .kafka_topics()
-        .get_by_name(&config.write_buffer_topic)
+        .get_by_name(&config.write_buffer_config.topic)
         .await?
     {
         Some(k) => k,
-        None => return Err(Error::KafkaTopicNotFound(config.write_buffer_topic)),
+        None => return Err(Error::KafkaTopicNotFound(config.write_buffer_config.topic)),
     };
     let kafka_partitions: Vec<_> = (config.write_buffer_partition_range_start
         ..config.write_buffer_partition_range_end)
