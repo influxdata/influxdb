@@ -322,7 +322,7 @@ mod test {
         assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node);
 
         // Using the syntax "server"::tag also works.
-        let exrp = make_sql_expr("\"server\"::tag = 'foo'");
+        let exrp = make_sql_expr(r#""server"::tag = 'foo'"#);
         let exp_rpc_node = make_tag_expr("server = 'foo'");
         assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node);
 
@@ -344,6 +344,43 @@ mod test {
         let expr = make_sql_expr("22.32::field != 'abc'");
         let got = expr_to_rpc_node(expr);
         assert!(matches!(got, Err(Error::UnexpectedExprType { .. })));
+    }
+
+    #[test]
+    fn test_from_sql_expr_special_key_comparison() {
+        let exrp = make_sql_expr("_measurement = 'cpu'");
+        let exp_rpc_node = make_comparison_node(
+            RPCNode {
+                node_type: RPCType::TagRef as i32,
+                children: vec![],
+                value: Some(RPCValue::TagRefValue(TAG_KEY_MEASUREMENT.to_vec())),
+            },
+            RPCComparison::Equal,
+            RPCNode {
+                node_type: RPCType::Literal as i32,
+                children: vec![],
+                value: Some(RPCValue::StringValue("cpu".to_owned())),
+            },
+        )
+        .unwrap();
+        assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node);
+
+        let exrp = make_sql_expr("_field = 'cpu'");
+        let exp_rpc_node = make_comparison_node(
+            RPCNode {
+                node_type: RPCType::TagRef as i32,
+                children: vec![],
+                value: Some(RPCValue::TagRefValue(TAG_KEY_FIELD.to_vec())),
+            },
+            RPCComparison::Equal,
+            RPCNode {
+                node_type: RPCType::Literal as i32,
+                children: vec![],
+                value: Some(RPCValue::StringValue("cpu".to_owned())),
+            },
+        )
+        .unwrap();
+        assert_eq!(expr_to_rpc_node(exrp).unwrap(), exp_rpc_node);
     }
 
     #[test]
