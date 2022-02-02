@@ -870,7 +870,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "6.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=f849968057ddddccc9aa19915ef3ea56bf14d80d#f849968057ddddccc9aa19915ef3ea56bf14d80d"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=e4a056f00c4c5a09bddc1d16b83f771926f7b4a9#e4a056f00c4c5a09bddc1d16b83f771926f7b4a9"
 dependencies = [
  "ahash",
  "arrow",
@@ -882,6 +882,7 @@ dependencies = [
  "log",
  "num_cpus",
  "ordered-float 2.10.0",
+ "parking_lot 0.11.2",
  "parquet",
  "paste",
  "pin-project-lite",
