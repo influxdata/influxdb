@@ -210,14 +210,17 @@ func TestMaxSeriesLimit(t *testing.T) {
 		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
 	} else {
 		st := sh.Statistics(map[string]string{})
+		found := false
 		for _, stat := range st {
 			if stat.Name == "shard" {
 				checkInt64Stat(t, stat, "writePointsOk", int64(opts.Config.MaxSeriesPerDatabase))
 				checkInt64Stat(t, stat, "writePointsDropped", 1)
-				return
+				found = true
 			}
 		}
-		t.Fatalf("statistics for shard not found")
+		if !found {
+			t.Fatalf("statistics for shard not found")
+		}
 	}
 }
 
