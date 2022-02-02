@@ -186,9 +186,7 @@ where
         self.inner
             .write(namespace, batches, span_ctx)
             .await
-            .map_err(|e| SchemaError::Inner(Box::new(e.into())))?;
-
-        Ok(())
+            .map_err(|e| SchemaError::Inner(Box::new(e.into())))
     }
 
     /// This call is passed through to `D` - no schema validation is performed
