@@ -1,11 +1,16 @@
+use generated_types::Predicate;
+use influxrpc_parser::predicate;
 use time;
 
-use snafu::Snafu;
+use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Unable to parse timestamp '{:?}'", t))]
     TimestampParseError { t: String },
+
+    #[snafu(display("Unable to parse predicate: {:?}", source))]
+    PredicateParseError { source: predicate::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -25,8 +30,8 @@ pub struct Config {
     stop: i64,
 
     /// A predicate to filter results by. Effectively InfluxQL predicate format (see examples).
-    #[clap(long, default_value = "")]
-    predicate: String,
+    #[clap(long, default_value = "", parse(try_from_str = parse_predicate))]
+    predicate: Predicate,
 }
 
 // Attempts to parse either a stringified `i64` value. or alternatively parse an
@@ -41,6 +46,16 @@ fn parse_range(s: &str) -> Result<i64, Error> {
             Ok(t.timestamp_nanos())
         }
     }
+}
+
+// Attempts to parse the optional predicate into an `Predicate` RPC node. This
+// node is then used as part of a read request.
+fn parse_predicate(expr: &str) -> Result<Predicate, Error> {
+    if expr.is_empty() {
+        return Ok(Predicate::default());
+    }
+
+    predicate::expr_to_rpc_predicate(expr).context(PredicateParseSnafu)
 }
 
 /// All possible subcommands for storage

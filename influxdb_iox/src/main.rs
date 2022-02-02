@@ -168,7 +168,7 @@ enum Command {
     Debug(commands::debug::Config),
 
     /// Initiate a read request to the gRPC storage service.
-    StorageRPC(commands::storage::Config),
+    Storage(commands::storage::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -258,7 +258,7 @@ fn main() -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Command::StorageRPC(config) => {
+            Command::Storage(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::storage::command(config).await {
                     eprintln!("{}", e);

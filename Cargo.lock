@@ -1781,6 +1781,7 @@ dependencies = [
  "influxdb_iox_client",
  "influxdb_line_protocol",
  "influxdb_storage_client",
+ "influxrpc_parser",
  "ingester",
  "internal_types",
  "iox_catalog",
