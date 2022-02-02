@@ -171,6 +171,11 @@ func TestMaxSeriesLimit(t *testing.T) {
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
+	defer func() {
+		if err := sh.Close(); err != nil {
+			t.Fatalf("error on Shard.Close: %v", err)
+		}
+	}()
 
 	// Writing 1K series should succeed.
 	points := []models.Point{}
@@ -203,9 +208,27 @@ func TestMaxSeriesLimit(t *testing.T) {
 		t.Fatal("expected error")
 	} else if exp, got := `partial write: max-series-per-database exceeded limit=1000 series=1000 keys=1 dropped=1`, err.Error(); exp != got {
 		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
+	} else {
+		st := sh.Statistics(map[string]string{})
+		for _, stat := range st {
+			if stat.Name == "shard" {
+				checkInt64Stat(t, stat, "writePointsOk", int64(opts.Config.MaxSeriesPerDatabase))
+				checkInt64Stat(t, stat, "writePointsDropped", 1)
+				return
+			}
+		}
+		t.Fatalf("statistics for shard not found")
 	}
+}
 
-	sh.Close()
+func checkInt64Stat(t *testing.T, stat models.Statistic, name string, exp int64) {
+	if v, ok := stat.Values[name]; !ok {
+		t.Fatalf("value %s not found in statistic %s", name, stat.Name)
+	} else if got, ok := v.(int64); !ok {
+		t.Fatalf("value %s in statistic %s not an int64", name, stat.Name)
+	} else if exp != got {
+		t.Fatalf("value %s in statistic %s expected: %d, got: %d", name, stat.Name, exp, got)
+	}
 }
 
 func TestShard_MaxTagValuesLimit(t *testing.T) {
