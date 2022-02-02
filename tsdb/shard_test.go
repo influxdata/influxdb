@@ -201,7 +201,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 	err = sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	if err == nil {
 		t.Fatal("expected error")
-	} else if exp, got := `partial write: max-series-per-database limit exceeded: (1000) dropped=1`, err.Error(); exp != got {
+	} else if exp, got := `partial write: max-series-per-database exceeded limit=1000 series=1000 keys=1 dropped=1`, err.Error(); exp != got {
 		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
 	}
 

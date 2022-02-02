@@ -194,7 +194,7 @@ func (i *Index) CreateSeriesListIfNotExists(seriesIDSet *tsdb.SeriesIDSet, measu
 		i.mu.RLock()
 		if max := opt.Config.MaxSeriesPerDatabase; max > 0 && len(i.series)+len(keys) > max {
 			i.mu.RUnlock()
-			return errMaxSeriesPerDatabaseExceeded{limit: opt.Config.MaxSeriesPerDatabase}
+			return errMaxSeriesPerDatabaseExceeded{limit: opt.Config.MaxSeriesPerDatabase, series: len(i.series), keys: len(keys)}
 		}
 		i.mu.RUnlock()
 	}
@@ -1362,9 +1362,11 @@ func (itr *seriesIDIterator) nextKeys() error {
 // errMaxSeriesPerDatabaseExceeded is a marker error returned during series creation
 // to indicate that a new series would exceed the limits of the database.
 type errMaxSeriesPerDatabaseExceeded struct {
-	limit int
+	limit  int
+	series int
+	keys   int
 }
 
 func (e errMaxSeriesPerDatabaseExceeded) Error() string {
-	return fmt.Sprintf("max-series-per-database limit exceeded: (%d)", e.limit)
+	return fmt.Sprintf("max-series-per-database exceeded limit=%d series=%d keys=%d", e.limit, e.series, e.keys)
 }
