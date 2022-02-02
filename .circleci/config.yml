@@ -279,6 +279,11 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       RUST_BACKTRACE: "1"
     steps:
+      - run:
+          name: Setup ubuntu mirror
+          command: |
+            mirror=$(curl -s http://mirrors.ubuntu.com/mirrors.txt | head -n 1)
+            sudo sed -i "s;http://.*ubuntu.com/ubuntu/;$mirror;g" /etc/apt/sources.list
       - run: sudo apt update
       - run:
           name: Install required compile tools
