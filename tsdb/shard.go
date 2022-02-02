@@ -737,10 +737,13 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 	var droppedKeys [][]byte
 	if err := engine.CreateSeriesListIfNotExists(keys, names, tagsSlice); err != nil {
 		switch err := err.(type) {
-		// TODO(jmw): why is this a *PartialWriteError when everything else is not a pointer?
-		// Maybe we can just change it to be consistent if we change it also in all
-		// the places that construct it.
+		// (DSB) This was previously *PartialWriteError. Now catch pointer and value types.
 		case *PartialWriteError:
+			reason = err.Reason
+			dropped += err.Dropped
+			droppedKeys = err.DroppedKeys
+			s.stats.writesDropped.Add(float64(err.Dropped))
+		case PartialWriteError:
 			reason = err.Reason
 			dropped += err.Dropped
 			droppedKeys = err.DroppedKeys
