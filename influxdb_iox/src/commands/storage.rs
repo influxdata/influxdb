@@ -1,4 +1,9 @@
+pub(crate) mod request;
+
+use std::num::NonZeroU64;
+
 use generated_types::Predicate;
+use influxdb_storage_client::{connection::Connection, Client, OrgAndBucket};
 use influxrpc_parser::predicate;
 use time;
 
@@ -8,6 +13,9 @@ use snafu::{ResultExt, Snafu};
 pub enum Error {
     #[snafu(display("Unable to parse timestamp '{:?}'", t))]
     TimestampParseError { t: String },
+
+    #[snafu(display("Unable to parse database name '{:?}'", db_name))]
+    DBNameParseError { db_name: String },
 
     #[snafu(display("Unable to parse predicate: {:?}", source))]
     PredicateParseError { source: predicate::Error },
@@ -20,6 +28,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Config {
     #[clap(subcommand)]
     command: Command,
+
+    /// The name of the database
+    #[clap(parse(try_from_str = parse_db_name))]
+    db_name: OrgAndBucket,
 
     /// The requested start time (inclusive) of the time-range (also accepts RFC3339 format).
     #[clap(long, default_value = "-9223372036854775806", parse(try_from_str = parse_range))]
@@ -58,6 +70,34 @@ fn parse_predicate(expr: &str) -> Result<Predicate, Error> {
     predicate::expr_to_rpc_predicate(expr).context(PredicateParseSnafu)
 }
 
+// Attempts to parse the database name into and org and bucket ID.
+fn parse_db_name(db_name: &str) -> Result<OrgAndBucket, Error> {
+    let parts = db_name.split("_").collect::<Vec<_>>();
+    if parts.len() != 2 {
+        return DBNameParseSnafu {
+            db_name: db_name.to_owned(),
+        }
+        .fail();
+    }
+
+    let org_id = usize::from_str_radix(parts[0], 16).map_err(|_| Error::DBNameParseError {
+        db_name: db_name.to_owned(),
+    })?;
+
+    let bucket_id = usize::from_str_radix(parts[1], 16).map_err(|_| Error::DBNameParseError {
+        db_name: db_name.to_owned(),
+    })?;
+
+    Ok(OrgAndBucket::new(
+        NonZeroU64::new(org_id as u64).ok_or_else(|| Error::DBNameParseError {
+            db_name: db_name.to_owned(),
+        })?,
+        NonZeroU64::new(bucket_id as u64).ok_or_else(|| Error::DBNameParseError {
+            db_name: db_name.to_owned(),
+        })?,
+    ))
+}
+
 /// All possible subcommands for storage
 #[derive(Debug, clap::Parser)]
 enum Command {
@@ -70,9 +110,25 @@ enum Command {
 struct ReadFilter {}
 
 /// Create and issue read request
-pub async fn command(config: Config) -> Result<()> {
-    // TODO(edd): handle command/config and execute request
-    println!("Unimplemented: config is {:?}", config);
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
+    let mut client = influxdb_storage_client::Client::new(connection);
+
+    // convert predicate with no root node into None.
+    let predicate = config.predicate.root.is_some().then(|| config.predicate);
+
+    let source = Client::read_source(&config.db_name, 0);
+    let result = match config.command {
+        Command::ReadFilter(_) => {
+            client
+                .read_filter(request::read_filter(
+                    source,
+                    config.start,
+                    config.stop,
+                    predicate,
+                ))
+                .await
+        }
+    };
     Ok(())
 }
 
