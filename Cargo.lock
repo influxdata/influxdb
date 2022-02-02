@@ -1911,6 +1911,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxrpc_parser"
+version = "0.1.0"
+dependencies = [
+ "generated_types",
+ "snafu",
+ "sqlparser",
+ "workspace-hack",
+]
+
+[[package]]
 name = "ingester"
 version = "0.1.0"
 dependencies = [
@@ -3345,7 +3355,6 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
- "generated_types",
  "itertools",
  "observability_deps",
  "ordered-float 2.10.0",

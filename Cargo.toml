@@ -17,6 +17,7 @@ members = [
     "influxdb_storage_client",
     "influxdb_tsm",
     "influxdb2_client",
+    "influxrpc_parser",
     "ingester",
     "internal_types",
     "iox_catalog",

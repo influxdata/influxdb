@@ -12,7 +12,12 @@ use sqlparser::{
     tokenizer::Tokenizer,
 };
 
+// String and byte representation of a measurement name in a predicate.
+const MEASUREMENT_COLUMN_NAME: &str = "_measurement";
 const TAG_KEY_FIELD: [u8; 1] = [255];
+
+// String and byte representation of a field name in a prediacte.
+const FIELD_COLUMN_NAME: &str = "_field";
 const TAG_KEY_MEASUREMENT: [u8; 1] = [0];
 
 /// Parse Error
@@ -165,7 +170,7 @@ fn parse_number(number: &str) -> Result<RPCValue, Error> {
             let f = number
                 .parse::<f64>()
                 .map_err(|e| Error::NumericalParseError {
-                    value: number.to_string(),
+                    value: number.to_owned(),
                     msg: e.to_string(),
                 })?;
             Ok(RPCValue::FloatValue(f))
@@ -189,9 +194,9 @@ fn build_binary_node(left: RPCNode, op: Operator, right: RPCNode) -> Result<RPCN
 }
 
 fn make_tag_name(tag_name: String) -> Vec<u8> {
-    if tag_name == crate::rpc_predicate::MEASUREMENT_COLUMN_NAME {
+    if tag_name == MEASUREMENT_COLUMN_NAME {
         return TAG_KEY_MEASUREMENT.to_vec();
-    } else if tag_name == crate::rpc_predicate::FIELD_COLUMN_NAME {
+    } else if tag_name == FIELD_COLUMN_NAME {
         return TAG_KEY_FIELD.to_vec();
     }
     tag_name.as_bytes().to_owned()
@@ -438,7 +443,7 @@ mod test {
                 ),
                 (
                     make_sql_expr(&format!("server::field {} 'Mice'", op)),
-                    make_field_expr_str("server", op, "Mice".to_string()),
+                    make_field_expr_str("server", op, "Mice".to_owned()),
                 ),
             ];
 
@@ -496,7 +501,7 @@ mod test {
             children: vec![make_logical_node(
                 make_tag_expr("env = eu"),
                 RPCLogical::And,
-                make_field_expr_str("temp", "=", "on".to_string()),
+                make_field_expr_str("temp", "=", "on".to_owned()),
             )
             .unwrap()],
             value: None,

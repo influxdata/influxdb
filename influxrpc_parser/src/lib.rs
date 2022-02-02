@@ -5,12 +5,9 @@
     clippy::explicit_iter_loop,
     clippy::future_not_send,
     clippy::use_self,
-    clippy::clone_on_ref_ptr
+    clippy::clone_on_ref_ptr,
+    clippy::str_to_string,
+    clippy::string_to_string
 )]
 
-pub mod delete_expr;
-pub mod delete_predicate;
 pub mod predicate;
-pub mod regex;
-pub mod rewrite;
-pub mod rpc_predicate;
