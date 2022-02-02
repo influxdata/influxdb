@@ -14,7 +14,7 @@ use job_registry::JobRegistry;
 use metric::{Attributes, DurationCounter, Metric, U64Counter};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
-use predicate::predicate::Predicate;
+use predicate::{predicate::Predicate, rpc_predicate::QueryDatabaseMeta};
 use query::{
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
@@ -278,17 +278,6 @@ impl QueryDatabase for QueryCatalogAccess {
         self.catalog.partition_addrs()
     }
 
-    fn table_names(&self) -> Vec<String> {
-        self.catalog.table_names()
-    }
-
-    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
-        self.catalog
-            .table(table_name)
-            .ok()
-            .map(|table| Arc::clone(&table.schema().read()))
-    }
-
     /// Return a covering set of chunks for a particular table and predicate
     fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         self.chunk_access.candidate_chunks(table_name, predicate)
@@ -307,6 +296,19 @@ impl QueryDatabase for QueryCatalogAccess {
         // will be set.
         let entry = self.query_log.push(query_type, query_text);
         QueryCompletedToken::new(move || self.query_log.set_completed(entry))
+    }
+}
+
+impl QueryDatabaseMeta for QueryCatalogAccess {
+    fn table_names(&self) -> Vec<String> {
+        self.catalog.table_names()
+    }
+
+    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
+        self.catalog
+            .table(table_name)
+            .ok()
+            .map(|table| Arc::clone(&table.schema().read()))
     }
 }
 

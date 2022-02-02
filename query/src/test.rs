@@ -28,6 +28,7 @@ use futures::StreamExt;
 use hashbrown::HashSet;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
+use predicate::rpc_predicate::QueryDatabaseMeta;
 use schema::selection::Selection;
 use schema::{
     builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema,
@@ -47,6 +48,9 @@ pub struct TestDatabase {
 
     /// `column_names` to return upon next request
     column_names: Arc<Mutex<Option<StringSetRef>>>,
+
+    /// The predicate passed to the most recent call to `chunks()`
+    chunks_predicate: Mutex<Predicate>,
 }
 
 #[derive(Snafu, Debug)]
@@ -68,6 +72,7 @@ impl TestDatabase {
             executor,
             partitions: Default::default(),
             column_names: Default::default(),
+            chunks_predicate: Default::default(),
         }
     }
 
@@ -81,12 +86,23 @@ impl TestDatabase {
         self
     }
 
+    /// Add a test chunk to the database
+    pub fn with_chunk(self, partition_key: &str, chunk: Arc<TestChunk>) -> Self {
+        self.add_chunk(partition_key, chunk);
+        self
+    }
+
     /// Get the specified chunk
     pub fn get_chunk(&self, partition_key: &str, id: ChunkId) -> Option<Arc<TestChunk>> {
         self.partitions
             .lock()
             .get(partition_key)
             .and_then(|p| p.get(&id).cloned())
+    }
+
+    /// Return the most recent predicate passed to get_chunks()
+    pub fn get_chunks_predicate(&self) -> Predicate {
+        self.chunks_predicate.lock().clone()
     }
 
     /// Set the list of column names that will be returned on a call to
@@ -119,7 +135,10 @@ impl QueryDatabase for TestDatabase {
             .collect()
     }
 
-    fn chunks(&self, table_name: &str, _predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+    fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+        // save last predicate
+        *self.chunks_predicate.lock() = predicate.clone();
+
         let partitions = self.partitions.lock();
         partitions
             .values()
@@ -133,6 +152,16 @@ impl QueryDatabase for TestDatabase {
         unimplemented!("summaries not implemented TestDatabase")
     }
 
+    fn record_query(
+        &self,
+        _query_type: impl Into<String>,
+        _query_text: impl Into<String>,
+    ) -> QueryCompletedToken<'_> {
+        QueryCompletedToken::new(|| {})
+    }
+}
+
+impl QueryDatabaseMeta for TestDatabase {
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
         let mut merger = SchemaMerger::new();
         let mut found_one = false;
@@ -148,14 +177,6 @@ impl QueryDatabase for TestDatabase {
         }
 
         found_one.then(|| Arc::new(merger.build()))
-    }
-
-    fn record_query(
-        &self,
-        _query_type: impl Into<String>,
-        _query_text: impl Into<String>,
-    ) -> QueryCompletedToken<'_> {
-        QueryCompletedToken::new(|| {})
     }
 
     fn table_names(&self) -> Vec<String> {

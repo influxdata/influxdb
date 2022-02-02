@@ -42,7 +42,7 @@ use parquet_catalog::{
     prune::prune_history as prune_catalog_transaction_history,
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
-use predicate::predicate::Predicate;
+use predicate::{predicate::Predicate, rpc_predicate::QueryDatabaseMeta};
 use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
     QueryCompletedToken, QueryDatabase,
@@ -1207,14 +1207,6 @@ impl QueryDatabase for Db {
         self.catalog_access.partition_addrs()
     }
 
-    fn table_names(&self) -> Vec<String> {
-        self.catalog_access.table_names()
-    }
-
-    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
-        self.catalog_access.table_schema(table_name)
-    }
-
     fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         self.catalog_access.chunks(table_name, predicate)
     }
@@ -1229,6 +1221,16 @@ impl QueryDatabase for Db {
         query_text: impl Into<String>,
     ) -> QueryCompletedToken<'_> {
         self.catalog_access.record_query(query_type, query_text)
+    }
+}
+
+impl QueryDatabaseMeta for Db {
+    fn table_names(&self) -> Vec<String> {
+        self.catalog_access.table_names()
+    }
+
+    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
+        self.catalog_access.table_schema(table_name)
     }
 }
 
