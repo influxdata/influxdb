@@ -1,4 +1,5 @@
 pub(crate) mod request;
+pub(crate) mod response;
 
 use std::num::NonZeroU64;
 
@@ -10,18 +11,18 @@ use time;
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
-pub enum Error {
+pub enum ParseError {
     #[snafu(display("Unable to parse timestamp '{:?}'", t))]
-    TimestampParseError { t: String },
+    Timestamp { t: String },
 
     #[snafu(display("Unable to parse database name '{:?}'", db_name))]
-    DBNameParseError { db_name: String },
+    DBName { db_name: String },
 
     #[snafu(display("Unable to parse predicate: {:?}", source))]
-    PredicateParseError { source: predicate::Error },
+    Predicate { source: predicate::Error },
 }
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T, E = ParseError> = std::result::Result<T, E>;
 
 /// Craft and submit different types of storage read requests
 #[derive(Debug, clap::Parser)]
@@ -49,12 +50,12 @@ pub struct Config {
 // Attempts to parse either a stringified `i64` value. or alternatively parse an
 // RFC3339 formatted timestamp into an `i64` value representing nanoseconds
 // since the epoch.
-fn parse_range(s: &str) -> Result<i64, Error> {
+fn parse_range(s: &str) -> Result<i64, ParseError> {
     match s.parse::<i64>() {
         Ok(v) => Ok(v),
         Err(_) => {
             // try to parse timestamp
-            let t = time::Time::from_rfc3339(s).or_else(|_| TimestampParseSnafu { t: s }.fail())?;
+            let t = time::Time::from_rfc3339(s).or_else(|_| TimestampSnafu { t: s }.fail())?;
             Ok(t.timestamp_nanos())
         }
     }
@@ -62,37 +63,37 @@ fn parse_range(s: &str) -> Result<i64, Error> {
 
 // Attempts to parse the optional predicate into an `Predicate` RPC node. This
 // node is then used as part of a read request.
-fn parse_predicate(expr: &str) -> Result<Predicate, Error> {
+fn parse_predicate(expr: &str) -> Result<Predicate, ParseError> {
     if expr.is_empty() {
         return Ok(Predicate::default());
     }
 
-    predicate::expr_to_rpc_predicate(expr).context(PredicateParseSnafu)
+    predicate::expr_to_rpc_predicate(expr).context(PredicateSnafu)
 }
 
 // Attempts to parse the database name into and org and bucket ID.
-fn parse_db_name(db_name: &str) -> Result<OrgAndBucket, Error> {
+fn parse_db_name(db_name: &str) -> Result<OrgAndBucket, ParseError> {
     let parts = db_name.split("_").collect::<Vec<_>>();
     if parts.len() != 2 {
-        return DBNameParseSnafu {
+        return DBNameSnafu {
             db_name: db_name.to_owned(),
         }
         .fail();
     }
 
-    let org_id = usize::from_str_radix(parts[0], 16).map_err(|_| Error::DBNameParseError {
+    let org_id = usize::from_str_radix(parts[0], 16).map_err(|_| ParseError::DBName {
         db_name: db_name.to_owned(),
     })?;
 
-    let bucket_id = usize::from_str_radix(parts[1], 16).map_err(|_| Error::DBNameParseError {
+    let bucket_id = usize::from_str_radix(parts[1], 16).map_err(|_| ParseError::DBName {
         db_name: db_name.to_owned(),
     })?;
 
     Ok(OrgAndBucket::new(
-        NonZeroU64::new(org_id as u64).ok_or_else(|| Error::DBNameParseError {
+        NonZeroU64::new(org_id as u64).ok_or_else(|| ParseError::DBName {
             db_name: db_name.to_owned(),
         })?,
-        NonZeroU64::new(bucket_id as u64).ok_or_else(|| Error::DBNameParseError {
+        NonZeroU64::new(bucket_id as u64).ok_or_else(|| ParseError::DBName {
             db_name: db_name.to_owned(),
         })?,
     ))
