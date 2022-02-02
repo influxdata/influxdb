@@ -26,6 +26,7 @@
 #![allow(clippy::missing_docs_in_private_items)]
 
 pub mod dml_handlers;
+pub mod namespace_cache;
 pub mod sequencer;
 pub mod server;
 pub mod sharder;

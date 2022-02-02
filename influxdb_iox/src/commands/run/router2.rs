@@ -16,6 +16,7 @@ use iox_catalog::{interface::Catalog, postgres::PostgresCatalog};
 use observability_deps::tracing::*;
 use router2::{
     dml_handlers::{SchemaValidator, ShardedWriteBuffer},
+    namespace_cache::MemoryNamespaceCache,
     sequencer::Sequencer,
     server::{http::HttpDelegate, RouterServer},
     sharder::TableNamespaceSharder,
@@ -88,7 +89,8 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
 
-    let handler_stack = SchemaValidator::new(write_buffer, catalog);
+    let ns_cache = Arc::new(MemoryNamespaceCache::default());
+    let handler_stack = SchemaValidator::new(write_buffer, catalog, ns_cache);
 
     let http = HttpDelegate::new(config.run_config.max_http_request_size, handler_stack);
     let router_server = RouterServer::new(

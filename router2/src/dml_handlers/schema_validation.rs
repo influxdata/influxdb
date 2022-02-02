@@ -4,14 +4,15 @@ use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 use hashbrown::HashMap;
 use iox_catalog::{
-    interface::{get_schema_by_name, Catalog, NamespaceSchema},
+    interface::{get_schema_by_name, Catalog},
     validate_or_insert_schema,
 };
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
-use parking_lot::RwLock;
 use thiserror::Error;
 use trace::ctx::SpanContext;
+
+use crate::namespace_cache::{MemoryNamespaceCache, NamespaceCache};
 
 use super::{DmlError, DmlHandler};
 
@@ -81,29 +82,32 @@ pub enum SchemaError {
 ///
 /// [#3573]: https://github.com/influxdata/influxdb_iox/issues/3573
 #[derive(Debug)]
-pub struct SchemaValidator<D> {
+pub struct SchemaValidator<D, C = Arc<MemoryNamespaceCache>> {
     inner: D,
     catalog: Arc<dyn Catalog>,
 
-    cache: RwLock<HashMap<DatabaseName<'static>, Arc<NamespaceSchema>>>,
+    cache: C,
 }
 
-impl<D> SchemaValidator<D> {
+impl<D, C> SchemaValidator<D, C> {
     /// Initialise a new [`SchemaValidator`] decorator, loading schemas from
     /// `catalog` and passing acceptable requests through to `inner`.
-    pub fn new(inner: D, catalog: Arc<dyn Catalog>) -> Self {
+    ///
+    /// Schemas are cached in `ns_cache`.
+    pub fn new(inner: D, catalog: Arc<dyn Catalog>, ns_cache: C) -> Self {
         Self {
             inner,
             catalog,
-            cache: Default::default(),
+            cache: ns_cache,
         }
     }
 }
 
 #[async_trait]
-impl<D> DmlHandler for SchemaValidator<D>
+impl<D, C> DmlHandler for SchemaValidator<D, C>
 where
     D: DmlHandler,
+    C: NamespaceCache,
 {
     type WriteError = SchemaError;
     type DeleteError = D::DeleteError;
@@ -133,7 +137,7 @@ where
     ) -> Result<(), Self::WriteError> {
         // Load the namespace schema from the cache, falling back to pulling it
         // from the global catalog (if it exists).
-        let schema = self.cache.read().get(&namespace).map(Arc::clone);
+        let schema = self.cache.get_schema(&namespace);
         let schema = match schema {
             Some(v) => v,
             None => {
@@ -148,8 +152,7 @@ where
                     .map(Arc::new)?;
 
                 self.cache
-                    .write()
-                    .insert(namespace.clone(), Arc::clone(&schema));
+                    .put_schema(namespace.clone(), Arc::clone(&schema));
 
                 trace!(%namespace, "schema cache populated");
                 schema
@@ -175,7 +178,7 @@ where
                 // This call MAY overwrite a more-up-to-date cache entry if
                 // racing with another request for the same namespace, but the
                 // cache will eventually converge in subsequent requests.
-                self.cache.write().insert(namespace.clone(), v);
+                self.cache.put_schema(namespace.clone(), v);
                 trace!(%namespace, "schema cache updated");
             }
             None => {
@@ -254,9 +257,9 @@ mod tests {
 
     fn assert_cache<D>(handler: &SchemaValidator<D>, table: &str, col: &str, want: ColumnType) {
         // The cache should be populated.
-        let cached = handler.cache.read();
-        let ns = cached
-            .get(&NAMESPACE.try_into().unwrap())
+        let ns = handler
+            .cache
+            .get_schema(&NAMESPACE.try_into().unwrap())
             .expect("cache should be populated");
         let table = ns.tables.get(table).expect("table should exist in cache");
         assert_eq!(
@@ -273,7 +276,11 @@ mod tests {
     async fn test_write_ok() {
         let catalog = create_catalog().await;
         let mock = Arc::new(MockDmlHandler::default().with_write_return(vec![Ok(())]));
-        let handler = SchemaValidator::new(Arc::clone(&mock), catalog);
+        let handler = SchemaValidator::new(
+            Arc::clone(&mock),
+            catalog,
+            Arc::new(MemoryNamespaceCache::default()),
+        );
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         handler
@@ -297,11 +304,17 @@ mod tests {
     async fn test_write_schema_not_found() {
         let catalog = create_catalog().await;
         let mock = Arc::new(MockDmlHandler::default().with_write_return(vec![Ok(())]));
-        let handler = SchemaValidator::new(Arc::clone(&mock), catalog);
+        let handler = SchemaValidator::new(
+            Arc::clone(&mock),
+            catalog,
+            Arc::new(MemoryNamespaceCache::default()),
+        );
+
+        let ns = DatabaseName::try_from("A_DIFFERENT_NAMESPACE").unwrap();
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let err = handler
-            .write("A_DIFFERENT_NAMESPACE".try_into().unwrap(), writes, None)
+            .write(ns.clone(), writes, None)
             .await
             .expect_err("request should fail");
 
@@ -309,14 +322,18 @@ mod tests {
         assert!(mock.calls().is_empty());
 
         // The cache should not have retained the schema.
-        assert!(handler.cache.read().is_empty());
+        assert!(handler.cache.get_schema(&ns).is_none());
     }
 
     #[tokio::test]
     async fn test_write_validation_failure() {
         let catalog = create_catalog().await;
         let mock = Arc::new(MockDmlHandler::default().with_write_return(vec![Ok(())]));
-        let handler = SchemaValidator::new(Arc::clone(&mock), catalog);
+        let handler = SchemaValidator::new(
+            Arc::clone(&mock),
+            catalog,
+            Arc::new(MemoryNamespaceCache::default()),
+        );
 
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456"); // val=i64
@@ -357,7 +374,11 @@ mod tests {
             MockDmlHandler::default()
                 .with_write_return(vec![Err(DmlError::Internal(MockError::Terrible.into()))]),
         );
-        let handler = SchemaValidator::new(Arc::clone(&mock), catalog);
+        let handler = SchemaValidator::new(
+            Arc::clone(&mock),
+            catalog,
+            Arc::new(MemoryNamespaceCache::default()),
+        );
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let err = handler
@@ -386,20 +407,21 @@ mod tests {
 
         let catalog = create_catalog().await;
         let mock = Arc::new(MockDmlHandler::default().with_delete_return(vec![Ok(())]));
-        let handler = SchemaValidator::new(Arc::clone(&mock), catalog);
+        let handler = SchemaValidator::new(
+            Arc::clone(&mock),
+            catalog,
+            Arc::new(MemoryNamespaceCache::default()),
+        );
 
         let predicate = DeletePredicate {
             range: TimestampRange::new(1, 2),
             exprs: vec![],
         };
 
+        let ns = DatabaseName::try_from(NAMESPACE).unwrap();
+
         handler
-            .delete(
-                NAMESPACE.try_into().unwrap(),
-                TABLE,
-                predicate.clone(),
-                None,
-            )
+            .delete(ns.clone(), TABLE, predicate.clone(), None)
             .await
             .expect("request should succeed");
 
@@ -411,7 +433,7 @@ mod tests {
         });
 
         // Deletes have no effect on the cache.
-        assert!(handler.cache.read().is_empty());
+        assert!(handler.cache.get_schema(&ns).is_none());
     }
 
     #[tokio::test]
@@ -421,20 +443,20 @@ mod tests {
             MockDmlHandler::default()
                 .with_delete_return(vec![Err(DmlError::Internal(MockError::Terrible.into()))]),
         );
-        let handler = SchemaValidator::new(Arc::clone(&mock), catalog);
+        let handler = SchemaValidator::new(
+            Arc::clone(&mock),
+            catalog,
+            Arc::new(MemoryNamespaceCache::default()),
+        );
 
         let predicate = DeletePredicate {
             range: TimestampRange::new(1, 2),
             exprs: vec![],
         };
 
+        let ns = DatabaseName::try_from("NAMESPACE_IS_IGNORED").unwrap();
         let err = handler
-            .delete(
-                "NAMESPACE_IS_IGNORED".try_into().unwrap(),
-                "bananas",
-                predicate,
-                None,
-            )
+            .delete(ns.clone(), "bananas", predicate, None)
             .await
             .expect_err("request should return mock error");
 
@@ -444,6 +466,6 @@ mod tests {
         assert_matches!(mock.calls().as_slice(), [MockDmlHandlerCall::Delete { .. }]);
 
         // Deletes have no effect on the cache.
-        assert!(handler.cache.read().is_empty());
+        assert!(handler.cache.get_schema(&ns).is_none());
     }
 }
