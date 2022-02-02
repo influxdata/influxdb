@@ -56,6 +56,7 @@ fn is_comparison(op: Operator) -> bool {
     // explicitly list all of these operators so when new ones are
     // added to the enum we will have to update this `match`
     match op {
+        Operator::BitwiseAnd => false,
         Operator::Eq => true,
         Operator::NotEq => true,
         Operator::Lt => true,
@@ -226,6 +227,7 @@ mod tests {
 
     #[test]
     fn test_fold_case_ops() {
+        run_case(Operator::BitwiseAnd, false, lit(1), lit(2));
         run_case(Operator::Eq, true, lit("foo"), lit("bar"));
         run_case(Operator::NotEq, true, lit("foo"), lit("bar"));
         run_case(Operator::Lt, true, lit("foo"), lit("bar"));
