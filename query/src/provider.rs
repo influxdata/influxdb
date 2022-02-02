@@ -441,15 +441,14 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             }
 
             // Go over non_duplicates_chunks, build a plan for it
-            for no_duplicates_chunk in self.no_duplicates_chunks.to_vec() {
-                plans.push(Self::build_plan_for_non_duplicates_chunk(
-                    Arc::clone(&table_name),
-                    Arc::clone(&output_schema),
-                    no_duplicates_chunk.to_owned(),
-                    predicate.clone(),
-                    &output_sort_key,
-                )?);
-            }
+            let mut non_duplicate_plans = Self::build_plans_for_non_duplicates_chunks(
+                Arc::clone(&table_name),
+                Arc::clone(&output_schema),
+                self.no_duplicates_chunks.to_vec(),
+                predicate,
+                &output_sort_key,
+            )?;
+            plans.append(&mut non_duplicate_plans);
         }
 
         if plans.is_empty() {
