@@ -12,7 +12,7 @@ use observability_deps::tracing::{error, info, warn};
 use trace::{span::Span, TraceCollector};
 
 /// Size of the exporter buffer
-const CHANNEL_SIZE: usize = 1000;
+const CHANNEL_SIZE: usize = 100_000;
 
 /// An `AsyncExport` is a batched async version of `trace::TraceCollector`
 #[async_trait]

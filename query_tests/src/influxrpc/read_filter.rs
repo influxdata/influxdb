@@ -1,121 +1,21 @@
 //! Tests for the Influx gRPC queries
-use crate::influxrpc::util::run_series_set_plan;
 #[cfg(test)]
 use crate::scenarios::{
-    util::all_scenarios_for_one_chunk, DbScenario, DbSetup, NoData, TwoMeasurements,
-    TwoMeasurementsManyFields, TwoMeasurementsWithDelete, TwoMeasurementsWithDeleteAll,
+    DbScenario, DbSetup, NoData, TwoMeasurements, TwoMeasurementsManyFields,
+    TwoMeasurementsWithDelete, TwoMeasurementsWithDeleteAll,
 };
-use async_trait::async_trait;
-use data_types::{
-    delete_predicate::{DeleteExpr, DeletePredicate},
-    timestamp::TimestampRange,
+use crate::{
+    influxrpc::util::run_series_set_plan,
+    scenarios::{
+        MeasurementStatusCode, MeasurementsForDefect2845, MeasurementsSortableTags,
+        MeasurementsSortableTagsWithDelete, TwoMeasurementsMultiSeries,
+        TwoMeasurementsMultiSeriesWithDelete, TwoMeasurementsMultiSeriesWithDeleteAll,
+    },
 };
 use datafusion::logical_plan::{col, lit};
 use predicate::predicate::PredicateBuilder;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use query::frontend::influxrpc::InfluxRpcPlanner;
-
-#[derive(Debug)]
-pub struct TwoMeasurementsMultiSeries {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsMultiSeries {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let mut lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100", // to row 2
-            "h2o,state=MA,city=Boston temp=72.4 250", // to row 1
-            "h2o,state=CA,city=LA temp=90.0 200",     // to row 0
-            "h2o,state=CA,city=LA temp=90.0 350",     // to row 3
-            "o2,state=MA,city=Boston temp=50.4,reading=50 100", // to row 5
-            "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
-        ];
-
-        // Swap around  data is not inserted in series order
-        lp_lines.swap(0, 2);
-        lp_lines.swap(4, 5);
-
-        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
-    }
-}
-
-#[derive(Debug)]
-pub struct TwoMeasurementsMultiSeriesWithDelete {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsMultiSeriesWithDelete {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let mut lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100", // to row 2
-            "h2o,state=MA,city=Boston temp=72.4 250", // to row 1
-            "h2o,state=CA,city=LA temp=90.0 200",     // to row 0
-            "h2o,state=CA,city=LA temp=90.0 350",     // to row 3
-            "o2,state=MA,city=Boston temp=50.4,reading=50 100", // to row 5
-            "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
-        ];
-
-        // Swap around  data is not inserted in series order
-        lp_lines.swap(0, 2);
-        lp_lines.swap(4, 5);
-
-        // pred: delete from h2o where 120 <= time <= 250
-        // 2 rows of h2o with timestamp 200 and 350 will be deleted
-        let delete_table_name = "h2o";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(120, 250),
-            exprs: vec![],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
-
-#[derive(Debug)]
-pub struct TwoMeasurementsMultiSeriesWithDeleteAll {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsMultiSeriesWithDeleteAll {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let mut lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100", // to row 2
-            "h2o,state=MA,city=Boston temp=72.4 250", // to row 1
-            "h2o,state=CA,city=LA temp=90.0 200",     // to row 0
-            "h2o,state=CA,city=LA temp=90.0 350",     // to row 3
-            "o2,state=MA,city=Boston temp=50.4,reading=50 100", // to row 5
-            "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
-        ];
-
-        // Swap around  data is not inserted in series order
-        lp_lines.swap(0, 2);
-        lp_lines.swap(4, 5);
-
-        // Delete all data form h2o
-        // pred: delete from h20 where 100 <= time <= 360
-        let delete_table_name = "h2o";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(100, 360),
-            exprs: vec![],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
 
 /// runs read_filter(predicate) and compares it to the expected
 /// output
@@ -586,21 +486,6 @@ async fn test_read_filter_data_pred_regex_escape() {
     run_read_filter_test_case(MeasurementStatusCode {}, predicate, expected_results).await;
 }
 
-pub struct MeasurementStatusCode {}
-#[async_trait]
-impl DbSetup for MeasurementStatusCode {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "2018-05-22T19";
-
-        let lp = vec![
-            "status_code,url=http://www.example.com value=404 1527018806000000000",
-            "status_code,url=https://influxdb.com value=418 1527018816000000000",
-        ];
-
-        all_scenarios_for_one_chunk(vec![], vec![], lp, "status_code", partition_key).await
-    }
-}
-
 #[tokio::test]
 async fn test_read_filter_data_pred_not_match_regex_escape() {
     let predicate = PredicateBuilder::default()
@@ -680,63 +565,6 @@ async fn test_read_filter_data_pred_unsupported_in_scan_with_delete() {
     .await;
 }
 
-#[derive(Debug)]
-pub struct MeasurementsSortableTags {}
-#[async_trait]
-impl DbSetup for MeasurementsSortableTags {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines = vec![
-            "h2o,zz_tag=A,state=MA,city=Kingston temp=70.1 800",
-            "h2o,state=MA,city=Kingston,zz_tag=B temp=70.2 100",
-            "h2o,state=CA,city=Boston temp=70.3 250",
-            "h2o,state=MA,city=Boston,zz_tag=A temp=70.4 1000",
-            "h2o,state=MA,city=Boston temp=70.5,other=5.0 250",
-        ];
-
-        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
-    }
-}
-
-#[derive(Debug)]
-pub struct MeasurementsSortableTagsWithDelete {}
-#[async_trait]
-impl DbSetup for MeasurementsSortableTagsWithDelete {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines = vec![
-            "h2o,zz_tag=A,state=MA,city=Kingston temp=70.1 800",
-            "h2o,state=MA,city=Kingston,zz_tag=B temp=70.2 100",
-            "h2o,state=CA,city=Boston temp=70.3 250", // soft deleted
-            "h2o,state=MA,city=Boston,zz_tag=A temp=70.4 1000",
-            "h2o,state=MA,city=Boston temp=70.5,other=5.0 250",
-        ];
-
-        // pred: delete from h2o where 120 <= time <= 350 and state=CA
-        // 1 rows of h2o with timestamp 250 will be deleted
-        let delete_table_name = "h2o";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(120, 350),
-            exprs: vec![DeleteExpr::new(
-                "state".to_string(),
-                data_types::delete_predicate::Op::Eq,
-                data_types::delete_predicate::Scalar::String(("CA").to_string()),
-            )],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
-
 #[tokio::test]
 async fn test_read_filter_data_plan_order() {
     test_helpers::maybe_start_logging();
@@ -774,27 +602,6 @@ async fn test_read_filter_data_plan_order_with_delete() {
         expected_results,
     )
     .await;
-}
-
-// See issue: https://github.com/influxdata/influxdb_iox/issues/2845
-#[derive(Debug)]
-pub struct MeasurementsForDefect2845 {}
-#[async_trait]
-impl DbSetup for MeasurementsForDefect2845 {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "2018-05-22T19";
-
-        let lp_lines = vec![
-            "system,host=host.local load1=1.83 1527018806000000000",
-            "system,host=host.local load1=1.63 1527018816000000000",
-            "system,host=host.local load3=1.72 1527018806000000000",
-            "system,host=host.local load4=1.77 1527018806000000000",
-            "system,host=host.local load4=1.78 1527018816000000000",
-            "system,host=host.local load4=1.77 1527018826000000000",
-        ];
-
-        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "system", partition_key).await
-    }
 }
 
 #[tokio::test]
