@@ -121,6 +121,7 @@ impl WriteBufferConfigFactory {
                 let rskafa_buffer = RSKafkaProducer::new(
                     cfg.connection.clone(),
                     db_name.to_owned(),
+                    &cfg.connection_config,
                     cfg.creation_config.as_ref(),
                     Arc::clone(&self.time_provider),
                     trace_collector.map(Arc::clone),
@@ -207,6 +208,7 @@ impl WriteBufferConfigFactory {
                 let rskafka_buffer = RSKafkaConsumer::new(
                     cfg.connection.clone(),
                     db_name.to_owned(),
+                    &cfg.connection_config,
                     cfg.creation_config.as_ref(),
                     trace_collector.map(Arc::clone),
                 )

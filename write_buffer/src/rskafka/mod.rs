@@ -4,7 +4,6 @@ use std::{
         atomic::{AtomicI64, Ordering},
         Arc,
     },
-    time::Duration,
 };
 
 use async_trait::async_trait;
@@ -29,9 +28,13 @@ use crate::{
     },
 };
 
-use self::aggregator::DmlAggregator;
+use self::{
+    aggregator::DmlAggregator,
+    config::{ClientConfig, ConsumerConfig, ProducerConfig, TopicCreationConfig},
+};
 
 mod aggregator;
+mod config;
 
 type Result<T, E = WriteBufferError> = std::result::Result<T, E>;
 
@@ -44,23 +47,35 @@ impl RSKafkaProducer {
     pub async fn new(
         conn: String,
         database_name: String,
+        connection_config: &BTreeMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
         time_provider: Arc<dyn TimeProvider>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Result<Self> {
-        let partition_clients = setup_topic(conn, database_name.clone(), creation_config).await?;
+        let partition_clients = setup_topic(
+            conn,
+            database_name.clone(),
+            connection_config,
+            creation_config,
+        )
+        .await?;
+
+        let producer_config = ProducerConfig::try_from(connection_config)?;
+
         let producers = partition_clients
             .into_iter()
             .map(|(sequencer_id, partition_client)| {
-                let producer = BatchProducerBuilder::new(Arc::new(partition_client))
-                    .with_linger(Duration::from_millis(100))
-                    .build(DmlAggregator::new(
-                        trace_collector.clone(),
-                        database_name.clone(),
-                        1024 * 500,
-                        sequencer_id,
-                        Arc::clone(&time_provider),
-                    ));
+                let mut producer_builder = BatchProducerBuilder::new(Arc::new(partition_client));
+                if let Some(linger) = producer_config.linger {
+                    producer_builder = producer_builder.with_linger(linger);
+                }
+                let producer = producer_builder.build(DmlAggregator::new(
+                    trace_collector.clone(),
+                    database_name.clone(),
+                    producer_config.max_batch_size,
+                    sequencer_id,
+                    Arc::clone(&time_provider),
+                ));
 
                 (sequencer_id, producer)
             })
@@ -113,16 +128,24 @@ struct ConsumerPartition {
 pub struct RSKafkaConsumer {
     partitions: BTreeMap<u32, ConsumerPartition>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
+    consumer_config: ConsumerConfig,
 }
 
 impl RSKafkaConsumer {
     pub async fn new(
         conn: String,
         database_name: String,
+        connection_config: &BTreeMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Result<Self> {
-        let partition_clients = setup_topic(conn, database_name.clone(), creation_config).await?;
+        let partition_clients = setup_topic(
+            conn,
+            database_name.clone(),
+            connection_config,
+            creation_config,
+        )
+        .await?;
 
         let partitions = partition_clients
             .into_iter()
@@ -143,6 +166,7 @@ impl RSKafkaConsumer {
         Ok(Self {
             partitions,
             trace_collector,
+            consumer_config: ConsumerConfig::try_from(connection_config)?,
         })
     }
 }
@@ -155,12 +179,22 @@ impl WriteBufferReading for RSKafkaConsumer {
         for (sequencer_id, partition) in &self.partitions {
             let trace_collector = self.trace_collector.clone();
             let next_offset = Arc::clone(&partition.next_offset);
-            let stream = StreamConsumerBuilder::new(
+
+            let mut stream_builder = StreamConsumerBuilder::new(
                 Arc::clone(&partition.partition_client),
                 next_offset.load(Ordering::SeqCst),
-            )
-            .with_max_wait_ms(100)
-            .build();
+            );
+            if let Some(max_wait_ms) = self.consumer_config.max_wait_ms {
+                stream_builder = stream_builder.with_max_wait_ms(max_wait_ms);
+            }
+            if let Some(min_batch_size) = self.consumer_config.min_batch_size {
+                stream_builder = stream_builder.with_min_batch_size(min_batch_size);
+            }
+            if let Some(max_batch_size) = self.consumer_config.max_batch_size {
+                stream_builder = stream_builder.with_max_batch_size(max_batch_size);
+            }
+            let stream = stream_builder.build();
+
             let stream = stream.map(move |res| {
                 let (record, _watermark) = res?;
 
@@ -247,9 +281,15 @@ impl WriteBufferReading for RSKafkaConsumer {
 async fn setup_topic(
     conn: String,
     database_name: String,
+    connection_config: &BTreeMap<String, String>,
     creation_config: Option<&WriteBufferCreationConfig>,
 ) -> Result<BTreeMap<u32, PartitionClient>> {
-    let client = ClientBuilder::new(vec![conn]).build().await?;
+    let client_config = ClientConfig::try_from(connection_config)?;
+    let mut client_builder = ClientBuilder::new(vec![conn]);
+    if let Some(max_message_size) = client_config.max_message_size {
+        client_builder = client_builder.max_message_size(max_message_size);
+    }
+    let client = client_builder.build().await?;
     let controller_client = client.controller_client().await?;
 
     loop {
@@ -267,12 +307,14 @@ async fn setup_topic(
 
         // create topic
         if let Some(creation_config) = creation_config {
+            let topic_creation_config = TopicCreationConfig::try_from(creation_config)?;
+
             match controller_client
                 .create_topic(
                     &database_name,
-                    creation_config.n_sequencers.get() as i32,
-                    1,
-                    5_000,
+                    topic_creation_config.num_partitions,
+                    topic_creation_config.replication_factor,
+                    topic_creation_config.timeout_ms,
                 )
                 .await
             {
@@ -366,6 +408,7 @@ mod tests {
             RSKafkaProducer::new(
                 self.conn.clone(),
                 self.database_name.clone(),
+                &BTreeMap::default(),
                 self.creation_config(creation_config).as_ref(),
                 Arc::clone(&self.time_provider),
                 Some(self.trace_collector() as Arc<_>),
@@ -377,6 +420,7 @@ mod tests {
             RSKafkaConsumer::new(
                 self.conn.clone(),
                 self.database_name.clone(),
+                &BTreeMap::default(),
                 self.creation_config(creation_config).as_ref(),
                 Some(self.trace_collector() as Arc<_>),
             )
@@ -410,6 +454,7 @@ mod tests {
                     setup_topic(
                         conn,
                         topic_name,
+                        &BTreeMap::default(),
                         Some(&WriteBufferCreationConfig {
                             n_sequencers: n_partitions,
                             ..Default::default()
