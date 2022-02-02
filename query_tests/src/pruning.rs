@@ -1,5 +1,3 @@
-#![allow(unused_imports, dead_code, unused_macros)]
-
 use arrow_util::assert_batches_sorted_eq;
 use datafusion::logical_plan::{col, lit};
 use db::{
@@ -10,11 +8,9 @@ use metric::{Attributes, Metric, U64Counter};
 use predicate::predicate::PredicateBuilder;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use query::{
-    exec::{stringset::StringSet, ExecutionContextProvider, ExecutorType},
+    exec::{stringset::StringSet, ExecutionContextProvider},
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
-    QueryChunk,
 };
-use std::sync::Arc;
 
 async fn setup() -> TestDb {
     // Test that partition pruning is connected up
