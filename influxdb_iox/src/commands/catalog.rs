@@ -1,5 +1,6 @@
 //! This module implements the `catalog` CLI command
 
+use crate::clap_blocks::catalog_dsn::CatalogDsnConfig;
 use thiserror::Error;
 
 mod topic;
@@ -27,9 +28,8 @@ pub struct Config {
 /// Run database migrations
 #[derive(Debug, clap::Parser)]
 struct Setup {
-    /// Postgres connection string
-    #[clap(long = "--catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DSN")]
-    catalog_dsn: String,
+    #[clap(flatten)]
+    catalog_dsn: CatalogDsnConfig,
 }
 
 /// All possible subcommands for catalog

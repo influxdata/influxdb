@@ -46,7 +46,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
             let catalog = update.catalog_dsn.get_catalog("cli").await?;
             let topics_repo = catalog.kafka_topics();
             let topic = topics_repo.create_or_get(&update.db_name).await?;
-            println!("Topic ID {}", topic.id);
+            println!("{}", topic.id);
             Ok(())
         }
     }
