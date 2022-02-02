@@ -279,10 +279,13 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       RUST_BACKTRACE: "1"
     steps:
+      # Use us.archive.ubuntu.com since it is close. If it is down, try archive.ubuntu.com. If it is
+      # down too, temporarily choose something from http://mirrors.ubuntu.com/mirrors.txt that
+      # is up to date.
       - run:
           name: Setup ubuntu mirror
           command: |
-            mirror=$(curl -s http://mirrors.ubuntu.com/mirrors.txt | head -n 1)
+            mirror="http://us.archive.ubuntu.com/ubuntu"
             sudo sed -i "s;http://.*ubuntu.com/ubuntu/;$mirror;g" /etc/apt/sources.list
       - run: sudo apt update
       - run:
