@@ -26,6 +26,7 @@ mod commands {
     pub mod server;
     pub mod server_remote;
     pub mod sql;
+    pub mod storage;
     pub mod tracing;
 }
 
@@ -165,6 +166,9 @@ enum Command {
 
     /// Interrogate internal database data
     Debug(commands::debug::Config),
+
+    /// Initiate a read request to the gRPC storage service.
+    Storage(commands::storage::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -250,6 +254,13 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::sql::command(connection, config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Command::Storage(config) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                if let Err(e) = commands::storage::command(config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
