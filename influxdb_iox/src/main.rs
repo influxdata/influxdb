@@ -18,6 +18,7 @@ use std::str::FromStr;
 use tokio::runtime::Runtime;
 
 mod commands {
+    pub mod catalog;
     pub mod database;
     pub mod debug;
     pub mod operations;
@@ -164,6 +165,9 @@ enum Command {
     /// Start IOx interactive SQL REPL loop
     Sql(commands::sql::Config),
 
+    /// Various commands for catalog manipulation
+    Catalog(commands::catalog::Config),
+
     /// Interrogate internal database data
     Debug(commands::debug::Config),
 
@@ -261,6 +265,13 @@ fn main() -> Result<(), std::io::Error> {
             Command::Storage(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::storage::command(config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Command::Catalog(config) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                if let Err(e) = commands::catalog::command(config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
