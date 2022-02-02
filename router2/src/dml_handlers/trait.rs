@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{error::Error, fmt::Debug};
 
 use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
@@ -8,7 +8,7 @@ use mutable_batch::MutableBatch;
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
-use super::ShardError;
+use super::{SchemaError, ShardError};
 
 /// Errors emitted by a [`DmlHandler`] implementation during DML request
 /// processing.
@@ -22,9 +22,13 @@ pub enum DmlError {
     #[error(transparent)]
     WriteBuffer(#[from] ShardError),
 
+    /// A schema validation failure.
+    #[error(transparent)]
+    Schema(#[from] SchemaError),
+
     /// An unknown error occured while processing the DML request.
     #[error("internal dml handler error: {0}")]
-    Internal(Box<dyn std::error::Error + Send + Sync>),
+    Internal(Box<dyn Error + Send + Sync>),
 }
 
 /// A composable, abstract handler of DML requests.
@@ -34,9 +38,9 @@ pub trait DmlHandler: Debug + Send + Sync {
     /// requests.
     ///
     /// All errors must be mappable into the concrete [`DmlError`] type.
-    type WriteError: Into<DmlError>;
+    type WriteError: Error + Into<DmlError> + Send;
     /// The error type of the delete handler.
-    type DeleteError: Into<DmlError>;
+    type DeleteError: Error + Into<DmlError> + Send;
 
     /// Write `batches` to `namespace`.
     async fn write(

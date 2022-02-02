@@ -15,6 +15,7 @@ futures = "0.3.19"
 generated_types = { path = "../generated_types" }
 hashbrown = "0.12"
 hyper = "0.14"
+iox_catalog = { path = "../iox_catalog" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
@@ -37,6 +38,7 @@ assert_matches = "1.5"
 criterion = { version = "0.3.4", features = ["async_tokio", "html_reports"] }
 paste = "1.0.6"
 rand = "0.8.3"
+schema = { path = "../schema" }
 
 [[bench]]
 name = "sharder"

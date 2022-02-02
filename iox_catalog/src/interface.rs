@@ -528,10 +528,7 @@ impl NamespaceSchema {
 }
 
 /// Gets the namespace schema including all tables and columns.
-pub async fn get_schema_by_name(
-    name: &str,
-    catalog: &dyn Catalog,
-) -> Result<Option<NamespaceSchema>> {
+pub async fn get_schema_by_name(name: &str, catalog: &dyn Catalog) -> Result<NamespaceSchema> {
     let namespace = catalog
         .namespaces()
         .get_by_name(name)
@@ -578,7 +575,7 @@ pub async fn get_schema_by_name(
         namespace.tables.insert(table_name, schema);
     }
 
-    Ok(Some(namespace))
+    Ok(namespace)
 }
 
 /// Data object for a table
