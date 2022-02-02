@@ -12,9 +12,10 @@ use crate::{
         },
     },
 };
+use iox_catalog::{interface::Catalog, postgres::PostgresCatalog};
 use observability_deps::tracing::*;
 use router2::{
-    dml_handlers::ShardedWriteBuffer,
+    dml_handlers::{SchemaValidator, ShardedWriteBuffer},
     sequencer::Sequencer,
     server::{http::HttpDelegate, RouterServer},
     sharder::TableNamespaceSharder,
@@ -30,6 +31,9 @@ pub enum Error {
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
+
+    #[error("Catalog error: {0}")]
+    Catalog(#[from] iox_catalog::interface::Error),
 
     #[error("failed to initialise write buffer connection: {0}")]
     WriteBuffer(#[from] WriteBufferError),
@@ -58,11 +62,24 @@ pub struct Config {
 
     #[clap(flatten)]
     pub(crate) write_buffer_config: WriteBufferConfig,
+
+    /// Postgres connection string
+    #[clap(env = "INFLUXDB_IOX_CATALOG_DSN")]
+    pub catalog_dsn: String,
 }
 
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let metrics = Arc::new(metric::Registry::default());
+
+    let catalog: Arc<dyn Catalog> = Arc::new(
+        PostgresCatalog::connect(
+            "router2",
+            iox_catalog::postgres::SCHEMA_NAME,
+            &config.catalog_dsn,
+        )
+        .await?,
+    );
 
     let write_buffer = init_write_buffer(
         &config,
@@ -71,7 +88,9 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
 
-    let http = HttpDelegate::new(config.run_config.max_http_request_size, write_buffer);
+    let handler_stack = SchemaValidator::new(write_buffer, catalog);
+
+    let http = HttpDelegate::new(config.run_config.max_http_request_size, handler_stack);
     let router_server = RouterServer::new(
         http,
         Default::default(),

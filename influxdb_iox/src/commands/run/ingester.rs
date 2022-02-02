@@ -78,7 +78,7 @@ pub struct Config {
 
     /// Write buffer partition number to end (inclusive) range with
     #[clap(
-        long = "--write-buffer-partition-range-start",
+        long = "--write-buffer-partition-range-end",
         env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END"
     )]
     pub write_buffer_partition_range_end: i32,

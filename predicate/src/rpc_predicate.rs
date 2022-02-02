@@ -3,10 +3,15 @@
 use crate::predicate::{BinaryExpr, Predicate};
 
 use datafusion::error::Result as DataFusionResult;
-use datafusion::logical_plan::{lit, Column, Expr, ExprRewriter, Operator};
+use datafusion::execution::context::ExecutionProps;
+use datafusion::logical_plan::{
+    lit, Column, DFField, DFSchema, Expr, ExprRewriter, Operator, SimplifyInfo,
+};
 use datafusion::scalar::ScalarValue;
 use datafusion_util::AsExpr;
+use schema::Schema;
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 /// Any column references to this name are rewritten to be
 /// the actual table name by the Influx gRPC planner.
@@ -74,23 +79,21 @@ impl InfluxRpcPredicate {
 
     /// Convert to a list of [`Predicate`] to apply to specific tables
     ///
-    /// `all_table_names` yields a list of all table names in the databases and is used when
-    /// the storage predicate has no table restriction
-    ///
     /// Returns a list of [`Predicate`] and their associated table name
-    pub fn table_predicates<F, I>(&self, all_table_names: F) -> Vec<(String, Predicate)>
-    where
-        F: FnOnce() -> I,
-        I: IntoIterator<Item = String>,
-    {
+    pub fn table_predicates<D: QueryDatabaseMeta>(
+        &self,
+        table_info: &D,
+    ) -> Vec<(String, Predicate)> {
         let table_names = match &self.table_names {
             Some(table_names) => itertools::Either::Left(table_names.iter().cloned()),
-            None => itertools::Either::Right(all_table_names().into_iter()),
+            None => itertools::Either::Right(table_info.table_names().into_iter()),
         };
 
         table_names
             .map(|table| {
-                let predicate = normalize_predicate(&table, &self.inner);
+                let schema = table_info.table_schema(&table);
+                let predicate = normalize_predicate(&table, schema, &self.inner);
+
                 (table, predicate)
             })
             .collect()
@@ -105,6 +108,15 @@ impl InfluxRpcPredicate {
     pub fn is_empty(&self) -> bool {
         self.table_names.is_none() && self.inner.is_empty()
     }
+}
+
+/// Information required to normalize predicates
+pub trait QueryDatabaseMeta {
+    /// Returns a list of table names in this DB
+    fn table_names(&self) -> Vec<String>;
+
+    /// Schema for a specific table if the table exists.
+    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>>;
 }
 
 /// Predicate that has been "specialized" / normalized for a
@@ -137,7 +149,11 @@ impl InfluxRpcPredicate {
 /// ```text
 /// ("field1" > 34.2 OR "field2" > 34.2 OR "fieldn" > 34.2)
 /// ```
-fn normalize_predicate(table_name: &str, predicate: &Predicate) -> Predicate {
+fn normalize_predicate(
+    table_name: &str,
+    schema: Option<Arc<Schema>>,
+    predicate: &Predicate,
+) -> Predicate {
     let mut predicate = predicate.clone();
     let mut field_projections = BTreeSet::new();
     let mut field_value_exprs = vec![];
@@ -156,6 +172,14 @@ fn normalize_predicate(table_name: &str, predicate: &Predicate) -> Predicate {
             // column projection set.
             rewrite_field_column_references(&mut field_projections, e)
         })
+        .map(|e| {
+            if let Some(schema) = &schema {
+                e.simplify(&SimplifyAdapter::new(schema.as_ref()))
+                    .expect("Expression simplificiation failed")
+            } else {
+                e
+            }
+        })
         .collect::<Vec<_>>();
     // Store any field value (`_value`) expressions on the `Predicate`.
     predicate.value_expr = field_value_exprs;
@@ -166,8 +190,51 @@ fn normalize_predicate(table_name: &str, predicate: &Predicate) -> Predicate {
             None => predicate.field_columns = Some(field_projections),
         };
     }
-
     predicate
+}
+
+struct SimplifyAdapter {
+    // TODO avoid re-creating this each time....
+    // https://github.com/apache/arrow-datafusion/issues/1725
+    df_schema: DFSchema,
+    execution_props: ExecutionProps,
+}
+
+impl SimplifyAdapter {
+    fn new(schema: &Schema) -> Self {
+        let df_schema = DFSchema::new(
+            schema
+                .as_arrow()
+                .fields()
+                .iter()
+                .map(|f| DFField::from(f.clone()))
+                .collect(),
+        )
+        .unwrap();
+
+        Self {
+            df_schema,
+            execution_props: ExecutionProps::new(),
+        }
+    }
+}
+
+impl SimplifyInfo for SimplifyAdapter {
+    fn is_boolean_type(&self, expr: &Expr) -> DataFusionResult<bool> {
+        Ok(expr
+            .get_type(&self.df_schema)
+            .ok()
+            .map(|t| matches!(t, arrow::datatypes::DataType::Boolean))
+            .unwrap_or(false))
+    }
+
+    fn nullable(&self, expr: &Expr) -> DataFusionResult<bool> {
+        Ok(expr.nullable(&self.df_schema).ok().unwrap_or(false))
+    }
+
+    fn execution_props(&self) -> &ExecutionProps {
+        &self.execution_props
+    }
 }
 
 /// Rewrites all references to the [MEASUREMENT_COLUMN_NAME] column

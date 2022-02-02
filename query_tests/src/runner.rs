@@ -4,7 +4,7 @@ mod parse;
 mod setup;
 
 use arrow::record_batch::RecordBatch;
-use arrow_util::display::pretty_format_batches;
+use arrow_util::{display::pretty_format_batches, test_util::sort_record_batch};
 use query::{
     exec::{Executor, ExecutorType},
     frontend::sql::SqlQueryPlanner,
@@ -17,7 +17,10 @@ use std::{
     sync::Arc,
 };
 
-use self::{parse::TestQueries, setup::TestSetup};
+use self::{
+    parse::{Query, TestQueries},
+    setup::TestSetup,
+};
 use crate::scenarios::{DbScenario, DbSetup};
 use query::exec::ExecutorConfig;
 
@@ -196,7 +199,10 @@ impl<W: Write> Runner<W> {
 
         let db_setup = test_setup.get_setup().context(SetupSnafu)?;
         for q in queries.iter() {
-            output.push(format!("-- SQL: {}", q));
+            output.push(format!("-- SQL: {}", q.sql()));
+            if q.sorted_compare() {
+                output.push("-- Results After Sorting".into())
+            }
 
             output.append(&mut self.run_query(q, db_setup.as_ref()).await?);
         }
@@ -259,7 +265,8 @@ impl<W: Write> Runner<W> {
     ///
     /// Note this does not (yet) understand how to compare results
     /// while ignoring output order
-    async fn run_query(&mut self, sql: &str, db_setup: &dyn DbSetup) -> Result<Vec<String>> {
+    async fn run_query(&mut self, query: &Query, db_setup: &dyn DbSetup) -> Result<Vec<String>> {
+        let sql = query.sql();
         let mut previous_results = vec![];
 
         for scenario in db_setup.make().await {
@@ -284,7 +291,15 @@ impl<W: Write> Runner<W> {
                 .await
                 .expect("built plan successfully");
 
-            let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
+            let mut results: Vec<RecordBatch> =
+                ctx.collect(physical_plan).await.expect("Running plan");
+
+            // compare against sorted results, if requested
+            if query.sorted_compare() && !results.is_empty() {
+                let schema = results[0].schema();
+                let batch = RecordBatch::concat(&schema, &results).expect("concatenating batches");
+                results = vec![sort_record_batch(batch)];
+            }
 
             let current_results = pretty_format_batches(&results)
                 .unwrap()
@@ -346,15 +361,16 @@ mod test {
 
     use super::*;
 
-    const TEST_INPUT: &str = r#"
+    #[tokio::test]
+    async fn runner_positive() {
+        let input = r#"
 -- Runner test, positive
 -- IOX_SETUP: TwoMeasurements
 
 -- Only a single query
 SELECT * from disk;
 "#;
-
-    const EXPECTED_OUTPUT: &str = r#"-- Test Setup: TwoMeasurements
+        let expected = r#"-- Test Setup: TwoMeasurements
 -- SQL: SELECT * from disk;
 +-------+--------+--------------------------------+
 | bytes | region | time                           |
@@ -363,70 +379,189 @@ SELECT * from disk;
 +-------+--------+--------------------------------+
 "#;
 
-    #[tokio::test]
-    async fn runner_positive() {
-        let (_tmp_dir, input_file) = make_in_file(TEST_INPUT);
-        let output_path = make_output_path(&input_file).unwrap();
-        let expected_path = input_file.with_extension("expected");
-
-        // write expected output
-        std::fs::write(&expected_path, EXPECTED_OUTPUT).unwrap();
-
-        let mut runner = Runner::new_with_writer(vec![]);
-        let runner_results = runner.run(&input_file).await;
+        let results = run_case(input, expected).await;
 
         // ensure that the generated output and expected output match
-        let output_contents = read_file(&output_path);
-        assert_eq!(output_contents, EXPECTED_OUTPUT);
+        assert_eq!(results.output_contents, expected);
 
         // Test should have succeeded
-        runner_results.expect("successful run");
+        results.runner_result.expect("successful run");
 
         // examine the output log and ensure it contains expected results
-        let runner_log = runner_to_log(runner);
-        assert_contains!(&runner_log, format!("writing output to {:?}", &output_path));
         assert_contains!(
-            &runner_log,
-            format!("expected output in {:?}", &expected_path)
+            &results.runner_log,
+            format!("writing output to {:?}", &results.output_path)
         );
-        assert_contains!(&runner_log, "Setup: TwoMeasurements");
-        assert_contains!(&runner_log, "Running scenario");
+        assert_contains!(
+            &results.runner_log,
+            format!("expected output in {:?}", &results.expected_path)
+        );
+        assert_contains!(&results.runner_log, "Setup: TwoMeasurements");
+        assert_contains!(&results.runner_log, "Running scenario");
     }
 
     #[tokio::test]
     async fn runner_negative() {
-        let (_tmp_dir, input_file) = make_in_file(TEST_INPUT);
-        let output_path = make_output_path(&input_file).unwrap();
-        let expected_path = input_file.with_extension("expected");
+        let input = r#"
+-- Runner test, positive
+-- IOX_SETUP: TwoMeasurements
 
-        // write incorrect expected output
-        std::fs::write(&expected_path, "this is not correct").unwrap();
+-- Only a single query
+SELECT * from disk;
+"#;
+        let expected = r#"-- Test Setup: TwoMeasurements
+-- SQL: SELECT * from disk;
++-------+--------+--------------------------------+
+| bytes | region | time                           |
++-------+--------+--------------------------------+
+| 99    | east   | 1970-01-01T00:00:00.000000200Z |
++-------+--------+--------------------------------+
+"#;
 
-        let mut runner = Runner::new_with_writer(vec![]);
-        let runner_results = runner.run(&input_file).await;
+        let results = run_case(input, "this is not correct").await;
 
         // ensure that the generated output and expected output match
-        let output_contents = read_file(&output_path);
-        assert_eq!(output_contents, EXPECTED_OUTPUT);
+        assert_eq!(results.output_contents, expected);
 
         // Test should have failed
-        let err_string = runner_results.unwrap_err().to_string();
+        let err_string = results.runner_result.unwrap_err().to_string();
         assert_contains!(
             err_string,
             format!(
                 "Contents of output '{:?}' does not match contents of expected '{:?}'",
-                &output_path, &expected_path
+                &results.output_path, &results.expected_path
             )
         );
 
         // examine the output log and ensure it contains expected resouts
-        let runner_log = runner_to_log(runner);
-        assert_contains!(&runner_log, format!("writing output to {:?}", &output_path));
         assert_contains!(
-            &runner_log,
-            format!("expected output in {:?}", &expected_path)
+            &results.runner_log,
+            format!("writing output to {:?}", &results.output_path)
         );
-        assert_contains!(&runner_log, "Setup: TwoMeasurements");
+        assert_contains!(
+            &results.runner_log,
+            format!("expected output in {:?}", &results.expected_path)
+        );
+        assert_contains!(&results.runner_log, "Setup: TwoMeasurements");
+    }
+
+    /// Ensure differences in sort order produce output errors
+    #[tokio::test]
+    async fn runner_different_sorts_error() {
+        let input = r#"
+-- Runner test, positive
+-- IOX_SETUP: TwoMeasurements
+
+-- Only a single query
+SELECT * from cpu ORDER BY time DESC;
+"#;
+        let expected = r#"-- Test Setup: TwoMeasurements
+-- SQL: SELECT * from cpu ORDER BY time DESC;
++--------+--------------------------------+------+
+| region | time                           | user |
++--------+--------------------------------+------+
+| west   | 1970-01-01T00:00:00.000000150Z | 21   |
+| west   | 1970-01-01T00:00:00.000000100Z | 23.2 |
++--------+--------------------------------+------+
+"#;
+
+        let results = run_case(input, expected).await;
+
+        // ensure that the generated output and expected output match
+        assert_eq!(results.output_contents, expected);
+        results.runner_result.unwrap();
+
+        // now, however, if the results are in a different order
+        // expect an output mismatch
+
+        let expected = r#"-- Test Setup: TwoMeasurements
+-- SQL: SELECT * from cpu ORDER BY time DESC;
++--------+--------------------------------+------+
+| region | time                           | user |
++--------+--------------------------------+------+
+| west   | 1970-01-01T00:00:00.000000100Z | 23.2 |
+| west   | 1970-01-01T00:00:00.000000150Z | 21   |
++--------+--------------------------------+------+
+"#;
+        let results = run_case(input, expected).await;
+
+        // ensure that the generated output and expected output match
+        results.runner_result.unwrap_err();
+        assert_contains!(
+            &results.runner_log,
+            "Expected output does not match actual output"
+        );
+    }
+
+    /// Ensure differences in sort order does NOT produce output error
+    #[tokio::test]
+    async fn runner_different_sorts_with_sorted_compare() {
+        let input = r#"
+-- Runner test, positive
+-- IOX_SETUP: TwoMeasurements
+
+-- IOX_COMPARE: sorted
+SELECT * from cpu ORDER BY time DESC;
+"#;
+        // note the output is not sorted `DESC` in time (it is ASC)
+        let expected = r#"-- Test Setup: TwoMeasurements
+-- SQL: SELECT * from cpu ORDER BY time DESC;
+-- Results After Sorting
++--------+--------------------------------+------+
+| region | time                           | user |
++--------+--------------------------------+------+
+| west   | 1970-01-01T00:00:00.000000100Z | 23.2 |
+| west   | 1970-01-01T00:00:00.000000150Z | 21   |
++--------+--------------------------------+------+
+"#;
+        let results = run_case(input, expected).await;
+
+        // ensure that the generated output and expected output match
+        assert_eq!(results.output_contents, expected);
+        results.runner_result.unwrap();
+    }
+
+    /// Result of running the test_input with an expected output
+    struct RunResult {
+        /// Result of running the test case
+        runner_result: Result<()>,
+
+        /// The path that expected file was located in
+        expected_path: PathBuf,
+
+        /// The output file that the runner actually produced
+        output_contents: String,
+
+        /// The path that the output file was written to
+        output_path: PathBuf,
+
+        // The log the runner produced
+        runner_log: String,
+    }
+
+    /// Uses the test runner to run the expected input and compares it
+    /// to the expected output, returning the runner used to do the
+    /// comparison as well as the result of the run
+    async fn run_case(test_input: &str, expected_output: &str) -> RunResult {
+        let (_tmp_dir, input_file) = make_in_file(test_input);
+        let output_path = make_output_path(&input_file).unwrap();
+        let expected_path = input_file.with_extension("expected");
+
+        // write expected output
+        std::fs::write(&expected_path, expected_output).unwrap();
+
+        let mut runner = Runner::new_with_writer(vec![]);
+        let runner_result = runner.run(&input_file).await;
+        let output_contents = read_file(&output_path);
+        let runner_log = runner_to_log(runner);
+
+        RunResult {
+            runner_result,
+            expected_path,
+            output_contents,
+            output_path,
+            runner_log,
+        }
     }
 
     fn make_in_file<C: AsRef<[u8]>>(contents: C) -> (tempfile::TempDir, PathBuf) {

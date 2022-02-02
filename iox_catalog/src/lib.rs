@@ -259,8 +259,7 @@ mod tests {
                     // cached schema.
                     let db_schema = get_schema_by_name(NAMESPACE_NAME, &repo)
                         .await
-                        .expect("database failed to query for namespace schema")
-                        .expect("no schema found");
+                        .expect("database failed to query for namespace schema");
                     assert_eq!(schema, db_schema, "schema in DB and cached schema differ");
 
                     // Generate the map of tables => desired column types

@@ -46,6 +46,9 @@
 mod r#trait;
 pub use r#trait::*;
 
+mod schema_validation;
+pub use schema_validation::*;
+
 pub mod nop;
 
 mod sharded_write_buffer;

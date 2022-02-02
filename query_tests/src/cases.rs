@@ -159,6 +159,48 @@ async fn test_cases_pushdown_sql() {
 }
 
 #[tokio::test]
+// Tests from "sql_information_schema.sql",
+async fn test_cases_sql_information_schema_sql() {
+    let input_path = Path::new("cases").join("in").join("sql_information_schema.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
+// Tests from "sql_system_tables.sql",
+async fn test_cases_sql_system_tables_sql() {
+    let input_path = Path::new("cases").join("in").join("sql_system_tables.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
+// Tests from "sql_system_tables2.sql",
+async fn test_cases_sql_system_tables2_sql() {
+    let input_path = Path::new("cases").join("in").join("sql_system_tables2.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
 // Tests from "stats_plans.sql",
 async fn test_cases_stats_plans_sql() {
     let input_path = Path::new("cases").join("in").join("stats_plans.sql");

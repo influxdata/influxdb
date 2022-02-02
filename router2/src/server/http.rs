@@ -80,6 +80,7 @@ impl Error {
             Error::ParseLineProtocol(_) => StatusCode::BAD_REQUEST,
             Error::ParseDelete(_) => StatusCode::BAD_REQUEST,
             Error::RequestSizeExceeded(_) => StatusCode::PAYLOAD_TOO_LARGE,
+            Error::DmlHandler(DmlError::Schema(_)) => StatusCode::BAD_REQUEST,
             Error::InvalidContentEncoding(_) => {
                 // https://www.rfc-editor.org/rfc/rfc7231#section-6.5.13
                 StatusCode::UNSUPPORTED_MEDIA_TYPE

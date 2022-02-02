@@ -833,13 +833,34 @@ fn format_comparison(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 #[cfg(test)]
 mod tests {
     use generated_types::node::Type as RPCNodeType;
-    use predicate::predicate::Predicate;
-    use std::collections::BTreeSet;
+    use predicate::{predicate::Predicate, rpc_predicate::QueryDatabaseMeta};
+    use std::{collections::BTreeSet, sync::Arc};
 
     use super::*;
 
+    struct Tables {
+        table_names: Vec<String>,
+    }
+
+    impl Tables {
+        fn new(table_names: &[&str]) -> Self {
+            let table_names = table_names.iter().map(|s| s.to_string()).collect();
+            Self { table_names }
+        }
+    }
+
+    impl QueryDatabaseMeta for Tables {
+        fn table_names(&self) -> Vec<String> {
+            self.table_names.clone()
+        }
+
+        fn table_schema(&self, _table_name: &str) -> Option<Arc<schema::Schema>> {
+            None
+        }
+    }
+
     fn table_predicate(predicate: InfluxRpcPredicate) -> Predicate {
-        let predicates = predicate.table_predicates(|| std::iter::once("foo".to_string()));
+        let predicates = predicate.table_predicates(&Tables::new(&["foo"]));
         assert_eq!(predicates.len(), 1);
         predicates.into_iter().next().unwrap().1
     }
@@ -929,14 +950,14 @@ mod tests {
             .expect("successfully converting predicate")
             .build();
 
-        let tables = ["foo", "bar"];
+        let tables = Tables::new(&["foo", "bar"]);
 
-        let table_predicates =
-            predicate.table_predicates(|| tables.iter().map(ToString::to_string));
+        let table_predicates = predicate.table_predicates(&tables);
         assert_eq!(table_predicates.len(), 2);
 
-        for (expected_table, (table, predicate)) in tables.iter().zip(table_predicates) {
-            assert_eq!(*expected_table, &table);
+        for (expected_table, (table, predicate)) in tables.table_names.iter().zip(table_predicates)
+        {
+            assert_eq!(expected_table, &table);
 
             let expected_exprs = vec![lit(table).not_eq(lit("foo"))];
 

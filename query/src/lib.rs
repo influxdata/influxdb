@@ -16,7 +16,10 @@ use data_types::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::stringset::StringSet;
 use observability_deps::tracing::{debug, trace};
-use predicate::predicate::{Predicate, PredicateMatch};
+use predicate::{
+    predicate::{Predicate, PredicateMatch},
+    rpc_predicate::QueryDatabaseMeta,
+};
 use schema::selection::Selection;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
@@ -111,17 +114,11 @@ impl<'a> Drop for QueryCompletedToken<'a> {
 ///
 /// Databases store data organized by partitions and each partition stores
 /// data in Chunks.
-pub trait QueryDatabase: Debug + Send + Sync {
+pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     type Chunk: QueryChunk;
 
     /// Return the partition keys for data in this DB
     fn partition_addrs(&self) -> Vec<PartitionAddr>;
-
-    /// Returns a list of table names in this DB
-    fn table_names(&self) -> Vec<String>;
-
-    /// Schema for a specific table if the table exists.
-    fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>>;
 
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate. If possible, chunks which have no rows that can
