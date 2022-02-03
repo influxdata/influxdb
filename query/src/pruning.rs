@@ -30,7 +30,8 @@ pub trait PruningObserver {
 }
 
 /// Given a Vec of prunable items, returns a possibly smaller set
-/// filtering those that can not pass the predicate.
+/// filtering those where the predicate can be proven to evaluate to
+/// `false` for every single row.
 ///
 /// TODO(raphael): Perhaps this should return `Result<Vec<bool>>` instead of
 /// the [`PruningObserver`] plumbing
@@ -624,6 +625,67 @@ mod test {
 
         assert_eq!(observer.events(), vec!["chunk1: Pruned",]);
         assert_eq!(names(&pruned), vec!["chunk2", "chunk3"]);
+    }
+
+    #[test]
+    fn test_pruned_is_null() {
+        test_helpers::maybe_start_logging();
+        // Verify that type of predicate is pruned if column1 is null
+        // (this is a common predicate type created by the INfluxRPC planner)
+        // (NOT column1 IS NULL) AND (column1 = 'bar')
+        let observer = TestObserver::new();
+        // No nulls, can't prune as it has values that are more and less than 'bar'
+        let c1 = Arc::new(
+            TestChunk::new("chunk1").with_tag_column_with_nulls_and_full_stats(
+                "column1",
+                Some("a"),
+                Some("z"),
+                100,
+                None,
+                0,
+            ),
+        );
+
+        // Has no nulls, can prune it out based on statistics alone
+        let c2 = Arc::new(
+            TestChunk::new("chunk2").with_tag_column_with_nulls_and_full_stats(
+                "column1",
+                Some("a"),
+                Some("b"),
+                100,
+                None,
+                0,
+            ),
+        );
+
+        // Has nulls, can still can prune it out based on statistics alone
+        let c3 = Arc::new(
+            TestChunk::new("chunk3").with_tag_column_with_nulls_and_full_stats(
+                "column1",
+                Some("a"),
+                Some("b"),
+                100,
+                None,
+                1, // that one peksy null!
+            ),
+        );
+
+        let predicate = PredicateBuilder::new()
+            .add_expr(
+                col("column1")
+                    .is_null()
+                    .not()
+                    .and(col("column1").eq(lit("bar"))),
+            )
+            .build();
+
+        let chunks = vec![c1, c2, c3];
+        let schema = merge_schema(&chunks);
+
+        let pruned = prune_chunks(&observer, schema, chunks, &predicate);
+
+        assert_eq!(observer.events(), vec!["chunk2: Pruned", "chunk3: Pruned"]);
+        assert_eq!(names(&pruned), vec!["chunk1"]);
     }
 
     #[test]

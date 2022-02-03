@@ -9,10 +9,9 @@ use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
     logical_plan::{
-        binary_expr, lit, when, DFSchema, DFSchemaRef, Expr, ExprRewriter, LogicalPlan,
+        binary_expr, col, lit, when, DFSchema, DFSchemaRef, Expr, ExprRewriter, LogicalPlan,
         LogicalPlanBuilder,
     },
-    prelude::col,
     scalar::ScalarValue,
 };
 use datafusion_util::AsExpr;
@@ -2039,9 +2038,19 @@ mod tests {
                 .with_time_column(),
         );
 
+        // this is what happens with a grpc predicate on a tag
+        //
+        // tag(foo) = 'bar' becomes
+        //
+        // CASE WHEN foo IS NULL then '' ELSE foo END = 'bar'
+        //
+        // It is critical to be rewritten foo = 'bar' correctly so
+        // that it can be evaluated quickly
+        let expr = when(col("foo").is_null(), lit(""))
+            .otherwise(col("foo"))
+            .unwrap();
         let silly_predicate = PredicateBuilder::new()
-            // (foo = 'bar') OR false
-            .add_expr(col("foo").eq(lit("bar")).or(lit(false)))
+            .add_expr(expr.eq(lit("bar")))
             .build();
 
         let executor = Arc::new(Executor::new(1));
@@ -2055,11 +2064,10 @@ mod tests {
 
         let actual_predicate = test_db.get_chunks_predicate();
 
-        // verify that the predicate was rewritten to foo = 'bar'
-        let expected_predicate = PredicateBuilder::new()
-            // (foo = 'bar') OR false
-            .add_expr(col("foo").eq(lit("bar")))
-            .build();
+        // verify that the predicate was rewritten to `foo = 'bar'`
+        let expr = col("foo").eq(lit("bar"));
+
+        let expected_predicate = PredicateBuilder::new().add_expr(expr).build();
 
         assert_eq!(
             actual_predicate, expected_predicate,
