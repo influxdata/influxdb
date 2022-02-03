@@ -136,7 +136,7 @@ pub async fn command(config: Config) -> Result<()> {
         ns_cache,
         topic_id,
         query_id,
-        "inf".to_owned(),
+        iox_catalog::INFINITE_RETENTION_POLICY.to_owned(),
         handler_stack,
     );
     //

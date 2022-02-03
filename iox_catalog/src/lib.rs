@@ -25,6 +25,9 @@ const SHARED_KAFKA_TOPIC: &str = "iox_shared";
 const SHARED_QUERY_POOL: &str = SHARED_KAFKA_TOPIC;
 const TIME_COLUMN: &str = "time";
 
+/// A string value representing an infinite retention policy.
+pub const INFINITE_RETENTION_POLICY: &str = "inf";
+
 pub mod interface;
 pub mod mem;
 pub mod postgres;
