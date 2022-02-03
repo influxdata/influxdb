@@ -1,7 +1,7 @@
 use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion, Throughput};
 use data_types::DatabaseName;
-use router2::sharder::{Sharder, TableNamespaceSharder};
+use router2::sharder::{JumpHash, Sharder};
 
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
@@ -84,7 +84,7 @@ fn benchmark_sharder(
     table: &str,
     namespace: &DatabaseName<'_>,
 ) {
-    let hasher = TableNamespaceSharder::new(0..num_buckets);
+    let hasher = JumpHash::new(0..num_buckets);
 
     group.throughput(Throughput::Elements(1));
     group.bench_function(bench_name, |b| {

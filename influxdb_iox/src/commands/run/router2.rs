@@ -20,7 +20,7 @@ use router2::{
     namespace_cache::MemoryNamespaceCache,
     sequencer::Sequencer,
     server::{http::HttpDelegate, RouterServer},
-    sharder::TableNamespaceSharder,
+    sharder::JumpHash,
 };
 use thiserror::Error;
 use trace::TraceCollector;
@@ -157,13 +157,13 @@ pub async fn command(config: Config) -> Result<()> {
 }
 
 /// Initialise the [`ShardedWriteBuffer`] with one shard per Kafka partition,
-/// using the [`TableNamespaceSharder`] to shard operations by their destination
-/// namespace & table name.
+/// using [`JumpHash`] to shard operations by their destination namespace &
+/// table name.
 async fn init_write_buffer(
     config: &Config,
     metrics: Arc<metric::Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
-) -> Result<ShardedWriteBuffer<TableNamespaceSharder<Arc<Sequencer>>>> {
+) -> Result<ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>> {
     let write_buffer = Arc::new(
         config
             .write_buffer_config
@@ -190,6 +190,6 @@ async fn init_write_buffer(
             .into_iter()
             .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer)))
             .map(Arc::new)
-            .collect::<TableNamespaceSharder<_>>(),
+            .collect::<JumpHash<_>>(),
     ))
 }

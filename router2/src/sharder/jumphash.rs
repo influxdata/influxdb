@@ -8,13 +8,13 @@ use siphasher::sip::SipHasher13;
 
 use super::Sharder;
 
-/// A [`TableNamespaceSharder`] maps operations for a given table in a given
-/// namespace consistently to the same shard, irrespective of the operation
-/// itself with near perfect distribution.
+/// A [`JumpHash`] maps operations for a given table in a given namespace
+/// consistently to the same shard, irrespective of the operation itself with
+/// near perfect distribution.
 ///
-/// Different instances of a [`TableNamespaceSharder`] using the same seed key,
-/// and the same set of shards (in the same order) will always map the same
-/// input table & namespace to the same shard `T`.
+/// Different instances of a [`JumpHash`] using the same seed key, and the same
+/// set of shards (in the same order) will always map the same input table &
+/// namespace to the same shard `T`.
 ///
 /// For `N` shards, this type uses `O(N)` memory and `O(ln N)` lookup, utilising
 /// Google's [jump hash] internally. Adding 1 additional shard causes
@@ -22,13 +22,13 @@ use super::Sharder;
 ///
 /// [jump hash]: https://arxiv.org/ftp/arxiv/papers/1406/1406.2294.pdf
 #[derive(Debug)]
-pub struct TableNamespaceSharder<T> {
+pub struct JumpHash<T> {
     hasher: SipHasher13,
     shards: Vec<T>,
 }
 
-impl<T> TableNamespaceSharder<T> {
-    /// Initialise a [`TableNamespaceSharder`] that consistently maps keys to
+impl<T> JumpHash<T> {
+    /// Initialise a [`JumpHash`] that consistently maps keys to
     /// one of `shards`.
     ///
     /// # Correctness
@@ -62,7 +62,7 @@ impl<T> TableNamespaceSharder<T> {
     }
 }
 
-impl<T> TableNamespaceSharder<T> {
+impl<T> JumpHash<T> {
     /// Reinitialise [`Self`] with a new key.
     ///
     /// Re-keying [`Self`] will change the mapping of inputs to output instances
@@ -73,7 +73,7 @@ impl<T> TableNamespaceSharder<T> {
     }
 
     /// Consistently hash `key` to a `T`.
-    fn hash<H>(&self, key: H) -> &T
+    pub fn hash<H>(&self, key: H) -> &T
     where
         H: Hash,
     {
@@ -97,7 +97,7 @@ impl<T> TableNamespaceSharder<T> {
     }
 }
 
-impl<T> FromIterator<T> for TableNamespaceSharder<T> {
+impl<T> FromIterator<T> for JumpHash<T> {
     fn from_iter<U: IntoIterator<Item = T>>(iter: U) -> Self {
         Self::new(iter)
     }
@@ -109,10 +109,10 @@ struct HashKey<'a> {
     namespace: &'a str,
 }
 
-/// A [`TableNamespaceSharder`] is generic over `P`, the payload type, enabling
-/// it to map any type of payload to a shard as it only considers the table name
-/// and namespace when making a sharding decision.
-impl<T, P> Sharder<P> for TableNamespaceSharder<T>
+/// A [`JumpHash`] sharder implementation is generic over `P`, the payload type,
+/// enabling it to map any type of payload to a shard as it only considers the
+/// table name and namespace when making a sharding decision.
+impl<T, P> Sharder<P> for JumpHash<T>
 where
     T: Debug + Send + Sync,
 {
@@ -139,7 +139,7 @@ mod tests {
         const NUM_TESTS: usize = 10_000;
         const NUM_SHARDS: usize = 10;
 
-        let hasher = TableNamespaceSharder::new(0..NUM_SHARDS);
+        let hasher = JumpHash::new(0..NUM_SHARDS);
 
         // Create a HashMap<key, shard> to verify against.
         let mappings = (0..NUM_TESTS)
@@ -158,7 +158,7 @@ mod tests {
             .all(|(&key, &value)| hasher.hash(key) == value));
 
         // Reinitialise the hasher with the same (default) key
-        let hasher = TableNamespaceSharder::new(0..NUM_SHARDS);
+        let hasher = JumpHash::new(0..NUM_SHARDS);
 
         // And assert the mappings are the same
         assert!(mappings
@@ -166,7 +166,7 @@ mod tests {
             .all(|(&key, &value)| hasher.hash(key) == value));
 
         // Reinitialise the hasher with the a different key
-        let hasher = TableNamespaceSharder::new(0..NUM_SHARDS).with_seed_key(&[42; 16]);
+        let hasher = JumpHash::new(0..NUM_SHARDS).with_seed_key(&[42; 16]);
 
         // And assert the mappings are the NOT all same (some may be the same)
         assert!(!mappings
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_sharder_impl() {
-        let hasher = TableNamespaceSharder::new(0..10_000);
+        let hasher = JumpHash::new(0..10_000);
 
         let a = hasher.shard("table", &DatabaseName::try_from("namespace").unwrap(), &0);
         let b = hasher.shard("table", &DatabaseName::try_from("namespace2").unwrap(), &0);
@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_sharder_prefix_collision() {
-        let hasher = TableNamespaceSharder::new(0..10_000);
+        let hasher = JumpHash::new(0..10_000);
         let a = hasher.shard("a", &DatabaseName::try_from("bc").unwrap(), &0);
         let b = hasher.shard("ab", &DatabaseName::try_from("c").unwrap(), &0);
         assert_ne!(a, b);
@@ -214,7 +214,7 @@ mod tests {
     // strategy would that accounts for this mapping change.
     #[test]
     fn test_key_bucket_fixture() {
-        let hasher = TableNamespaceSharder::new(0..1000);
+        let hasher = JumpHash::new(0..1000);
         let namespace = DatabaseName::try_from("bananas").unwrap();
 
         assert_eq!(*hasher.shard("42", &namespace, &0), 904);
