@@ -13,7 +13,6 @@
 )]
 #![allow(dead_code)]
 
-pub mod catalog_update;
 pub mod compact;
 pub mod data;
 pub mod handler;

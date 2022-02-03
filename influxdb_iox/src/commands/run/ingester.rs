@@ -12,6 +12,8 @@ use crate::{
         },
     },
 };
+use data_types::server_id::ServerId;
+use data_types::write_buffer::WriteBufferConnection;
 use ingester::{
     handler::IngestHandlerImpl,
     server::{grpc::GrpcDelegate, http::HttpDelegate, IngesterServer},
@@ -19,16 +21,17 @@ use ingester::{
 use iox_catalog::interface::KafkaPartition;
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
+use std::collections::BTreeMap;
+use std::convert::TryFrom;
 use std::sync::Arc;
 use thiserror::Error;
+use time::TimeProvider;
+use write_buffer::config::WriteBufferConfigFactory;
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
     Run(#[from] influxdb_ioxd::Error),
-
-    #[error("Cannot setup server: {0}")]
-    Setup(#[from] crate::influxdb_ioxd::server_type::database::setup::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -41,6 +44,15 @@ pub enum Error {
 
     #[error("Cannot parse object store config: {0}")]
     ObjectStoreParsing(#[from] crate::clap_blocks::object_store::ParseError),
+
+    #[error("kafka_partition_range_start must be <= kafka_partition_range_end")]
+    KafkaRange,
+
+    #[error("sequencer record not found for partition {0}")]
+    SequencerNotFound(KafkaPartition),
+
+    #[error("error initializing write buffer {0}")]
+    WriteBuffer(#[from] write_buffer::core::WriteBufferError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -89,14 +101,16 @@ pub async fn command(config: Config) -> Result<()> {
 
     let catalog = config.catalog_dsn.get_catalog("ingester").await?;
 
-    let kafka_topic = match catalog
+    let kafka_topic = catalog
         .kafka_topics()
         .get_by_name(&config.write_buffer_config.topic)
         .await?
-    {
-        Some(k) => k,
-        None => return Err(Error::KafkaTopicNotFound(config.write_buffer_config.topic)),
-    };
+        .ok_or(Error::KafkaTopicNotFound(config.write_buffer_config.topic))?;
+
+    if config.write_buffer_partition_range_start > config.write_buffer_partition_range_end {
+        return Err(Error::KafkaRange);
+    }
+
     let kafka_partitions: Vec<_> = (config.write_buffer_partition_range_start
         ..config.write_buffer_partition_range_end)
         .map(KafkaPartition::new)
@@ -107,11 +121,45 @@ pub async fn command(config: Config) -> Result<()> {
             .map_err(Error::ObjectStoreParsing)?,
     );
 
+    let mut sequencers = BTreeMap::new();
+    for k in kafka_partitions {
+        let s = catalog
+            .sequencers()
+            .get_by_topic_id_and_partition(kafka_topic.id, k)
+            .await?
+            .ok_or(Error::SequencerNotFound(k))?;
+        sequencers.insert(k, s);
+    }
+
+    let metric_registry: Arc<metric::Registry> = Default::default();
+    let trace_collector = common_state.trace_collector();
+    let time_provider: Arc<dyn TimeProvider> = Arc::new(time::SystemProvider::new());
+    let write_buffer_factory =
+        WriteBufferConfigFactory::new(Arc::clone(&time_provider), Arc::clone(&metric_registry));
+
+    let write_buffer_cfg = WriteBufferConnection {
+        type_: config.write_buffer_config.type_,
+        connection: config.write_buffer_config.connection_string,
+        connection_config: Default::default(),
+        creation_config: None,
+    };
+    let server_id = ServerId::try_from(1).unwrap(); // required by the write buffer, but not actually used anywhere
+    let write_buffer = write_buffer_factory
+        .new_config_read(
+            server_id,
+            &kafka_topic.name,
+            trace_collector.as_ref(),
+            &write_buffer_cfg,
+        )
+        .await?;
+
     let ingest_handler = Arc::new(IngestHandlerImpl::new(
         kafka_topic,
-        kafka_partitions,
+        sequencers,
         catalog,
         object_store,
+        write_buffer,
+        &metric_registry,
     ));
     let http = HttpDelegate::new(Arc::clone(&ingest_handler));
     let grpc = GrpcDelegate::new(ingest_handler);

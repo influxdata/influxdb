@@ -156,13 +156,17 @@ where
             }
         };
 
-        let maybe_new_schema = validate_or_insert_schema(&batches, &schema, &*self.catalog)
-            .await
-            .map_err(|e| {
-                warn!(error=%e, %namespace, "schema validation failed");
-                SchemaError::Validate(e)
-            })?
-            .map(Arc::new);
+        let maybe_new_schema = validate_or_insert_schema(
+            batches.iter().map(|(k, v)| (k.as_str(), v)),
+            &schema,
+            &*self.catalog,
+        )
+        .await
+        .map_err(|e| {
+            warn!(error=%e, %namespace, "schema validation failed");
+            SchemaError::Validate(e)
+        })?
+        .map(Arc::new);
 
         trace!(%namespace, "schema validation complete");
 
