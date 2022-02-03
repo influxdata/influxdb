@@ -114,7 +114,7 @@ impl WriteBufferWriting for RSKafkaProducer {
     }
 
     fn type_name(&self) -> &'static str {
-        "rskafka"
+        "kafka"
     }
 }
 
@@ -273,7 +273,7 @@ impl WriteBufferReading for RSKafkaConsumer {
     }
 
     fn type_name(&self) -> &'static str {
-        "rskafka"
+        "kafka"
     }
 }
 

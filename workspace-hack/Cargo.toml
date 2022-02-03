@@ -66,7 +66,6 @@ base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
-cc = { version = "1", default-features = false, features = ["jobserver", "parallel"] }
 digest = { version = "0.9", default-features = false, features = ["alloc", "std"] }
 either = { version = "1", features = ["use_std"] }
 futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
@@ -99,6 +98,7 @@ uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
+cc = { version = "1", default-features = false, features = ["jobserver", "parallel"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
 
 [target.x86_64-apple-darwin.dependencies]

@@ -239,7 +239,7 @@ jobs:
       - run: sqlx database create
       - run:
           name: Cargo test
-          command: cargo test --workspace --features=aws,azure,azure_test,kafka
+          command: cargo test --workspace --features=aws,azure,azure_test
       - cache_save
 
   # end to end tests with Heappy (heap profiling enabled)
@@ -306,7 +306,7 @@ jobs:
             - cargo-lock-{{ checksum "Cargo.lock" }}
       - run:
           name: Prime Rust build cache
-          command: cargo build --package influxdb_iox --bin influxdb_iox --package iox_data_generator --bin iox_data_generator --features=kafka
+          command: cargo build --package influxdb_iox --bin influxdb_iox --package iox_data_generator --bin iox_data_generator
       - save_cache:
           key: cargo-lock-{{ checksum "Cargo.lock" }}
           paths:
@@ -345,8 +345,8 @@ jobs:
           name: Build benches
           command: cargo test --workspace --benches --no-run
       - run:
-          name: Build with object store + exporter support + HEAP profiling + kafka
-          command: cargo build --no-default-features --features="aws,gcp,azure,heappy,pprof,kafka"
+          name: Build with object store + exporter support + HEAP profiling
+          command: cargo build --no-default-features --features="aws,gcp,azure,heappy,pprof"
       - cache_save
 
   # Lint protobufs.

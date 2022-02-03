@@ -397,7 +397,7 @@ def cargo_build_iox(debug=False, build_with_aws=True):
     t = time.time()
     print('building IOx')
 
-    features = ['kafka']
+    features = []
     if build_with_aws:
         features.append('aws')
     features = ','.join(features)

@@ -1,13 +1,13 @@
 use crate::{
     core::{WriteBufferError, WriteBufferReading, WriteBufferWriting},
     file::{FileBufferConsumer, FileBufferProducer},
+    kafka::{RSKafkaConsumer, RSKafkaProducer},
     mock::{
         MockBufferForReading, MockBufferForReadingThatAlwaysErrors, MockBufferForWriting,
         MockBufferForWritingThatAlwaysErrors, MockBufferSharedState,
     },
-    rskafka::{RSKafkaConsumer, RSKafkaProducer},
 };
-use data_types::{server_id::ServerId, write_buffer::WriteBufferConnection};
+use data_types::write_buffer::WriteBufferConnection;
 use parking_lot::RwLock;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
@@ -102,7 +102,18 @@ impl WriteBufferConfigFactory {
                 .await?;
                 Arc::new(file_buffer) as _
             }
-            "kafka" => self.kafka_buffer_producer(db_name, cfg).await?,
+            "kafka" => {
+                let rskafa_buffer = RSKafkaProducer::new(
+                    cfg.connection.clone(),
+                    db_name.to_owned(),
+                    &cfg.connection_config,
+                    cfg.creation_config.as_ref(),
+                    Arc::clone(&self.time_provider),
+                    trace_collector.map(Arc::clone),
+                )
+                .await?;
+                Arc::new(rskafa_buffer) as _
+            }
             "mock" => match self.get_mock(&cfg.connection)? {
                 Mock::Normal(state) => {
                     let mock_buffer = MockBufferForWriting::new(
@@ -117,18 +128,6 @@ impl WriteBufferConfigFactory {
                     Arc::new(mock_buffer) as _
                 }
             },
-            "rskafka" => {
-                let rskafa_buffer = RSKafkaProducer::new(
-                    cfg.connection.clone(),
-                    db_name.to_owned(),
-                    &cfg.connection_config,
-                    cfg.creation_config.as_ref(),
-                    Arc::clone(&self.time_provider),
-                    trace_collector.map(Arc::clone),
-                )
-                .await?;
-                Arc::new(rskafa_buffer) as _
-            }
             other => {
                 return Err(format!("Unknown write buffer type: {}", other).into());
             }
@@ -137,42 +136,9 @@ impl WriteBufferConfigFactory {
         Ok(writer)
     }
 
-    #[cfg(feature = "kafka")]
-    async fn kafka_buffer_producer(
-        &self,
-        db_name: &str,
-        cfg: &WriteBufferConnection,
-    ) -> Result<Arc<dyn WriteBufferWriting>, WriteBufferError> {
-        let kafka_buffer = crate::kafka::KafkaBufferProducer::new(
-            &cfg.connection,
-            db_name,
-            &cfg.connection_config,
-            cfg.creation_config.as_ref(),
-            Arc::clone(&self.time_provider),
-            &self.metric_registry,
-        )
-        .await?;
-
-        Ok(Arc::new(kafka_buffer) as _)
-    }
-
-    #[cfg(not(feature = "kafka"))]
-    async fn kafka_buffer_producer(
-        &self,
-        _db_name: &str,
-        _cfg: &WriteBufferConnection,
-    ) -> Result<Arc<dyn WriteBufferWriting>, WriteBufferError> {
-        Err(String::from(
-            "`WriteBufferWriting` of type `kafka` requested, but Kafka support was not included \
-                in this build by enabling the `kafka` feature",
-        )
-        .into())
-    }
-
     /// Returns a new [`WriteBufferReading`] for the provided [`WriteBufferConnection`]
     pub async fn new_config_read(
         &self,
-        server_id: ServerId,
         db_name: &str,
         trace_collector: Option<&Arc<dyn TraceCollector>>,
         cfg: &WriteBufferConnection,
@@ -190,8 +156,15 @@ impl WriteBufferConfigFactory {
                 Box::new(file_buffer) as _
             }
             "kafka" => {
-                self.kafka_buffer_consumer(server_id, db_name, trace_collector, cfg)
-                    .await?
+                let rskafka_buffer = RSKafkaConsumer::new(
+                    cfg.connection.clone(),
+                    db_name.to_owned(),
+                    &cfg.connection_config,
+                    cfg.creation_config.as_ref(),
+                    trace_collector.map(Arc::clone),
+                )
+                .await?;
+                Box::new(rskafka_buffer) as _
             }
             "mock" => match self.get_mock(&cfg.connection)? {
                 Mock::Normal(state) => {
@@ -204,60 +177,12 @@ impl WriteBufferConfigFactory {
                     Box::new(mock_buffer) as _
                 }
             },
-            "rskafka" => {
-                let rskafka_buffer = RSKafkaConsumer::new(
-                    cfg.connection.clone(),
-                    db_name.to_owned(),
-                    &cfg.connection_config,
-                    cfg.creation_config.as_ref(),
-                    trace_collector.map(Arc::clone),
-                )
-                .await?;
-                Box::new(rskafka_buffer) as _
-            }
             other => {
                 return Err(format!("Unknown write buffer type: {}", other).into());
             }
         };
 
         Ok(reader)
-    }
-
-    #[cfg(feature = "kafka")]
-    async fn kafka_buffer_consumer(
-        &self,
-        server_id: ServerId,
-        db_name: &str,
-        trace_collector: Option<&Arc<dyn TraceCollector>>,
-        cfg: &WriteBufferConnection,
-    ) -> Result<Box<dyn WriteBufferReading>, WriteBufferError> {
-        let kafka_buffer = crate::kafka::KafkaBufferConsumer::new(
-            &cfg.connection,
-            server_id,
-            db_name,
-            &cfg.connection_config,
-            cfg.creation_config.as_ref(),
-            trace_collector,
-            &self.metric_registry,
-        )
-        .await?;
-
-        Ok(Box::new(kafka_buffer) as _)
-    }
-
-    #[cfg(not(feature = "kafka"))]
-    async fn kafka_buffer_consumer(
-        &self,
-        _server_id: ServerId,
-        _db_name: &str,
-        _trace_collector: Option<&Arc<dyn TraceCollector>>,
-        _cfg: &WriteBufferConnection,
-    ) -> Result<Box<dyn WriteBufferReading>, WriteBufferError> {
-        Err(String::from(
-            "`WriteBufferReading` of type `kafka` requested, but Kafka support was not included \
-                in this build by enabling the `kafka` feature",
-        )
-        .into())
     }
 }
 
@@ -302,10 +227,9 @@ mod tests {
             creation_config: Some(WriteBufferCreationConfig::default()),
             ..Default::default()
         };
-        let server_id = ServerId::try_from(1).unwrap();
 
         let conn = factory
-            .new_config_read(server_id, db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "file");
@@ -355,7 +279,6 @@ mod tests {
         let mock_name = "some_mock";
         factory.register_mock(mock_name.to_string(), state);
 
-        let server_id = ServerId::try_from(1).unwrap();
         let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
         let cfg = WriteBufferConnection {
             type_: "mock".to_string(),
@@ -364,7 +287,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(server_id, db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "mock");
@@ -376,7 +299,7 @@ mod tests {
             ..Default::default()
         };
         let err = factory
-            .new_config_read(server_id, db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, &cfg)
             .await
             .unwrap_err();
         assert!(err.to_string().starts_with("Unknown mock ID:"));
@@ -422,8 +345,6 @@ mod tests {
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
 
-        let server_id = ServerId::try_from(1).unwrap();
-
         let db_name = DatabaseName::new("foo").unwrap();
         let cfg = WriteBufferConnection {
             type_: "mock".to_string(),
@@ -432,7 +353,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(server_id, db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "mock_failing");
@@ -444,7 +365,7 @@ mod tests {
             ..Default::default()
         };
         let err = factory
-            .new_config_read(server_id, db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, &cfg)
             .await
             .unwrap_err();
         assert!(err.to_string().starts_with("Unknown mock ID:"));
@@ -469,12 +390,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_writing_rskafka() {
+    async fn test_writing_kafka() {
         let conn = maybe_skip_kafka_integration!();
         let factory = factory();
         let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
         let cfg = WriteBufferConnection {
-            type_: "rskafka".to_string(),
+            type_: "kafka".to_string(),
             connection: conn,
             creation_config: Some(WriteBufferCreationConfig::default()),
             ..Default::default()
@@ -484,121 +405,26 @@ mod tests {
             .new_config_write(db_name.as_str(), None, &cfg)
             .await
             .unwrap();
-        assert_eq!(conn.type_name(), "rskafka");
+        assert_eq!(conn.type_name(), "kafka");
     }
 
     #[tokio::test]
-    async fn test_reading_rskafka() {
+    async fn test_reading_kafka() {
         let conn = maybe_skip_kafka_integration!();
         let factory = factory();
-        let server_id = ServerId::try_from(1).unwrap();
 
         let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
         let cfg = WriteBufferConnection {
-            type_: "rskafka".to_string(),
+            type_: "kafka".to_string(),
             connection: conn,
             creation_config: Some(WriteBufferCreationConfig::default()),
             ..Default::default()
         };
 
         let conn = factory
-            .new_config_read(server_id, db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, &cfg)
             .await
             .unwrap();
-        assert_eq!(conn.type_name(), "rskafka");
-    }
-
-    #[cfg(feature = "kafka")]
-    mod kafka {
-        use super::*;
-
-        #[tokio::test]
-        async fn test_writing_kafka() {
-            let conn = maybe_skip_kafka_integration!();
-            let factory = factory();
-            let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
-            let cfg = WriteBufferConnection {
-                type_: "kafka".to_string(),
-                connection: conn,
-                creation_config: Some(WriteBufferCreationConfig::default()),
-                ..Default::default()
-            };
-
-            let conn = factory
-                .new_config_write(db_name.as_str(), None, &cfg)
-                .await
-                .unwrap();
-            assert_eq!(conn.type_name(), "kafka");
-        }
-
-        #[tokio::test]
-        async fn test_reading_kafka() {
-            let conn = maybe_skip_kafka_integration!();
-            let factory = factory();
-            let server_id = ServerId::try_from(1).unwrap();
-
-            let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
-            let cfg = WriteBufferConnection {
-                type_: "kafka".to_string(),
-                connection: conn,
-                creation_config: Some(WriteBufferCreationConfig::default()),
-                ..Default::default()
-            };
-
-            let conn = factory
-                .new_config_read(server_id, db_name.as_str(), None, &cfg)
-                .await
-                .unwrap();
-            assert_eq!(conn.type_name(), "kafka");
-        }
-    }
-
-    #[cfg(not(feature = "kafka"))]
-    mod no_kafka {
-        use super::*;
-
-        #[tokio::test]
-        async fn writing_to_kafka_without_kafka_feature_returns_error() {
-            let factory = factory();
-            let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
-            let cfg = WriteBufferConnection {
-                type_: "kafka".to_string(),
-                creation_config: Some(WriteBufferCreationConfig::default()),
-                ..Default::default()
-            };
-
-            let err = factory
-                .new_config_write(db_name.as_str(), None, &cfg)
-                .await
-                .unwrap_err();
-            assert_eq!(
-                err.to_string(),
-                "`WriteBufferWriting` of type `kafka` requested, but Kafka support was not \
-                included in this build by enabling the `kafka` feature"
-            );
-        }
-
-        #[tokio::test]
-        async fn reading_from_kafka_without_kafka_feature_returns_error() {
-            let factory = factory();
-            let db_name = DatabaseName::try_from(random_topic_name()).unwrap();
-            let server_id = ServerId::try_from(1).unwrap();
-            let cfg = WriteBufferConnection {
-                type_: "kafka".to_string(),
-                creation_config: Some(WriteBufferCreationConfig::default()),
-                ..Default::default()
-            };
-
-            let err = factory
-                .new_config_read(server_id, db_name.as_str(), None, &cfg)
-                .await
-                .unwrap_err();
-
-            assert_eq!(
-                err.to_string(),
-                "`WriteBufferReading` of type `kafka` requested, but Kafka support was not \
-                included in this build by enabling the `kafka` feature"
-            );
-        }
+        assert_eq!(conn.type_name(), "kafka");
     }
 }

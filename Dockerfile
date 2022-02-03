@@ -15,7 +15,7 @@ WORKDIR /influxdb_iox
 
 ARG CARGO_INCREMENTAL=yes
 ARG PROFILE=release
-ARG FEATURES=aws,gcp,azure,jemalloc_replacing_malloc,kafka
+ARG FEATURES=aws,gcp,azure,jemalloc_replacing_malloc
 ARG PACKAGE=influxdb_iox
 ARG ROARING_ARCH="haswell"
 ARG RUSTFLAGS=""

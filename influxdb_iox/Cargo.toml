@@ -129,7 +129,3 @@ jemalloc_replacing_malloc = ["tikv-jemalloc-sys"]
 # Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
 # linting
 clippy = []
-
-# Enable the write buffer implemented with Kafka. Disabled by default to save build time when not
-# working on Kafka write buffer-related code.
-kafka = ["router/kafka", "server/kafka"]

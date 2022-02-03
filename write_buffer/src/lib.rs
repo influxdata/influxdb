@@ -12,13 +12,5 @@ pub(crate) mod codec;
 pub mod config;
 pub mod core;
 pub mod file;
-
-#[cfg(feature = "kafka")]
 pub mod kafka;
-
 pub mod mock;
-
-pub mod rskafka;
-
-#[cfg(all(test, feature = "kafka"))]
-pub mod rskafka_kafka_test;

@@ -505,19 +505,14 @@ impl DatabaseStateCatalogLoaded {
         let rules = self.provided_rules.rules();
         let trace_collector = shared.application.trace_collector();
         let write_buffer_factory = shared.application.write_buffer_factory();
-        let (db_name, server_id, skip_replay) = {
+        let (db_name, skip_replay) = {
             let config = shared.config.read();
-            (config.name.clone(), config.server_id, config.skip_replay)
+            (config.name.clone(), config.skip_replay)
         };
         let write_buffer_consumer = match rules.write_buffer_connection.as_ref() {
             Some(connection) => {
                 let mut consumer = write_buffer_factory
-                    .new_config_read(
-                        server_id,
-                        db_name.as_str(),
-                        trace_collector.as_ref(),
-                        connection,
-                    )
+                    .new_config_read(db_name.as_str(), trace_collector.as_ref(), connection)
                     .await
                     .context(CreateWriteBufferSnafu)?;
 

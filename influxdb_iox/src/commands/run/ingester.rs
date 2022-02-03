@@ -12,7 +12,6 @@ use crate::{
         },
     },
 };
-use data_types::server_id::ServerId;
 use data_types::write_buffer::WriteBufferConnection;
 use ingester::{
     handler::IngestHandlerImpl,
@@ -143,10 +142,8 @@ pub async fn command(config: Config) -> Result<()> {
         connection_config: Default::default(),
         creation_config: None,
     };
-    let server_id = ServerId::try_from(1).unwrap(); // required by the write buffer, but not actually used anywhere
     let write_buffer = write_buffer_factory
         .new_config_read(
-            server_id,
             &kafka_topic.name,
             trace_collector.as_ref(),
             &write_buffer_cfg,
