@@ -16,6 +16,9 @@ pub enum Error {
 
     #[error("Client error: {0}")]
     ClientError(#[from] influxdb_iox_client::error::Error),
+
+    #[error("Catalog error: {0}")]
+    Catalog(#[from] iox_catalog::interface::Error),
 }
 
 /// Various commands for catalog manipulation
@@ -44,8 +47,10 @@ enum Command {
 
 pub async fn command(config: Config) -> Result<(), Error> {
     match config.command {
-        Command::Setup(_command) => {
-            unimplemented!();
+        Command::Setup(command) => {
+            let catalog = command.catalog_dsn.get_catalog("cli").await?;
+            catalog.setup().await?;
+            println!("OK");
         }
         Command::Topic(config) => {
             topic::command(config).await?;
