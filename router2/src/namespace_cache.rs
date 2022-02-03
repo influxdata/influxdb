@@ -14,7 +14,8 @@ pub trait NamespaceCache: Debug + Send + Sync {
     fn get_schema(&self, namespace: &DatabaseName<'_>) -> Option<Arc<NamespaceSchema>>;
 
     /// Place `schema` in the cache, unconditionally overwriting any existing
-    /// [`NamespaceSchema`] mapped to `namespace`.
+    /// [`NamespaceSchema`] mapped to `namespace`, returning
+    /// the previous value, if any
     fn put_schema(
         &self,
         namespace: DatabaseName<'static>,
