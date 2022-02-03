@@ -198,6 +198,9 @@ impl WriteBufferReading for RSKafkaConsumer {
             let stream = stream.map(move |res| {
                 let (record, _watermark) = res?;
 
+                // store new offset already so we don't get stuck on invalid records
+                next_offset.store(record.offset + 1, Ordering::SeqCst);
+
                 let kafka_read_size = record.record.approximate_size();
 
                 let headers =
@@ -219,15 +222,11 @@ impl WriteBufferReading for RSKafkaConsumer {
                     .into()
                 })?;
 
-                next_offset.store(record.offset + 1, Ordering::SeqCst);
-
-                crate::codec::decode(
-                    &record.record.value,
-                    headers,
-                    sequence,
-                    timestamp,
-                    kafka_read_size,
-                )
+                let value = record
+                    .record
+                    .value
+                    .ok_or_else::<WriteBufferError, _>(|| "Value missing".to_string().into())?;
+                crate::codec::decode(&value, headers, sequence, timestamp, kafka_read_size)
             });
             let stream = stream.boxed();
 
@@ -338,8 +337,9 @@ mod tests {
     use std::num::NonZeroU32;
 
     use data_types::{delete_predicate::DeletePredicate, timestamp::TimestampRange};
-    use dml::{DmlDelete, DmlWrite};
+    use dml::{test_util::assert_write_op_eq, DmlDelete, DmlWrite};
     use futures::{stream::FuturesUnordered, TryStreamExt};
+    use rskafka::{client::partition::Compression, record::Record};
     use trace::{ctx::SpanContext, RingBufferTraceCollector};
 
     use crate::{
@@ -467,6 +467,62 @@ mod tests {
             .collect();
 
         while jobs.try_next().await.unwrap().is_some() {}
+    }
+
+    #[tokio::test]
+    async fn test_offset_after_broken_message() {
+        let conn = maybe_skip_kafka_integration!();
+        let adapter = RSKafkaTestAdapter::new(conn.clone());
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let producer = ctx.writing(true).await.unwrap();
+
+        // write broken message followed by a real one
+        let sequencer_id = set_pop_first(&mut producer.sequencer_ids()).unwrap();
+        ClientBuilder::new(vec![conn])
+            .build()
+            .await
+            .unwrap()
+            .partition_client(ctx.database_name.clone(), sequencer_id as i32)
+            .await
+            .unwrap()
+            .produce(
+                vec![Record {
+                    key: None,
+                    value: None,
+                    headers: Default::default(),
+                    timestamp: rskafka::time::OffsetDateTime::now_utc(),
+                }],
+                Compression::NoCompression,
+            )
+            .await
+            .unwrap();
+        let w = crate::core::test_utils::write(
+            "namespace",
+            &producer,
+            "table foo=1 1",
+            sequencer_id,
+            None,
+        )
+        .await;
+
+        let mut consumer = ctx.reading(true).await.unwrap();
+
+        // read broken message from stream
+        let mut streams = consumer.streams();
+        assert_eq!(streams.len(), 1);
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        let err = stream.stream.next().await.unwrap().unwrap_err();
+        assert_eq!(err.to_string(), "No content type header");
+
+        // re-creating the stream should advance past the broken message
+        drop(stream);
+        drop(streams);
+        let mut streams = consumer.streams();
+        assert_eq!(streams.len(), 1);
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        let op = stream.stream.next().await.unwrap().unwrap();
+        assert_write_op_eq(&op, &w);
     }
 
     #[tokio::test]

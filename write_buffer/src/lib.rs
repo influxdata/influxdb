@@ -19,3 +19,6 @@ pub mod kafka;
 pub mod mock;
 
 pub mod rskafka;
+
+#[cfg(all(test, feature = "kafka"))]
+pub mod rskafka_kafka_test;

@@ -348,8 +348,8 @@ impl Aggregator for DmlAggregator {
             let buf_len = buf.len();
 
             let record = Record {
-                key: Default::default(),
-                value: buf,
+                key: None,
+                value: Some(buf),
                 headers: headers
                     .headers()
                     .map(|(k, v)| (k.to_owned(), v.as_bytes().to_vec()))
