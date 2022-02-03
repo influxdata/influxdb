@@ -1,4 +1,4 @@
-use std::{convert::TryInto, path::PathBuf, sync::Arc, time::Instant};
+use std::{borrow::Cow, convert::TryInto, path::PathBuf, sync::Arc, time::Instant};
 
 use arrow::{
     array::{ArrayRef, StringArray},
@@ -74,11 +74,95 @@ enum QueryEngine {
     Observer(super::observer::Observer),
 }
 
+struct RustylineHelper {
+    hinter: rustyline::hint::HistoryHinter,
+    highlighter: rustyline::highlight::MatchingBracketHighlighter,
+}
+
+impl Default for RustylineHelper {
+    fn default() -> Self {
+        Self {
+            hinter: rustyline::hint::HistoryHinter {},
+            highlighter: rustyline::highlight::MatchingBracketHighlighter::default(),
+        }
+    }
+}
+
+impl rustyline::Helper for RustylineHelper {}
+
+impl rustyline::validate::Validator for RustylineHelper {
+    fn validate(
+        &self,
+        ctx: &mut rustyline::validate::ValidationContext<'_>,
+    ) -> rustyline::Result<rustyline::validate::ValidationResult> {
+        let input = ctx.input();
+
+        if input.trim_end().ends_with(';') {
+            match ReplCommand::try_from(input) {
+                Ok(_) => Ok(rustyline::validate::ValidationResult::Valid(None)),
+                Err(err) => Ok(rustyline::validate::ValidationResult::Invalid(Some(err))),
+            }
+        } else {
+            Ok(rustyline::validate::ValidationResult::Incomplete)
+        }
+    }
+}
+
+impl rustyline::hint::Hinter for RustylineHelper {
+    type Hint = String;
+    fn hint(&self, line: &str, pos: usize, ctx: &rustyline::Context<'_>) -> Option<String> {
+        self.hinter.hint(line, pos, ctx)
+    }
+}
+
+impl rustyline::highlight::Highlighter for RustylineHelper {
+    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> {
+        self.highlighter.highlight(line, pos)
+    }
+
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
+        &'s self,
+        prompt: &'p str,
+        default: bool,
+    ) -> Cow<'b, str> {
+        self.highlighter.highlight_prompt(prompt, default)
+    }
+
+    fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
+        // TODO Detect when windows supports ANSI escapes
+        #[cfg(windows)]
+        {
+            Cow::Borrowed(hint)
+        }
+        #[cfg(not(windows))]
+        {
+            use ansi_term::Style;
+            Cow::Owned(Style::new().dimmed().paint(hint).to_string())
+        }
+    }
+
+    fn highlight_candidate<'c>(
+        &self,
+        candidate: &'c str,
+        completion: rustyline::CompletionType,
+    ) -> Cow<'c, str> {
+        self.highlighter.highlight_candidate(candidate, completion)
+    }
+
+    fn highlight_char(&self, line: &str, pos: usize) -> bool {
+        self.highlighter.highlight_char(line, pos)
+    }
+}
+
+impl rustyline::completion::Completer for RustylineHelper {
+    type Candidate = String;
+}
+
 /// Captures the state of the repl, gathers commands and executes them
 /// one by one
 pub struct Repl {
     /// Rustyline editor for interacting with user on command line
-    rl: Editor<()>,
+    rl: Editor<RustylineHelper>,
 
     /// Current prompt
     prompt: String,
@@ -109,7 +193,8 @@ impl Repl {
         let management_client = influxdb_iox_client::management::Client::new(connection.clone());
         let flight_client = influxdb_iox_client::flight::Client::new(connection.clone());
 
-        let mut rl = Editor::<()>::new();
+        let mut rl = Editor::new();
+        rl.set_helper(Some(RustylineHelper::default()));
         let history_file = history_file();
 
         if let Err(e) = rl.load_history(&history_file) {
@@ -172,37 +257,26 @@ impl Repl {
 
     /// Parss the next command;
     fn next_command(&mut self) -> Result<ReplCommand> {
-        let mut request = "".to_owned();
-        loop {
-            match self.rl.readline(&self.prompt) {
-                Ok(ref line) if is_exit_command(line) && request.is_empty() => {
-                    return Ok(ReplCommand::Exit);
-                }
-                Ok(ref line) if line.trim_end().ends_with(';') => {
-                    request.push_str(line.trim_end());
-                    self.rl.add_history_entry(request.clone());
+        match self.rl.readline(&self.prompt) {
+            Ok(ref line) if is_exit_command(line) => Ok(ReplCommand::Exit),
+            Ok(ref line) => {
+                let request = line.trim_end();
+                self.rl.add_history_entry(request.to_owned());
 
-                    return request
-                        .try_into()
-                        .map_err(|message| Error::ParsingCommand { message });
-                }
-                Ok(ref line) => {
-                    request.push_str(line);
-                    request.push(' ');
-                }
-                Err(ReadlineError::Eof) => {
-                    debug!("Received Ctrl-D");
-                    return Ok(ReplCommand::Exit);
-                }
-                Err(ReadlineError::Interrupted) => {
-                    debug!("Received Ctrl-C");
-                    return Ok(ReplCommand::Exit);
-                }
-                // Some sort of real underlying error
-                Err(e) => {
-                    return Err(Error::Readline { source: e });
-                }
+                request
+                    .try_into()
+                    .map_err(|message| Error::ParsingCommand { message })
             }
+            Err(ReadlineError::Eof) => {
+                debug!("Received Ctrl-D");
+                Ok(ReplCommand::Exit)
+            }
+            Err(ReadlineError::Interrupted) => {
+                debug!("Received Ctrl-C");
+                Ok(ReplCommand::Exit)
+            }
+            // Some sort of real underlying error
+            Err(e) => Err(Error::Readline { source: e }),
         }
     }
 

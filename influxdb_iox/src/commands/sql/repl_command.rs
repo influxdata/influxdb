@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use observability_deps::tracing::{debug, warn};
 
 /// Represents the parsed command from the user (which may be over many lines)
@@ -14,23 +12,31 @@ pub enum ReplCommand {
     Exit,
 }
 
-impl TryInto<ReplCommand> for String {
-    type Error = Self;
+impl TryFrom<String> for ReplCommand {
+    type Error = String;
+
+    fn try_from(input: String) -> Result<Self, Self::Error> {
+        Self::try_from(&input[..])
+    }
+}
+
+impl TryFrom<&str> for ReplCommand {
+    type Error = String;
 
     #[allow(clippy::if_same_then_else)]
-    fn try_into(self) -> Result<ReplCommand, Self::Error> {
-        debug!(%self, "tokenizing to ReplCommand");
+    fn try_from(input: &str) -> Result<Self, Self::Error> {
+        debug!(%input, "tokenizing to ReplCommand");
 
-        if self.trim().is_empty() {
+        if input.trim().is_empty() {
             return Err("No command specified".to_string());
         }
 
         // tokenized commands, normalized whitespace but original case
-        let raw_commands = self
+        let raw_commands = input
             .trim()
             // chop off trailing semicolon
             .strip_suffix(';')
-            .unwrap_or(&self)
+            .unwrap_or(input)
             // tokenize on whitespace
             .split(' ')
             .map(|c| c.trim())
@@ -49,37 +55,37 @@ impl TryInto<ReplCommand> for String {
         let commands = commands.iter().map(|s| s.as_str()).collect::<Vec<_>>();
 
         match commands.as_slice() {
-            ["help"] => Ok(ReplCommand::Help),
+            ["help"] => Ok(Self::Help),
             ["help", ..] => {
                 let extra_content = commands[1..].join(" ");
                 warn!(%extra_content, "ignoring tokens after 'help'");
-                Ok(ReplCommand::Help)
+                Ok(Self::Help)
             }
-            ["observer"] => Ok(ReplCommand::Observer),
-            ["exit"] => Ok(ReplCommand::Exit),
-            ["quit"] => Ok(ReplCommand::Exit),
+            ["observer"] => Ok(Self::Observer),
+            ["exit"] => Ok(Self::Exit),
+            ["quit"] => Ok(Self::Exit),
             ["use", "database"] => {
                 Err("name not specified. Usage: USE DATABASE <name>".to_string())
             } // USE DATABASE
             ["use", "database", _name] => {
                 // USE DATABASE <name>
-                Ok(ReplCommand::UseDatabase {
+                Ok(Self::UseDatabase {
                     db_name: raw_commands[2].to_string(),
                 })
             }
             ["use", _command] => {
                 // USE <name>
-                Ok(ReplCommand::UseDatabase {
+                Ok(Self::UseDatabase {
                     db_name: raw_commands[1].to_string(),
                 })
             }
-            ["show", "databases"] => Ok(ReplCommand::ShowDatabases),
-            ["set", "format", _format] => Ok(ReplCommand::SetFormat {
+            ["show", "databases"] => Ok(Self::ShowDatabases),
+            ["set", "format", _format] => Ok(Self::SetFormat {
                 format: raw_commands[2].to_string(),
             }),
             _ => {
                 // By default, treat the entire string as SQL
-                Ok(ReplCommand::SqlCommand { sql: self })
+                Ok(Self::SqlCommand { sql: input.into() })
             }
         }
     }
@@ -127,15 +133,6 @@ LIMIT 20
 ;
 
 "#
-    }
-}
-
-#[cfg(test)]
-impl TryInto<ReplCommand> for &str {
-    type Error = String;
-
-    fn try_into(self) -> Result<ReplCommand, Self::Error> {
-        self.to_string().try_into()
     }
 }
 

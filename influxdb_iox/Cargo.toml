@@ -46,6 +46,7 @@ trogging = { path = "../trogging", default-features = false, features = ["clap"]
 write_buffer = { path = "../write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
+ansi_term = "0.12"
 arrow = { version = "8.0", features = ["prettyprint"] }
 arrow-flight = "8.0"
 async-trait = "0.1"
