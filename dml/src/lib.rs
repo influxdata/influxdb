@@ -258,6 +258,11 @@ impl DmlWrite {
         self.tables.iter().map(|(k, v)| (k.as_str(), v))
     }
 
+    /// Moves the table names and mutable batches out of the map
+    pub fn into_tables(self) -> impl Iterator<Item = (String, MutableBatch)> {
+        self.tables.into_iter()
+    }
+
     /// Gets the write for a given table
     pub fn table(&self, name: &str) -> Option<&MutableBatch> {
         self.tables.get(name)

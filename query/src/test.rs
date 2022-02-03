@@ -376,8 +376,28 @@ impl TestChunk {
         count: u64,
         distinct_count: Option<NonZeroU64>,
     ) -> Self {
-        let column_name = column_name.into();
         let null_count = 0;
+        self.with_tag_column_with_nulls_and_full_stats(
+            column_name,
+            min,
+            max,
+            count,
+            distinct_count,
+            null_count,
+        )
+    }
+
+    /// Register a tag column with stats with the test chunk
+    pub fn with_tag_column_with_nulls_and_full_stats(
+        self,
+        column_name: impl Into<String>,
+        min: Option<&str>,
+        max: Option<&str>,
+        count: u64,
+        distinct_count: Option<NonZeroU64>,
+        null_count: u64,
+    ) -> Self {
+        let column_name = column_name.into();
 
         // make a new schema with the specified column and
         // merge it in to any existing schema

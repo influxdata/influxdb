@@ -13,6 +13,9 @@ datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
+chrono = { version = "0.4", default-features = false }
+db = { path = "../db" }
+dml = { path = "../dml" }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 metric = { path = "../metric" }
@@ -21,6 +24,7 @@ object_store = { path = "../object_store" }
 parking_lot = "0.12"
 parquet = "8.0"
 parquet_file = { path = "../parquet_file" }
+observability_deps = { path = "../observability_deps" }
 predicate = { path = "../predicate" }
 prost = "0.9"
 query = { path = "../query" }
@@ -31,6 +35,9 @@ time = { path = "../time" }
 tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
+write_buffer = { path = "../write_buffer" }
+tokio-util = { version = "0.6.9" }
+trace = { path = "../trace" }
 
 [dev-dependencies]
 mutable_batch_lp = { path = "../mutable_batch_lp" }

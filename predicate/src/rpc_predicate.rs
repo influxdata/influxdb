@@ -1,6 +1,7 @@
 //! Interface logic between IOx ['Predicate`] and predicates used by the
 //! InfluxDB Storage gRPC API
 use crate::predicate::{BinaryExpr, Predicate};
+use crate::rewrite;
 
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::ExecutionProps;
@@ -173,13 +174,22 @@ fn normalize_predicate(
             rewrite_field_column_references(&mut field_projections, e)
         })
         .map(|e| {
+            // apply IOx specific rewrites (that unlock other simplifications)
+            rewrite::rewrite(e).expect("rewrite failed")
+        })
+        .map(|e| {
             if let Some(schema) = &schema {
-                e.simplify(&SimplifyAdapter::new(schema.as_ref()))
-                    .expect("Expression simplificiation failed")
+                let adapter = SimplifyAdapter::new(schema.as_ref());
+                // simplify twice to ensure "full" cleanup
+                e.simplify(&adapter)
+                    .expect("Expression simplificiation round 1 failed")
+                    .simplify(&adapter)
+                    .expect("Expression simplificiation round 2 failed")
             } else {
                 e
             }
         })
+        .map(|e| rewrite::simplify_predicate(e).expect("simplify failed"))
         .collect::<Vec<_>>();
     // Store any field value (`_value`) expressions on the `Predicate`.
     predicate.value_expr = field_value_exprs;

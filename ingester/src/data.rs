@@ -1,16 +1,22 @@
 //! Data for the lifecycle of the Ingester
 
-use crate::handler::IngestHandlerImpl;
 use arrow::record_batch::RecordBatch;
 use data_types::delete_predicate::DeletePredicate;
+
+use chrono::{format::StrftimeItems, TimeZone, Utc};
+use dml::DmlOperation;
 use iox_catalog::interface::{
-    KafkaPartition, KafkaTopicId, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
-    Tombstone,
+    Catalog, KafkaPartition, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
+    Timestamp, Tombstone,
 };
+use mutable_batch::column::ColumnData;
 use mutable_batch::MutableBatch;
+use object_store::ObjectStore;
 use parking_lot::RwLock;
 use schema::selection::Selection;
+use schema::TIME_COLUMN_NAME;
 use snafu::{OptionExt, ResultExt, Snafu};
+use std::convert::TryFrom;
 use std::{collections::BTreeMap, sync::Arc};
 use uuid::Uuid;
 
@@ -29,14 +35,18 @@ pub enum Error {
         id: KafkaPartition,
     },
 
-    #[snafu(display(
-        "Sequencer record not found for kafka_topic_id {} and kafka_partition {}",
-        kafka_topic_id,
-        kafka_partition
-    ))]
-    SequencerNotFound {
-        kafka_topic_id: KafkaTopicId,
-        kafka_partition: KafkaPartition,
+    #[snafu(display("Sequencer {} not found in data map", sequencer_id))]
+    SequencerNotFound { sequencer_id: SequencerId },
+
+    #[snafu(display("Namespace {} not found in catalog", namespace))]
+    NamespaceNotFound { namespace: String },
+
+    #[snafu(display("Table must be specified in delete"))]
+    TableNotPresent,
+
+    #[snafu(display("Error accessing catalog: {}", source))]
+    Catalog {
+        source: iox_catalog::interface::Error,
     },
 
     #[snafu(display("The persisting is in progress. Cannot accept more persisting batch"))]
@@ -47,41 +57,46 @@ pub enum Error {
 
     #[snafu(display("The given batch does not match any in the Persisting list. Nothing is removed from the Persisting list"))]
     PersistingNotMatch,
+
+    #[snafu(display("Time column not present"))]
+    TimeColumnNotPresent,
+
+    #[snafu(display("Snapshot error: {}", source))]
+    Snapshot { source: mutable_batch::Error },
 }
 
 /// A specialized `Error` for Ingester Data errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Ingester Data: a Map of Shard ID to its Data
-#[derive(Default)]
-pub struct Sequencers {
+/// Contains all buffered and cached data for the ingester.
+pub struct IngesterData {
+    /// Object store for persistence of parquet files
+    pub(crate) object_store: Arc<ObjectStore>,
+    /// The global catalog for schema, parquet files and tombstones
+    pub(crate) catalog: Arc<dyn Catalog>,
     // This map gets set up on initialization of the ingester so it won't ever be modified.
     // The content of each SequenceData will get changed when more namespaces and tables
     // get ingested.
-    data: BTreeMap<SequencerId, Arc<SequencerData>>,
+    pub(crate) sequencers: BTreeMap<SequencerId, SequencerData>,
 }
 
-impl Sequencers {
-    /// One time initialize Sequencers of this Ingester
-    pub async fn initialize(ingester: &IngestHandlerImpl) -> Result<Self> {
-        // Get sequencer ids from the catalog
-        let sequencer_repro = ingester.iox_catalog.sequencers();
-        let mut sequencers = BTreeMap::default();
-        let topic = ingester.get_topic();
-        for shard in ingester.get_kafka_partitions() {
-            let sequencer = sequencer_repro
-                .get_by_topic_id_and_partition(topic.id, shard)
-                .await
-                .context(ReadSequencerSnafu { id: shard })?
-                .context(SequencerNotFoundSnafu {
-                    kafka_topic_id: topic.id,
-                    kafka_partition: shard,
-                })?;
-            // Create empty buffer for each sequencer
-            sequencers.insert(sequencer.id, Arc::new(SequencerData::default()));
-        }
-
-        Ok(Self { data: sequencers })
+impl IngesterData {
+    /// Store the write or delete in the in memory buffer. Deletes will
+    /// be written into the catalog before getting stored in the buffer.
+    /// Any writes that create new IOx partitions will have those records
+    /// created in the catalog before putting into the buffer.
+    pub async fn buffer_operation(
+        &self,
+        sequencer_id: SequencerId,
+        dml_operation: DmlOperation,
+    ) -> Result<()> {
+        let sequencer_data = self
+            .sequencers
+            .get(&sequencer_id)
+            .context(SequencerNotFoundSnafu { sequencer_id })?;
+        sequencer_data
+            .buffer_operation(dml_operation, sequencer_id, self.catalog.as_ref())
+            .await
     }
 }
 
@@ -89,26 +104,289 @@ impl Sequencers {
 #[derive(Default)]
 pub struct SequencerData {
     // New namespaces can come in at any time so we need to be able to add new ones
-    namespaces: RwLock<BTreeMap<NamespaceId, Arc<NamespaceData>>>,
+    namespaces: RwLock<BTreeMap<String, Arc<NamespaceData>>>,
+}
+
+impl SequencerData {
+    /// Store the write or delete in the sequencer. Deletes will
+    /// be written into the catalog before getting stored in the buffer.
+    /// Any writes that create new IOx partitions will have those records
+    /// created in the catalog before putting into the buffer.
+    pub async fn buffer_operation(
+        &self,
+        dml_operation: DmlOperation,
+        sequencer_id: SequencerId,
+        catalog: &dyn Catalog,
+    ) -> Result<()> {
+        let namespace_data = match self.namespace(dml_operation.namespace()) {
+            Some(d) => d,
+            None => {
+                self.insert_namespace(dml_operation.namespace(), catalog)
+                    .await?
+            }
+        };
+
+        namespace_data
+            .buffer_operation(dml_operation, sequencer_id, catalog)
+            .await
+    }
+
+    /// Gets the namespace data out of the map
+    pub fn namespace(&self, namespace: &str) -> Option<Arc<NamespaceData>> {
+        let n = self.namespaces.read();
+        n.get(namespace).cloned()
+    }
+
+    /// Retrieves the namespace from the catalog and initializes an empty buffer, or
+    /// retrieves the buffer if some other caller gets it first
+    async fn insert_namespace(
+        &self,
+        namespace: &str,
+        catalog: &dyn Catalog,
+    ) -> Result<Arc<NamespaceData>> {
+        let namespace = catalog
+            .namespaces()
+            .get_by_name(namespace)
+            .await
+            .context(CatalogSnafu)?
+            .context(NamespaceNotFoundSnafu { namespace })?;
+        let mut n = self.namespaces.write();
+        let data = Arc::clone(
+            n.entry(namespace.name)
+                .or_insert_with(|| Arc::new(NamespaceData::new(namespace.id))),
+        );
+
+        Ok(data)
+    }
 }
 
 /// Data of a Namespace that belongs to a given Shard
-#[derive(Default)]
 pub struct NamespaceData {
-    tables: RwLock<BTreeMap<TableId, Arc<TableData>>>,
+    namespace_id: NamespaceId,
+    tables: RwLock<BTreeMap<String, Arc<TableData>>>,
+}
+
+impl NamespaceData {
+    /// Initialize new tables with default partition template of daily
+    pub fn new(namespace_id: NamespaceId) -> Self {
+        Self {
+            namespace_id,
+            tables: Default::default(),
+        }
+    }
+
+    /// Buffer the operation in the cache, adding any new partitions or delete tombstones to the caatalog
+    pub async fn buffer_operation(
+        &self,
+        dml_operation: DmlOperation,
+        sequencer_id: SequencerId,
+        catalog: &dyn Catalog,
+    ) -> Result<()> {
+        let sequence_number = dml_operation
+            .meta()
+            .sequence()
+            .expect("must have sequence number")
+            .number;
+        let sequence_number = i64::try_from(sequence_number).expect("sequence out of bounds");
+        let sequence_number = SequenceNumber::new(sequence_number);
+
+        match dml_operation {
+            DmlOperation::Write(write) => {
+                for (t, b) in write.into_tables() {
+                    let table_data = match self.table_data(&t) {
+                        Some(t) => t,
+                        None => self.insert_table(&t, catalog).await?,
+                    };
+                    table_data
+                        .buffer_table_write(sequence_number, b, sequencer_id, catalog)
+                        .await?;
+                }
+
+                Ok(())
+            }
+            DmlOperation::Delete(delete) => {
+                let table_name = delete.table_name().context(TableNotPresentSnafu)?;
+                let table_data = match self.table_data(table_name) {
+                    Some(t) => t,
+                    None => self.insert_table(table_name, catalog).await?,
+                };
+
+                table_data
+                    .buffer_delete(delete.predicate(), sequencer_id, sequence_number, catalog)
+                    .await
+            }
+        }
+    }
+
+    /// Gets the buffered table data
+    pub fn table_data(&self, table_name: &str) -> Option<Arc<TableData>> {
+        let t = self.tables.read();
+        t.get(table_name).cloned()
+    }
+
+    /// Inserts the table or returns it if it happens to be inserted by some other thread
+    async fn insert_table(
+        &self,
+        table_name: &str,
+        catalog: &dyn Catalog,
+    ) -> Result<Arc<TableData>> {
+        let table = catalog
+            .tables()
+            .create_or_get(table_name, self.namespace_id)
+            .await
+            .context(CatalogSnafu)?;
+        let mut t = self.tables.write();
+        let data = Arc::clone(
+            t.entry(table.name)
+                .or_insert_with(|| Arc::new(TableData::new(table.id))),
+        );
+
+        Ok(data)
+    }
 }
 
 /// Data of a Table in a given Namesapce that belongs to a given Shard
-#[derive(Default)]
 pub struct TableData {
+    table_id: TableId,
     // Map pf partition key to its data
     partition_data: RwLock<BTreeMap<String, Arc<PartitionData>>>,
+}
+
+impl TableData {
+    /// Initialize new table buffer
+    pub fn new(table_id: TableId) -> Self {
+        Self {
+            table_id,
+            partition_data: Default::default(),
+        }
+    }
+
+    async fn buffer_table_write(
+        &self,
+        sequence_number: SequenceNumber,
+        batch: MutableBatch,
+        sequencer_id: SequencerId,
+        catalog: &dyn Catalog,
+    ) -> Result<()> {
+        let (_, col) = batch
+            .columns()
+            .find(|(name, _)| *name == TIME_COLUMN_NAME)
+            .unwrap();
+        let timestamp = match col.data() {
+            ColumnData::I64(_, s) => s.min.unwrap(),
+            _ => return Err(Error::TimeColumnNotPresent),
+        };
+
+        let partition_key = format!(
+            "{}",
+            Utc.timestamp_nanos(timestamp)
+                .format_with_items(StrftimeItems::new("%Y-%m-%d"))
+        );
+
+        let partition_data = match self.partition_data(&partition_key) {
+            Some(p) => p,
+            None => {
+                self.insert_partition(&partition_key, sequencer_id, catalog)
+                    .await?
+            }
+        };
+
+        partition_data.buffer_write(sequence_number, batch);
+
+        Ok(())
+    }
+
+    async fn buffer_delete(
+        &self,
+        predicate: &DeletePredicate,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+        catalog: &dyn Catalog,
+    ) -> Result<()> {
+        let min_time = Timestamp::new(predicate.range.start());
+        let max_time = Timestamp::new(predicate.range.end());
+
+        let tombstone = catalog
+            .tombstones()
+            .create_or_get(
+                self.table_id,
+                sequencer_id,
+                sequence_number,
+                min_time,
+                max_time,
+                &predicate.expr_sql_string(),
+            )
+            .await
+            .context(CatalogSnafu)?;
+
+        let partitions = self.partition_data.read();
+        for data in partitions.values() {
+            data.buffer_tombstone(tombstone.clone());
+        }
+
+        Ok(())
+    }
+
+    /// Gets the buffered partition data
+    pub fn partition_data(&self, partition_key: &str) -> Option<Arc<PartitionData>> {
+        let p = self.partition_data.read();
+        p.get(partition_key).cloned()
+    }
+
+    async fn insert_partition(
+        &self,
+        partition_key: &str,
+        sequencer_id: SequencerId,
+        catalog: &dyn Catalog,
+    ) -> Result<Arc<PartitionData>> {
+        let partition = catalog
+            .partitions()
+            .create_or_get(partition_key, sequencer_id, self.table_id)
+            .await
+            .context(CatalogSnafu)?;
+        let mut p = self.partition_data.write();
+        let data = Arc::new(PartitionData::new(partition.id));
+        p.insert(partition.partition_key, Arc::clone(&data));
+
+        Ok(data)
+    }
 }
 
 /// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
 pub struct PartitionData {
     id: PartitionId,
     inner: RwLock<DataBuffer>,
+}
+
+impl PartitionData {
+    /// Initialize a new partition data buffer
+    pub fn new(id: PartitionId) -> Self {
+        Self {
+            id,
+            inner: Default::default(),
+        }
+    }
+
+    /// Snapshot whatever is in the buffer and return a new vec of the
+    /// arc cloned snapshots
+    pub fn snapshot(&self) -> Result<Vec<Arc<SnapshotBatch>>> {
+        let mut data = self.inner.write();
+        data.snapshot().context(SnapshotSnafu)?;
+        Ok(data.snapshots.to_vec())
+    }
+
+    fn buffer_write(&self, sequencer_number: SequenceNumber, mb: MutableBatch) {
+        let mut data = self.inner.write();
+        data.buffer.push(BufferBatch {
+            sequencer_number,
+            data: mb,
+        })
+    }
+
+    fn buffer_tombstone(&self, tombstone: Tombstone) {
+        let mut data = self.inner.write();
+        data.deletes.push(tombstone);
+    }
 }
 
 /// Data of an IOx partition split into batches

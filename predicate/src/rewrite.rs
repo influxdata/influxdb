@@ -31,9 +31,28 @@ use datafusion::{
 ///  ELSE tag_col = 'cpu'
 /// END
 /// ```
-
 pub fn rewrite(expr: Expr) -> Result<Expr> {
     expr.rewrite(&mut IOxExprRewriter::new())
+}
+
+/// Special purpose `Expr` rewrite rules for an Expr that is used as a predcate.
+///
+/// In general the rewrite rules in Datafusion and IOx attempt to
+/// preserve the sematics of an expression, especially with respect to
+/// nulls. This means that certain expressions can not be simplified
+/// (as they may become null)
+///
+/// However, for `Expr`s used as filters, only rows for which the
+/// `Expr` evaluates to 'true' are returned. Those rows for which the
+/// `Expr` evaluates to `false` OR `null` are filtered out.
+///
+/// This function simplifies `Expr`s that are being used as
+/// predicates.
+///
+/// Currently it is special cases, but it would be great to generalize
+/// it and contribute it back to DataFusion
+pub fn simplify_predicate(expr: Expr) -> Result<Expr> {
+    expr.rewrite(&mut IOxPredicateRewriter::new())
 }
 
 /// see docs on [rewrite]
@@ -142,6 +161,110 @@ fn inline_case(case_on_left: bool, left: Expr, right: Expr, op: Operator) -> Exp
         expr: None,
         when_then_expr,
         else_expr,
+    }
+}
+
+/// see docs on [simplify_predicate]
+struct IOxPredicateRewriter {}
+
+impl IOxPredicateRewriter {
+    fn new() -> Self {
+        Self {}
+    }
+}
+
+/// returns the column name for a column expression
+fn is_col(expr: &Expr) -> Option<&str> {
+    if let Expr::Column(c) = &expr {
+        Some(c.name.as_str())
+    } else {
+        None
+    }
+}
+
+/// returns the column name for an expression like `IS NULL(col)`
+fn is_col_null(expr: &Expr) -> Option<&str> {
+    if let Expr::IsNull(arg) = &expr {
+        is_col(arg)
+    } else {
+        None
+    }
+}
+
+/// returns the column name for an expression like `IS NOT NULL(col)` or `NOT(IS NULL(col))`
+fn is_col_not_null(expr: &Expr) -> Option<&str> {
+    match expr {
+        Expr::IsNotNull(arg) => is_col(arg),
+        Expr::Not(arg) => is_col_null(arg),
+        _ => None,
+    }
+}
+
+fn is_lit(expr: &Expr) -> bool {
+    matches!(expr, Expr::Literal(_))
+}
+
+/// returns the column name for an expression like `col = <lit>`
+fn is_col_op_lit(expr: &Expr) -> Option<&str> {
+    match expr {
+        Expr::BinaryExpr { left, op: _, right } if is_lit(right) => is_col(left),
+        Expr::BinaryExpr { left, op: _, right } if is_lit(left) => is_col(right),
+        _ => None,
+    }
+}
+
+impl ExprRewriter for IOxPredicateRewriter {
+    fn mutate(&mut self, expr: Expr) -> Result<Expr> {
+        // look for this structure:
+        //
+        //  NOT(col IS NULL) AND col = 'foo'
+        //
+        // and replace it with
+        //
+        // col = 'foo'
+        //
+        // Proof:
+        // Case 1: col is NULL
+        //
+        // not (NULL IS NULL) AND col = 'foo'
+        // not (true) AND NULL = 'foo'
+        // NULL
+        //
+        // Case 2: col is not NULL and not equal to 'foo'
+        // not (false) AND false
+        // true AND false
+        // false
+        //
+        // Case 3: col is not NULL and equal to 'foo'
+        // not (false) AND true
+        // true AND true
+        // true
+        match expr {
+            Expr::BinaryExpr {
+                left,
+                op: Operator::And,
+                right,
+            } => {
+                if let (Some(coll), Some(colr)) = (is_col_not_null(&left), is_col_op_lit(&right)) {
+                    if colr == coll {
+                        return Ok(*right);
+                    }
+                } else if let (Some(coll), Some(colr)) =
+                    (is_col_op_lit(&left), is_col_not_null(&right))
+                {
+                    if colr == coll {
+                        return Ok(*left);
+                    }
+                };
+
+                Ok(Expr::BinaryExpr {
+                    left,
+                    op: Operator::And,
+                    right,
+                })
+            }
+            expr => Ok(expr),
+        }
     }
 }
 
@@ -331,5 +454,50 @@ mod tests {
         when(when_expr, then_expr)
             .otherwise(otherwise_expr)
             .unwrap()
+    }
+
+    #[test]
+    fn test_simplify_predicate() {
+        let expr = col("foo").is_null().not().and(col("foo").eq(lit("bar")));
+        let expected = col("foo").eq(lit("bar"));
+        assert_eq!(expected, simplify_predicate(expr).unwrap());
+    }
+
+    #[test]
+    fn test_simplify_predicate_reversed() {
+        let expr = col("foo").eq(lit("bar")).and(col("foo").is_null().not());
+        let expected = col("foo").eq(lit("bar"));
+        assert_eq!(expected, simplify_predicate(expr).unwrap());
+    }
+
+    #[test]
+    fn test_simplify_predicate_different_col() {
+        // only works when col references are the same
+        let expr = col("foo").is_null().not().and(col("foo2").eq(lit("bar")));
+        let expected = expr.clone();
+        assert_eq!(expected, simplify_predicate(expr).unwrap());
+    }
+
+    #[test]
+    fn test_simplify_predicate_different_col_reversed() {
+        // only works when col references are the same
+        let expr = col("foo2").eq(lit("bar")).and(col("foo").is_null().not());
+        let expected = expr.clone();
+        assert_eq!(expected, simplify_predicate(expr).unwrap());
+    }
+
+    #[test]
+    fn test_simplify_predicate_is_not_null() {
+        let expr = col("foo").is_not_null().and(col("foo").eq(lit("bar")));
+        let expected = col("foo").eq(lit("bar"));
+        assert_eq!(expected, simplify_predicate(expr).unwrap());
+    }
+
+    #[test]
+    fn test_simplify_predicate_complex() {
+        // can't rewrite to some thing else fancy on the right
+        let expr = col("foo").is_null().not().and(col("foo").eq(col("foo")));
+        let expected = expr.clone();
+        assert_eq!(expected, simplify_predicate(expr).unwrap());
     }
 }

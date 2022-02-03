@@ -8,6 +8,8 @@
 use std::collections::BTreeSet;
 use std::{convert::TryFrom, fmt};
 
+use datafusion::error::DataFusionError;
+use datafusion::logical_plan::when;
 use datafusion::{
     logical_plan::{binary_expr, Expr, Operator},
     prelude::*,
@@ -106,6 +108,12 @@ pub enum Error {
 
     #[snafu(display("Error converting field_name to utf8: {}", source))]
     ConvertingFieldName { source: std::string::FromUtf8Error },
+
+    #[snafu(display("Internal error creating CASE from tag_ref '{}: {}", tag_name, source))]
+    InternalCaseConversion {
+        tag_name: String,
+        source: DataFusionError,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -293,6 +301,7 @@ fn convert_simple_node(
     mut builder: InfluxRpcPredicateBuilder,
     node: RPCNode,
 ) -> Result<InfluxRpcPredicateBuilder> {
+    // Attempt to identify OR lists
     if let Ok(in_list) = InList::try_from(&node) {
         let InList { lhs, value_list } = in_list;
 
@@ -333,7 +342,7 @@ fn flatten_ands(node: RPCNode, mut dst: Vec<RPCNode>) -> Result<Vec<RPCNode>> {
 
 // Represents a predicate like <expr> IN (option1, option2, option3, ....)
 //
-// use `try_from_node1 to convert a tree like as ((expr = option1) OR (expr =
+// use `try_from_node` to convert a tree like as ((expr = option1) OR (expr =
 // option2)) or (expr = option3)) ... into such a form
 #[derive(Debug)]
 struct InList {
@@ -493,10 +502,35 @@ fn build_node(value: RPCValue, inputs: Vec<Expr>) -> Result<Expr> {
         RPCValue::UintValue(v) => Ok(lit(v)),
         RPCValue::FloatValue(f) => Ok(lit(f)),
         RPCValue::RegexValue(pattern) => Ok(lit(pattern)),
-        RPCValue::TagRefValue(tag_name) => Ok(col(&make_tag_name(tag_name)?)),
+        RPCValue::TagRefValue(tag_name) => build_tag_ref(tag_name),
         RPCValue::FieldRefValue(field_name) => Ok(col(&field_name)),
         RPCValue::Logical(logical) => build_logical_node(logical, inputs),
         RPCValue::Comparison(comparison) => build_comparison_node(comparison, inputs),
+    }
+}
+
+/// Converts InfluxRPC nodes like `TagRef(tag_name)`:
+///
+/// Special tags (_measurement, _field) -> reference to those names
+///
+/// Other tags
+///
+/// ```sql
+/// CASE
+///  WHEN tag_name IS NULL THEN ''
+///  ELSE tag_name
+/// ```
+///
+/// As storage predicates such as `TagRef(tag_name) = ''` expect to
+/// match missing tags which IOx stores as NULL
+fn build_tag_ref(tag_name: Vec<u8>) -> Result<Expr> {
+    let tag_name = make_tag_name(tag_name)?;
+
+    match tag_name.as_str() {
+        MEASUREMENT_COLUMN_NAME | FIELD_COLUMN_NAME => Ok(col(&tag_name)),
+        _ => when(col(&tag_name).is_null(), lit(""))
+            .otherwise(col(&tag_name))
+            .context(InternalCaseConversionSnafu { tag_name }),
     }
 }
 

@@ -340,8 +340,6 @@ pub async fn read_filter_regex_operator() {
 }
 
 #[tokio::test]
-// fixed in https://github.com/influxdata/influxdb_iox/pull/3557
-#[ignore]
 pub async fn read_filter_empty_tag_eq() {
     do_read_filter_test(
         vec!["cpu value=1 1000", "cpu,host=server01 value=2 2000"],
@@ -361,8 +359,6 @@ pub async fn read_filter_empty_tag_eq() {
 }
 
 #[tokio::test]
-// fixed in https://github.com/influxdata/influxdb_iox/pull/3557
-#[ignore]
 pub async fn read_filter_empty_tag_not_regex() {
     do_read_filter_test(
         vec!["cpu value=1 1000", "cpu,host=server01 value=2 2000"],
@@ -382,8 +378,6 @@ pub async fn read_filter_empty_tag_not_regex() {
 }
 
 #[tokio::test]
-// fixed in https://github.com/influxdata/influxdb_iox/pull/3557
-#[ignore]
 pub async fn read_filter_empty_tag_regex() {
     do_read_filter_test(
         vec!["cpu value=1 1000", "cpu,host=server01 value=2 2000"],
