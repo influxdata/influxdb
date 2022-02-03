@@ -1480,25 +1480,18 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
-        let actual_predicates = fixture
-            .test_storage
-            .db_or_create(db_info.db_name())
-            .await
-            .expect("getting db")
-            .get_chunk("my_partition_key", ChunkId::new_test(0))
-            .unwrap()
-            .predicates();
-
         let expected_predicate = PredicateBuilder::default()
             .timestamp_range(150, 200)
             .build();
 
-        assert!(
-            actual_predicates.contains(&expected_predicate),
-            "\nActual: {:?}\nExpected: {:?}",
-            actual_predicates,
-            expected_predicate
-        );
+        fixture
+            .expect_predicates(
+                db_info.db_name(),
+                "my_partition_key",
+                0,
+                &expected_predicate,
+            )
+            .await;
 
         // --- general predicate
         let request = MeasurementNamesRequest {
@@ -1566,26 +1559,19 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
-        let actual_predicates = fixture
-            .test_storage
-            .db_or_create(db_info.db_name())
-            .await
-            .expect("getting db")
-            .get_chunk("my_partition_key", ChunkId::new_test(0))
-            .unwrap()
-            .predicates();
-
         let expected_predicate = PredicateBuilder::default()
             .timestamp_range(150, 200)
             .add_expr(make_state_ma_expr())
             .build();
 
-        assert!(
-            actual_predicates.contains(&expected_predicate),
-            "\nActual: {:?}\nExpected: {:?}",
-            actual_predicates,
-            expected_predicate
-        );
+        fixture
+            .expect_predicates(
+                db_info.db_name(),
+                "my_partition_key",
+                0,
+                &expected_predicate,
+            )
+            .await;
 
         grpc_request_metric_has_count(&fixture, "TagKeys", "ok", 1);
     }
@@ -1679,26 +1665,19 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
-        let actual_predicates = fixture
-            .test_storage
-            .db_or_create(db_info.db_name())
-            .await
-            .expect("getting db")
-            .get_chunk("my_partition_key", ChunkId::new_test(0))
-            .unwrap()
-            .predicates();
-
         let expected_predicate = PredicateBuilder::default()
             .timestamp_range(150, 200)
             .add_expr(make_state_ma_expr())
             .build();
 
-        assert!(
-            actual_predicates.contains(&expected_predicate),
-            "\nActual: {:?}\nExpected: {:?}",
-            actual_predicates,
-            expected_predicate
-        );
+        fixture
+            .expect_predicates(
+                db_info.db_name(),
+                "my_partition_key",
+                0,
+                &expected_predicate,
+            )
+            .await;
 
         grpc_request_metric_has_count(&fixture, "MeasurementTagKeys", "ok", 1);
     }
@@ -2366,7 +2345,30 @@ mod tests {
             ..Default::default()
         };
 
-        let frames = fixture.storage_client.read_filter(request).await.unwrap();
+        let frames = fixture
+            .storage_client
+            .read_filter(request.clone())
+            .await
+            .unwrap();
+
+        // also ensure the plumbing is hooked correctly and that the predicate made it
+        // down to the chunk and it was normalized to namevalue
+        let expected_predicate = PredicateBuilder::default()
+            .timestamp_range(0, 10000)
+            // should NOT have CASE nonsense for handling empty strings as
+            // that should bave been optimized by the time it gets to
+            // the chunk
+            .add_expr(col("state").eq(lit("MA")))
+            .build();
+
+        fixture
+            .expect_predicates(
+                db_info.db_name(),
+                "my_partition_key",
+                0,
+                &expected_predicate,
+            )
+            .await;
 
         // TODO: encode the actual output in the test case or something
         assert_eq!(
@@ -2376,6 +2378,62 @@ mod tests {
         );
 
         grpc_request_metric_has_count(&fixture, "ReadFilter", "ok", 1);
+    }
+
+    #[tokio::test]
+    async fn test_read_filter_empty_string() {
+        test_helpers::maybe_start_logging();
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = org_and_bucket();
+
+        // Add a chunk with a field
+        let chunk = TestChunk::new("TheMeasurement")
+            .with_time_column()
+            .with_tag_column("state")
+            .with_one_row_of_data();
+
+        fixture
+            .test_storage
+            .db_or_create(db_info.db_name())
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClient::read_source(&db_info, 1));
+
+        let request = ReadFilterRequest {
+            read_source: source.clone(),
+            range: Some(make_timestamp_range(0, 10000)),
+            predicate: Some(make_tag_predicate("state", "", node::Comparison::Equal)),
+            ..Default::default()
+        };
+
+        fixture
+            .storage_client
+            .read_filter(request.clone())
+            .await
+            .unwrap();
+
+        // also ensure the plumbing is hooked correctly and that the predicate made it
+        // down to the chunk and it was normalized to namevalue
+        let expected_predicate = PredicateBuilder::default()
+            .timestamp_range(0, 10000)
+            // comparison to empty string conversion results in a messier translation
+            // to handle backwards compatibility semantics
+            // #state IS NULL OR #state = Utf8("")
+            .add_expr(col("state").is_null().or(col("state").eq(lit(""))))
+            .build();
+
+        fixture
+            .expect_predicates(
+                db_info.db_name(),
+                "my_partition_key",
+                0,
+                &expected_predicate,
+            )
+            .await;
     }
 
     #[tokio::test]
@@ -2785,6 +2843,15 @@ mod tests {
     }
 
     fn make_state_predicate(op: node::Comparison) -> Predicate {
+        make_tag_predicate("state", "MA", op)
+    }
+
+    /// TagRef(tag_name) op tag_value
+    fn make_tag_predicate(
+        tag_name: impl Into<String>,
+        tag_value: impl Into<String>,
+        op: node::Comparison,
+    ) -> Predicate {
         use node::{Type, Value};
         let root = Node {
             node_type: Type::ComparisonExpression as i32,
@@ -2792,12 +2859,12 @@ mod tests {
             children: vec![
                 Node {
                     node_type: Type::TagRef as i32,
-                    value: Some(Value::TagRefValue("state".to_string().into_bytes())),
+                    value: Some(Value::TagRefValue(tag_name.into().into_bytes())),
                     children: vec![],
                 },
                 Node {
                     node_type: Type::Literal as i32,
-                    value: Some(Value::StringValue("MA".to_string())),
+                    value: Some(Value::StringValue(tag_value.into())),
                     children: vec![],
                 },
             ],
@@ -2895,6 +2962,32 @@ mod tests {
                 storage_client,
                 test_storage,
             })
+        }
+
+        /// Gathers predicates applied to the specified chunks and
+        /// asserts that `expected_predicate` is within it
+        async fn expect_predicates(
+            &self,
+            db_name: &str,
+            partition_key: &str,
+            chunk_id: u128,
+            expected_predicate: &predicate::predicate::Predicate,
+        ) {
+            let actual_predicates = self
+                .test_storage
+                .db_or_create(db_name)
+                .await
+                .expect("getting db")
+                .get_chunk(partition_key, ChunkId::new_test(chunk_id))
+                .unwrap()
+                .predicates();
+
+            assert!(
+                actual_predicates.contains(expected_predicate),
+                "\nActual: {:?}\nExpected: {:?}",
+                actual_predicates,
+                expected_predicate
+            );
         }
     }
 
