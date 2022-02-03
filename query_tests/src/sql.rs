@@ -517,7 +517,6 @@ async fn sql_predicate_pushdown_correctness_14() {
 
 #[tokio::test]
 async fn sql_deduplicate_1() {
-    // This current expected is wrong because deduplicate is not available yet
     let sql =
         "select time, state, city, min_temp, max_temp, area from h2o order by time, state, city";
     let expected = vec![
