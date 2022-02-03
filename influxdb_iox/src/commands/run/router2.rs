@@ -3,7 +3,9 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use crate::{
-    clap_blocks::{run_config::RunConfig, write_buffer::WriteBufferConfig},
+    clap_blocks::{
+        catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
+    },
     influxdb_ioxd::{
         self,
         server_type::{
@@ -12,7 +14,6 @@ use crate::{
         },
     },
 };
-use iox_catalog::{interface::Catalog, postgres::PostgresCatalog};
 use observability_deps::tracing::*;
 use router2::{
     dml_handlers::{SchemaValidator, ShardedWriteBuffer},
@@ -62,25 +63,17 @@ pub struct Config {
     pub(crate) run_config: RunConfig,
 
     #[clap(flatten)]
-    pub(crate) write_buffer_config: WriteBufferConfig,
+    pub(crate) catalog_dsn: CatalogDsnConfig,
 
-    /// Postgres connection string
-    #[clap(env = "INFLUXDB_IOX_CATALOG_DSN")]
-    pub catalog_dsn: String,
+    #[clap(flatten)]
+    pub(crate) write_buffer_config: WriteBufferConfig,
 }
 
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let metrics = Arc::new(metric::Registry::default());
 
-    let catalog: Arc<dyn Catalog> = Arc::new(
-        PostgresCatalog::connect(
-            "router2",
-            iox_catalog::postgres::SCHEMA_NAME,
-            &config.catalog_dsn,
-        )
-        .await?,
-    );
+    let catalog = config.catalog_dsn.get_catalog("router2").await?;
 
     let write_buffer = init_write_buffer(
         &config,
