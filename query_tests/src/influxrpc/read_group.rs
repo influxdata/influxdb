@@ -2,16 +2,14 @@
 use crate::{
     influxrpc::util::run_series_set_plan,
     scenarios::{
-        util::{all_scenarios_for_one_chunk, make_two_chunk_scenarios},
-        DbScenario, DbSetup, NoData, TwoMeasurementsManyFields, TwoMeasurementsManyFieldsOneChunk,
+        AnotherMeasurementForAggs, DbScenario, DbSetup, MeasurementForDefect2691,
+        MeasurementForGroupByField, MeasurementForGroupKeys, MeasurementForMax, MeasurementForMin,
+        MeasurementForSelectors, NoData, OneMeasurementForAggs, OneMeasurementNoTags2,
+        OneMeasurementNoTagsWithDelete, OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk,
+        TwoMeasurementForAggs, TwoMeasurementsManyFields, TwoMeasurementsManyFieldsOneChunk,
     },
 };
 
-use async_trait::async_trait;
-use data_types::{
-    delete_predicate::{DeleteExpr, DeletePredicate},
-    timestamp::TimestampRange,
-};
 use datafusion::{
     logical_plan::{binary_expr, Operator},
     prelude::*,
@@ -72,76 +70,6 @@ async fn test_read_group_no_data_no_pred() {
     .await;
 }
 
-struct OneMeasurementNoTags {}
-#[async_trait]
-impl DbSetup for OneMeasurementNoTags {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-        let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
-        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "m0", partition_key).await
-    }
-}
-
-struct OneMeasurementNoTagsWithDelete {}
-#[async_trait]
-impl DbSetup for OneMeasurementNoTagsWithDelete {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-        let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
-
-        // pred: delete from m0 where 1 <= time <= 1 and foo=1.0
-        // 1 row of m0 with timestamp 1
-        let delete_table_name = "m0";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(1, 1),
-            exprs: vec![DeleteExpr::new(
-                "foo".to_string(),
-                data_types::delete_predicate::Op::Eq,
-                data_types::delete_predicate::Scalar::F64((1.0).into()),
-            )],
-        };
-
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
-
-/// This will create many scenarios (at least 15), some have a chunk with
-/// soft deleted data, some have no chunks because there is no point to
-/// create a RUB for one or many compacted MUB with all deleted data.
-struct OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {}
-#[async_trait]
-impl DbSetup for OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-        let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
-
-        // pred: delete from m0 where 1 <= time <= 2
-        let delete_table_name = "m0";
-        let pred = DeletePredicate {
-            range: TimestampRange::new(1, 2),
-            exprs: vec![],
-        };
-
-        // Apply predicate before the chunk is moved if any. There will be
-        // scenario without chunks as a consequence of not-compacting-deleted-data
-        all_scenarios_for_one_chunk(
-            vec![&pred],
-            vec![],
-            lp_lines,
-            delete_table_name,
-            partition_key,
-        )
-        .await
-    }
-}
-
 #[tokio::test]
 async fn test_read_group_data_no_tag_columns() {
     // Count
@@ -153,7 +81,7 @@ async fn test_read_group_data_no_tag_columns() {
     ];
 
     run_read_group_test_case(
-        OneMeasurementNoTags {},
+        OneMeasurementNoTags2 {},
         InfluxRpcPredicate::default(),
         agg,
         group_columns.clone(),
@@ -169,7 +97,7 @@ async fn test_read_group_data_no_tag_columns() {
     ];
 
     run_read_group_test_case(
-        OneMeasurementNoTags {},
+        OneMeasurementNoTags2 {},
         InfluxRpcPredicate::default(),
         agg,
         group_columns,
@@ -247,27 +175,6 @@ async fn test_read_group_data_no_tag_columns_min_with_delete_all() {
     .await;
 }
 
-struct OneMeasurementForAggs {}
-#[async_trait]
-impl DbSetup for OneMeasurementForAggs {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines1 = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100",
-            "h2o,state=MA,city=Boston temp=72.4 250",
-        ];
-        let lp_lines2 = vec![
-            "h2o,state=CA,city=LA temp=90.0 200",
-            "h2o,state=CA,city=LA temp=90.0 350",
-        ];
-
-        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
-    }
-}
-
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
-
 #[tokio::test]
 async fn test_read_group_data_pred() {
     let predicate = PredicateBuilder::default()
@@ -317,30 +224,6 @@ async fn test_read_group_data_field_restriction() {
     )
     .await;
 }
-
-struct AnotherMeasurementForAggs {}
-#[async_trait]
-impl DbSetup for AnotherMeasurementForAggs {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines1 = vec![
-            "h2o,state=MA,city=Cambridge temp=80 50",
-            "h2o,state=MA,city=Cambridge temp=81 100",
-            "h2o,state=MA,city=Cambridge temp=82 200",
-            "h2o,state=MA,city=Boston temp=70 300",
-        ];
-        let lp_lines2 = vec![
-            "h2o,state=MA,city=Boston temp=71 400",
-            "h2o,state=CA,city=LA temp=90,humidity=10 500",
-            "h2o,state=CA,city=LA temp=91,humidity=11 600",
-        ];
-
-        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
-    }
-}
-
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_sum() {
@@ -445,27 +328,6 @@ async fn test_grouped_series_set_plan_mean() {
     .await;
 }
 
-struct TwoMeasurementForAggs {}
-#[async_trait]
-impl DbSetup for TwoMeasurementForAggs {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines1 = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100",
-            "h2o,state=MA,city=Boston temp=72.4 250",
-        ];
-        let lp_lines2 = vec![
-            "o2,state=CA,city=LA temp=90.0 200",
-            "o2,state=CA,city=LA temp=90.0 350",
-        ];
-
-        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
-    }
-}
-
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
-
 #[tokio::test]
 async fn test_grouped_series_set_plan_count_measurement_pred() {
     let predicate = PredicateBuilder::default()
@@ -496,23 +358,6 @@ async fn test_grouped_series_set_plan_count_measurement_pred() {
         expected_results,
     )
     .await;
-}
-
-struct MeasurementForSelectors {}
-#[async_trait]
-impl DbSetup for MeasurementForSelectors {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines1 = vec!["h2o,state=MA,city=Cambridge f=8.0,i=8i,b=true,s=\"d\" 1000"];
-        let lp_lines2 = vec![
-            "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=true,s=\"c\" 2000",
-            "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=false,s=\"b\" 3000",
-            "h2o,state=MA,city=Cambridge f=5.0,i=5i,b=false,s=\"a\" 4000",
-        ];
-
-        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
-    }
 }
 
 // NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
@@ -641,25 +486,6 @@ async fn test_grouped_series_set_plan_last_with_nulls() {
     .await;
 }
 
-struct MeasurementForMin {}
-#[async_trait]
-impl DbSetup for MeasurementForMin {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines1 = vec![
-            "h2o,state=MA,city=Cambridge f=8.0,i=8i,b=false,s=\"c\" 1000",
-            "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=true,s=\"a\" 2000",
-        ];
-        let lp_lines2 = vec![
-            "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=true,s=\"z\" 3000",
-            "h2o,state=MA,city=Cambridge f=5.0,i=5i,b=false,s=\"c\" 4000",
-        ];
-
-        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
-    }
-}
-
 // NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 #[tokio::test]
@@ -691,25 +517,6 @@ async fn test_grouped_series_set_plan_min() {
     .await;
 }
 
-struct MeasurementForMax {}
-#[async_trait]
-impl DbSetup for MeasurementForMax {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines1 = vec![
-            "h2o,state=MA,city=Cambridge f=8.0,i=8i,b=true,s=\"c\" 1000",
-            "h2o,state=MA,city=Cambridge f=7.0,i=7i,b=false,s=\"d\" 2000",
-            "h2o,state=MA,city=Cambridge f=6.0,i=6i,b=true,s=\"a\" 3000",
-        ];
-        let lp_lines2 = vec!["h2o,state=MA,city=Cambridge f=5.0,i=5i,b=false,s=\"z\" 4000"];
-
-        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
-    }
-}
-
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
-
 #[tokio::test]
 async fn test_grouped_series_set_plan_max() {
     let predicate = PredicateBuilder::default()
@@ -738,30 +545,6 @@ async fn test_grouped_series_set_plan_max() {
     )
     .await;
 }
-
-struct MeasurementForGroupKeys {}
-#[async_trait]
-impl DbSetup for MeasurementForGroupKeys {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines1 = vec![
-            "h2o,state=MA,city=Cambridge temp=80 50",
-            "h2o,state=MA,city=Cambridge temp=81 100",
-            "h2o,state=MA,city=Cambridge temp=82 200",
-        ];
-        let lp_lines2 = vec![
-            "h2o,state=MA,city=Boston temp=70 300",
-            "h2o,state=MA,city=Boston temp=71 400",
-            "h2o,state=CA,city=LA temp=90,humidity=10 500",
-            "h2o,state=CA,city=LA temp=91,humidity=11 600",
-        ];
-
-        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
-    }
-}
-
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_by_state_city() {
@@ -838,28 +621,6 @@ async fn test_grouped_series_set_plan_group_aggregate_none() {
         expected_results,
     )
     .await;
-}
-
-struct MeasurementForGroupByField {}
-#[async_trait]
-impl DbSetup for MeasurementForGroupByField {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines1 = vec![
-            "system,host=local,region=A load1=1.1,load2=2.1 100",
-            "system,host=local,region=A load1=1.2,load2=2.2 200",
-            "system,host=remote,region=B load1=10.1,load2=2.1 100",
-        ];
-
-        let lp_lines2 = vec![
-            "system,host=remote,region=B load1=10.2,load2=20.2 200",
-            "system,host=local,region=C load1=100.1,load2=200.1 100",
-            "aa_system,host=local,region=C load1=100.1,load2=200.1 100",
-        ];
-
-        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
-    }
 }
 
 #[tokio::test]
@@ -1091,27 +852,6 @@ async fn test_grouped_series_set_plan_group_field_pred_filter_on_field() {
         expected_results,
     )
     .await;
-}
-
-// Test data to validate fix for:
-// https://github.com/influxdata/influxdb_iox/issues/2691
-struct MeasurementForDefect2691 {}
-#[async_trait]
-impl DbSetup for MeasurementForDefect2691 {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "2018-05-22T19";
-
-        let lp = vec![
-            "system,host=host.local load1=1.83 1527018806000000000",
-            "system,host=host.local load1=1.63 1527018816000000000",
-            "system,host=host.local load3=1.72 1527018806000000000",
-            "system,host=host.local load4=1.77 1527018806000000000",
-            "system,host=host.local load4=1.78 1527018816000000000",
-            "system,host=host.local load4=1.77 1527018826000000000",
-        ];
-
-        all_scenarios_for_one_chunk(vec![], vec![], lp, "system", partition_key).await
-    }
 }
 
 // See issue: https://github.com/influxdata/influxdb_iox/issues/2691
