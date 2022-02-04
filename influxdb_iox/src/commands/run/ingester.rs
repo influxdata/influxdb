@@ -111,7 +111,7 @@ pub async fn command(config: Config) -> Result<()> {
     }
 
     let kafka_partitions: Vec<_> = (config.write_buffer_partition_range_start
-        ..config.write_buffer_partition_range_end)
+        ..=config.write_buffer_partition_range_end)
         .map(KafkaPartition::new)
         .collect();
 
