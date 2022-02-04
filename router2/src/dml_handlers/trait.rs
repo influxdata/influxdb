@@ -8,7 +8,7 @@ use mutable_batch::MutableBatch;
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
-use super::{SchemaError, ShardError};
+use super::{NamespaceCreationError, SchemaError, ShardError};
 
 /// Errors emitted by a [`DmlHandler`] implementation during DML request
 /// processing.
@@ -25,6 +25,10 @@ pub enum DmlError {
     /// A schema validation failure.
     #[error(transparent)]
     Schema(#[from] SchemaError),
+
+    /// Failed to create the request namespace.
+    #[error(transparent)]
+    NamespaceCreation(#[from] NamespaceCreationError),
 
     /// An unknown error occured while processing the DML request.
     #[error("internal dml handler error: {0}")]

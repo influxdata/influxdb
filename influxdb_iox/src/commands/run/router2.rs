@@ -16,7 +16,7 @@ use crate::{
 };
 use observability_deps::tracing::*;
 use router2::{
-    dml_handlers::{SchemaValidator, ShardedWriteBuffer},
+    dml_handlers::{NamespaceAutocreation, SchemaValidator, ShardedWriteBuffer},
     namespace_cache::MemoryNamespaceCache,
     sequencer::Sequencer,
     server::{http::HttpDelegate, RouterServer},
@@ -67,6 +67,14 @@ pub struct Config {
 
     #[clap(flatten)]
     pub(crate) write_buffer_config: WriteBufferConfig,
+
+    /// Query pool name to dispatch writes to.
+    #[clap(
+        long = "--query-pool",
+        env = "INFLUXDB_IOX_QUERY_POOL_NAME",
+        default_value = "iox-shared"
+    )]
+    pub(crate) query_pool_name: String,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -83,7 +91,56 @@ pub async fn command(config: Config) -> Result<()> {
     .await?;
 
     let ns_cache = Arc::new(MemoryNamespaceCache::default());
-    let handler_stack = SchemaValidator::new(write_buffer, catalog, ns_cache);
+    let handler_stack =
+        SchemaValidator::new(write_buffer, Arc::clone(&catalog), Arc::clone(&ns_cache));
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // THIS CODE IS FOR TESTING ONLY.
+    //
+    // The source of truth for the kafka topics & query pools will be read from
+    // the DB, rather than CLI args for a prod deployment.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // Look up the kafka topic ID needed to populate namespace creation
+    // requests.
+    //
+    // This code / auto-creation is for architecture testing purposes only - a
+    // prod deployment would expect namespaces to be explicitly created and this
+    // layer would be removed.
+    let topic_id = catalog
+        .kafka_topics()
+        .get_by_name(&config.write_buffer_config.topic)
+        .await?
+        .map(|v| v.id)
+        .unwrap_or_else(|| {
+            panic!(
+                "no kafka topic named {} in catalog",
+                &config.write_buffer_config.topic
+            )
+        });
+    let query_id = catalog
+        .query_pools()
+        .create_or_get(&config.query_pool_name)
+        .await
+        .map(|v| v.id)
+        .unwrap_or_else(|e| {
+            panic!(
+                "failed to upsert query pool {} in catalog: {}",
+                &config.write_buffer_config.topic, e
+            )
+        });
+    let handler_stack = NamespaceAutocreation::new(
+        catalog,
+        ns_cache,
+        topic_id,
+        query_id,
+        iox_catalog::INFINITE_RETENTION_POLICY.to_owned(),
+        handler_stack,
+    );
+    //
+    ////////////////////////////////////////////////////////////////////////////
 
     let http = HttpDelegate::new(config.run_config.max_http_request_size, handler_stack);
     let router_server = RouterServer::new(

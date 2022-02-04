@@ -85,9 +85,9 @@ impl Error {
                 // https://www.rfc-editor.org/rfc/rfc7231#section-6.5.13
                 StatusCode::UNSUPPORTED_MEDIA_TYPE
             }
-            Error::DmlHandler(DmlError::Internal(_) | DmlError::WriteBuffer(_)) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            Error::DmlHandler(
+                DmlError::Internal(_) | DmlError::WriteBuffer(_) | DmlError::NamespaceCreation(_),
+            ) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
