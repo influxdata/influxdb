@@ -3,23 +3,30 @@ pub(crate) mod response;
 
 use std::num::NonZeroU64;
 
+use snafu::{ResultExt, Snafu};
+use tonic::Status;
+
 use generated_types::Predicate;
 use influxdb_storage_client::{connection::Connection, Client, OrgAndBucket};
 use influxrpc_parser::predicate;
 use time;
 
-use snafu::{ResultExt, Snafu};
-
 #[derive(Debug, Snafu)]
 pub enum ParseError {
-    #[snafu(display("Unable to parse timestamp '{:?}'", t))]
+    #[snafu(display("unable to parse timestamp '{:?}'", t))]
     Timestamp { t: String },
 
-    #[snafu(display("Unable to parse database name '{:?}'", db_name))]
+    #[snafu(display("unable to parse database name '{:?}'", db_name))]
     DBName { db_name: String },
 
-    #[snafu(display("Unable to parse predicate: {:?}", source))]
+    #[snafu(display("unable to parse predicate: {:?}", source))]
     Predicate { source: predicate::Error },
+
+    #[snafu(display("server error: {:?}", source))]
+    ServerError { source: Status },
+
+    #[snafu(display("error building response: {:?}", source))]
+    ResponseError { source: response::Error },
 }
 
 pub type Result<T, E = ParseError> = std::result::Result<T, E>;
@@ -129,8 +136,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 ))
                 .await
         }
-    };
-    Ok(())
+    }
+    .context(ServerSnafu)?;
+
+    response::pretty_print(&result).context(ResponseSnafu)
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use arrow::record_batch::RecordBatch;
+use arrow::{record_batch::RecordBatch, util::pretty::print_batches};
 use hashbrown::HashMap;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -17,7 +17,7 @@ use snafu::{ResultExt, Snafu};
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("arrow error: {:?}", source))]
-    ArrowError { source: arrow::error::ArrowError },
+    Arrow { source: arrow::error::ArrowError },
 
     #[snafu(display("frame type currently unsupported: {:?}", frame))]
     UnsupportedFrameType { frame: String },
@@ -32,10 +32,23 @@ pub enum Error {
     InvalidMeasurementName { source: FromUtf8Error },
 
     #[snafu(display("unable to build schema: {:?}", source))]
-    SchemaBuildingError { source: schema::builder::Error },
+    SchemaBuilding { source: schema::builder::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+// Prints the provided data frames in a tabular format grouped into tables per
+// distinct measurement.
+pub fn pretty_print(frames: &[Data]) -> Result<()> {
+    let rbs = into_record_batches(frames)?;
+    for (k, rb) in rbs {
+        println!("_measurement: {}", k);
+        println!("rows: {:?}", &rb.num_rows());
+        print_batches(&[rb]).context(ArrowSnafu)?;
+        println!("\n\n");
+    }
+    Ok(())
+}
 
 // This function takes a set of InfluxRPC data frames and converts them into an
 // Arrow record batches, which are suitable for pretty printing.
@@ -46,6 +59,10 @@ fn into_record_batches(frames: &[Data]) -> Result<BTreeMap<String, RecordBatch>>
 
     let mut all_tables = BTreeMap::new();
     let mut current_table_frame: Option<(IntermediateTable, SeriesFrame)> = None;
+
+    if frames.is_empty() {
+        return Ok(all_tables);
+    }
 
     for frame in frames {
         match frame {
@@ -697,7 +714,11 @@ mod test_super {
             TableColumnInput::new(
                 "another table",
                 &["region"],
-                &[("voltage", DataType::String)],
+                &[
+                    ("bool_field", DataType::Boolean),
+                    ("unsigned_field", DataType::Unsigned),
+                    ("voltage", DataType::String),
+                ],
             ),
         ]);
         assert_eq!(determine_tag_columns(&frames), exp);
