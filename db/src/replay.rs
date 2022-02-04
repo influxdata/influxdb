@@ -981,6 +981,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_two_partitions_persist_second() {
+        test_helpers::maybe_start_logging();
         // acts as regression test for the following PRs:
         // - https://github.com/influxdata/influxdb_iox/pull/2079
         // - https://github.com/influxdata/influxdb_iox/pull/2084
@@ -1087,6 +1088,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_two_partitions_persist_first() {
+        test_helpers::maybe_start_logging();
         // acts as regression test for the following PRs:
         // - https://github.com/influxdata/influxdb_iox/pull/2079
         // - https://github.com/influxdata/influxdb_iox/pull/2084
@@ -1193,6 +1195,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_nothing_to_replay() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 Step::Restart,
@@ -1227,6 +1230,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_different_sequencer_situations() {
+        test_helpers::maybe_start_logging();
         // three sequencers:
         //   0: no data at all
         //   1: replay required, additional incoming data during downtime
@@ -1338,6 +1342,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_interleaved_writes() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 // let's ingest some data for two partitions a and b
@@ -1581,6 +1586,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_compacts() {
+        test_helpers::maybe_start_logging();
         let tracing_capture = TracingCapture::new();
 
         // these numbers are handtuned to trigger hard buffer limits w/o making the test too big
@@ -1635,6 +1641,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_prune_full_partition() {
+        test_helpers::maybe_start_logging();
         // there the following entries:
         //
         // 0. table 2, partition a:
@@ -1723,6 +1730,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_prune_some_sequences_partition() {
+        test_helpers::maybe_start_logging();
         // there the following entries:
         //
         // 0. table 2, partition a:
@@ -1814,6 +1822,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_prune_rows() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![
@@ -1923,6 +1932,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_works_with_checkpoints_all_full_persisted_1() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             catalog_transactions_until_checkpoint: NonZeroU64::new(2).unwrap(),
             steps: vec![
@@ -1962,6 +1972,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_works_with_checkpoints_all_full_persisted_2() {
+        test_helpers::maybe_start_logging();
         // try to provoke an catalog checkpoints that lists database checkpoints in the wrong order
         ReplayTest {
             catalog_transactions_until_checkpoint: NonZeroU64::new(2).unwrap(),
@@ -2050,6 +2061,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_works_partially_persisted_1() {
+        test_helpers::maybe_start_logging();
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
         let tracing_capture = TracingCapture::new();
 
@@ -2121,6 +2133,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_works_partially_persisted_2() {
+        test_helpers::maybe_start_logging();
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
         let tracing_capture = TracingCapture::new();
 
@@ -2202,6 +2215,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_works_after_skip() {
+        test_helpers::maybe_start_logging();
         let tracing_capture = TracingCapture::new();
 
         ReplayTest {
@@ -2272,6 +2286,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_initializes_max_seen_sequence_numbers() {
+        test_helpers::maybe_start_logging();
         // Ensures that either replay or the catalog loading initializes the maximum seen sequence numbers (per
         // partition) correctly. Before this test (and its fix), sequence numbers were only written if there was any
         // unpersisted range during replay.
@@ -2402,6 +2417,7 @@ mod tests {
 
     #[tokio::test]
     async fn skip_replay_initializes_max_seen_sequence_numbers() {
+        test_helpers::maybe_start_logging();
         // Similar case to `replay_initializes_max_seen_sequence_numbers` but instead of replaying, we skip replay to
         // provoke a similar outcome.
         //
@@ -2528,6 +2544,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_after_drop() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![
@@ -2630,6 +2647,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_delete() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
@@ -2696,6 +2714,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_delete_persisted_chunks() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
@@ -2751,6 +2770,7 @@ mod tests {
     // This test replay compact os chunks with deletes and duplicates
     #[tokio::test]
     async fn replay_delete_compact_os_chunks() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 // --------------------------
@@ -2913,6 +2933,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_fail_sequencers_change() {
+        test_helpers::maybe_start_logging();
         // create write buffer w/ sequencer 0 and 1
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
@@ -2951,6 +2972,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_fail_lost_entry() {
+        test_helpers::maybe_start_logging();
         // create write buffer state with sequence number 0 and 2, 1 is missing
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
@@ -2990,6 +3012,7 @@ mod tests {
 
     #[tokio::test]
     async fn seek_to_end_works() {
+        test_helpers::maybe_start_logging();
         // setup watermarks:
         // 0 -> 3 + 1 = 4
         // 1 -> 1 + 1 = 2
@@ -3040,6 +3063,7 @@ mod tests {
         loop {
             println!("Try checks...");
             if ReplayTest::eval_checks(&checks, false, &test_db).await {
+                println!("checks passed...");
                 break;
             }
 
