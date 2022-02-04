@@ -73,7 +73,7 @@ fn parse_predicate(expr: &str) -> Result<Predicate, ParseError> {
 
 // Attempts to parse the database name into and org and bucket ID.
 fn parse_db_name(db_name: &str) -> Result<OrgAndBucket, ParseError> {
-    let parts = db_name.split("_").collect::<Vec<_>>();
+    let parts = db_name.split('_').collect::<Vec<_>>();
     if parts.len() != 2 {
         return DBNameSnafu {
             db_name: db_name.to_owned(),
