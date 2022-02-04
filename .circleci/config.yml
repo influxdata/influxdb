@@ -36,7 +36,7 @@ jobs:
             set -x
 
             INFLUXDB_COMMIT=$(git rev-parse --short HEAD)
-            INFLUXDB_VERSION=$(git describe --exact-match --tags HEAD 2>/dev/null || printf '%s' "${INFLUXDB_COMMIT}" | sed 's|^v||')
+            INFLUXDB_VERSION=$(releng/get-version -p 1.x)
 
             printf '{
                 "version": "%s",
@@ -75,7 +75,7 @@ jobs:
             export CGO_ENABLED=1
 
             INFLUXDB_COMMIT=$(git rev-parse --short HEAD)
-            INFLUXDB_VERSION=$(git describe --exact-match --tags HEAD 2>/dev/null || printf '%s' "${INFLUXDB_COMMIT}" | sed 's|^v||')
+            INFLUXDB_VERSION=$(releng/get-version)
 
             # linux amd64 (static build)
             TMPOUTDIR=$(mktemp -d)
@@ -132,7 +132,6 @@ jobs:
               -b "/tmp/workspace/bins/influxdb_bin_linux_amd64-${CIRCLE_SHA1}.tar.gz" \
               -O linux -A amd64 \
               -o "$OUTDIR"
-
       - store_artifacts:
           path: packages/
       - persist_to_workspace:
