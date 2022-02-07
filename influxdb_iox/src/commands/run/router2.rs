@@ -167,7 +167,7 @@ async fn init_write_buffer(
     let write_buffer = Arc::new(
         config
             .write_buffer_config
-            .init_write_buffer(metrics, trace_collector)
+            .writing(metrics, trace_collector)
             .await?,
     );
 

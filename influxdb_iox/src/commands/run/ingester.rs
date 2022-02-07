@@ -12,7 +12,6 @@ use crate::{
         },
     },
 };
-use data_types::write_buffer::WriteBufferConnection;
 use ingester::{
     handler::IngestHandlerImpl,
     server::{grpc::GrpcDelegate, http::HttpDelegate, IngesterServer},
@@ -24,8 +23,6 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::sync::Arc;
 use thiserror::Error;
-use time::TimeProvider;
-use write_buffer::config::WriteBufferConfigFactory;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -107,7 +104,7 @@ pub async fn command(config: Config) -> Result<()> {
         .kafka_topics()
         .get_by_name(&config.write_buffer_config.topic)
         .await?
-        .ok_or(Error::KafkaTopicNotFound(config.write_buffer_config.topic))?;
+        .ok_or_else(|| Error::KafkaTopicNotFound(config.write_buffer_config.topic.clone()))?;
 
     if config.write_buffer_partition_range_start > config.write_buffer_partition_range_end {
         return Err(Error::KafkaRange);
@@ -135,22 +132,10 @@ pub async fn command(config: Config) -> Result<()> {
 
     let metric_registry: Arc<metric::Registry> = Default::default();
     let trace_collector = common_state.trace_collector();
-    let time_provider: Arc<dyn TimeProvider> = Arc::new(time::SystemProvider::new());
-    let write_buffer_factory =
-        WriteBufferConfigFactory::new(Arc::clone(&time_provider), Arc::clone(&metric_registry));
 
-    let write_buffer_cfg = WriteBufferConnection {
-        type_: config.write_buffer_config.type_,
-        connection: config.write_buffer_config.connection_string,
-        connection_config: Default::default(),
-        creation_config: None,
-    };
-    let write_buffer = write_buffer_factory
-        .new_config_read(
-            &kafka_topic.name,
-            trace_collector.as_ref(),
-            &write_buffer_cfg,
-        )
+    let write_buffer = config
+        .write_buffer_config
+        .reading(Arc::clone(&metric_registry), trace_collector.clone())
         .await?;
 
     let ingest_handler = Arc::new(

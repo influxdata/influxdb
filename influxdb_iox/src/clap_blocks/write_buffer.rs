@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use data_types::write_buffer::WriteBufferConnection;
 use time::SystemProvider;
 use trace::TraceCollector;
 use write_buffer::{
     config::WriteBufferConfigFactory,
-    core::{WriteBufferError, WriteBufferWriting},
+    core::{WriteBufferError, WriteBufferReading, WriteBufferWriting},
 };
 
 #[derive(Debug, clap::Parser)]
@@ -27,27 +27,114 @@ pub struct WriteBufferConfig {
         default_value = "iox-shared"
     )]
     pub(crate) topic: String,
+
+    /// Write buffer connection config.
+    ///
+    /// The concrete options depend on the write buffer type.
+    ///
+    /// Command line arguments are passed as `--write-buffer-connection-config key1=value1 key2=value2` or
+    /// `--write-buffer-connection-config key1=value1,key2=value2`.
+    ///
+    /// Environment variables are passed as `key1=value1,key2=value2,...`.
+    #[clap(
+        long = "--write-buffer-connection-config",
+        env = "INFLUXDB_IOX_WRITE_BUFFER_CONNECTION_CONFIG",
+        default_value = "",
+        multiple_values = true,
+        use_delimiter = true
+    )]
+    pub(crate) connection_config: Vec<String>,
 }
 
 impl WriteBufferConfig {
-    /// Initialize the [`WriteBufferWriting`].
-    pub async fn init_write_buffer(
+    /// Initialize a [`WriteBufferWriting`].
+    pub async fn writing(
         &self,
         metrics: Arc<metric::Registry>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Result<Arc<dyn WriteBufferWriting>, WriteBufferError> {
-        let write_buffer_config = WriteBufferConnection {
+        let conn = self.conn();
+        let factory = Self::factory(metrics);
+        factory
+            .new_config_write(&self.topic, trace_collector.as_ref(), &conn)
+            .await
+    }
+
+    /// Initialize a [`WriteBufferReading`].
+    pub async fn reading(
+        &self,
+        metrics: Arc<metric::Registry>,
+        trace_collector: Option<Arc<dyn TraceCollector>>,
+    ) -> Result<Arc<dyn WriteBufferReading>, WriteBufferError> {
+        let conn = self.conn();
+        let factory = Self::factory(metrics);
+        factory
+            .new_config_read(&self.topic, trace_collector.as_ref(), &conn)
+            .await
+    }
+
+    fn connection_config(&self) -> BTreeMap<String, String> {
+        let mut cfg = BTreeMap::new();
+
+        for s in &self.connection_config {
+            if s.is_empty() {
+                continue;
+            }
+
+            if let Some((k, v)) = s.split_once('=') {
+                cfg.insert(k.to_owned(), v.to_owned());
+            } else {
+                cfg.insert(s.clone(), String::from(""));
+            }
+        }
+
+        cfg
+    }
+
+    fn conn(&self) -> WriteBufferConnection {
+        WriteBufferConnection {
             type_: self.type_.clone(),
             connection: self.connection_string.clone(),
-            connection_config: Default::default(),
+            connection_config: self.connection_config(),
             creation_config: None,
-        };
+        }
+    }
 
-        let write_buffer =
-            WriteBufferConfigFactory::new(Arc::new(SystemProvider::default()), metrics);
-        let write_buffer = write_buffer
-            .new_config_write(&self.topic, trace_collector.as_ref(), &write_buffer_config)
-            .await?;
-        Ok(write_buffer)
+    fn factory(metrics: Arc<metric::Registry>) -> WriteBufferConfigFactory {
+        WriteBufferConfigFactory::new(Arc::new(SystemProvider::default()), metrics)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::StructOpt;
+
+    use super::*;
+
+    #[test]
+    fn test_connection_config() {
+        let cfg = WriteBufferConfig::try_parse_from([
+            "my_binary",
+            "--write-buffer",
+            "kafka",
+            "--write-buffer-addr",
+            "localhost:1234",
+            "--write-buffer-connection-config",
+            "foo=bar",
+            "",
+            "x=",
+            "y",
+            "foo=baz",
+            "so=many=args",
+        ])
+        .unwrap();
+        let actual = cfg.connection_config();
+        let expected = BTreeMap::from([
+            (String::from("foo"), String::from("baz")),
+            (String::from("x"), String::from("")),
+            (String::from("y"), String::from("")),
+            (String::from("so"), String::from("many=args")),
+        ]);
+        assert_eq!(actual, expected);
     }
 }
