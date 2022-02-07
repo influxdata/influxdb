@@ -20,12 +20,26 @@ pub fn read_filter(
     }
 }
 
+pub fn tag_values(
+    org_bucket: Any,
+    start: i64,
+    stop: i64,
+    predicate: std::option::Option<Predicate>,
+    tag_key: String,
+) -> TagValuesRequest {
+    generated_types::TagValuesRequest {
+        predicate,
+        tags_source: Some(org_bucket),
+        range: Some(TimestampRange { start, end: stop }),
+        tag_key: tag_key.into(),
+    }
+}
+
 // TODO Add the following helpers for building requests:
 //
 // * read_group
 // * read_window_aggregate
 // * tag_keys
-// * tag_values
 // * tag_values_with_measurement_and_key
 // * measurement_names
 // * measurement_tag_keys
