@@ -77,6 +77,7 @@ func WithMetricsDisabled(m bool) Option {
 
 type MetaClient interface {
 	CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
+	DropDatabase(name string) error
 	CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	Database(name string) (di *meta.DatabaseInfo)
 	Databases() []meta.DatabaseInfo
@@ -317,7 +318,11 @@ func (e *Engine) UpdateBucketRetentionPolicy(ctx context.Context, bucketID platf
 func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID platform.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-	return e.tsdbStore.DeleteDatabase(bucketID.String())
+	err := e.tsdbStore.DeleteDatabase(bucketID.String())
+	if err != nil {
+		return err
+	}
+	return e.metaClient.DropDatabase(bucketID.String())
 }
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data

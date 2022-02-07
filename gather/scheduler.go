@@ -1,22 +1,13 @@
 package gather
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
+	"github.com/influxdata/influxdb/v2/storage"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/tracing"
-	"github.com/influxdata/influxdb/v2/nats"
 	"go.uber.org/zap"
-)
-
-// nats subjects
-const (
-	MetricsSubject    = "metrics"
-	promTargetSubject = "promTarget"
 )
 
 // Scheduler is struct to run scrape jobs.
@@ -24,112 +15,122 @@ type Scheduler struct {
 	Targets influxdb.ScraperTargetStoreService
 	// Interval is between each metrics gathering event.
 	Interval time.Duration
-	// Timeout is the maximum time duration allowed by each TCP request
-	Timeout time.Duration
-
-	// Publisher will send the gather requests and gathered metrics to the queue.
-	Publisher nats.Publisher
 
 	log *zap.Logger
 
-	gather chan struct{}
+	scrapeRequest chan *influxdb.ScraperTarget
+	done          chan struct{}
+	wg            sync.WaitGroup
+	writer        storage.PointsWriter
 }
 
 // NewScheduler creates a new Scheduler and subscriptions for scraper jobs.
 func NewScheduler(
 	log *zap.Logger,
-	numScrapers int,
+	scrapeQueueLength int,
+	scrapesInProgress int,
 	targets influxdb.ScraperTargetStoreService,
-	p nats.Publisher,
-	s nats.Subscriber,
+	writer storage.PointsWriter,
 	interval time.Duration,
-	timeout time.Duration,
 ) (*Scheduler, error) {
 	if interval == 0 {
 		interval = 60 * time.Second
 	}
-	if timeout == 0 {
-		timeout = 30 * time.Second
-	}
 	scheduler := &Scheduler{
-		Targets:   targets,
-		Interval:  interval,
-		Timeout:   timeout,
-		Publisher: p,
-		log:       log,
-		gather:    make(chan struct{}, 100),
+		Targets:       targets,
+		Interval:      interval,
+		log:           log,
+		scrapeRequest: make(chan *influxdb.ScraperTarget, scrapeQueueLength),
+		done:          make(chan struct{}),
+
+		writer: writer,
 	}
 
-	for i := 0; i < numScrapers; i++ {
-		err := s.Subscribe(promTargetSubject, "metrics", &handler{
-			Scraper:   newPrometheusScraper(),
-			Publisher: p,
-			log:       log,
-		})
-		if err != nil {
-			return nil, err
-		}
+	scheduler.wg.Add(1)
+	scraperPool := make(chan *prometheusScraper, scrapesInProgress)
+	for i := 0; i < scrapesInProgress; i++ {
+		scraperPool <- newPrometheusScraper()
 	}
+	go func() {
+		defer scheduler.wg.Done()
+		for {
+			select {
+			case req := <-scheduler.scrapeRequest:
+				select {
+				// Each request much acquire a scraper from the (limited) pool to run the scrape,
+				// then return it to the pool
+				case scraper := <-scraperPool:
+					scheduler.doScrape(scraper, req, func(s *prometheusScraper) {
+						scraperPool <- s
+					})
+				case <-scheduler.done:
+					return
+				}
+			case <-scheduler.done:
+				return
+			}
+		}
+	}()
+
+	scheduler.wg.Add(1)
+	go func() {
+		defer scheduler.wg.Done()
+		ticker := time.NewTicker(scheduler.Interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-scheduler.done:
+				return
+			case <-ticker.C:
+				scheduler.doGather()
+			}
+		}
+	}()
 
 	return scheduler, nil
 }
 
-// Run will retrieve scraper targets from the target storage,
-// and publish them to nats job queue for gather.
-func (s *Scheduler) Run(ctx context.Context) error {
-	go func(s *Scheduler, ctx context.Context) {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(s.Interval): // TODO: change to ticker because of garbage collection
-				s.gather <- struct{}{}
-			}
+func (s *Scheduler) doScrape(scraper *prometheusScraper, req *influxdb.ScraperTarget, releaseScraper func(s *prometheusScraper)) {
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		defer releaseScraper(scraper)
+		logger := s.log.With(zap.String("scraper-name", req.Name))
+		if req == nil {
+			return
 		}
-	}(s, ctx)
-	return s.run(ctx)
+		ms, err := scraper.Gather(*req)
+		if err != nil {
+			logger.Error("Unable to gather", zap.Error(err))
+			return
+		}
+		ps, err := ms.MetricsSlice.Points()
+		if err != nil {
+			logger.Error("Unable to gather list of points", zap.Error(err))
+		}
+		err = s.writer.WritePoints(context.Background(), ms.OrgID, ms.BucketID, ps)
+		if err != nil {
+			logger.Error("Unable to write gathered points", zap.Error(err))
+		}
+	}()
 }
 
-func (s *Scheduler) run(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-s.gather:
-			s.doGather(ctx)
-		}
-	}
-}
-
-func (s *Scheduler) doGather(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, s.Timeout)
-	defer cancel()
-	span, ctx := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	targets, err := s.Targets.ListTargets(ctx, influxdb.ScraperTargetFilter{})
+func (s *Scheduler) doGather() {
+	targets, err := s.Targets.ListTargets(context.Background(), influxdb.ScraperTargetFilter{})
 	if err != nil {
 		s.log.Error("Cannot list targets", zap.Error(err))
-		tracing.LogError(span, err)
 		return
 	}
 	for _, target := range targets {
-		if err := requestScrape(target, s.Publisher); err != nil {
-			s.log.Error("JSON encoding error", zap.Error(err))
-			tracing.LogError(span, err)
+		select {
+		case s.scrapeRequest <- &target:
+		default:
+			s.log.Warn("Skipping scrape due to scraper backlog", zap.String("target", target.Name))
 		}
 	}
 }
 
-func requestScrape(t influxdb.ScraperTarget, publisher nats.Publisher) error {
-	buf := new(bytes.Buffer)
-	err := json.NewEncoder(buf).Encode(t)
-	if err != nil {
-		return err
-	}
-	switch t.Type {
-	case influxdb.PrometheusScraperType:
-		return publisher.Publish(promTargetSubject, buf)
-	}
-	return fmt.Errorf("unsupported target scrape type: %s", t.Type)
+func (s *Scheduler) Close() {
+	close(s.done)
+	s.wg.Wait()
 }

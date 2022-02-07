@@ -3,6 +3,7 @@ package launcher_test
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	nethttp "net/http"
 	"strings"
@@ -210,6 +211,9 @@ func TestLauncher_BucketDelete(t *testing.T) {
 	if got, exp := engine.SeriesCardinality(ctx, l.Bucket.ID), int64(0); got != exp {
 		t.Fatalf("after bucket delete got %d, exp %d", got, exp)
 	}
+
+	databaseInfo := engine.MetaClient().Database(l.Bucket.ID.String())
+	assert.Nil(t, databaseInfo)
 }
 
 func TestLauncher_DeleteWithPredicate(t *testing.T) {

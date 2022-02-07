@@ -776,6 +776,8 @@ func (s *Store) DeleteShard(shardID uint64) error {
 }
 
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
+//
+// Returns nil if no database exists
 func (s *Store) DeleteDatabase(name string) error {
 	s.mu.RLock()
 	if _, ok := s.databases[name]; !ok {
