@@ -106,11 +106,13 @@ impl<D, C> SchemaValidator<D, C> {
 #[async_trait]
 impl<D, C> DmlHandler for SchemaValidator<D, C>
 where
-    D: DmlHandler,
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>>,
     C: NamespaceCache,
 {
     type WriteError = SchemaError;
     type DeleteError = D::DeleteError;
+
+    type WriteInput = HashMap<String, MutableBatch>;
 
     /// Validate the schema of all the writes in `batches` before passing the
     /// request onto the inner handler.
@@ -132,7 +134,7 @@ where
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
-        batches: HashMap<String, MutableBatch>,
+        batches: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::WriteError> {
         let mut repos = self.catalog.repositories().await;

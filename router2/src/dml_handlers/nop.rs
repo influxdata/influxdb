@@ -18,11 +18,12 @@ pub struct NopDmlHandler;
 impl DmlHandler for NopDmlHandler {
     type WriteError = DmlError;
     type DeleteError = DmlError;
+    type WriteInput = HashMap<String, MutableBatch>;
 
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
-        batches: HashMap<String, MutableBatch>,
+        batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::WriteError> {
         info!(%namespace, ?batches, "dropping write operation");

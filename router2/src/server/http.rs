@@ -6,7 +6,9 @@ use bytes::{Bytes, BytesMut};
 use data_types::names::{org_and_bucket_to_database, OrgBucketMappingError};
 
 use futures::StreamExt;
+use hashbrown::HashMap;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
+use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use serde::Deserialize;
@@ -162,7 +164,7 @@ impl<D> HttpDelegate<D, SystemProvider> {
 
 impl<D, T> HttpDelegate<D, T>
 where
-    D: DmlHandler,
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>>,
     T: TimeProvider,
 {
     /// Routes `req` to the appropriate handler, if any, returning the handler

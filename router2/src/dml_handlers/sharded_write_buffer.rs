@@ -81,11 +81,13 @@ where
     type WriteError = ShardError;
     type DeleteError = ShardError;
 
+    type WriteInput = HashMap<String, MutableBatch>;
+
     /// Shard `writes` and dispatch the resultant DML operations.
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
-        writes: HashMap<String, MutableBatch>,
+        writes: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), ShardError> {
         let mut collated: HashMap<_, HashMap<String, MutableBatch>> = HashMap::new();

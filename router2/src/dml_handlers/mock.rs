@@ -71,11 +71,12 @@ macro_rules! record_and_return {
 impl DmlHandler for Arc<MockDmlHandler> {
     type WriteError = DmlError;
     type DeleteError = DmlError;
+    type WriteInput = HashMap<String, MutableBatch>;
 
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
-        batches: HashMap<String, MutableBatch>,
+        batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::WriteError> {
         record_and_return!(

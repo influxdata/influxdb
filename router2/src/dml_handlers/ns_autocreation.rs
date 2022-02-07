@@ -73,17 +73,19 @@ impl<D, C> NamespaceAutocreation<D, C> {
 #[async_trait]
 impl<D, C> DmlHandler for NamespaceAutocreation<D, C>
 where
-    D: DmlHandler,
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>>,
     C: NamespaceCache,
 {
     type WriteError = NamespaceCreationError;
     type DeleteError = NamespaceCreationError;
 
+    type WriteInput = HashMap<String, MutableBatch>;
+
     /// Write `batches` to `namespace`.
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
-        batches: HashMap<String, MutableBatch>,
+        batches: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::WriteError> {
         // If the namespace does not exist in the schema cache (populated by the
