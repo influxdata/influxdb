@@ -92,7 +92,9 @@ use data_types::{
 };
 use generated_types::influxdata::iox::ingest::v1 as proto;
 use generated_types::influxdata::iox::preserved_catalog::v1 as preserved_catalog;
-use iox_catalog::interface::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
+use iox_catalog::interface::{
+    NamespaceId, ParquetFile, ParquetFileId, PartitionId, SequenceNumber, SequencerId, TableId,
+};
 use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
@@ -588,6 +590,26 @@ impl IoxMetadata {
     /// verify uuid
     pub fn match_object_store_id(&self, uuid: Uuid) -> bool {
         uuid == self.object_store_id
+    }
+
+    // create a corresponding iox catalog's ParquetFile
+    pub fn to_parquet_file(&self) -> ParquetFile {
+        ParquetFile {
+            id: ParquetFileId::new(0), // this will be created in the DB. This 0 won't be used anywhere
+            sequencer_id: self.sequencer_id,
+            table_id: self.table_id,
+            partition_id: self.partition_id,
+            object_store_id: self.object_store_id,
+            min_sequence_number: self.min_sequence_number,
+            max_sequence_number: self.max_sequence_number,
+            min_time: iox_catalog::interface::Timestamp::new(
+                self.time_of_first_write.timestamp_nanos(),
+            ),
+            max_time: iox_catalog::interface::Timestamp::new(
+                self.time_of_last_write.timestamp_nanos(),
+            ),
+            to_delete: false,
+        }
     }
 }
 

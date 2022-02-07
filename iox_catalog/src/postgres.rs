@@ -3,13 +3,14 @@
 use crate::interface::{
     Catalog, Column, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
     KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile, ParquetFileId,
-    ParquetFileRepo, Partition, PartitionId, PartitionRepo, QueryPool, QueryPoolId, QueryPoolRepo,
-    Result, SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId, TableRepo,
-    Timestamp, Tombstone, TombstoneRepo,
+    ParquetFileRepo, Partition, PartitionId, PartitionRepo, ProcessedTombstone,
+    ProcessedTombstoneRepo, QueryPool, QueryPoolId, QueryPoolRepo, Result, SequenceNumber,
+    Sequencer, SequencerId, SequencerRepo, Table, TableId, TableRepo, Timestamp, Tombstone,
+    TombstoneId, TombstoneRepo,
 };
 use async_trait::async_trait;
-use observability_deps::tracing::info;
-use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Executor, Pool, Postgres};
+use observability_deps::tracing::{info, warn};
+use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Executor, Pool, Postgres, Transaction};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -25,6 +26,12 @@ static MIGRATOR: Migrator = sqlx::migrate!();
 #[derive(Debug)]
 pub struct PostgresCatalog {
     pool: Pool<Postgres>,
+}
+
+// struct to get return value from "select count(*) ..." wuery"
+#[derive(sqlx::FromRow)]
+struct Count {
+    count: i64,
 }
 
 impl PostgresCatalog {
@@ -108,6 +115,71 @@ impl Catalog for PostgresCatalog {
 
     fn parquet_files(&self) -> &dyn ParquetFileRepo {
         self
+    }
+
+    fn processed_tombstones(&self) -> &dyn ProcessedTombstoneRepo {
+        self
+    }
+
+    async fn add_parquet_file_with_tombstones(
+        &self,
+        parquet_file: &ParquetFile,
+        tombstones: &[Tombstone],
+    ) -> Result<(ParquetFile, Vec<ProcessedTombstone>), Error> {
+        // Start a transaction
+        let txt = self.pool.begin().await;
+        if let Err(error) = txt {
+            return Err(Error::StartTransaction { source: error });
+        }
+        let mut txt = txt.unwrap();
+
+        // create a parquet file in the catalog first
+        let parquet = self
+            .parquet_files()
+            .create(
+                Some(&mut txt),
+                parquet_file.sequencer_id,
+                parquet_file.table_id,
+                parquet_file.partition_id,
+                parquet_file.object_store_id,
+                parquet_file.min_sequence_number,
+                parquet_file.max_sequence_number,
+                parquet_file.min_time,
+                parquet_file.max_time,
+            )
+            .await;
+
+        if let Err(error) = parquet {
+            // Error while adding parquet file into the catalog, stop the transaction
+            warn!(object_store_id=?parquet_file.object_store_id.to_string(), "{}", error.to_string());
+            let _rollback = txt.rollback().await;
+            return Err(error);
+        }
+        let parquet = parquet.unwrap();
+
+        // Now the parquet available, create its processed tombstones
+        let processed_tombstones = self
+            .processed_tombstones()
+            .create_many(Some(&mut txt), parquet.id, tombstones)
+            .await;
+
+        let processed_tombstones = match processed_tombstones {
+            Ok(processed_tombstones) => processed_tombstones,
+            Err(e) => {
+                // Error while adding processed tombstones
+                warn!(
+                    "Error while adding processed tombstone: {}. Transaction stops.",
+                    e.to_string()
+                );
+                let _rollback = txt.rollback().await;
+                return Err(e);
+            }
+        };
+
+        // Commit the transaction
+        let _commit = txt.commit().await;
+
+        Ok((parquet, processed_tombstones))
     }
 }
 
@@ -495,6 +567,7 @@ impl TombstoneRepo for PostgresCatalog {
 impl ParquetFileRepo for PostgresCatalog {
     async fn create(
         &self,
+        txt: Option<&mut Transaction<'_, Postgres>>,
         sequencer_id: SequencerId,
         table_id: TableId,
         partition_id: PartitionId,
@@ -518,20 +591,22 @@ RETURNING *
             .bind(min_sequence_number) // $5
             .bind(max_sequence_number) // $6
             .bind(min_time) // $7
-            .bind(max_time) // $8
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| {
-                if is_unique_violation(&e) {
-                    Error::FileExists {
-                        object_store_id,
-                    }
-                } else if is_fk_violation(&e) {
-                    Error::ForeignKeyViolation { source: e }
-                } else {
-                    Error::SqlxError { source: e }
-                }
-            })?;
+            .bind(max_time); // $8
+
+        let rec = match txt {
+            Some(txt) => rec.fetch_one(txt).await,
+            None => rec.fetch_one(&self.pool).await,
+        };
+
+        let rec = rec.map_err(|e| {
+            if is_unique_violation(&e) {
+                Error::FileExists { object_store_id }
+            } else if is_fk_violation(&e) {
+                Error::ForeignKeyViolation { source: e }
+            } else {
+                Error::SqlxError { source: e }
+            }
+        })?;
 
         Ok(rec)
     }
@@ -557,6 +632,104 @@ RETURNING *
             .fetch_all(&self.pool)
             .await
             .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn exist(&self, id: ParquetFileId) -> Result<bool> {
+        let read_result = sqlx::query_as::<_, Count>(
+            r#"SELECT count(*) as count FROM parquet_file WHERE id = $1;"#,
+        )
+        .bind(&id) // $1
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(read_result.count > 0)
+    }
+
+    async fn count(&self) -> Result<i64> {
+        let read_result =
+            sqlx::query_as::<_, Count>(r#"SELECT count(*) as count  FROM parquet_file;"#)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(read_result.count)
+    }
+}
+
+#[async_trait]
+impl ProcessedTombstoneRepo for PostgresCatalog {
+    async fn create_many(
+        &self,
+        txt: Option<&mut Transaction<'_, Postgres>>,
+        parquet_file_id: ParquetFileId,
+        tombstones: &[Tombstone],
+    ) -> Result<Vec<ProcessedTombstone>> {
+        if txt.is_none() {
+            return Err(Error::NoTransaction);
+        }
+        let txt = txt.unwrap();
+
+        // no transaction provided
+        // todo: we should never needs this but since right now we implement 2 catalogs,
+        // postgres (for production)  and mem (for testing only) that does not need to provide txt
+        // this will be refactor when Marco has his new abstraction done
+        let mut processed_tombstones = vec![];
+        for tombstone in tombstones {
+            let processed_tombstone = sqlx::query_as::<_, ProcessedTombstone>(
+                r#"
+                INSERT INTO processed_tombstone ( tombstone_id, parquet_file_id )
+                VALUES ( $1, $2 )
+                RETURNING *
+                "#,
+            )
+            .bind(tombstone.id) // $1
+            .bind(parquet_file_id) // $2
+            .fetch_one(&mut *txt)
+            .await
+            .map_err(|e| {
+                if is_unique_violation(&e) {
+                    Error::ProcessTombstoneExists {
+                        tombstone_id: tombstone.id.get(),
+                        parquet_file_id: parquet_file_id.get(),
+                    }
+                } else if is_fk_violation(&e) {
+                    Error::ForeignKeyViolation { source: e }
+                } else {
+                    Error::SqlxError { source: e }
+                }
+            })?;
+
+            processed_tombstones.push(processed_tombstone);
+        }
+
+        Ok(processed_tombstones)
+    }
+
+    async fn exist(
+        &self,
+        parquet_file_id: ParquetFileId,
+        tombstone_id: TombstoneId,
+    ) -> Result<bool> {
+        let read_result = sqlx::query_as::<_, Count>(
+            r#"SELECT count(*) as count FROM processed_tombstone WHERE parquet_file_id = $1 AND tombstone_id = $2;"#)
+            .bind(&parquet_file_id) // $1
+            .bind(&tombstone_id) // $2
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(read_result.count > 0)
+    }
+
+    async fn count(&self) -> Result<i64> {
+        let read_result =
+            sqlx::query_as::<_, Count>(r#"SELECT count(*) as count FROM processed_tombstone;"#)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(read_result.count)
     }
 }
 
@@ -659,6 +832,10 @@ mod tests {
     }
 
     async fn clear_schema(pool: &Pool<Postgres>) {
+        sqlx::query("delete from processed_tombstone;")
+            .execute(pool)
+            .await
+            .unwrap();
         sqlx::query("delete from tombstone;")
             .execute(pool)
             .await
