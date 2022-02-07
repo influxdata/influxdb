@@ -2,11 +2,11 @@ package gather
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/storage"
 	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/storage"
 	"go.uber.org/zap"
 )
 
