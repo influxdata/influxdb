@@ -110,12 +110,11 @@ fn parse_db_name(db_name: &str) -> Result<OrgAndBucket, ParseError> {
 #[derive(Debug, clap::Parser)]
 enum Command {
     /// Issue a read_filter request
-    ReadFilter(ReadFilter),
+    ReadFilter,
 }
 
-/// Create a new database
-#[derive(Debug, clap::Parser)]
-struct ReadFilter {}
+// #[derive(Debug, clap::Parser)]
+// struct ReadFilter {}
 
 /// Create and issue read request
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
@@ -126,7 +125,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
     let source = Client::read_source(&config.db_name, 0);
     let result = match config.command {
-        Command::ReadFilter(_) => {
+        Command::ReadFilter => {
             client
                 .read_filter(request::read_filter(
                     source,
