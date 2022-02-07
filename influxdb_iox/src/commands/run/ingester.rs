@@ -50,6 +50,9 @@ pub enum Error {
     #[error("sequencer record not found for partition {0}")]
     SequencerNotFound(KafkaPartition),
 
+    #[error("error initializing ingester: {0}")]
+    Ingester(#[from] ingester::handler::Error),
+
     #[error("error initializing write buffer {0}")]
     WriteBuffer(#[from] write_buffer::core::WriteBufferError),
 }
@@ -150,14 +153,17 @@ pub async fn command(config: Config) -> Result<()> {
         )
         .await?;
 
-    let ingest_handler = Arc::new(IngestHandlerImpl::new(
-        kafka_topic,
-        sequencers,
-        catalog,
-        object_store,
-        write_buffer,
-        &metric_registry,
-    ));
+    let ingest_handler = Arc::new(
+        IngestHandlerImpl::new(
+            kafka_topic,
+            sequencers,
+            catalog,
+            object_store,
+            write_buffer,
+            &metric_registry,
+        )
+        .await?,
+    );
     let http = HttpDelegate::new(Arc::clone(&ingest_handler));
     let grpc = GrpcDelegate::new(ingest_handler);
 

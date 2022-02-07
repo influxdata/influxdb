@@ -511,7 +511,7 @@ impl DatabaseStateCatalogLoaded {
         };
         let write_buffer_consumer = match rules.write_buffer_connection.as_ref() {
             Some(connection) => {
-                let mut consumer = write_buffer_factory
+                let consumer = write_buffer_factory
                     .new_config_read(db_name.as_str(), trace_collector.as_ref(), connection)
                     .await
                     .context(CreateWriteBufferSnafu)?;
@@ -522,12 +522,14 @@ impl DatabaseStateCatalogLoaded {
                     self.replay_plan.as_ref().as_ref()
                 };
 
-                db.perform_replay(replay_plan, consumer.as_mut())
+                let streams = db
+                    .perform_replay(replay_plan, Arc::clone(&consumer))
                     .await
                     .context(ReplaySnafu)?;
 
                 Some(Arc::new(WriteBufferConsumer::new(
                     consumer,
+                    streams,
                     Arc::clone(&db),
                     shared.application.metric_registry().as_ref(),
                 )))

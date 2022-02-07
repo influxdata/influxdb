@@ -9,7 +9,7 @@ use std::{
 use async_trait::async_trait;
 use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
 use dml::{DmlMeta, DmlOperation};
-use futures::{FutureExt, StreamExt};
+use futures::{stream::BoxStream, StreamExt};
 use rskafka::client::{
     consumer::StreamConsumerBuilder,
     error::{Error as RSKafkaError, ProtocolError},
@@ -22,10 +22,7 @@ use trace::TraceCollector;
 
 use crate::{
     codec::IoxHeaders,
-    core::{
-        FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
-        WriteBufferWriting, WriteStream,
-    },
+    core::{WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting},
 };
 
 use self::{
@@ -119,14 +116,81 @@ impl WriteBufferWriting for RSKafkaProducer {
 }
 
 #[derive(Debug)]
-struct ConsumerPartition {
+pub struct RSKafkaStreamHandler {
     partition_client: Arc<PartitionClient>,
     next_offset: Arc<AtomicI64>,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
+    consumer_config: ConsumerConfig,
+    sequencer_id: u32,
+}
+
+#[async_trait]
+impl WriteBufferStreamHandler for RSKafkaStreamHandler {
+    fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
+        let trace_collector = self.trace_collector.clone();
+        let next_offset = Arc::clone(&self.next_offset);
+
+        let mut stream_builder = StreamConsumerBuilder::new(
+            Arc::clone(&self.partition_client),
+            next_offset.load(Ordering::SeqCst),
+        );
+        if let Some(max_wait_ms) = self.consumer_config.max_wait_ms {
+            stream_builder = stream_builder.with_max_wait_ms(max_wait_ms);
+        }
+        if let Some(min_batch_size) = self.consumer_config.min_batch_size {
+            stream_builder = stream_builder.with_min_batch_size(min_batch_size);
+        }
+        if let Some(max_batch_size) = self.consumer_config.max_batch_size {
+            stream_builder = stream_builder.with_max_batch_size(max_batch_size);
+        }
+        let stream = stream_builder.build();
+
+        let stream = stream.map(move |res| {
+            let (record, _watermark) = res?;
+
+            // store new offset already so we don't get stuck on invalid records
+            next_offset.store(record.offset + 1, Ordering::SeqCst);
+
+            let kafka_read_size = record.record.approximate_size();
+
+            let headers =
+                IoxHeaders::from_headers(record.record.headers, trace_collector.as_ref())?;
+
+            let sequence = Sequence {
+                id: self.sequencer_id,
+                number: record.offset.try_into()?,
+            };
+
+            let timestamp_millis =
+                i64::try_from(record.record.timestamp.unix_timestamp_nanos() / 1_000_000)?;
+            let timestamp = Time::from_timestamp_millis_opt(timestamp_millis)
+                .ok_or_else::<WriteBufferError, _>(|| {
+                    format!(
+                        "Cannot parse timestamp for milliseconds: {}",
+                        timestamp_millis
+                    )
+                    .into()
+                })?;
+
+            let value = record
+                .record
+                .value
+                .ok_or_else::<WriteBufferError, _>(|| "Value missing".to_string().into())?;
+            crate::codec::decode(&value, headers, sequence, timestamp, kafka_read_size)
+        });
+        stream.boxed()
+    }
+
+    async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError> {
+        let offset = i64::try_from(sequence_number)?;
+        self.next_offset.store(offset, Ordering::SeqCst);
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
 pub struct RSKafkaConsumer {
-    partitions: BTreeMap<u32, ConsumerPartition>,
+    partition_clients: BTreeMap<u32, Arc<PartitionClient>>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
     consumer_config: ConsumerConfig,
 }
@@ -147,24 +211,13 @@ impl RSKafkaConsumer {
         )
         .await?;
 
-        let partitions = partition_clients
+        let partition_clients = partition_clients
             .into_iter()
-            .map(|(partition_id, partition_client)| {
-                let partition_client = Arc::new(partition_client);
-                let next_offset = Arc::new(AtomicI64::new(0));
-
-                (
-                    partition_id,
-                    ConsumerPartition {
-                        partition_client,
-                        next_offset,
-                    },
-                )
-            })
+            .map(|(k, v)| (k, Arc::new(v)))
             .collect();
 
         Ok(Self {
-            partitions,
+            partition_clients,
             trace_collector,
             consumer_config: ConsumerConfig::try_from(connection_config)?,
         })
@@ -173,103 +226,40 @@ impl RSKafkaConsumer {
 
 #[async_trait]
 impl WriteBufferReading for RSKafkaConsumer {
-    fn streams(&mut self) -> BTreeMap<u32, WriteStream<'_>> {
-        let mut streams = BTreeMap::new();
-
-        for (sequencer_id, partition) in &self.partitions {
-            let trace_collector = self.trace_collector.clone();
-            let next_offset = Arc::clone(&partition.next_offset);
-
-            let mut stream_builder = StreamConsumerBuilder::new(
-                Arc::clone(&partition.partition_client),
-                next_offset.load(Ordering::SeqCst),
-            );
-            if let Some(max_wait_ms) = self.consumer_config.max_wait_ms {
-                stream_builder = stream_builder.with_max_wait_ms(max_wait_ms);
-            }
-            if let Some(min_batch_size) = self.consumer_config.min_batch_size {
-                stream_builder = stream_builder.with_min_batch_size(min_batch_size);
-            }
-            if let Some(max_batch_size) = self.consumer_config.max_batch_size {
-                stream_builder = stream_builder.with_max_batch_size(max_batch_size);
-            }
-            let stream = stream_builder.build();
-
-            let stream = stream.map(move |res| {
-                let (record, _watermark) = res?;
-
-                // store new offset already so we don't get stuck on invalid records
-                next_offset.store(record.offset + 1, Ordering::SeqCst);
-
-                let kafka_read_size = record.record.approximate_size();
-
-                let headers =
-                    IoxHeaders::from_headers(record.record.headers, trace_collector.as_ref())?;
-
-                let sequence = Sequence {
-                    id: *sequencer_id,
-                    number: record.offset.try_into()?,
-                };
-
-                let timestamp_millis =
-                    i64::try_from(record.record.timestamp.unix_timestamp_nanos() / 1_000_000)?;
-                let timestamp = Time::from_timestamp_millis_opt(timestamp_millis)
-                    .ok_or_else::<WriteBufferError, _>(|| {
-                    format!(
-                        "Cannot parse timestamp for milliseconds: {}",
-                        timestamp_millis
-                    )
-                    .into()
-                })?;
-
-                let value = record
-                    .record
-                    .value
-                    .ok_or_else::<WriteBufferError, _>(|| "Value missing".to_string().into())?;
-                crate::codec::decode(&value, headers, sequence, timestamp, kafka_read_size)
-            });
-            let stream = stream.boxed();
-
-            let partition_client = Arc::clone(&partition.partition_client);
-            let fetch_high_watermark = move || {
-                let partition_client = Arc::clone(&partition_client);
-                let fut = async move {
-                    let watermark = partition_client.get_high_watermark().await?;
-                    u64::try_from(watermark).map_err(|e| Box::new(e) as WriteBufferError)
-                };
-
-                fut.boxed() as FetchHighWatermarkFut<'_>
-            };
-            let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
-
-            streams.insert(
-                *sequencer_id,
-                WriteStream {
-                    stream,
-                    fetch_high_watermark,
-                },
-            );
-        }
-
-        streams
+    fn sequencer_ids(&self) -> BTreeSet<u32> {
+        self.partition_clients.keys().copied().collect()
     }
 
-    async fn seek(
-        &mut self,
+    async fn stream_handler(
+        &self,
         sequencer_id: u32,
-        sequence_number: u64,
-    ) -> Result<(), WriteBufferError> {
-        let partition = self
-            .partitions
-            .get_mut(&sequencer_id)
+    ) -> Result<Box<dyn WriteBufferStreamHandler>, WriteBufferError> {
+        let partition_client = self
+            .partition_clients
+            .get(&sequencer_id)
             .ok_or_else::<WriteBufferError, _>(|| {
                 format!("Unknown partition: {}", sequencer_id).into()
             })?;
 
-        let offset = i64::try_from(sequence_number)?;
-        partition.next_offset.store(offset, Ordering::SeqCst);
+        Ok(Box::new(RSKafkaStreamHandler {
+            partition_client: Arc::clone(partition_client),
+            next_offset: Arc::new(AtomicI64::new(0)),
+            trace_collector: self.trace_collector.clone(),
+            consumer_config: self.consumer_config.clone(),
+            sequencer_id,
+        }))
+    }
 
-        Ok(())
+    async fn fetch_high_watermark(&self, sequencer_id: u32) -> Result<u64, WriteBufferError> {
+        let partition_client = self
+            .partition_clients
+            .get(&sequencer_id)
+            .ok_or_else::<WriteBufferError, _>(|| {
+                format!("Unknown partition: {}", sequencer_id).into()
+            })?;
+
+        let watermark = partition_client.get_high_watermark().await?;
+        u64::try_from(watermark).map_err(|e| Box::new(e) as WriteBufferError)
     }
 
     fn type_name(&self) -> &'static str {
@@ -344,8 +334,8 @@ mod tests {
 
     use crate::{
         core::test_utils::{
-            assert_span_context_eq_or_linked, map_pop_first, perform_generic_tests,
-            random_topic_name, set_pop_first, TestAdapter, TestContext,
+            assert_span_context_eq_or_linked, perform_generic_tests, random_topic_name,
+            set_pop_first, TestAdapter, TestContext,
         },
         maybe_skip_kafka_integration,
     };
@@ -506,22 +496,18 @@ mod tests {
         )
         .await;
 
-        let mut consumer = ctx.reading(true).await.unwrap();
+        let consumer = ctx.reading(true).await.unwrap();
+        let mut handler = consumer.stream_handler(sequencer_id).await.unwrap();
 
         // read broken message from stream
-        let mut streams = consumer.streams();
-        assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
-        let err = stream.stream.next().await.unwrap().unwrap_err();
+        let mut stream = handler.stream();
+        let err = stream.next().await.unwrap().unwrap_err();
         assert_eq!(err.to_string(), "No content type header");
 
         // re-creating the stream should advance past the broken message
         drop(stream);
-        drop(streams);
-        let mut streams = consumer.streams();
-        assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
-        let op = stream.stream.next().await.unwrap().unwrap();
+        let mut stream = handler.stream();
+        let op = stream.next().await.unwrap().unwrap();
         assert_write_op_eq(&op, &w);
     }
 
@@ -564,17 +550,16 @@ mod tests {
         assert_ne!(w2_1.sequence().unwrap(), w1_1.sequence().unwrap());
         assert_eq!(w2_1.sequence().unwrap(), w2_2.sequence().unwrap());
 
-        let mut consumer = ctx.reading(true).await.unwrap();
-        let mut streams = consumer.streams();
-        assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        let consumer = ctx.reading(true).await.unwrap();
+        let mut handler = consumer.stream_handler(sequencer_id).await.unwrap();
+        let mut stream = handler.stream();
 
         // get output, note that the write operations were fused
-        let op_w1_12 = stream.stream.next().await.unwrap().unwrap();
-        let op_d1_1 = stream.stream.next().await.unwrap().unwrap();
-        let op_d1_2 = stream.stream.next().await.unwrap().unwrap();
-        let op_w1_34 = stream.stream.next().await.unwrap().unwrap();
-        let op_w2_12 = stream.stream.next().await.unwrap().unwrap();
+        let op_w1_12 = stream.next().await.unwrap().unwrap();
+        let op_d1_1 = stream.next().await.unwrap().unwrap();
+        let op_d1_2 = stream.next().await.unwrap().unwrap();
+        let op_w1_34 = stream.next().await.unwrap().unwrap();
+        let op_w2_12 = stream.next().await.unwrap().unwrap();
 
         // ensure that sequence numbers map as expected
         assert_eq!(

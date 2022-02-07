@@ -119,21 +119,21 @@ use std::{
     },
 };
 
-use crate::codec::{ContentType, IoxHeaders};
+use crate::{
+    codec::{ContentType, IoxHeaders},
+    core::WriteBufferStreamHandler,
+};
 use async_trait::async_trait;
 use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
 use dml::{DmlMeta, DmlOperation};
-use futures::{FutureExt, Stream, StreamExt};
+use futures::{stream::BoxStream, Stream, StreamExt};
 use pin_project::pin_project;
 use time::{Time, TimeProvider};
 use tokio_util::sync::ReusableBoxFuture;
 use trace::TraceCollector;
 use uuid::Uuid;
 
-use crate::core::{
-    FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
-    WriteBufferWriting, WriteStream,
-};
+use crate::core::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
 
 /// Header used to declare the creation time of the message.
 pub const HEADER_TIME: &str = "last-modified";
@@ -260,6 +260,35 @@ impl WriteBufferWriting for FileBufferProducer {
     }
 }
 
+#[derive(Debug)]
+pub struct FileBufferStreamHandler {
+    sequencer_id: u32,
+    path: PathBuf,
+    next_sequence_number: Arc<AtomicU64>,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
+}
+
+#[async_trait]
+impl WriteBufferStreamHandler for FileBufferStreamHandler {
+    fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
+        let committed = self.path.join("committed");
+
+        ConsumerStream::new(
+            self.sequencer_id,
+            committed,
+            Arc::clone(&self.next_sequence_number),
+            self.trace_collector.clone(),
+        )
+        .boxed()
+    }
+
+    async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError> {
+        self.next_sequence_number
+            .store(sequence_number, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
 /// File-based write buffer reader.
 #[derive(Debug)]
 pub struct FileBufferConsumer {
@@ -291,56 +320,39 @@ impl FileBufferConsumer {
 
 #[async_trait]
 impl WriteBufferReading for FileBufferConsumer {
-    fn streams(&mut self) -> BTreeMap<u32, WriteStream<'_>> {
-        let mut streams = BTreeMap::default();
-
-        for (sequencer_id, (sequencer_path, next_sequence_number)) in &self.dirs {
-            let committed = sequencer_path.join("committed");
-
-            let stream = ConsumerStream::new(
-                *sequencer_id,
-                committed.clone(),
-                Arc::clone(next_sequence_number),
-                self.trace_collector.clone(),
-            )
-            .boxed();
-
-            let fetch_high_watermark = move || {
-                let committed = committed.clone();
-
-                let fut = async move { watermark(&committed).await };
-                fut.boxed() as FetchHighWatermarkFut<'_>
-            };
-            let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
-
-            streams.insert(
-                *sequencer_id,
-                WriteStream {
-                    stream,
-                    fetch_high_watermark,
-                },
-            );
-        }
-
-        streams
+    fn sequencer_ids(&self) -> BTreeSet<u32> {
+        self.dirs.keys().copied().collect()
     }
 
-    async fn seek(
-        &mut self,
+    async fn stream_handler(
+        &self,
         sequencer_id: u32,
-        sequence_number: u64,
-    ) -> Result<(), WriteBufferError> {
-        let path_and_next_sequence_number = self
+    ) -> Result<Box<dyn WriteBufferStreamHandler>, WriteBufferError> {
+        let (path, _next_sequence_number) = self
             .dirs
             .get(&sequencer_id)
             .ok_or_else::<WriteBufferError, _>(|| {
                 format!("Unknown sequencer: {}", sequencer_id).into()
             })?;
-        path_and_next_sequence_number
-            .1
-            .store(sequence_number, Ordering::SeqCst);
 
-        Ok(())
+        Ok(Box::new(FileBufferStreamHandler {
+            sequencer_id,
+            path: path.clone(),
+            next_sequence_number: Arc::new(AtomicU64::new(0)),
+            trace_collector: self.trace_collector.clone(),
+        }))
+    }
+
+    async fn fetch_high_watermark(&self, sequencer_id: u32) -> Result<u64, WriteBufferError> {
+        let (path, _next_sequence_number) = self
+            .dirs
+            .get(&sequencer_id)
+            .ok_or_else::<WriteBufferError, _>(|| {
+                format!("Unknown sequencer: {}", sequencer_id).into()
+            })?;
+        let committed = path.join("committed");
+
+        watermark(&committed).await
     }
 
     fn type_name(&self) -> &'static str {
@@ -792,11 +804,12 @@ mod tests {
         )
         .await;
 
-        let mut reader = ctx.reading(true).await.unwrap();
-        let mut stream = reader.streams().remove(&sequencer_id).unwrap();
+        let reader = ctx.reading(true).await.unwrap();
+        let mut handler = reader.stream_handler(sequencer_id).await.unwrap();
+        let mut stream = handler.stream();
 
-        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
-        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w4);
+        assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w1);
+        assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w4);
     }
 
     #[tokio::test]
@@ -820,9 +833,10 @@ mod tests {
         )
         .await;
 
-        let mut reader = ctx.reading(true).await.unwrap();
-        let mut stream = reader.streams().remove(&sequencer_id).unwrap();
+        let reader = ctx.reading(true).await.unwrap();
+        let mut handler = reader.stream_handler(sequencer_id).await.unwrap();
+        let mut stream = handler.stream();
 
-        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w2);
+        assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w2);
     }
 }

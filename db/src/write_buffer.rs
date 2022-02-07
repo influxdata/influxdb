@@ -2,11 +2,12 @@ use crate::Db;
 use dml::DmlOperation;
 use futures::{
     future::{BoxFuture, Shared},
-    stream::{BoxStream, FuturesUnordered},
+    stream::FuturesUnordered,
     FutureExt, StreamExt, TryFutureExt,
 };
 use observability_deps::tracing::{debug, error, info, warn};
 use std::{
+    collections::BTreeMap,
     future::Future,
     sync::Arc,
     time::{Duration, Instant},
@@ -14,7 +15,7 @@ use std::{
 use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 use trace::span::SpanRecorder;
-use write_buffer::core::{FetchHighWatermark, WriteBufferError, WriteBufferReading};
+use write_buffer::core::{WriteBufferReading, WriteBufferStreamHandler};
 
 use self::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
 pub mod metrics;
@@ -32,7 +33,8 @@ pub struct WriteBufferConsumer {
 
 impl WriteBufferConsumer {
     pub fn new(
-        mut write_buffer: Box<dyn WriteBufferReading>,
+        write_buffer: Arc<dyn WriteBufferReading>,
+        write_buffer_streams: BTreeMap<u32, Box<dyn WriteBufferStreamHandler>>,
         db: Arc<Db>,
         registry: &metric::Registry,
     ) -> Self {
@@ -42,16 +44,15 @@ impl WriteBufferConsumer {
 
         let shutdown_captured = shutdown.clone();
         let join = tokio::spawn(async move {
-            let mut futures: FuturesUnordered<_> = write_buffer
-                .streams()
+            let mut futures: FuturesUnordered<_> = write_buffer_streams
                 .into_iter()
-                .map(|(sequencer_id, stream)| {
+                .map(|(sequencer_id, handler)| {
                     let metrics = ingest_metrics.new_sequencer_metrics(sequencer_id);
                     stream_in_sequenced_entries(
                         Arc::clone(&db),
+                        Arc::clone(&write_buffer),
                         sequencer_id,
-                        stream.stream,
-                        stream.fetch_high_watermark,
+                        handler,
                         metrics,
                     )
                 })
@@ -100,14 +101,15 @@ impl Drop for WriteBufferConsumer {
 /// buffer are ignored.
 async fn stream_in_sequenced_entries<'a>(
     db: Arc<Db>,
+    write_buffer: Arc<dyn WriteBufferReading>,
     sequencer_id: u32,
-    mut stream: BoxStream<'a, Result<DmlOperation, WriteBufferError>>,
-    f_mark: FetchHighWatermark<'a>,
+    mut stream_handler: Box<dyn WriteBufferStreamHandler>,
     mut metrics: SequencerMetrics,
 ) {
     let db_name = db.rules().name.to_string();
     let mut watermark_last_updated: Option<Instant> = None;
     let mut watermark = 0_u64;
+    let mut stream = stream_handler.stream();
 
     while let Some(db_write_result) = stream.next().await {
         // maybe update sequencer watermark
@@ -118,7 +120,7 @@ async fn stream_in_sequenced_entries<'a>(
             .map(|ts| now.duration_since(ts) > Duration::from_secs(10))
             .unwrap_or(true)
         {
-            match f_mark().await {
+            match write_buffer.fetch_high_watermark(sequencer_id).await {
                 Ok(w) => {
                     watermark = w;
                 }
@@ -251,11 +253,10 @@ mod tests {
         let join_handle =
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
 
-        let consumer = WriteBufferConsumer::new(
-            Box::new(MockBufferForReading::new(write_buffer_state, None).unwrap()),
-            Arc::clone(&db),
-            &Default::default(),
-        );
+        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state, None).unwrap());
+        let streams = write_buffer.stream_handlers().await.unwrap();
+        let consumer =
+            WriteBufferConsumer::new(write_buffer, streams, Arc::clone(&db), &Default::default());
 
         // check: after a while the persistence windows should have the expected data
         let t_0 = Instant::now();
@@ -314,8 +315,11 @@ mod tests {
         let join_handle =
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
 
+        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state, None).unwrap());
+        let streams = write_buffer.stream_handlers().await.unwrap();
         let consumer = WriteBufferConsumer::new(
-            Box::new(MockBufferForReading::new(write_buffer_state, None).unwrap()),
+            write_buffer,
+            streams,
             Arc::clone(&db),
             test_db.metric_registry.as_ref(),
         );
@@ -457,8 +461,11 @@ mod tests {
         let join_handle =
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
 
+        let write_buffer = Arc::new(MockBufferForReading::new(write_buffer_state, None).unwrap());
+        let streams = write_buffer.stream_handlers().await.unwrap();
         let consumer = WriteBufferConsumer::new(
-            Box::new(MockBufferForReading::new(write_buffer_state, None).unwrap()),
+            write_buffer,
+            streams,
             Arc::clone(&db),
             metric_registry.as_ref(),
         );

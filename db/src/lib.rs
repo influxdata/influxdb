@@ -16,7 +16,7 @@ use crate::{
 };
 use ::lifecycle::select_persistable_chunks;
 pub use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
-use ::write_buffer::core::WriteBufferReading;
+use ::write_buffer::core::{WriteBufferReading, WriteBufferStreamHandler};
 use async_trait::async_trait;
 use data_types::{
     chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
@@ -53,7 +53,7 @@ use schema::Schema;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     any::Any,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -110,6 +110,11 @@ pub enum Error {
     #[snafu(display("Cannot create replay plan: {}", source))]
     ReplayPlanError {
         source: persistence_windows::checkpoint::Error,
+    },
+
+    #[snafu(display("Cannot setup write buffer: {}", source))]
+    WriteBuffer {
+        source: ::write_buffer::core::WriteBufferError,
     },
 
     #[snafu(display("Cannot replay: {}", source))]
@@ -889,16 +894,23 @@ impl Db {
     pub async fn perform_replay(
         &self,
         replay_plan: Option<&ReplayPlan>,
-        consumer: &mut dyn WriteBufferReading,
-    ) -> Result<()> {
+        consumer: Arc<dyn WriteBufferReading>,
+    ) -> Result<BTreeMap<u32, Box<dyn WriteBufferStreamHandler>>> {
         use crate::replay::{perform_replay, seek_to_end};
-        if let Some(replay_plan) = replay_plan {
-            perform_replay(self, replay_plan, consumer)
+
+        let streams = consumer.stream_handlers().await.context(WriteBufferSnafu)?;
+
+        let streams = if let Some(replay_plan) = replay_plan {
+            perform_replay(self, replay_plan, streams)
                 .await
-                .context(ReplaySnafu)
+                .context(ReplaySnafu)?
         } else {
-            seek_to_end(self, consumer).await.context(ReplaySnafu)
-        }
+            seek_to_end(self, consumer.as_ref(), streams)
+                .await
+                .context(ReplaySnafu)?
+        };
+
+        Ok(streams)
     }
 
     /// Background worker function

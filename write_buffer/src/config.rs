@@ -142,7 +142,7 @@ impl WriteBufferConfigFactory {
         db_name: &str,
         trace_collector: Option<&Arc<dyn TraceCollector>>,
         cfg: &WriteBufferConnection,
-    ) -> Result<Box<dyn WriteBufferReading>, WriteBufferError> {
+    ) -> Result<Arc<dyn WriteBufferReading>, WriteBufferError> {
         let reader = match &cfg.type_[..] {
             "file" => {
                 let root = PathBuf::from(&cfg.connection);
@@ -153,7 +153,7 @@ impl WriteBufferConfigFactory {
                     trace_collector,
                 )
                 .await?;
-                Box::new(file_buffer) as _
+                Arc::new(file_buffer) as _
             }
             "kafka" => {
                 let rskafka_buffer = RSKafkaConsumer::new(
@@ -164,17 +164,17 @@ impl WriteBufferConfigFactory {
                     trace_collector.map(Arc::clone),
                 )
                 .await?;
-                Box::new(rskafka_buffer) as _
+                Arc::new(rskafka_buffer) as _
             }
             "mock" => match self.get_mock(&cfg.connection)? {
                 Mock::Normal(state) => {
                     let mock_buffer =
                         MockBufferForReading::new(state, cfg.creation_config.as_ref())?;
-                    Box::new(mock_buffer) as _
+                    Arc::new(mock_buffer) as _
                 }
                 Mock::AlwaysFailing => {
                     let mock_buffer = MockBufferForReadingThatAlwaysErrors {};
-                    Box::new(mock_buffer) as _
+                    Arc::new(mock_buffer) as _
                 }
             },
             other => {

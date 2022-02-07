@@ -6,7 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use futures::{stream, FutureExt, StreamExt};
+use futures::{stream::BoxStream, StreamExt};
 use parking_lot::Mutex;
 
 use data_types::sequence::Sequence;
@@ -15,8 +15,7 @@ use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use time::TimeProvider;
 
 use crate::core::{
-    FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
-    WriteBufferWriting, WriteStream,
+    WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting,
 };
 
 #[derive(Debug, Default)]
@@ -344,18 +343,9 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
     }
 }
 
-/// Sequencer-specific playback state
-struct PlaybackState {
-    /// Index within the entry vector.
-    vector_index: usize,
-
-    /// Offset within the sequencer IDs.
-    offset: u64,
-}
-
 pub struct MockBufferForReading {
     shared_state: MockBufferSharedState,
-    playback_states: Arc<Mutex<BTreeMap<u32, PlaybackState>>>,
+    n_sequencers: u32,
 }
 
 impl MockBufferForReading {
@@ -375,21 +365,10 @@ impl MockBufferForReading {
             };
             entries.len() as u32
         };
-        let playback_states: BTreeMap<_, _> = (0..n_sequencers)
-            .map(|sequencer_id| {
-                (
-                    sequencer_id,
-                    PlaybackState {
-                        vector_index: 0,
-                        offset: 0,
-                    },
-                )
-            })
-            .collect();
 
         Ok(Self {
             shared_state: state,
-            playback_states: Arc::new(Mutex::new(playback_states)),
+            n_sequencers,
         })
     }
 }
@@ -400,103 +379,105 @@ impl std::fmt::Debug for MockBufferForReading {
     }
 }
 
+/// Sequencer-specific playback state
+#[derive(Debug)]
+pub struct MockBufferStreamHandler {
+    /// Shared state.
+    shared_state: MockBufferSharedState,
+
+    /// Own sequencer ID.
+    sequencer_id: u32,
+
+    /// Index within the entry vector.
+    vector_index: usize,
+
+    /// Offset within the sequencer IDs.
+    offset: u64,
+}
+
 #[async_trait]
-impl WriteBufferReading for MockBufferForReading {
-    fn streams(&mut self) -> BTreeMap<u32, WriteStream<'_>> {
-        let sequencer_ids: Vec<_> = {
-            let playback_states = self.playback_states.lock();
-            playback_states.keys().copied().collect()
-        };
+impl WriteBufferStreamHandler for MockBufferStreamHandler {
+    fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
+        futures::stream::poll_fn(|cx| {
+            let mut guard = self.shared_state.writes.lock();
+            let writes = guard.as_mut().unwrap();
+            let writes_vec = writes.get_mut(&self.sequencer_id).unwrap();
 
-        let mut streams = BTreeMap::new();
-        for sequencer_id in sequencer_ids {
-            let shared_state = self.shared_state.clone();
-            let playback_states = Arc::clone(&self.playback_states);
+            let entries = &writes_vec.writes;
+            while entries.len() > self.vector_index {
+                let write_result = &entries[self.vector_index];
 
-            let stream = stream::poll_fn(move |cx| {
-                let mut guard = shared_state.writes.lock();
-                let writes = guard.as_mut().unwrap();
-                let writes_vec = writes.get_mut(&sequencer_id).unwrap();
+                // consume entry
+                self.vector_index += 1;
 
-                let mut playback_states = playback_states.lock();
-                let playback_state = playback_states.get_mut(&sequencer_id).unwrap();
-
-                let entries = &writes_vec.writes;
-                while entries.len() > playback_state.vector_index {
-                    let write_result = &entries[playback_state.vector_index];
-
-                    // consume entry
-                    playback_state.vector_index += 1;
-
-                    match write_result {
-                        Ok(write) => {
-                            // found an entry => need to check if it is within the offset
-                            let sequence = write.meta().sequence().unwrap();
-                            if sequence.number >= playback_state.offset {
-                                // within offset => return entry to caller
-                                return Poll::Ready(Some(Ok(write.clone())));
-                            } else {
-                                // offset is larger then the current entry => ignore entry and try next
-                                continue;
-                            }
-                        }
-                        Err(e) => {
-                            // found an error => return entry to caller
-                            return Poll::Ready(Some(Err(e.to_string().into())));
+                match write_result {
+                    Ok(write) => {
+                        // found an entry => need to check if it is within the offset
+                        let sequence = write.meta().sequence().unwrap();
+                        if sequence.number >= self.offset {
+                            // within offset => return entry to caller
+                            return Poll::Ready(Some(Ok(write.clone())));
+                        } else {
+                            // offset is larger then the current entry => ignore entry and try next
+                            continue;
                         }
                     }
+                    Err(e) => {
+                        // found an error => return entry to caller
+                        return Poll::Ready(Some(Err(e.to_string().into())));
+                    }
                 }
+            }
 
-                // we are at the end of the recorded entries => report pending
-                writes_vec.register_waker(cx.waker());
-                Poll::Pending
-            })
-            .boxed();
-
-            let shared_state = self.shared_state.clone();
-
-            let fetch_high_watermark = move || {
-                let shared_state = shared_state.clone();
-
-                let fut = async move {
-                    let guard = shared_state.writes.lock();
-                    let entries = guard.as_ref().unwrap();
-                    let entry_vec = entries.get(&sequencer_id).unwrap();
-                    let watermark = entry_vec.max_seqno.map(|n| n + 1).unwrap_or(0);
-
-                    Ok(watermark)
-                };
-                fut.boxed() as FetchHighWatermarkFut<'_>
-            };
-            let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
-
-            streams.insert(
-                sequencer_id,
-                WriteStream {
-                    stream,
-                    fetch_high_watermark,
-                },
-            );
-        }
-
-        streams
+            // we are at the end of the recorded entries => report pending
+            writes_vec.register_waker(cx.waker());
+            Poll::Pending
+        })
+        .boxed()
     }
 
-    async fn seek(
-        &mut self,
-        sequencer_id: u32,
-        sequence_number: u64,
-    ) -> Result<(), WriteBufferError> {
-        let mut playback_states = self.playback_states.lock();
+    async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError> {
+        self.offset = sequence_number;
 
-        if let Some(playback_state) = playback_states.get_mut(&sequencer_id) {
-            playback_state.offset = sequence_number;
-
-            // reset position to start since seeking might go backwards
-            playback_state.vector_index = 0;
-        }
+        // reset position to start since seeking might go backwards
+        self.vector_index = 0;
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl WriteBufferReading for MockBufferForReading {
+    fn sequencer_ids(&self) -> BTreeSet<u32> {
+        (0..self.n_sequencers).into_iter().collect()
+    }
+    async fn stream_handler(
+        &self,
+        sequencer_id: u32,
+    ) -> Result<Box<dyn WriteBufferStreamHandler>, WriteBufferError> {
+        if sequencer_id >= self.n_sequencers {
+            return Err(format!("Unknown sequencer: {}", sequencer_id).into());
+        }
+
+        Ok(Box::new(MockBufferStreamHandler {
+            shared_state: self.shared_state.clone(),
+            sequencer_id,
+            vector_index: 0,
+            offset: 0,
+        }))
+    }
+
+    async fn fetch_high_watermark(&self, sequencer_id: u32) -> Result<u64, WriteBufferError> {
+        let guard = self.shared_state.writes.lock();
+        let entries = guard.as_ref().unwrap();
+        let entry_vec = entries
+            .get(&sequencer_id)
+            .ok_or_else::<WriteBufferError, _>(|| {
+                format!("Unknown sequencer: {}", sequencer_id).into()
+            })?;
+        let watermark = entry_vec.max_seqno.map(|n| n + 1).unwrap_or(0);
+
+        Ok(watermark)
     }
 
     fn type_name(&self) -> &'static str {
@@ -507,39 +488,41 @@ impl WriteBufferReading for MockBufferForReading {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MockBufferForReadingThatAlwaysErrors;
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MockStreamHandlerThatAlwaysErrors;
+
 #[async_trait]
-impl WriteBufferReading for MockBufferForReadingThatAlwaysErrors {
-    fn streams(&mut self) -> BTreeMap<u32, WriteStream<'_>> {
-        let stream = stream::poll_fn(|_ctx| {
+impl WriteBufferStreamHandler for MockStreamHandlerThatAlwaysErrors {
+    fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
+        futures::stream::poll_fn(|_cx| {
             Poll::Ready(Some(Err(String::from(
                 "Something bad happened while reading from stream",
             )
             .into())))
         })
-        .boxed();
-        let fetch_high_watermark = move || {
-            let fut = async move {
-                Err(String::from("Something bad happened while fetching the high watermark").into())
-            };
-            fut.boxed() as FetchHighWatermarkFut<'_>
-        };
-        let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
-        IntoIterator::into_iter([(
-            0,
-            WriteStream {
-                stream,
-                fetch_high_watermark,
-            },
-        )])
-        .collect()
+        .boxed()
     }
 
-    async fn seek(
-        &mut self,
-        _sequencer_id: u32,
-        _sequence_number: u64,
-    ) -> Result<(), WriteBufferError> {
+    async fn seek(&mut self, _sequence_number: u64) -> Result<(), WriteBufferError> {
         Err(String::from("Something bad happened while seeking the stream").into())
+    }
+}
+
+#[async_trait]
+impl WriteBufferReading for MockBufferForReadingThatAlwaysErrors {
+    fn sequencer_ids(&self) -> BTreeSet<u32> {
+        BTreeSet::from([0])
+    }
+
+    async fn stream_handler(
+        &self,
+        _sequencer_id: u32,
+    ) -> Result<Box<dyn WriteBufferStreamHandler>, WriteBufferError> {
+        Ok(Box::new(MockStreamHandlerThatAlwaysErrors {}))
+    }
+
+    async fn fetch_high_watermark(&self, _sequencer_id: u32) -> Result<u64, WriteBufferError> {
+        Err(String::from("Something bad happened while fetching the high watermark").into())
     }
 
     fn type_name(&self) -> &'static str {
@@ -552,11 +535,12 @@ mod tests {
     use std::convert::TryFrom;
     use std::time::Duration;
 
+    use futures::StreamExt;
     use mutable_batch_lp::lines_to_batches;
     use time::TimeProvider;
     use trace::RingBufferTraceCollector;
 
-    use crate::core::test_utils::{map_pop_first, perform_generic_tests, TestAdapter, TestContext};
+    use crate::core::test_utils::{perform_generic_tests, TestAdapter, TestContext};
 
     use super::*;
 
@@ -739,25 +723,33 @@ mod tests {
 
     #[tokio::test]
     async fn test_always_error_read() {
-        let mut reader = MockBufferForReadingThatAlwaysErrors {};
+        let reader = MockBufferForReadingThatAlwaysErrors {};
 
         assert_eq!(
-            reader.seek(0, 0).await.unwrap_err().to_string(),
-            "Something bad happened while seeking the stream"
-        );
-
-        let mut streams = reader.streams();
-        let (_id, mut stream) = map_pop_first(&mut streams).unwrap();
-        assert_eq!(
-            stream.stream.next().await.unwrap().unwrap_err().to_string(),
-            "Something bad happened while reading from stream"
-        );
-        assert_eq!(
-            (stream.fetch_high_watermark)()
+            reader
+                .fetch_high_watermark(0)
                 .await
                 .unwrap_err()
                 .to_string(),
             "Something bad happened while fetching the high watermark"
+        );
+
+        let mut stream_handler = reader.stream_handler(0).await.unwrap();
+
+        assert_eq!(
+            stream_handler.seek(0).await.unwrap_err().to_string(),
+            "Something bad happened while seeking the stream"
+        );
+
+        assert_eq!(
+            stream_handler
+                .stream()
+                .next()
+                .await
+                .unwrap()
+                .unwrap_err()
+                .to_string(),
+            "Something bad happened while reading from stream"
         );
     }
 
@@ -823,19 +815,20 @@ mod tests {
 
         state.push_lp(Sequence::new(0, 0), "mem foo=1 10");
 
-        let mut read = MockBufferForReading::new(state.clone(), None).unwrap();
-        let playback_state = Arc::clone(&read.playback_states);
+        let read = MockBufferForReading::new(state.clone(), None).unwrap();
 
+        let barrier = Arc::new(tokio::sync::Barrier::new(2));
+        let barrier_captured = Arc::clone(&barrier);
         let consumer = tokio::spawn(async move {
-            let mut stream = map_pop_first(&mut read.streams()).unwrap().1.stream;
+            let mut stream_handler = read.stream_handler(0).await.unwrap();
+            let mut stream = stream_handler.stream();
             stream.next().await.unwrap().unwrap();
+            barrier_captured.wait().await;
             stream.next().await.unwrap().unwrap();
         });
 
         // Wait for consumer to read first entry
-        while playback_state.lock().get(&0).unwrap().vector_index < 1 {
-            tokio::time::sleep(Duration::from_millis(1)).await;
-        }
+        barrier.wait().await;
 
         state.push_lp(Sequence::new(0, 1), "mem foo=2 20");
 

@@ -63,7 +63,7 @@ impl TryFrom<&WriteBufferCreationConfig> for TopicCreationConfig {
 }
 
 /// Config for consumers.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ConsumerConfig {
     /// Will wait for at least `min_batch_size` bytes of data
     ///
