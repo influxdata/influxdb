@@ -4,10 +4,10 @@
 use crate::interface::{
     Catalog, Column, ColumnId, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic,
     KafkaTopicId, KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile,
-    ParquetFileId, ParquetFileRepo, Partition, PartitionId, PartitionRepo, ProcessedTombstone,
-    ProcessedTombstoneRepo, QueryPool, QueryPoolId, QueryPoolRepo, Result, SequenceNumber,
-    Sequencer, SequencerId, SequencerRepo, Table, TableId, TableRepo, Timestamp, Tombstone,
-    TombstoneId, TombstoneRepo,
+    ParquetFileId, ParquetFileRepo, Partition, PartitionId, PartitionInfo, PartitionRepo,
+    ProcessedTombstone, ProcessedTombstoneRepo, QueryPool, QueryPoolId, QueryPoolRepo, Result,
+    SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId, TableRepo, Timestamp,
+    Tombstone, TombstoneId, TombstoneRepo,
 };
 use async_trait::async_trait;
 use sqlx::{Postgres, Transaction};
@@ -435,6 +435,42 @@ impl PartitionRepo for MemCatalog {
             .cloned()
             .collect();
         Ok(partitions)
+    }
+
+    async fn partition_info_by_id(
+        &self,
+        partition_id: PartitionId,
+    ) -> Result<Option<PartitionInfo>> {
+        let collections = self.collections.lock().expect("mutex poisoned");
+        let partition = collections
+            .partitions
+            .iter()
+            .find(|p| p.id == partition_id)
+            .cloned();
+
+        if let Some(partition) = partition {
+            let table = collections
+                .tables
+                .iter()
+                .find(|t| t.id == partition.table_id)
+                .cloned();
+            if let Some(table) = table {
+                let namespace = collections
+                    .namespaces
+                    .iter()
+                    .find(|n| n.id == table.namespace_id)
+                    .cloned();
+                if let Some(namespace) = namespace {
+                    return Ok(Some(PartitionInfo {
+                        namespace_name: namespace.name,
+                        table_name: table.name,
+                        partition,
+                    }));
+                }
+            }
+        }
+
+        Ok(None)
     }
 }
 

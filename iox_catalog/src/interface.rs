@@ -446,6 +446,21 @@ pub trait PartitionRepo: Send + Sync {
 
     /// return partitions for a given sequencer
     async fn list_by_sequencer(&self, sequencer_id: SequencerId) -> Result<Vec<Partition>>;
+
+    /// return the partition record, the namespace name it belongs to, and the table name it is under
+    async fn partition_info_by_id(
+        &self,
+        partition_id: PartitionId,
+    ) -> Result<Option<PartitionInfo>>;
+}
+
+/// Information for a partition from the catalog.
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub struct PartitionInfo {
+    pub partition: Partition,
+    pub namespace_name: String,
+    pub table_name: String,
 }
 
 /// Functions for working with tombstones in the catalog
@@ -1217,7 +1232,7 @@ pub(crate) mod test_helpers {
             })
             .collect::<BTreeMap<_, _>>()
             .await;
-        let _ = catalog
+        let other_partition = catalog
             .partitions()
             .create_or_get("asdf", other_sequencer.id, table.id)
             .await
@@ -1234,6 +1249,17 @@ pub(crate) mod test_helpers {
             .collect::<BTreeMap<_, _>>();
 
         assert_eq!(created, listed);
+
+        // test get_partition_info_by_id
+        let info = catalog
+            .partitions()
+            .partition_info_by_id(other_partition.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(info.partition, other_partition);
+        assert_eq!(info.table_name, "test_table");
+        assert_eq!(info.namespace_name, "namespace_partition_test");
     }
 
     async fn test_tombstone(catalog: Arc<dyn Catalog>) {
