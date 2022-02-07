@@ -3,6 +3,9 @@ pub mod generated_types {
 }
 
 use self::generated_types::*;
+use super::response::{
+    tag_key_is_field, tag_key_is_measurement, FIELD_TAG_KEY_BIN, MEASUREMENT_TAG_KEY_BIN,
+};
 use ::generated_types::google::protobuf::*;
 
 pub fn read_filter(
@@ -27,11 +30,19 @@ pub fn tag_values(
     predicate: std::option::Option<Predicate>,
     tag_key: String,
 ) -> TagValuesRequest {
+    let tag_key = if tag_key_is_measurement(tag_key.as_bytes()) {
+        MEASUREMENT_TAG_KEY_BIN.to_vec()
+    } else if tag_key_is_field(tag_key.as_bytes()) {
+        FIELD_TAG_KEY_BIN.to_vec()
+    } else {
+        tag_key.as_bytes().to_vec()
+    };
+
     generated_types::TagValuesRequest {
         predicate,
         tags_source: Some(org_bucket),
         range: Some(TimestampRange { start, end: stop }),
-        tag_key: tag_key.into(),
+        tag_key,
     }
 }
 

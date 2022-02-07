@@ -115,6 +115,7 @@ enum Command {
 
 #[derive(Debug, clap::Parser)]
 struct TagValues {
+    // The tag key value to interrogate for tag values.
     tag_key: String,
 }
 

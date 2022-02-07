@@ -483,9 +483,9 @@ impl TryFrom<IntermediateTable> for RecordBatch {
 const MEASUREMENT_TAG_KEY_TEXT: [u8; 12] = [
     b'_', b'm', b'e', b'a', b's', b'u', b'r', b'e', b'm', b'e', b'n', b't',
 ];
-const MEASUREMENT_TAG_KEY_BIN: [u8; 1] = [0_u8];
+pub(crate) const MEASUREMENT_TAG_KEY_BIN: [u8; 1] = [0_u8];
 const FIELD_TAG_KEY_TEXT: [u8; 6] = [b'_', b'f', b'i', b'e', b'l', b'd'];
-const FIELD_TAG_KEY: [u8; 1] = [255_u8];
+pub(crate) const FIELD_TAG_KEY_BIN: [u8; 1] = [255_u8];
 
 // Store a collection of column names and types for a single table (measurement).
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -534,12 +534,12 @@ fn field_name(frame: &SeriesFrame) -> &Vec<u8> {
     &frame.tags[idx].value
 }
 
-fn tag_key_is_measurement(key: &[u8]) -> bool {
+pub(crate) fn tag_key_is_measurement(key: &[u8]) -> bool {
     (key == MEASUREMENT_TAG_KEY_TEXT) || (key == MEASUREMENT_TAG_KEY_BIN)
 }
 
-fn tag_key_is_field(key: &[u8]) -> bool {
-    (key == FIELD_TAG_KEY_TEXT) || (key == FIELD_TAG_KEY)
+pub(crate) fn tag_key_is_field(key: &[u8]) -> bool {
+    (key == FIELD_TAG_KEY_TEXT) || (key == FIELD_TAG_KEY_BIN)
 }
 
 #[cfg(test)]
@@ -746,7 +746,7 @@ mod test_super {
     }
 
     #[test]
-    fn test_into_record_batches() {
+    fn test_frames_to_into_record_batches() {
         let frames = gen_frames();
 
         let rbs = frames_to_record_batches(&frames);
