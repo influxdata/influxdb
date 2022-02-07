@@ -5,8 +5,8 @@ use db::{
     utils::{make_db, TestDb},
 };
 use metric::{Attributes, Metric, U64Counter};
-use predicate::predicate::PredicateBuilder;
 use predicate::rpc_predicate::InfluxRpcPredicate;
+use predicate::PredicateBuilder;
 use query::{
     exec::{stringset::StringSet, ExecutionContextProvider},
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},

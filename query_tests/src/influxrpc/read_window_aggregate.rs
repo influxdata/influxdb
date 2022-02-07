@@ -10,8 +10,8 @@ use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, timestamp::TimestampRange};
 use datafusion::prelude::*;
 use db::{test_helpers::write_lp, utils::make_db};
-use predicate::predicate::PredicateBuilder;
 use predicate::rpc_predicate::InfluxRpcPredicate;
+use predicate::PredicateBuilder;
 use query::{
     frontend::influxrpc::InfluxRpcPlanner,
     group_by::{Aggregate, WindowDuration},

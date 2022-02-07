@@ -16,7 +16,7 @@ use schema::selection::Selection;
 use schema::Schema;
 
 use crate::QueryChunk;
-use predicate::predicate::Predicate;
+use predicate::Predicate;
 
 use async_trait::async_trait;
 

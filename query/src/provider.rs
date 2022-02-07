@@ -18,7 +18,7 @@ use datafusion::{
     },
 };
 use observability_deps::tracing::{debug, trace};
-use predicate::predicate::{Predicate, PredicateBuilder};
+use predicate::{Predicate, PredicateBuilder};
 use schema::{merge::SchemaMerger, sort::SortKey, Schema};
 
 use crate::{

@@ -1,7 +1,7 @@
 use arrow::datatypes::DataType;
 use datafusion::logical_plan::{col, lit};
-use predicate::predicate::PredicateBuilder;
 use predicate::rpc_predicate::InfluxRpcPredicate;
+use predicate::PredicateBuilder;
 use query::{
     exec::fieldlist::{Field, FieldList},
     frontend::influxrpc::InfluxRpcPlanner,

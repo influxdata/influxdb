@@ -13,8 +13,8 @@ use crate::{
     },
 };
 use datafusion::logical_plan::{col, lit};
-use predicate::predicate::PredicateBuilder;
 use predicate::rpc_predicate::InfluxRpcPredicate;
+use predicate::PredicateBuilder;
 use query::frontend::influxrpc::InfluxRpcPlanner;
 
 /// runs read_filter(predicate) and compares it to the expected

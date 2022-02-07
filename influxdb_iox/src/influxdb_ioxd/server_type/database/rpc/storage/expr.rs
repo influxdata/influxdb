@@ -26,9 +26,9 @@ use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use observability_deps::tracing::warn;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::{
-    predicate::PredicateBuilder,
     regex::regex_match_expr,
     rpc_predicate::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME},
+    PredicateBuilder,
 };
 use query::group_by::{Aggregate as QueryAggregate, WindowDuration};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -867,7 +867,7 @@ fn format_comparison(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 #[cfg(test)]
 mod tests {
     use generated_types::node::Type as RPCNodeType;
-    use predicate::{predicate::Predicate, rpc_predicate::QueryDatabaseMeta};
+    use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
     use std::{collections::BTreeSet, sync::Arc};
 
     use super::*;

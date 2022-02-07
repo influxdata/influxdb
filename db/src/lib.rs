@@ -42,7 +42,7 @@ use parquet_catalog::{
     prune::prune_history as prune_catalog_transaction_history,
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
-use predicate::{predicate::Predicate, rpc_predicate::QueryDatabaseMeta};
+use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
     QueryCompletedToken, QueryDatabase,

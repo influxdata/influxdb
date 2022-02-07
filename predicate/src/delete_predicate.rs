@@ -68,7 +68,7 @@ pub enum Error {
 /// Result type for Parser Cient
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-impl From<DeletePredicate> for crate::predicate::Predicate {
+impl From<DeletePredicate> for crate::Predicate {
     fn from(pred: DeletePredicate) -> Self {
         Self {
             field_columns: None,

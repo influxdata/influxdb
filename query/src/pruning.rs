@@ -13,7 +13,7 @@ use datafusion::{
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
 };
 use observability_deps::tracing::{debug, trace};
-use predicate::predicate::Predicate;
+use predicate::Predicate;
 use schema::Schema;
 
 use crate::{group_by::Aggregate, QueryChunkMeta};
@@ -228,7 +228,7 @@ mod test {
     use std::{cell::RefCell, sync::Arc};
 
     use datafusion::logical_plan::{col, lit};
-    use predicate::predicate::PredicateBuilder;
+    use predicate::PredicateBuilder;
     use schema::merge::SchemaMerger;
 
     use crate::{test::TestChunk, QueryChunk};

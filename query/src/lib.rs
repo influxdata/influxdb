@@ -16,10 +16,7 @@ use data_types::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::stringset::StringSet;
 use observability_deps::tracing::{debug, trace};
-use predicate::{
-    predicate::{Predicate, PredicateMatch},
-    rpc_predicate::QueryDatabaseMeta,
-};
+use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, PredicateMatch};
 use schema::selection::Selection;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 

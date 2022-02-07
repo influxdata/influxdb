@@ -1351,7 +1351,7 @@ mod tests {
         Client as StorageClient, OrgAndBucket,
     };
     use panic_logging::SendPanicsToTracing;
-    use predicate::predicate::{PredicateBuilder, PredicateMatch};
+    use predicate::{PredicateBuilder, PredicateMatch};
     use query::{
         exec::Executor,
         test::{TestChunk, TestDatabase, TestError},
@@ -2971,7 +2971,7 @@ mod tests {
             db_name: &str,
             partition_key: &str,
             chunk_id: u128,
-            expected_predicate: &predicate::predicate::Predicate,
+            expected_predicate: &predicate::Predicate,
         ) {
             let actual_predicates = self
                 .test_storage

@@ -18,8 +18,8 @@ use datafusion_util::AsExpr;
 
 use hashbrown::HashSet;
 use observability_deps::tracing::{debug, trace};
-use predicate::predicate::{BinaryExpr, Predicate, PredicateMatch};
 use predicate::rpc_predicate::{InfluxRpcPredicate, FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME};
+use predicate::{BinaryExpr, Predicate, PredicateMatch};
 use schema::selection::Selection;
 use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -1834,7 +1834,7 @@ impl<'a> ExprRewriter for MissingColumnsToNull<'a> {
 #[cfg(test)]
 mod tests {
     use datafusion::logical_plan::lit;
-    use predicate::predicate::PredicateBuilder;
+    use predicate::PredicateBuilder;
     use schema::builder::SchemaBuilder;
 
     use crate::{

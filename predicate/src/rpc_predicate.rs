@@ -1,7 +1,6 @@
 //! Interface logic between IOx ['Predicate`] and predicates used by the
 //! InfluxDB Storage gRPC API
-use crate::predicate::{BinaryExpr, Predicate};
-use crate::rewrite;
+use crate::{rewrite, BinaryExpr, Predicate};
 
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::ExecutionProps;

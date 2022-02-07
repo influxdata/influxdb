@@ -22,7 +22,7 @@ use parquet::{
     basic::Compression,
     file::{metadata::KeyValue, properties::WriterProperties, writer::TryClone},
 };
-use predicate::predicate::Predicate;
+use predicate::Predicate;
 use schema::selection::Selection;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{

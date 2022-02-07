@@ -5,8 +5,8 @@ use std::io::Read;
 // current-thread executor
 use db::Db;
 use flate2::read::GzDecoder;
-use predicate::predicate::PredicateBuilder;
 use predicate::rpc_predicate::InfluxRpcPredicate;
+use predicate::PredicateBuilder;
 use query::{
     exec::{Executor, ExecutorType},
     frontend::influxrpc::InfluxRpcPlanner,

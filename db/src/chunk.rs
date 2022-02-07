@@ -15,7 +15,7 @@ use mutable_buffer::snapshot::ChunkSnapshot;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use partition_metadata::TableSummary;
-use predicate::predicate::{Predicate, PredicateMatch};
+use predicate::{Predicate, PredicateMatch};
 use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
 use read_buffer::RBChunk;
 use schema::InfluxColumnType;
