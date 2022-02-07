@@ -108,8 +108,6 @@ impl DbSetup for MeasurementForWindowAggregate {
     }
 }
 
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
-
 #[tokio::test]
 async fn test_read_window_aggregate_nanoseconds() {
     let predicate = PredicateBuilder::default()
@@ -255,8 +253,6 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
         vec![scenario1, scenario2, scenario3]
     }
 }
-
-// NGA todo: add delete DbSetup
 
 #[tokio::test]
 async fn test_read_window_aggregate_months() {

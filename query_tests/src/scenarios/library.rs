@@ -1308,8 +1308,6 @@ impl DbSetup for OneMeasurementForAggs {
     }
 }
 
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
-
 pub struct AnotherMeasurementForAggs {}
 #[async_trait]
 impl DbSetup for AnotherMeasurementForAggs {
@@ -1332,8 +1330,6 @@ impl DbSetup for AnotherMeasurementForAggs {
     }
 }
 
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
-
 pub struct TwoMeasurementForAggs {}
 #[async_trait]
 impl DbSetup for TwoMeasurementForAggs {
@@ -1352,8 +1348,6 @@ impl DbSetup for TwoMeasurementForAggs {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
-
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 pub struct MeasurementForSelectors {}
 #[async_trait]
@@ -1408,8 +1402,6 @@ impl DbSetup for MeasurementForMax {
     }
 }
 
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
-
 pub struct MeasurementForGroupKeys {}
 #[async_trait]
 impl DbSetup for MeasurementForGroupKeys {
@@ -1431,8 +1423,6 @@ impl DbSetup for MeasurementForGroupKeys {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
-
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 pub struct MeasurementForGroupByField {}
 #[async_trait]

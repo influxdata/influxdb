@@ -360,8 +360,6 @@ async fn test_grouped_series_set_plan_count_measurement_pred() {
     .await;
 }
 
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
-
 #[tokio::test]
 async fn test_grouped_series_set_plan_first() {
     let predicate = PredicateBuilder::default()
@@ -485,8 +483,6 @@ async fn test_grouped_series_set_plan_last_with_nulls() {
     )
     .await;
 }
-
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_min() {
