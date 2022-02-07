@@ -264,7 +264,8 @@ fn main() -> Result<(), std::io::Error> {
             }
             Command::Storage(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = commands::storage::command(config).await {
+                let connection = connection().await;
+                if let Err(e) = commands::storage::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }

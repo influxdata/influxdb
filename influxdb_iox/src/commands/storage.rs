@@ -1,25 +1,45 @@
+pub(crate) mod request;
+pub(crate) mod response;
+
+use std::num::NonZeroU64;
+
+use snafu::{ResultExt, Snafu};
+use tonic::Status;
+
 use generated_types::Predicate;
+use influxdb_storage_client::{connection::Connection, Client, OrgAndBucket};
 use influxrpc_parser::predicate;
 use time;
 
-use snafu::{ResultExt, Snafu};
-
 #[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Unable to parse timestamp '{:?}'", t))]
-    TimestampParseError { t: String },
+pub enum ParseError {
+    #[snafu(display("unable to parse timestamp '{:?}'", t))]
+    Timestamp { t: String },
 
-    #[snafu(display("Unable to parse predicate: {:?}", source))]
-    PredicateParseError { source: predicate::Error },
+    #[snafu(display("unable to parse database name '{:?}'", db_name))]
+    DBName { db_name: String },
+
+    #[snafu(display("unable to parse predicate: {:?}", source))]
+    Predicate { source: predicate::Error },
+
+    #[snafu(display("server error: {:?}", source))]
+    ServerError { source: Status },
+
+    #[snafu(display("error building response: {:?}", source))]
+    ResponseError { source: response::Error },
 }
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T, E = ParseError> = std::result::Result<T, E>;
 
 /// Craft and submit different types of storage read requests
 #[derive(Debug, clap::Parser)]
 pub struct Config {
     #[clap(subcommand)]
     command: Command,
+
+    /// The name of the database
+    #[clap(parse(try_from_str = parse_db_name))]
+    db_name: OrgAndBucket,
 
     /// The requested start time (inclusive) of the time-range (also accepts RFC3339 format).
     #[clap(long, default_value = "-9223372036854775806", parse(try_from_str = parse_range))]
@@ -37,12 +57,12 @@ pub struct Config {
 // Attempts to parse either a stringified `i64` value. or alternatively parse an
 // RFC3339 formatted timestamp into an `i64` value representing nanoseconds
 // since the epoch.
-fn parse_range(s: &str) -> Result<i64, Error> {
+fn parse_range(s: &str) -> Result<i64, ParseError> {
     match s.parse::<i64>() {
         Ok(v) => Ok(v),
         Err(_) => {
             // try to parse timestamp
-            let t = time::Time::from_rfc3339(s).or_else(|_| TimestampParseSnafu { t: s }.fail())?;
+            let t = time::Time::from_rfc3339(s).or_else(|_| TimestampSnafu { t: s }.fail())?;
             Ok(t.timestamp_nanos())
         }
     }
@@ -50,12 +70,40 @@ fn parse_range(s: &str) -> Result<i64, Error> {
 
 // Attempts to parse the optional predicate into an `Predicate` RPC node. This
 // node is then used as part of a read request.
-fn parse_predicate(expr: &str) -> Result<Predicate, Error> {
+fn parse_predicate(expr: &str) -> Result<Predicate, ParseError> {
     if expr.is_empty() {
         return Ok(Predicate::default());
     }
 
-    predicate::expr_to_rpc_predicate(expr).context(PredicateParseSnafu)
+    predicate::expr_to_rpc_predicate(expr).context(PredicateSnafu)
+}
+
+// Attempts to parse the database name into and org and bucket ID.
+fn parse_db_name(db_name: &str) -> Result<OrgAndBucket, ParseError> {
+    let parts = db_name.split('_').collect::<Vec<_>>();
+    if parts.len() != 2 {
+        return DBNameSnafu {
+            db_name: db_name.to_owned(),
+        }
+        .fail();
+    }
+
+    let org_id = usize::from_str_radix(parts[0], 16).map_err(|_| ParseError::DBName {
+        db_name: db_name.to_owned(),
+    })?;
+
+    let bucket_id = usize::from_str_radix(parts[1], 16).map_err(|_| ParseError::DBName {
+        db_name: db_name.to_owned(),
+    })?;
+
+    Ok(OrgAndBucket::new(
+        NonZeroU64::new(org_id as u64).ok_or_else(|| ParseError::DBName {
+            db_name: db_name.to_owned(),
+        })?,
+        NonZeroU64::new(bucket_id as u64).ok_or_else(|| ParseError::DBName {
+            db_name: db_name.to_owned(),
+        })?,
+    ))
 }
 
 /// All possible subcommands for storage
@@ -70,10 +118,28 @@ enum Command {
 struct ReadFilter {}
 
 /// Create and issue read request
-pub async fn command(config: Config) -> Result<()> {
-    // TODO(edd): handle command/config and execute request
-    println!("Unimplemented: config is {:?}", config);
-    Ok(())
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
+    let mut client = influxdb_storage_client::Client::new(connection);
+
+    // convert predicate with no root node into None.
+    let predicate = config.predicate.root.is_some().then(|| config.predicate);
+
+    let source = Client::read_source(&config.db_name, 0);
+    let result = match config.command {
+        Command::ReadFilter(_) => {
+            client
+                .read_filter(request::read_filter(
+                    source,
+                    config.start,
+                    config.stop,
+                    predicate,
+                ))
+                .await
+        }
+    }
+    .context(ServerSnafu)?;
+
+    response::pretty_print(&result).context(ResponseSnafu)
 }
 
 #[cfg(test)]

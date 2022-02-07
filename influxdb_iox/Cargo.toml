@@ -13,6 +13,7 @@ db = { path = "../db" }
 dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
+influxdb_storage_client = { path = "../influxdb_storage_client" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 ingester = { path = "../ingester" }
 internal_types = { path = "../internal_types" }
@@ -36,6 +37,7 @@ query = { path = "../query" }
 read_buffer = { path = "../read_buffer" }
 router = { path = "../router" }
 router2 = { path = "../router2" }
+schema = { path = "../schema" }
 server = { path = "../server" }
 time = { path = "../time" }
 trace = { path = "../trace" }
