@@ -30,6 +30,9 @@ pub enum Error {
     #[snafu(context(false))]
     Aborted { source: futures::future::Aborted },
 
+    #[snafu(context(false))]
+    Timeout { source: tokio::time::error::Elapsed },
+
     #[snafu(display("Read Buffer Error in chunk {}{} : {}", chunk_id, table_name, source))]
     ReadBufferChunkError {
         source: read_buffer::Error,

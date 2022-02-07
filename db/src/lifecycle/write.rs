@@ -14,6 +14,7 @@ use crate::{
     DbChunk,
 };
 use ::lifecycle::LifecycleWriteGuard;
+use data_types::error::ErrorLogger;
 use data_types::{chunk_metadata::ChunkLifecycleAction, job::Job};
 use observability_deps::tracing::{debug, warn};
 use parquet_catalog::interface::CatalogParquetInfo;
@@ -29,8 +30,12 @@ use persistence_windows::{
 use query::QueryChunk;
 use schema::selection::Selection;
 use snafu::ResultExt;
+use std::time::Duration;
 use std::{future::Future, sync::Arc};
+use tokio::time::timeout;
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
+
+const TIMEOUT: Duration = Duration::from_secs(300);
 
 /// The implementation for writing a chunk to the object store
 ///
@@ -111,7 +116,9 @@ pub(super) fn write_chunk_to_object_store(
         // catalog-level transaction for preservation layer
         {
             // fetch shared (= read) guard preventing the cleanup job from deleting our files
-            let _guard = db.cleanup_lock.read().await;
+            let _guard = timeout(TIMEOUT, db.cleanup_lock.read())
+                .await
+                .log_if_error("write chunk cleanup lock")?;
 
             // Write this table data into the object store
             //
@@ -128,10 +135,14 @@ pub(super) fn write_chunk_to_object_store(
                 time_of_last_write,
                 chunk_order,
             };
-            let written_result = storage
-                .write_to_object_store(addr.clone(), stream, metadata)
-                .await
-                .context(WritingToObjectStoreSnafu)?;
+
+            let written_result = timeout(
+                TIMEOUT,
+                storage.write_to_object_store(addr.clone(), stream, metadata),
+            )
+            .await
+            .log_if_error("write chunk to object store")?
+            .context(WritingToObjectStoreSnafu)?;
 
             // the stream was empty
             if written_result.is_none() {
@@ -160,13 +171,17 @@ pub(super) fn write_chunk_to_object_store(
             //
             // This ensures that any deletes encountered during or prior to the replay window
             // must have been made durable within the catalog for any persisted chunks
-            let delete_handle = db.delete_predicates_mailbox.consume().await;
+            let delete_handle = timeout(TIMEOUT, db.delete_predicates_mailbox.consume())
+                .await
+                .log_if_error("delete handle")?;
 
             // IMPORTANT: Start transaction AFTER writing the actual parquet file so we do not hold
             //            the transaction lock (that is part of the PreservedCatalog) for too long.
             //            By using the cleanup lock (see above) it is ensured that the file that we
             //            have written is not deleted in between.
-            let mut transaction = db.preserved_catalog.open_transaction().await;
+            let mut transaction = timeout(TIMEOUT, db.preserved_catalog.open_transaction())
+                .await
+                .log_if_error("preserved catalog transaction")?;
 
             // add parquet file
             let info = CatalogParquetInfo {
@@ -194,7 +209,10 @@ pub(super) fn write_chunk_to_object_store(
             }
 
             // preserved commit
-            let ckpt_handle = transaction.commit().await.context(CommitSnafu)?;
+            let ckpt_handle = timeout(TIMEOUT, transaction.commit())
+                .await
+                .log_if_error("preserved catalog commit")?
+                .context(CommitSnafu)?;
 
             // Deletes persisted correctly
             delete_handle.flush();
@@ -216,10 +234,14 @@ pub(super) fn write_chunk_to_object_store(
                 // NOTE: There can only be a single transaction in this section because the checkpoint handle holds
                 //       transaction lock. Therefore we don't need to worry about concurrent modifications of
                 //       preserved chunks.
-                if let Err(e) = ckpt_handle
-                    .create_checkpoint(checkpoint_data_from_catalog(&db.catalog))
-                    .await
-                {
+                let checkpoint_result = timeout(
+                    TIMEOUT,
+                    ckpt_handle.create_checkpoint(checkpoint_data_from_catalog(&db.catalog)),
+                )
+                .await
+                .log_if_error("create checkpoint")?;
+
+                if let Err(e) = checkpoint_result {
                     warn!(%e, "cannot create catalog checkpoint");
 
                     // That's somewhat OK. Don't fail the entire task, because the actual preservation was completed
