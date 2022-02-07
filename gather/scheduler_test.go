@@ -41,8 +41,8 @@ func TestScheduler(t *testing.T) {
 		},
 	}
 
-	gatherJobs := make(chan []models.Point, 0)
-	done := make(chan struct{}, 0)
+	gatherJobs := make(chan []models.Point)
+	done := make(chan struct{})
 	writer := &mock.PointsWriter{}
 	writer.WritePointsFn = func(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
 		select {
@@ -53,9 +53,9 @@ func TestScheduler(t *testing.T) {
 	}
 
 	scheduler, err := NewScheduler(logger, 10, 2, storage, writer, 1*time.Millisecond)
+	require.NoError(t, err)
 	defer scheduler.Close()
 	defer close(done) //don't block the points writer forever
-	require.NoError(t, err)
 
 	// make sure all jobs are done
 	pointWrites := [][]models.Point{}
