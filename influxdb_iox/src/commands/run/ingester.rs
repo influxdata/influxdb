@@ -167,7 +167,7 @@ pub async fn command(config: Config) -> Result<()> {
     let http = HttpDelegate::new(Arc::clone(&ingest_handler));
     let grpc = GrpcDelegate::new(ingest_handler);
 
-    let ingester = IngesterServer::new(http, grpc);
+    let ingester = IngesterServer::new(metric_registry, http, grpc);
     let server_type = Arc::new(IngesterServerType::new(ingester, &common_state));
 
     info!("starting ingester");
