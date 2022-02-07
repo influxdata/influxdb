@@ -34,11 +34,29 @@ jobs:
           name: Build source tarball
           command: |
             set -x
+
+            INFLUXDB_COMMIT=$(git rev-parse --short HEAD)
+            INFLUXDB_VERSION=$(releng/get-version -p 1.x)
+
+            printf '{
+                "version": "%s",
+                "branch": "%s",
+                "sha": "%s"
+            }' "${INFLUXDB_VERSION}" "${CIRCLE_BRANCH}" "${INFLUXDB_COMMIT}" >"$(pwd)/.metadata.json"
+
+            #
+            # Prebuild the man pages so that consumers of the source tarball don't have to build it themselves.
+            (cd man && make build && gzip -9 ./*.1)
+
             mkdir -p ./tarball
             TARBALL_NAME="./tarball/influxdb-src-${CIRCLE_SHA1}.tar.gz"
-            tar --exclude-vcs --exclude './tarball' -vczf "${TARBALL_NAME}" .
+            tar --exclude-vcs --exclude './tarball' --transform 'flags=r;s|^|influxdb/|' -vczf "${TARBALL_NAME}" .
       - store_artifacts:
           path: tarball/
+      - persist_to_workspace:
+          root: .
+          paths:
+            - tarball
       - run:
           name: Build binaries
           command: |
@@ -56,24 +74,93 @@ jobs:
             export CC=/usr/local/bin/xcc.sh
             export CGO_ENABLED=1
 
+            INFLUXDB_COMMIT=$(git rev-parse --short HEAD)
+            INFLUXDB_VERSION=$(releng/get-version)
+
             # linux amd64 (static build)
             TMPOUTDIR=$(mktemp -d)
             export GOOS=linux
             export GOARCH=amd64
-            for cmd in github.com/influxdata/influxdb/cmd/{influxd,influx,influx_inspect} ; do
-              go build -o $TMPOUTDIR/$(basename $cmd) -tags "netgo osusergo static_build" -ldflags="-s -extldflags \"-fno-PIC -Wl,-z,stack-size=8388608\"" $cmd
-
+            for cmd in github.com/influxdata/influxdb/cmd/{influxd,influx,influx_inspect}
+            do
+              go build \
+                -o "${TMPOUTDIR}/$(basename $cmd)" \
+                -tags "netgo osusergo static_build" \
+                -ldflags="-s
+                  -X main.version=${INFLUXDB_VERSION}
+                  -X main.branch=${CIRCLE_BRANCH}
+                  -X main.commit=${INFLUXDB_COMMIT}
+                  -extldflags \"-fno-PIC -Wl,-z,stack-size=8388608\"" \
+                ${cmd}
             done
+
             mkdir -p ./bins
             tarsum $TMPOUTDIR ./bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz
       - store_artifacts:
           path: bins/
+      - persist_to_workspace:
+          root: .
+          paths:
+              - bins 
       - save_cache:
           key: influxdb-cache-v1-{{ checksum "go.mod" }}
           paths:
             - /go/pkg/mod
             - /root/.cargo
             - /root/.cache/go-build
+  build_packages:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+      image: ubuntu-2004:202107-02
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Build packages
+          command: |
+            set -x
+
+            WORKING_DIR=$(pwd)
+            OUTDIR=${WORKING_DIR}/packages
+
+            # InfluxDB debs and rpms
+            # linux
+            "${WORKING_DIR}/releng/packages/build.bash" \
+              -s "/tmp/workspace/tarball/influxdb-src-${CIRCLE_SHA1}.tar.gz" \
+              -b "/tmp/workspace/bins/influxdb_bin_linux_amd64-${CIRCLE_SHA1}.tar.gz" \
+              -O linux -A amd64 \
+              -o "$OUTDIR"
+      - store_artifacts:
+          path: packages/
+      - persist_to_workspace:
+          root: .
+          paths:
+            - packages
+  test_pkgs_64bit:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+      image: ubuntu-2004:202107-02
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Test 64 bit packages install
+          command: |
+            set -x
+            export WORKING_DIR=$(pwd)
+            # Using subshells with find to get full path of real package files, rather than predicting or hardcoding
+            # The glob pattern with -prune causes find to only return files rooted in packages,
+            # thereby avoiding files whose names would match, but are in subdirectories, i.e. packages/static.
+            "${WORKING_DIR}/releng/packages/spec/clean_install/run.bash" -D \
+              -p "$(find "/tmp/workspace/packages"/* -prune -name 'influxdb*amd64.deb')"
+
+            "${WORKING_DIR}/releng/packages/spec/clean_install/run.bash" -R \
+              -p "$(find "/tmp/workspace/packages"/* -prune -name 'influxdb*x86_64.rpm')"
+
   static_code_checks:
     docker:
       - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
@@ -192,6 +279,12 @@ workflows:
   on_push:
     jobs:
       - build_binaries
+      - build_packages:
+          requires:
+            - build_binaries
+      - test_pkgs_64bit:
+          requires:
+            - build_packages
       - static_code_checks
       - fluxtest
       - unit_test
@@ -222,3 +315,9 @@ workflows:
             - unit_test
             - unit_test_tsi
             - unit_test_race
+      - build_packages:
+          requires:
+            - build_binaries
+      - test_pkgs_64bit:
+          requires:
+            - build_packages

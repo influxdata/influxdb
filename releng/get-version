@@ -1,0 +1,100 @@
+#!/bin/bash
+set -o errexit
+set -o nounset
+set -o pipefail
+
+# For a tag to be considered suitable for release, it must start with
+# the latter 'v' followed by a digit. Afterwards, any sequence of
+# alphanumerics and '.', '+', '-', '~' are supported.
+#
+# Supported tag examples:
+# v1.8-rc1
+# v1.9~rc1
+# v2
+# v2.0
+#
+# Unsupported tag examples:
+# 1.9
+# 2.0
+# release-test
+TAG_REGEX='^v[[:digit:]][[:alnum:]\.\+\-\~]+$'
+
+usage()
+{
+cat <<'EOF'
+USAGE: get-version [OPTIONS]
+
+DESCRIPTION:
+
+OPTIONS:
+  -h        Displays this help text.
+  -p PREFIX Modify the version string for use with packages. Both Debian and
+            Fedora packages have strict version requirements. If there exist
+            no tags that reference this commit or the tags are not suitable
+            for packages, use "$PREFIX-$GIT_SHORT_COMMIT" instead. The
+            prefix must start with a number.
+  -n        (Only works when used with -p). Use the nightly version format.
+            This uses the format "$PREFIX-nightly-YYYYMMDD".
+EOF
+}
+
+go_version()
+{
+  # `git describe --exact` will fail when no tags match the HEAD commit.
+  # This is a supported scenario. So, this discards the return value.
+  TAG=$(git describe --exact --tag HEAD 2>/dev/null || true)
+
+  if [[ ${TAG} =~ ${TAG_REGEX} ]]
+  then
+    printf '%s\n' "${TAG}"
+    return
+  fi
+
+  printf 'unknown\n'
+}
+
+package_version()
+{
+  # `git describe --exact` will fail when no tags match the HEAD commit.
+  # This is a supported scenario. So, this discards the return value.
+  TAG=$(git describe --exact --tag HEAD 2>/dev/null || true)
+
+  if [[ ${TAG} =~ ${TAG_REGEX} ]]
+  then
+    # Debian package versions must start with a number; therefore, the
+    # 'v' must be stripped from the tag.
+    printf '%s\n' "${TAG:1}"
+    return
+  fi
+
+  if [[ ${PACKAGE_VERSION_NIGHTLY:-} ]]
+  then
+    printf '%s-nightly-%s\n' "${PACKAGE_VERSION_PREFIX}" "$(date '+%Y%m%d')"
+    return
+  fi
+
+  printf '%s-%s\n' "${PACKAGE_VERSION_PREFIX}" "$(git rev-parse --verify --short HEAD)"
+}
+
+while getopts 'hp:n' option
+do
+  case $option
+  in
+    n)
+      PACKAGE_VERSION_NIGHTLY=1
+      ;;
+    p)
+      PACKAGE_VERSION_PREFIX=${OPTARG}
+      ;;
+    h)
+      usage && exit 0
+      ;;
+  esac
+done
+
+if [[ ${PACKAGE_VERSION_PREFIX:-} ]]
+then
+  package_version
+else
+  go_version
+fi
