@@ -39,20 +39,41 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 // Prints the provided data frames in a tabular format grouped into tables per
 // distinct measurement.
-pub fn pretty_print(frames: &[Data]) -> Result<()> {
-    let rbs = into_record_batches(frames)?;
+pub fn pretty_print_frames(frames: &[Data]) -> Result<()> {
+    let rbs = frames_to_record_batches(frames)?;
     for (k, rb) in rbs {
-        println!("_measurement: {}", k);
+        println!("\n_measurement: {}", k);
         println!("rows: {:?}", &rb.num_rows());
         print_batches(&[rb]).context(ArrowSnafu)?;
-        println!("\n\n");
+        println!("\n");
     }
+    Ok(())
+}
+
+// Prints the provided set of strings in a tabular format grouped.
+pub fn pretty_print_strings(values: Vec<String>) -> Result<()> {
+    let schema = SchemaBuilder::new()
+        .influx_field("values", InfluxFieldType::String)
+        .build()
+        .context(SchemaBuildingSnafu)?;
+
+    let arrow_schema: arrow::datatypes::SchemaRef = schema.into();
+    let rb_columns: Vec<Arc<dyn arrow::array::Array>> =
+        vec![Arc::new(arrow::array::StringArray::from(
+            values.iter().map(|x| Some(x.as_str())).collect::<Vec<_>>(),
+        ))];
+
+    let rb = RecordBatch::try_new(arrow_schema, rb_columns).context(ArrowSnafu)?;
+
+    println!("\ntag values: {:?}", &rb.num_rows());
+    print_batches(&[rb]).context(ArrowSnafu)?;
+    println!("\n");
     Ok(())
 }
 
 // This function takes a set of InfluxRPC data frames and converts them into an
 // Arrow record batches, which are suitable for pretty printing.
-fn into_record_batches(frames: &[Data]) -> Result<BTreeMap<String, RecordBatch>> {
+fn frames_to_record_batches(frames: &[Data]) -> Result<BTreeMap<String, RecordBatch>> {
     // Run through all the frames once to build the schema of each table we need
     // to build as a record batch.
     let mut table_column_mapping = determine_tag_columns(frames);
@@ -462,9 +483,9 @@ impl TryFrom<IntermediateTable> for RecordBatch {
 const MEASUREMENT_TAG_KEY_TEXT: [u8; 12] = [
     b'_', b'm', b'e', b'a', b's', b'u', b'r', b'e', b'm', b'e', b'n', b't',
 ];
-const MEASUREMENT_TAG_KEY_BIN: [u8; 1] = [0_u8];
+pub(crate) const MEASUREMENT_TAG_KEY_BIN: [u8; 1] = [0_u8];
 const FIELD_TAG_KEY_TEXT: [u8; 6] = [b'_', b'f', b'i', b'e', b'l', b'd'];
-const FIELD_TAG_KEY: [u8; 1] = [255_u8];
+pub(crate) const FIELD_TAG_KEY_BIN: [u8; 1] = [255_u8];
 
 // Store a collection of column names and types for a single table (measurement).
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -513,12 +534,12 @@ fn field_name(frame: &SeriesFrame) -> &Vec<u8> {
     &frame.tags[idx].value
 }
 
-fn tag_key_is_measurement(key: &[u8]) -> bool {
+pub(crate) fn tag_key_is_measurement(key: &[u8]) -> bool {
     (key == MEASUREMENT_TAG_KEY_TEXT) || (key == MEASUREMENT_TAG_KEY_BIN)
 }
 
-fn tag_key_is_field(key: &[u8]) -> bool {
-    (key == FIELD_TAG_KEY_TEXT) || (key == FIELD_TAG_KEY)
+pub(crate) fn tag_key_is_field(key: &[u8]) -> bool {
+    (key == FIELD_TAG_KEY_TEXT) || (key == FIELD_TAG_KEY_BIN)
 }
 
 #[cfg(test)]
@@ -725,10 +746,10 @@ mod test_super {
     }
 
     #[test]
-    fn test_into_record_batches() {
+    fn test_frames_to_into_record_batches() {
         let frames = gen_frames();
 
-        let rbs = into_record_batches(&frames);
+        let rbs = frames_to_record_batches(&frames);
         let exp = vec![
             (
                 "another table",

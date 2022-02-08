@@ -109,13 +109,15 @@ fn parse_db_name(db_name: &str) -> Result<OrgAndBucket, ParseError> {
 /// All possible subcommands for storage
 #[derive(Debug, clap::Parser)]
 enum Command {
-    /// Issue a read_filter request
-    ReadFilter(ReadFilter),
+    ReadFilter,
+    TagValues(TagValues),
 }
 
-/// Create a new database
 #[derive(Debug, clap::Parser)]
-struct ReadFilter {}
+struct TagValues {
+    // The tag key value to interrogate for tag values.
+    tag_key: String,
+}
 
 /// Create and issue read request
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
@@ -125,9 +127,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let predicate = config.predicate.root.is_some().then(|| config.predicate);
 
     let source = Client::read_source(&config.db_name, 0);
-    let result = match config.command {
-        Command::ReadFilter(_) => {
-            client
+    match config.command {
+        Command::ReadFilter => {
+            let result = client
                 .read_filter(request::read_filter(
                     source,
                     config.start,
@@ -135,11 +137,23 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                     predicate,
                 ))
                 .await
+                .context(ServerSnafu)?;
+            response::pretty_print_frames(&result).context(ResponseSnafu)
+        }
+        Command::TagValues(tv) => {
+            let result = client
+                .tag_values(request::tag_values(
+                    source,
+                    config.start,
+                    config.stop,
+                    predicate,
+                    tv.tag_key,
+                ))
+                .await
+                .context(ServerSnafu)?;
+            response::pretty_print_strings(result).context(ResponseSnafu)
         }
     }
-    .context(ServerSnafu)?;
-
-    response::pretty_print(&result).context(ResponseSnafu)
 }
 
 #[cfg(test)]
