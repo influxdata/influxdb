@@ -666,8 +666,15 @@ pub mod test_utils {
         // 1: no context
         write("namespace", &writer, entry, sequencer_id, None).await;
 
-        // 2: some context
+        // check write 1
+        let write_1 = stream.next().await.unwrap().unwrap();
+        assert!(write_1.meta().span_context().is_none());
+
+        // no spans emitted yet
         let collector = context.trace_collector();
+        assert!(collector.spans().is_empty());
+
+        // 2: some context
         let span_context_1 = SpanContext::new(Arc::clone(&collector) as Arc<_>);
         write(
             "namespace",
@@ -689,10 +696,6 @@ pub mod test_utils {
             Some(&span_context_2),
         )
         .await;
-
-        // check write 1
-        let write_1 = stream.next().await.unwrap().unwrap();
-        assert!(write_1.meta().span_context().is_none());
 
         // check write 2
         let write_2 = stream.next().await.unwrap().unwrap();
