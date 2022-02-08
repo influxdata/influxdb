@@ -4,12 +4,9 @@ use std::sync::Arc;
 
 use rand::Rng;
 
-use crate::{
-    span::{Span, SpanStatus},
-    TraceCollector,
-};
+use crate::{span::Span, TraceCollector};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TraceId(pub NonZeroU128);
 
 impl TraceId {
@@ -22,7 +19,7 @@ impl TraceId {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SpanId(pub NonZeroU64);
 
 impl SpanId {
@@ -79,21 +76,14 @@ impl SpanContext {
 
     /// Creates a new child of the Span described by this TraceContext
     pub fn child(&self, name: impl Into<Cow<'static, str>>) -> Span {
-        Span {
-            name: name.into(),
-            ctx: Self {
-                trace_id: self.trace_id,
-                span_id: SpanId::gen(),
-                collector: self.collector.clone(),
-                links: vec![],
-                parent_span_id: Some(self.span_id),
-            },
-            start: None,
-            end: None,
-            status: SpanStatus::Unknown,
-            metadata: Default::default(),
-            events: Default::default(),
-        }
+        let ctx = Self {
+            trace_id: self.trace_id,
+            span_id: SpanId::gen(),
+            collector: self.collector.clone(),
+            links: vec![],
+            parent_span_id: Some(self.span_id),
+        };
+        Span::new(name, ctx)
     }
 
     /// Return the approximate memory size of the span, in bytes.

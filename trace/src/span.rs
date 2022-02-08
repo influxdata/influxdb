@@ -1,9 +1,9 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
+use std::{borrow::Cow, sync::Arc};
 
 use chrono::{DateTime, Utc};
 
-use crate::ctx::SpanContext;
+use crate::{ctx::SpanContext, TraceCollector};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum SpanStatus {
@@ -36,6 +36,25 @@ pub struct Span {
 }
 
 impl Span {
+    /// Create new span with given context and name.
+    pub(crate) fn new(name: impl Into<Cow<'static, str>>, ctx: SpanContext) -> Self {
+        Self {
+            name: name.into(),
+            ctx,
+            start: None,
+            end: None,
+            status: SpanStatus::Unknown,
+            metadata: Default::default(),
+            events: Default::default(),
+        }
+    }
+
+    /// Create new root span.
+    pub fn root(name: impl Into<Cow<'static, str>>, collector: Arc<dyn TraceCollector>) -> Self {
+        let ctx = SpanContext::new(collector);
+        Self::new(name, ctx)
+    }
+
     /// Record an event on this `Span`
     pub fn event(&mut self, meta: impl Into<Cow<'static, str>>) {
         let event = SpanEvent {

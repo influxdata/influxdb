@@ -11,7 +11,11 @@ use rskafka::{
 };
 use schema::selection::Selection;
 use time::{Time, TimeProvider};
-use trace::{ctx::SpanContext, span::SpanRecorder, TraceCollector};
+use trace::{
+    ctx::SpanContext,
+    span::{Span, SpanRecorder},
+    TraceCollector,
+};
 
 use crate::codec::{ContentType, IoxHeaders};
 
@@ -77,9 +81,10 @@ impl WriteAggregator {
             }
             (None, Some(ctx)) => {
                 // got a context but don't have a recorder yet => create a recorder and record span
-                let mut recorder_inner = SpanRecorder::new(collector.as_ref().map(|collector| {
-                    SpanContext::new(Arc::clone(collector)).child("write buffer aggregator")
-                }));
+                let mut recorder_inner =
+                    SpanRecorder::new(collector.as_ref().map(|collector| {
+                        Span::root("write buffer aggregator", Arc::clone(collector))
+                    }));
                 recorder_inner.link(ctx);
                 *recorder = Some(recorder_inner);
             }
