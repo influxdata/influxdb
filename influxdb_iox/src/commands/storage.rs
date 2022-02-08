@@ -42,16 +42,16 @@ pub struct Config {
     db_name: OrgAndBucket,
 
     /// The requested start time (inclusive) of the time-range (also accepts RFC3339 format).
-    #[clap(long, default_value = "-9223372036854775806", parse(try_from_str = parse_range))]
-    start: i64,
+    #[clap(global = true, long, default_value = "-9223372036854775806", parse(try_from_str = parse_range))]
+    pub start: i64,
 
     /// The requested stop time (exclusive) of the time-range (also accepts RFC3339 format).
-    #[clap(long, default_value = "9223372036854775806", parse(try_from_str = parse_range))]
-    stop: i64,
+    #[clap(global = true, long, default_value = "9223372036854775806", parse(try_from_str = parse_range))]
+    pub stop: i64,
 
     /// A predicate to filter results by. Effectively InfluxQL predicate format (see examples).
-    #[clap(long, default_value = "", parse(try_from_str = parse_predicate))]
-    predicate: Predicate,
+    #[clap(global = true, long, default_value = "", parse(try_from_str = parse_predicate))]
+    pub predicate: Predicate,
 }
 
 // Attempts to parse either a stringified `i64` value. or alternatively parse an
