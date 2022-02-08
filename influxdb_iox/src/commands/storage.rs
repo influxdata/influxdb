@@ -3,7 +3,6 @@ pub(crate) mod response;
 
 use std::num::NonZeroU64;
 
-use parquet::errors::ParquetError;
 use snafu::{ResultExt, Snafu};
 use tonic::Status;
 
@@ -11,7 +10,6 @@ use generated_types::Predicate;
 use influxdb_storage_client::{connection::Connection, Client, OrgAndBucket};
 use influxrpc_parser::predicate;
 use time;
-use trogging::tracing_subscriber::fmt::FormatEvent;
 
 #[derive(Debug, Snafu)]
 pub enum ParseError {
@@ -154,6 +152,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let predicate = config.predicate.root.is_some().then(|| config.predicate);
 
     let source = Client::read_source(&config.db_name, 0);
+    let now = std::time::Instant::now();
     match config.command {
         Command::ReadFilter => {
             let result = client
@@ -165,7 +164,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 ))
                 .await
                 .context(ServerSnafu)?;
-            response::pretty_print_frames(&result).context(ResponseSnafu)
+            match config.format {
+                Format::Pretty => response::pretty_print_frames(&result).context(ResponseSnafu)?,
+                Format::Quiet => {}
+            }
         }
         Command::TagValues(tv) => {
             let result = client
@@ -178,9 +180,14 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 ))
                 .await
                 .context(ServerSnafu)?;
-            response::pretty_print_strings(result).context(ResponseSnafu)
+            match config.format {
+                Format::Pretty => response::pretty_print_strings(result).context(ResponseSnafu)?,
+                Format::Quiet => {}
+            }
         }
-    }
+    };
+    println!("Query execution: {:?}", now.elapsed());
+    Ok(())
 }
 
 #[cfg(test)]
