@@ -27,6 +27,9 @@ pub enum ParseError {
 
     #[snafu(display("error building response: {:?}", source))]
     ResponseError { source: response::Error },
+
+    #[snafu(display("value {:?} not supported for flag {:?}", value, flag))]
+    UnsupportedFlagValue { value: String, flag: String },
 }
 
 pub type Result<T, E = ParseError> = std::result::Result<T, E>;
@@ -52,6 +55,9 @@ pub struct Config {
     /// A predicate to filter results by. Effectively InfluxQL predicate format (see examples).
     #[clap(global = true, long, default_value = "", parse(try_from_str = parse_predicate))]
     pub predicate: Predicate,
+
+    #[clap(global = true, long, default_value = "pretty", parse(try_from_str = parse_format))]
+    pub format: Format,
 }
 
 // Attempts to parse either a stringified `i64` value. or alternatively parse an
@@ -106,6 +112,25 @@ fn parse_db_name(db_name: &str) -> Result<OrgAndBucket, ParseError> {
     ))
 }
 
+// Attempts to parse the optional format.
+fn parse_format(format: &str) -> Result<Format, ParseError> {
+    match format {
+        "pretty" => Ok(Format::Pretty),
+        "quiet" => Ok(Format::Quiet),
+        // TODO - raw frame format?
+        _ => Err(ParseError::UnsupportedFlagValue {
+            value: format.to_owned(),
+            flag: "format".to_owned(),
+        }),
+    }
+}
+
+#[derive(Debug, clap::Parser)]
+pub enum Format {
+    Pretty,
+    Quiet,
+}
+
 /// All possible subcommands for storage
 #[derive(Debug, clap::Parser)]
 enum Command {
@@ -127,6 +152,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let predicate = config.predicate.root.is_some().then(|| config.predicate);
 
     let source = Client::read_source(&config.db_name, 0);
+    let now = std::time::Instant::now();
     match config.command {
         Command::ReadFilter => {
             let result = client
@@ -138,7 +164,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 ))
                 .await
                 .context(ServerSnafu)?;
-            response::pretty_print_frames(&result).context(ResponseSnafu)
+            match config.format {
+                Format::Pretty => response::pretty_print_frames(&result).context(ResponseSnafu)?,
+                Format::Quiet => {}
+            }
         }
         Command::TagValues(tv) => {
             let result = client
@@ -151,9 +180,14 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 ))
                 .await
                 .context(ServerSnafu)?;
-            response::pretty_print_strings(result).context(ResponseSnafu)
+            match config.format {
+                Format::Pretty => response::pretty_print_strings(result).context(ResponseSnafu)?,
+                Format::Quiet => {}
+            }
         }
-    }
+    };
+    println!("Query execution: {:?}", now.elapsed());
+    Ok(())
 }
 
 #[cfg(test)]
