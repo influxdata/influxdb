@@ -234,7 +234,11 @@ pub mod test_utils {
     use dml::{test_util::assert_write_op_eq, DmlMeta, DmlOperation, DmlWrite};
     use futures::{stream::FuturesUnordered, StreamExt, TryStreamExt};
     use std::{
-        collections::BTreeSet, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration,
+        collections::{BTreeSet, HashSet},
+        convert::TryFrom,
+        num::NonZeroU32,
+        sync::Arc,
+        time::Duration,
     };
     use time::{Time, TimeProvider};
     use trace::{ctx::SpanContext, span::Span, RingBufferTraceCollector};
@@ -769,8 +773,15 @@ pub mod test_utils {
         // 1: no context
         write("namespace", &writer, entry, sequencer_id, None).await;
 
-        // 2: some context
+        // check write 1
+        let write_1 = stream.next().await.unwrap().unwrap();
+        assert!(write_1.meta().span_context().is_none());
+
+        // no spans emitted yet
         let collector = context.trace_collector();
+        assert!(collector.spans().is_empty());
+
+        // 2: some context
         let span_context_1 = SpanContext::new(Arc::clone(&collector) as Arc<_>);
         write(
             "namespace",
@@ -793,10 +804,6 @@ pub mod test_utils {
         )
         .await;
 
-        // check write 1
-        let write_1 = stream.next().await.unwrap().unwrap();
-        assert!(write_1.meta().span_context().is_none());
-
         // check write 2
         let write_2 = stream.next().await.unwrap().unwrap();
         let actual_context_1 = write_2.meta().span_context().unwrap();
@@ -806,6 +813,9 @@ pub mod test_utils {
         let write_3 = stream.next().await.unwrap().unwrap();
         let actual_context_2 = write_3.meta().span_context().unwrap();
         assert_span_context_eq_or_linked(&span_context_2, actual_context_2, collector.spans());
+
+        // check that links / parents make sense
+        assert_span_relations_closed(&collector.spans(), &[span_context_1, span_context_2]);
     }
 
     /// Test that writing to an unknown sequencer produces an error
@@ -951,6 +961,24 @@ pub mod test_utils {
         assert_eq!(first.trace_id, second.trace_id);
         assert_eq!(first.span_id, second.span_id);
         assert_eq!(first.parent_span_id, second.parent_span_id);
+    }
+
+    /// Assert that all span relations (parents, links) are found within the set of spans or within the set of roots.
+    fn assert_span_relations_closed(spans: &[Span], roots: &[SpanContext]) {
+        let all_ids: HashSet<_> = spans
+            .iter()
+            .map(|span| (span.ctx.trace_id, span.ctx.span_id))
+            .chain(roots.iter().map(|ctx| (ctx.trace_id, ctx.span_id)))
+            .collect();
+
+        for span in spans {
+            if let Some(parent_span_id) = span.ctx.parent_span_id {
+                assert!(all_ids.contains(&(span.ctx.trace_id, parent_span_id)));
+            }
+            for link in &span.ctx.links {
+                assert!(all_ids.contains(link));
+            }
+        }
     }
 
     /// Pops first entry from set.

@@ -11,7 +11,11 @@ use rskafka::{
 };
 use schema::selection::Selection;
 use time::{Time, TimeProvider};
-use trace::{ctx::SpanContext, span::SpanRecorder, TraceCollector};
+use trace::{
+    ctx::SpanContext,
+    span::{Span, SpanRecorder},
+    TraceCollector,
+};
 
 use crate::codec::{ContentType, IoxHeaders};
 
@@ -33,10 +37,13 @@ struct WriteAggregator {
     tables: HashMap<String, MutableBatch>,
 
     /// Span recorder to link spans from incoming writes to aggregated write.
-    span_recorder: SpanRecorder,
+    span_recorder: Option<SpanRecorder>,
 
     /// Tag, so we can later find the offset of the produced record.
     tag: Tag,
+
+    /// Trace collector
+    collector: Option<Arc<dyn TraceCollector>>,
 }
 
 impl WriteAggregator {
@@ -46,19 +53,45 @@ impl WriteAggregator {
             .tables()
             .map(|(name, batch)| (name.to_owned(), batch.clone()))
             .collect();
-        let mut span_recorder = SpanRecorder::new(
-            collector.map(|collector| SpanContext::new(collector).child("write buffer aggregator")),
-        );
 
-        if let Some(ctx) = write.meta().span_context() {
-            span_recorder.link(ctx);
-        }
+        let mut span_recorder = None;
+        Self::record_span(&mut span_recorder, write.meta().span_context(), &collector);
 
         Self {
             namespace: write.namespace().to_owned(),
             tables,
             span_recorder,
             tag,
+            collector,
+        }
+    }
+
+    /// Fold new trace into existing one
+    fn record_span(
+        recorder: &mut Option<SpanRecorder>,
+        ctx: Option<&SpanContext>,
+        collector: &Option<Arc<dyn TraceCollector>>,
+    ) {
+        match (recorder.as_mut(), ctx) {
+            (None, None) => {
+                // no existing recorder and no context => nothing to trace
+            }
+            (Some(_recorder), None) => {
+                // existing recorder but no context => just keep the existing recorder
+            }
+            (None, Some(ctx)) => {
+                // got a context but don't have a recorder yet => create a recorder and record span
+                let mut recorder_inner =
+                    SpanRecorder::new(collector.as_ref().map(|collector| {
+                        Span::root("write buffer aggregator", Arc::clone(collector))
+                    }));
+                recorder_inner.link(ctx);
+                *recorder = Some(recorder_inner);
+            }
+            (Some(recorder), Some(ctx)) => {
+                // got context and already has a recorder => just record it
+                recorder.link(ctx);
+            }
         }
     }
 
@@ -101,22 +134,24 @@ impl WriteAggregator {
                 .or_insert_with(|| batch.clone());
         }
 
-        if let Some(ctx) = write.meta().span_context() {
-            self.span_recorder.link(ctx);
-        }
+        Self::record_span(
+            &mut self.span_recorder,
+            write.meta().span_context(),
+            &self.collector,
+        );
     }
 
     /// Flush aggregator to a ready-to-use DML write.
     fn flush(mut self) -> DmlWrite {
-        self.span_recorder.ok("aggregated");
-
         // attach a span if there is at least 1 active link
-        let meta = DmlMeta::unsequenced(
-            self.span_recorder
-                .span()
-                .map(|span| (!span.ctx.links.is_empty()).then(|| span.ctx.clone()))
-                .flatten(),
-        );
+        let ctx = if let Some(span_recorder) = self.span_recorder.as_mut() {
+            span_recorder.ok("aggregated");
+            span_recorder.span().map(|span| span.ctx.clone())
+        } else {
+            None
+        };
+
+        let meta = DmlMeta::unsequenced(ctx);
         DmlWrite::new(self.namespace, self.tables, meta)
     }
 
