@@ -267,7 +267,7 @@ mod tests {
             .new_config_write(db_name.as_str(), None, &cfg)
             .await
             .unwrap_err();
-        assert!(err.to_string().starts_with("Unknown mock ID:"));
+        assert!(err.to_string().contains("Unknown mock ID:"));
     }
 
     #[tokio::test]
@@ -302,7 +302,7 @@ mod tests {
             .new_config_read(db_name.as_str(), None, &cfg)
             .await
             .unwrap_err();
-        assert!(err.to_string().starts_with("Unknown mock ID:"));
+        assert!(err.to_string().contains("Unknown mock ID:"));
     }
 
     #[tokio::test]
@@ -335,7 +335,7 @@ mod tests {
             .new_config_write(db_name.as_str(), None, &cfg)
             .await
             .unwrap_err();
-        assert!(err.to_string().starts_with("Unknown mock ID:"));
+        assert!(err.to_string().contains("Unknown mock ID:"));
     }
 
     #[tokio::test]
@@ -368,7 +368,7 @@ mod tests {
             .new_config_read(db_name.as_str(), None, &cfg)
             .await
             .unwrap_err();
-        assert!(err.to_string().starts_with("Unknown mock ID:"));
+        assert!(err.to_string().contains("Unknown mock ID:"));
     }
 
     #[test]

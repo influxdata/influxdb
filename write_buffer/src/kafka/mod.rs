@@ -158,11 +158,16 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
 
             let sequence = Sequence {
                 id: self.sequencer_id,
-                number: record.offset.try_into()?,
+                number: record
+                    .offset
+                    .try_into()
+                    .map_err(WriteBufferError::invalid_data)?,
             };
 
             let timestamp_millis =
-                i64::try_from(record.record.timestamp.unix_timestamp_nanos() / 1_000_000)?;
+                i64::try_from(record.record.timestamp.unix_timestamp_nanos() / 1_000_000)
+                    .map_err(WriteBufferError::invalid_data)?;
+
             let timestamp = Time::from_timestamp_millis_opt(timestamp_millis)
                 .ok_or_else::<WriteBufferError, _>(|| {
                     format!(
@@ -182,7 +187,7 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
     }
 
     async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError> {
-        let offset = i64::try_from(sequence_number)?;
+        let offset = i64::try_from(sequence_number).map_err(WriteBufferError::invalid_input)?;
         self.next_offset.store(offset, Ordering::SeqCst);
         Ok(())
     }
@@ -259,7 +264,7 @@ impl WriteBufferReading for RSKafkaConsumer {
             })?;
 
         let watermark = partition_client.get_high_watermark().await?;
-        u64::try_from(watermark).map_err(|e| Box::new(e) as WriteBufferError)
+        u64::try_from(watermark).map_err(WriteBufferError::invalid_data)
     }
 
     fn type_name(&self) -> &'static str {
@@ -288,7 +293,7 @@ async fn setup_topic(
             let mut partition_clients = BTreeMap::new();
             for partition in topic.partitions {
                 let c = client.partition_client(&database_name, partition).await?;
-                let partition = u32::try_from(partition)?;
+                let partition = u32::try_from(partition).map_err(WriteBufferError::invalid_data)?;
                 partition_clients.insert(partition, c);
             }
             return Ok(partition_clients);
@@ -330,6 +335,7 @@ mod tests {
     use dml::{test_util::assert_write_op_eq, DmlDelete, DmlWrite};
     use futures::{stream::FuturesUnordered, TryStreamExt};
     use rskafka::{client::partition::Compression, record::Record};
+    use test_helpers::assert_contains;
     use trace::{ctx::SpanContext, RingBufferTraceCollector};
 
     use crate::{
@@ -502,7 +508,7 @@ mod tests {
         // read broken message from stream
         let mut stream = handler.stream();
         let err = stream.next().await.unwrap().unwrap_err();
-        assert_eq!(err.to_string(), "No content type header");
+        assert_contains!(err.to_string(), "No content type header");
 
         // re-creating the stream should advance past the broken message
         drop(stream);

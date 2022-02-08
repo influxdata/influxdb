@@ -7,15 +7,13 @@ use hyper::{Body, Request};
 use router2::dml_handlers::ShardedWriteBuffer;
 use router2::sequencer::Sequencer;
 use router2::server::http::HttpDelegate;
-use router2::sharder::TableNamespaceSharder;
+use router2::sharder::JumpHash;
 use tokio::runtime::Runtime;
 use write_buffer::core::WriteBufferWriting;
 use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
 
 // Init a mock write buffer with the given number of sequencers.
-fn init_write_buffer(
-    n_sequencers: u32,
-) -> ShardedWriteBuffer<TableNamespaceSharder<Arc<Sequencer>>> {
+fn init_write_buffer(n_sequencers: u32) -> ShardedWriteBuffer<JumpHash<Arc<Sequencer>>> {
     let time = time::MockProvider::new(time::Time::from_timestamp_millis(668563200000));
     let write_buffer: Arc<dyn WriteBufferWriting> = Arc::new(
         MockBufferForWriting::new(
@@ -34,11 +32,11 @@ fn init_write_buffer(
             .into_iter()
             .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer)))
             .map(Arc::new)
-            .collect::<TableNamespaceSharder<_>>(),
+            .collect::<JumpHash<_>>(),
     )
 }
 
-fn setup_server() -> HttpDelegate<ShardedWriteBuffer<TableNamespaceSharder<Arc<Sequencer>>>> {
+fn setup_server() -> HttpDelegate<ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>> {
     let write_buffer = init_write_buffer(1);
     HttpDelegate::new(1024, write_buffer)
 }
@@ -67,7 +65,7 @@ fn e2e_benchmarks(c: &mut Criterion) {
 
 fn benchmark_e2e(
     group: &mut BenchmarkGroup<WallTime>,
-    http_delegate: &HttpDelegate<ShardedWriteBuffer<TableNamespaceSharder<Arc<Sequencer>>>>,
+    http_delegate: &HttpDelegate<ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>>,
     uri: &'static str,
     body_str: &'static str,
 ) {

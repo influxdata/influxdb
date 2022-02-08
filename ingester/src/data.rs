@@ -3,6 +3,7 @@
 use arrow::record_batch::RecordBatch;
 use data_types::delete_predicate::DeletePredicate;
 
+use async_trait::async_trait;
 use chrono::{format::StrftimeItems, TimeZone, Utc};
 use dml::DmlOperation;
 use iox_catalog::interface::{
@@ -97,6 +98,25 @@ impl IngesterData {
         sequencer_data
             .buffer_operation(dml_operation, sequencer_id, self.catalog.as_ref())
             .await
+    }
+}
+
+/// The Persister has a single function that will persist a given partition Id. It is expected
+/// that the persist function will retry forever until it succeeds.
+#[async_trait]
+pub(crate) trait Persister: Send + Sync + 'static {
+    async fn persist(&self, partition_id: PartitionId);
+}
+
+#[async_trait]
+impl Persister for IngesterData {
+    async fn persist(&self, _partition_id: PartitionId) {
+        // lookup the TableData
+        // let persisting_batch = table_data.create_persisting_batch(partition.partition_key);
+        // do the persist with this persisting batch
+        // update the catalog
+        // table_data.clear_persisting_batch() (behind the scenes this will remove the persisting batch
+        // and if the partition is empty, remove it from the map in table_data)
     }
 }
 

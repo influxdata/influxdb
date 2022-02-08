@@ -462,7 +462,7 @@ impl ConsumerStream {
                         }
                         _ => {
                             // cannot read file => communicate to user
-                            Err(Box::new(error) as WriteBufferError)
+                            Err(error.into())
                         }
                     }
                 }
@@ -478,7 +478,10 @@ impl ConsumerStream {
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Result<DmlOperation, WriteBufferError> {
         let mut headers = [httparse::EMPTY_HEADER; 16];
-        match httparse::parse_headers(&data, &mut headers)? {
+        let status =
+            httparse::parse_headers(&data, &mut headers).map_err(WriteBufferError::invalid_data)?;
+
+        match status {
             httparse::Status::Complete((offset, headers)) => {
                 let iox_headers = IoxHeaders::from_headers(
                     headers.iter().map(|header| (header.name, header.value)),

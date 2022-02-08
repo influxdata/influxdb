@@ -1,4 +1,5 @@
 //! Tests for the Influx gRPC queries
+use data_types::timestamp::{MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::logical_plan::{col, lit};
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
@@ -205,6 +206,48 @@ async fn list_table_names_data_pred_250_300_with_delete() {
 #[tokio::test]
 async fn list_table_names_data_pred_250_300_with_delete_all() {
     run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(250, 300), vec![]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_max_time() {
+    run_table_names_test_case(
+        MeasurementWithMaxTime {},
+        tsp(MIN_NANO_TIME, MAX_NANO_TIME),
+        vec!["cpu"],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn list_table_names_max_i64() {
+    run_table_names_test_case(
+        MeasurementWithMaxTime {},
+        // outside valid timestamp range
+        tsp(i64::MIN, i64::MAX),
+        vec!["cpu"],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn list_table_names_time_less_one() {
+    run_table_names_test_case(
+        MeasurementWithMaxTime {},
+        tsp(MIN_NANO_TIME, MAX_NANO_TIME - 1),
+        vec![],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn list_table_names_max_time_greater_one() {
+    run_table_names_test_case(
+        MeasurementWithMaxTime {},
+        // one more than max timestamp
+        tsp(MIN_NANO_TIME + 1, MAX_NANO_TIME),
+        vec![],
+    )
+    .await;
 }
 
 // Note when table names supports general purpose predicates, add a

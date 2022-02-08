@@ -15,7 +15,7 @@ use std::{
 use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 use trace::span::SpanRecorder;
-use write_buffer::core::{WriteBufferReading, WriteBufferStreamHandler};
+use write_buffer::core::{WriteBufferErrorKind, WriteBufferReading, WriteBufferStreamHandler};
 
 use self::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
 pub mod metrics;
@@ -142,14 +142,27 @@ async fn stream_in_sequenced_entries<'a>(
         // get entry from sequencer
         let dml_operation = match db_write_result {
             Ok(db_write) => db_write,
-            // skip over invalid data in the write buffer so recovery can succeed
             Err(e) => {
-                warn!(
+                error!(
                     %e,
                     %db_name,
                     sequencer_id,
-                    "Error converting write buffer data to SequencedEntry",
+                    "Error reading record from write buffer",
                 );
+
+                match e.kind() {
+                    // If invalid data, simply skip over it
+                    WriteBufferErrorKind::InvalidData => {}
+
+                    // Otherwise backoff for a period
+                    WriteBufferErrorKind::Unknown
+                    | WriteBufferErrorKind::IO
+                    // TODO: Should probably bail on invalid input error
+                    | WriteBufferErrorKind::InvalidInput => {
+                        // TODO: Exponential backoff
+                        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                    }
+                }
                 continue;
             }
         };

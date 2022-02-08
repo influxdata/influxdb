@@ -3,7 +3,10 @@
 use iox_catalog::interface::{Catalog, KafkaPartition, KafkaTopic, Sequencer, SequencerId};
 use object_store::ObjectStore;
 
-use crate::data::{IngesterData, SequencerData};
+use crate::{
+    data::{IngesterData, SequencerData},
+    lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
+};
 use db::write_buffer::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
 use futures::StreamExt;
 use observability_deps::tracing::{debug, warn};
@@ -14,6 +17,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use time::SystemProvider;
 use tokio::task::JoinHandle;
 use trace::span::SpanRecorder;
 use write_buffer::core::{WriteBufferReading, WriteBufferStreamHandler};
@@ -49,11 +53,11 @@ pub struct IngestHandlerImpl {
     #[allow(dead_code)]
     kafka_topic: KafkaTopic,
     /// Future that resolves when the background worker exits
-    #[allow(dead_code)]
     join_handles: Vec<JoinHandle<()>>,
     /// The cache and buffered data for the ingester
-    #[allow(dead_code)]
     data: Arc<IngesterData>,
+    /// The lifecycle manager, keeping state of partitions across all sequencers
+    lifecycle_manager: Arc<LifecycleManager>,
 }
 
 impl std::fmt::Debug for IngestHandlerImpl {
@@ -65,6 +69,7 @@ impl std::fmt::Debug for IngestHandlerImpl {
 impl IngestHandlerImpl {
     /// Initialize the Ingester
     pub async fn new(
+        lifecycle_config: LifecycleConfig,
         topic: KafkaTopic,
         sequencer_states: BTreeMap<KafkaPartition, Sequencer>,
         catalog: Arc<dyn Catalog>,
@@ -109,10 +114,23 @@ impl IngestHandlerImpl {
             )));
         }
 
+        // start the lifecycle manager
+        let persister = Arc::clone(&data);
+        let lifecycle_manager = Arc::new(LifecycleManager::new(
+            lifecycle_config,
+            Arc::new(SystemProvider::new()),
+        ));
+        let manager = Arc::clone(&lifecycle_manager);
+        let handle = tokio::task::spawn(async move {
+            run_lifecycle_manager(manager, persister).await;
+        });
+        join_handles.push(handle);
+
         Ok(Self {
             data,
             kafka_topic: topic,
             join_handles,
+            lifecycle_manager,
         })
     }
 }
@@ -291,7 +309,9 @@ mod tests {
         let object_store = Arc::new(ObjectStore::new_in_memory());
         let metrics: Arc<metric::Registry> = Default::default();
 
+        let lifecycle_config = LifecycleConfig::new(1000000, 1000, 1000, Duration::from_secs(10));
         let ingester = IngestHandlerImpl::new(
+            lifecycle_config,
             kafka_topic,
             sequencer_states,
             Arc::new(catalog),

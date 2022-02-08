@@ -45,7 +45,8 @@ impl TryFrom<&WriteBufferCreationConfig> for TopicCreationConfig {
 
     fn try_from(cfg: &WriteBufferCreationConfig) -> Result<Self, Self::Error> {
         Ok(Self {
-            num_partitions: i32::try_from(cfg.n_sequencers.get())?,
+            num_partitions: i32::try_from(cfg.n_sequencers.get())
+                .map_err(WriteBufferError::invalid_input)?,
             replication_factor: parse_key(&cfg.options, "replication_factor")?.unwrap_or(1),
             timeout_ms: parse_key(&cfg.options, "timeout_ms")?.unwrap_or(5_000),
         })
@@ -127,6 +128,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::{collections::BTreeMap, num::NonZeroU32};
+    use test_helpers::assert_contains;
 
     use super::*;
 
@@ -159,7 +161,7 @@ mod tests {
             String::from("xyz"),
         )]))
         .unwrap_err();
-        assert_eq!(
+        assert_contains!(
             err.to_string(),
             "Cannot parse `max_message_size` from 'xyz': invalid digit found in string"
         );
@@ -206,7 +208,7 @@ mod tests {
             options: BTreeMap::from([(String::from("replication_factor"), String::from("xyz"))]),
         })
         .unwrap_err();
-        assert_eq!(
+        assert_contains!(
             err.to_string(),
             "Cannot parse `replication_factor` from 'xyz': invalid digit found in string"
         );
@@ -216,7 +218,7 @@ mod tests {
             options: BTreeMap::from([(String::from("timeout_ms"), String::from("xyz"))]),
         })
         .unwrap_err();
-        assert_eq!(
+        assert_contains!(
             err.to_string(),
             "Cannot parse `timeout_ms` from 'xyz': invalid digit found in string"
         );
@@ -257,7 +259,7 @@ mod tests {
             String::from("xyz"),
         )]))
         .unwrap_err();
-        assert_eq!(
+        assert_contains!(
             err.to_string(),
             "Cannot parse `consumer_max_wait_ms` from 'xyz': invalid digit found in string"
         );
@@ -267,7 +269,7 @@ mod tests {
             String::from("xyz"),
         )]))
         .unwrap_err();
-        assert_eq!(
+        assert_contains!(
             err.to_string(),
             "Cannot parse `consumer_min_batch_size` from 'xyz': invalid digit found in string"
         );
@@ -277,7 +279,7 @@ mod tests {
             String::from("xyz"),
         )]))
         .unwrap_err();
-        assert_eq!(
+        assert_contains!(
             err.to_string(),
             "Cannot parse `consumer_max_batch_size` from 'xyz': invalid digit found in string"
         );
@@ -318,7 +320,7 @@ mod tests {
             String::from("xyz"),
         )]))
         .unwrap_err();
-        assert_eq!(
+        assert_contains!(
             err.to_string(),
             "Cannot parse `producer_linger_ms` from 'xyz': invalid digit found in string"
         );
@@ -328,7 +330,7 @@ mod tests {
             String::from("xyz"),
         )]))
         .unwrap_err();
-        assert_eq!(
+        assert_contains!(
             err.to_string(),
             "Cannot parse `producer_max_batch_size` from 'xyz': invalid digit found in string"
         );
