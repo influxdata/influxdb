@@ -252,7 +252,7 @@ async fn query(
 
     let db = server.db(&db_name)?;
 
-    let _query_completed_token = db.record_query("sql", &q);
+    let _query_completed_token = db.record_query("sql", Box::new(q.clone()));
 
     let ctx = db.new_query_context(req.extensions().get().cloned());
     let physical_plan = Planner::new(&ctx).sql(&q).await.context(PlanningSnafu)?;

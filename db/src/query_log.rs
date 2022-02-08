@@ -7,19 +7,19 @@ use std::{
 };
 
 use parking_lot::Mutex;
+use query::QueryText;
 use time::{Time, TimeProvider};
 
 // The query duration used for queries still running.
 const UNCOMPLETED_DURATION: i64 = -1;
 
 /// Information about a single query that was executed
-#[derive(Debug)]
 pub struct QueryLogEntry {
     /// The type of query
     pub query_type: String,
 
     /// The text of the query (SQL for sql queries, pbjson for storage rpc queries)
-    pub query_text: String,
+    pub query_text: QueryText,
 
     /// Time at which the query was run
     pub issue_time: Time,
@@ -29,9 +29,20 @@ pub struct QueryLogEntry {
     query_completed_duration: atomic::AtomicI64,
 }
 
+impl std::fmt::Debug for QueryLogEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QueryLogEntry")
+            .field("query_type", &self.query_type)
+            .field("query_text", &self.query_text.to_string())
+            .field("issue_time", &self.issue_time)
+            .field("query_completed_duration", &self.query_completed_duration)
+            .finish()
+    }
+}
+
 impl QueryLogEntry {
     /// Creates a new QueryLogEntry -- use `QueryLog::push` to add new entries to the log
-    fn new(query_type: String, query_text: String, issue_time: Time) -> Self {
+    fn new(query_type: String, query_text: QueryText, issue_time: Time) -> Self {
         Self {
             query_type,
             query_text,
@@ -77,14 +88,10 @@ impl QueryLog {
         }
     }
 
-    pub fn push(
-        &self,
-        query_type: impl Into<String>,
-        query_text: impl Into<String>,
-    ) -> Arc<QueryLogEntry> {
+    pub fn push(&self, query_type: impl Into<String>, query_text: QueryText) -> Arc<QueryLogEntry> {
         let entry = Arc::new(QueryLogEntry::new(
             query_type.into(),
-            query_text.into(),
+            query_text,
             self.time_provider.now(),
         ));
 
@@ -126,7 +133,7 @@ mod test_super {
 
         let entry = Arc::new(QueryLogEntry::new(
             "sql".into(),
-            "SELECT 1".into(),
+            Box::new("SELECT 1"),
             time_provider.now(),
         ));
         // query has not completed
