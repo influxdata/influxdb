@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 shopt -s nocasematch
-semantic_pattern='(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?: +[^ ]'
+semantic_pattern='^(Merge branch '\''.+'\'' into|(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?: +[^ ])'
 
 if [[ $1 == "test" ]]; then
   exit_code=0
@@ -9,7 +9,8 @@ if [[ $1 == "test" ]]; then
   echo checking strings that should be OK
   expect_ok="chore: foo
 chore(hello): foo
-CHORE: foo"
+CHORE: foo
+Merge branch 'main' into foo"
   while read -r s; do
     if [[ ! $s =~ $semantic_pattern ]]; then
       echo got FAIL, expected OK: "$s"
