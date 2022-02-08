@@ -234,34 +234,28 @@ mod tests {
     use iox_catalog::validate_or_insert_schema;
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
     use mutable_batch_lp::lines_to_batches;
-    use std::num::NonZeroU32;
+    use std::{num::NonZeroU32, ops::DerefMut};
     use time::Time;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
     #[tokio::test]
     async fn read_from_write_buffer_write_to_mutable_buffer() {
         let catalog = MemCatalog::new();
-        let kafka_topic = catalog
-            .kafka_topics()
-            .create_or_get("whatevs")
-            .await
-            .unwrap();
-        let query_pool = catalog
-            .query_pools()
-            .create_or_get("whatevs")
-            .await
-            .unwrap();
+        let mut txn = catalog.start_transaction().await.unwrap();
+        let kafka_topic = txn.kafka_topics().create_or_get("whatevs").await.unwrap();
+        let query_pool = txn.query_pools().create_or_get("whatevs").await.unwrap();
         let kafka_partition = KafkaPartition::new(0);
-        let namespace = catalog
+        let namespace = txn
             .namespaces()
             .create("foo", "inf", kafka_topic.id, query_pool.id)
             .await
             .unwrap();
-        let sequencer = catalog
+        let sequencer = txn
             .sequencers()
             .create_or_get(&kafka_topic, kafka_partition)
             .await
             .unwrap();
+
         let mut sequencer_states = BTreeMap::new();
         sequencer_states.insert(kafka_partition, sequencer);
 
@@ -276,7 +270,7 @@ mod tests {
             lines_to_batches("mem foo=1 10", 0).unwrap(),
             DmlMeta::sequenced(Sequence::new(0, 0), ingest_ts1, None, 50),
         );
-        let schema = validate_or_insert_schema(w1.tables(), &schema, &catalog)
+        let schema = validate_or_insert_schema(w1.tables(), &schema, txn.deref_mut())
             .await
             .unwrap()
             .unwrap();
@@ -286,10 +280,11 @@ mod tests {
             lines_to_batches("cpu bar=2 20\ncpu bar=3 30", 0).unwrap(),
             DmlMeta::sequenced(Sequence::new(0, 7), ingest_ts2, None, 150),
         );
-        let _schema = validate_or_insert_schema(w2.tables(), &schema, &catalog)
+        let _schema = validate_or_insert_schema(w2.tables(), &schema, txn.deref_mut())
             .await
             .unwrap()
             .unwrap();
+        txn.commit().await.unwrap();
         write_buffer_state.push_write(w2);
         let reading: Arc<dyn WriteBufferReading> =
             Arc::new(MockBufferForReading::new(write_buffer_state, None).unwrap());

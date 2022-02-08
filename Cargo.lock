@@ -2113,6 +2113,7 @@ dependencies = [
  "schema",
  "snafu",
  "sqlx",
+ "test_helpers",
  "tokio",
  "uuid",
  "workspace-hack",

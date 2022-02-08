@@ -1,18 +1,16 @@
 //! A Postgres backed implementation of the Catalog
 
 use crate::interface::{
-    Catalog, Column, ColumnRepo, ColumnType, Error, KafkaPartition, KafkaTopic, KafkaTopicId,
-    KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile, ParquetFileId,
-    ParquetFileRepo, Partition, PartitionId, PartitionInfo, PartitionRepo, ProcessedTombstone,
-    ProcessedTombstoneRepo, QueryPool, QueryPoolId, QueryPoolRepo, Result, SequenceNumber,
-    Sequencer, SequencerId, SequencerRepo, Table, TableId, TableRepo, Timestamp, Tombstone,
-    TombstoneId, TombstoneRepo,
+    sealed::TransactionFinalize, Catalog, Column, ColumnRepo, ColumnType, Error, KafkaPartition,
+    KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile,
+    ParquetFileId, ParquetFileRepo, Partition, PartitionId, PartitionInfo, PartitionRepo,
+    ProcessedTombstone, ProcessedTombstoneRepo, QueryPool, QueryPoolId, QueryPoolRepo, Result,
+    SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId, TableRepo, Timestamp,
+    Tombstone, TombstoneId, TombstoneRepo, Transaction,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::{info, warn};
-use sqlx::{
-    migrate::Migrator, postgres::PgPoolOptions, Executor, Pool, Postgres, Row, Transaction,
-};
+use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Executor, Pool, Postgres, Row};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -24,7 +22,7 @@ pub const SCHEMA_NAME: &str = "iox_catalog";
 
 static MIGRATOR: Migrator = sqlx::migrate!();
 
-/// In-memory catalog that implements the `RepoCollection` and individual repo traits.
+/// PostgreSQL catalog.
 #[derive(Debug)]
 pub struct PostgresCatalog {
     pool: Pool<Postgres>,
@@ -72,6 +70,50 @@ impl PostgresCatalog {
     }
 }
 
+/// transaction for [`PostgresCatalog`].
+#[derive(Debug)]
+pub struct PostgresTxn {
+    transaction: Option<sqlx::Transaction<'static, Postgres>>,
+}
+
+impl PostgresTxn {
+    fn transaction(&mut self) -> &mut sqlx::Transaction<'static, Postgres> {
+        self.transaction.as_mut().expect("Not yet finalized")
+    }
+}
+
+impl Drop for PostgresTxn {
+    fn drop(&mut self) {
+        if self.transaction.is_some() {
+            warn!("Dropping PostgresTxn w/o finalizing (commit or abort)");
+
+            // SQLx ensures that the inner transaction enqueues a rollback when it is dropped, so we don't need to spawn
+            // a task here to call `rollback` manually.
+        }
+    }
+}
+
+#[async_trait]
+impl TransactionFinalize for PostgresTxn {
+    async fn commit_inplace(&mut self) -> Result<(), Error> {
+        self.transaction
+            .take()
+            .expect("Not yet finalized")
+            .commit()
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn abort_inplace(&mut self) -> Result<(), Error> {
+        self.transaction
+            .take()
+            .expect("Not yet finalized")
+            .rollback()
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+}
+
 #[async_trait]
 impl Catalog for PostgresCatalog {
     async fn setup(&self) -> Result<(), Error> {
@@ -83,111 +125,65 @@ impl Catalog for PostgresCatalog {
         Ok(())
     }
 
-    fn kafka_topics(&self) -> &dyn KafkaTopicRepo {
-        self
-    }
+    async fn start_transaction(&self) -> Result<Box<dyn Transaction>, Error> {
+        let transaction = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Error::SqlxError { source: e })?;
 
-    fn query_pools(&self) -> &dyn QueryPoolRepo {
-        self
-    }
-
-    fn namespaces(&self) -> &dyn NamespaceRepo {
-        self
-    }
-
-    fn tables(&self) -> &dyn TableRepo {
-        self
-    }
-
-    fn columns(&self) -> &dyn ColumnRepo {
-        self
-    }
-
-    fn sequencers(&self) -> &dyn SequencerRepo {
-        self
-    }
-
-    fn partitions(&self) -> &dyn PartitionRepo {
-        self
-    }
-
-    fn tombstones(&self) -> &dyn TombstoneRepo {
-        self
-    }
-
-    fn parquet_files(&self) -> &dyn ParquetFileRepo {
-        self
-    }
-
-    fn processed_tombstones(&self) -> &dyn ProcessedTombstoneRepo {
-        self
-    }
-
-    async fn add_parquet_file_with_tombstones(
-        &self,
-        parquet_file: &ParquetFile,
-        tombstones: &[Tombstone],
-    ) -> Result<(ParquetFile, Vec<ProcessedTombstone>), Error> {
-        // Start a transaction
-        let txt = self.pool.begin().await;
-        if let Err(error) = txt {
-            return Err(Error::StartTransaction { source: error });
-        }
-        let mut txt = txt.unwrap();
-
-        // create a parquet file in the catalog first
-        let parquet = self
-            .parquet_files()
-            .create(
-                Some(&mut txt),
-                parquet_file.sequencer_id,
-                parquet_file.table_id,
-                parquet_file.partition_id,
-                parquet_file.object_store_id,
-                parquet_file.min_sequence_number,
-                parquet_file.max_sequence_number,
-                parquet_file.min_time,
-                parquet_file.max_time,
-            )
-            .await;
-
-        if let Err(error) = parquet {
-            // Error while adding parquet file into the catalog, stop the transaction
-            warn!(object_store_id=?parquet_file.object_store_id.to_string(), "{}", error.to_string());
-            let _rollback = txt.rollback().await;
-            return Err(error);
-        }
-        let parquet = parquet.unwrap();
-
-        // Now the parquet available, create its processed tombstones
-        let processed_tombstones = self
-            .processed_tombstones()
-            .create_many(Some(&mut txt), parquet.id, tombstones)
-            .await;
-
-        let processed_tombstones = match processed_tombstones {
-            Ok(processed_tombstones) => processed_tombstones,
-            Err(e) => {
-                // Error while adding processed tombstones
-                warn!(
-                    "Error while adding processed tombstone: {}. Transaction stops.",
-                    e.to_string()
-                );
-                let _rollback = txt.rollback().await;
-                return Err(e);
-            }
-        };
-
-        // Commit the transaction
-        let _commit = txt.commit().await;
-
-        Ok((parquet, processed_tombstones))
+        Ok(Box::new(PostgresTxn {
+            transaction: Some(transaction),
+        }))
     }
 }
 
 #[async_trait]
-impl KafkaTopicRepo for PostgresCatalog {
-    async fn create_or_get(&self, name: &str) -> Result<KafkaTopic> {
+impl Transaction for PostgresTxn {
+    fn kafka_topics(&mut self) -> &mut dyn KafkaTopicRepo {
+        self
+    }
+
+    fn query_pools(&mut self) -> &mut dyn QueryPoolRepo {
+        self
+    }
+
+    fn namespaces(&mut self) -> &mut dyn NamespaceRepo {
+        self
+    }
+
+    fn tables(&mut self) -> &mut dyn TableRepo {
+        self
+    }
+
+    fn columns(&mut self) -> &mut dyn ColumnRepo {
+        self
+    }
+
+    fn sequencers(&mut self) -> &mut dyn SequencerRepo {
+        self
+    }
+
+    fn partitions(&mut self) -> &mut dyn PartitionRepo {
+        self
+    }
+
+    fn tombstones(&mut self) -> &mut dyn TombstoneRepo {
+        self
+    }
+
+    fn parquet_files(&mut self) -> &mut dyn ParquetFileRepo {
+        self
+    }
+
+    fn processed_tombstones(&mut self) -> &mut dyn ProcessedTombstoneRepo {
+        self
+    }
+}
+
+#[async_trait]
+impl KafkaTopicRepo for PostgresTxn {
+    async fn create_or_get(&mut self, name: &str) -> Result<KafkaTopic> {
         let rec = sqlx::query_as::<_, KafkaTopic>(
             r#"
 INSERT INTO kafka_topic ( name )
@@ -197,21 +193,21 @@ DO UPDATE SET name = kafka_topic.name RETURNING *;
         "#,
         )
         .bind(&name) // $1
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(rec)
     }
 
-    async fn get_by_name(&self, name: &str) -> Result<Option<KafkaTopic>> {
+    async fn get_by_name(&mut self, name: &str) -> Result<Option<KafkaTopic>> {
         let rec = sqlx::query_as::<_, KafkaTopic>(
             r#"
 SELECT * FROM kafka_topic WHERE name = $1;
         "#,
         )
         .bind(&name) // $1
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await;
 
         if let Err(sqlx::Error::RowNotFound) = rec {
@@ -225,8 +221,8 @@ SELECT * FROM kafka_topic WHERE name = $1;
 }
 
 #[async_trait]
-impl QueryPoolRepo for PostgresCatalog {
-    async fn create_or_get(&self, name: &str) -> Result<QueryPool> {
+impl QueryPoolRepo for PostgresTxn {
+    async fn create_or_get(&mut self, name: &str) -> Result<QueryPool> {
         let rec = sqlx::query_as::<_, QueryPool>(
             r#"
 INSERT INTO query_pool ( name )
@@ -236,7 +232,7 @@ DO UPDATE SET name = query_pool.name RETURNING *;
         "#,
         )
         .bind(&name) // $1
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
 
@@ -245,9 +241,9 @@ DO UPDATE SET name = query_pool.name RETURNING *;
 }
 
 #[async_trait]
-impl NamespaceRepo for PostgresCatalog {
+impl NamespaceRepo for PostgresTxn {
     async fn create(
-        &self,
+        &mut self,
         name: &str,
         retention_duration: &str,
         kafka_topic_id: KafkaTopicId,
@@ -264,7 +260,7 @@ RETURNING *
         .bind(&retention_duration) // $2
         .bind(kafka_topic_id) // $3
         .bind(query_pool_id) // $4
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await
         .map_err(|e| {
             if is_unique_violation(&e) {
@@ -281,14 +277,14 @@ RETURNING *
         Ok(rec)
     }
 
-    async fn get_by_name(&self, name: &str) -> Result<Option<Namespace>> {
+    async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
 SELECT * FROM namespace WHERE name = $1;
         "#,
         )
         .bind(&name) // $1
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await;
 
         if let Err(sqlx::Error::RowNotFound) = rec {
@@ -302,8 +298,8 @@ SELECT * FROM namespace WHERE name = $1;
 }
 
 #[async_trait]
-impl TableRepo for PostgresCatalog {
-    async fn create_or_get(&self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
+impl TableRepo for PostgresTxn {
+    async fn create_or_get(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
         let rec = sqlx::query_as::<_, Table>(
             r#"
 INSERT INTO table_name ( name, namespace_id )
@@ -314,7 +310,7 @@ DO UPDATE SET name = table_name.name RETURNING *;
         )
         .bind(&name) // $1
         .bind(&namespace_id) // $2
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await
         .map_err(|e| {
             if is_fk_violation(&e) {
@@ -327,7 +323,7 @@ DO UPDATE SET name = table_name.name RETURNING *;
         Ok(rec)
     }
 
-    async fn list_by_namespace_id(&self, namespace_id: NamespaceId) -> Result<Vec<Table>> {
+    async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>> {
         let rec = sqlx::query_as::<_, Table>(
             r#"
 SELECT * FROM table_name
@@ -335,7 +331,7 @@ WHERE namespace_id = $1;
             "#,
         )
         .bind(&namespace_id)
-        .fetch_all(&self.pool)
+        .fetch_all(self.transaction())
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
 
@@ -344,9 +340,9 @@ WHERE namespace_id = $1;
 }
 
 #[async_trait]
-impl ColumnRepo for PostgresCatalog {
+impl ColumnRepo for PostgresTxn {
     async fn create_or_get(
-        &self,
+        &mut self,
         name: &str,
         table_id: TableId,
         column_type: ColumnType,
@@ -364,7 +360,7 @@ DO UPDATE SET name = column_name.name RETURNING *;
         .bind(&name) // $1
         .bind(&table_id) // $2
         .bind(&ct) // $3
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await
         .map_err(|e| {
             if is_fk_violation(&e) {
@@ -385,7 +381,7 @@ DO UPDATE SET name = column_name.name RETURNING *;
         Ok(rec)
     }
 
-    async fn list_by_namespace_id(&self, namespace_id: NamespaceId) -> Result<Vec<Column>> {
+    async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Column>> {
         let rec = sqlx::query_as::<_, Column>(
             r#"
 SELECT column_name.* FROM table_name
@@ -394,7 +390,7 @@ WHERE table_name.namespace_id = $1;
             "#,
         )
         .bind(&namespace_id)
-        .fetch_all(&self.pool)
+        .fetch_all(self.transaction())
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
 
@@ -403,9 +399,9 @@ WHERE table_name.namespace_id = $1;
 }
 
 #[async_trait]
-impl SequencerRepo for PostgresCatalog {
+impl SequencerRepo for PostgresTxn {
     async fn create_or_get(
-        &self,
+        &mut self,
         topic: &KafkaTopic,
         partition: KafkaPartition,
     ) -> Result<Sequencer> {
@@ -421,7 +417,7 @@ impl SequencerRepo for PostgresCatalog {
         )
         .bind(&topic.id) // $1
         .bind(&partition) // $2
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await
         .map_err(|e| {
             if is_fk_violation(&e) {
@@ -433,7 +429,7 @@ impl SequencerRepo for PostgresCatalog {
     }
 
     async fn get_by_topic_id_and_partition(
-        &self,
+        &mut self,
         topic_id: KafkaTopicId,
         partition: KafkaPartition,
     ) -> Result<Option<Sequencer>> {
@@ -444,7 +440,7 @@ SELECT * FROM sequencer WHERE kafka_topic_id = $1 AND kafka_partition = $2;
         )
         .bind(topic_id) // $1
         .bind(partition) // $2
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await;
 
         if let Err(sqlx::Error::RowNotFound) = rec {
@@ -456,26 +452,26 @@ SELECT * FROM sequencer WHERE kafka_topic_id = $1 AND kafka_partition = $2;
         Ok(Some(sequencer))
     }
 
-    async fn list(&self) -> Result<Vec<Sequencer>> {
+    async fn list(&mut self) -> Result<Vec<Sequencer>> {
         sqlx::query_as::<_, Sequencer>(r#"SELECT * FROM sequencer;"#)
-            .fetch_all(&self.pool)
+            .fetch_all(self.transaction())
             .await
             .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn list_by_kafka_topic(&self, topic: &KafkaTopic) -> Result<Vec<Sequencer>> {
+    async fn list_by_kafka_topic(&mut self, topic: &KafkaTopic) -> Result<Vec<Sequencer>> {
         sqlx::query_as::<_, Sequencer>(r#"SELECT * FROM sequencer WHERE kafka_topic_id = $1;"#)
             .bind(&topic.id) // $1
-            .fetch_all(&self.pool)
+            .fetch_all(self.transaction())
             .await
             .map_err(|e| Error::SqlxError { source: e })
     }
 }
 
 #[async_trait]
-impl PartitionRepo for PostgresCatalog {
+impl PartitionRepo for PostgresTxn {
     async fn create_or_get(
-        &self,
+        &mut self,
         key: &str,
         sequencer_id: SequencerId,
         table_id: TableId,
@@ -493,7 +489,7 @@ impl PartitionRepo for PostgresCatalog {
         .bind(key) // $1
         .bind(&sequencer_id) // $2
         .bind(&table_id) // $3
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await
         .map_err(|e| {
             if is_fk_violation(&e) {
@@ -504,16 +500,16 @@ impl PartitionRepo for PostgresCatalog {
         })
     }
 
-    async fn list_by_sequencer(&self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
+    async fn list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
         sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE sequencer_id = $1;"#)
             .bind(&sequencer_id) // $1
-            .fetch_all(&self.pool)
+            .fetch_all(self.transaction())
             .await
             .map_err(|e| Error::SqlxError { source: e })
     }
 
     async fn partition_info_by_id(
-        &self,
+        &mut self,
         partition_id: PartitionId,
     ) -> Result<Option<PartitionInfo>> {
         let info = sqlx::query(
@@ -526,7 +522,7 @@ impl PartitionRepo for PostgresCatalog {
         WHERE partition.id = $1;"#,
         )
         .bind(&partition_id) // $1
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
 
@@ -548,9 +544,9 @@ impl PartitionRepo for PostgresCatalog {
 }
 
 #[async_trait]
-impl TombstoneRepo for PostgresCatalog {
+impl TombstoneRepo for PostgresTxn {
     async fn create_or_get(
-        &self,
+        &mut self,
         table_id: TableId,
         sequencer_id: SequencerId,
         sequence_number: SequenceNumber,
@@ -574,7 +570,7 @@ impl TombstoneRepo for PostgresCatalog {
         .bind(&min_time) // $4
         .bind(&max_time) // $5
         .bind(predicate) // $6
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await
         .map_err(|e| {
             if is_fk_violation(&e) {
@@ -586,24 +582,23 @@ impl TombstoneRepo for PostgresCatalog {
     }
 
     async fn list_tombstones_by_sequencer_greater_than(
-        &self,
+        &mut self,
         sequencer_id: SequencerId,
         sequence_number: SequenceNumber,
     ) -> Result<Vec<Tombstone>> {
         sqlx::query_as::<_, Tombstone>(r#"SELECT * FROM tombstone WHERE sequencer_id = $1 AND sequence_number > $2 ORDER BY id;"#)
             .bind(&sequencer_id) // $1
             .bind(&sequence_number) // $2
-            .fetch_all(&self.pool)
+            .fetch_all(self.transaction())
             .await
             .map_err(|e| Error::SqlxError { source: e })
     }
 }
 
 #[async_trait]
-impl ParquetFileRepo for PostgresCatalog {
+impl ParquetFileRepo for PostgresTxn {
     async fn create(
-        &self,
-        txt: Option<&mut Transaction<'_, Postgres>>,
+        &mut self,
         sequencer_id: SequencerId,
         table_id: TableId,
         partition_id: PartitionId,
@@ -627,30 +622,28 @@ RETURNING *
             .bind(min_sequence_number) // $5
             .bind(max_sequence_number) // $6
             .bind(min_time) // $7
-            .bind(max_time); // $8
-
-        let rec = match txt {
-            Some(txt) => rec.fetch_one(txt).await,
-            None => rec.fetch_one(&self.pool).await,
-        };
-
-        let rec = rec.map_err(|e| {
-            if is_unique_violation(&e) {
-                Error::FileExists { object_store_id }
-            } else if is_fk_violation(&e) {
-                Error::ForeignKeyViolation { source: e }
-            } else {
-                Error::SqlxError { source: e }
-            }
-        })?;
+            .bind(max_time) // $8
+            .fetch_one(self.transaction())
+            .await
+            .map_err(|e| {
+                if is_unique_violation(&e) {
+                    Error::FileExists {
+                        object_store_id,
+                    }
+                } else if is_fk_violation(&e) {
+                    Error::ForeignKeyViolation { source: e }
+                } else {
+                    Error::SqlxError { source: e }
+                }
+            })?;
 
         Ok(rec)
     }
 
-    async fn flag_for_delete(&self, id: ParquetFileId) -> Result<()> {
+    async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
         let _ = sqlx::query(r#"UPDATE parquet_file SET to_delete = true WHERE id = $1;"#)
             .bind(&id) // $1
-            .execute(&self.pool)
+            .execute(self.transaction())
             .await
             .map_err(|e| Error::SqlxError { source: e })?;
 
@@ -658,34 +651,34 @@ RETURNING *
     }
 
     async fn list_by_sequencer_greater_than(
-        &self,
+        &mut self,
         sequencer_id: SequencerId,
         sequence_number: SequenceNumber,
     ) -> Result<Vec<ParquetFile>> {
         sqlx::query_as::<_, ParquetFile>(r#"SELECT * FROM parquet_file WHERE sequencer_id = $1 AND max_sequence_number > $2 ORDER BY id;"#)
             .bind(&sequencer_id) // $1
             .bind(&sequence_number) // $2
-            .fetch_all(&self.pool)
+            .fetch_all(self.transaction())
             .await
             .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn exist(&self, id: ParquetFileId) -> Result<bool> {
+    async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {
         let read_result = sqlx::query_as::<_, Count>(
             r#"SELECT count(*) as count FROM parquet_file WHERE id = $1;"#,
         )
         .bind(&id) // $1
-        .fetch_one(&self.pool)
+        .fetch_one(self.transaction())
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(read_result.count > 0)
     }
 
-    async fn count(&self) -> Result<i64> {
+    async fn count(&mut self) -> Result<i64> {
         let read_result =
             sqlx::query_as::<_, Count>(r#"SELECT count(*) as count  FROM parquet_file;"#)
-                .fetch_one(&self.pool)
+                .fetch_one(self.transaction())
                 .await
                 .map_err(|e| Error::SqlxError { source: e })?;
 
@@ -694,18 +687,12 @@ RETURNING *
 }
 
 #[async_trait]
-impl ProcessedTombstoneRepo for PostgresCatalog {
+impl ProcessedTombstoneRepo for PostgresTxn {
     async fn create_many(
-        &self,
-        txt: Option<&mut Transaction<'_, Postgres>>,
+        &mut self,
         parquet_file_id: ParquetFileId,
         tombstones: &[Tombstone],
     ) -> Result<Vec<ProcessedTombstone>> {
-        if txt.is_none() {
-            return Err(Error::NoTransaction);
-        }
-        let txt = txt.unwrap();
-
         // no transaction provided
         // todo: we should never needs this but since right now we implement 2 catalogs,
         // postgres (for production)  and mem (for testing only) that does not need to provide txt
@@ -721,7 +708,7 @@ impl ProcessedTombstoneRepo for PostgresCatalog {
             )
             .bind(tombstone.id) // $1
             .bind(parquet_file_id) // $2
-            .fetch_one(&mut *txt)
+            .fetch_one(self.transaction())
             .await
             .map_err(|e| {
                 if is_unique_violation(&e) {
@@ -743,7 +730,7 @@ impl ProcessedTombstoneRepo for PostgresCatalog {
     }
 
     async fn exist(
-        &self,
+        &mut self,
         parquet_file_id: ParquetFileId,
         tombstone_id: TombstoneId,
     ) -> Result<bool> {
@@ -751,17 +738,17 @@ impl ProcessedTombstoneRepo for PostgresCatalog {
             r#"SELECT count(*) as count FROM processed_tombstone WHERE parquet_file_id = $1 AND tombstone_id = $2;"#)
             .bind(&parquet_file_id) // $1
             .bind(&tombstone_id) // $2
-            .fetch_one(&self.pool)
+            .fetch_one(self.transaction())
             .await
             .map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(read_result.count > 0)
     }
 
-    async fn count(&self) -> Result<i64> {
+    async fn count(&mut self) -> Result<i64> {
         let read_result =
             sqlx::query_as::<_, Count>(r#"SELECT count(*) as count FROM processed_tombstone;"#)
-                .fetch_one(&self.pool)
+                .fetch_one(self.transaction())
                 .await
                 .map_err(|e| Error::SqlxError { source: e })?;
 

@@ -100,7 +100,8 @@ pub async fn command(config: Config) -> Result<()> {
 
     let catalog = config.catalog_dsn.get_catalog("ingester").await?;
 
-    let kafka_topic = catalog
+    let mut txn = catalog.start_transaction().await?;
+    let kafka_topic = txn
         .kafka_topics()
         .get_by_name(&config.write_buffer_config.topic)
         .await?
@@ -122,13 +123,14 @@ pub async fn command(config: Config) -> Result<()> {
 
     let mut sequencers = BTreeMap::new();
     for k in kafka_partitions {
-        let s = catalog
+        let s = txn
             .sequencers()
             .get_by_topic_id_and_partition(kafka_topic.id, k)
             .await?
             .ok_or(Error::SequencerNotFound(k))?;
         sequencers.insert(k, s);
     }
+    txn.commit().await?;
 
     let metric_registry: Arc<metric::Registry> = Default::default();
     let trace_collector = common_state.trace_collector();

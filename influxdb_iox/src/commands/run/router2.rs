@@ -109,7 +109,8 @@ pub async fn command(config: Config) -> Result<()> {
     // This code / auto-creation is for architecture testing purposes only - a
     // prod deployment would expect namespaces to be explicitly created and this
     // layer would be removed.
-    let topic_id = catalog
+    let mut txn = catalog.start_transaction().await?;
+    let topic_id = txn
         .kafka_topics()
         .get_by_name(&config.write_buffer_config.topic)
         .await?
@@ -120,7 +121,7 @@ pub async fn command(config: Config) -> Result<()> {
                 &config.write_buffer_config.topic
             )
         });
-    let query_id = catalog
+    let query_id = txn
         .query_pools()
         .create_or_get(&config.query_pool_name)
         .await
@@ -131,6 +132,8 @@ pub async fn command(config: Config) -> Result<()> {
                 &config.write_buffer_config.topic, e
             )
         });
+    txn.commit().await?;
+
     let handler_stack = NamespaceAutocreation::new(
         catalog,
         ns_cache,

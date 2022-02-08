@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::DerefMut, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
@@ -135,6 +135,12 @@ where
         batches: HashMap<String, MutableBatch>,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::WriteError> {
+        let mut txn = self
+            .catalog
+            .start_transaction()
+            .await
+            .map_err(SchemaError::NamespaceLookup)?;
+
         // Load the namespace schema from the cache, falling back to pulling it
         // from the global catalog (if it exists).
         let schema = self.cache.get_schema(&namespace);
@@ -143,7 +149,7 @@ where
             None => {
                 // Pull the schema from the global catalog or error if it does
                 // not exist.
-                let schema = get_schema_by_name(&namespace, &*self.catalog)
+                let schema = get_schema_by_name(&namespace, txn.deref_mut())
                     .await
                     .map_err(|e| {
                         warn!(error=%e, %namespace, "failed to retrieve namespace schema");
@@ -162,7 +168,7 @@ where
         let maybe_new_schema = validate_or_insert_schema(
             batches.iter().map(|(k, v)| (k.as_str(), v)),
             &schema,
-            &*self.catalog,
+            txn.deref_mut(),
         )
         .await
         .map_err(|e| {
@@ -170,6 +176,8 @@ where
             SchemaError::Validate(e)
         })?
         .map(Arc::new);
+
+        txn.commit().await.map_err(SchemaError::NamespaceLookup)?;
 
         trace!(%namespace, "schema validation complete");
 
@@ -246,8 +254,12 @@ mod tests {
     /// named [`NAMESPACE`].
     async fn create_catalog() -> Arc<dyn Catalog> {
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
-        catalog
-            .namespaces()
+
+        let mut txn = catalog
+            .start_transaction()
+            .await
+            .expect("failed to start UoW");
+        txn.namespaces()
             .create(
                 NAMESPACE,
                 "inf",
@@ -256,6 +268,8 @@ mod tests {
             )
             .await
             .expect("failed to create test namespace");
+        txn.commit().await.expect("failed to commit UoW");
+
         catalog
     }
 
