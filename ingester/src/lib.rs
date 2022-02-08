@@ -16,6 +16,7 @@
 pub mod compact;
 pub mod data;
 pub mod handler;
+pub mod lifecycle;
 pub mod persist;
 pub mod query;
 pub mod server;

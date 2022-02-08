@@ -2021,6 +2021,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
+ "async-trait",
  "base64 0.13.0",
  "bytes",
  "chrono",
