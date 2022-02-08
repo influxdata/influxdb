@@ -76,9 +76,17 @@ impl IoxHeaders {
             if name.eq_ignore_ascii_case(HEADER_CONTENT_TYPE) {
                 content_type = match std::str::from_utf8(value.as_ref()) {
                     Ok(CONTENT_TYPE_PROTOBUF) => Some(ContentType::Protobuf),
-                    Ok(c) => return Err(format!("Unknown message format: {}", c).into()),
+                    Ok(c) => {
+                        return Err(WriteBufferError::invalid_data(format!(
+                            "Unknown message format: {}",
+                            c
+                        )))
+                    }
                     Err(e) => {
-                        return Err(format!("Error decoding content type header: {}", e).into())
+                        return Err(WriteBufferError::invalid_data(format!(
+                            "Error decoding content type header: {}",
+                            e
+                        )))
                     }
                 };
             }
@@ -95,7 +103,10 @@ impl IoxHeaders {
                         span_context = match parser.parse(trace_collector, &headers) {
                             Ok(ctx) => ctx,
                             Err(e) => {
-                                return Err(format!("Error decoding trace context: {}", e).into())
+                                return Err(WriteBufferError::invalid_data(format!(
+                                    "Error decoding trace context: {}",
+                                    e
+                                )))
                             }
                         };
                     }
@@ -103,15 +114,20 @@ impl IoxHeaders {
             }
 
             if name.eq_ignore_ascii_case(HEADER_NAMESPACE) {
-                namespace = Some(
-                    String::from_utf8(value.as_ref().to_vec())
-                        .map_err(|e| format!("Error decoding namespace header: {}", e))?,
-                );
+                namespace = Some(String::from_utf8(value.as_ref().to_vec()).map_err(|e| {
+                    WriteBufferError::invalid_data(format!(
+                        "Error decoding namespace header: {}",
+                        e
+                    ))
+                })?);
             }
         }
 
+        let content_type =
+            content_type.ok_or_else(|| WriteBufferError::invalid_data("No content type header"))?;
+
         Ok(Self {
-            content_type: content_type.ok_or_else(|| "No content type header".to_string())?,
+            content_type,
             span_context,
             namespace: namespace.unwrap_or_default(),
         })
@@ -173,8 +189,12 @@ pub fn decode(
 
             match payload {
                 Payload::Write(write) => {
-                    let tables = decode_database_batch(&write)
-                        .map_err(|e| format!("failed to decode database batch: {}", e))?;
+                    let tables = decode_database_batch(&write).map_err(|e| {
+                        WriteBufferError::invalid_data(format!(
+                            "failed to decode database batch: {}",
+                            e
+                        ))
+                    })?;
 
                     Ok(DmlOperation::Write(DmlWrite::new(
                         headers.namespace,
@@ -183,7 +203,11 @@ pub fn decode(
                     )))
                 }
                 Payload::Delete(delete) => {
-                    let predicate = delete.predicate.required("predicate")?;
+                    let predicate = delete
+                        .predicate
+                        .required("predicate")
+                        .map_err(WriteBufferError::invalid_data)?;
+
                     Ok(DmlOperation::Delete(DmlDelete::new(
                         headers.namespace,
                         predicate,
@@ -220,7 +244,8 @@ pub fn encode_operation(
     let payload = WriteBufferPayload {
         payload: Some(payload),
     };
-    Ok(payload.encode(buf).map_err(Box::new)?)
+
+    payload.encode(buf).map_err(WriteBufferError::invalid_input)
 }
 
 #[cfg(test)]

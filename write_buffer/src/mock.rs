@@ -537,6 +537,7 @@ mod tests {
 
     use futures::StreamExt;
     use mutable_batch_lp::lines_to_batches;
+    use test_helpers::assert_contains;
     use time::TimeProvider;
     use trace::RingBufferTraceCollector;
 
@@ -725,7 +726,7 @@ mod tests {
     async fn test_always_error_read() {
         let reader = MockBufferForReadingThatAlwaysErrors {};
 
-        assert_eq!(
+        assert_contains!(
             reader
                 .fetch_high_watermark(0)
                 .await
@@ -736,12 +737,12 @@ mod tests {
 
         let mut stream_handler = reader.stream_handler(0).await.unwrap();
 
-        assert_eq!(
+        assert_contains!(
             stream_handler.seek(0).await.unwrap_err().to_string(),
             "Something bad happened while seeking the stream"
         );
 
-        assert_eq!(
+        assert_contains!(
             stream_handler
                 .stream()
                 .next()
@@ -760,7 +761,7 @@ mod tests {
         let tables = lines_to_batches("upc user=1 100", 0).unwrap();
         let operation = DmlOperation::Write(DmlWrite::new("test_db", tables, Default::default()));
 
-        assert_eq!(
+        assert_contains!(
             writer
                 .store_operation(0, &operation)
                 .await

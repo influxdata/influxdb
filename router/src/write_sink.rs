@@ -104,7 +104,9 @@ impl VariantWriteBuffer {
         write_buffer
             .store_operation(0, operation)
             .await
-            .context(WriteFailureSnafu)?;
+            .map_err(|e| Error::WriteFailure {
+                source: Box::new(e),
+            })?;
 
         Ok(())
     }

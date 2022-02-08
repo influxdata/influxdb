@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+use std::io::Error;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
@@ -10,7 +12,106 @@ use futures::stream::BoxStream;
 /// Generic boxed error type that is used in this crate.
 ///
 /// The dynamic boxing makes it easier to deal with error from different implementations.
-pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
+#[derive(Debug)]
+pub struct WriteBufferError {
+    inner: Box<dyn std::error::Error + Sync + Send>,
+    kind: WriteBufferErrorKind,
+}
+
+impl WriteBufferError {
+    pub fn new(
+        kind: WriteBufferErrorKind,
+        e: impl Into<Box<dyn std::error::Error + Sync + Send>>,
+    ) -> Self {
+        Self {
+            inner: e.into(),
+            kind,
+        }
+    }
+
+    pub fn invalid_data(e: impl Into<Box<dyn std::error::Error + Sync + Send>>) -> Self {
+        Self::new(WriteBufferErrorKind::InvalidData, e)
+    }
+
+    pub fn invalid_input(e: impl Into<Box<dyn std::error::Error + Sync + Send>>) -> Self {
+        Self::new(WriteBufferErrorKind::InvalidInput, e)
+    }
+
+    /// Returns the kind of error this was
+    pub fn kind(&self) -> WriteBufferErrorKind {
+        self.kind
+    }
+
+    /// Returns the inner error
+    pub fn inner(&self) -> &dyn std::error::Error {
+        self.inner.as_ref()
+    }
+}
+
+impl Display for WriteBufferError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "WriteBufferError({:?}): {}", self.kind, self.inner)
+    }
+}
+
+impl std::error::Error for WriteBufferError {}
+
+impl From<std::io::Error> for WriteBufferError {
+    fn from(e: Error) -> Self {
+        Self {
+            inner: Box::new(e),
+            kind: WriteBufferErrorKind::IO,
+        }
+    }
+}
+
+impl From<rskafka::client::error::Error> for WriteBufferError {
+    fn from(e: rskafka::client::error::Error) -> Self {
+        Self {
+            inner: Box::new(e),
+            kind: WriteBufferErrorKind::IO,
+        }
+    }
+}
+
+impl From<rskafka::client::producer::Error> for WriteBufferError {
+    fn from(e: rskafka::client::producer::Error) -> Self {
+        Self {
+            inner: Box::new(e),
+            kind: WriteBufferErrorKind::IO,
+        }
+    }
+}
+
+impl From<String> for WriteBufferError {
+    fn from(e: String) -> Self {
+        Self {
+            inner: e.into(),
+            kind: WriteBufferErrorKind::Unknown,
+        }
+    }
+}
+
+impl From<&'static str> for WriteBufferError {
+    fn from(e: &'static str) -> Self {
+        Self {
+            inner: e.into(),
+            kind: WriteBufferErrorKind::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum WriteBufferErrorKind {
+    /// This operation failed for an unknown reason
+    Unknown,
+    /// This operation was provided with invalid input data
+    InvalidInput,
+    /// This operation encountered invalid data
+    InvalidData,
+    /// A fatal IO error occurred - non-fatal errors should be retried internally
+    IO,
+}
 
 /// Writing to a Write Buffer takes a [`DmlWrite`] and returns the [`DmlMeta`] for the
 /// payload that was written
@@ -44,7 +145,9 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
         lp: &str,
         default_time: i64,
     ) -> Result<DmlMeta, WriteBufferError> {
-        let tables = mutable_batch_lp::lines_to_batches(lp, default_time).map_err(Box::new)?;
+        let tables = mutable_batch_lp::lines_to_batches(lp, default_time)
+            .map_err(WriteBufferError::invalid_input)?;
+
         self.store_operation(
             sequencer_id,
             &DmlOperation::Write(DmlWrite::new("test_db", tables, Default::default())),
