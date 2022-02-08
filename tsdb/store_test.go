@@ -1366,7 +1366,7 @@ func TestStore_Cardinality_Limit_On_InMem_Index(t *testing.T) {
 		to := from + pointsPerShard
 
 		if err := store.Store.WriteToShard(tsdb.WriteContext{}, uint64(shardID), points[from:to]); err != nil {
-			if !strings.Contains(err.Error(), "partial write: max-series-per-database exceeded limit") {
+			if !strings.Contains(err.Error(), "partial write: max-series-per-database exceeded") {
 				t.Fatal(err)
 			}
 		}

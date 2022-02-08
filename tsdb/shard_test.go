@@ -164,7 +164,8 @@ func TestMaxSeriesLimit(t *testing.T) {
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 	opts.Config.MaxSeriesPerDatabase = 1000
-	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
+	index := inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
+	opts.InmemIndex = index
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
 
@@ -206,7 +207,8 @@ func TestMaxSeriesLimit(t *testing.T) {
 	err = sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	if err == nil {
 		t.Fatal("expected error")
-	} else if exp, got := `partial write: max-series-per-database exceeded limit=1000 series=1000 keys=1 dropped=1`, err.Error(); exp != got {
+	} else if exp, got :=
+		fmt.Sprintf(`partial write: max-series-per-database exceeded database=%s limit=1000 series=1000 keys=1 dropped=1`, index.Database()), err.Error(); exp != got {
 		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
 	} else {
 		st := sh.Statistics(map[string]string{})
