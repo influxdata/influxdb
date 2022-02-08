@@ -104,7 +104,7 @@ jobs:
           command: find scripts -type f ! \( -iname '*.py' -or -iname '*.supp' \) -exec shellcheck {} +
       - run:
           name: Yamllint
-          command: yamllint --strict .
+          command: yamllint --config-file .circleci/yamllint.yml --strict .
       - cache_save
   cargo_audit:
     docker:
