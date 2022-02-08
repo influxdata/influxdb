@@ -106,6 +106,11 @@ impl<'a> Drop for QueryCompletedToken<'a> {
     }
 }
 
+/// Boxed description of a query that knows how to render to a string
+///
+/// This avoids storing potentially large strings
+pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
+
 /// A `Database` is the main trait implemented by the IOx subsystems
 /// that store actual data.
 ///
@@ -129,7 +134,7 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     fn record_query(
         &self,
         query_type: impl Into<String>,
-        query_text: impl Into<String>,
+        query_text: QueryText,
     ) -> QueryCompletedToken<'_>;
 }
 

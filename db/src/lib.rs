@@ -45,7 +45,7 @@ use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::Persisten
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
-    QueryCompletedToken, QueryDatabase,
+    QueryCompletedToken, QueryDatabase, QueryText,
 };
 use rand_distr::{Distribution, Poisson};
 use schema::selection::Selection;
@@ -1230,7 +1230,7 @@ impl QueryDatabase for Db {
     fn record_query(
         &self,
         query_type: impl Into<String>,
-        query_text: impl Into<String>,
+        query_text: QueryText,
     ) -> QueryCompletedToken<'_> {
         self.catalog_access.record_query(query_type, query_text)
     }

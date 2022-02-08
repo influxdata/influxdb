@@ -72,7 +72,7 @@ fn from_query_log_entries(
 
     let query_text = entries
         .iter()
-        .map(|e| Some(&e.query_text))
+        .map(|e| Some(e.query_text.to_string()))
         .collect::<StringArray>();
 
     let query_runtime = entries
@@ -102,10 +102,10 @@ mod tests {
         let now = Time::from_rfc3339("1996-12-19T16:39:57+00:00").unwrap();
         let time_provider = Arc::new(time::MockProvider::new(now));
         let query_log = QueryLog::new(10, Arc::clone(&time_provider) as Arc<dyn TimeProvider>);
-        query_log.push("sql", "select * from foo");
+        query_log.push("sql", Box::new("select * from foo"));
         time_provider.inc(std::time::Duration::from_secs(24 * 60 * 60));
-        query_log.push("sql", "select * from bar");
-        let read_filter_entry = query_log.push("read_filter", "json goop");
+        query_log.push("sql", Box::new("select * from bar"));
+        let read_filter_entry = query_log.push("read_filter", Box::new("json goop"));
 
         let expected = vec![
             "+----------------------+-------------+-------------------+--------------------+",

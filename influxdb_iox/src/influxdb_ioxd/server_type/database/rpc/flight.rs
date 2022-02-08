@@ -172,7 +172,7 @@ impl Flight for FlightService {
             .db(&database)
             .map_err(default_server_error_handler)?;
 
-        let _query_completed_token = db.record_query("sql", &read_info.sql_query);
+        let _query_completed_token = db.record_query("sql", Box::new(read_info.sql_query.clone()));
 
         let ctx = db.new_query_context(span_ctx);
 
