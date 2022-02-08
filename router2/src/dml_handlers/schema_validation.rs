@@ -363,9 +363,9 @@ mod tests {
         assert_matches!(err, SchemaError::Validate(_));
 
         // THe mock should observe exactly one write from the first call.
-        assert_matches!(mock.calls().as_slice(), [MockDmlHandlerCall::Write{namespace, batches}] => {
+        assert_matches!(mock.calls().as_slice(), [MockDmlHandlerCall::Write{namespace, write_input}] => {
             assert_eq!(namespace, NAMESPACE);
-            let batch = batches.get("bananas").expect("table not found in write");
+            let batch = write_input.get("bananas").expect("table not found in write");
             assert_eq!(batch.rows(), 1);
             let col = batch.column("val").expect("column not found in write");
             assert_matches!(col.influx_type(), InfluxColumnType::Field(InfluxFieldType::Integer));
