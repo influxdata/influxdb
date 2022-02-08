@@ -3,7 +3,7 @@
 
 use std::convert::TryFrom;
 
-use predicate::predicate::Predicate;
+use predicate::Predicate;
 use snafu::Snafu;
 
 #[derive(Debug, Snafu)]
@@ -55,7 +55,7 @@ pub mod test {
     use datafusion::logical_plan::{col, lit, Expr};
 
     use datafusion::scalar::ScalarValue;
-    use predicate::predicate::PredicateBuilder;
+    use predicate::PredicateBuilder;
     use read_buffer::BinaryExpr as RBBinaryExpr;
     use read_buffer::Predicate as RBPredicate;
 

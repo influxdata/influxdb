@@ -8,19 +8,19 @@
 //! For example `SELECT * FROM system.chunks`
 
 use super::{catalog::Catalog, query_log::QueryLog};
-use arrow::{
-    datatypes::{Field, Schema, SchemaRef},
-    error::Result,
-    record_batch::RecordBatch,
-};
+use arrow::{datatypes::SchemaRef, error::Result, record_batch::RecordBatch};
 use async_trait::async_trait;
+use datafusion::execution::runtime_env::RuntimeEnv;
+use datafusion::physical_plan::{
+    Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
+};
 use datafusion::{
-    catalog::schema::SchemaProvider,
-    datasource::TableProvider,
-    error::{DataFusionError, Result as DataFusionResult},
-    physical_plan::{memory::MemoryExec, ExecutionPlan},
+    catalog::schema::SchemaProvider, datasource::TableProvider, error::Result as DataFusionResult,
+    physical_plan::ExecutionPlan,
 };
 use job_registry::JobRegistry;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::{any::Any, sync::Arc};
 
 mod chunks;
@@ -65,22 +65,22 @@ impl SystemSchemaProvider {
     ) -> Self {
         let db_name = db_name.into();
         let chunks = Arc::new(SystemTableProvider {
-            inner: chunks::ChunksTable::new(Arc::clone(&catalog)),
+            table: Arc::new(chunks::ChunksTable::new(Arc::clone(&catalog))),
         });
         let columns = Arc::new(SystemTableProvider {
-            inner: columns::ColumnsTable::new(Arc::clone(&catalog)),
+            table: Arc::new(columns::ColumnsTable::new(Arc::clone(&catalog))),
         });
         let chunk_columns = Arc::new(SystemTableProvider {
-            inner: columns::ChunkColumnsTable::new(Arc::clone(&catalog)),
+            table: Arc::new(columns::ChunkColumnsTable::new(Arc::clone(&catalog))),
         });
         let operations = Arc::new(SystemTableProvider {
-            inner: operations::OperationsTable::new(db_name, jobs),
+            table: Arc::new(operations::OperationsTable::new(db_name, jobs)),
         });
         let persistence_windows = Arc::new(SystemTableProvider {
-            inner: persistence::PersistenceWindowsTable::new(catalog),
+            table: Arc::new(persistence::PersistenceWindowsTable::new(catalog)),
         });
         let queries = Arc::new(SystemTableProvider {
-            inner: queries::QueriesTable::new(query_log),
+            table: Arc::new(queries::QueriesTable::new(query_log)),
         });
         Self {
             chunks,
@@ -133,21 +133,20 @@ impl SchemaProvider for SystemSchemaProvider {
     }
 }
 
+type BatchIterator = Box<dyn Iterator<Item = Result<RecordBatch>> + Send + Sync>;
+
 /// The minimal thing that a system table needs to implement
 trait IoxSystemTable: Send + Sync {
     /// Produce the schema from this system table
     fn schema(&self) -> SchemaRef;
 
-    /// Get the contents of the system table as a single RecordBatch
-    fn batch(&self) -> Result<RecordBatch>;
+    /// Get the contents of the system table
+    fn scan(&self, batch_size: usize) -> Result<BatchIterator>;
 }
 
 /// Adapter that makes any `IoxSystemTable` a DataFusion `TableProvider`
-struct SystemTableProvider<T>
-where
-    T: IoxSystemTable,
-{
-    inner: T,
+struct SystemTableProvider<T: IoxSystemTable> {
+    table: Arc<T>,
 }
 
 #[async_trait]
@@ -160,7 +159,7 @@ where
     }
 
     fn schema(&self) -> SchemaRef {
-        self.inner.schema()
+        self.table.schema()
     }
 
     async fn scan(
@@ -170,134 +169,97 @@ where
         _filters: &[datafusion::logical_plan::Expr],
         _limit: Option<usize>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-        scan_batch(self.inner.batch()?, self.schema(), projection.as_ref())
+        let schema = self.table.schema();
+        let projected_schema = match projection.as_ref() {
+            Some(projection) => Arc::new(schema.project(projection)?),
+            None => schema,
+        };
+
+        Ok(Arc::new(SystemTableExecutionPlan {
+            table: Arc::clone(&self.table),
+            projection: projection.clone(),
+            projected_schema,
+        }))
     }
 }
 
-/// Creates a DataFusion ExecutionPlan node that scans a single batch
-/// of records.
-fn scan_batch(
-    batch: RecordBatch,
-    schema: SchemaRef,
-    projection: Option<&Vec<usize>>,
-) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
-    // apply projection, if any
-    let (schema, batch) = match projection {
-        None => (schema, batch),
-        Some(projection) => {
-            let projected_columns: DataFusionResult<Vec<Field>> = projection
-                .iter()
-                .map(|i| {
-                    if *i < schema.fields().len() {
-                        Ok(schema.field(*i).clone())
-                    } else {
-                        Err(DataFusionError::Internal(format!(
-                            "Projection index out of range in ChunksProvider: {}",
-                            i
-                        )))
-                    }
-                })
-                .collect();
-
-            let projected_schema = Arc::new(Schema::new(projected_columns?));
-
-            let columns = projection
-                .iter()
-                .map(|i| Arc::clone(batch.column(*i)))
-                .collect::<Vec<_>>();
-
-            let projected_batch = RecordBatch::try_new(Arc::clone(&projected_schema), columns)?;
-            (projected_schema, projected_batch)
-        }
-    };
-
-    Ok(Arc::new(MemoryExec::try_new(&[vec![batch]], schema, None)?))
+struct SystemTableExecutionPlan<T> {
+    table: Arc<T>,
+    projected_schema: SchemaRef,
+    projection: Option<Vec<usize>>,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use arrow::array::{ArrayRef, UInt64Array};
-    use arrow_util::assert_batches_eq;
-    use datafusion_util::test_collect;
+impl<T> std::fmt::Debug for SystemTableExecutionPlan<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SystemTableExecutionPlan")
+            .field("projection", &self.projection)
+            .finish()
+    }
+}
 
-    fn seq_array(start: u64, end: u64) -> ArrayRef {
-        Arc::new(UInt64Array::from_iter_values(start..end))
+#[async_trait]
+impl<T: IoxSystemTable + 'static> ExecutionPlan for SystemTableExecutionPlan<T> {
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
-    #[tokio::test]
-    async fn test_scan_batch_no_projection() {
-        let batch = RecordBatch::try_from_iter(vec![
-            ("col1", seq_array(0, 3)),
-            ("col2", seq_array(1, 4)),
-            ("col3", seq_array(2, 5)),
-            ("col4", seq_array(3, 6)),
-        ])
-        .unwrap();
-
-        let projection = None;
-        let scan = scan_batch(batch.clone(), batch.schema(), projection).unwrap();
-        let collected = test_collect(scan).await;
-
-        let expected = vec![
-            "+------+------+------+------+",
-            "| col1 | col2 | col3 | col4 |",
-            "+------+------+------+------+",
-            "| 0    | 1    | 2    | 3    |",
-            "| 1    | 2    | 3    | 4    |",
-            "| 2    | 3    | 4    | 5    |",
-            "+------+------+------+------+",
-        ];
-
-        assert_batches_eq!(&expected, &collected);
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&self.projected_schema)
     }
 
-    #[tokio::test]
-    async fn test_scan_batch_good_projection() {
-        let batch = RecordBatch::try_from_iter(vec![
-            ("col1", seq_array(0, 3)),
-            ("col2", seq_array(1, 4)),
-            ("col3", seq_array(2, 5)),
-            ("col4", seq_array(3, 6)),
-        ])
-        .unwrap();
-
-        let projection = Some(vec![3, 1]);
-        let scan = scan_batch(batch.clone(), batch.schema(), projection.as_ref()).unwrap();
-        let collected = test_collect(scan).await;
-
-        let expected = vec![
-            "+------+------+",
-            "| col4 | col2 |",
-            "+------+------+",
-            "| 3    | 1    |",
-            "| 4    | 2    |",
-            "| 5    | 3    |",
-            "+------+------+",
-        ];
-
-        assert_batches_eq!(&expected, &collected);
+    fn output_partitioning(&self) -> Partitioning {
+        Partitioning::UnknownPartitioning(1)
     }
 
-    #[tokio::test]
-    async fn test_scan_batch_bad_projection() {
-        let batch = RecordBatch::try_from_iter(vec![
-            ("col1", seq_array(0, 3)),
-            ("col2", seq_array(1, 4)),
-            ("col3", seq_array(2, 5)),
-            ("col4", seq_array(3, 6)),
-        ])
-        .unwrap();
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        vec![]
+    }
 
-        // no column idex 5
-        let projection = Some(vec![3, 1, 5]);
-        let result = scan_batch(batch.clone(), batch.schema(), projection.as_ref());
-        let err_string = result.unwrap_err().to_string();
-        assert!(
-            err_string
-                .contains("Internal error: Projection index out of range in ChunksProvider: 5"),
-            "Actual error: {}",
-            err_string
-        );
+    fn with_new_children(
+        &self,
+        _children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
+        unimplemented!()
+    }
+
+    async fn execute(
+        &self,
+        _partition: usize,
+        runtime: Arc<RuntimeEnv>,
+    ) -> DataFusionResult<SendableRecordBatchStream> {
+        Ok(Box::pin(SystemTableStream {
+            projected_schema: Arc::clone(&self.projected_schema),
+            batches: self.table.scan(runtime.batch_size)?,
+            projection: self.projection.clone(),
+        }))
+    }
+
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+struct SystemTableStream {
+    projected_schema: SchemaRef,
+    projection: Option<Vec<usize>>,
+    batches: BatchIterator,
+}
+
+impl RecordBatchStream for SystemTableStream {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&self.projected_schema)
+    }
+}
+
+impl futures::Stream for SystemTableStream {
+    type Item = Result<RecordBatch>;
+
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(self.batches.next().map(|maybe_batch| {
+            maybe_batch.and_then(|batch| match &self.projection {
+                Some(projection) => batch.project(projection),
+                None => Ok(batch),
+            })
+        }))
     }
 }

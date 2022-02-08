@@ -16,10 +16,7 @@ use data_types::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::stringset::StringSet;
 use observability_deps::tracing::{debug, trace};
-use predicate::{
-    predicate::{Predicate, PredicateMatch},
-    rpc_predicate::QueryDatabaseMeta,
-};
+use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, PredicateMatch};
 use schema::selection::Selection;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
@@ -109,6 +106,11 @@ impl<'a> Drop for QueryCompletedToken<'a> {
     }
 }
 
+/// Boxed description of a query that knows how to render to a string
+///
+/// This avoids storing potentially large strings
+pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
+
 /// A `Database` is the main trait implemented by the IOx subsystems
 /// that store actual data.
 ///
@@ -132,7 +134,7 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     fn record_query(
         &self,
         query_type: impl Into<String>,
-        query_text: impl Into<String>,
+        query_text: QueryText,
     ) -> QueryCompletedToken<'_>;
 }
 

@@ -5,7 +5,7 @@ use data_types::{
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
-use predicate::predicate::Predicate;
+use predicate::Predicate;
 use schema::selection::Selection;
 use schema::{Schema, TIME_COLUMN_NAME};
 use snafu::{ResultExt, Snafu};

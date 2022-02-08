@@ -12,11 +12,11 @@
 )]
 
 use crate::interface::{
-    Catalog, ColumnType, Error, KafkaPartition, KafkaTopic, NamespaceSchema, QueryPool, Result,
-    Sequencer, SequencerId, TableSchema,
+    ColumnType, Error, KafkaPartition, KafkaTopic, NamespaceSchema, QueryPool, Result, Sequencer,
+    SequencerId, TableSchema, Transaction,
 };
-use futures::{stream::FuturesOrdered, StreamExt};
 
+use interface::{ParquetFile, ProcessedTombstone, Tombstone};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};
 
@@ -43,7 +43,7 @@ pub mod postgres;
 pub async fn validate_or_insert_schema<'a, T, U>(
     tables: T,
     schema: &NamespaceSchema,
-    catalog: &dyn Catalog,
+    txn: &mut dyn Transaction,
 ) -> Result<Option<NamespaceSchema>>
 where
     T: IntoIterator<IntoIter = U, Item = (&'a str, &'a MutableBatch)> + Send + Sync,
@@ -55,7 +55,7 @@ where
     let mut schema = Cow::Borrowed(schema);
 
     for (table_name, batch) in tables {
-        validate_mutable_batch(batch, table_name, &mut schema, catalog).await?;
+        validate_mutable_batch(batch, table_name, &mut schema, txn).await?;
     }
 
     match schema {
@@ -68,7 +68,7 @@ async fn validate_mutable_batch(
     mb: &MutableBatch,
     table_name: &str,
     schema: &mut Cow<'_, NamespaceSchema>,
-    catalog: &dyn Catalog,
+    txn: &mut dyn Transaction,
 ) -> Result<()> {
     // Check if the table exists in the schema.
     //
@@ -81,14 +81,14 @@ async fn validate_mutable_batch(
             //
             // Attempt to create the table in the catalog, or load an existing
             // table from the catalog to populate the cache.
-            let mut table = catalog
+            let mut table = txn
                 .tables()
                 .create_or_get(table_name, schema.id)
                 .await
                 .map(|t| TableSchema::new(t.id))?;
 
             // Always add a time column to all new tables.
-            let time_col = catalog
+            let time_col = txn
                 .columns()
                 .create_or_get(TIME_COLUMN, table.id, ColumnType::Time)
                 .await?;
@@ -134,7 +134,7 @@ async fn validate_mutable_batch(
             None => {
                 // The column does not exist in the cache, create/get it from
                 // the catalog, and add it to the table.
-                let column = catalog
+                let column = txn
                     .columns()
                     .create_or_get(name.as_str(), table.id, ColumnType::from(col.influx_type()))
                     .await?;
@@ -161,32 +161,51 @@ async fn validate_mutable_batch(
 /// each of the partitions.
 pub async fn create_or_get_default_records(
     kafka_partition_count: i32,
-    catalog: &dyn Catalog,
+    txn: &mut dyn Transaction,
 ) -> Result<(KafkaTopic, QueryPool, BTreeMap<SequencerId, Sequencer>)> {
-    let kafka_topic = catalog
-        .kafka_topics()
-        .create_or_get(SHARED_KAFKA_TOPIC)
-        .await?;
-    let query_pool = catalog
-        .query_pools()
-        .create_or_get(SHARED_QUERY_POOL)
-        .await?;
+    let kafka_topic = txn.kafka_topics().create_or_get(SHARED_KAFKA_TOPIC).await?;
+    let query_pool = txn.query_pools().create_or_get(SHARED_QUERY_POOL).await?;
 
-    let sequencers = (1..=kafka_partition_count)
-        .map(|partition| {
-            catalog
-                .sequencers()
-                .create_or_get(&kafka_topic, KafkaPartition::new(partition))
-        })
-        .collect::<FuturesOrdered<_>>()
-        .map(|v| {
-            let v = v.expect("failed to create sequencer");
-            (v.id, v)
-        })
-        .collect::<BTreeMap<_, _>>()
-        .await;
+    let mut sequencers = BTreeMap::new();
+    for partition in 1..=kafka_partition_count {
+        let sequencer = txn
+            .sequencers()
+            .create_or_get(&kafka_topic, KafkaPartition::new(partition))
+            .await?;
+        sequencers.insert(sequencer.id, sequencer);
+    }
 
     Ok((kafka_topic, query_pool, sequencers))
+}
+
+/// Insert the conpacted parquet file and its tombstones
+pub async fn add_parquet_file_with_tombstones(
+    parquet_file: &ParquetFile,
+    tombstones: &[Tombstone],
+    txn: &mut dyn Transaction,
+) -> Result<(ParquetFile, Vec<ProcessedTombstone>), Error> {
+    // create a parquet file in the catalog first
+    let parquet = txn
+        .parquet_files()
+        .create(
+            parquet_file.sequencer_id,
+            parquet_file.table_id,
+            parquet_file.partition_id,
+            parquet_file.object_store_id,
+            parquet_file.min_sequence_number,
+            parquet_file.max_sequence_number,
+            parquet_file.min_time,
+            parquet_file.max_time,
+        )
+        .await?;
+
+    // Now the parquet available, create its processed tombstones
+    let processed_tombstones = txn
+        .processed_tombstones()
+        .create_many(parquet.id, tombstones)
+        .await?;
+
+    Ok((parquet, processed_tombstones))
 }
 
 #[cfg(test)]
@@ -211,13 +230,16 @@ mod tests {
                 #[allow(clippy::bool_assert_comparison)]
                 #[tokio::test]
                 async fn [<test_validate_schema_ $name>]() {
+                    use crate::interface::Catalog;
+                    use std::ops::DerefMut;
                     use pretty_assertions::assert_eq;
                     const NAMESPACE_NAME: &str = "bananas";
 
                     let repo = MemCatalog::new();
-                    let (kafka_topic, query_pool, _) = create_or_get_default_records(2, &repo).await.unwrap();
+                    let mut txn = repo.start_transaction().await.unwrap();
+                    let (kafka_topic, query_pool, _) = create_or_get_default_records(2, txn.deref_mut()).await.unwrap();
 
-                    let namespace = repo
+                    let namespace = txn
                         .namespaces()
                         .create(NAMESPACE_NAME, "inf", kafka_topic.id, query_pool.id)
                         .await
@@ -240,7 +262,7 @@ mod tests {
                             let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp.as_str(), 42)
                                 .expect("failed to build test writes from LP");
 
-                            let got = validate_or_insert_schema(writes.iter().map(|(k, v)| (k.as_str(), v)), &schema, &repo)
+                            let got = validate_or_insert_schema(writes.iter().map(|(k, v)| (k.as_str(), v)), &schema, txn.deref_mut())
                                 .await;
 
                             match got {
@@ -260,7 +282,7 @@ mod tests {
                     // Invariant: in absence of concurrency, the schema within
                     // the database must always match the incrementally built
                     // cached schema.
-                    let db_schema = get_schema_by_name(NAMESPACE_NAME, &repo)
+                    let db_schema = get_schema_by_name(NAMESPACE_NAME, txn.deref_mut())
                         .await
                         .expect("database failed to query for namespace schema");
                     assert_eq!(schema, db_schema, "schema in DB and cached schema differ");

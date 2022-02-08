@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+use std::io::Error;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
@@ -5,12 +7,111 @@ use std::{
 
 use async_trait::async_trait;
 use dml::{DmlMeta, DmlOperation, DmlWrite};
-use futures::{future::BoxFuture, stream::BoxStream};
+use futures::stream::BoxStream;
 
 /// Generic boxed error type that is used in this crate.
 ///
 /// The dynamic boxing makes it easier to deal with error from different implementations.
-pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
+#[derive(Debug)]
+pub struct WriteBufferError {
+    inner: Box<dyn std::error::Error + Sync + Send>,
+    kind: WriteBufferErrorKind,
+}
+
+impl WriteBufferError {
+    pub fn new(
+        kind: WriteBufferErrorKind,
+        e: impl Into<Box<dyn std::error::Error + Sync + Send>>,
+    ) -> Self {
+        Self {
+            inner: e.into(),
+            kind,
+        }
+    }
+
+    pub fn invalid_data(e: impl Into<Box<dyn std::error::Error + Sync + Send>>) -> Self {
+        Self::new(WriteBufferErrorKind::InvalidData, e)
+    }
+
+    pub fn invalid_input(e: impl Into<Box<dyn std::error::Error + Sync + Send>>) -> Self {
+        Self::new(WriteBufferErrorKind::InvalidInput, e)
+    }
+
+    /// Returns the kind of error this was
+    pub fn kind(&self) -> WriteBufferErrorKind {
+        self.kind
+    }
+
+    /// Returns the inner error
+    pub fn inner(&self) -> &dyn std::error::Error {
+        self.inner.as_ref()
+    }
+}
+
+impl Display for WriteBufferError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "WriteBufferError({:?}): {}", self.kind, self.inner)
+    }
+}
+
+impl std::error::Error for WriteBufferError {}
+
+impl From<std::io::Error> for WriteBufferError {
+    fn from(e: Error) -> Self {
+        Self {
+            inner: Box::new(e),
+            kind: WriteBufferErrorKind::IO,
+        }
+    }
+}
+
+impl From<rskafka::client::error::Error> for WriteBufferError {
+    fn from(e: rskafka::client::error::Error) -> Self {
+        Self {
+            inner: Box::new(e),
+            kind: WriteBufferErrorKind::IO,
+        }
+    }
+}
+
+impl From<rskafka::client::producer::Error> for WriteBufferError {
+    fn from(e: rskafka::client::producer::Error) -> Self {
+        Self {
+            inner: Box::new(e),
+            kind: WriteBufferErrorKind::IO,
+        }
+    }
+}
+
+impl From<String> for WriteBufferError {
+    fn from(e: String) -> Self {
+        Self {
+            inner: e.into(),
+            kind: WriteBufferErrorKind::Unknown,
+        }
+    }
+}
+
+impl From<&'static str> for WriteBufferError {
+    fn from(e: &'static str) -> Self {
+        Self {
+            inner: e.into(),
+            kind: WriteBufferErrorKind::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum WriteBufferErrorKind {
+    /// This operation failed for an unknown reason
+    Unknown,
+    /// This operation was provided with invalid input data
+    InvalidInput,
+    /// This operation encountered invalid data
+    InvalidData,
+    /// A fatal IO error occurred - non-fatal errors should be retried internally
+    IO,
+}
 
 /// Writing to a Write Buffer takes a [`DmlWrite`] and returns the [`DmlMeta`] for the
 /// payload that was written
@@ -18,7 +119,7 @@ pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
 pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     /// List all known sequencers.
     ///
-    /// This set  not empty.
+    /// This set not empty.
     fn sequencer_ids(&self) -> BTreeSet<u32>;
 
     /// Send a [`DmlOperation`] to the write buffer using the specified sequencer ID.
@@ -44,7 +145,9 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
         lp: &str,
         default_time: i64,
     ) -> Result<DmlMeta, WriteBufferError> {
-        let tables = mutable_batch_lp::lines_to_batches(lp, default_time).map_err(Box::new)?;
+        let tables = mutable_batch_lp::lines_to_batches(lp, default_time)
+            .map_err(WriteBufferError::invalid_input)?;
+
         self.store_operation(
             sequencer_id,
             &DmlOperation::Write(DmlWrite::new("test_db", tables, Default::default())),
@@ -63,47 +166,60 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     fn type_name(&self) -> &'static str;
 }
 
-pub type FetchHighWatermarkFut<'a> = BoxFuture<'a, Result<u64, WriteBufferError>>;
-pub type FetchHighWatermark<'a> = Box<dyn (Fn() -> FetchHighWatermarkFut<'a>) + Send + Sync>;
-
-/// Output stream of [`WriteBufferReading`].
-pub struct WriteStream<'a> {
-    /// Stream that produces entries.
-    pub stream: BoxStream<'a, Result<DmlOperation, WriteBufferError>>,
-
-    /// Get high watermark (= what we believe is the next sequence number to be added).
+/// Handles a stream of a specific sequencer.
+///
+/// This can be used to consume data via a stream or to seek the stream to a given offset.
+#[async_trait]
+pub trait WriteBufferStreamHandler: Sync + Send + Debug + 'static {
+    /// Stream that produces DML operations.
     ///
-    /// Can be used to calculate lag. Note that since the watermark is "next sequence ID number to be added", it starts
-    /// at 0 and after the entry with sequence number 0 is added to the buffer, it is 1.
-    pub fetch_high_watermark: FetchHighWatermark<'a>,
-}
+    /// Note that due to the mutable borrow, it is not possible to have multiple streams from the same
+    /// [`WriteBufferStreamHandler`] instance at the same time. If all streams are dropped and requested again, the last
+    /// offsets of the old streams will be the start offsets for the new streams. If you want to prevent that either
+    /// create a new [`WriteBufferStreamHandler`] or use [`seek`](Self::seek).
+    fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>>;
 
-impl<'a> Debug for WriteStream<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("EntryStream").finish_non_exhaustive()
-    }
+    /// Seek sequencer to given sequence number. The next output of related streams will be an entry with at least
+    /// the given sequence number (the actual sequence number might be skipped due to "holes" in the stream).
+    ///
+    /// Note that due to the mutable borrow, it is not possible to seek while streams exists.
+    async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError>;
 }
 
 /// Produce streams (one per sequencer) of [`DmlWrite`]s.
 #[async_trait]
 pub trait WriteBufferReading: Sync + Send + Debug + 'static {
-    /// Returns a stream per sequencer.
+    /// List all known sequencers.
     ///
-    /// Note that due to the mutable borrow, it is not possible to have multiple streams from the same
-    /// [`WriteBufferReading`] instance at the same time. If all streams are dropped and requested again, the last
-    /// offsets of the old streams will be the start offsets for the new streams. If you want to prevent that either
-    /// create a new [`WriteBufferReading`] or use [`seek`](Self::seek).
-    fn streams(&mut self) -> BTreeMap<u32, WriteStream<'_>>;
+    /// This set not empty.
+    fn sequencer_ids(&self) -> BTreeSet<u32>;
 
-    /// Seek given sequencer to given sequence number. The next output of related streams will be an entry with at least
-    /// the given sequence number (the actual sequence number might be skipped due to "holes" in the stream).
+    /// Get stream handler for a dedicated sequencer.
     ///
-    /// Note that due to the mutable borrow, it is not possible to seek while streams exists.
-    async fn seek(
-        &mut self,
+    /// Handlers do NOT share any state (e.g. last offsets).
+    async fn stream_handler(
+        &self,
         sequencer_id: u32,
-        sequence_number: u64,
-    ) -> Result<(), WriteBufferError>;
+    ) -> Result<Box<dyn WriteBufferStreamHandler>, WriteBufferError>;
+
+    /// Get stream handlers for all stream.
+    async fn stream_handlers(
+        &self,
+    ) -> Result<BTreeMap<u32, Box<dyn WriteBufferStreamHandler>>, WriteBufferError> {
+        let mut handlers = BTreeMap::new();
+
+        for sequencer_id in self.sequencer_ids() {
+            handlers.insert(sequencer_id, self.stream_handler(sequencer_id).await?);
+        }
+
+        Ok(handlers)
+    }
+
+    /// Get high watermark (= what we believe is the next sequence number to be added).
+    ///
+    /// Can be used to calculate lag. Note that since the watermark is "next sequence ID number to be added", it starts
+    /// at 0 and after the entry with sequence number 0 is added to the buffer, it is 1.
+    async fn fetch_high_watermark(&self, sequencer_id: u32) -> Result<u64, WriteBufferError>;
 
     /// Return type (like `"mock"` or `"kafka"`) of this reader.
     fn type_name(&self) -> &'static str;
@@ -111,16 +227,14 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
 
 pub mod test_utils {
     //! Generic tests for all write buffer implementations.
-    use super::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
+    use super::{
+        WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting,
+    };
     use async_trait::async_trait;
     use dml::{test_util::assert_write_op_eq, DmlMeta, DmlOperation, DmlWrite};
     use futures::{stream::FuturesUnordered, StreamExt, TryStreamExt};
     use std::{
-        collections::{BTreeMap, BTreeSet},
-        convert::TryFrom,
-        num::NonZeroU32,
-        sync::Arc,
-        time::Duration,
+        collections::BTreeSet, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration,
     };
     use time::{Time, TimeProvider};
     use trace::{ctx::SpanContext, span::Span, RingBufferTraceCollector};
@@ -246,40 +360,41 @@ pub mod test_utils {
         let entry_3 = "upc user=3 300";
 
         let writer = context.writing(true).await.unwrap();
-        let mut reader = context.reading(true).await.unwrap();
+        let reader = context.reading(true).await.unwrap();
 
-        let mut streams = reader.streams();
-        assert_eq!(streams.len(), 1);
-        let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        let sequencer_id = set_pop_first(&mut reader.sequencer_ids()).unwrap();
+        let mut stream_handler = reader.stream_handler(sequencer_id).await.unwrap();
+        let mut stream = stream_handler.stream();
 
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
 
         // empty stream is pending
-        assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
+        assert!(stream.poll_next_unpin(&mut cx).is_pending());
 
         // adding content allows us to get results
         let w1 = write("namespace", &writer, entry_1, sequencer_id, None).await;
-        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
+        assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w1);
 
         // stream is pending again
-        assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
+        assert!(stream.poll_next_unpin(&mut cx).is_pending());
 
         // adding more data unblocks the stream
         let w2 = write("namespace", &writer, entry_2, sequencer_id, None).await;
         let w3 = write("namespace", &writer, entry_3, sequencer_id, None).await;
 
-        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w2);
-        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w3);
+        assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w2);
+        assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w3);
 
         // stream is pending again
-        assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
+        assert!(stream.poll_next_unpin(&mut cx).is_pending());
     }
 
-    /// Tests multiple subsequently created streams from a single reader.
+    /// Tests multiple subsequently created streams from a single [`WriteBufferStreamHandler`].
     ///
     /// This tests that:
     /// - readers remember their offset (and "pending" state) even when streams are dropped
+    /// - state is not shared between handlers
     async fn test_multi_stream_io<T>(adapter: &T)
     where
         T: TestAdapter,
@@ -291,7 +406,7 @@ pub mod test_utils {
         let entry_3 = "upc user=3 300";
 
         let writer = context.writing(true).await.unwrap();
-        let mut reader = context.reading(true).await.unwrap();
+        let reader = context.reading(true).await.unwrap();
 
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
@@ -301,35 +416,31 @@ pub mod test_utils {
         let w3 = write("namespace", &writer, entry_3, 0, None).await;
 
         // creating stream, drop stream, re-create it => still starts at first entry
-        let mut streams = reader.streams();
-        assert_eq!(streams.len(), 1);
-        let (_sequencer_id, stream) = map_pop_first(&mut streams).unwrap();
+        let sequencer_id = set_pop_first(&mut reader.sequencer_ids()).unwrap();
+        let mut stream_handler = reader.stream_handler(sequencer_id).await.unwrap();
+        let stream = stream_handler.stream();
         drop(stream);
-        drop(streams);
-        let mut streams = reader.streams();
-        assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
-        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w1);
+        let mut stream = stream_handler.stream();
+        assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w1);
 
         // re-creating stream after reading remembers offset, but wait a bit to provoke the stream to buffer some
         // entries
         tokio::time::sleep(Duration::from_millis(10)).await;
         drop(stream);
-        drop(streams);
-        let mut streams = reader.streams();
-        assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
-
-        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w2);
-        assert_write_op_eq(&stream.stream.next().await.unwrap().unwrap(), &w3);
+        let mut stream = stream_handler.stream();
+        assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w2);
+        assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w3);
 
         // re-creating stream after reading everything makes it pending
         drop(stream);
-        drop(streams);
-        let mut streams = reader.streams();
-        assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
-        assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
+        let mut stream = stream_handler.stream();
+        assert!(stream.poll_next_unpin(&mut cx).is_pending());
+
+        // use a different handler => stream starts from beginning
+        let mut stream_handler2 = reader.stream_handler(sequencer_id).await.unwrap();
+        let mut stream2 = stream_handler2.stream();
+        assert_write_op_eq(&stream2.next().await.unwrap().unwrap(), &w1);
+        assert!(stream.poll_next_unpin(&mut cx).is_pending());
     }
 
     /// Test single reader-writer IO w/ multiple sequencers.
@@ -348,37 +459,43 @@ pub mod test_utils {
         let entry_3 = "upc user=3 300";
 
         let writer = context.writing(true).await.unwrap();
-        let mut reader = context.reading(true).await.unwrap();
+        let reader = context.reading(true).await.unwrap();
 
-        let mut streams = reader.streams();
-        assert_eq!(streams.len(), 2);
-        let (sequencer_id_1, mut stream_1) = map_pop_first(&mut streams).unwrap();
-        let (sequencer_id_2, mut stream_2) = map_pop_first(&mut streams).unwrap();
+        // check that we have two different sequencer IDs
+        let mut sequencer_ids = reader.sequencer_ids();
+        assert_eq!(sequencer_ids.len(), 2);
+        let sequencer_id_1 = set_pop_first(&mut sequencer_ids).unwrap();
+        let sequencer_id_2 = set_pop_first(&mut sequencer_ids).unwrap();
         assert_ne!(sequencer_id_1, sequencer_id_2);
 
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
 
+        let mut stream_handler_1 = reader.stream_handler(sequencer_id_1).await.unwrap();
+        let mut stream_handler_2 = reader.stream_handler(sequencer_id_2).await.unwrap();
+        let mut stream_1 = stream_handler_1.stream();
+        let mut stream_2 = stream_handler_2.stream();
+
         // empty streams are pending
-        assert!(stream_1.stream.poll_next_unpin(&mut cx).is_pending());
-        assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
+        assert!(stream_1.poll_next_unpin(&mut cx).is_pending());
+        assert!(stream_2.poll_next_unpin(&mut cx).is_pending());
 
         // entries arrive at the right target stream
         let w1 = write("namespace", &writer, entry_1, sequencer_id_1, None).await;
-        assert_write_op_eq(&stream_1.stream.next().await.unwrap().unwrap(), &w1);
-        assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
+        assert_write_op_eq(&stream_1.next().await.unwrap().unwrap(), &w1);
+        assert!(stream_2.poll_next_unpin(&mut cx).is_pending());
 
         let w2 = write("namespace", &writer, entry_2, sequencer_id_2, None).await;
-        assert!(stream_1.stream.poll_next_unpin(&mut cx).is_pending());
-        assert_write_op_eq(&stream_2.stream.next().await.unwrap().unwrap(), &w2);
+        assert!(stream_1.poll_next_unpin(&mut cx).is_pending());
+        assert_write_op_eq(&stream_2.next().await.unwrap().unwrap(), &w2);
 
         let w3 = write("namespace", &writer, entry_3, sequencer_id_1, None).await;
-        assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
-        assert_write_op_eq(&stream_1.stream.next().await.unwrap().unwrap(), &w3);
+        assert!(stream_2.poll_next_unpin(&mut cx).is_pending());
+        assert_write_op_eq(&stream_1.next().await.unwrap().unwrap(), &w3);
 
         // streams are pending again
-        assert!(stream_1.stream.poll_next_unpin(&mut cx).is_pending());
-        assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
+        assert!(stream_1.poll_next_unpin(&mut cx).is_pending());
+        assert!(stream_2.poll_next_unpin(&mut cx).is_pending());
     }
 
     /// Test multiple multiple writers and multiple readers on multiple sequencers.
@@ -400,8 +517,8 @@ pub mod test_utils {
 
         let writer_1 = context.writing(true).await.unwrap();
         let writer_2 = context.writing(true).await.unwrap();
-        let mut reader_1 = context.reading(true).await.unwrap();
-        let mut reader_2 = context.reading(true).await.unwrap();
+        let reader_1 = context.reading(true).await.unwrap();
+        let reader_2 = context.reading(true).await.unwrap();
 
         let mut sequencer_ids_1 = writer_1.sequencer_ids();
         let sequencer_ids_2 = writer_2.sequencer_ids();
@@ -414,22 +531,15 @@ pub mod test_utils {
         let w_west_1 = write("namespace", &writer_1, entry_west_1, sequencer_id_2, None).await;
         let w_east_2 = write("namespace", &writer_2, entry_east_2, sequencer_id_1, None).await;
 
-        assert_reader_content(
-            &mut reader_1,
-            &[
-                (sequencer_id_1, &[&w_east_1, &w_east_2]),
-                (sequencer_id_2, &[&w_west_1]),
-            ],
-        )
-        .await;
-        assert_reader_content(
-            &mut reader_2,
-            &[
-                (sequencer_id_1, &[&w_east_1, &w_east_2]),
-                (sequencer_id_2, &[&w_west_1]),
-            ],
-        )
-        .await;
+        let mut handler_1_1 = reader_1.stream_handler(sequencer_id_1).await.unwrap();
+        let mut handler_1_2 = reader_1.stream_handler(sequencer_id_2).await.unwrap();
+        let mut handler_2_1 = reader_2.stream_handler(sequencer_id_1).await.unwrap();
+        let mut handler_2_2 = reader_2.stream_handler(sequencer_id_2).await.unwrap();
+
+        assert_reader_content(&mut handler_1_1, &[&w_east_1, &w_east_2]).await;
+        assert_reader_content(&mut handler_1_2, &[&w_west_1]).await;
+        assert_reader_content(&mut handler_2_1, &[&w_east_1, &w_east_2]).await;
+        assert_reader_content(&mut handler_2_2, &[&w_west_1]).await;
     }
 
     /// Test seek implemention of readers.
@@ -455,46 +565,47 @@ pub mod test_utils {
 
         let writer = context.writing(true).await.unwrap();
 
-        let w_east_1 = write("namespace", &writer, entry_east_1, 0, None).await;
-        let w_east_2 = write("namespace", &writer, entry_east_2, 0, None).await;
-        let w_west_1 = write("namespace", &writer, entry_west_1, 1, None).await;
+        let mut sequencer_ids = writer.sequencer_ids();
+        let sequencer_id_1 = set_pop_first(&mut sequencer_ids).unwrap();
+        let sequencer_id_2 = set_pop_first(&mut sequencer_ids).unwrap();
 
-        let mut reader_1 = context.reading(true).await.unwrap();
-        let mut reader_2 = context.reading(true).await.unwrap();
+        let w_east_1 = write("namespace", &writer, entry_east_1, sequencer_id_1, None).await;
+        let w_east_2 = write("namespace", &writer, entry_east_2, sequencer_id_1, None).await;
+        let w_west_1 = write("namespace", &writer, entry_west_1, sequencer_id_2, None).await;
+
+        let reader_1 = context.reading(true).await.unwrap();
+        let reader_2 = context.reading(true).await.unwrap();
+
+        let mut handler_1_1_a = reader_1.stream_handler(sequencer_id_1).await.unwrap();
+        let mut handler_1_2_a = reader_1.stream_handler(sequencer_id_2).await.unwrap();
+        let mut handler_1_1_b = reader_1.stream_handler(sequencer_id_1).await.unwrap();
+        let mut handler_1_2_b = reader_1.stream_handler(sequencer_id_2).await.unwrap();
+        let mut handler_2_1 = reader_2.stream_handler(sequencer_id_1).await.unwrap();
+        let mut handler_2_2 = reader_2.stream_handler(sequencer_id_2).await.unwrap();
 
         // forward seek
-        reader_1
-            .seek(0, w_east_2.meta().sequence().unwrap().number)
+        handler_1_1_a
+            .seek(w_east_2.meta().sequence().unwrap().number)
             .await
             .unwrap();
 
-        assert_reader_content(&mut reader_1, &[(0, &[&w_east_2]), (1, &[&w_west_1])]).await;
-        assert_reader_content(
-            &mut reader_2,
-            &[(0, &[&w_east_1, &w_east_2]), (1, &[&w_west_1])],
-        )
-        .await;
+        assert_reader_content(&mut handler_1_1_a, &[&w_east_2]).await;
+        assert_reader_content(&mut handler_1_2_a, &[&w_west_1]).await;
+        assert_reader_content(&mut handler_1_1_b, &[&w_east_1, &w_east_2]).await;
+        assert_reader_content(&mut handler_1_2_b, &[&w_west_1]).await;
+        assert_reader_content(&mut handler_2_1, &[&w_east_1, &w_east_2]).await;
+        assert_reader_content(&mut handler_2_2, &[&w_west_1]).await;
 
         // backward seek
-        reader_1.seek(0, 0).await.unwrap();
-        assert_reader_content(&mut reader_1, &[(0, &[&w_east_1, &w_east_2]), (1, &[])]).await;
+        handler_1_1_a.seek(0).await.unwrap();
+        assert_reader_content(&mut handler_1_1_a, &[&w_east_1, &w_east_2]).await;
 
         // seek to far end and then add data
-        reader_1.seek(0, 1_000_000).await.unwrap();
+        handler_1_1_a.seek(1_000_000).await.unwrap();
         write("namespace", &writer, entry_east_3, 0, None).await;
 
-        let mut streams = reader_1.streams();
-        assert_eq!(streams.len(), 2);
-        let (_sequencer_id, mut stream_1) = map_pop_first(&mut streams).unwrap();
-        let (_sequencer_id, mut stream_2) = map_pop_first(&mut streams).unwrap();
-        assert!(stream_1.stream.poll_next_unpin(&mut cx).is_pending());
-        assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
-        drop(stream_1);
-        drop(stream_2);
-        drop(streams);
-
-        // seeking unknown sequencer is NOT an error
-        reader_1.seek(0, 42).await.unwrap();
+        assert!(handler_1_1_a.stream().poll_next_unpin(&mut cx).is_pending());
+        assert!(handler_1_2_a.stream().poll_next_unpin(&mut cx).is_pending());
     }
 
     /// Test watermark fetching.
@@ -513,28 +624,33 @@ pub mod test_utils {
         let entry_west_1 = "upc,region=west user=1 200";
 
         let writer = context.writing(true).await.unwrap();
-        let mut reader = context.reading(true).await.unwrap();
+        let reader = context.reading(true).await.unwrap();
 
-        let mut streams = reader.streams();
-        assert_eq!(streams.len(), 2);
-        let (sequencer_id_1, stream_1) = map_pop_first(&mut streams).unwrap();
-        let (sequencer_id_2, stream_2) = map_pop_first(&mut streams).unwrap();
+        let mut sequencer_ids = writer.sequencer_ids();
+        let sequencer_id_1 = set_pop_first(&mut sequencer_ids).unwrap();
+        let sequencer_id_2 = set_pop_first(&mut sequencer_ids).unwrap();
 
         // start at watermark 0
-        assert_eq!((stream_1.fetch_high_watermark)().await.unwrap(), 0);
-        assert_eq!((stream_2.fetch_high_watermark)().await.unwrap(), 0);
+        assert_eq!(
+            reader.fetch_high_watermark(sequencer_id_1).await.unwrap(),
+            0
+        );
+        assert_eq!(
+            reader.fetch_high_watermark(sequencer_id_2).await.unwrap(),
+            0
+        );
 
         // high water mark moves
         write("namespace", &writer, entry_east_1, sequencer_id_1, None).await;
         let w1 = write("namespace", &writer, entry_east_2, sequencer_id_1, None).await;
         let w2 = write("namespace", &writer, entry_west_1, sequencer_id_2, None).await;
         assert_eq!(
-            (stream_1.fetch_high_watermark)().await.unwrap(),
+            reader.fetch_high_watermark(sequencer_id_1).await.unwrap(),
             w1.meta().sequence().unwrap().number + 1
         );
 
         assert_eq!(
-            (stream_2.fetch_high_watermark)().await.unwrap(),
+            reader.fetch_high_watermark(sequencer_id_2).await.unwrap(),
             w2.meta().sequence().unwrap().number + 1
         );
     }
@@ -557,11 +673,11 @@ pub mod test_utils {
         let entry = "upc user=1 100";
 
         let writer = context.writing(true).await.unwrap();
-        let mut reader = context.reading(true).await.unwrap();
+        let reader = context.reading(true).await.unwrap();
 
-        let mut streams = reader.streams();
-        assert_eq!(streams.len(), 1);
-        let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        let mut sequencer_ids = writer.sequencer_ids();
+        assert_eq!(sequencer_ids.len(), 1);
+        let sequencer_id = set_pop_first(&mut sequencer_ids).unwrap();
 
         let write = write("namespace", &writer, entry, sequencer_id, None).await;
         let reported_ts = write.meta().producer_ts().unwrap();
@@ -570,7 +686,8 @@ pub mod test_utils {
         time.inc(Duration::from_secs(10));
 
         // check that the timestamp records the ingestion time, not the read time
-        let sequenced_entry = stream.stream.next().await.unwrap().unwrap();
+        let mut handler = reader.stream_handler(sequencer_id).await.unwrap();
+        let sequenced_entry = handler.stream().next().await.unwrap().unwrap();
         let ts_entry = sequenced_entry.meta().producer_ts().unwrap();
         assert_eq!(ts_entry, t0);
         assert_eq!(reported_ts, t0);
@@ -603,7 +720,7 @@ pub mod test_utils {
         context.writing(false).await.unwrap();
     }
 
-    /// Test sequencer IDs reporting of writers.
+    /// Test sequencer IDs reporting of readers and writers.
     ///
     /// This tests that:
     /// - all sequencers are reported
@@ -618,11 +735,17 @@ pub mod test_utils {
 
         let writer_1 = context.writing(true).await.unwrap();
         let writer_2 = context.writing(true).await.unwrap();
+        let reader_1 = context.reading(true).await.unwrap();
+        let reader_2 = context.reading(true).await.unwrap();
 
         let sequencer_ids_1 = writer_1.sequencer_ids();
         let sequencer_ids_2 = writer_2.sequencer_ids();
-        assert_eq!(sequencer_ids_1, sequencer_ids_2);
+        let sequencer_ids_3 = reader_1.sequencer_ids();
+        let sequencer_ids_4 = reader_2.sequencer_ids();
         assert_eq!(sequencer_ids_1.len(), n_sequencers as usize);
+        assert_eq!(sequencer_ids_1, sequencer_ids_2);
+        assert_eq!(sequencer_ids_1, sequencer_ids_3);
+        assert_eq!(sequencer_ids_1, sequencer_ids_4);
     }
 
     /// Test that span contexts are propagated through the system.
@@ -635,11 +758,13 @@ pub mod test_utils {
         let entry = "upc user=1 100";
 
         let writer = context.writing(true).await.unwrap();
-        let mut reader = context.reading(true).await.unwrap();
+        let reader = context.reading(true).await.unwrap();
 
-        let mut streams = reader.streams();
-        assert_eq!(streams.len(), 1);
-        let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        let mut sequencer_ids = writer.sequencer_ids();
+        assert_eq!(sequencer_ids.len(), 1);
+        let sequencer_id = set_pop_first(&mut sequencer_ids).unwrap();
+        let mut handler = reader.stream_handler(sequencer_id).await.unwrap();
+        let mut stream = handler.stream();
 
         // 1: no context
         write("namespace", &writer, entry, sequencer_id, None).await;
@@ -669,16 +794,16 @@ pub mod test_utils {
         .await;
 
         // check write 1
-        let write_1 = stream.stream.next().await.unwrap().unwrap();
+        let write_1 = stream.next().await.unwrap().unwrap();
         assert!(write_1.meta().span_context().is_none());
 
         // check write 2
-        let write_2 = stream.stream.next().await.unwrap().unwrap();
+        let write_2 = stream.next().await.unwrap().unwrap();
         let actual_context_1 = write_2.meta().span_context().unwrap();
         assert_span_context_eq_or_linked(&span_context_1, actual_context_1, collector.spans());
 
         // check write 3
-        let write_3 = stream.stream.next().await.unwrap().unwrap();
+        let write_3 = stream.next().await.unwrap().unwrap();
         let actual_context_2 = write_3.meta().span_context().unwrap();
         assert_span_context_eq_or_linked(&span_context_2, actual_context_2, collector.spans());
     }
@@ -719,7 +844,7 @@ pub mod test_utils {
         let entry_2 = "upc,region=east user=2 200";
 
         let writer = context.writing(true).await.unwrap();
-        let mut reader = context.reading(true).await.unwrap();
+        let reader = context.reading(true).await.unwrap();
 
         let mut sequencer_ids = writer.sequencer_ids();
         assert_eq!(sequencer_ids.len(), 1);
@@ -728,7 +853,8 @@ pub mod test_utils {
         let w1 = write("namespace_1", &writer, entry_2, sequencer_id, None).await;
         let w2 = write("namespace_2", &writer, entry_1, sequencer_id, None).await;
 
-        assert_reader_content(&mut reader, &[(sequencer_id, &[&w1, &w2])]).await;
+        let mut handler = reader.stream_handler(sequencer_id).await.unwrap();
+        assert_reader_content(&mut handler, &[&w1, &w2]).await;
     }
 
     /// Dummy test to ensure that flushing somewhat works.
@@ -770,57 +896,30 @@ pub mod test_utils {
 
     /// Assert that the content of the reader is as expected.
     ///
-    /// This will read `expected.len()` from the reader and then ensures that the stream is pending.
-    async fn assert_reader_content<R>(reader: &mut R, expected: &[(u32, &[&DmlWrite])])
-    where
-        R: WriteBufferReading,
-    {
-        // normalize expected values
-        let expected = {
-            let mut expected = expected.to_vec();
-            expected.sort_by_key(|(sequencer_id, _entries)| *sequencer_id);
-            expected
-        };
+    /// This will read `expected_writes.len()` from the reader and then ensures that the stream is pending.
+    async fn assert_reader_content(
+        actual_stream_handler: &mut Box<dyn WriteBufferStreamHandler>,
+        expected_writes: &[&DmlWrite],
+    ) {
+        let actual_stream = actual_stream_handler.stream();
 
-        // Ensure content of the streams
-        let streams = reader.streams();
-        assert_eq!(streams.len(), expected.len());
+        // we need to limit the stream to `expected_writes.len()` elements, otherwise it might be pending forever
+        let actual_writes: Vec<_> = actual_stream
+            .take(expected_writes.len())
+            .try_collect()
+            .await
+            .unwrap();
 
-        for ((actual_sequencer_id, actual_stream), (expected_sequencer_id, expected_writes)) in
-            streams.into_iter().zip(expected.iter())
-        {
-            assert_eq!(actual_sequencer_id, *expected_sequencer_id);
-
-            // we need to limit the stream to `expected.len()` elements, otherwise it might be pending forever
-            let results: Vec<_> = actual_stream
-                .stream
-                .take(expected_writes.len())
-                .try_collect()
-                .await
-                .unwrap();
-
-            let actual_writes: Vec<_> = results.iter().collect();
-            assert_eq!(actual_writes.len(), expected_writes.len());
-            for (actual, expected) in actual_writes.iter().zip(expected_writes.iter()) {
-                assert_write_op_eq(actual, expected);
-            }
+        assert_eq!(actual_writes.len(), expected_writes.len());
+        for (actual, expected) in actual_writes.iter().zip(expected_writes.iter()) {
+            assert_write_op_eq(actual, expected);
         }
 
-        // Ensure that streams a pending
-        let streams = reader.streams();
-        assert_eq!(streams.len(), expected.len());
-
+        // Ensure that stream is pending
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
-
-        for ((actual_sequencer_id, mut actual_stream), (expected_sequencer_id, _expected_writes)) in
-            streams.into_iter().zip(expected.iter())
-        {
-            assert_eq!(actual_sequencer_id, *expected_sequencer_id);
-
-            // empty stream is pending
-            assert!(actual_stream.stream.poll_next_unpin(&mut cx).is_pending());
-        }
+        let mut actual_stream = actual_stream_handler.stream();
+        assert!(actual_stream.poll_next_unpin(&mut cx).is_pending());
     }
 
     /// Asserts that given span context are the same or that `second` links back to `first`.
@@ -852,20 +951,6 @@ pub mod test_utils {
         assert_eq!(first.trace_id, second.trace_id);
         assert_eq!(first.span_id, second.span_id);
         assert_eq!(first.parent_span_id, second.parent_span_id);
-    }
-
-    /// Pops first entry from map.
-    ///
-    /// Helper until <https://github.com/rust-lang/rust/issues/62924> is stable.
-    pub(crate) fn map_pop_first<K, V>(map: &mut BTreeMap<K, V>) -> Option<(K, V)>
-    where
-        K: Clone + Ord,
-    {
-        map.keys()
-            .next()
-            .cloned()
-            .map(|k| map.remove_entry(&k))
-            .flatten()
     }
 
     /// Pops first entry from set.

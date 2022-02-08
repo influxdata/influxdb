@@ -30,7 +30,7 @@ use query::{
         fieldlist::FieldList, seriesset::converter::Error as SeriesSetError,
         ExecutionContextProvider,
     },
-    QueryDatabase,
+    QueryDatabase, QueryText,
 };
 use server::DatabaseStore;
 
@@ -1303,31 +1303,29 @@ where
 
 /// Return something which can be formatted as json ("pbjson"
 /// specifically)
-fn defer_json<S>(s: &S) -> impl Into<String> + '_
+fn defer_json<S>(s: &S) -> QueryText
 where
-    S: serde::Serialize,
+    S: serde::Serialize + Send + Sync + Clone + 'static,
 {
     /// Defers conversion into a String
-    struct DeferredToJson<'a, S>
+    struct DeferredToJson<S>
     where
         S: serde::Serialize,
     {
-        s: &'a S,
+        s: S,
     }
 
-    impl<S> From<DeferredToJson<'_, S>> for String
-    where
-        S: serde::Serialize,
-    {
-        fn from(w: DeferredToJson<'_, S>) -> Self {
-            match serde_json::to_string_pretty(&w.s) {
-                Ok(json) => json,
-                Err(e) => e.to_string(),
+    impl<S: serde::Serialize> std::fmt::Display for DeferredToJson<S> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            // This buffering is unfortunate but `Formatter` doesn't implement `std::io::Write`
+            match serde_json::to_string_pretty(&self.s) {
+                Ok(s) => f.write_str(&s),
+                Err(e) => write!(f, "error formatting: {}", e),
             }
         }
     }
 
-    DeferredToJson { s }
+    Box::new(DeferredToJson { s: s.clone() })
 }
 
 #[cfg(test)]
@@ -1351,7 +1349,7 @@ mod tests {
         Client as StorageClient, OrgAndBucket,
     };
     use panic_logging::SendPanicsToTracing;
-    use predicate::predicate::{PredicateBuilder, PredicateMatch};
+    use predicate::{PredicateBuilder, PredicateMatch};
     use query::{
         exec::Executor,
         test::{TestChunk, TestDatabase, TestError},
@@ -2971,7 +2969,7 @@ mod tests {
             db_name: &str,
             partition_key: &str,
             chunk_id: u128,
-            expected_predicate: &predicate::predicate::Predicate,
+            expected_predicate: &predicate::Predicate,
         ) {
             let actual_predicates = self
                 .test_storage

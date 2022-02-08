@@ -1,4 +1,4 @@
-use crate::system_tables::IoxSystemTable;
+use crate::system_tables::{BatchIterator, IoxSystemTable};
 use arrow::{
     array::{ArrayRef, StringArray, Time64NanosecondArray, TimestampNanosecondArray},
     datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
@@ -34,9 +34,15 @@ impl IoxSystemTable for OperationsTable {
         Arc::clone(&self.schema)
     }
 
-    fn batch(&self) -> Result<RecordBatch> {
-        from_task_trackers(self.schema(), &self.db_name, self.jobs.tracked())
-            .log_if_error("system.operations table")
+    fn scan(&self, _batch_size: usize) -> Result<BatchIterator> {
+        let schema = Arc::clone(&self.schema);
+        let jobs = Arc::clone(&self.jobs);
+        let db_name = self.db_name.clone();
+
+        Ok(Box::new(std::iter::once_with(move || {
+            from_task_trackers(schema, &db_name, jobs.tracked())
+                .log_if_error("system.operations table")
+        })))
     }
 }
 

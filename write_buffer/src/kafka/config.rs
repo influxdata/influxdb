@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, time::Duration};
+use std::{collections::BTreeMap, fmt::Display, str::FromStr, time::Duration};
 
 use data_types::write_buffer::WriteBufferCreationConfig;
 
@@ -18,7 +18,7 @@ impl TryFrom<&BTreeMap<String, String>> for ClientConfig {
 
     fn try_from(cfg: &BTreeMap<String, String>) -> Result<Self, Self::Error> {
         Ok(Self {
-            max_message_size: cfg.get("max_message_size").map(|s| s.parse()).transpose()?,
+            max_message_size: parse_key(cfg, "max_message_size")?,
         })
     }
 }
@@ -45,25 +45,16 @@ impl TryFrom<&WriteBufferCreationConfig> for TopicCreationConfig {
 
     fn try_from(cfg: &WriteBufferCreationConfig) -> Result<Self, Self::Error> {
         Ok(Self {
-            num_partitions: i32::try_from(cfg.n_sequencers.get())?,
-            replication_factor: cfg
-                .options
-                .get("replication_factor")
-                .map(|s| s.parse())
-                .transpose()?
-                .unwrap_or(1),
-            timeout_ms: cfg
-                .options
-                .get("timeout_ms")
-                .map(|s| s.parse())
-                .transpose()?
-                .unwrap_or(5_000),
+            num_partitions: i32::try_from(cfg.n_sequencers.get())
+                .map_err(WriteBufferError::invalid_input)?,
+            replication_factor: parse_key(&cfg.options, "replication_factor")?.unwrap_or(1),
+            timeout_ms: parse_key(&cfg.options, "timeout_ms")?.unwrap_or(5_000),
         })
     }
 }
 
 /// Config for consumers.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ConsumerConfig {
     /// Will wait for at least `min_batch_size` bytes of data
     ///
@@ -86,18 +77,9 @@ impl TryFrom<&BTreeMap<String, String>> for ConsumerConfig {
 
     fn try_from(cfg: &BTreeMap<String, String>) -> Result<Self, Self::Error> {
         Ok(Self {
-            max_wait_ms: cfg
-                .get("consumer_max_wait_ms")
-                .map(|s| s.parse())
-                .transpose()?,
-            min_batch_size: cfg
-                .get("consumer_min_batch_size")
-                .map(|s| s.parse())
-                .transpose()?,
-            max_batch_size: cfg
-                .get("consumer_max_batch_size")
-                .map(|s| s.parse())
-                .transpose()?,
+            max_wait_ms: parse_key(cfg, "consumer_max_wait_ms")?,
+            min_batch_size: parse_key(cfg, "consumer_min_batch_size")?,
+            max_batch_size: parse_key(cfg, "consumer_max_batch_size")?,
         })
     }
 }
@@ -120,25 +102,33 @@ impl TryFrom<&BTreeMap<String, String>> for ProducerConfig {
     type Error = WriteBufferError;
 
     fn try_from(cfg: &BTreeMap<String, String>) -> Result<Self, Self::Error> {
-        let linger_ms: Option<u64> = cfg
-            .get("producer_linger_ms")
-            .map(|s| s.parse())
-            .transpose()?;
+        let linger_ms: Option<u64> = parse_key(cfg, "producer_linger_ms")?;
 
         Ok(Self {
             linger: linger_ms.map(Duration::from_millis),
-            max_batch_size: cfg
-                .get("producer_max_batch_size")
-                .map(|s| s.parse())
-                .transpose()?
-                .unwrap_or(100 * 1024),
+            max_batch_size: parse_key(cfg, "producer_max_batch_size")?.unwrap_or(100 * 1024),
         })
+    }
+}
+
+fn parse_key<T>(cfg: &BTreeMap<String, String>, key: &str) -> Result<Option<T>, WriteBufferError>
+where
+    T: FromStr,
+    T::Err: Display,
+{
+    if let Some(s) = cfg.get(key) {
+        s.parse()
+            .map(Some)
+            .map_err(|e| format!("Cannot parse `{key}` from '{s}': {e}").into())
+    } else {
+        Ok(None)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::{collections::BTreeMap, num::NonZeroU32};
+    use test_helpers::assert_contains;
 
     use super::*;
 
@@ -162,6 +152,19 @@ mod tests {
             max_message_size: Some(1024),
         };
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_client_config_error() {
+        let err = ClientConfig::try_from(&BTreeMap::from([(
+            String::from("max_message_size"),
+            String::from("xyz"),
+        )]))
+        .unwrap_err();
+        assert_contains!(
+            err.to_string(),
+            "Cannot parse `max_message_size` from 'xyz': invalid digit found in string"
+        );
     }
 
     #[test]
@@ -199,6 +202,29 @@ mod tests {
     }
 
     #[test]
+    fn test_topic_creation_config_err() {
+        let err = TopicCreationConfig::try_from(&WriteBufferCreationConfig {
+            n_sequencers: NonZeroU32::new(2).unwrap(),
+            options: BTreeMap::from([(String::from("replication_factor"), String::from("xyz"))]),
+        })
+        .unwrap_err();
+        assert_contains!(
+            err.to_string(),
+            "Cannot parse `replication_factor` from 'xyz': invalid digit found in string"
+        );
+
+        let err = TopicCreationConfig::try_from(&WriteBufferCreationConfig {
+            n_sequencers: NonZeroU32::new(2).unwrap(),
+            options: BTreeMap::from([(String::from("timeout_ms"), String::from("xyz"))]),
+        })
+        .unwrap_err();
+        assert_contains!(
+            err.to_string(),
+            "Cannot parse `timeout_ms` from 'xyz': invalid digit found in string"
+        );
+    }
+
+    #[test]
     fn test_consumer_config_default() {
         let actual = ConsumerConfig::try_from(&BTreeMap::default()).unwrap();
         let expected = ConsumerConfig {
@@ -227,6 +253,39 @@ mod tests {
     }
 
     #[test]
+    fn test_consumer_config_err() {
+        let err = ConsumerConfig::try_from(&BTreeMap::from([(
+            String::from("consumer_max_wait_ms"),
+            String::from("xyz"),
+        )]))
+        .unwrap_err();
+        assert_contains!(
+            err.to_string(),
+            "Cannot parse `consumer_max_wait_ms` from 'xyz': invalid digit found in string"
+        );
+
+        let err = ConsumerConfig::try_from(&BTreeMap::from([(
+            String::from("consumer_min_batch_size"),
+            String::from("xyz"),
+        )]))
+        .unwrap_err();
+        assert_contains!(
+            err.to_string(),
+            "Cannot parse `consumer_min_batch_size` from 'xyz': invalid digit found in string"
+        );
+
+        let err = ConsumerConfig::try_from(&BTreeMap::from([(
+            String::from("consumer_max_batch_size"),
+            String::from("xyz"),
+        )]))
+        .unwrap_err();
+        assert_contains!(
+            err.to_string(),
+            "Cannot parse `consumer_max_batch_size` from 'xyz': invalid digit found in string"
+        );
+    }
+
+    #[test]
     fn test_producer_config_default() {
         let actual = ProducerConfig::try_from(&BTreeMap::default()).unwrap();
         let expected = ProducerConfig {
@@ -252,5 +311,28 @@ mod tests {
             max_batch_size: 1337,
         };
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_producer_config_err() {
+        let err = ProducerConfig::try_from(&BTreeMap::from([(
+            String::from("producer_linger_ms"),
+            String::from("xyz"),
+        )]))
+        .unwrap_err();
+        assert_contains!(
+            err.to_string(),
+            "Cannot parse `producer_linger_ms` from 'xyz': invalid digit found in string"
+        );
+
+        let err = ProducerConfig::try_from(&BTreeMap::from([(
+            String::from("producer_max_batch_size"),
+            String::from("xyz"),
+        )]))
+        .unwrap_err();
+        assert_contains!(
+            err.to_string(),
+            "Cannot parse `producer_max_batch_size` from 'xyz': invalid digit found in string"
+        );
     }
 }

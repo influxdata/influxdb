@@ -19,7 +19,7 @@ base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
-chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "libc", "std", "winapi"] }
+chrono = { version = "0.4", features = ["alloc", "clock", "libc", "oldtime", "serde", "std", "time", "winapi"] }
 digest = { version = "0.9", default-features = false, features = ["alloc", "std"] }
 either = { version = "1", features = ["use_std"] }
 futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
@@ -52,10 +52,10 @@ sha2 = { version = "0.9", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 tokio = { version = "1", features = ["bytes", "fs", "full", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "process", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "sync", "time", "tokio-macros", "winapi"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
-tokio-util = { version = "0.6", features = ["codec", "io"] }
+tokio-util = { version = "0.6", features = ["codec", "io", "slab", "time"] }
 tower = { version = "0.4", features = ["balance", "buffer", "discover", "futures-util", "indexmap", "limit", "load", "log", "make", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-stream", "tokio-util", "tracing", "util"] }
 tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace", "release_max_level_debug", "std", "tracing-attributes"] }
-tracing-core = { version = "0.1", features = ["lazy_static", "std"] }
+tracing-core = { version = "0.1", features = ["lazy_static", "std", "valuable"] }
 tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
 tracing-subscriber = { version = "0.3", features = ["alloc", "ansi", "ansi_term", "env-filter", "fmt", "json", "lazy_static", "matchers", "regex", "registry", "serde", "serde_json", "sharded-slab", "smallvec", "std", "thread_local", "tracing", "tracing-log", "tracing-serde"] }
 uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
@@ -66,6 +66,7 @@ base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
+cc = { version = "1", default-features = false, features = ["jobserver", "parallel"] }
 digest = { version = "0.9", default-features = false, features = ["alloc", "std"] }
 either = { version = "1", features = ["use_std"] }
 futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
@@ -98,7 +99,6 @@ uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
-cc = { version = "1", default-features = false, features = ["jobserver", "parallel"] }
 libc = { version = "0.2", features = ["extra_traits", "std"] }
 
 [target.x86_64-apple-darwin.dependencies]
@@ -115,10 +115,10 @@ libc = { version = "0.2", features = ["extra_traits", "std"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
 scopeguard = { version = "1", features = ["use_std"] }
-winapi = { version = "0.3", default-features = false, features = ["basetsd", "cfg", "consoleapi", "errhandlingapi", "evntrace", "fileapi", "handleapi", "impl-debug", "impl-default", "in6addr", "inaddr", "ioapiset", "knownfolders", "libloaderapi", "lmcons", "minschannel", "minwinbase", "minwindef", "mstcpip", "mswsock", "namedpipeapi", "ntdef", "ntsecapi", "ntstatus", "objbase", "processenv", "schannel", "securitybaseapi", "shellapi", "shlobj", "sspi", "std", "stringapiset", "synchapi", "sysinfoapi", "threadpoollegacyapiset", "timezoneapi", "winbase", "wincon", "wincrypt", "windef", "winerror", "winioctl", "winnt", "winreg", "winsock2", "winuser", "ws2def", "ws2ipdef", "ws2tcpip"] }
+winapi = { version = "0.3", default-features = false, features = ["basetsd", "cfg", "consoleapi", "errhandlingapi", "evntrace", "fileapi", "handleapi", "impl-debug", "impl-default", "in6addr", "inaddr", "ioapiset", "knownfolders", "libloaderapi", "lmcons", "minschannel", "minwinbase", "minwindef", "mstcpip", "mswsock", "namedpipeapi", "ntdef", "ntsecapi", "ntstatus", "objbase", "processenv", "profileapi", "schannel", "securitybaseapi", "shellapi", "shlobj", "sspi", "std", "stringapiset", "synchapi", "sysinfoapi", "threadpoollegacyapiset", "timezoneapi", "winbase", "wincon", "wincrypt", "windef", "winerror", "winioctl", "winnt", "winreg", "winsock2", "winuser", "ws2def", "ws2ipdef", "ws2tcpip"] }
 
 [target.x86_64-pc-windows-msvc.build-dependencies]
 scopeguard = { version = "1", features = ["use_std"] }
-winapi = { version = "0.3", default-features = false, features = ["basetsd", "cfg", "consoleapi", "errhandlingapi", "evntrace", "fileapi", "handleapi", "impl-debug", "impl-default", "in6addr", "inaddr", "ioapiset", "knownfolders", "libloaderapi", "lmcons", "minschannel", "minwinbase", "minwindef", "mstcpip", "mswsock", "namedpipeapi", "ntdef", "ntsecapi", "ntstatus", "objbase", "processenv", "schannel", "securitybaseapi", "shellapi", "shlobj", "sspi", "std", "stringapiset", "synchapi", "sysinfoapi", "threadpoollegacyapiset", "timezoneapi", "winbase", "wincon", "wincrypt", "windef", "winerror", "winioctl", "winnt", "winreg", "winsock2", "winuser", "ws2def", "ws2ipdef", "ws2tcpip"] }
+winapi = { version = "0.3", default-features = false, features = ["basetsd", "cfg", "consoleapi", "errhandlingapi", "evntrace", "fileapi", "handleapi", "impl-debug", "impl-default", "in6addr", "inaddr", "ioapiset", "knownfolders", "libloaderapi", "lmcons", "minschannel", "minwinbase", "minwindef", "mstcpip", "mswsock", "namedpipeapi", "ntdef", "ntsecapi", "ntstatus", "objbase", "processenv", "profileapi", "schannel", "securitybaseapi", "shellapi", "shlobj", "sspi", "std", "stringapiset", "synchapi", "sysinfoapi", "threadpoollegacyapiset", "timezoneapi", "winbase", "wincon", "wincrypt", "windef", "winerror", "winioctl", "winnt", "winreg", "winsock2", "winuser", "ws2def", "ws2ipdef", "ws2tcpip"] }
 
 ### END HAKARI SECTION

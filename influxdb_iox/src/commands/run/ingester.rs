@@ -12,9 +12,9 @@ use crate::{
         },
     },
 };
-use data_types::write_buffer::WriteBufferConnection;
 use ingester::{
     handler::IngestHandlerImpl,
+    lifecycle::LifecycleConfig,
     server::{grpc::GrpcDelegate, http::HttpDelegate, IngesterServer},
 };
 use iox_catalog::interface::KafkaPartition;
@@ -23,9 +23,8 @@ use observability_deps::tracing::*;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
-use time::TimeProvider;
-use write_buffer::config::WriteBufferConfigFactory;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -49,6 +48,9 @@ pub enum Error {
 
     #[error("sequencer record not found for partition {0}")]
     SequencerNotFound(KafkaPartition),
+
+    #[error("error initializing ingester: {0}")]
+    Ingester(#[from] ingester::handler::Error),
 
     #[error("error initializing write buffer {0}")]
     WriteBuffer(#[from] write_buffer::core::WriteBufferError),
@@ -93,6 +95,45 @@ pub struct Config {
         env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END"
     )]
     pub write_buffer_partition_range_end: i32,
+
+    /// The ingester will continue to pull data and buffer it from Kafka
+    /// as long as it is below this size. If it hits this size it will pause
+    /// ingest from Kafka until persistence goes below this threshold.
+    #[clap(
+        long = "--pause-ingest-size-bytes",
+        env = "INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES"
+    )]
+    pub pause_ingest_size_bytes: usize,
+
+    /// Once the ingester crosses this threshold of data buffered across
+    /// all sequencers, it will pick the largest partitions and persist
+    /// them until it falls below this threshold. An ingester running in
+    /// a steady state is expected to take up this much memory.
+    #[clap(
+        long = "--persist-memory-threshold-bytes",
+        env = "INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES"
+    )]
+    pub persist_memory_threshold_bytes: usize,
+
+    /// If an individual partition crosses this size threshold, it will be persisted.
+    /// The default value is 300MB (in bytes).
+    #[clap(
+        long = "--persist-partition-size-threshold-bytes",
+        env = "INFLUXDB_IOX_PERSIST_PARTITION_SIZE_THRESHOLD_BYTES",
+        default_value = "314572800"
+    )]
+    pub persist_partition_size_threshold_bytes: usize,
+
+    /// If a partition has had data buffered for longer than this period of time
+    /// it will be persisted. This puts an upper bound on how far back the
+    /// ingester may need to read in Kafka on restart or recovery. The default value
+    /// is 30 minutes (in seconds).
+    #[clap(
+        long = "--persist-partition-age-threshold-seconds",
+        env = "INFLUXDB_IOX_PERSIST_PARTITION_AGE_THRESHOLD_SECONDS",
+        default_value = "1800"
+    )]
+    pub persist_partition_age_threshold_seconds: u64,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -100,11 +141,12 @@ pub async fn command(config: Config) -> Result<()> {
 
     let catalog = config.catalog_dsn.get_catalog("ingester").await?;
 
-    let kafka_topic = catalog
+    let mut txn = catalog.start_transaction().await?;
+    let kafka_topic = txn
         .kafka_topics()
         .get_by_name(&config.write_buffer_config.topic)
         .await?
-        .ok_or(Error::KafkaTopicNotFound(config.write_buffer_config.topic))?;
+        .ok_or_else(|| Error::KafkaTopicNotFound(config.write_buffer_config.topic.clone()))?;
 
     if config.write_buffer_partition_range_start > config.write_buffer_partition_range_end {
         return Err(Error::KafkaRange);
@@ -122,46 +164,45 @@ pub async fn command(config: Config) -> Result<()> {
 
     let mut sequencers = BTreeMap::new();
     for k in kafka_partitions {
-        let s = catalog
+        let s = txn
             .sequencers()
             .get_by_topic_id_and_partition(kafka_topic.id, k)
             .await?
             .ok_or(Error::SequencerNotFound(k))?;
         sequencers.insert(k, s);
     }
+    txn.commit().await?;
 
     let metric_registry: Arc<metric::Registry> = Default::default();
     let trace_collector = common_state.trace_collector();
-    let time_provider: Arc<dyn TimeProvider> = Arc::new(time::SystemProvider::new());
-    let write_buffer_factory =
-        WriteBufferConfigFactory::new(Arc::clone(&time_provider), Arc::clone(&metric_registry));
 
-    let write_buffer_cfg = WriteBufferConnection {
-        type_: config.write_buffer_config.type_,
-        connection: config.write_buffer_config.connection_string,
-        connection_config: Default::default(),
-        creation_config: None,
-    };
-    let write_buffer = write_buffer_factory
-        .new_config_read(
-            &kafka_topic.name,
-            trace_collector.as_ref(),
-            &write_buffer_cfg,
-        )
+    let write_buffer = config
+        .write_buffer_config
+        .reading(Arc::clone(&metric_registry), trace_collector.clone())
         .await?;
 
-    let ingest_handler = Arc::new(IngestHandlerImpl::new(
-        kafka_topic,
-        sequencers,
-        catalog,
-        object_store,
-        write_buffer,
-        &metric_registry,
-    ));
+    let lifecycle_config = LifecycleConfig::new(
+        config.pause_ingest_size_bytes,
+        config.persist_memory_threshold_bytes,
+        config.persist_partition_size_threshold_bytes,
+        Duration::from_secs(config.persist_partition_age_threshold_seconds),
+    );
+    let ingest_handler = Arc::new(
+        IngestHandlerImpl::new(
+            lifecycle_config,
+            kafka_topic,
+            sequencers,
+            catalog,
+            object_store,
+            write_buffer,
+            &metric_registry,
+        )
+        .await?,
+    );
     let http = HttpDelegate::new(Arc::clone(&ingest_handler));
     let grpc = GrpcDelegate::new(ingest_handler);
 
-    let ingester = IngesterServer::new(http, grpc);
+    let ingester = IngesterServer::new(metric_registry, http, grpc);
     let server_type = Arc::new(IngesterServerType::new(ingester, &common_state));
 
     info!("starting ingester");

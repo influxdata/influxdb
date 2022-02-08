@@ -15,10 +15,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
 };
 use iox_catalog::interface::{SequenceNumber, Tombstone};
-use predicate::{
-    delete_predicate::parse_delete_predicate,
-    predicate::{Predicate, PredicateMatch},
-};
+use predicate::{delete_predicate::parse_delete_predicate, Predicate, PredicateMatch};
 use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};

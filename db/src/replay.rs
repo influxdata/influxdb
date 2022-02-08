@@ -20,7 +20,7 @@ use std::{
     time::Duration,
 };
 use time::Time;
-use write_buffer::core::WriteBufferReading;
+use write_buffer::core::{WriteBufferReading, WriteBufferStreamHandler};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -85,22 +85,34 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// operation fails. In that case some of the sequencers in the write buffers might already be seeked and others not.
 /// The caller must NOT use the write buffer in that case without ensuring that it is put into some proper state, e.g.
 /// by retrying this function.
-pub async fn seek_to_end(db: &Db, write_buffer: &mut dyn WriteBufferReading) -> Result<()> {
-    let mut watermarks = vec![];
-    for (sequencer_id, stream) in write_buffer.streams() {
-        let watermark = (stream.fetch_high_watermark)()
-            .await
-            .context(SeekSnafu { sequencer_id })?;
-        watermarks.push((sequencer_id, watermark));
-    }
+pub async fn seek_to_end(
+    db: &Db,
+    write_buffer: &dyn WriteBufferReading,
+    write_buffer_streams: BTreeMap<u32, Box<dyn WriteBufferStreamHandler>>,
+) -> Result<BTreeMap<u32, Box<dyn WriteBufferStreamHandler>>> {
+    // need to convert the btree into a vec because the btree iterator is not `Send`
+    let write_buffer_streams: Vec<_> = write_buffer_streams.into_iter().collect();
 
-    for (sequencer_id, watermark) in &watermarks {
-        write_buffer
-            .seek(*sequencer_id, *watermark)
+    let mut watermarks = vec![];
+    for (sequencer_id, _handler) in &write_buffer_streams {
+        let watermark = write_buffer
+            .fetch_high_watermark(*sequencer_id)
             .await
             .context(SeekSnafu {
                 sequencer_id: *sequencer_id,
             })?;
+        watermarks.push((*sequencer_id, watermark));
+    }
+
+    let mut write_buffer_streams_res = BTreeMap::new();
+    for ((sequencer_id, watermark), (sequencer_id_2, mut handler)) in
+        watermarks.iter().zip(write_buffer_streams)
+    {
+        assert_eq!(*sequencer_id, sequencer_id_2);
+        handler.seek(*watermark).await.context(SeekSnafu {
+            sequencer_id: *sequencer_id,
+        })?;
+        write_buffer_streams_res.insert(*sequencer_id, handler);
     }
 
     // remember max seen sequence numbers
@@ -142,24 +154,20 @@ pub async fn seek_to_end(db: &Db, write_buffer: &mut dyn WriteBufferReading) -> 
         }
     }
 
-    Ok(())
+    Ok(write_buffer_streams_res)
 }
 
 /// Perform sequencer-driven replay for this DB.
 pub async fn perform_replay(
     db: &Db,
     replay_plan: &ReplayPlan,
-    write_buffer: &mut dyn WriteBufferReading,
-) -> Result<()> {
+    write_buffer_streams: BTreeMap<u32, Box<dyn WriteBufferStreamHandler>>,
+) -> Result<BTreeMap<u32, Box<dyn WriteBufferStreamHandler>>> {
     let db_name = db.rules.read().db_name().to_string();
     info!(%db_name, "starting replay");
 
     // check if write buffer and replay plan agree on the set of sequencer ids
-    let sequencer_ids: BTreeSet<_> = write_buffer
-        .streams()
-        .into_iter()
-        .map(|(sequencer_id, _stream)| sequencer_id)
-        .collect();
+    let sequencer_ids: BTreeSet<_> = write_buffer_streams.keys().copied().collect();
     for sequencer_id in replay_plan.sequencer_ids() {
         if !sequencer_ids.contains(&sequencer_id) {
             return Err(Error::UnknownSequencer {
@@ -179,31 +187,30 @@ pub async fn perform_replay(
         })
         .collect();
 
+    // need to convert the btree into a vec because the btree iterator is not `Send`
+    let mut write_buffer_streams: Vec<_> = write_buffer_streams.into_iter().collect();
+
     // seek write buffer according to the plan
-    for (sequencer_id, min_max) in &replay_ranges {
-        if let Some(min) = min_max.min() {
-            info!(%db_name, sequencer_id, sequence_number=min, "seek sequencer in preperation for replay");
-            write_buffer
-                .seek(*sequencer_id, min)
-                .await
-                .context(SeekSnafu {
+    for (sequencer_id, handler) in write_buffer_streams.iter_mut() {
+        if let Some(min_max) = replay_ranges.get(sequencer_id) {
+            if let Some(min) = min_max.min() {
+                info!(%db_name, sequencer_id, sequence_number=min, "seek sequencer in preperation for replay");
+                handler.seek(min).await.context(SeekSnafu {
                     sequencer_id: *sequencer_id,
                 })?;
-        } else {
-            let sequence_number = min_max.max() + 1;
-            info!(%db_name, sequencer_id, sequence_number, "seek sequencer that did not require replay");
-            write_buffer
-                .seek(*sequencer_id, sequence_number)
-                .await
-                .context(SeekSnafu {
+            } else {
+                let sequence_number = min_max.max() + 1;
+                info!(%db_name, sequencer_id, sequence_number, "seek sequencer that did not require replay");
+                handler.seek(sequence_number).await.context(SeekSnafu {
                     sequencer_id: *sequencer_id,
                 })?;
+            }
         }
     }
 
     // replay ranges
-    for (sequencer_id, mut stream) in write_buffer.streams() {
-        if let Some(min_max) = replay_ranges.get(&sequencer_id) {
+    for (sequencer_id, handler) in write_buffer_streams.iter_mut() {
+        if let Some(min_max) = replay_ranges.get(sequencer_id) {
             if min_max.min().is_none() {
                 // no replay required
                 continue;
@@ -216,19 +223,17 @@ pub async fn perform_replay(
                 "replay sequencer",
             );
 
-            while let Some(dml_operation) = stream
-                .stream
-                .try_next()
-                .await
-                .context(EntrySnafu { sequencer_id })?
-            {
+            let mut stream = handler.stream();
+            while let Some(dml_operation) = stream.try_next().await.context(EntrySnafu {
+                sequencer_id: *sequencer_id,
+            })? {
                 let sequence = *dml_operation
                     .meta()
                     .sequence()
                     .expect("entry must be sequenced");
                 if sequence.number > min_max.max() {
                     return Err(Error::EntryLostError {
-                        sequencer_id,
+                        sequencer_id: *sequencer_id,
                         actual_sequence_number: sequence.number,
                         expected_sequence_number: min_max.max(),
                     });
@@ -253,6 +258,7 @@ pub async fn perform_replay(
                         }
                         Err(crate::DmlError::HardLimitReached {}) if n_try < n_tries => {
                             if !logged_hard_limit {
+                                let sequencer_id: u32 = *sequencer_id;
                                 info!(
                                     %db_name,
                                     sequencer_id,
@@ -313,7 +319,7 @@ pub async fn perform_replay(
         }
     }
 
-    Ok(())
+    Ok(write_buffer_streams.into_iter().collect())
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -610,8 +616,12 @@ mod tests {
 
             let mut lifecycle = LifecycleWorker::new(Arc::clone(&test_db.db));
 
+            let write_buffer =
+                Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
+            let streams = write_buffer.stream_handlers().await.unwrap();
             let mut maybe_consumer = Some(WriteBufferConsumer::new(
-                Box::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap()),
+                write_buffer,
+                streams,
                 Arc::clone(&test_db.db),
                 &registry,
             ));
@@ -664,16 +674,17 @@ mod tests {
                             _ => unreachable!(),
                         };
 
-                        let mut write_buffer =
-                            MockBufferForReading::new(write_buffer_state.clone(), None).unwrap();
+                        let write_buffer: Arc<dyn WriteBufferReading> = Arc::new(
+                            MockBufferForReading::new(write_buffer_state.clone(), None).unwrap(),
+                        );
 
-                        test_db
+                        let streams = test_db
                             .db
-                            .perform_replay(replay_plan, &mut write_buffer)
+                            .perform_replay(replay_plan, Arc::clone(&write_buffer))
                             .await
                             .unwrap();
 
-                        maybe_write_buffer = Some(write_buffer);
+                        maybe_write_buffer = Some((write_buffer, streams));
                     }
                     Step::Persist(partitions) => {
                         let db = &test_db.db;
@@ -736,13 +747,20 @@ mod tests {
                     }
                     Step::Await(checks) => {
                         if maybe_consumer.is_none() {
-                            let write_buffer = match maybe_write_buffer.take() {
-                                Some(write_buffer) => write_buffer,
-                                None => MockBufferForReading::new(write_buffer_state.clone(), None)
-                                    .unwrap(),
+                            let (write_buffer, streams) = match maybe_write_buffer.take() {
+                                Some(x) => x,
+                                None => {
+                                    let write_buffer: Arc<dyn WriteBufferReading> = Arc::new(
+                                        MockBufferForReading::new(write_buffer_state.clone(), None)
+                                            .unwrap(),
+                                    );
+                                    let streams = write_buffer.stream_handlers().await.unwrap();
+                                    (write_buffer, streams)
+                                }
                             };
                             maybe_consumer = Some(WriteBufferConsumer::new(
-                                Box::new(write_buffer),
+                                write_buffer,
+                                streams,
                                 Arc::clone(&test_db.db),
                                 &registry,
                             ));
@@ -981,6 +999,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_two_partitions_persist_second() {
+        test_helpers::maybe_start_logging();
         // acts as regression test for the following PRs:
         // - https://github.com/influxdata/influxdb_iox/pull/2079
         // - https://github.com/influxdata/influxdb_iox/pull/2084
@@ -1087,6 +1106,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_two_partitions_persist_first() {
+        test_helpers::maybe_start_logging();
         // acts as regression test for the following PRs:
         // - https://github.com/influxdata/influxdb_iox/pull/2079
         // - https://github.com/influxdata/influxdb_iox/pull/2084
@@ -1193,6 +1213,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_nothing_to_replay() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 Step::Restart,
@@ -1227,6 +1248,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_different_sequencer_situations() {
+        test_helpers::maybe_start_logging();
         // three sequencers:
         //   0: no data at all
         //   1: replay required, additional incoming data during downtime
@@ -1338,6 +1360,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_interleaved_writes() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 // let's ingest some data for two partitions a and b
@@ -1581,6 +1604,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_compacts() {
+        test_helpers::maybe_start_logging();
         let tracing_capture = TracingCapture::new();
 
         // these numbers are handtuned to trigger hard buffer limits w/o making the test too big
@@ -1635,6 +1659,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_prune_full_partition() {
+        test_helpers::maybe_start_logging();
         // there the following entries:
         //
         // 0. table 2, partition a:
@@ -1723,6 +1748,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_prune_some_sequences_partition() {
+        test_helpers::maybe_start_logging();
         // there the following entries:
         //
         // 0. table 2, partition a:
@@ -1814,6 +1840,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_prune_rows() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![
@@ -1923,6 +1950,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_works_with_checkpoints_all_full_persisted_1() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             catalog_transactions_until_checkpoint: NonZeroU64::new(2).unwrap(),
             steps: vec![
@@ -1962,6 +1990,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_works_with_checkpoints_all_full_persisted_2() {
+        test_helpers::maybe_start_logging();
         // try to provoke an catalog checkpoints that lists database checkpoints in the wrong order
         ReplayTest {
             catalog_transactions_until_checkpoint: NonZeroU64::new(2).unwrap(),
@@ -2050,6 +2079,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_works_partially_persisted_1() {
+        test_helpers::maybe_start_logging();
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
         let tracing_capture = TracingCapture::new();
 
@@ -2121,6 +2151,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_works_partially_persisted_2() {
+        test_helpers::maybe_start_logging();
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
         let tracing_capture = TracingCapture::new();
 
@@ -2202,6 +2233,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_works_after_skip() {
+        test_helpers::maybe_start_logging();
         let tracing_capture = TracingCapture::new();
 
         ReplayTest {
@@ -2272,6 +2304,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_initializes_max_seen_sequence_numbers() {
+        test_helpers::maybe_start_logging();
         // Ensures that either replay or the catalog loading initializes the maximum seen sequence numbers (per
         // partition) correctly. Before this test (and its fix), sequence numbers were only written if there was any
         // unpersisted range during replay.
@@ -2402,6 +2435,7 @@ mod tests {
 
     #[tokio::test]
     async fn skip_replay_initializes_max_seen_sequence_numbers() {
+        test_helpers::maybe_start_logging();
         // Similar case to `replay_initializes_max_seen_sequence_numbers` but instead of replaying, we skip replay to
         // provoke a similar outcome.
         //
@@ -2528,6 +2562,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_after_drop() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![
@@ -2630,6 +2665,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_delete() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
@@ -2696,6 +2732,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_delete_persisted_chunks() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
@@ -2751,6 +2788,7 @@ mod tests {
     // This test replay compact os chunks with deletes and duplicates
     #[tokio::test]
     async fn replay_delete_compact_os_chunks() {
+        test_helpers::maybe_start_logging();
         ReplayTest {
             steps: vec![
                 // --------------------------
@@ -2913,10 +2951,12 @@ mod tests {
 
     #[tokio::test]
     async fn replay_fail_sequencers_change() {
+        test_helpers::maybe_start_logging();
         // create write buffer w/ sequencer 0 and 1
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        let mut write_buffer = MockBufferForReading::new(write_buffer_state, None).unwrap();
+        let write_buffer: Arc<dyn WriteBufferReading> =
+            Arc::new(MockBufferForReading::new(write_buffer_state, None).unwrap());
 
         // create DB
         let db = TestDb::builder().build().await.db;
@@ -2940,9 +2980,7 @@ mod tests {
         let replay_plan = replay_planner.build().unwrap();
 
         // replay fails
-        let res = db
-            .perform_replay(Some(&replay_plan), &mut write_buffer)
-            .await;
+        let res = db.perform_replay(Some(&replay_plan), write_buffer).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Replay plan references unknown sequencer"
@@ -2951,12 +2989,14 @@ mod tests {
 
     #[tokio::test]
     async fn replay_fail_lost_entry() {
+        test_helpers::maybe_start_logging();
         // create write buffer state with sequence number 0 and 2, 1 is missing
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         write_buffer_state.push_lp(Sequence::new(0, 0), "cpu bar=1 0");
         write_buffer_state.push_lp(Sequence::new(0, 2), "cpu bar=1 10");
-        let mut write_buffer = MockBufferForReading::new(write_buffer_state, None).unwrap();
+        let write_buffer: Arc<dyn WriteBufferReading> =
+            Arc::new(MockBufferForReading::new(write_buffer_state, None).unwrap());
 
         // create DB
         let db = TestDb::builder().build().await.db;
@@ -2979,9 +3019,7 @@ mod tests {
         let replay_plan = replay_planner.build().unwrap();
 
         // replay fails
-        let res = db
-            .perform_replay(Some(&replay_plan), &mut write_buffer)
-            .await;
+        let res = db.perform_replay(Some(&replay_plan), write_buffer).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot replay: For sequencer 0 expected to find sequence 1 but replay jumped to 2"
@@ -2990,6 +3028,7 @@ mod tests {
 
     #[tokio::test]
     async fn seek_to_end_works() {
+        test_helpers::maybe_start_logging();
         // setup watermarks:
         // 0 -> 3 + 1 = 4
         // 1 -> 1 + 1 = 2
@@ -2999,14 +3038,18 @@ mod tests {
         write_buffer_state.push_lp(Sequence::new(0, 0), "cpu bar=0 0");
         write_buffer_state.push_lp(Sequence::new(0, 3), "cpu bar=3 3");
         write_buffer_state.push_lp(Sequence::new(1, 1), "cpu bar=11 11");
-        let mut write_buffer = MockBufferForReading::new(write_buffer_state.clone(), None).unwrap();
+        let write_buffer: Arc<dyn WriteBufferReading> =
+            Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
 
         // create DB
         let test_db = TestDb::builder().build().await;
         let db = &test_db.db;
 
         // seek
-        db.perform_replay(None, &mut write_buffer).await.unwrap();
+        let streams = db
+            .perform_replay(None, Arc::clone(&write_buffer))
+            .await
+            .unwrap();
 
         // add more data
         write_buffer_state.push_lp(Sequence::new(0, 4), "cpu bar=4 4");
@@ -3021,7 +3064,7 @@ mod tests {
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
 
         let consumer =
-            WriteBufferConsumer::new(Box::new(write_buffer), Arc::clone(db), &Default::default());
+            WriteBufferConsumer::new(write_buffer, streams, Arc::clone(db), &Default::default());
 
         // wait until checks pass
         let checks = vec![Check::Query(
@@ -3040,6 +3083,7 @@ mod tests {
         loop {
             println!("Try checks...");
             if ReplayTest::eval_checks(&checks, false, &test_db).await {
+                println!("checks passed...");
                 break;
             }
 

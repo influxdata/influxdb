@@ -22,9 +22,13 @@ pub struct IngesterServer<I: IngestHandler> {
 impl<I: IngestHandler> IngesterServer<I> {
     /// Initialise a new [`IngesterServer`] using the provided HTTP and gRPC
     /// handlers.
-    pub fn new(http: HttpDelegate<I>, grpc: GrpcDelegate<I>) -> Self {
+    pub fn new(
+        metrics: Arc<metric::Registry>,
+        http: HttpDelegate<I>,
+        grpc: GrpcDelegate<I>,
+    ) -> Self {
         Self {
-            metrics: Default::default(),
+            metrics,
             http,
             grpc,
         }

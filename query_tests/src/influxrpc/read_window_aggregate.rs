@@ -10,8 +10,8 @@ use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, timestamp::TimestampRange};
 use datafusion::prelude::*;
 use db::{test_helpers::write_lp, utils::make_db};
-use predicate::predicate::PredicateBuilder;
 use predicate::rpc_predicate::InfluxRpcPredicate;
+use predicate::PredicateBuilder;
 use query::{
     frontend::influxrpc::InfluxRpcPlanner,
     group_by::{Aggregate, WindowDuration},
@@ -107,8 +107,6 @@ impl DbSetup for MeasurementForWindowAggregate {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
-
-// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 #[tokio::test]
 async fn test_read_window_aggregate_nanoseconds() {
@@ -255,8 +253,6 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
         vec![scenario1, scenario2, scenario3]
     }
 }
-
-// NGA todo: add delete DbSetup
 
 #[tokio::test]
 async fn test_read_window_aggregate_months() {

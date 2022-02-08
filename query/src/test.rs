@@ -4,11 +4,11 @@
 //! AKA it is a Mock
 
 use crate::exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext};
-use crate::QueryCompletedToken;
 use crate::{
     exec::stringset::{StringSet, StringSetRef},
     Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
 };
+use crate::{QueryCompletedToken, QueryText};
 use arrow::array::UInt64Array;
 use arrow::{
     array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
@@ -155,7 +155,7 @@ impl QueryDatabase for TestDatabase {
     fn record_query(
         &self,
         _query_type: impl Into<String>,
-        _query_text: impl Into<String>,
+        _query_text: QueryText,
     ) -> QueryCompletedToken<'_> {
         QueryCompletedToken::new(|| {})
     }

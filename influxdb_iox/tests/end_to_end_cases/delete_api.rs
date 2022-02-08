@@ -162,7 +162,7 @@ pub async fn test_delete_on_router() {
     let fixture = ServerFixture::create_shared(ServerType::Router).await;
 
     let db_name = rand_name();
-    let (_tmpdir, mut write_buffer) = create_router_to_write_buffer(&fixture, &db_name).await;
+    let (_tmpdir, write_buffer) = create_router_to_write_buffer(&fixture, &db_name).await;
 
     let table = "cpu";
     let pred = DeletePredicate {
@@ -179,8 +179,10 @@ pub async fn test_delete_on_router() {
         .await
         .expect("cannot delete");
 
-    let mut stream = write_buffer.streams().into_values().next().unwrap();
-    let delete_actual = stream.stream.next().await.unwrap().unwrap();
+    let sequencer_id = write_buffer.sequencer_ids().into_iter().next().unwrap();
+    let mut handler = write_buffer.stream_handler(sequencer_id).await.unwrap();
+    let mut stream = handler.stream();
+    let delete_actual = stream.next().await.unwrap().unwrap();
     let delete_expected = DmlDelete::new(
         &db_name,
         pred,

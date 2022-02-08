@@ -1,7 +1,8 @@
 use arrow::datatypes::DataType;
+use data_types::timestamp::{MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::logical_plan::{col, lit};
-use predicate::predicate::PredicateBuilder;
 use predicate::rpc_predicate::InfluxRpcPredicate;
+use predicate::PredicateBuilder;
 use query::{
     exec::fieldlist::{Field, FieldList},
     frontend::influxrpc::InfluxRpcPlanner,
@@ -215,4 +216,65 @@ async fn test_field_name_plan_with_delete() {
         expected_fields,
     )
     .await;
+}
+
+#[tokio::test]
+async fn list_field_columns_max_time() {
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(MIN_NANO_TIME, MAX_NANO_TIME)
+        .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_fields = FieldList {
+        fields: vec![Field {
+            name: "value".into(),
+            data_type: DataType::Float64,
+            last_timestamp: MAX_NANO_TIME,
+        }],
+    };
+
+    run_field_columns_test_case(MeasurementWithMaxTime {}, predicate, expected_fields).await;
+}
+
+#[tokio::test]
+async fn list_field_columns_max_i64() {
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(i64::MIN, i64::MAX)
+        .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_fields = FieldList {
+        fields: vec![Field {
+            name: "value".into(),
+            data_type: DataType::Float64,
+            last_timestamp: MAX_NANO_TIME,
+        }],
+    };
+
+    run_field_columns_test_case(MeasurementWithMaxTime {}, predicate, expected_fields).await;
+}
+
+#[tokio::test]
+async fn list_field_columns_max_time_less_one() {
+    let predicate = PredicateBuilder::default()
+        // one less than max timestamp
+        .timestamp_range(MIN_NANO_TIME, MAX_NANO_TIME - 1)
+        .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_fields = FieldList { fields: vec![] };
+
+    run_field_columns_test_case(MeasurementWithMaxTime {}, predicate, expected_fields).await;
+}
+
+#[tokio::test]
+async fn list_field_columns_max_time_greater_one() {
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(MIN_NANO_TIME + 1, MAX_NANO_TIME)
+        .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_fields = FieldList { fields: vec![] };
+
+    run_field_columns_test_case(MeasurementWithMaxTime {}, predicate, expected_fields).await;
 }

@@ -14,11 +14,11 @@ use job_registry::JobRegistry;
 use metric::{Attributes, DurationCounter, Metric, U64Counter};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
-use predicate::{predicate::Predicate, rpc_predicate::QueryDatabaseMeta};
+use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use query::{
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
-    QueryChunkMeta, QueryCompletedToken, QueryDatabase, DEFAULT_SCHEMA,
+    QueryChunkMeta, QueryCompletedToken, QueryDatabase, QueryText, DEFAULT_SCHEMA,
 };
 use schema::Schema;
 use std::time::Instant;
@@ -27,7 +27,7 @@ use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 use time::TimeProvider;
 
 /// The number of entries to store in the circular query buffer log
-const QUERY_LOG_SIZE: usize = 100;
+const QUERY_LOG_SIZE: usize = 10_000;
 
 /// Metrics related to chunk access (pruning specifically)
 #[derive(Debug)]
@@ -290,7 +290,7 @@ impl QueryDatabase for QueryCatalogAccess {
     fn record_query(
         &self,
         query_type: impl Into<String>,
-        query_text: impl Into<String>,
+        query_text: QueryText,
     ) -> QueryCompletedToken<'_> {
         // When the query token is dropped the query entry's completion time
         // will be set.
@@ -398,7 +398,7 @@ mod tests {
     use super::*;
     use crate::test_helpers::write_lp;
     use crate::utils::make_db;
-    use predicate::predicate::PredicateBuilder;
+    use predicate::PredicateBuilder;
 
     #[tokio::test]
     async fn test_filtered_chunks() {
