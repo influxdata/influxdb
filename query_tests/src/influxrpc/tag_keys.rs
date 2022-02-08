@@ -1,3 +1,4 @@
+use data_types::timestamp::{MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::logical_plan::{col, lit};
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
@@ -186,7 +187,7 @@ async fn list_tag_name_end_to_end_with_delete() {
 async fn list_tag_name_max_time() {
     test_helpers::maybe_start_logging();
     let predicate = PredicateBuilder::default()
-        .timestamp_range(-9223372036854775806, 9223372036854775806)
+        .timestamp_range(MIN_NANO_TIME, MAX_NANO_TIME)
         .build();
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["host"];
@@ -209,7 +210,7 @@ async fn list_tag_name_max_i64() {
 async fn list_tag_name_max_time_less_one() {
     test_helpers::maybe_start_logging();
     let predicate = PredicateBuilder::default()
-        .timestamp_range(-9223372036854775806, 9223372036854775805) // one less than max timestamp
+        .timestamp_range(MIN_NANO_TIME, MAX_NANO_TIME - 1) // one less than max timestamp
         .build();
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec![];
@@ -220,7 +221,7 @@ async fn list_tag_name_max_time_less_one() {
 async fn list_tag_name_max_time_greater_one() {
     test_helpers::maybe_start_logging();
     let predicate = PredicateBuilder::default()
-        .timestamp_range(-9223372036854775805, 9223372036854775806) // one more than min timestamp
+        .timestamp_range(MIN_NANO_TIME + 1, MAX_NANO_TIME) // one more than min timestamp
         .build();
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec![];

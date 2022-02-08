@@ -219,6 +219,9 @@ impl InfluxRpcPlanner {
     {
         debug!(?rpc_predicate, "planning table_names");
 
+        // Special case predicates that span the entire valid timestamp range
+        let rpc_predicate = rpc_predicate.clear_timestamp_if_max_range();
+
         let mut builder = StringSetPlanBuilder::new();
 
         // Mapping between table and chunks that need full plan
@@ -616,6 +619,9 @@ impl InfluxRpcPlanner {
         D: QueryDatabase + 'static,
     {
         debug!(?rpc_predicate, "planning field_columns");
+
+        // Special case predicates that span the entire valid timestamp range
+        let rpc_predicate = rpc_predicate.clear_timestamp_if_max_range();
 
         // Algorithm is to run a "select field_cols from table where
         // <predicate> type plan for each table in the chunks"
