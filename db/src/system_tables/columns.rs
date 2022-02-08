@@ -1,3 +1,4 @@
+use crate::system_tables::BatchIterator;
 use crate::{catalog::Catalog, system_tables::IoxSystemTable};
 use arrow::array::UInt32Array;
 use arrow::{
@@ -33,9 +34,13 @@ impl IoxSystemTable for ColumnsTable {
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
     }
-    fn batch(&self) -> Result<RecordBatch> {
-        from_partition_summaries(self.schema(), self.catalog.partition_summaries())
-            .log_if_error("system.columns table")
+    fn scan(&self, _batch_size: usize) -> Result<BatchIterator> {
+        let schema = Arc::clone(&self.schema);
+        let catalog = Arc::clone(&self.catalog);
+        Ok(Box::new(std::iter::once_with(move || {
+            from_partition_summaries(schema, catalog.partition_summaries())
+                .log_if_error("system.columns table")
+        })))
     }
 }
 
@@ -113,9 +118,13 @@ impl IoxSystemTable for ChunkColumnsTable {
         Arc::clone(&self.schema)
     }
 
-    fn batch(&self) -> Result<RecordBatch> {
-        assemble_chunk_columns(self.schema(), self.catalog.detailed_chunk_summaries())
-            .log_if_error("system.column_chunks table")
+    fn scan(&self, _batch_size: usize) -> Result<BatchIterator> {
+        let schema = Arc::clone(&self.schema);
+        let catalog = Arc::clone(&self.catalog);
+        Ok(Box::new(std::iter::once_with(move || {
+            assemble_chunk_columns(schema, catalog.detailed_chunk_summaries())
+                .log_if_error("system.column_chunks table")
+        })))
     }
 }
 

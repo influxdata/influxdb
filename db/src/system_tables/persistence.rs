@@ -1,3 +1,4 @@
+use crate::system_tables::BatchIterator;
 use crate::{catalog::Catalog, system_tables::IoxSystemTable};
 use arrow::{
     array::{StringArray, TimestampNanosecondArray, UInt64Array},
@@ -31,9 +32,14 @@ impl IoxSystemTable for PersistenceWindowsTable {
         Arc::clone(&self.schema)
     }
 
-    fn batch(&self) -> Result<RecordBatch> {
-        from_write_summaries(self.schema(), self.catalog.persistence_summaries())
-            .log_if_error("system.persistence_windows table")
+    fn scan(&self, _batch_size: usize) -> Result<BatchIterator> {
+        let schema = Arc::clone(&self.schema);
+        let catalog = Arc::clone(&self.catalog);
+
+        Ok(Box::new(std::iter::once_with(move || {
+            from_write_summaries(schema, catalog.persistence_summaries())
+                .log_if_error("system.persistence_windows table")
+        })))
     }
 }
 

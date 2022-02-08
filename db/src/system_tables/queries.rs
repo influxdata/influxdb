@@ -1,3 +1,4 @@
+use crate::system_tables::BatchIterator;
 use crate::{
     query_log::{QueryLog, QueryLogEntry},
     system_tables::IoxSystemTable,
@@ -8,7 +9,7 @@ use arrow::{
     error::Result,
     record_batch::RecordBatch,
 };
-use data_types::error::ErrorLogger;
+use observability_deps::tracing::error;
 use std::{collections::VecDeque, sync::Arc};
 
 /// Implementation of system.queries table
@@ -32,9 +33,27 @@ impl IoxSystemTable for QueriesTable {
         Arc::clone(&self.schema)
     }
 
-    fn batch(&self) -> Result<RecordBatch> {
-        from_query_log_entries(self.schema(), self.query_log.entries())
-            .log_if_error("system.chunks table")
+    fn scan(&self, batch_size: usize) -> Result<BatchIterator> {
+        let schema = self.schema();
+        let entries = self.query_log.entries();
+        let mut offset = 0;
+        Ok(Box::new(std::iter::from_fn(move || {
+            if offset >= entries.len() {
+                return None;
+            }
+
+            let len = batch_size.min(entries.len() - offset);
+            match from_query_log_entries(schema.clone(), &entries, offset, len) {
+                Ok(batch) => {
+                    offset += len;
+                    Some(Ok(batch))
+                }
+                Err(e) => {
+                    error!("Error system.chunks table: {:?}", e);
+                    Some(Err(e))
+                }
+            }
+        })))
     }
 }
 
@@ -57,26 +76,36 @@ fn queries_schema() -> SchemaRef {
 
 fn from_query_log_entries(
     schema: SchemaRef,
-    entries: VecDeque<Arc<QueryLogEntry>>,
+    entries: &VecDeque<Arc<QueryLogEntry>>,
+    offset: usize,
+    len: usize,
 ) -> Result<RecordBatch> {
     let issue_time = entries
         .iter()
+        .skip(offset)
+        .take(len)
         .map(|e| e.issue_time)
         .map(|ts| Some(ts.timestamp_nanos()))
         .collect::<TimestampNanosecondArray>();
 
     let query_type = entries
         .iter()
+        .skip(offset)
+        .take(len)
         .map(|e| Some(&e.query_type))
         .collect::<StringArray>();
 
     let query_text = entries
         .iter()
+        .skip(offset)
+        .take(len)
         .map(|e| Some(e.query_text.to_string()))
         .collect::<StringArray>();
 
     let query_runtime = entries
         .iter()
+        .skip(offset)
+        .take(len)
         .map(|e| e.query_completed_duration().map(|d| d.as_nanos() as i64))
         .collect::<DurationNanosecondArray>();
 
@@ -101,11 +130,14 @@ mod tests {
     fn test_from_query_log() {
         let now = Time::from_rfc3339("1996-12-19T16:39:57+00:00").unwrap();
         let time_provider = Arc::new(time::MockProvider::new(now));
+
         let query_log = QueryLog::new(10, Arc::clone(&time_provider) as Arc<dyn TimeProvider>);
         query_log.push("sql", Box::new("select * from foo"));
         time_provider.inc(std::time::Duration::from_secs(24 * 60 * 60));
         query_log.push("sql", Box::new("select * from bar"));
         let read_filter_entry = query_log.push("read_filter", Box::new("json goop"));
+
+        let table = QueriesTable::new(Arc::new(query_log));
 
         let expected = vec![
             "+----------------------+-------------+-------------------+--------------------+",
@@ -117,9 +149,9 @@ mod tests {
             "+----------------------+-------------+-------------------+--------------------+",
         ];
 
-        let schema = queries_schema();
-        let batch = from_query_log_entries(schema.clone(), query_log.entries()).unwrap();
-        assert_batches_eq!(&expected, &[batch]);
+        let entries = table.scan(3).unwrap().collect::<Result<Vec<_>>>().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_batches_eq!(&expected, &entries);
 
         // mark one of the queries completed after 4s
         let now = Time::from_rfc3339("1996-12-20T16:40:01+00:00").unwrap();
@@ -135,7 +167,8 @@ mod tests {
             "+----------------------+-------------+-------------------+--------------------+",
         ];
 
-        let batch = from_query_log_entries(schema, query_log.entries()).unwrap();
-        assert_batches_eq!(&expected, &[batch]);
+        let entries = table.scan(2).unwrap().collect::<Result<Vec<_>>>().unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_batches_eq!(&expected, &entries);
     }
 }
