@@ -3,6 +3,7 @@ pub(crate) mod response;
 
 use std::num::NonZeroU64;
 
+use parquet::errors::ParquetError;
 use snafu::{ResultExt, Snafu};
 use tonic::Status;
 
@@ -10,6 +11,7 @@ use generated_types::Predicate;
 use influxdb_storage_client::{connection::Connection, Client, OrgAndBucket};
 use influxrpc_parser::predicate;
 use time;
+use trogging::tracing_subscriber::fmt::FormatEvent;
 
 #[derive(Debug, Snafu)]
 pub enum ParseError {
@@ -27,6 +29,9 @@ pub enum ParseError {
 
     #[snafu(display("error building response: {:?}", source))]
     ResponseError { source: response::Error },
+
+    #[snafu(display("value {:?} not supported for flag {:?}", value, flag))]
+    UnsupportedFlagValue { value: String, flag: String },
 }
 
 pub type Result<T, E = ParseError> = std::result::Result<T, E>;
@@ -52,6 +57,9 @@ pub struct Config {
     /// A predicate to filter results by. Effectively InfluxQL predicate format (see examples).
     #[clap(global = true, long, default_value = "", parse(try_from_str = parse_predicate))]
     pub predicate: Predicate,
+
+    #[clap(global = true, long, default_value = "pretty", parse(try_from_str = parse_format))]
+    pub format: Format,
 }
 
 // Attempts to parse either a stringified `i64` value. or alternatively parse an
@@ -104,6 +112,25 @@ fn parse_db_name(db_name: &str) -> Result<OrgAndBucket, ParseError> {
             db_name: db_name.to_owned(),
         })?,
     ))
+}
+
+// Attempts to parse the optional format.
+fn parse_format(format: &str) -> Result<Format, ParseError> {
+    match format {
+        "pretty" => Ok(Format::Pretty),
+        "quiet" => Ok(Format::Quiet),
+        // TODO - raw frame format?
+        _ => Err(ParseError::UnsupportedFlagValue {
+            value: format.to_owned(),
+            flag: "format".to_owned(),
+        }),
+    }
+}
+
+#[derive(Debug, clap::Parser)]
+pub enum Format {
+    Pretty,
+    Quiet,
 }
 
 /// All possible subcommands for storage
