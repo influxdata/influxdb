@@ -3,8 +3,8 @@
 mod r#trait;
 pub use r#trait::*;
 
-mod table_namespace_sharder;
-pub use table_namespace_sharder::*;
+mod jumphash;
+pub use jumphash::*;
 
 #[cfg(test)]
 pub mod mock;

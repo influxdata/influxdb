@@ -1,6 +1,6 @@
 //! Implementation of command line option for running router2
 
-use std::{collections::BTreeSet, sync::Arc};
+use std::{collections::BTreeSet, iter, sync::Arc};
 
 use crate::{
     clap_blocks::{
@@ -17,10 +17,10 @@ use crate::{
 use observability_deps::tracing::*;
 use router2::{
     dml_handlers::{NamespaceAutocreation, SchemaValidator, ShardedWriteBuffer},
-    namespace_cache::MemoryNamespaceCache,
+    namespace_cache::{MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
     server::{http::HttpDelegate, RouterServer},
-    sharder::TableNamespaceSharder,
+    sharder::JumpHash,
 };
 use thiserror::Error;
 use trace::TraceCollector;
@@ -90,7 +90,9 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
 
-    let ns_cache = Arc::new(MemoryNamespaceCache::default());
+    let ns_cache = Arc::new(ShardedCache::new(
+        iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+    ));
     let handler_stack =
         SchemaValidator::new(write_buffer, Arc::clone(&catalog), Arc::clone(&ns_cache));
 
@@ -160,13 +162,13 @@ pub async fn command(config: Config) -> Result<()> {
 }
 
 /// Initialise the [`ShardedWriteBuffer`] with one shard per Kafka partition,
-/// using the [`TableNamespaceSharder`] to shard operations by their destination
-/// namespace & table name.
+/// using [`JumpHash`] to shard operations by their destination namespace &
+/// table name.
 async fn init_write_buffer(
     config: &Config,
     metrics: Arc<metric::Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
-) -> Result<ShardedWriteBuffer<TableNamespaceSharder<Arc<Sequencer>>>> {
+) -> Result<ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>> {
     let write_buffer = Arc::new(
         config
             .write_buffer_config
@@ -193,6 +195,6 @@ async fn init_write_buffer(
             .into_iter()
             .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer)))
             .map(Arc::new)
-            .collect::<TableNamespaceSharder<_>>(),
+            .collect::<JumpHash<_>>(),
     ))
 }
