@@ -1,10 +1,8 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
-use hashbrown::HashMap;
 use iox_catalog::interface::{Catalog, KafkaTopicId, QueryPoolId};
-use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use thiserror::Error;
 use trace::ctx::SpanContext;
@@ -71,15 +69,18 @@ impl<D, C> NamespaceAutocreation<D, C> {
 }
 
 #[async_trait]
-impl<D, C> DmlHandler for NamespaceAutocreation<D, C>
+impl<D, C, T> DmlHandler for NamespaceAutocreation<D, C>
 where
-    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>>,
+    D: DmlHandler<WriteInput = T>,
     C: NamespaceCache,
+    T: Debug + Send + Sync + 'static,
 {
     type WriteError = NamespaceCreationError;
     type DeleteError = NamespaceCreationError;
 
-    type WriteInput = HashMap<String, MutableBatch>;
+    // This handler accepts any input type, passing it through to the next
+    // handler unmodified.
+    type WriteInput = T;
 
     /// Write `batches` to `namespace`.
     async fn write(
@@ -175,7 +176,7 @@ mod tests {
         );
 
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::default());
-        let mock_handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
+        let mock_handler = Arc::new(MockDmlHandler::<()>::default().with_write_return([Ok(())]));
 
         let creator = NamespaceAutocreation::new(
             Arc::clone(&catalog),
@@ -187,7 +188,7 @@ mod tests {
         );
 
         creator
-            .write(ns.clone(), Default::default(), None)
+            .write(ns.clone(), (), None)
             .await
             .expect("handler should succeed");
 
@@ -216,7 +217,7 @@ mod tests {
 
         let cache = Arc::new(MemoryNamespaceCache::default());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::default());
-        let mock_handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
+        let mock_handler = Arc::new(MockDmlHandler::<()>::default().with_write_return([Ok(())]));
 
         let creator = NamespaceAutocreation::new(
             Arc::clone(&catalog),
@@ -228,7 +229,7 @@ mod tests {
         );
 
         creator
-            .write(ns.clone(), Default::default(), None)
+            .write(ns.clone(), (), None)
             .await
             .expect("handler should succeed");
 
