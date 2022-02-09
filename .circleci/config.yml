@@ -322,7 +322,7 @@ jobs:
   #
   # Compiles a binary with the default ("dev") cargo profile from the iox source
   # using the latest ci_image.
-  build:
+  build_dev:
     docker:
       - image: quay.io/influxdb/rust:ci
     resource_class: xlarge  # use of a smaller executor tends crashes on link
@@ -392,22 +392,12 @@ jobs:
           name: Lint docs
           command: ./scripts/lint_docs.py ./docs
 
-  # Compile a cargo "release" profile binary for branches that end in `/perf`
+  # Compile cargo "release" profile binaries for iox & data generator
   #
   # Uses the latest ci_image (influxdb/rust below) to build a release binary and
   # copies it to a minimal container image based upon `rust:slim-buster`. This
-  # minimal image is then pushed to `quay.io/influxdb/iox:${BRANCH}` with '/'
-  # repaced by '.' - as an example:
-  #
-  #   git branch: dom/my-awesome-feature/perf
-  #   container: quay.io/influxdb/iox:dom.my-awesome-feature.perf
-  #
-  # Subsequent CI runs will overwrite the tag if you push more changes, so watch
-  # out for parallel CI runs!
-  #
-  # To change the contents of the build container, modify docker/Dockerfile.ci
-  # To change the final release container, modify docker/Dockerfile.iox
-  perf_image:
+  # minimal image is then pushed to `quay.io/influxdb/iox:${BRANCH}`.
+  build_release:
     # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
     # kinda small node)
     machine:
@@ -500,7 +490,8 @@ parameters:
     description: "Trigger build of CI image"
     type: boolean
     default: false
-  perf_image:
+  build_perf:
+    # see comments below in build_perf job for usage
     description: "Trigger build of perf image"
     type: boolean
     default: false
@@ -521,10 +512,10 @@ workflows:
       - test
       - test_heappy
       - test_perf
-      - build
+      - build_dev
       - doc
       - workspace_hack_checks
-      - perf_image:
+      - build_release:
           filters:
             branches:
               only: main
@@ -537,7 +528,7 @@ workflows:
             - test
             - test_heappy
             - test_perf
-            - build
+            - build_dev
             - doc
 
   # Manual build of CI image
@@ -546,11 +537,22 @@ workflows:
     jobs:
       - ci_image
 
-  # Manual build of perf image
-  perf_image:
-    when: << pipeline.parameters.perf_image >>
+  # Manual build of perf image.
+  # Trigger using the CircleCI API, like so:
+  #
+  #   # e.g. using 'xh' (https://github.com/ducaale/xh)
+  #   $ xh -a '<your personal circleCI token>:' POST \
+  #       https://circleci.com/api/v2/project/github/influxdata/influxdb_iox/pipeline \
+  #       parameters:='{"build_perf": true}' branch=chore/ci-tidy-up
+  #
+  # ...or equivalent with `curl`:
+  #   $ curl -XPOST -H "Content-Type: application/json" -H "Circle-Token: <your personal circleCI token>" \
+  #       -d '{"parameters": {"build_perf": true}, "branch": "chore/ci-tidy-up"}' \
+  #       https://circleci.com/api/v2/project/github/influxdata/influxdb_iox/pipeline
+  build_perf:
+    when: << pipeline.parameters.build_perf >>
     jobs:
-      - perf_image
+      - build_release
 
   # Nightly rebuild of the build container
   ci_image_nightly:
