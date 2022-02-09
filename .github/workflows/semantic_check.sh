@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e -o pipefail
+
 shopt -s nocasematch
 semantic_pattern='^(Merge branch '\''.+'\'' into|(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?: +[^ ])'
 
@@ -36,12 +38,8 @@ chore:foo
   exit $exit_code
 fi
 
-# nb: quotes are often not required around env var names between [[ and ]]
-if [[ -z $PR_TITLE || -z $COMMITS_URL ]]; then
-  echo ::error::required env vars: PR_TITLE, COMMITS_URL
-  exit 1
-fi
-
+# ensure expected env vars are set
+set -u
 exit_code=0
 
 if [[ ! $PR_TITLE =~ $semantic_pattern ]]; then
@@ -51,8 +49,8 @@ else
   echo PR title OK: "$PR_TITLE"
 fi
 
-json=$(curl --silent "$COMMITS_URL")
-commits=$(echo "$json" | jq --raw-output '.[] | [.sha, .commit.message] | join(" ") | split("\n") | first')
+json=$(curl --fail --retry 3 --silent "$COMMITS_URL")
+commits=$(echo "$json" | jq --raw-output '.[] | [.sha, (.commit.message | split("\n") | first)] | join(" ")')
 
 while read -r commit; do
   commit_title=$(echo "$commit" | cut -c 42-999)
