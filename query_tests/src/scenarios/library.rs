@@ -17,7 +17,7 @@ use query::QueryChunk;
 use super::{
     util::{
         all_scenarios_for_one_chunk, make_one_chunk_mub_scenario, make_one_chunk_rub_scenario,
-        make_one_rub_or_parquet_chunk_scenario, make_two_chunk_scenarios,
+        make_one_rub_or_parquet_chunk_scenario, make_two_chunk_scenarios, rollover_and_load,
     },
     DbScenario, DbSetup,
 };
@@ -1464,5 +1464,196 @@ impl DbSetup for MeasurementForDefect2691 {
         ];
 
         all_scenarios_for_one_chunk(vec![], vec![], lp, "system", partition_key).await
+    }
+}
+
+pub struct MeasurementForWindowAggregate {}
+#[async_trait]
+impl DbSetup for MeasurementForWindowAggregate {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines1 = vec![
+            "h2o,state=MA,city=Boston temp=70.0 100",
+            "h2o,state=MA,city=Boston temp=71.0 200",
+            "h2o,state=MA,city=Boston temp=72.0 300",
+            "h2o,state=MA,city=Boston temp=73.0 400",
+            "h2o,state=MA,city=Boston temp=74.0 500",
+            "h2o,state=MA,city=Cambridge temp=80.0 100",
+            "h2o,state=MA,city=Cambridge temp=81.0 200",
+        ];
+        let lp_lines2 = vec![
+            "h2o,state=MA,city=Cambridge temp=82.0 300",
+            "h2o,state=MA,city=Cambridge temp=83.0 400",
+            "h2o,state=MA,city=Cambridge temp=84.0 500",
+            "h2o,state=CA,city=LA temp=90.0 100",
+            "h2o,state=CA,city=LA temp=91.0 200",
+            "h2o,state=CA,city=LA temp=92.0 300",
+            "h2o,state=CA,city=LA temp=93.0 400",
+            "h2o,state=CA,city=LA temp=94.0 500",
+        ];
+
+        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
+    }
+}
+
+pub struct MeasurementForWindowAggregateMonths {}
+#[async_trait]
+impl DbSetup for MeasurementForWindowAggregateMonths {
+    async fn make(&self) -> Vec<DbScenario> {
+        // Note the lines are written into 4 different partititions (as we are
+        // partitioned by day, effectively)
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.0 1583020800000000000", // 2020-03-01T00:00:00Z
+            "h2o,state=MA,city=Boston temp=71.0 1583107920000000000", // 2020-03-02T00:12:00Z
+            "h2o,state=MA,city=Boston temp=72.0 1585699200000000000", // 2020-04-01T00:00:00Z
+            "h2o,state=MA,city=Boston temp=73.0 1585785600000000000", // 2020-04-02T00:00:00Z
+        ];
+        // partition keys are: ["2020-03-02T00", "2020-03-01T00", "2020-04-01T00",
+        // "2020-04-02T00"]
+
+        let db = make_db().await.db;
+        let data = lp_lines.join("\n");
+        write_lp(&db, &data);
+        let scenario1 = DbScenario {
+            scenario_name: "Data in 4 partitions, open chunks of mutable buffer".into(),
+            db,
+        };
+
+        let db = make_db().await.db;
+        let data = lp_lines.join("\n");
+        write_lp(&db, &data);
+        db.rollover_partition("h2o", "2020-03-01T00").await.unwrap();
+        db.rollover_partition("h2o", "2020-03-02T00").await.unwrap();
+        let scenario2 = DbScenario {
+            scenario_name:
+                "Data in 4 partitions, two open chunk and two closed chunks of mutable buffer"
+                    .into(),
+            db,
+        };
+
+        let db = make_db().await.db;
+        let data = lp_lines.join("\n");
+        write_lp(&db, &data);
+        // roll over and load chunks into both RUB and OS
+        rollover_and_load(&db, "2020-03-01T00", "h2o").await;
+        rollover_and_load(&db, "2020-03-02T00", "h2o").await;
+        rollover_and_load(&db, "2020-04-01T00", "h2o").await;
+        rollover_and_load(&db, "2020-04-02T00", "h2o").await;
+        let scenario3 = DbScenario {
+            scenario_name: "Data in 4 partitions, 4 closed chunks in mutable buffer".into(),
+            db,
+        };
+
+        // TODO: Add a scenario for OS only in #1342
+
+        vec![scenario1, scenario2, scenario3]
+    }
+}
+
+// Test data to validate fix for:
+// https://github.com/influxdata/influxdb_iox/issues/2697
+pub struct MeasurementForDefect2697 {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2697 {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "mm,section=1a bar=5.0 1609459201000000011",
+            "mm,section=1a bar=0.28 1609459201000000031",
+            "mm,section=2b bar=4.0 1609459201000000009",
+            "mm,section=2b bar=6.0 1609459201000000015",
+            "mm,section=2b bar=1.2 1609459201000000022",
+            "mm,section=1a foo=1.0 1609459201000000001",
+            "mm,section=1a foo=3.0 1609459201000000005",
+            "mm,section=1a foo=11.24 1609459201000000024",
+            "mm,section=2b foo=2.0 1609459201000000002",
+        ];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp, "mm", partition_key).await
+    }
+}
+
+pub struct MeasurementForDefect2697WithDelete {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2697WithDelete {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "mm,section=1a bar=5.0 1609459201000000011",
+            "mm,section=1a bar=0.28 1609459201000000031",
+            "mm,section=2b bar=4.0 1609459201000000009",
+            "mm,section=2b bar=6.0 1609459201000000015",
+            "mm,section=2b bar=1.2 1609459201000000022",
+            "mm,section=1a foo=1.0 1609459201000000001",
+            "mm,section=1a foo=3.0 1609459201000000005",
+            "mm,section=1a foo=11.24 1609459201000000024",
+            "mm,section=2b foo=2.0 1609459201000000002",
+        ];
+
+        // pred: delete from mm where 1609459201000000022 <= time <= 1609459201000000022
+        // 1 row of m0 with timestamp 1609459201000000022 (section=2b bar=1.2)
+        let delete_table_name = "mm";
+        let pred = DeletePredicate {
+            range: TimestampRange::new(1609459201000000022, 1609459201000000022),
+            exprs: vec![],
+        };
+
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp, delete_table_name, partition_key).await
+    }
+}
+
+pub struct MeasurementForDefect2697WithDeleteAll {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2697WithDeleteAll {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "mm,section=1a bar=5.0 1609459201000000011",
+            "mm,section=1a bar=0.28 1609459201000000031",
+            "mm,section=2b bar=4.0 1609459201000000009",
+            "mm,section=2b bar=6.0 1609459201000000015",
+            "mm,section=2b bar=1.2 1609459201000000022",
+            "mm,section=1a foo=1.0 1609459201000000001",
+            "mm,section=1a foo=3.0 1609459201000000005",
+            "mm,section=1a foo=11.24 1609459201000000024",
+            "mm,section=2b foo=2.0 1609459201000000002",
+        ];
+
+        // pred: delete from mm where 1 <= time <= 1609459201000000031
+        let delete_table_name = "mm";
+        let pred = DeletePredicate {
+            range: TimestampRange::new(1, 1609459201000000031),
+            exprs: vec![],
+        };
+
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp, delete_table_name, partition_key).await
+    }
+}
+
+// Test data to validate fix for:
+// https://github.com/influxdata/influxdb_iox/issues/2890
+pub struct MeasurementForDefect2890 {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2890 {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "mm foo=2.0 1609459201000000001",
+            "mm foo=2.0 1609459201000000002",
+            "mm foo=3.0 1609459201000000005",
+            "mm foo=11.24 1609459201000000024",
+            "mm bar=4.0 1609459201000000009",
+            "mm bar=5.0 1609459201000000011",
+            "mm bar=6.0 1609459201000000015",
+            "mm bar=1.2 1609459201000000022",
+            "mm bar=2.8 1609459201000000031",
+        ];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp, "mm", partition_key).await
     }
 }
