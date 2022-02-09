@@ -94,7 +94,7 @@ pub struct ProducerConfig {
 
     /// Maximum batch size in bytes.
     ///
-    /// Extracted from `producer_max_batch_size`. Defaults to `100 * 1024`.
+    /// Extracted from `producer_max_batch_size`. Defaults to `512 * 1024`.
     pub max_batch_size: usize,
 }
 
@@ -106,7 +106,7 @@ impl TryFrom<&BTreeMap<String, String>> for ProducerConfig {
 
         Ok(Self {
             linger: linger_ms.map(Duration::from_millis),
-            max_batch_size: parse_key(cfg, "producer_max_batch_size")?.unwrap_or(100 * 1024),
+            max_batch_size: parse_key(cfg, "producer_max_batch_size")?.unwrap_or(512 * 1024),
         })
     }
 }
@@ -290,7 +290,7 @@ mod tests {
         let actual = ProducerConfig::try_from(&BTreeMap::default()).unwrap();
         let expected = ProducerConfig {
             linger: None,
-            max_batch_size: 100 * 1024,
+            max_batch_size: 512 * 1024,
         };
         assert_eq!(actual, expected);
     }
