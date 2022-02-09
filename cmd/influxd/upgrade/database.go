@@ -98,7 +98,7 @@ func upgradeDatabases(ctx context.Context, cli clients.CLI, v1 *influxDBv1, v2 *
 				OrganizationID:  orgID,
 				BucketID:        bucket.ID,
 			}
-			log.Debug(
+			log.Info(
 				"Creating mapping",
 				zap.String("database", mapping.Database),
 				zap.String("retention policy", mapping.RetentionPolicy),
@@ -155,7 +155,7 @@ func upgradeDatabases(ctx context.Context, cli clients.CLI, v1 *influxDBv1, v2 *
 					return nil, fmt.Errorf("error copying v1 data from %s to %s: %w", sourcePath, targetPath, err)
 				}
 			} else {
-				log.Warn("Empty retention policy")
+				log.Warn("Empty retention policy, no shards found", zap.String("source", sourcePath))
 			}
 		}
 
