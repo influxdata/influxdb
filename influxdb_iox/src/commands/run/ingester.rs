@@ -46,9 +46,6 @@ pub enum Error {
     #[error("kafka_partition_range_start must be <= kafka_partition_range_end")]
     KafkaRange,
 
-    #[error("sequencer record not found for partition {0}")]
-    SequencerNotFound(KafkaPartition),
-
     #[error("error initializing ingester: {0}")]
     Ingester(#[from] ingester::handler::Error),
 
@@ -164,11 +161,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let mut sequencers = BTreeMap::new();
     for k in kafka_partitions {
-        let s = txn
-            .sequencers()
-            .get_by_topic_id_and_partition(kafka_topic.id, k)
-            .await?
-            .ok_or(Error::SequencerNotFound(k))?;
+        let s = txn.sequencers().create_or_get(&kafka_topic, k).await?;
         sequencers.insert(k, s);
     }
     txn.commit().await?;
