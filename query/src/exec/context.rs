@@ -15,7 +15,7 @@ use datafusion::{
         coalesce_partitions::CoalescePartitionsExec,
         displayable,
         planner::{DefaultPhysicalPlanner, ExtensionPlanner},
-        ExecutionPlan, PhysicalPlanner, SendableRecordBatchStream,
+        EmptyRecordBatchStream, ExecutionPlan, PhysicalPlanner, SendableRecordBatchStream,
     },
     prelude::*,
 };
@@ -329,7 +329,9 @@ impl IOxExecutionContext {
         physical_plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         match physical_plan.output_partitioning().partition_count() {
-            0 => unreachable!(),
+            0 => Ok(Box::pin(EmptyRecordBatchStream::new(
+                physical_plan.schema(),
+            ))),
             1 => self.execute_stream_partitioned(physical_plan, 0).await,
             _ => {
                 // Merge into a single partition

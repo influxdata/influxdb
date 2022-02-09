@@ -20,7 +20,6 @@ use arrow::{array::ArrayRef, datatypes::DataType};
 use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
     physical_plan::{
-        aggregates::{AccumulatorFunctionImplementation, StateTypeFunction},
         functions::{ReturnTypeFunction, Signature, Volatility},
         udaf::AggregateUDF,
         Accumulator,
@@ -208,9 +207,11 @@ where
     );
 
     let state_type = Arc::new(vec![value_data_type.clone(), TIME_DATA_TYPE()]);
-    let state_type_factory: StateTypeFunction = Arc::new(move |_| Ok(Arc::clone(&state_type)));
+    let state_type_factory: Arc<
+        dyn Fn(&DataType) -> DataFusionResult<Arc<Vec<DataType>>> + Send + Sync,
+    > = Arc::new(move |_| Ok(Arc::clone(&state_type)));
 
-    let factory: AccumulatorFunctionImplementation =
+    let factory: Arc<dyn Fn() -> DataFusionResult<Box<dyn Accumulator>> + Send + Sync> =
         Arc::new(move || Ok(Box::new(SelectorAccumulator::<SELECTOR>::new(output))));
 
     let return_type = Arc::new(output.return_type(&value_data_type));

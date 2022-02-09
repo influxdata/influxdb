@@ -38,6 +38,7 @@ use datafusion::{
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
     physical_plan::{
         common::SizedRecordBatchStream,
+        expressions::PhysicalSortExpr,
         metrics::{
             BaselineMetrics, ExecutionPlanMetricsSet, MemTrackingMetrics, MetricsSet, RecordOutput,
         },
@@ -183,6 +184,10 @@ impl ExecutionPlan for SchemaPivotExec {
             Hash(_, num_partitions) => UnknownPartitioning(num_partitions),
             UnknownPartitioning(num_partitions) => UnknownPartitioning(num_partitions),
         }
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        None
     }
 
     fn required_child_distribution(&self) -> Distribution {

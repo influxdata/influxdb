@@ -21,6 +21,7 @@ use datafusion::{
     execution::runtime_env::RuntimeEnv,
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
+        expressions::PhysicalSortExpr,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
         ColumnarValue, DisplayFormatType, Distribution, ExecutionPlan, Partitioning, PhysicalExpr,
         SendableRecordBatchStream, Statistics,
@@ -157,6 +158,10 @@ impl ExecutionPlan for StreamSplitExec {
     /// Always produces exactly two outputs
     fn output_partitioning(&self) -> Partitioning {
         Partitioning::UnknownPartitioning(2)
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        self.input.output_ordering()
     }
 
     /// Always require a single input (eventually we might imagine

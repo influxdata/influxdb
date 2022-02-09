@@ -55,6 +55,7 @@ use datafusion::{
     execution::runtime_env::RuntimeEnv,
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
     physical_plan::{
+        expressions::PhysicalSortExpr,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
         DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
         Statistics,
@@ -213,6 +214,10 @@ impl ExecutionPlan for NonNullCheckerExec {
             Hash(_, num_partitions) => UnknownPartitioning(num_partitions),
             UnknownPartitioning(num_partitions) => UnknownPartitioning(num_partitions),
         }
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        None
     }
 
     fn required_child_distribution(&self) -> Distribution {

@@ -154,6 +154,22 @@ impl ExecutionPlan for DeduplicateExec {
         Partitioning::UnknownPartitioning(1)
     }
 
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        Some(&self.sort_keys)
+    }
+
+    fn relies_on_input_order(&self) -> bool {
+        true
+    }
+
+    fn maintains_input_order(&self) -> bool {
+        true
+    }
+
+    fn benefits_from_input_partitioning(&self) -> bool {
+        false
+    }
+
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
         vec![Arc::clone(&self.input)]
     }
@@ -983,6 +999,10 @@ mod test {
 
         fn output_partitioning(&self) -> Partitioning {
             unimplemented!();
+        }
+
+        fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+            unimplemented!()
         }
 
         fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {

@@ -9,8 +9,8 @@ use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
     logical_plan::{
-        binary_expr, col, lit, when, DFSchema, DFSchemaRef, Expr, ExprRewriter, LogicalPlan,
-        LogicalPlanBuilder,
+        binary_expr, col, lit, when, DFSchema, DFSchemaRef, Expr, ExprRewritable, ExprRewriter,
+        ExprSchemable, LogicalPlan, LogicalPlanBuilder,
     },
     scalar::ScalarValue,
 };

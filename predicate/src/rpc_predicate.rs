@@ -5,7 +5,8 @@ use crate::{rewrite, BinaryExpr, Predicate};
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::ExecutionProps;
 use datafusion::logical_plan::{
-    lit, Column, DFField, DFSchema, Expr, ExprRewriter, Operator, SimplifyInfo,
+    lit, Column, DFField, DFSchema, Expr, ExprRewritable, ExprRewriter, ExprSchemable,
+    ExprSimplifiable, Operator, SimplifyInfo,
 };
 use datafusion::scalar::ScalarValue;
 use datafusion_util::AsExpr;

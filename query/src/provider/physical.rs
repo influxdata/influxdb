@@ -8,6 +8,7 @@ use datafusion::{
     error::DataFusionError,
     execution::runtime_env::RuntimeEnv,
     physical_plan::{
+        expressions::PhysicalSortExpr,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
         DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
     },
@@ -67,6 +68,11 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
 
     fn output_partitioning(&self) -> Partitioning {
         Partitioning::UnknownPartitioning(self.chunks.len())
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        // TODO ??
+        None
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {

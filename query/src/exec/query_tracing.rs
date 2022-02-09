@@ -282,6 +282,7 @@ mod tests {
     use datafusion::{
         execution::runtime_env::RuntimeEnv,
         physical_plan::{
+            expressions::PhysicalSortExpr,
             metrics::{Count, Time, Timestamp},
             Metric,
         },
@@ -553,6 +554,10 @@ mod tests {
         }
 
         fn output_partitioning(&self) -> datafusion::physical_plan::Partitioning {
+            unimplemented!()
+        }
+
+        fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
             unimplemented!()
         }
 
