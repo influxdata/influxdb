@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-sqlparser = "0.13.0"
+sqlparser = "0.14.0"
 snafu = "0.7.0"
 
 generated_types = { path = "../generated_types" }
