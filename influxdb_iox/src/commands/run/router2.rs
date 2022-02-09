@@ -17,7 +17,10 @@ use crate::{
 use data_types::database_rules::{PartitionTemplate, TemplatePart};
 use observability_deps::tracing::*;
 use router2::{
-    dml_handlers::{NamespaceAutocreation, Partitioner, SchemaValidator, ShardedWriteBuffer},
+    dml_handlers::{
+        InstrumentationDecorator, NamespaceAutocreation, Partitioner, SchemaValidator,
+        ShardedWriteBuffer,
+    },
     namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
     server::{http::HttpDelegate, RouterServer},
@@ -94,6 +97,10 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
 
+    // Wrap the write buffer with metrics
+    let handler_stack =
+        InstrumentationDecorator::new("sharded_write_buffer", Arc::clone(&metrics), write_buffer);
+
     // Initialise an instrumented namespace cache to be shared with the schema
     // validator, and namespace auto-creator that reports cache hit/miss/update
     // metrics.
@@ -105,7 +112,9 @@ pub async fn command(config: Config) -> Result<()> {
     ));
     // Add the schema validator layer.
     let handler_stack =
-        SchemaValidator::new(write_buffer, Arc::clone(&catalog), Arc::clone(&ns_cache));
+        SchemaValidator::new(handler_stack, Arc::clone(&catalog), Arc::clone(&ns_cache));
+    let handler_stack =
+        InstrumentationDecorator::new("schema_validator", Arc::clone(&metrics), handler_stack);
 
     // Add a write partitioner into the handler stack that splits by the date
     // portion of the write's timestamp.
@@ -115,6 +124,8 @@ pub async fn command(config: Config) -> Result<()> {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
         },
     );
+    let handler_stack =
+        InstrumentationDecorator::new("partitioner", Arc::clone(&metrics), handler_stack);
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -166,6 +177,10 @@ pub async fn command(config: Config) -> Result<()> {
     );
     //
     ////////////////////////////////////////////////////////////////////////////
+
+    // Record the overall request handling latency
+    let handler_stack =
+        InstrumentationDecorator::new("request", Arc::clone(&metrics), handler_stack);
 
     let http = HttpDelegate::new(config.run_config.max_http_request_size, handler_stack);
     let router_server = RouterServer::new(
