@@ -6,6 +6,8 @@ pub use memory::*;
 mod sharded_cache;
 pub use sharded_cache::*;
 
+pub mod metrics;
+
 use std::{fmt::Debug, sync::Arc};
 
 use data_types::DatabaseName;

@@ -18,7 +18,7 @@ use data_types::database_rules::{PartitionTemplate, TemplatePart};
 use observability_deps::tracing::*;
 use router2::{
     dml_handlers::{NamespaceAutocreation, Partitioner, SchemaValidator, ShardedWriteBuffer},
-    namespace_cache::{MemoryNamespaceCache, ShardedCache},
+    namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
     server::{http::HttpDelegate, RouterServer},
     sharder::JumpHash,
@@ -94,10 +94,14 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
 
-    // Initialise a namespace cache to be shared with the schema validator, and
-    // namespace auto-creator.
-    let ns_cache = Arc::new(ShardedCache::new(
-        iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+    // Initialise an instrumented namespace cache to be shared with the schema
+    // validator, and namespace auto-creator that reports cache hit/miss/update
+    // metrics.
+    let ns_cache = Arc::new(InstrumentedCache::new(
+        Arc::new(ShardedCache::new(
+            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+        )),
+        Arc::clone(&metrics),
     ));
     // Add the schema validator layer.
     let handler_stack =
