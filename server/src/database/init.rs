@@ -598,15 +598,6 @@ impl DatabaseStateInitialized {
     }
 }
 
-/// Determine what the init loop should do next.
-enum TransactionOrWait {
-    /// We can transition from one state into another.
-    Transaction(DatabaseState, internal_types::freezable::FreezeHandle),
-
-    /// We have to wait to backoff from an error.
-    Wait(Duration),
-}
-
 const INIT_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(500);
 
@@ -616,62 +607,15 @@ pub(crate) async fn initialize_database(shared: &DatabaseShared) {
     let db_name = shared.config.read().name.clone();
     info!(%db_name, "database initialization started");
 
-    // error throttling
-    // - checks if the current error was already throttled
-    // - keeps a backoff duration that will change over the course of multiple errors
-    let mut throttled_error = false;
+    // A backoff duration for retrying errors that will change over the course of multiple errors
     let mut backoff = INIT_BACKOFF;
 
     while !shared.shutdown.is_cancelled() {
-        // Acquire locks and determine if work to be done
-        let maybe_transaction = {
-            // lock-dance to make this future `Send`
-            let handle = shared.state.read().freeze();
-            let handle = handle.await;
-            let state = shared.state.read();
+        let handle = shared.state.read().freeze();
+        let handle = handle.await;
 
-            match &**state {
-                // Already initialized
-                DatabaseState::Initialized(_) => break,
-
-                // Can perform work
-                _ if state.error().is_none() || (state.error().is_some() && throttled_error) => {
-                    TransactionOrWait::Transaction(DatabaseState::clone(&state), handle)
-                }
-
-                // Unthrottled error state, need to wait
-                _ => {
-                    let e = state
-                        .error()
-                        .expect("How did we end up in a non-error state?");
-                    error!(
-                        %db_name,
-                        %e,
-                        %state,
-                        "database in error state - wait until retry"
-                    );
-                    throttled_error = true;
-
-                    // exponential backoff w/ jitter, decorrelated
-                    // see https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
-                    let mut rng = thread_rng();
-                    backoff = Duration::from_secs_f64(MAX_BACKOFF.as_secs_f64().min(
-                        rng.gen_range(INIT_BACKOFF.as_secs_f64()..(backoff.as_secs_f64() * 3.0)),
-                    ));
-                    TransactionOrWait::Wait(backoff)
-                }
-            }
-        };
-
-        // Backoff if no work to be done
-        let (state, handle) = match maybe_transaction {
-            TransactionOrWait::Transaction(state, handle) => (state, handle),
-            TransactionOrWait::Wait(d) => {
-                info!(%db_name, "backing off initialization");
-                tokio::time::sleep(d).await;
-                continue;
-            }
-        };
+        // Re-acquire read lock to avoid holding lock across await point
+        let state = DatabaseState::clone(&shared.state.read());
 
         info!(%db_name, %state, "attempting to advance database initialization state");
 
@@ -724,18 +668,13 @@ pub(crate) async fn initialize_database(shared: &DatabaseShared) {
                 }
             }
             DatabaseState::Initialized(_) => {
-                unreachable!("{:?}", state)
+                // Already initialized
+                break;
             }
         };
 
-        if next_state.error().is_some() {
-            // this is a new error that needs to be throttled
-            throttled_error = false;
-        } else {
-            // reset backoff
-            backoff = INIT_BACKOFF;
-        }
-
+        let state_code = next_state.state_code();
+        let maybe_error = next_state.error().cloned();
         // Commit the next state
         {
             let mut state = shared.state.write();
@@ -743,6 +682,37 @@ pub(crate) async fn initialize_database(shared: &DatabaseShared) {
 
             *state.unfreeze(handle) = next_state;
             shared.state_notify.notify_waiters();
+        }
+
+        match maybe_error {
+            Some(error) => {
+                // exponential backoff w/ jitter, decorrelated
+                // see https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+                backoff = Duration::from_secs_f64(
+                    MAX_BACKOFF.as_secs_f64().min(
+                        thread_rng()
+                            .gen_range(INIT_BACKOFF.as_secs_f64()..(backoff.as_secs_f64() * 3.0)),
+                    ),
+                );
+
+                error!(
+                    %db_name,
+                    %error,
+                    state=%state_code,
+                    backoff_secs = backoff.as_secs_f64(),
+                    "database in error state - backing off initialization"
+                );
+
+                // Wait for timeout or shutdown signal
+                tokio::select! {
+                    _ = tokio::time::sleep(backoff) => {},
+                    _ = shared.shutdown.cancelled() => {}
+                }
+            }
+            None => {
+                // reset backoff
+                backoff = INIT_BACKOFF;
+            }
         }
     }
 }
