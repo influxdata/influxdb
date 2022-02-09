@@ -8,15 +8,15 @@ use self::generated_types::*;
 use super::response::{
     tag_key_is_field, tag_key_is_measurement, FIELD_TAG_KEY_BIN, MEASUREMENT_TAG_KEY_BIN,
 };
-use ::generated_types::google::protobuf::*;
+use ::generated_types::{aggregate::AggregateType, google::protobuf::*};
 
 #[derive(Debug, Snafu)]
-pub enum Request {
+pub enum Error {
     #[snafu(display("duration {:?} too large", d))]
     Duration { d: std::time::Duration },
 }
 
-pub type Result<T, E = Request> = std::result::Result<T, E>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub fn read_filter(
     org_bucket: Any,
@@ -33,6 +33,7 @@ pub fn read_filter(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn read_window_aggregate(
     org_bucket: Any,
     start: i64,
@@ -40,9 +41,9 @@ pub fn read_window_aggregate(
     predicate: std::option::Option<Predicate>,
     every: std::time::Duration,
     offset: std::time::Duration,
-    aggregates: Vec<Aggregate>,
+    aggregates: Vec<AggregateType>,
     window: std::option::Option<Window>,
-) -> Result<ReadWindowAggregateRequest, Request> {
+) -> Result<ReadWindowAggregateRequest, Error> {
     let window_every = if every.as_nanos() > i64::MAX as u128 {
         return DurationSnafu { d: every }.fail();
     } else {
@@ -55,13 +56,19 @@ pub fn read_window_aggregate(
         offset.as_nanos() as i64
     };
 
+    // wrap in the PB message type for aggregates.
+    let aggregate = aggregates
+        .into_iter()
+        .map(|a| Aggregate { r#type: a as i32 })
+        .collect::<Vec<_>>();
+
     Ok(generated_types::ReadWindowAggregateRequest {
         predicate,
         read_source: Some(org_bucket),
         range: Some(TimestampRange { start, end: stop }),
         window_every,
         offset,
-        aggregate: aggregates,
+        aggregate,
         window,
     })
 }

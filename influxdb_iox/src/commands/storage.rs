@@ -2,11 +2,12 @@ pub(crate) mod request;
 pub(crate) mod response;
 
 use std::num::NonZeroU64;
+use std::time::Duration;
 
 use snafu::{ResultExt, Snafu};
 use tonic::Status;
 
-use generated_types::Predicate;
+use generated_types::{aggregate::AggregateType, Predicate};
 use influxdb_storage_client::{connection::Connection, Client, OrgAndBucket};
 use influxrpc_parser::predicate;
 use time;
@@ -25,11 +26,17 @@ pub enum ParseError {
     #[snafu(display("server error: {:?}", source))]
     ServerError { source: Status },
 
+    #[snafu(display("error building request: {:?}", source))]
+    Request { source: request::Error },
+
     #[snafu(display("error building response: {:?}", source))]
     ResponseError { source: response::Error },
 
     #[snafu(display("value {:?} not supported for flag {:?}", value, flag))]
     UnsupportedFlagValue { value: String, flag: String },
+
+    #[snafu(display("unsupported aggregate type: '{:?}'", agg))]
+    Aggregate { agg: String },
 }
 
 pub type Result<T, E = ParseError> = std::result::Result<T, E>;
@@ -135,7 +142,35 @@ pub enum Format {
 #[derive(Debug, clap::Parser)]
 enum Command {
     ReadFilter,
+    ReadWindowAggregate(ReadWindowAggregate),
     TagValues(TagValues),
+}
+
+#[derive(Debug, clap::Parser)]
+struct ReadWindowAggregate {
+    #[clap(long, default_value = "", parse(try_from_str = humantime::parse_duration))]
+    window_every: Duration,
+
+    #[clap(long, default_value = "", parse(try_from_str = humantime::parse_duration))]
+    offset: Duration,
+
+    #[clap(long, default_value = "", parse(try_from_str = parse_aggregate))]
+    aggregate: Vec<AggregateType>,
+}
+
+// Attempts to parse the optional format.
+fn parse_aggregate(aggs: &str) -> Result<AggregateType, ParseError> {
+    match aggs.to_lowercase().as_str() {
+        "none" => Ok(AggregateType::None),
+        "count" => Ok(AggregateType::Count),
+        "sum" => Ok(AggregateType::Sum),
+        "min" => Ok(AggregateType::Min),
+        "max" => Ok(AggregateType::Max),
+        "mean" => Ok(AggregateType::Mean),
+        "first" => Ok(AggregateType::First),
+        "last" => Ok(AggregateType::Last),
+        _ => AggregateSnafu { agg: aggs }.fail(),
+    }
 }
 
 #[derive(Debug, clap::Parser)]
@@ -164,6 +199,29 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 ))
                 .await
                 .context(ServerSnafu)?;
+            match config.format {
+                Format::Pretty => response::pretty_print_frames(&result).context(ResponseSnafu)?,
+                Format::Quiet => {}
+            }
+        }
+        Command::ReadWindowAggregate(rwa) => {
+            let result = client
+                .read_window_aggregate(
+                    request::read_window_aggregate(
+                        source,
+                        config.start,
+                        config.stop,
+                        predicate,
+                        rwa.window_every,
+                        rwa.offset,
+                        rwa.aggregate,
+                        None, // TODO(edd): determine if window needs to be set
+                    )
+                    .context(RequestSnafu)?,
+                )
+                .await
+                .context(ServerSnafu)?;
+
             match config.format {
                 Format::Pretty => response::pretty_print_frames(&result).context(ResponseSnafu)?,
                 Format::Quiet => {}
