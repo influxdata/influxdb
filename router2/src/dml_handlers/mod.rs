@@ -78,5 +78,8 @@ pub use sharded_write_buffer::*;
 mod ns_autocreation;
 pub use ns_autocreation::*;
 
+mod partitioner;
+pub use partitioner::*;
+
 #[cfg(test)]
 pub mod mock;

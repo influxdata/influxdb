@@ -6,7 +6,7 @@ use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
-use super::{NamespaceCreationError, SchemaError, ShardError};
+use super::{partitioner::PartitionError, NamespaceCreationError, SchemaError, ShardError};
 
 /// Errors emitted by a [`DmlHandler`] implementation during DML request
 /// processing.
@@ -27,6 +27,10 @@ pub enum DmlError {
     /// Failed to create the request namespace.
     #[error(transparent)]
     NamespaceCreation(#[from] NamespaceCreationError),
+
+    /// An error partitioning the request.
+    #[error(transparent)]
+    Partition(#[from] PartitionError),
 
     /// An unknown error occured while processing the DML request.
     #[error("internal dml handler error: {0}")]
