@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 arrow = { version = "8.0", features = ["prettyprint"] }
+arrow-flight = "8.0"
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1.42"
 base64 = "0.13"
@@ -34,6 +35,7 @@ snafu = "0.7"
 thiserror = "1.0"
 time = { path = "../time" }
 tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tonic = { version = "0.6" }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 write_buffer = { path = "../write_buffer" }

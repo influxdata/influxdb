@@ -19,6 +19,9 @@ pub enum Error {
 
     #[error("Catalog error: {0}")]
     Catalog(#[from] iox_catalog::interface::Error),
+
+    #[error("Catalog DSN error: {0}")]
+    CatalogDsn(#[from] crate::clap_blocks::catalog_dsn::Error),
 }
 
 /// Various commands for catalog manipulation

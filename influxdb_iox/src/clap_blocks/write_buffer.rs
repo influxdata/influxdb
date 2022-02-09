@@ -1,6 +1,5 @@
-use std::{collections::BTreeMap, sync::Arc};
-
-use data_types::write_buffer::WriteBufferConnection;
+use data_types::write_buffer::{WriteBufferConnection, WriteBufferCreationConfig};
+use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
 use time::SystemProvider;
 use trace::TraceCollector;
 use write_buffer::{
@@ -24,7 +23,7 @@ pub struct WriteBufferConfig {
     #[clap(
         long = "--write-buffer-topic",
         env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
-        default_value = "iox-shared"
+        default_value = "iox_shared"
     )]
     pub(crate) topic: String,
 
@@ -44,6 +43,13 @@ pub struct WriteBufferConfig {
         use_delimiter = true
     )]
     pub(crate) connection_config: Vec<String>,
+
+    /// The number of topics to create automatically, if any. Default is to not create any topics.
+    #[clap(
+        long = "--write-buffer-auto-create-topics",
+        env = "INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS"
+    )]
+    pub(crate) auto_create_topics: Option<NonZeroU32>,
 }
 
 impl WriteBufferConfig {
@@ -92,11 +98,17 @@ impl WriteBufferConfig {
     }
 
     fn conn(&self) -> WriteBufferConnection {
+        let creation_config =
+            self.auto_create_topics
+                .map(|n_sequencers| WriteBufferCreationConfig {
+                    n_sequencers,
+                    ..Default::default()
+                });
         WriteBufferConnection {
             type_: self.type_.clone(),
             connection: self.connection_string.clone(),
             connection_config: self.connection_config(),
-            creation_config: None,
+            creation_config,
         }
     }
 

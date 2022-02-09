@@ -1904,6 +1904,7 @@ dependencies = [
  "predicate",
  "predicates",
  "prost",
+ "querier",
  "query",
  "rand",
  "read_buffer",
@@ -2020,6 +2021,7 @@ name = "ingester"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-flight",
  "arrow_util",
  "async-trait",
  "base64 0.13.0",
@@ -2051,6 +2053,7 @@ dependencies = [
  "time 0.1.0",
  "tokio",
  "tokio-util",
+ "tonic",
  "trace",
  "uuid",
  "workspace-hack",
@@ -3730,6 +3733,20 @@ checksum = "534b7a0e836e3c482d2693070f982e39e7611da9695d4d1f5a4b186b51faef0a"
 dependencies = [
  "bytes",
  "prost",
+]
+
+[[package]]
+name = "querier"
+version = "0.1.0"
+dependencies = [
+ "arrow-flight",
+ "client_util",
+ "futures",
+ "generated_types",
+ "rand",
+ "thiserror",
+ "tonic",
+ "workspace-hack",
 ]
 
 [[package]]

@@ -33,6 +33,7 @@ panic_logging = { path = "../panic_logging" }
 parquet_catalog = { path = "../parquet_catalog" }
 parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
+querier = { path = "../querier" }
 query = { path = "../query" }
 read_buffer = { path = "../read_buffer" }
 router = { path = "../router" }

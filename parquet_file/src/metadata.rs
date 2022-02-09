@@ -90,7 +90,7 @@ use data_types::{
     chunk_metadata::{ChunkId, ChunkOrder},
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
 };
-use generated_types::influxdata::iox::ingest::v1 as proto;
+use generated_types::influxdata::iox::ingester::v1 as proto;
 use generated_types::influxdata::iox::preserved_catalog::v1 as preserved_catalog;
 use iox_catalog::interface::{
     NamespaceId, ParquetFile, ParquetFileId, PartitionId, SequenceNumber, SequencerId, TableId,

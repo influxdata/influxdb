@@ -15,6 +15,9 @@ pub enum Error {
 
     #[error("Client error: {0}")]
     ClientError(#[from] influxdb_iox_client::error::Error),
+
+    #[error("Catalog DSN error: {0}")]
+    CatalogDsn(#[from] crate::clap_blocks::catalog_dsn::Error),
 }
 
 /// Manage IOx chunks

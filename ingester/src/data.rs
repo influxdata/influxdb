@@ -1,11 +1,11 @@
 //! Data for the lifecycle of the Ingester
 
 use arrow::record_batch::RecordBatch;
-use data_types::delete_predicate::DeletePredicate;
-
 use async_trait::async_trait;
 use chrono::{format::StrftimeItems, TimeZone, Utc};
+use data_types::delete_predicate::DeletePredicate;
 use dml::DmlOperation;
+use generated_types::{google::FieldViolation, influxdata::iox::ingester::v1 as proto};
 use iox_catalog::interface::{
     Catalog, KafkaPartition, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
     Timestamp, Tombstone,
@@ -14,6 +14,7 @@ use mutable_batch::column::ColumnData;
 use mutable_batch::MutableBatch;
 use object_store::ObjectStore;
 use parking_lot::RwLock;
+use predicate::Predicate;
 use schema::selection::Selection;
 use schema::TIME_COLUMN_NAME;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -598,11 +599,73 @@ pub struct QueryableBatch {
     pub table_name: String,
 }
 
+/// Request received from the query service for data the ingester has
+#[derive(Debug)]
+pub struct IngesterQueryRequest {
+    /// Table to search
+    table: String,
+    /// Columns the query service is interested in
+    columns: Vec<String>,
+    /// Start time of the query
+    min_time: i64,
+    /// End time of the query
+    max_time: i64,
+    /// Predicate for filtering
+    predicate: Option<Predicate>,
+    /// Optionally only return rows with a sequence number greater than this
+    greater_than_sequence_number: Option<u64>,
+}
+
+impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
+    type Error = FieldViolation;
+
+    fn try_from(proto: proto::IngesterQueryRequest) -> Result<Self, Self::Error> {
+        let proto::IngesterQueryRequest {
+            table,
+            columns,
+            min_time,
+            max_time,
+            // predicate,
+            greater_than_sequence_number,
+        } = proto;
+
+        // let predicate = predicate.try_into()?;
+
+        Ok(Self {
+            table,
+            columns,
+            min_time,
+            max_time,
+            predicate: None,
+            greater_than_sequence_number,
+        })
+    }
+}
+
+/// Struct to manage returning data to a query request
+#[derive(Debug)]
+#[allow(missing_copy_implementations)]
+pub struct QueryData {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use test_helpers::assert_error;
+
+    #[test]
+    fn convert_query_proto_to_rust() {
+        let proto = proto::IngesterQueryRequest {
+            table: "cpu".into(),
+            columns: vec!["usage".into(), "time".into()],
+            min_time: 1,
+            max_time: 20,
+            // predicate: None,
+            greater_than_sequence_number: None,
+        };
+
+        let _query: IngesterQueryRequest = proto.try_into().unwrap();
+    }
 
     #[test]
     fn snapshot_empty_buffer_adds_no_snapshots() {

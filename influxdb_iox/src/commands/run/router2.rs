@@ -39,6 +39,9 @@ pub enum Error {
 
     #[error("failed to initialise write buffer connection: {0}")]
     WriteBuffer(#[from] WriteBufferError),
+
+    #[error("Catalog DSN error: {0}")]
+    CatalogDsn(#[from] crate::clap_blocks::catalog_dsn::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

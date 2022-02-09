@@ -13,6 +13,7 @@ mod influxdb_ioxd;
 mod kafka;
 
 mod influxrpc;
+mod ingester;
 mod management_api;
 mod management_cli;
 mod metrics;

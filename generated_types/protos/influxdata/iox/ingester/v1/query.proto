@@ -1,0 +1,24 @@
+syntax = "proto3";
+package influxdata.iox.ingester.v1;
+
+// Request from the query service for the data not yet persisted. Serialized as the Ticket value
+// for the Arrow Flight doGet request.
+message IngesterQueryRequest {
+  // Table to search
+  string table = 1;
+
+  // Columns the query service is interested in
+  repeated string columns = 2;
+
+  // Start time of the query
+  int64 min_time = 3;
+
+  // End time of the query
+  int64 max_time = 4;
+
+  // Predicate for filtering
+  // predicate = 5;
+
+  // Optionally only return rows with a sequence number greater than this
+  optional uint64 greater_than_sequence_number = 6;
+}

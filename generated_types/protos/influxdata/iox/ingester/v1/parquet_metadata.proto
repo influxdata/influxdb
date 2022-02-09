@@ -1,5 +1,5 @@
 syntax = "proto3";
-package influxdata.iox.ingest.v1;
+package influxdata.iox.ingester.v1;
 
 import "google/protobuf/timestamp.proto";
 

@@ -42,6 +42,7 @@ members = [
     "parquet_file",
     "persistence_windows",
     "predicate",
+    "querier",
     "query",
     "query_tests",
     "read_buffer",

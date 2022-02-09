@@ -20,10 +20,7 @@ use ingester::{
 use iox_catalog::interface::KafkaPartition;
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
-use std::collections::BTreeMap;
-use std::convert::TryFrom;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{collections::BTreeMap, convert::TryFrom, sync::Arc, time::Duration};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -51,6 +48,12 @@ pub enum Error {
 
     #[error("error initializing write buffer {0}")]
     WriteBuffer(#[from] write_buffer::core::WriteBufferError),
+
+    #[error("Invalid number of sequencers: {0}")]
+    NumSequencers(#[from] std::num::TryFromIntError),
+
+    #[error("Catalog DSN error: {0}")]
+    CatalogDsn(#[from] crate::clap_blocks::catalog_dsn::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

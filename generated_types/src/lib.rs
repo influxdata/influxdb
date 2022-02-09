@@ -57,12 +57,12 @@ pub mod influxdata {
             }
         }
 
-        pub mod ingest {
+        pub mod ingester {
             pub mod v1 {
-                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.ingest.v1.rs"));
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.ingester.v1.rs"));
                 include!(concat!(
                     env!("OUT_DIR"),
-                    "/influxdata.iox.ingest.v1.serde.rs"
+                    "/influxdata.iox.ingester.v1.serde.rs"
                 ));
             }
         }

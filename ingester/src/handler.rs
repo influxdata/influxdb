@@ -1,14 +1,13 @@
 //! Ingest handler
 
-use iox_catalog::interface::{Catalog, KafkaPartition, KafkaTopic, Sequencer, SequencerId};
-use object_store::ObjectStore;
-
 use crate::{
-    data::{IngesterData, SequencerData},
+    data::{IngesterData, IngesterQueryRequest, QueryData, SequencerData},
     lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
 };
 use db::write_buffer::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
 use futures::StreamExt;
+use iox_catalog::interface::{Catalog, KafkaPartition, KafkaTopic, Sequencer, SequencerId};
+use object_store::ObjectStore;
 use observability_deps::tracing::{debug, warn};
 use snafu::{ResultExt, Snafu};
 use std::collections::BTreeMap;
@@ -45,7 +44,10 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// The [`IngestHandler`] handles all ingest from kafka, persistence and queries
-pub trait IngestHandler {}
+pub trait IngestHandler {
+    /// Return results from the in-memory data that match this query
+    fn query(&self, request: IngesterQueryRequest) -> Result<QueryData>;
+}
 
 /// Implementation of the `IngestHandler` trait to ingest from kafka and manage persistence and answer queries
 pub struct IngestHandlerImpl {
@@ -135,7 +137,11 @@ impl IngestHandlerImpl {
     }
 }
 
-impl IngestHandler for IngestHandlerImpl {}
+impl IngestHandler for IngestHandlerImpl {
+    fn query(&self, _request: IngesterQueryRequest) -> Result<QueryData> {
+        todo!()
+    }
+}
 
 impl Drop for IngestHandlerImpl {
     fn drop(&mut self) {

@@ -245,6 +245,12 @@ impl ServerFixture {
         influxdb_iox_client::flight::Client::new(self.grpc_channel())
     }
 
+    /// Return a flight client suitable for communicating with the ingester service, like the one
+    /// the query service uses
+    pub fn querier_flight_client(&self) -> querier::flight::Client {
+        querier::flight::Client::new(self.grpc_channel())
+    }
+
     /// Return a storage API client suitable for communicating with this
     /// server
     pub fn storage_client(&self) -> generated_types::storage_client::StorageClient<Connection> {
@@ -344,6 +350,7 @@ struct TestServer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ServerType {
     Database,
+    Ingester,
     Router,
 }
 
@@ -482,6 +489,7 @@ impl TestServer {
 
         let type_name = match server_type {
             ServerType::Database => "database",
+            ServerType::Ingester => "ingester",
             ServerType::Router => "router",
         };
 
@@ -626,8 +634,28 @@ impl TestServer {
         let mut interval = tokio::time::interval(Duration::from_millis(1000));
 
         loop {
-            match self.grpc_channel().await {
-                Ok(channel) => {
+            match (self.grpc_channel().await, self.test_config.server_type) {
+                (Ok(channel), ServerType::Ingester) => {
+                    // TODO: What should be checked to ensure the ingester is up? Should
+                    // ingester implement the deployment service?
+                    println!("ingester grpc connected");
+
+                    let mut health = influxdb_iox_client::health::Client::new(channel);
+
+                    match health.check_arrow().await {
+                        Ok(true) => {
+                            println!("Flight service is running");
+                            return;
+                        }
+                        Ok(false) => {
+                            println!("Flight service is not running");
+                        }
+                        Err(e) => {
+                            println!("Waiting for gRPC API to be healthy: {:?}", e);
+                        }
+                    }
+                }
+                (Ok(channel), _) => {
                     println!("Successfully connected to server");
 
                     let mut health = influxdb_iox_client::health::Client::new(channel);
@@ -641,11 +669,11 @@ impl TestServer {
                             println!("Deployment service is not running");
                         }
                         Err(e) => {
-                            println!("Waiting for gRPC API to be up: {}", e);
+                            println!("Waiting for gRPC API to be healthy: {:?}", e);
                         }
                     }
                 }
-                Err(e) => {
+                (Err(e), _) => {
                     println!("Waiting for gRPC API to be up: {}", e);
                 }
             }

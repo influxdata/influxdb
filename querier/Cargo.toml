@@ -1,0 +1,14 @@
+[package]
+name = "querier"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+arrow-flight = "8.0"
+client_util = { path = "../client_util" }
+futures = "0.3"
+generated_types = { path = "../generated_types" }
+rand = "0.8.3"
+thiserror = "1.0"
+tonic = { version = "0.6" }
+workspace-hack = { path = "../workspace-hack"}
