@@ -14,7 +14,7 @@ use trace::ctx::SpanContext;
 
 use crate::namespace_cache::{MemoryNamespaceCache, NamespaceCache};
 
-use super::{DmlError, DmlHandler};
+use super::{DmlError, DmlHandler, Partitioned};
 
 /// Errors emitted during schema validation.
 #[derive(Debug, Error)]
@@ -106,13 +106,13 @@ impl<D, C> SchemaValidator<D, C> {
 #[async_trait]
 impl<D, C> DmlHandler for SchemaValidator<D, C>
 where
-    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>>,
+    D: DmlHandler<WriteInput = Partitioned<HashMap<String, MutableBatch>>>,
     C: NamespaceCache,
 {
     type WriteError = SchemaError;
     type DeleteError = D::DeleteError;
 
-    type WriteInput = HashMap<String, MutableBatch>;
+    type WriteInput = Partitioned<HashMap<String, MutableBatch>>;
 
     /// Validate the schema of all the writes in `batches` before passing the
     /// request onto the inner handler.
@@ -164,7 +164,7 @@ where
         };
 
         let maybe_new_schema = validate_or_insert_schema(
-            batches.iter().map(|(k, v)| (k.as_str(), v)),
+            batches.payload().iter().map(|(k, v)| (k.as_str(), v)),
             &schema,
             repos.deref_mut(),
         )
@@ -240,10 +240,10 @@ mod tests {
     }
 
     // Parse `lp` into a table-keyed MutableBatch map.
-    fn lp_to_writes(lp: &str) -> HashMap<String, MutableBatch> {
+    fn lp_to_writes(lp: &str) -> Partitioned<HashMap<String, MutableBatch>> {
         let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp, 42)
             .expect("failed to build test writes from LP");
-        writes
+        Partitioned::new("key".to_owned(), writes)
     }
 
     /// Initialise an in-memory [`MemCatalog`] and create a single namespace
@@ -365,7 +365,7 @@ mod tests {
         // THe mock should observe exactly one write from the first call.
         assert_matches!(mock.calls().as_slice(), [MockDmlHandlerCall::Write{namespace, write_input}] => {
             assert_eq!(namespace, NAMESPACE);
-            let batch = write_input.get("bananas").expect("table not found in write");
+            let batch = write_input.payload().get("bananas").expect("table not found in write");
             assert_eq!(batch.rows(), 1);
             let col = batch.column("val").expect("column not found in write");
             assert_matches!(col.influx_type(), InfluxColumnType::Field(InfluxFieldType::Integer));

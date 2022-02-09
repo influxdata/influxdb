@@ -4,44 +4,49 @@
 //! processing handler chain:
 //!
 //! ```text
-//!                ┌──────────────┐    ┌──────────────┐
-//!                │   HTTP API   │    │   gRPC API   │
-//!                └──────────────┘    └──────────────┘
-//!                        │                   │
-//!                        └─────────┬─────────┘
-//!                                  │
-//!                                  ▼
-//!                     ╔═ DmlHandler Stack ═════╗
-//!                     ║                        ║
-//!                     ║  ┌──────────────────┐  ║
-//!                     ║  │    Namespace     │  ║
-//!                     ║  │   Autocreation   │ ─║─ ─ ─ ─ ─ ─
-//!                     ║  └──────────────────┘  ║           │
-//!                     ║            │           ║  ┌─────────────────┐
-//!                     ║            ▼           ║  │ Namespace Cache │
-//!                     ║  ┌──────────────────┐  ║  └─────────────────┘
-//!                     ║  │      Schema      │  ║           │
-//!                     ║  │    Validation    │ ─║─ ─ ─ ─ ─ ─
-//!                     ║  └──────────────────┘  ║
-//!                     ║            │           ║
-//!                     ║            ▼           ║
-//!        ┌───────┐    ║  ┌──────────────────┐  ║
-//!        │Sharder│◀ ─ ─ ▶│ShardedWriteBuffer│  ║
-//!        └───────┘    ║  └──────────────────┘  ║
-//!                     ║            │           ║
-//!                     ╚════════════│═══════════╝
-//!                                  │
-//!                                  ▼
-//!                          ┌──────────────┐
-//!                          │ Write Buffer │
-//!                          └──────────────┘
-//!                                  │
-//!                                  │
-//!                         ┌────────▼─────┐
-//!                         │    Kafka     ├┐
-//!                         └┬─────────────┘├┐
-//!                          └┬─────────────┘│
+//!                 ┌──────────────┐    ┌──────────────┐
+//!                 │   HTTP API   │    │   gRPC API   │
+//!                 └──────────────┘    └──────────────┘
+//!                         │                   │
+//!                         └─────────┬─────────┘
+//!                                   │
+//!                                   ▼
+//!                      ╔═ DmlHandler Stack ═════╗
+//!                      ║                        ║
+//!                      ║  ┌──────────────────┐  ║
+//!                      ║  │    Namespace     │  ║
+//!                      ║  │   Autocreation   │─ ─ ─ ─ ─ ─ ─ ┐
+//!                      ║  └──────────────────┘  ║
+//!                      ║            │           ║           │
+//!                      ║            ▼           ║
+//!                      ║  ┌──────────────────┐  ║           │
+//!                      ║  │   Partitioner    │  ║
+//!                      ║  └──────────────────┘  ║           │
+//!                      ║            │           ║  ┌─────────────────┐
+//!                      ║            ▼           ║  │ Namespace Cache │
+//!                      ║  ┌──────────────────┐  ║  └─────────────────┘
+//!                      ║  │      Schema      │  ║           │
+//!                      ║  │    Validation    │ ─║─ ─ ─ ─ ─ ─
+//!                      ║  └──────────────────┘  ║
+//!                      ║            │           ║
+//!                      ║            ▼           ║
+//!         ┌───────┐    ║  ┌──────────────────┐  ║
+//!         │Sharder│◀ ─ ─ ▶│ShardedWriteBuffer│  ║
+//!         └───────┘    ║  └──────────────────┘  ║
+//!                      ║            │           ║
+//!                      ╚════════════│═══════════╝
+//!                                   │
+//!                                   ▼
+//!                           ┌──────────────┐
+//!                           │ Write Buffer │
 //!                           └──────────────┘
+//!                                   │
+//!                                   │
+//!                          ┌────────▼─────┐
+//!                          │    Kafka     ├┐
+//!                          └┬─────────────┘├┐
+//!                           └┬─────────────┘│
+//!                            └──────────────┘
 //! ```
 //!
 //! The HTTP / gRPC APIs decode their respective request format and funnel the
@@ -53,10 +58,14 @@
 //! [`NamespaceCache`] as an optimisation, allowing the handler to skip sending
 //! requests to the catalog for namespaces that are known to exist.
 //!
-//! Writes pass through the [`SchemaValidator`] applying schema enforcement (a
-//! NOP layer for deletes) which pushes additive schema changes to the catalog
-//! and populates the [`NamespaceCache`], converging it to match the set of
-//! [`NamespaceSchema`] in the global catalog.
+//! Incoming line-protocol writes then pass through the [`Partitioner`], parsing
+//! the LP and splitting them into batches per partition, before passing each
+//! partitioned batch through the rest of the request pipeline.
+//!
+//! Writes then pass through the [`SchemaValidator`] applying schema enforcement
+//! (a NOP layer for deletes) which pushes additive schema changes to the
+//! catalog and populates the [`NamespaceCache`], converging it to match the set
+//! of [`NamespaceSchema`] in the global catalog.
 //!
 //! The [`ShardedWriteBuffer`] uses a sharder implementation to direct the DML
 //! operations into a fixed set of sequencers.

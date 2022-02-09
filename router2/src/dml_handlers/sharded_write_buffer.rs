@@ -19,6 +19,8 @@ use write_buffer::core::WriteBufferError;
 
 use crate::{dml_handlers::DmlHandler, sequencer::Sequencer, sharder::Sharder};
 
+use super::Partitioned;
+
 /// Errors occurring while writing to one or more write buffer shards.
 #[derive(Debug, Error)]
 pub enum ShardError {
@@ -81,7 +83,7 @@ where
     type WriteError = ShardError;
     type DeleteError = ShardError;
 
-    type WriteInput = HashMap<String, MutableBatch>;
+    type WriteInput = Partitioned<HashMap<String, MutableBatch>>;
 
     /// Shard `writes` and dispatch the resultant DML operations.
     async fn write(
@@ -91,6 +93,9 @@ where
         span_ctx: Option<SpanContext>,
     ) -> Result<(), ShardError> {
         let mut collated: HashMap<_, HashMap<String, MutableBatch>> = HashMap::new();
+
+        // Extract the partition key & DML writes.
+        let (partition_key, writes) = writes.into_parts();
 
         // Shard each entry in `writes` and collate them into one DML operation
         // per shard to maximise the size of each write, and therefore increase
@@ -110,6 +115,7 @@ where
             let dml = DmlWrite::new(&namespace, batch, DmlMeta::unsequenced(span_ctx.clone()));
 
             trace!(
+                %partition_key,
                 sequencer_id=%sequencer.id(),
                 tables=%dml.table_count(),
                 %namespace,
@@ -201,10 +207,10 @@ mod tests {
     use super::*;
 
     // Parse `lp` into a table-keyed MutableBatch map.
-    fn lp_to_writes(lp: &str) -> HashMap<String, MutableBatch> {
+    fn lp_to_writes(lp: &str) -> Partitioned<HashMap<String, MutableBatch>> {
         let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp, 42)
             .expect("failed to build test writes from LP");
-        writes
+        Partitioned::new("key".to_owned(), writes)
     }
 
     // Init a mock write buffer with the given number of sequencers.

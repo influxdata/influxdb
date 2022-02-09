@@ -3,8 +3,9 @@ use std::sync::Arc;
 
 use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion, Throughput};
+use data_types::database_rules::{PartitionTemplate, TemplatePart};
 use hyper::{Body, Request};
-use router2::dml_handlers::ShardedWriteBuffer;
+use router2::dml_handlers::{Partitioner, ShardedWriteBuffer};
 use router2::sequencer::Sequencer;
 use router2::server::http::HttpDelegate;
 use router2::sharder::JumpHash;
@@ -36,9 +37,15 @@ fn init_write_buffer(n_sequencers: u32) -> ShardedWriteBuffer<JumpHash<Arc<Seque
     )
 }
 
-fn setup_server() -> HttpDelegate<ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>> {
-    let write_buffer = init_write_buffer(1);
-    HttpDelegate::new(1024, write_buffer)
+fn setup_server() -> HttpDelegate<Partitioner<ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>>> {
+    let handler_stack = init_write_buffer(1);
+    let handler_stack = Partitioner::new(
+        handler_stack,
+        PartitionTemplate {
+            parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
+        },
+    );
+    HttpDelegate::new(1024, handler_stack)
 }
 
 fn runtime() -> Runtime {
@@ -65,7 +72,7 @@ fn e2e_benchmarks(c: &mut Criterion) {
 
 fn benchmark_e2e(
     group: &mut BenchmarkGroup<WallTime>,
-    http_delegate: &HttpDelegate<ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>>,
+    http_delegate: &HttpDelegate<Partitioner<ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>>>,
     uri: &'static str,
     body_str: &'static str,
 ) {
