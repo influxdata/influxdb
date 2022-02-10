@@ -36,9 +36,6 @@ pub enum InitError {
         source: iox_object_store::IoxObjectStoreError,
     },
 
-    #[snafu(display("no active database found in object storage, not loading"))]
-    NoActiveDatabase,
-
     #[snafu(display(
         "Database name in deserialized rules ({}) does not match expected value ({})",
         actual,
@@ -106,15 +103,9 @@ pub enum InitError {
 /// ```text
 ///                      (start)
 ///                         |
-///  o-o           o--------|-------------------o                         o-o
-///  | V           V        V                   V                         V |
-/// [NoActiveDatabase]<--[Known]------------->[DatabaseObjectStoreLookupError]
-///        |                |                           |
-///        o----------------+---------------------------o
-///                         |
-///                         |                                     o-o
-///                         V                                     V |
-///              [DatabaseObjectStoreFound]------>[OwnerInfoLoadError]
+///                         |----------------------------o     o-o
+///                         V                            V     V |
+///                      [Known]-------------->[OwnerInfoLoadError]
 ///                         |                           |
 ///                         +---------------------------o
 ///                         |
@@ -163,7 +154,6 @@ pub(crate) enum DatabaseState {
     Shutdown(Option<Arc<JoinError>>),
     // Basic initialization sequence states:
     Known(DatabaseStateKnown),
-    DatabaseObjectStoreFound(DatabaseStateDatabaseObjectStoreFound),
     OwnerInfoLoaded(DatabaseStateOwnerInfoLoaded),
     RulesLoaded(DatabaseStateRulesLoaded),
     CatalogLoaded(DatabaseStateCatalogLoaded),
@@ -172,9 +162,7 @@ pub(crate) enum DatabaseState {
     Initialized(DatabaseStateInitialized),
 
     // Error states, we'll try to recover from them
-    NoActiveDatabase(DatabaseStateKnown, Arc<InitError>),
-    DatabaseObjectStoreLookupError(DatabaseStateKnown, Arc<InitError>),
-    OwnerInfoLoadError(DatabaseStateDatabaseObjectStoreFound, Arc<InitError>),
+    OwnerInfoLoadError(DatabaseStateKnown, Arc<InitError>),
     RulesLoadError(DatabaseStateOwnerInfoLoaded, Arc<InitError>),
     CatalogLoadError(DatabaseStateRulesLoaded, Arc<InitError>),
     WriteBufferCreationError(DatabaseStateCatalogLoaded, Arc<InitError>),
@@ -197,17 +185,10 @@ impl DatabaseState {
         match self {
             DatabaseState::Shutdown(_) => DatabaseStateCode::Shutdown,
             DatabaseState::Known(_) => DatabaseStateCode::Known,
-            DatabaseState::DatabaseObjectStoreFound(_) => {
-                DatabaseStateCode::DatabaseObjectStoreFound
-            }
             DatabaseState::OwnerInfoLoaded(_) => DatabaseStateCode::OwnerInfoLoaded,
             DatabaseState::RulesLoaded(_) => DatabaseStateCode::RulesLoaded,
             DatabaseState::CatalogLoaded(_) => DatabaseStateCode::CatalogLoaded,
             DatabaseState::Initialized(_) => DatabaseStateCode::Initialized,
-            DatabaseState::DatabaseObjectStoreLookupError(_, _) => {
-                DatabaseStateCode::DatabaseObjectStoreLookupError
-            }
-            DatabaseState::NoActiveDatabase(_, _) => DatabaseStateCode::NoActiveDatabase,
             DatabaseState::OwnerInfoLoadError(_, _) => DatabaseStateCode::OwnerInfoLoadError,
             DatabaseState::RulesLoadError(_, _) => DatabaseStateCode::RulesLoadError,
             DatabaseState::CatalogLoadError(_, _) => DatabaseStateCode::CatalogLoadError,
@@ -222,14 +203,11 @@ impl DatabaseState {
         match self {
             DatabaseState::Known(_)
             | DatabaseState::Shutdown(_)
-            | DatabaseState::DatabaseObjectStoreFound(_)
             | DatabaseState::OwnerInfoLoaded(_)
             | DatabaseState::RulesLoaded(_)
             | DatabaseState::CatalogLoaded(_)
             | DatabaseState::Initialized(_) => None,
-            DatabaseState::DatabaseObjectStoreLookupError(_, e)
-            | DatabaseState::NoActiveDatabase(_, e)
-            | DatabaseState::OwnerInfoLoadError(_, e)
+            DatabaseState::OwnerInfoLoadError(_, e)
             | DatabaseState::RulesLoadError(_, e)
             | DatabaseState::CatalogLoadError(_, e)
             | DatabaseState::WriteBufferCreationError(_, e)
@@ -241,9 +219,6 @@ impl DatabaseState {
         match self {
             DatabaseState::Known(_)
             | DatabaseState::Shutdown(_)
-            | DatabaseState::DatabaseObjectStoreFound(_)
-            | DatabaseState::DatabaseObjectStoreLookupError(_, _)
-            | DatabaseState::NoActiveDatabase(_, _)
             | DatabaseState::OwnerInfoLoaded(_)
             | DatabaseState::OwnerInfoLoadError(_, _)
             | DatabaseState::RulesLoadError(_, _) => None,
@@ -257,33 +232,10 @@ impl DatabaseState {
         }
     }
 
-    pub(crate) fn uuid(&self) -> Option<Uuid> {
-        match self {
-            DatabaseState::Known(_)
-            | DatabaseState::Shutdown(_)
-            | DatabaseState::DatabaseObjectStoreFound(_)
-            | DatabaseState::DatabaseObjectStoreLookupError(_, _)
-            | DatabaseState::NoActiveDatabase(_, _)
-            | DatabaseState::OwnerInfoLoaded(_)
-            | DatabaseState::OwnerInfoLoadError(_, _)
-            | DatabaseState::RulesLoadError(_, _) => None,
-            DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
-                Some(state.uuid)
-            }
-            DatabaseState::CatalogLoaded(state)
-            | DatabaseState::WriteBufferCreationError(state, _)
-            | DatabaseState::ReplayError(state, _) => Some(state.uuid),
-            DatabaseState::Initialized(state) => Some(state.uuid),
-        }
-    }
-
     pub(crate) fn owner_info(&self) -> Option<management::v1::OwnerInfo> {
         match self {
             DatabaseState::Known(_)
             | DatabaseState::Shutdown(_)
-            | DatabaseState::DatabaseObjectStoreFound(_)
-            | DatabaseState::DatabaseObjectStoreLookupError(_, _)
-            | DatabaseState::NoActiveDatabase(_, _)
             | DatabaseState::OwnerInfoLoadError(_, _)
             | DatabaseState::RulesLoadError(_, _) => None,
             DatabaseState::OwnerInfoLoaded(state) => Some(state.owner_info.clone()),
@@ -294,29 +246,6 @@ impl DatabaseState {
             | DatabaseState::WriteBufferCreationError(state, _)
             | DatabaseState::ReplayError(state, _) => Some(state.owner_info.clone()),
             DatabaseState::Initialized(state) => Some(state.owner_info.clone()),
-        }
-    }
-
-    pub(crate) fn iox_object_store(&self) -> Option<Arc<IoxObjectStore>> {
-        match self {
-            DatabaseState::Known(_)
-            | DatabaseState::Shutdown(_)
-            | DatabaseState::DatabaseObjectStoreLookupError(_, _)
-            | DatabaseState::NoActiveDatabase(_, _) => None,
-            DatabaseState::DatabaseObjectStoreFound(state)
-            | DatabaseState::OwnerInfoLoadError(state, _) => {
-                Some(Arc::clone(&state.iox_object_store))
-            }
-            DatabaseState::OwnerInfoLoaded(state) | DatabaseState::RulesLoadError(state, _) => {
-                Some(Arc::clone(&state.iox_object_store))
-            }
-            DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
-                Some(Arc::clone(&state.iox_object_store))
-            }
-            DatabaseState::CatalogLoaded(state)
-            | DatabaseState::WriteBufferCreationError(state, _)
-            | DatabaseState::ReplayError(state, _) => Some(state.db.iox_object_store()),
-            DatabaseState::Initialized(state) => Some(state.db.iox_object_store()),
         }
     }
 
@@ -337,37 +266,12 @@ impl DatabaseState {
 pub(crate) struct DatabaseStateKnown {}
 
 impl DatabaseStateKnown {
-    /// Find active object storage for this database
-    async fn advance(
-        &self,
-        shared: &DatabaseShared,
-    ) -> Result<DatabaseStateDatabaseObjectStoreFound, InitError> {
-        let location = shared.config.read().location.clone();
-        let iox_object_store = IoxObjectStore::load_at_root_path(
-            Arc::clone(shared.application.object_store()),
-            &location,
-        )
-        .await
-        .context(DatabaseObjectStoreLookupSnafu)?;
-
-        Ok(DatabaseStateDatabaseObjectStoreFound {
-            iox_object_store: Arc::new(iox_object_store),
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct DatabaseStateDatabaseObjectStoreFound {
-    iox_object_store: Arc<IoxObjectStore>,
-}
-
-impl DatabaseStateDatabaseObjectStoreFound {
     /// Load owner info from object storage and verify it matches the current owner
     async fn advance(
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateOwnerInfoLoaded, InitError> {
-        let owner_info = fetch_owner_info(&self.iox_object_store)
+        let owner_info = fetch_owner_info(&shared.iox_object_store)
             .await
             .context(FetchingOwnerInfoSnafu)?;
 
@@ -380,17 +284,13 @@ impl DatabaseStateDatabaseObjectStoreFound {
             .fail();
         }
 
-        Ok(DatabaseStateOwnerInfoLoaded {
-            owner_info,
-            iox_object_store: Arc::clone(&self.iox_object_store),
-        })
+        Ok(DatabaseStateOwnerInfoLoaded { owner_info })
     }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct DatabaseStateOwnerInfoLoaded {
     owner_info: management::v1::OwnerInfo,
-    iox_object_store: Arc<IoxObjectStore>,
 }
 
 impl DatabaseStateOwnerInfoLoaded {
@@ -399,7 +299,7 @@ impl DatabaseStateOwnerInfoLoaded {
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateRulesLoaded, InitError> {
-        let rules = PersistedDatabaseRules::load(&self.iox_object_store)
+        let rules = PersistedDatabaseRules::load(&shared.iox_object_store)
             .await
             .context(LoadingRulesSnafu)?;
 
@@ -416,7 +316,6 @@ impl DatabaseStateOwnerInfoLoaded {
             provided_rules: rules.provided_rules(),
             uuid: rules.uuid(),
             owner_info: self.owner_info.clone(),
-            iox_object_store: Arc::clone(&self.iox_object_store),
         })
     }
 }
@@ -426,14 +325,9 @@ pub(crate) struct DatabaseStateRulesLoaded {
     provided_rules: Arc<ProvidedDatabaseRules>,
     uuid: Uuid,
     owner_info: management::v1::OwnerInfo,
-    iox_object_store: Arc<IoxObjectStore>,
 }
 
 impl DatabaseStateRulesLoaded {
-    pub(crate) fn iox_object_store(&self) -> &Arc<IoxObjectStore> {
-        &self.iox_object_store
-    }
-
     /// Load catalog from object storage
     async fn advance(
         &self,
@@ -450,7 +344,7 @@ impl DatabaseStateRulesLoaded {
         };
         let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
             db_name.as_str(),
-            Arc::clone(&self.iox_object_store),
+            Arc::clone(&shared.iox_object_store),
             Arc::clone(shared.application.metric_registry()),
             Arc::clone(shared.application.time_provider()),
             wipe_catalog_on_error,
@@ -461,7 +355,7 @@ impl DatabaseStateRulesLoaded {
 
         let database_to_commit = DatabaseToCommit {
             server_id,
-            iox_object_store: Arc::clone(&self.iox_object_store),
+            iox_object_store: Arc::clone(&shared.iox_object_store),
             exec: Arc::clone(shared.application.executor()),
             rules: Arc::clone(self.provided_rules.rules()),
             preserved_catalog,
@@ -499,10 +393,6 @@ pub(crate) struct DatabaseStateCatalogLoaded {
 }
 
 impl DatabaseStateCatalogLoaded {
-    pub(crate) fn iox_object_store(&self) -> Arc<IoxObjectStore> {
-        self.db.iox_object_store()
-    }
-
     /// Perform replay
     async fn advance(
         &self,
@@ -564,7 +454,6 @@ impl DatabaseStateCatalogLoaded {
             provided_rules: Arc::clone(&self.provided_rules),
             uuid: self.uuid,
             owner_info: self.owner_info.clone(),
-            iox_object_store: self.db.iox_object_store(),
         }
     }
 }
@@ -629,20 +518,12 @@ pub(crate) async fn initialize_database(shared: &DatabaseShared, shutdown: Cance
 
         // Try to advance to the next state
         let next_state = match state {
-            DatabaseState::Known(state)
-            | DatabaseState::DatabaseObjectStoreLookupError(state, _)
-            | DatabaseState::NoActiveDatabase(state, _) => match state.advance(shared).await {
-                Ok(state) => DatabaseState::DatabaseObjectStoreFound(state),
-                Err(InitError::NoActiveDatabase) => {
-                    DatabaseState::NoActiveDatabase(state, Arc::new(InitError::NoActiveDatabase))
+            DatabaseState::Known(state) | DatabaseState::OwnerInfoLoadError(state, _) => {
+                match state.advance(shared).await {
+                    Ok(state) => DatabaseState::OwnerInfoLoaded(state),
+                    Err(e) => DatabaseState::OwnerInfoLoadError(state, Arc::new(e)),
                 }
-                Err(e) => DatabaseState::DatabaseObjectStoreLookupError(state, Arc::new(e)),
-            },
-            DatabaseState::DatabaseObjectStoreFound(state)
-            | DatabaseState::OwnerInfoLoadError(state, _) => match state.advance(shared).await {
-                Ok(state) => DatabaseState::OwnerInfoLoaded(state),
-                Err(e) => DatabaseState::OwnerInfoLoadError(state, Arc::new(e)),
-            },
+            }
             DatabaseState::OwnerInfoLoaded(state) | DatabaseState::RulesLoadError(state, _) => {
                 match state.advance(shared).await {
                     Ok(state) => DatabaseState::RulesLoaded(state),

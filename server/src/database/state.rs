@@ -2,9 +2,11 @@
 use crate::ApplicationState;
 use data_types::{server_id::ServerId, DatabaseName};
 use internal_types::freezable::Freezable;
+use iox_object_store::IoxObjectStore;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tokio::sync::Notify;
+use uuid::Uuid;
 
 use super::init::DatabaseState;
 
@@ -13,8 +15,8 @@ use super::init::DatabaseState;
 /// and how to perform startup activities.
 pub struct DatabaseConfig {
     pub name: DatabaseName<'static>,
-    pub location: String,
     pub server_id: ServerId,
+    pub database_uuid: Uuid,
     pub wipe_catalog_on_error: bool,
     pub skip_replay: bool,
 }
@@ -27,6 +29,9 @@ pub(crate) struct DatabaseShared {
 
     /// Application-global state
     pub(crate) application: Arc<ApplicationState>,
+
+    /// Database object store
+    pub(crate) iox_object_store: Arc<IoxObjectStore>,
 
     /// The initialization state of the `Database`, wrapped in a
     /// `Freezable` to ensure there is only one task with an

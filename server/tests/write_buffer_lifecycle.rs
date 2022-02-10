@@ -131,7 +131,7 @@ async fn write_buffer_lifecycle() {
 
     let database = databases.into_iter().next().unwrap();
     database.wait_for_init().await.unwrap();
-    let database_uuid = database.uuid().unwrap();
+    let database_uuid = database.uuid();
 
     let db = database.initialized_db().unwrap();
     let batches = run_query(Arc::clone(&db), "select sum(bar) as n from table_1").await;

@@ -171,9 +171,18 @@ impl Database {
             "new database"
         );
 
+        let path = IoxObjectStore::root_path_for(application.object_store(), config.database_uuid);
+        // The database state machine handles the case of this path not existing, as it will end
+        // up in [`DatabaseState::RulesLoadError`] or [`DatabaseState::OwnerInfoLoadError`]
+        let iox_object_store = Arc::new(IoxObjectStore::existing(
+            Arc::clone(application.object_store()),
+            path,
+        ));
+
         let shared = Arc::new(DatabaseShared {
             config: RwLock::new(config),
             application,
+            iox_object_store,
             state: RwLock::new(Freezable::new(DatabaseState::Shutdown(None))),
             state_notify: Default::default(),
         });
@@ -191,20 +200,6 @@ impl Database {
         let db_name = self.name();
         let db_name = db_name.as_str();
 
-        let (iox_object_store, uuid) = {
-            let state = self.shared.state.read();
-
-            let store = state
-                .iox_object_store()
-                .context(CannotReleaseUnownedSnafu { db_name })?;
-
-            let uuid = state
-                .uuid()
-                .context(CannotReleaseUnownedSnafu { db_name })?;
-
-            (store, uuid)
-        };
-
         self.shutdown();
         let _ = self.join().await.log_if_error("releasing database");
 
@@ -212,12 +207,12 @@ impl Database {
             None,
             None,
             self.shared.application.time_provider().now(),
-            &iox_object_store,
+            &self.shared.iox_object_store,
         )
         .await
         .context(CannotReleaseSnafu { db_name })?;
 
-        Ok(uuid)
+        Ok(self.uuid())
     }
 
     /// Triggers shutdown of this `Database` if it is running
@@ -295,19 +290,14 @@ impl Database {
         self.shared.state.read().provided_rules()
     }
 
-    /// Returns the database UUID if it's loaded
-    pub fn uuid(&self) -> Option<Uuid> {
-        self.shared.state.read().uuid()
+    /// Returns the database UUID
+    pub fn uuid(&self) -> Uuid {
+        self.shared.config.read().database_uuid
     }
 
     /// Returns the info about the owning server if it has been loaded
     pub fn owner_info(&self) -> Option<management::v1::OwnerInfo> {
         self.shared.state.read().owner_info()
-    }
-
-    /// Location in object store; may not actually exist yet
-    pub fn location(&self) -> String {
-        self.shared.config.read().location.clone()
     }
 
     /// Database name
@@ -379,9 +369,9 @@ impl Database {
         }
     }
 
-    /// Returns the IoxObjectStore if it has been found
-    pub fn iox_object_store(&self) -> Option<Arc<IoxObjectStore>> {
-        self.shared.state.read().iox_object_store()
+    /// Returns the IoxObjectStore
+    pub fn iox_object_store(&self) -> Arc<IoxObjectStore> {
+        Arc::clone(&self.shared.iox_object_store)
     }
 
     /// Gets access to an initialized `Db`
@@ -404,14 +394,11 @@ impl Database {
             // the notification being fired, and this task waking up
             match &**self.shared.state.read() {
                 DatabaseState::Known(_)
-                | DatabaseState::DatabaseObjectStoreFound(_)
                 | DatabaseState::OwnerInfoLoaded(_)
                 | DatabaseState::RulesLoaded(_)
                 | DatabaseState::CatalogLoaded(_) => {} // Non-terminal state
                 DatabaseState::Initialized(_) => return Ok(()),
-                DatabaseState::DatabaseObjectStoreLookupError(_, e)
-                | DatabaseState::NoActiveDatabase(_, e)
-                | DatabaseState::OwnerInfoLoadError(_, e)
+                DatabaseState::OwnerInfoLoadError(_, e)
                 | DatabaseState::RulesLoadError(_, e)
                 | DatabaseState::CatalogLoadError(_, e)
                 | DatabaseState::WriteBufferCreationError(_, e)
@@ -427,29 +414,19 @@ impl Database {
     pub async fn wipe_preserved_catalog(self: &Arc<Self>) -> Result<TaskTracker<Job>, Error> {
         let db_name = self.name();
 
-        // TODO: Make IOxObjectStore immutable property of Database
-        let iox_object_store = match &**self.shared.state.read() {
-            DatabaseState::CatalogLoadError(rules_loaded, err) => {
-                warn!(%db_name, %err, "Requested wiping catalog in CatalogLoadError state");
-                Arc::clone(rules_loaded.iox_object_store())
-            }
-            DatabaseState::WriteBufferCreationError(catalog_loaded, err) => {
-                warn!(%db_name, %err, "Requested wiping catalog in WriteBufferCreationError state");
-                catalog_loaded.iox_object_store()
-            }
-            DatabaseState::ReplayError(catalog_loaded, err) => {
-                warn!(%db_name, %err, "Requested wiping catalog in ReplayError state");
-                catalog_loaded.iox_object_store()
-            }
+        match self.state_code() {
+            DatabaseStateCode::CatalogLoadError
+            | DatabaseStateCode::WriteBufferCreationError
+            | DatabaseStateCode::ReplayError => {}
             state => {
                 return InvalidStateForWipePreservedCatalogSnafu {
                     db_name,
-                    state: state.state_code(),
+                    state,
                     expected: "CatalogLoadError, WriteBufferCreationError, ReplayError",
                 }
                 .fail()
             }
-        };
+        }
 
         // Shutdown database
         self.shutdown();
@@ -470,7 +447,7 @@ impl Database {
         tokio::spawn(
             async move {
                 // wipe the actual catalog
-                PreservedCatalog::wipe(&iox_object_store)
+                PreservedCatalog::wipe(&this.shared.iox_object_store)
                     .await
                     .map_err(Box::new)
                     .context(WipePreservedCatalogSnafu { db_name: &db_name })?;
@@ -507,15 +484,6 @@ impl Database {
         let shared = Arc::clone(&self.shared);
         let db_name = self.name();
 
-        // TODO: Make IOxObjectStore immutable property of Database
-        let iox_object_store = self
-            .iox_object_store()
-            .context(InvalidStateForRebuildSnafu {
-                db_name: &db_name,
-                state: shared.state.read().state_code(),
-                expected: "Object store initialized",
-            })?;
-
         // Shutdown database
         self.shutdown();
         let _ = self.join().await.log_if_error("rebuilding catalog");
@@ -537,7 +505,7 @@ impl Database {
                 info!(%db_name, "rebuilding catalog from parquet files");
 
                 // Now wipe the catalog and rebuild it from parquet files
-                PreservedCatalog::wipe(iox_object_store.as_ref())
+                PreservedCatalog::wipe(&this.shared.iox_object_store)
                     .await
                     .map_err(Box::new)
                     .context(WipePreservedCatalogSnafu { db_name: &db_name })?;
@@ -545,7 +513,7 @@ impl Database {
                 info!(%db_name, "wiped preserved catalog");
 
                 let config = PreservedCatalogConfig::new(
-                    Arc::clone(&iox_object_store),
+                    Arc::clone(&this.shared.iox_object_store),
                     db_name.to_string(),
                     Arc::clone(shared.application.time_provider()),
                 );
@@ -821,6 +789,7 @@ mod tests {
     };
     use std::time::Duration;
     use std::{num::NonZeroU32, time::Instant};
+    use test_helpers::assert_contains;
     use uuid::Uuid;
     use write_buffer::mock::MockBufferSharedState;
 
@@ -866,13 +835,13 @@ mod tests {
         let server_id = ServerId::try_from(1).unwrap();
         let application = make_application();
 
-        let db_name = DatabaseName::new("test").unwrap();
-        let uuid = Uuid::new_v4();
-        let provided_rules = ProvidedDatabaseRules::new_empty(db_name.clone());
+        let name = DatabaseName::new("test").unwrap();
+        let database_uuid = Uuid::new_v4();
+        let provided_rules = ProvidedDatabaseRules::new_empty(name.clone());
 
-        let location = create_empty_db_in_object_store(
+        create_empty_db_in_object_store(
             Arc::clone(&application),
-            uuid,
+            database_uuid,
             provided_rules,
             server_id,
         )
@@ -880,9 +849,9 @@ mod tests {
         .unwrap();
 
         let db_config = DatabaseConfig {
-            name: db_name,
-            location,
+            name,
             server_id,
+            database_uuid,
             wipe_catalog_on_error: false,
             skip_replay: false,
         };
@@ -897,7 +866,7 @@ mod tests {
         let server_id = database.shared.config.read().server_id;
         let server_location =
             IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
-        let iox_object_store = database.iox_object_store().unwrap();
+        let iox_object_store = database.iox_object_store();
 
         database.release().await.unwrap();
 
@@ -921,7 +890,7 @@ mod tests {
         let server_id = database.shared.config.read().server_id;
         let server_location =
             IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
-        let iox_object_store = database.iox_object_store().unwrap();
+        let iox_object_store = database.iox_object_store();
         let new_server_id = ServerId::try_from(2).unwrap();
         let new_server_location =
             IoxObjectStore::server_config_path(application.object_store(), new_server_id)
@@ -985,16 +954,13 @@ mod tests {
         assert!(database.is_initialized());
 
         // Delete the rules
-        let iox_object_store = database.iox_object_store().unwrap();
+        let iox_object_store = database.iox_object_store();
         iox_object_store.delete_database_rules_file().await.unwrap();
 
         // Restart should fail
-        let err = database.restart().await.unwrap_err();
-        assert!(
-            matches!(err.as_ref(), InitError::DatabaseObjectStoreLookup { .. }),
-            "{:?}",
-            err
-        );
+        let err = database.restart().await.unwrap_err().to_string();
+        assert_contains!(&err, "error loading database rules");
+        assert_contains!(&err, "not found");
     }
 
     #[tokio::test]
@@ -1033,7 +999,8 @@ mod tests {
                 ..Default::default()
             }),
         };
-        let location = create_empty_db_in_object_store(
+
+        create_empty_db_in_object_store(
             Arc::clone(&application),
             uuid,
             make_provided_rules(rules),
@@ -1041,10 +1008,11 @@ mod tests {
         )
         .await
         .unwrap();
+
         let db_config = DatabaseConfig {
             name: db_name,
-            location,
             server_id,
+            database_uuid: uuid,
             wipe_catalog_on_error: false,
             skip_replay: false,
         };
@@ -1142,7 +1110,8 @@ mod tests {
                 ..Default::default()
             }),
         };
-        let location = create_empty_db_in_object_store(
+
+        create_empty_db_in_object_store(
             Arc::clone(&application),
             uuid,
             make_provided_rules(rules),
@@ -1150,10 +1119,11 @@ mod tests {
         )
         .await
         .unwrap();
+
         let db_config = DatabaseConfig {
             name: db_name,
-            location,
             server_id,
+            database_uuid: uuid,
             wipe_catalog_on_error: false,
             skip_replay: false,
         };
@@ -1185,7 +1155,7 @@ mod tests {
     #[tokio::test]
     async fn database_init_recovery() {
         let (application, database) = initialized_database().await;
-        let iox_object_store = database.iox_object_store().unwrap();
+        let iox_object_store = database.iox_object_store();
         let config = database.shared.config.read().clone();
 
         // shutdown first database

@@ -84,12 +84,8 @@ impl management_service_server::ManagementService for ManagementService {
             .await
             .map_err(default_server_error_handler)?;
 
-        let uuid = database
-            .uuid()
-            .expect("Database should be initialized or an error should have been returned");
-
         Ok(Response::new(CreateDatabaseResponse {
-            uuid: uuid.as_bytes().to_vec(),
+            uuid: database.uuid().as_bytes().to_vec(),
         }))
     }
 
@@ -389,10 +385,7 @@ impl management_service_server::ManagementService for ManagementService {
                             message: e.to_string(),
                         }),
                         state: database.state_code().into(),
-                        uuid: database
-                            .uuid()
-                            .map(|uuid| uuid.as_bytes().to_vec())
-                            .unwrap_or_default(),
+                        uuid: database.uuid().as_bytes().to_vec(),
                     })
                     .collect()
             })

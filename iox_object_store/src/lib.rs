@@ -165,7 +165,7 @@ impl IoxObjectStore {
 
     /// Access the database-specific object storage files for an existing database that has
     /// already been located and verified to be active. Does not check object storage.
-    fn existing(inner: Arc<ObjectStore>, root_path: RootPath) -> Self {
+    pub fn existing(inner: Arc<ObjectStore>, root_path: RootPath) -> Self {
         let data_path = root_path.data_path();
         let transactions_path = root_path.transactions_path();
 

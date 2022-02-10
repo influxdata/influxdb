@@ -196,7 +196,7 @@ async fn delete_predicate_preservation() {
     database.restart().await.unwrap();
 
     // ==================== do: remove checkpoint files ====================
-    let iox_object_store = database.iox_object_store().unwrap();
+    let iox_object_store = database.iox_object_store();
 
     let files = iox_object_store
         .catalog_transaction_files()
