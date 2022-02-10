@@ -384,6 +384,9 @@ message DatabaseStatus {
 
     // Error encountered finding the database's directory in object storage
     DATABASE_STATE_DATABASE_OBJECT_STORE_LOOKUP_ERROR = 9;
+
+    // Database is not running
+    DATABASE_STATE_SHUTDOWN = 14;
   }
 
   // Current initialization state of the database.

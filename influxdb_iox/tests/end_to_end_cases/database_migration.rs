@@ -208,7 +208,7 @@ async fn migrate_table_files_from_one_server_to_another() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "in invalid state for catalog rebuild (Initialized). Expected (CatalogLoadError)",
+            "in invalid state (Initialized) for transition (RebuildPreservedCatalog)",
         ));
 
     // however with --force rebuilding will work
@@ -232,7 +232,7 @@ async fn migrate_table_files_from_one_server_to_another() {
     // Wait for all databases to complete re-initialization here
     wait_for_database_initialized(&fixture, &db_name, Duration::from_secs(5)).await;
 
-    // Now the data shoudl be available for the_table
+    // Now the data should be available for the_table
     let batches = flight_client
         .perform_query(&db_name, sql_query)
         .await

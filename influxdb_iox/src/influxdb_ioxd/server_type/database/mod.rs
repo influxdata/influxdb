@@ -122,8 +122,9 @@ mod tests {
     use futures::pin_mut;
     use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
     use server::rules::ProvidedDatabaseRules;
+    use std::time::Duration;
     use std::{convert::TryInto, net::SocketAddr, num::NonZeroU64};
-    use test_helpers::assert_error;
+    use test_helpers::{assert_contains, assert_error};
     use tokio::task::JoinHandle;
     use trace::{
         span::{Span, SpanStatus},
@@ -257,67 +258,57 @@ mod tests {
         let server = make_server(Arc::clone(&application), &config);
         server.wait_for_init().await.unwrap();
 
-        // Create a database that won't panic
         let other_db_name = DatabaseName::new("other").unwrap();
+        let panic_db_name = DatabaseName::new("panic_test").unwrap();
+
+        // Create a database that won't panic
+
         server
             .create_database(make_rules(&other_db_name))
             .await
             .unwrap();
 
-        let other_db = server.database(&other_db_name).unwrap();
-
-        let serve_fut = test_serve(
-            config.run_config,
-            Arc::clone(&application),
-            Arc::clone(&server),
-        )
-        .fuse();
-        pin_mut!(serve_fut);
-
-        // Nothing should have triggered shutdown so serve shouldn't finish
-        futures::select! {
-            _ = serve_fut => panic!("serve shouldn't finish"),
-            _ = tokio::time::sleep(tokio::time::Duration::from_millis(10)).fuse() => {}
-        }
-
         // Configure a panic in the worker of the database we're about to create
-        db::utils::register_panic_key("database background worker: panic_test");
-
-        // Spawn a dummy job that will delay shutdown as it runs to completion
-        let task = application
-            .job_registry()
-            .spawn_dummy_job(vec![1_000_000_000], None);
+        let panic_key = "database background worker: panic_test";
+        db::utils::register_panic_key(panic_key);
 
         // Create database that will panic in its worker loop
-        server
-            .create_database(make_rules("panic_test"))
+        let err = server
+            .create_database(make_rules(panic_db_name.as_str()))
             .await
-            .unwrap();
+            .unwrap_err()
+            .to_string();
 
-        // The serve future shouldn't resolve until the dummy job finishes
-        futures::select! {
-            _ = serve_fut => panic!("should wait for jobs to finish"),
-            _ = tokio::time::sleep(tokio::time::Duration::from_millis(10)).fuse() => {}
-        }
-
-        assert!(!task.is_complete(), "task should still be running");
-
-        // But the databases should have been shutdown
-        assert!(
-            other_db.join().now_or_never().is_some(),
-            "database should have been terminated and have finished"
+        assert_contains!(
+            err,
+            "database failed to initialize: database is not running"
         );
 
-        // Once the dummy job completes - the serve future should resolve
-        futures::select! {
-            _ = serve_fut => {},
-            _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)).fuse() => panic!("timeout shouldn't expire")
-        }
+        let panic_database = server.database(&panic_db_name).unwrap();
+        assert!(panic_database.is_shutdown());
+        let err = panic_database.join().await.unwrap_err();
+        assert!(err.is_panic());
 
-        assert_eq!(
-            task.get_status().result().unwrap(),
-            tracker::TaskResult::Success
-        )
+        // Other database should still be running
+        let other_database = server.database(&other_db_name).unwrap();
+        assert!(other_database.is_initialized());
+
+        // Server should still be running
+        tokio::time::timeout(Duration::from_millis(10), server.join())
+            .await
+            .unwrap_err();
+
+        // Clear panic
+        db::utils::clear_panic_key(panic_key);
+
+        // Should restart and initialize correctly
+        panic_database.restart().await.unwrap();
+
+        server.shutdown();
+        server.join().await.unwrap();
+
+        assert!(other_database.is_shutdown());
+        assert!(panic_database.is_shutdown());
     }
 
     async fn jaeger_client(addr: SocketAddr, trace: &'static str) -> Connection {

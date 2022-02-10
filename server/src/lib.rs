@@ -395,32 +395,6 @@ impl ServerStateInitialized {
             }
         };
 
-        // Spawn a task to monitor the Database and trigger server shutdown if it fails
-        let fut = database.join();
-        let shutdown = shared.shutdown.clone();
-        let _ = tokio::spawn(async move {
-            match fut.await {
-                Ok(_) => info!(%db_name, "server observed clean shutdown of database worker"),
-                Err(e) => {
-                    if e.is_panic() {
-                        error!(
-                            %db_name,
-                            %e,
-                            "panic in database worker - shutting down server"
-                        );
-                    } else {
-                        error!(
-                            %db_name,
-                            %e,
-                            "unexpected database worker shut down - shutting down server"
-                        );
-                    }
-
-                    shutdown.cancel();
-                }
-            }
-        });
-
         Ok(database)
     }
 
@@ -570,16 +544,9 @@ impl Server {
         Ok(Arc::clone(db))
     }
 
-    /// Returns an active `Database` by name
-    pub fn active_database(&self, db_name: &DatabaseName<'_>) -> Result<Arc<Database>> {
-        let database = self.database(db_name)?;
-        ensure!(database.is_active(), DatabaseNotFoundSnafu { db_name });
-        Ok(database)
-    }
-
     /// Returns an initialized `Db` by name
     pub fn db(&self, db_name: &DatabaseName<'_>) -> Result<Arc<Db>> {
-        let database = self.active_database(db_name)?;
+        let database = self.database(db_name)?;
 
         database
             .initialized_db()
@@ -684,11 +651,6 @@ impl Server {
             .release()
             .await
             .context(CannotReleaseDatabaseSnafu)?;
-        database.shutdown();
-        let _ = database
-            .join()
-            .await
-            .log_if_error("database background worker while releasing database");
 
         {
             let mut state = self.shared.state.write();
@@ -1413,6 +1375,9 @@ mod tests {
 
     #[tokio::test]
     async fn load_databases() {
+        let apples_name = DatabaseName::new("apples").unwrap();
+        let bananas_name = DatabaseName::new("bananas").unwrap();
+
         let application = make_application();
 
         let server = make_server(Arc::clone(&application));
@@ -1424,24 +1389,42 @@ mod tests {
             .expect("failed to create database");
         let bananas_uuid = bananas.uuid().unwrap();
 
-        std::mem::drop(server);
+        assert!(bananas.is_initialized());
+
+        // Shutdown server
+        server.shutdown();
+        server.join().await.unwrap();
+
+        assert!(bananas.is_shutdown());
 
         let server = make_server(Arc::clone(&application));
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.wait_for_init().await.unwrap();
 
+        let bananas = server.database(&bananas_name).unwrap();
+        bananas.wait_for_init().await.unwrap();
+
         let apples = create_simple_database(&server, "apples")
             .await
             .expect("failed to create database");
+        assert!(apples.is_initialized());
+
         let apples_uuid = apples.uuid().unwrap();
 
         assert_eq!(server.db_names_sorted(), vec!["apples", "bananas"]);
 
-        std::mem::drop(server);
+        let bananas_object_store = bananas.iox_object_store().unwrap();
 
-        bananas
-            .iox_object_store()
-            .unwrap()
+        // Shutdown server to demonstrate that the server shutdown
+        // causes the databases to shutdown
+        server.shutdown();
+        server.join().await.unwrap();
+
+        assert!(apples.is_shutdown());
+        assert!(bananas.is_shutdown());
+
+        // Delete rules so bananas fails to startup
+        bananas_object_store
             .delete_database_rules_file()
             .await
             .expect("cannot delete rules file");
@@ -1463,18 +1446,15 @@ mod tests {
             ],
         );
 
-        let apples_name = DatabaseName::new("apples").unwrap();
-        let bananas_name = DatabaseName::new("bananas").unwrap();
+        let apples = server.database(&apples_name).unwrap();
+        let bananas = server.database(&bananas_name).unwrap();
 
-        let apples_database = server.database(&apples_name).unwrap();
-        let bananas_database = server.database(&bananas_name).unwrap();
+        apples.wait_for_init().await.unwrap();
+        assert!(apples.init_error().is_none());
 
-        apples_database.wait_for_init().await.unwrap();
-        assert!(apples_database.init_error().is_none());
-
-        let err = bananas_database.wait_for_init().await.unwrap_err();
+        let err = bananas.wait_for_init().await.unwrap_err();
         assert_contains!(err.to_string(), "No rules found to load");
-        assert!(Arc::ptr_eq(&err, &bananas_database.init_error().unwrap()));
+        assert!(Arc::ptr_eq(&err, &bananas.init_error().unwrap()));
     }
 
     #[tokio::test]
@@ -2205,7 +2185,7 @@ mod tests {
         server.set_id(server_id).unwrap();
         server.wait_for_init().await.unwrap();
 
-        let existing = create_simple_database(&server, db_name_existing.clone())
+        create_simple_database(&server, db_name_existing.clone())
             .await
             .expect("failed to create database");
 
@@ -2243,6 +2223,9 @@ mod tests {
             .await
             .unwrap();
 
+        server.shutdown();
+        server.join().await.unwrap();
+
         // boot actual test server
         let server = make_server(Arc::clone(&application));
 
@@ -2259,27 +2242,21 @@ mod tests {
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.wait_for_init().await.unwrap();
 
-        // Wait for databases to finish startup
-        let databases = server.databases().unwrap();
-        assert_eq!(databases.len(), 3);
+        let existing = server.database(&db_name_existing).unwrap();
+        let catalog_broken = server.database(&db_name_catalog_broken).unwrap();
+        let rules_broken = server.database(&db_name_rules_broken).unwrap();
 
-        for database in databases {
-            let name = &database.config().name;
-            if name == &db_name_existing {
-                database.wait_for_init().await.unwrap();
-            } else if name == &db_name_catalog_broken {
-                let err = database.wait_for_init().await.unwrap_err();
-                assert!(matches!(
-                    err.as_ref(),
-                    database::init::InitError::CatalogLoad { .. }
-                ))
-            } else if name == &db_name_rules_broken {
-                let err = database.wait_for_init().await.unwrap_err();
-                assert_contains!(err.to_string(), "error deserializing database rules");
-            } else {
-                unreachable!()
-            }
-        }
+        // Wait for databases to finish startup
+        existing.wait_for_init().await.unwrap();
+
+        let err = catalog_broken.wait_for_init().await.unwrap_err();
+        assert!(matches!(
+            err.as_ref(),
+            database::init::InitError::CatalogLoad { .. }
+        ));
+
+        let err = rules_broken.wait_for_init().await.unwrap_err();
+        assert_contains!(err.to_string(), "error deserializing database rules");
 
         // 1. cannot wipe if DB exists
         assert_eq!(

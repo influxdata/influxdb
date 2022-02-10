@@ -5,7 +5,6 @@ use internal_types::freezable::Freezable;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tokio::sync::Notify;
-use tokio_util::sync::CancellationToken;
 
 use super::init::DatabaseState;
 
@@ -25,9 +24,6 @@ pub struct DatabaseConfig {
 pub(crate) struct DatabaseShared {
     /// Configuration provided to the database at startup
     pub(crate) config: RwLock<DatabaseConfig>,
-
-    /// A token that is used to trigger shutdown of the background worker
-    pub(crate) shutdown: CancellationToken,
 
     /// Application-global state
     pub(crate) application: Arc<ApplicationState>,

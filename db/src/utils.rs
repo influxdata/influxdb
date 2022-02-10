@@ -243,6 +243,12 @@ pub fn register_panic_key(key: impl Into<String>) {
     panic_database.insert(key.into());
 }
 
+/// Clear a key to trigger a panic when provided in a call to panic_test
+pub fn clear_panic_key(key: impl AsRef<str>) {
+    let mut panic_database = PANIC_DATABASE.get_or_init(Default::default).lock();
+    panic_database.remove(key.as_ref());
+}
+
 #[inline]
 /// Used to induce panics in tests
 ///

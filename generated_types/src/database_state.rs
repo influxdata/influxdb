@@ -19,6 +19,7 @@ impl DatabaseState {
             DatabaseState::OwnerInfoLoaded => "OwnerInfoLoaded",
             DatabaseState::OwnerInfoLoadError => "OwnerInfoLoadError",
             DatabaseState::Unspecified => "Unspecified",
+            DatabaseState::Shutdown => "Shutdown",
         }
     }
 }

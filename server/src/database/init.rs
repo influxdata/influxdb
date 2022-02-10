@@ -22,6 +22,8 @@ use persistence_windows::checkpoint::ReplayPlan;
 use rand::{thread_rng, Rng};
 use snafu::{ResultExt, Snafu};
 use std::{sync::Arc, time::Duration};
+use tokio::task::JoinError;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::{owner::create_owner_info, state::DatabaseShared};
@@ -94,6 +96,9 @@ pub enum InitError {
 
     #[snafu(display("cannot create preserved catalog: {}", source))]
     CannotCreatePreservedCatalog { source: db::load::Error },
+
+    #[snafu(display("database is not running"))]
+    Shutdown,
 }
 
 /// The Database startup state machine
@@ -138,9 +143,10 @@ pub enum InitError {
 ///                         |
 ///                         V
 ///                   [Initialized]
+///
 ///                         |
 ///                         V
-///                       (end)
+///                     [Shutdown]
 /// ```
 ///
 /// A Database starts in [`DatabaseState::Known`] and advances through the
@@ -153,6 +159,8 @@ pub enum InitError {
 ///    to dump the potentially half-modified in-memory catalog before retrying.
 #[derive(Debug, Clone)]
 pub(crate) enum DatabaseState {
+    // Database not running, with an optional shutdown error
+    Shutdown(Option<Arc<JoinError>>),
     // Basic initialization sequence states:
     Known(DatabaseStateKnown),
     DatabaseObjectStoreFound(DatabaseStateDatabaseObjectStoreFound),
@@ -185,13 +193,9 @@ impl DatabaseState {
         Self::Known(DatabaseStateKnown {})
     }
 
-    // Construct a now active datbaase state
-    pub fn new_no_active_database() -> Self {
-        Self::NoActiveDatabase(DatabaseStateKnown {}, Arc::new(InitError::NoActiveDatabase))
-    }
-
     pub(crate) fn state_code(&self) -> DatabaseStateCode {
         match self {
+            DatabaseState::Shutdown(_) => DatabaseStateCode::Shutdown,
             DatabaseState::Known(_) => DatabaseStateCode::Known,
             DatabaseState::DatabaseObjectStoreFound(_) => {
                 DatabaseStateCode::DatabaseObjectStoreFound
@@ -217,6 +221,7 @@ impl DatabaseState {
     pub(crate) fn error(&self) -> Option<&Arc<InitError>> {
         match self {
             DatabaseState::Known(_)
+            | DatabaseState::Shutdown(_)
             | DatabaseState::DatabaseObjectStoreFound(_)
             | DatabaseState::OwnerInfoLoaded(_)
             | DatabaseState::RulesLoaded(_)
@@ -235,6 +240,7 @@ impl DatabaseState {
     pub(crate) fn provided_rules(&self) -> Option<Arc<ProvidedDatabaseRules>> {
         match self {
             DatabaseState::Known(_)
+            | DatabaseState::Shutdown(_)
             | DatabaseState::DatabaseObjectStoreFound(_)
             | DatabaseState::DatabaseObjectStoreLookupError(_, _)
             | DatabaseState::NoActiveDatabase(_, _)
@@ -254,6 +260,7 @@ impl DatabaseState {
     pub(crate) fn uuid(&self) -> Option<Uuid> {
         match self {
             DatabaseState::Known(_)
+            | DatabaseState::Shutdown(_)
             | DatabaseState::DatabaseObjectStoreFound(_)
             | DatabaseState::DatabaseObjectStoreLookupError(_, _)
             | DatabaseState::NoActiveDatabase(_, _)
@@ -273,6 +280,7 @@ impl DatabaseState {
     pub(crate) fn owner_info(&self) -> Option<management::v1::OwnerInfo> {
         match self {
             DatabaseState::Known(_)
+            | DatabaseState::Shutdown(_)
             | DatabaseState::DatabaseObjectStoreFound(_)
             | DatabaseState::DatabaseObjectStoreLookupError(_, _)
             | DatabaseState::NoActiveDatabase(_, _)
@@ -292,6 +300,7 @@ impl DatabaseState {
     pub(crate) fn iox_object_store(&self) -> Option<Arc<IoxObjectStore>> {
         match self {
             DatabaseState::Known(_)
+            | DatabaseState::Shutdown(_)
             | DatabaseState::DatabaseObjectStoreLookupError(_, _)
             | DatabaseState::NoActiveDatabase(_, _) => None,
             DatabaseState::DatabaseObjectStoreFound(state)
@@ -311,10 +320,9 @@ impl DatabaseState {
         }
     }
 
-    /// Whether the end user would want to know about this database or whether they would consider
-    /// this database to be deleted
-    pub(crate) fn is_active(&self) -> bool {
-        !matches!(self, DatabaseState::NoActiveDatabase(_, _))
+    /// Whether this is shutdown
+    pub(crate) fn is_shutdown(&self) -> bool {
+        matches!(self, DatabaseState::Shutdown(_))
     }
 
     pub(crate) fn get_initialized(&self) -> Option<&DatabaseStateInitialized> {
@@ -603,14 +611,14 @@ const MAX_BACKOFF: Duration = Duration::from_secs(500);
 
 /// Try to drive the database to `DatabaseState::Initialized` returns when
 /// this is achieved or the shutdown signal is triggered
-pub(crate) async fn initialize_database(shared: &DatabaseShared) {
+pub(crate) async fn initialize_database(shared: &DatabaseShared, shutdown: CancellationToken) {
     let db_name = shared.config.read().name.clone();
     info!(%db_name, "database initialization started");
 
     // A backoff duration for retrying errors that will change over the course of multiple errors
     let mut backoff = INIT_BACKOFF;
 
-    while !shared.shutdown.is_cancelled() {
+    while !shutdown.is_cancelled() {
         let handle = shared.state.read().freeze();
         let handle = handle.await;
 
@@ -671,6 +679,7 @@ pub(crate) async fn initialize_database(shared: &DatabaseShared) {
                 // Already initialized
                 break;
             }
+            DatabaseState::Shutdown(_) => unreachable!(),
         };
 
         let state_code = next_state.state_code();
@@ -706,7 +715,7 @@ pub(crate) async fn initialize_database(shared: &DatabaseShared) {
                 // Wait for timeout or shutdown signal
                 tokio::select! {
                     _ = tokio::time::sleep(backoff) => {},
-                    _ = shared.shutdown.cancelled() => {}
+                    _ = shutdown.cancelled() => {}
                 }
             }
             None => {

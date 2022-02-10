@@ -11,21 +11,19 @@ use crate::{
     rules::{PersistedDatabaseRules, ProvidedDatabaseRules},
     ApplicationState,
 };
+use data_types::error::ErrorLogger;
 use data_types::{job::Job, DatabaseName};
 use db::Db;
-use futures::{
-    future::{BoxFuture, FusedFuture, Shared},
-    FutureExt, TryFutureExt,
-};
+use futures::{future::FusedFuture, FutureExt};
 use generated_types::{
     database_state::DatabaseState as DatabaseStateCode, influxdata::iox::management,
 };
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
-use parking_lot::{RwLock, RwLockReadGuard};
+use parking_lot::{Mutex, RwLock, RwLockReadGuard};
 use parquet_catalog::core::{PreservedCatalog, PreservedCatalogConfig};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc};
 use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
@@ -36,7 +34,7 @@ use uuid::Uuid;
 macro_rules! error_state {
     ($s:expr, $transition: literal, $variant:ident) => {
         match &**$s.shared.state.read() {
-            DatabaseState::$variant(state, _) => state.clone(),
+            DatabaseState::$variant(state, ..) => state.clone(),
             state => {
                 return InvalidStateSnafu {
                     db_name: &$s.shared.config.read().name,
@@ -145,23 +143,19 @@ pub enum Error {
     },
 }
 
-type BackgroundWorkerFuture = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
-
 /// A `Database` represents a single configured IOx database - i.e. an
 /// entity with a corresponding set of `DatabaseRules`.
 ///
 /// `Database` composes together the various subsystems responsible for implementing
 /// `DatabaseRules` and handles their startup and shutdown. This includes instance-local
 /// data storage (i.e. `Db`), the write buffer, request routing, data lifecycle, etc...
-///
-/// TODO: Make the above accurate
 #[derive(Debug)]
 pub struct Database {
-    /// Future that resolves when the background worker exits
-    join: BackgroundWorkerFuture,
-
     /// The state shared with the background worker
     shared: Arc<DatabaseShared>,
+
+    /// The cancellation token for the current background worker
+    shutdown: Mutex<CancellationToken>,
 }
 
 impl Database {
@@ -180,38 +174,39 @@ impl Database {
         let shared = Arc::new(DatabaseShared {
             config: RwLock::new(config),
             application,
-            shutdown: Default::default(),
-            state: RwLock::new(Freezable::new(DatabaseState::new_known())),
+            state: RwLock::new(Freezable::new(DatabaseState::Shutdown(None))),
             state_notify: Default::default(),
         });
 
-        let handle = tokio::spawn(background_worker(Arc::clone(&shared)));
-        let join = handle.map_err(Arc::new).boxed().shared();
+        let shutdown = new_database_worker(Arc::clone(&shared));
 
-        Self { join, shared }
+        Self {
+            shared,
+            shutdown: Mutex::new(shutdown),
+        }
     }
 
-    /// Release this database from this server.
+    /// Shutdown and release this database
     pub async fn release(&self) -> Result<Uuid, Error> {
         let db_name = self.name();
+        let db_name = db_name.as_str();
 
-        let handle = self.shared.state.read().freeze();
-        let handle = handle.await;
-
-        let (uuid, iox_object_store) = {
+        let (iox_object_store, uuid) = {
             let state = self.shared.state.read();
-            // Can't release an already released database
-            ensure!(state.is_active(), CannotReleaseUnownedSnafu { db_name });
 
-            let uuid = state.uuid().expect("Active databases have UUIDs");
-            let iox_object_store = self
+            let store = state
                 .iox_object_store()
-                .expect("Active databases have iox_object_stores");
+                .context(CannotReleaseUnownedSnafu { db_name })?;
 
-            (uuid, iox_object_store)
+            let uuid = state
+                .uuid()
+                .context(CannotReleaseUnownedSnafu { db_name })?;
+
+            (store, uuid)
         };
 
-        info!(%db_name, %uuid, "releasing database");
+        self.shutdown();
+        let _ = self.join().await.log_if_error("releasing database");
 
         update_owner_info(
             None,
@@ -222,19 +217,14 @@ impl Database {
         .await
         .context(CannotReleaseSnafu { db_name })?;
 
-        let mut state = self.shared.state.write();
-        let mut state = state.unfreeze(handle);
-        *state = DatabaseState::new_no_active_database();
-        self.shared.state_notify.notify_waiters();
-
         Ok(uuid)
     }
 
-    /// Triggers shutdown of this `Database`
+    /// Triggers shutdown of this `Database` if it is running
     pub fn shutdown(&self) {
         let db_name = self.name();
         info!(%db_name, "database shutting down");
-        self.shared.shutdown.cancel()
+        self.shutdown.lock().cancel()
     }
 
     /// Triggers a restart of this `Database` and wait for it to re-initialize
@@ -242,23 +232,37 @@ impl Database {
         let db_name = self.name();
         info!(%db_name, "restarting database");
 
-        let handle = self.shared.state.read().freeze();
-        let handle = handle.await;
+        // Ensure database is shut down
+        self.shutdown();
+        let _ = self.join().await.log_if_error("restarting database");
 
         {
-            let mut state = self.shared.state.write();
-            let mut state = state.unfreeze(handle);
-            *state = DatabaseState::new_known();
+            let mut shutdown = self.shutdown.lock();
+            *shutdown = new_database_worker(Arc::clone(&self.shared));
         }
-        self.shared.state_notify.notify_waiters();
-        info!(%db_name, "set database state to known");
 
         self.wait_for_init().await
     }
 
     /// Waits for the background worker of this `Database` to exit
+    ///
+    /// TODO: Rename to wait_for_shutdown
     pub fn join(&self) -> impl Future<Output = Result<(), Arc<JoinError>>> {
-        self.join.clone()
+        let shared = Arc::clone(&self.shared);
+        async move {
+            loop {
+                // Register interest before checking to avoid race
+                let notify = shared.state_notify.notified();
+
+                match &**shared.state.read() {
+                    DatabaseState::Shutdown(Some(e)) => return Err(Arc::clone(e)),
+                    DatabaseState::Shutdown(None) => return Ok(()),
+                    state => info!(%state, "waiting for database shutdown"),
+                }
+
+                notify.await;
+            }
+        }
     }
 
     /// Returns the config of this database
@@ -281,9 +285,9 @@ impl Database {
         self.shared.state.read().get_initialized().is_some()
     }
 
-    /// Whether the database is active
-    pub fn is_active(&self) -> bool {
-        self.shared.state.read().is_active()
+    /// Returns true if this database is shutdown
+    pub fn is_shutdown(&self) -> bool {
+        self.shared.state.read().is_shutdown()
     }
 
     /// Returns the database rules if they're loaded
@@ -412,6 +416,7 @@ impl Database {
                 | DatabaseState::CatalogLoadError(_, e)
                 | DatabaseState::WriteBufferCreationError(_, e)
                 | DatabaseState::ReplayError(_, e) => return Err(Arc::clone(e)),
+                DatabaseState::Shutdown(_) => return Err(Arc::new(InitError::Shutdown)),
             }
 
             notify.await;
@@ -419,11 +424,10 @@ impl Database {
     }
 
     /// Recover from a CatalogLoadError by wiping the catalog
-    pub async fn wipe_preserved_catalog(&self) -> Result<TaskTracker<Job>, Error> {
-        let handle = self.shared.state.read().freeze();
-        let handle = handle.await;
-
+    pub async fn wipe_preserved_catalog(self: &Arc<Self>) -> Result<TaskTracker<Job>, Error> {
         let db_name = self.name();
+
+        // TODO: Make IOxObjectStore immutable property of Database
         let iox_object_store = match &**self.shared.state.read() {
             DatabaseState::CatalogLoadError(rules_loaded, err) => {
                 warn!(%db_name, %err, "Requested wiping catalog in CatalogLoadError state");
@@ -447,47 +451,39 @@ impl Database {
             }
         };
 
+        // Shutdown database
+        self.shutdown();
+        let _ = self.join().await.log_if_error("wipe preserved catalog");
+
+        // Hold a freeze handle to prevent other processes from restarting the database
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
+        error_state!(self, "WipePreservedCatalog", Shutdown);
+
         let registry = self.shared.application.job_registry();
         let (tracker, registration) = registry.register(Job::WipePreservedCatalog {
             db_name: Arc::from(db_name.as_str()),
         });
 
-        let shared = Arc::clone(&self.shared);
-
+        let this = Arc::clone(self);
         tokio::spawn(
             async move {
                 // wipe the actual catalog
                 PreservedCatalog::wipe(&iox_object_store)
                     .await
                     .map_err(Box::new)
-                    .context(WipePreservedCatalogSnafu { db_name })?;
+                    .context(WipePreservedCatalogSnafu { db_name: &db_name })?;
 
-                {
-                    let mut state = shared.state.write();
-                    let mut state = state.unfreeze(handle);
+                info!(%db_name, "wiped preserved catalog");
 
-                    // Leave temporary `known` state, so we can use
-                    // current state to compute the new one
-                    let current_state = std::mem::replace(&mut *state, DatabaseState::new_known());
-                    let rules_loaded = match current_state {
-                        DatabaseState::CatalogLoadError(rules_loaded, _err) => rules_loaded,
-                        DatabaseState::WriteBufferCreationError(catalog_loaded, _err) => {
-                            catalog_loaded.rollback()
-                        }
-                        DatabaseState::ReplayError(catalog_loaded, _err) => {
-                            catalog_loaded.rollback()
-                        }
-                        // as we have already wiped the preserved
-                        // catalog, we ca not return an error but leave the
-                        // state as is, thus panic ...
-                        _ => unreachable!(
-                            "Wiped preserved catalog and then found database in invalid state: {}",
-                            current_state.state_code()
-                        ),
-                    };
-                    // set the new state
-                    *state = DatabaseState::RulesLoaded(rules_loaded);
-                }
+                // Should be guaranteed by the freeze handle
+                assert_eq!(this.state_code(), DatabaseStateCode::Shutdown);
+
+                std::mem::drop(handle);
+
+                let _ = this.restart().await;
+                info!(%db_name, "restarted database following wipe");
 
                 Ok::<_, Error>(())
             }
@@ -500,32 +496,18 @@ impl Database {
     /// Rebuilding the catalog from parquet files. This can be used to
     /// recover from a CatalogLoadError, or if new parquet files are
     /// added to the data directory
-    pub async fn rebuild_preserved_catalog(&self, force: bool) -> Result<TaskTracker<Job>, Error> {
-        let handle = self.shared.state.read().freeze();
-        let handle = handle.await;
-
-        let db_name = self.name();
-
-        {
-            // If the force flag is not specified, can only rebuild
-            // the catalog if it is in ended up in an error loading
-            let state = self.shared.state.read();
-            if !force && !matches!(&**state, DatabaseState::CatalogLoadError { .. }) {
-                return InvalidStateForRebuildSnafu {
-                    db_name,
-                    state: state.state_code(),
-                    expected: "(CatalogLoadError)",
-                }
-                .fail();
-            }
+    pub async fn rebuild_preserved_catalog(
+        self: &Arc<Self>,
+        force: bool,
+    ) -> Result<TaskTracker<Job>, Error> {
+        if !force {
+            error_state!(self, "RebuildPreservedCatalog", CatalogLoadError);
         }
 
-        let registry = self.shared.application.job_registry();
-        let (tracker, registration) = registry.register(Job::RebuildPreservedCatalog {
-            db_name: Arc::from(db_name.as_str()),
-        });
-
         let shared = Arc::clone(&self.shared);
+        let db_name = self.name();
+
+        // TODO: Make IOxObjectStore immutable property of Database
         let iox_object_store = self
             .iox_object_store()
             .context(InvalidStateForRebuildSnafu {
@@ -534,41 +516,24 @@ impl Database {
                 expected: "Object store initialized",
             })?;
 
+        // Shutdown database
+        self.shutdown();
+        let _ = self.join().await.log_if_error("rebuilding catalog");
+
+        // Obtain and hold a freeze handle to ensure nothing restarts the database
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
+        error_state!(self, "RebuildPreservedCatalog", Shutdown);
+
+        let registry = self.shared.application.job_registry();
+        let (tracker, registration) = registry.register(Job::RebuildPreservedCatalog {
+            db_name: Arc::from(db_name.as_str()),
+        });
+
+        let this = Arc::clone(self);
         tokio::spawn(
             async move {
-                // shutdown / stop the DB if it is running so it can't
-                // be read / written to, while also preventing
-                // anything else from driving the state machine
-                // forward.
-                info!(%db_name, "rebuilding catalog, resetting database state");
-                {
-                    let mut state = shared.state.write();
-                    // Dropping the state here also terminates the
-                    // LifeCycleWorker and WriteBufferConsumer so all
-                    // background work should have completed.
-                    *state.unfreeze(handle) = DatabaseState::new_known();
-                    // tell existing db background tasks, if any, to start shutting down
-                    shared.state_notify.notify_waiters();
-                };
-
-                // get another freeze handle to prevent anything else
-                // from messing with the state while we rebuild the
-                // catalog (is there a better way??)
-                let handle = shared.state.read().freeze();
-                let _handle = handle.await;
-
-                // check that during lock gap the state has not changed
-                {
-                    let state = shared.state.read();
-                    ensure!(
-                        matches!(&**state, DatabaseState::Known(_)),
-                        UnexpectedTransitionForRebuildSnafu {
-                            db_name: &db_name,
-                            state: state.state_code()
-                        }
-                    );
-                }
-
                 info!(%db_name, "rebuilding catalog from parquet files");
 
                 // Now wipe the catalog and rebuild it from parquet files
@@ -577,11 +542,14 @@ impl Database {
                     .map_err(Box::new)
                     .context(WipePreservedCatalogSnafu { db_name: &db_name })?;
 
+                info!(%db_name, "wiped preserved catalog");
+
                 let config = PreservedCatalogConfig::new(
                     Arc::clone(&iox_object_store),
                     db_name.to_string(),
                     Arc::clone(shared.application.time_provider()),
                 );
+
                 parquet_catalog::rebuild::rebuild_catalog(config, false)
                     .await
                     .map_err(Box::new)
@@ -589,9 +557,14 @@ impl Database {
 
                 // Double check the state hasn't changed (we hold the
                 // freeze handle to make sure it does not)
-                assert!(matches!(&**shared.state.read(), DatabaseState::Known(_)));
+                assert_eq!(this.state_code(), DatabaseStateCode::Shutdown);
 
-                info!(%db_name, "catalog rebuilt successfully");
+                std::mem::drop(handle);
+
+                info!(%db_name, "rebuilt preserved catalog");
+
+                let _ = this.restart().await;
+                info!(%db_name, "restarted following rebuild");
 
                 Ok::<_, Error>(())
             }
@@ -627,124 +600,178 @@ impl Database {
 impl Drop for Database {
     fn drop(&mut self) {
         let db_name = self.name();
-        if !self.shared.shutdown.is_cancelled() {
+        let shutdown = self.shutdown.lock().clone();
+        if !shutdown.is_cancelled() {
             warn!(%db_name, "database dropped without calling shutdown()");
-            self.shared.shutdown.cancel();
+            shutdown.cancel();
         }
 
-        if self.join.clone().now_or_never().is_none() {
+        if !self.shared.state.read().is_shutdown() {
             warn!(%db_name, "database dropped without waiting for worker termination");
         }
     }
 }
 
+/// Spawn a new background worker for a database in the `shutdown` state
+/// The state is reset to `Known` then the background worker attempts to drive the
+/// Database through initialization
+fn new_database_worker(shared: Arc<DatabaseShared>) -> CancellationToken {
+    let shutdown = CancellationToken::new();
+
+    let db_name = shared.config.read().name.clone();
+
+    {
+        let mut state = shared.state.write();
+        if !state.is_shutdown() {
+            panic!(
+                "cannot spawn worker for database {} that is not shutdown!",
+                db_name
+            )
+        }
+        let handle = state.try_freeze().expect("restart race");
+        *state.unfreeze(handle) = DatabaseState::new_known();
+    }
+
+    // Spawn a worker task
+    let worker = tokio::spawn(background_worker(Arc::clone(&shared), shutdown.clone()));
+
+    // We spawn a watchdog task to detect and respond to the background worker exiting
+    let _ = tokio::spawn(async move {
+        let error = match worker.await {
+            Ok(_) => {
+                info!(%db_name, "observed clean shutdown of database worker");
+                None
+            }
+            Err(e) => {
+                if e.is_panic() {
+                    error!(
+                        %db_name,
+                        %e,
+                        "panic in database worker"
+                    );
+                } else {
+                    error!(
+                        %db_name,
+                        %e,
+                        "unexpected database worker shut down - shutting down server"
+                    );
+                }
+
+                Some(Arc::new(e))
+            }
+        };
+
+        let handle_fut = shared.state.read().freeze();
+        let handle = handle_fut.await;
+
+        // This is the only place that sets the shutdown state ensuring that
+        // the shutdown state is guaranteed to not have a background worker running
+        *shared.state.write().unfreeze(handle) = DatabaseState::Shutdown(error);
+        shared.state_notify.notify_waiters();
+    });
+
+    shutdown
+}
+
 /// The background worker for `Database` - there should only ever be one
-async fn background_worker(shared: Arc<DatabaseShared>) {
+async fn background_worker(shared: Arc<DatabaseShared>, shutdown: CancellationToken) {
     let db_name = shared.config.read().name.clone();
     info!(%db_name, "started database background worker");
 
-    // The background loop runs until `Database::shutdown` is called
-    while !shared.shutdown.is_cancelled() {
-        initialize_database(shared.as_ref()).await;
+    initialize_database(shared.as_ref(), shutdown.clone()).await;
 
-        if shared.shutdown.is_cancelled() {
-            // TODO: Shutdown intermediate workers (#2813)
-            info!(%db_name, "database shutdown before finishing initialization");
+    if shutdown.is_cancelled() {
+        // TODO: Shutdown intermediate workers (#2813)
+        info!(%db_name, "database shutdown before finishing initialization");
+        return;
+    }
+
+    let (db, write_buffer_consumer, lifecycle_worker) = {
+        let state = shared.state.read();
+        let initialized = state.get_initialized().expect("expected initialized");
+
+        (
+            Arc::clone(initialized.db()),
+            initialized.write_buffer_consumer().map(Arc::clone),
+            Arc::clone(initialized.lifecycle_worker()),
+        )
+    };
+
+    info!(%db_name, "database finished initialization - starting Db worker");
+
+    db::utils::panic_test(|| Some(format!("database background worker: {}", db_name,)));
+
+    let db_shutdown = CancellationToken::new();
+    let db_worker = db.background_worker(db_shutdown.clone()).fuse();
+    futures::pin_mut!(db_worker);
+
+    // Future that completes if the WriteBufferConsumer exits
+    let consumer_join = match &write_buffer_consumer {
+        Some(consumer) => futures::future::Either::Left(consumer.join()),
+        None => futures::future::Either::Right(futures::future::pending()),
+    }
+    .fuse();
+    futures::pin_mut!(consumer_join);
+
+    // Future that completes if the LifecycleWorker exits
+    let lifecycle_join = lifecycle_worker.join().fuse();
+    futures::pin_mut!(lifecycle_join);
+
+    // This inner loop runs until either:
+    //
+    // - Something calls `Database::shutdown`
+    // - The Database transitions away from `DatabaseState::Initialized`
+    //
+    // In the later case it will restart the initialization procedure
+    while !shutdown.is_cancelled() {
+        if shared.state.read().get_initialized().is_none() {
+            info!(%db_name, "database no longer initialized");
             break;
         }
 
-        let (db, write_buffer_consumer, lifecycle_worker) = {
-            let state = shared.state.read();
-            let initialized = state.get_initialized().expect("expected initialized");
+        let shutdown_fut = shutdown.cancelled().fuse();
+        futures::pin_mut!(shutdown_fut);
 
-            (
-                Arc::clone(initialized.db()),
-                initialized.write_buffer_consumer().map(Arc::clone),
-                Arc::clone(initialized.lifecycle_worker()),
-            )
-        };
-
-        info!(%db_name, "database finished initialization - starting Db worker");
-
-        db::utils::panic_test(|| Some(format!("database background worker: {}", db_name,)));
-
-        let db_shutdown = CancellationToken::new();
-        let db_worker = db.background_worker(db_shutdown.clone()).fuse();
-        futures::pin_mut!(db_worker);
-
-        // Future that completes if the WriteBufferConsumer exits
-        let consumer_join = match &write_buffer_consumer {
-            Some(consumer) => futures::future::Either::Left(consumer.join()),
-            None => futures::future::Either::Right(futures::future::pending()),
-        }
-        .fuse();
-        futures::pin_mut!(consumer_join);
-
-        // Future that completes if the LifecycleWorker exits
-        let lifecycle_join = lifecycle_worker.join().fuse();
-        futures::pin_mut!(lifecycle_join);
-
-        // This inner loop runs until either:
-        //
-        // - Something calls `Database::shutdown`
-        // - The Database transitions away from `DatabaseState::Initialized`
-        //
-        // In the later case it will restart the initialization procedure
-        while !shared.shutdown.is_cancelled() {
-            // Get notify before check to avoid race
-            let notify = shared.state_notify.notified().fuse();
-            futures::pin_mut!(notify);
-
-            if shared.state.read().get_initialized().is_none() {
-                info!(%db_name, "database no longer initialized");
-                break;
+        // We must use `futures::select` as opposed to the often more ergonomic `tokio::select`
+        // Because of the need to "re-use" the background worker future
+        // TODO: Make Db own its own background loop (or remove it)
+        futures::select! {
+            _ = shutdown_fut => info!("database shutting down"),
+            _ = consumer_join => {
+                error!(%db_name, "unexpected shutdown of write buffer consumer - bailing out");
+                shutdown.cancel();
             }
-
-            let shutdown = shared.shutdown.cancelled().fuse();
-            futures::pin_mut!(shutdown);
-
-            // We must use `futures::select` as opposed to the often more ergonomic `tokio::select`
-            // Because of the need to "re-use" the background worker future
-            // TODO: Make Db own its own background loop (or remove it)
-            futures::select! {
-                _ = shutdown => info!("database shutting down"),
-                _ = notify => info!("notified of state change"),
-                _ = consumer_join => {
-                    error!(%db_name, "unexpected shutdown of write buffer consumer - bailing out");
-                    shared.shutdown.cancel();
-                }
-                _ = lifecycle_join => {
-                    error!(%db_name, "unexpected shutdown of lifecycle worker - bailing out");
-                    shared.shutdown.cancel();
-                }
-                _ = db_worker => {
-                    error!(%db_name, "unexpected shutdown of db - bailing out");
-                    shared.shutdown.cancel();
-                }
+            _ = lifecycle_join => {
+                error!(%db_name, "unexpected shutdown of lifecycle worker - bailing out");
+                shutdown.cancel();
+            }
+            _ = db_worker => {
+                error!(%db_name, "unexpected shutdown of db - bailing out");
+                shutdown.cancel();
             }
         }
+    }
 
-        if let Some(consumer) = write_buffer_consumer {
-            info!(%db_name, "shutting down write buffer consumer");
-            consumer.shutdown();
-            if let Err(e) = consumer.join().await {
-                error!(%db_name, %e, "error shutting down write buffer consumer")
-            }
+    if let Some(consumer) = write_buffer_consumer {
+        info!(%db_name, "shutting down write buffer consumer");
+        consumer.shutdown();
+        if let Err(e) = consumer.join().await {
+            error!(%db_name, %e, "error shutting down write buffer consumer")
         }
+    }
 
-        if !lifecycle_join.is_terminated() {
-            info!(%db_name, "shutting down lifecycle worker");
-            lifecycle_worker.shutdown();
-            if let Err(e) = lifecycle_worker.join().await {
-                error!(%db_name, %e, "error shutting down lifecycle worker")
-            }
+    if !lifecycle_join.is_terminated() {
+        info!(%db_name, "shutting down lifecycle worker");
+        lifecycle_worker.shutdown();
+        if let Err(e) = lifecycle_worker.join().await {
+            error!(%db_name, %e, "error shutting down lifecycle worker")
         }
+    }
 
-        if !db_worker.is_terminated() {
-            info!(%db_name, "waiting for db worker shutdown");
-            db_shutdown.cancel();
-            db_worker.await
-        }
+    if !db_worker.is_terminated() {
+        info!(%db_name, "waiting for db worker shutdown");
+        db_shutdown.cancel();
+        db_worker.await
     }
 
     info!(%db_name, "draining tasks");
@@ -799,26 +826,7 @@ mod tests {
 
     #[tokio::test]
     async fn database_shutdown_waits_for_jobs() {
-        let application = make_application();
-
-        let database = Database::new(
-            Arc::clone(&application),
-            DatabaseConfig {
-                name: DatabaseName::new("test").unwrap(),
-                location: String::from("arbitrary"),
-                server_id: ServerId::new(NonZeroU32::new(23).unwrap()),
-                wipe_catalog_on_error: false,
-                skip_replay: false,
-            },
-        );
-
-        // Should have failed to load (this isn't important to the test)
-        let err = database.wait_for_init().await.unwrap_err();
-        assert!(
-            matches!(err.as_ref(), InitError::DatabaseObjectStoreLookup { .. }),
-            "got {:?}",
-            err
-        );
+        let (application, database) = initialized_database().await;
 
         // Database should be running
         assert!(database.join().now_or_never().is_none());
@@ -884,47 +892,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn database_reinitialize() {
-        let (_, database) = initialized_database().await;
-
-        tokio::time::timeout(Duration::from_millis(1), database.join())
-            .await
-            .unwrap_err();
-
-        database.shared.state_notify.notify_waiters();
-
-        // Database should still be running
-        tokio::time::timeout(Duration::from_millis(1), database.join())
-            .await
-            .unwrap_err();
-
-        {
-            let mut state = database.shared.state.write();
-            let mut state = state.get_mut().unwrap();
-            *state = DatabaseState::new_known();
-            database.shared.state_notify.notify_waiters();
-        }
-
-        // Database should still be running
-        tokio::time::timeout(Duration::from_millis(1), database.join())
-            .await
-            .unwrap_err();
-
-        // Database should re-initialize correctly
-        tokio::time::timeout(Duration::from_millis(1), database.wait_for_init())
-            .await
-            .unwrap()
-            .unwrap();
-
-        database.shutdown();
-        // Database should shutdown
-        tokio::time::timeout(Duration::from_millis(1), database.join())
-            .await
-            .unwrap()
-            .unwrap();
-    }
-
-    #[tokio::test]
     async fn database_release() {
         let (application, database) = initialized_database().await;
         let server_id = database.shared.config.read().server_id;
@@ -934,11 +901,8 @@ mod tests {
 
         database.release().await.unwrap();
 
-        assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
-        assert!(matches!(
-            database.init_error().unwrap().as_ref(),
-            InitError::NoActiveDatabase
-        ));
+        assert_eq!(database.state_code(), DatabaseStateCode::Shutdown);
+        assert!(database.init_error().is_none());
 
         let owner_info = fetch_owner_info(&iox_object_store).await.unwrap();
         assert_eq!(owner_info.id, 0);
@@ -965,11 +929,8 @@ mod tests {
         let uuid = database.release().await.unwrap();
 
         // database is in error state
-        assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
-        assert!(matches!(
-            database.init_error().unwrap().as_ref(),
-            InitError::NoActiveDatabase
-        ));
+        assert_eq!(database.state_code(), DatabaseStateCode::Shutdown);
+        assert!(database.init_error().is_none());
 
         claim_database_in_object_store(
             Arc::clone(&application),
@@ -1007,17 +968,10 @@ mod tests {
             .unwrap();
 
         // database should recover
-        tokio::time::timeout(Duration::from_secs(10), async move {
-            loop {
-                if database.wait_for_init().await.is_ok() {
-                    return;
-                }
-
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
-        })
-        .await
-        .unwrap();
+        tokio::time::timeout(Duration::from_secs(10), database.restart())
+            .await
+            .unwrap()
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1027,6 +981,8 @@ mod tests {
 
         // Restart successful
         database.restart().await.unwrap();
+
+        assert!(database.is_initialized());
 
         // Delete the rules
         let iox_object_store = database.iox_object_store().unwrap();

@@ -50,7 +50,7 @@ impl management_service_server::ManagementService for ManagementService {
         let name = DatabaseName::new(name).scope("name")?;
         let database = self
             .server
-            .active_database(&name)
+            .database(&name)
             .map_err(default_server_error_handler)?;
 
         let rules = database
