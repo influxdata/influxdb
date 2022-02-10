@@ -219,6 +219,14 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.log.Debug("loaded config file", zap.String("path", p))
 	}
 
+	if opts.NatsPort != 0 {
+		m.log.Warn("nats-port argument is deprecated and unused")
+	}
+
+	if opts.NatsMaxPayloadBytes != 0 {
+		m.log.Warn("nats-max-payload-bytes argument is deprecated and unused")
+	}
+
 	// Parse feature flags.
 	// These flags can be used to modify the remaining setup logic in this method.
 	// They will also be injected into the contexts of incoming HTTP requests at runtime,

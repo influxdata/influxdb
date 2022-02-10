@@ -224,6 +224,9 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		StoreType:   DiskStore,
 		SecretStore: BoltStore,
 
+		NatsPort:            0,
+		NatsMaxPayloadBytes: 0,
+
 		NoTasks: false,
 
 		ConcurrencyQuota:                1024,
@@ -584,6 +587,22 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			DestP: &o.CoordinatorConfig.MaxSelectBucketsN,
 			Flag:  "influxql-max-select-buckets",
 			Desc:  "The maximum number of group by time bucket a SELECT can create. A value of zero will max the maximum number of buckets unlimited.",
+		},
+
+		// NATS config
+		{
+			DestP:   &o.NatsPort,
+			Flag:    "nats-port",
+			Desc:    "deprecated: nats has been replaced",
+			Default: o.NatsPort,
+			Hidden:  true,
+		},
+		{
+			DestP:   &o.NatsMaxPayloadBytes,
+			Flag:    "nats-max-payload-bytes",
+			Desc:    "deprecated: nats has been replaced",
+			Default: o.NatsMaxPayloadBytes,
+			Hidden:  true,
 		},
 
 		// Pprof config
