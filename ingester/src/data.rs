@@ -65,6 +65,9 @@ pub enum Error {
 
     #[snafu(display("Snapshot error: {}", source))]
     Snapshot { source: mutable_batch::Error },
+
+    #[snafu(display("Error while filter columns from snapshot: {}", source))]
+    FilterColumn { source: arrow::error::ArrowError },
 }
 
 /// A specialized `Error` for Ingester Data errors
@@ -560,6 +563,35 @@ pub struct SnapshotBatch {
     pub max_sequencer_number: SequenceNumber,
     /// Data of its comebined BufferBatches kept in one RecordBatch
     pub data: Arc<RecordBatch>,
+}
+
+impl SnapshotBatch {
+    /// Return only data of the given columns
+    pub fn scan(&self, selection: Selection<'_>) -> Result<Option<Arc<RecordBatch>>> {
+        Ok(match selection {
+            Selection::All => Some(Arc::clone(&self.data)),
+            Selection::Some(columns) => {
+                let schema = self.data.schema();
+
+                let indices = columns
+                    .iter()
+                    .filter_map(|&column_name| {
+                        match schema.index_of(column_name) {
+                            Ok(idx) => Some(idx),
+                            _ => None, // this batch does not include data of this column_name
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                if indices.is_empty() {
+                    None
+                } else {
+                    Some(Arc::new(
+                        self.data.project(&indices).context(FilterColumnSnafu {})?,
+                    ))
+                }
+            }
+        })
+    }
 }
 
 /// PersistingBatch contains all needed info and data for creating

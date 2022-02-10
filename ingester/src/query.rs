@@ -22,21 +22,15 @@ use snafu::{ResultExt, Snafu};
 
 use crate::data::{QueryableBatch, SnapshotBatch};
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Internal error while building delete predicate from start time, {}, stop time, {}, and serialized predicate, {}", min, max, predicate))]
-    DeletePredicate {
-        source: predicate::delete_predicate::Error,
-        min: String,
-        max: String,
-        predicate: String,
-    },
-
-    // #[snafu(display("Internal error while adding NULL columns into a record batch"))]
-    // PaddNulls { source: arrow::error::ArrowError },
     #[snafu(display("Internal error while concat record batches {}", source))]
     ConcatBatches { source: arrow::error::ArrowError },
+
+    #[snafu(display("Internal error filtering columns from a record batch {}", source))]
+    FilterColumns { source: crate::data::Error },
 }
 
 /// A specialized `Error` for Ingester's Query errors
@@ -188,10 +182,17 @@ impl QueryChunk for QueryableBatch {
     fn read_filter(
         &self,
         _predicate: &Predicate, // no needs because all data will be read for compaction
-        _selection: Selection<'_>, // no needs because all columns will be read and compact
+        // todo: will need for the case we read data to send to Querier
+        selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         // Get all record batches from their snapshots
-        let batches: Vec<_> = self.data.iter().map(|s| Arc::clone(&s.data)).collect();
+        let mut batches = vec![];
+        for snapshot in &self.data {
+            let batch = snapshot.scan(selection).context(FilterColumnsSnafu {})?;
+            if let Some(batch) = batch {
+                batches.push(batch);
+            }
+        }
 
         // Combine record batches into one bacth and padding null values as needed
         // Schema of all record batches after mergeing
@@ -204,7 +205,7 @@ impl QueryChunk for QueryableBatch {
             stream_batches.push(Arc::new(batch));
         }
 
-        // Return sream of data
+        // Return stream of data
         let dummy_metrics = ExecutionPlanMetricsSet::new();
         let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
         let stream =
@@ -235,7 +236,11 @@ impl QueryChunk for QueryableBatch {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_util::create_tombstone;
+    use crate::test_util::{
+        create_batches_with_influxtype_different_columns_different_order,
+        create_one_record_batch_with_influxtype_no_duplicates, create_tombstone,
+        make_queryable_batch,
+    };
 
     use super::*;
 
@@ -246,6 +251,7 @@ mod tests {
         },
         datatypes::{DataType, Int32Type, TimeUnit},
     };
+    use arrow_util::assert_batches_eq;
     use data_types::{
         delete_predicate::{DeleteExpr, Op, Scalar},
         timestamp::TimestampRange,
@@ -325,6 +331,161 @@ mod tests {
         ];
 
         assert_eq!(expected, predicates);
+    }
+
+    #[tokio::test]
+    async fn test_read_filter() {
+        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
+        let batch = make_queryable_batch("test_table", 1, batches);
+        let stream = batch
+            .read_filter(&Predicate::default(), Selection::All) // return all columns
+            .unwrap();
+        let batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        let expected = vec![
+            "+-----------+------+-----------------------------+",
+            "| field_int | tag1 | time                        |",
+            "+-----------+------+-----------------------------+",
+            "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
+            "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
+            "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
+            "+-----------+------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_read_filter_columns() {
+        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
+        let batch = make_queryable_batch("test_table", 1, batches);
+        let stream = batch
+            .read_filter(
+                &Predicate::default(),
+                Selection::Some(&["time", "field_int"]), // return 2 out of 3 columns
+            )
+            .unwrap();
+        let batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        let expected = vec![
+            "+-----------+-----------------------------+",
+            "| field_int | time                        |",
+            "+-----------+-----------------------------+",
+            "| 1000      | 1970-01-01T00:00:00.000008Z |",
+            "| 10        | 1970-01-01T00:00:00.000010Z |",
+            "| 70        | 1970-01-01T00:00:00.000020Z |",
+            "+-----------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_read_filter_not_exist_columns() {
+        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
+        let batch = make_queryable_batch("test_table", 1, batches);
+        let stream = batch
+            .read_filter(
+                &Predicate::default(),
+                Selection::Some(&["foo"]), // column not exist
+            )
+            .unwrap();
+        let batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        let expected = vec!["++", "++"];
+        assert_batches_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_read_filter_many_batches() {
+        let batches = create_batches_with_influxtype_different_columns_different_order().await;
+        let batch = make_queryable_batch("test_table", 1, batches);
+        let stream = batch
+            .read_filter(&Predicate::default(), Selection::All) // return all columns
+            .unwrap();
+        let batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        let expected = vec![
+            "+-----------+------+------+--------------------------------+",
+            "| field_int | tag1 | tag2 | time                           |",
+            "+-----------+------+------+--------------------------------+",
+            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000001Z    |",
+            "| 10        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 100       | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
+            "| 5         | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
+            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000002Z    |",
+            "| 20        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000500Z |",
+            "| 10        | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
+            "| 30        | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
+            "| 1000      |      | CT   | 1970-01-01T00:00:00.000001Z    |",
+            "| 10        |      | AL   | 1970-01-01T00:00:00.000007Z    |",
+            "| 70        |      | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 100       |      | MA   | 1970-01-01T00:00:00.000000050Z |",
+            "| 5         |      | AL   | 1970-01-01T00:00:00.000005Z    |",
+            "+-----------+------+------+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_read_filter_many_batches_filer_columns() {
+        let batches = create_batches_with_influxtype_different_columns_different_order().await;
+        let batch = make_queryable_batch("test_table", 1, batches);
+        let stream = batch
+            .read_filter(&Predicate::default(), Selection::Some(&["tag1", "time"])) // return 2 out of 4 columns
+            .unwrap();
+        let batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        let expected = vec![
+            "+------+--------------------------------+",
+            "| tag1 | time                           |",
+            "+------+--------------------------------+",
+            "| MT   | 1970-01-01T00:00:00.000001Z    |",
+            "| MT   | 1970-01-01T00:00:00.000007Z    |",
+            "| CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| AL   | 1970-01-01T00:00:00.000000050Z |",
+            "| MT   | 1970-01-01T00:00:00.000000005Z |",
+            "| MT   | 1970-01-01T00:00:00.000002Z    |",
+            "| MT   | 1970-01-01T00:00:00.000007Z    |",
+            "| CT   | 1970-01-01T00:00:00.000000500Z |",
+            "| AL   | 1970-01-01T00:00:00.000000050Z |",
+            "| MT   | 1970-01-01T00:00:00.000000005Z |",
+            "|      | 1970-01-01T00:00:00.000001Z    |",
+            "|      | 1970-01-01T00:00:00.000007Z    |",
+            "|      | 1970-01-01T00:00:00.000000100Z |",
+            "|      | 1970-01-01T00:00:00.000000050Z |",
+            "|      | 1970-01-01T00:00:00.000005Z    |",
+            "+------+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_read_filter_many_batches_not_exist_columns() {
+        let batches = create_batches_with_influxtype_different_columns_different_order().await;
+        let batch = make_queryable_batch("test_table", 1, batches);
+        let stream = batch
+            .read_filter(
+                &Predicate::default(),
+                Selection::Some(&["foo", "bar"]), // column not exist
+            )
+            .unwrap();
+        let batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        let expected = vec!["++", "++"];
+        assert_batches_eq!(&expected, &batches);
     }
 
     // ----------------------------------------------------------------------------------------------

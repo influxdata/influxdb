@@ -52,7 +52,7 @@ pub enum Error {
 
     #[snafu(display("cannot derive valid column schema from column {}: {}", name, source))]
     InvalidColumn {
-        source: Box<dyn std::error::Error + Send>,
+        source: Box<dyn std::error::Error + Send + Sync>,
         name: String,
     },
 
