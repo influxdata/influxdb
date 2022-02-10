@@ -5,8 +5,8 @@ use crate::{rewrite, BinaryExpr, Predicate};
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::ExecutionProps;
 use datafusion::logical_plan::{
-    lit, Column, DFField, DFSchema, Expr, ExprRewritable, ExprRewriter, ExprSchemable,
-    ExprSimplifiable, Operator, SimplifyInfo,
+    lit, Column, Expr, ExprRewritable, ExprRewriter, ExprSchema, ExprSchemable, ExprSimplifiable,
+    Operator, SimplifyInfo,
 };
 use datafusion::scalar::ScalarValue;
 use datafusion_util::AsExpr;
@@ -203,47 +203,61 @@ fn normalize_predicate(
     predicate
 }
 
-struct SimplifyAdapter {
-    // TODO avoid re-creating this each time....
-    // https://github.com/apache/arrow-datafusion/issues/1725
-    df_schema: DFSchema,
+struct SimplifyAdapter<'a> {
+    schema: &'a Schema,
     execution_props: ExecutionProps,
 }
 
-impl SimplifyAdapter {
-    fn new(schema: &Schema) -> Self {
-        let df_schema = DFSchema::new(
-            schema
-                .as_arrow()
-                .fields()
-                .iter()
-                .map(|f| DFField::from(f.clone()))
-                .collect(),
-        )
-        .unwrap();
-
+impl<'a> SimplifyAdapter<'a> {
+    fn new(schema: &'a Schema) -> Self {
         Self {
-            df_schema,
+            schema,
             execution_props: ExecutionProps::new(),
         }
     }
+
+    // returns the field named 'name', if any
+    fn field(&self, name: &str) -> Option<&arrow::datatypes::Field> {
+        self.schema
+            .find_index_of(name)
+            .map(|index| self.schema.field(index).1)
+    }
 }
 
-impl SimplifyInfo for SimplifyAdapter {
+impl<'a> SimplifyInfo for SimplifyAdapter<'a> {
     fn is_boolean_type(&self, expr: &Expr) -> DataFusionResult<bool> {
         Ok(expr
-            .get_type(&self.df_schema)
+            .get_type(self)
             .ok()
             .map(|t| matches!(t, arrow::datatypes::DataType::Boolean))
             .unwrap_or(false))
     }
 
     fn nullable(&self, expr: &Expr) -> DataFusionResult<bool> {
-        Ok(expr.nullable(&self.df_schema).ok().unwrap_or(false))
+        Ok(expr.nullable(self).ok().unwrap_or(false))
     }
 
     fn execution_props(&self) -> &ExecutionProps {
         &self.execution_props
+    }
+}
+
+impl<'a> ExprSchema for SimplifyAdapter<'a> {
+    fn nullable(&self, col: &Column) -> DataFusionResult<bool> {
+        assert!(col.relation.is_none());
+        //if the field isn't present IOx will treat it as null
+        Ok(self
+            .field(&col.name)
+            .map(|f| f.is_nullable())
+            .unwrap_or(true))
+    }
+
+    fn data_type(&self, col: &Column) -> DataFusionResult<&arrow::datatypes::DataType> {
+        assert!(col.relation.is_none());
+        Ok(self
+            .field(&col.name)
+            .map(|f| f.data_type())
+            .expect("found field for datatype"))
     }
 }
 
