@@ -787,6 +787,7 @@ mod tests {
         sequence::Sequence,
         write_buffer::WriteBufferConnection,
     };
+    use object_store::{ObjectStore, ObjectStoreIntegration, ThrottleConfig};
     use std::time::Duration;
     use std::{num::NonZeroU32, time::Instant};
     use test_helpers::assert_contains;
@@ -961,6 +962,59 @@ mod tests {
         let err = database.restart().await.unwrap_err().to_string();
         assert_contains!(&err, "error loading database rules");
         assert_contains!(&err, "not found");
+    }
+
+    #[tokio::test]
+    async fn database_abort() {
+        test_helpers::maybe_start_logging();
+
+        // Create a throttled object store that will stall the init process
+        let throttle_config = ThrottleConfig {
+            wait_get_per_call: Duration::from_secs(100),
+            ..Default::default()
+        };
+
+        let store = Arc::new(ObjectStore::new_in_memory_throttled(throttle_config));
+        let application = Arc::new(ApplicationState::new(Arc::clone(&store), None, None));
+
+        let db_config = DatabaseConfig {
+            name: DatabaseName::new("test").unwrap(),
+            database_uuid: Uuid::new_v4(),
+            server_id: ServerId::try_from(1).unwrap(),
+            wipe_catalog_on_error: false,
+            skip_replay: false,
+        };
+
+        let database = Database::new(Arc::clone(&application), db_config.clone());
+
+        // Should fail to initialize in a timely manner
+        tokio::time::timeout(Duration::from_millis(10), database.wait_for_init())
+            .await
+            .expect_err("should timeout");
+
+        assert_eq!(database.state_code(), DatabaseStateCode::Known);
+
+        database.shutdown();
+        database.join().await.unwrap();
+
+        assert_eq!(database.state_code(), DatabaseStateCode::Shutdown);
+
+        // Disable throttling
+        match &store.integration {
+            ObjectStoreIntegration::InMemoryThrottled(s) => {
+                s.config_mut(|c| *c = Default::default())
+            }
+            _ => unreachable!(),
+        }
+
+        // Restart should recover from aborted state, but will now error due to missing config
+        let error = tokio::time::timeout(Duration::from_secs(1), database.restart())
+            .await
+            .expect("no timeout")
+            .unwrap_err()
+            .to_string();
+
+        assert_contains!(error, "error getting database owner info");
     }
 
     #[tokio::test]

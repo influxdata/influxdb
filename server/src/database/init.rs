@@ -260,6 +260,55 @@ impl DatabaseState {
             _ => None,
         }
     }
+
+    /// Try to advance to the next state
+    ///
+    /// # Panic
+    ///
+    /// Panics if the database cannot be advanced (already initialized or shutdown)
+    async fn advance(self, shared: &DatabaseShared) -> Self {
+        match self {
+            Self::Known(state) | Self::OwnerInfoLoadError(state, _) => {
+                match state.advance(shared).await {
+                    Ok(state) => Self::OwnerInfoLoaded(state),
+                    Err(e) => Self::OwnerInfoLoadError(state, Arc::new(e)),
+                }
+            }
+            Self::OwnerInfoLoaded(state) | Self::RulesLoadError(state, _) => {
+                match state.advance(shared).await {
+                    Ok(state) => Self::RulesLoaded(state),
+                    Err(e) => Self::RulesLoadError(state, Arc::new(e)),
+                }
+            }
+            Self::RulesLoaded(state) | Self::CatalogLoadError(state, _) => {
+                match state.advance(shared).await {
+                    Ok(state) => Self::CatalogLoaded(state),
+                    Err(e) => Self::CatalogLoadError(state, Arc::new(e)),
+                }
+            }
+            Self::CatalogLoaded(state) | Self::WriteBufferCreationError(state, _) => {
+                match state.advance(shared).await {
+                    Ok(state) => Self::Initialized(state),
+                    Err(e @ InitError::CreateWriteBuffer { .. }) => {
+                        Self::WriteBufferCreationError(state, Arc::new(e))
+                    }
+                    Err(e) => Self::ReplayError(state, Arc::new(e)),
+                }
+            }
+            Self::ReplayError(state, _) => {
+                let state2 = state.rollback();
+                match state2.advance(shared).await {
+                    Ok(state2) => match state2.advance(shared).await {
+                        Ok(state2) => Self::Initialized(state2),
+                        Err(e) => Self::ReplayError(state, Arc::new(e)),
+                    },
+                    Err(e) => Self::ReplayError(state, Arc::new(e)),
+                }
+            }
+            Self::Initialized(_) => unreachable!(),
+            Self::Shutdown(_) => unreachable!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -516,51 +565,23 @@ pub(crate) async fn initialize_database(shared: &DatabaseShared, shutdown: Cance
 
         info!(%db_name, %state, "attempting to advance database initialization state");
 
+        match &state {
+            DatabaseState::Initialized(_) => break,
+            DatabaseState::Shutdown(_) => {
+                info!(%db_name, "database in shutdown - aborting initialization");
+                shutdown.cancel();
+                return;
+            }
+            _ => {}
+        }
+
         // Try to advance to the next state
-        let next_state = match state {
-            DatabaseState::Known(state) | DatabaseState::OwnerInfoLoadError(state, _) => {
-                match state.advance(shared).await {
-                    Ok(state) => DatabaseState::OwnerInfoLoaded(state),
-                    Err(e) => DatabaseState::OwnerInfoLoadError(state, Arc::new(e)),
-                }
+        let next_state = tokio::select! {
+            next_state = state.advance(shared) => next_state,
+            _ = shutdown.cancelled() => {
+                info!(%db_name, "initialization aborted by shutdown");
+                return
             }
-            DatabaseState::OwnerInfoLoaded(state) | DatabaseState::RulesLoadError(state, _) => {
-                match state.advance(shared).await {
-                    Ok(state) => DatabaseState::RulesLoaded(state),
-                    Err(e) => DatabaseState::RulesLoadError(state, Arc::new(e)),
-                }
-            }
-            DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
-                match state.advance(shared).await {
-                    Ok(state) => DatabaseState::CatalogLoaded(state),
-                    Err(e) => DatabaseState::CatalogLoadError(state, Arc::new(e)),
-                }
-            }
-            DatabaseState::CatalogLoaded(state)
-            | DatabaseState::WriteBufferCreationError(state, _) => {
-                match state.advance(shared).await {
-                    Ok(state) => DatabaseState::Initialized(state),
-                    Err(e @ InitError::CreateWriteBuffer { .. }) => {
-                        DatabaseState::WriteBufferCreationError(state, Arc::new(e))
-                    }
-                    Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
-                }
-            }
-            DatabaseState::ReplayError(state, _) => {
-                let state2 = state.rollback();
-                match state2.advance(shared).await {
-                    Ok(state2) => match state2.advance(shared).await {
-                        Ok(state2) => DatabaseState::Initialized(state2),
-                        Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
-                    },
-                    Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
-                }
-            }
-            DatabaseState::Initialized(_) => {
-                // Already initialized
-                break;
-            }
-            DatabaseState::Shutdown(_) => unreachable!(),
         };
 
         let state_code = next_state.state_code();
