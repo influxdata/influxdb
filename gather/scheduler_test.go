@@ -6,17 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/models"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
-	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
 func TestScheduler(t *testing.T) {
-	publisher, subscriber := mock.NewNats()
-	totalGatherJobs := 3
+	totalGatherJobs := 20
 
 	// Create top level logger
 	logger := zaptest.NewLogger(t)
@@ -25,8 +26,7 @@ func TestScheduler(t *testing.T) {
 			"/metrics": sampleRespSmall,
 		},
 	})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	defer ts.Close()
 
 	storage := &mockStorage{
 		Metrics: make(map[time.Time]Metrics),
@@ -39,56 +39,37 @@ func TestScheduler(t *testing.T) {
 				BucketID: *bucketID,
 			},
 		},
-		TotalGatherJobs: make(chan struct{}, totalGatherJobs),
 	}
 
-	subscriber.Subscribe(MetricsSubject, "", &RecorderHandler{
-		log:      logger,
-		Recorder: storage,
-	})
-
-	scheduler, err := NewScheduler(logger, 10, storage, publisher, subscriber, time.Millisecond, time.Microsecond)
-
-	go func() {
-		err = scheduler.run(ctx)
-		if err != nil {
-			t.Error(err)
+	gatherJobs := make(chan []models.Point)
+	done := make(chan struct{})
+	writer := &mock.PointsWriter{}
+	writer.WritePointsFn = func(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
+		select {
+		case gatherJobs <- points:
+		case <-done:
 		}
-	}()
+		return nil
+	}
 
-	go func(scheduler *Scheduler) {
-		// let scheduler gather #{totalGatherJobs} metrics.
-		for i := 0; i < totalGatherJobs; i++ {
-			// make sure timestamp don't overwrite each other
-			time.Sleep(time.Millisecond * 10)
-			scheduler.gather <- struct{}{}
-		}
-	}(scheduler)
+	scheduler, err := NewScheduler(logger, 10, 2, storage, writer, 1*time.Millisecond)
+	require.NoError(t, err)
+	defer scheduler.Close()
+	defer close(done) //don't block the points writer forever
 
 	// make sure all jobs are done
+	pointWrites := [][]models.Point{}
 	for i := 0; i < totalGatherJobs; i++ {
-		<-storage.TotalGatherJobs
+		newWrite := <-gatherJobs
+		pointWrites = append(pointWrites, newWrite)
+		assert.Equal(t, 1, len(newWrite))
+		newWrite[0].SetTime(time.Unix(0, 0)) // zero out the time so we don't have to compare it
+		assert.Equal(t, "go_goroutines gauge=36 0", newWrite[0].String())
 	}
 
-	want := Metrics{
-		Name: "go_goroutines",
-		Type: dto.MetricType_GAUGE,
-		Tags: map[string]string{},
-		Fields: map[string]interface{}{
-			"gauge": float64(36),
-		},
-	}
-
-	if len(storage.Metrics) < totalGatherJobs {
+	if len(pointWrites) < totalGatherJobs {
 		t.Fatalf("metrics stored less than expected, got len %d", len(storage.Metrics))
 	}
-
-	for _, v := range storage.Metrics {
-		if diff := cmp.Diff(v, want, metricsCmpOption); diff != "" {
-			t.Fatalf("scraper parse metrics want %v, got %v", want, v)
-		}
-	}
-	ts.Close()
 }
 
 const sampleRespSmall = `

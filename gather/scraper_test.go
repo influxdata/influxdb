@@ -132,7 +132,7 @@ func TestPrometheusScraper(t *testing.T) {
 			defer ts.Close()
 			url = ts.URL
 		}
-		results, err := scraper.Gather(context.Background(), influxdb.ScraperTarget{
+		results, err := scraper.Gather(influxdb.ScraperTarget{
 			URL:      url + "/metrics",
 			OrgID:    *orgID,
 			BucketID: *bucketID,
@@ -196,19 +196,8 @@ type mockStorage struct {
 	sync.RWMutex
 	influxdb.UserResourceMappingService
 	influxdb.OrganizationService
-	TotalGatherJobs chan struct{}
-	Metrics         map[time.Time]Metrics
-	Targets         []influxdb.ScraperTarget
-}
-
-func (s *mockStorage) Record(collected MetricsCollection) error {
-	s.Lock()
-	defer s.Unlock()
-	for _, m := range collected.MetricsSlice {
-		s.Metrics[m.Timestamp] = m
-	}
-	s.TotalGatherJobs <- struct{}{}
-	return nil
+	Metrics map[time.Time]Metrics
+	Targets []influxdb.ScraperTarget
 }
 
 func (s *mockStorage) ListTargets(ctx context.Context, filter influxdb.ScraperTargetFilter) (targets []influxdb.ScraperTarget, err error) {

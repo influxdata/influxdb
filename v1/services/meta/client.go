@@ -128,24 +128,6 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// AcquireLease attempts to acquire the specified lease.
-// TODO corylanou remove this for single node
-func (c *Client) AcquireLease(name string) (*Lease, error) {
-	l := Lease{
-		Name:       name,
-		Expiration: time.Now().Add(DefaultLeaseDuration),
-	}
-	return &l, nil
-}
-
-// ClusterID returns the ID of the cluster it's connected to.
-func (c *Client) ClusterID() uint64 {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return c.cacheData.ClusterID
-}
-
 // Database returns info for the requested database.
 func (c *Client) Database(name string) *DatabaseInfo {
 	c.mu.RLock()
@@ -272,6 +254,8 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionP
 }
 
 // DropDatabase deletes a database.
+//
+// Returns nil if no database exists
 func (c *Client) DropDatabase(name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

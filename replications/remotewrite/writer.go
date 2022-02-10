@@ -2,7 +2,6 @@ package remotewrite
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -67,7 +66,6 @@ type writer struct {
 	maximumAttemptsForBackoffTime int
 	clientTimeout                 time.Duration
 	done                          chan struct{}
-	maximumAttemptsBeforeErr      int      // used for testing, 0 for unlimited
 	waitFunc                      waitFunc // used for testing
 }
 
@@ -110,9 +108,6 @@ func (w *writer) Write(data []byte) error {
 	attempts := 0
 
 	for {
-		if w.maximumAttemptsBeforeErr > 0 && attempts >= w.maximumAttemptsBeforeErr {
-			return errors.New("maximum number of attempts exceeded")
-		}
 
 		// Get the most recent config on every attempt, in case the user has updated the config to correct errors.
 		conf, err := w.configStore.GetFullHTTPConfig(ctx, w.replicationID)

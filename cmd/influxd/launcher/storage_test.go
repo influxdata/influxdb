@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -210,6 +211,9 @@ func TestLauncher_BucketDelete(t *testing.T) {
 	if got, exp := engine.SeriesCardinality(ctx, l.Bucket.ID), int64(0); got != exp {
 		t.Fatalf("after bucket delete got %d, exp %d", got, exp)
 	}
+
+	databaseInfo := engine.MetaClient().Database(l.Bucket.ID.String())
+	assert.Nil(t, databaseInfo)
 }
 
 func TestLauncher_DeleteWithPredicate(t *testing.T) {

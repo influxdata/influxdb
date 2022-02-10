@@ -2,7 +2,6 @@ package meta_test
 
 import (
 	"context"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -1152,37 +1151,6 @@ func TestMetaClient_CreateShardGroupWithShards(t *testing.T) {
 		t.Fatalf("wrong id of shard 1: %d", groups[0].Shards[1].ID)
 	} else if groups[0].Shards[1].Owners != nil {
 		t.Fatalf("wrong content of shard 1 owners: %v", groups[0].Shards[1].Owners)
-	}
-}
-
-func TestMetaClient_PersistClusterIDAfterRestart(t *testing.T) {
-	t.Parallel()
-
-	cfg := newConfig()
-	defer os.RemoveAll(cfg.Dir)
-
-	store := newStore()
-
-	c := meta.NewClient(cfg, store)
-	if err := c.Open(); err != nil {
-		t.Fatal(err)
-	}
-	id := c.ClusterID()
-	if id == 0 {
-		t.Fatal("cluster ID can't be zero")
-	}
-
-	c = meta.NewClient(cfg, store)
-	if err := c.Open(); err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-
-	idAfter := c.ClusterID()
-	if idAfter == 0 {
-		t.Fatal("cluster ID can't be zero")
-	} else if idAfter != id {
-		t.Fatalf("cluster id not the same: %d, %d", idAfter, id)
 	}
 }
 
