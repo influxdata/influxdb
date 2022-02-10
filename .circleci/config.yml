@@ -170,19 +170,30 @@ jobs:
       - rust_components
       - cache_restore
       - run:
-          name: Check that the workspace hack crate contains all features in use
+          name: Configure git
           command: |
-            cargo hakari generate --diff || {
-              echo "If this fails, fix it by running \`cargo hakari generate\` locally and committing the changes"
-              exit 1
-            }
+            git config user.email "49699333+dependabot[bot]@users.noreply.github.com"
+            git config user.name "dependabot[bot]"
       - run:
-          name: Check that all crates in the workspace depend on the workspace hack crate
+          name: Commit any changes to the features in the workspace hack crate
           command: |
-            cargo hakari manage-deps --dry-run || {
-              echo "If this fails, fix it by running \`cargo hakari manage-deps\` locally and committing the changes"
-              exit 1
-            }
+            cargo hakari generate
+            if [[ $(git status --porcelain) ]] ; then
+              git commit -am "[skip ci] Run cargo hakari generate"
+              git push origin "$CIRCLE_BRANCH"
+            else
+              echo "No changes to commit"
+            fi
+      - run:
+          name: Commit any changes to crates so they all depend on the workspace hack crate
+          command: |
+            cargo hakari manage-deps
+            if [[ $(git status --porcelain) ]] ; then
+              git commit -am "[skip ci] Run cargo hakari manage-deps"
+              git push origin "$CIRCLE_BRANCH"
+            else
+              echo "No changes to commit"
+            fi
 
   test:
     # setup multiple docker images (see https://circleci.com/docs/2.0/configuration-reference/#docker)
