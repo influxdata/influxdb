@@ -442,11 +442,21 @@ jobs:
               --tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" \
               --tag quay.io/influxdb/iox_data_generator:"$BRANCH" \
               .
+            docker buildx build \
+              --build-arg FEATURES="" \
+              --build-arg PACKAGE="iox_gitops_adapter" \
+              --build-arg RUST_VERSION="$RUST_VERSION" \
+              --build-arg RUSTFLAGS="-C target-feature=+avx2 -C link-arg=-fuse-ld=lld" \
+              --progress plain \
+              --tag quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA" \
+              --tag quay.io/influxdb/iox_gitops_adapter:"$BRANCH" \
+              .
 
             docker run -it --rm quay.io/influxdb/iox:$COMMIT_SHA debug print-cpu
 
             docker push --all-tags quay.io/influxdb/iox
             docker push --all-tags quay.io/influxdb/iox_data_generator
+            docker push --all-tags quay.io/influxdb/iox_gitops_adapter
 
             echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
           # linking might take a while and doesn't produce CLI output
@@ -537,7 +547,7 @@ workflows:
     jobs:
       - ci_image
 
-  # Manual build of perf image.
+  # Manual build of release image for a branch.
   # Trigger using the CircleCI API, like so:
   #
   #   # e.g. using 'xh' (https://github.com/ducaale/xh)

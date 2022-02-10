@@ -54,16 +54,16 @@ enum CatalogError {
 // [Clap]: https://github.com/clap-rs/clap
 #[derive(Debug, clap::Parser)]
 #[clap(
-    name = "iox-gitops-adapter",
+    name = "iox_gitops_adapter",
     about = "Adapter to configure IOx Catalog from Kubernetes Custom Resources",
     long_about = r#"Kubernetes controller responsible for synchronising the IOx Catalog to cluster configuration in a Kubernetes Custom Resource.
 
 Examples:
     # Run the gitops adapter server:
-    iox-gitops-adapter
+    iox_gitops_adapter
 
     # See all configuration options
-    iox-gitops-adapter --help
+    iox_gitops_adapter --help
 "#,
     version = concat!(env!("CARGO_PKG_VERSION"), " - ", env!("GIT_HASH"))
 )]
@@ -348,7 +348,7 @@ async fn main() {
     let _drop_handle = setup_tracing(&config.logging_config, None).unwrap();
     debug!(?config, "loaded config");
 
-    info!(git_hash = env!("GIT_HASH"), "starting iox-gitops-adapter");
+    info!(git_hash = env!("GIT_HASH"), "starting iox_gitops_adapter");
 
     let k8s_client = K8sClient::try_default()
         .await

@@ -1510,36 +1510,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78cc372d058dcf6d5ecd98510e7fbc9e5aec4d21de70f65fea8fecebcd881bd4"
 
 [[package]]
-name = "gitops_adapter"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "async-trait",
- "chrono",
- "clap 3.0.14",
- "dotenv",
- "futures",
- "glob",
- "k8s-openapi",
- "kube",
- "kube-derive",
- "kube-runtime",
- "parking_lot 0.11.2",
- "pbjson-build",
- "prost",
- "schemars",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tonic",
- "tonic-build",
- "tracing",
- "trogging",
- "workspace-hack",
-]
-
-[[package]]
 name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2174,6 +2144,36 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "iox_gitops_adapter"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "async-trait",
+ "chrono",
+ "clap 3.0.14",
+ "dotenv",
+ "futures",
+ "glob",
+ "k8s-openapi",
+ "kube",
+ "kube-derive",
+ "kube-runtime",
+ "parking_lot 0.11.2",
+ "pbjson-build",
+ "prost",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "tracing",
+ "trogging",
+ "workspace-hack",
 ]
 
 [[package]]

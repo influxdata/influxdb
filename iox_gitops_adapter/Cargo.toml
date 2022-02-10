@@ -1,5 +1,5 @@
 [package]
-name = "gitops_adapter"
+name = "iox_gitops_adapter"
 version = "0.1.0"
 authors = ["Luke Bond <luke.n.bond@gmail.com>"]
 edition = "2021"
@@ -8,7 +8,7 @@ edition = "2021"
 publish = false
 
 [[bin]]
-name = "iox-gitops-adapter"
+name = "iox_gitops_adapter"
 path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
