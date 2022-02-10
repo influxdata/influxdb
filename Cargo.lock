@@ -428,9 +428,9 @@ checksum = "c4872d67bab6358e59559027aa3b9157c53d9358c51423c17554809a8858e0f8"
 
 [[package]]
 name = "cache_loader_async"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "606d302374be324dae8264e59d63952b9d39b5180d85edbfc4a533d4046d5e43"
+checksum = "31a06310bbfa23d22a6e973fbd6cebf4b3055edd65d6dfa40091f3e9eab395c2"
 dependencies = [
  "futures",
  "thiserror",

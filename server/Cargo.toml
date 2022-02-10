@@ -9,7 +9,7 @@ arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 bytes = "1.0"
 chrono = { version = "0.4", default-features = false }
-cache_loader_async = { version = "0.1.2", features = ["ttl-cache"] }
+cache_loader_async = { version = "0.2.0", features = ["ttl-cache"] }
 crc32fast = "1.3.2"
 data_types = { path = "../data_types" }
 db = { path = "../db" }

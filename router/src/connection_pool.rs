@@ -31,16 +31,41 @@ impl std::fmt::Display for EWrapper {
 
 impl std::error::Error for EWrapper {}
 
+// ==================== Hacks ====================
+// We need to hide a few types from rustc because otherwise we end up with a bunch of "implementation of ... is not
+// general enough" errors downstream. This is very likely a bug:
+//
+// - https://github.com/rust-lang/rust/issues/41078
+// - https://github.com/rust-lang/rust/issues/71723
+// - https://github.com/rust-lang/rust/issues/87425
+#[derive(Debug, Clone)]
+struct ArcDynGrpcClient(Arc<dyn GrpcClient>);
+
+#[derive(Debug, Clone)]
+struct ArcDynWriteBufferWriting(Arc<dyn WriteBufferWriting>);
+
+#[derive(Debug, Clone)]
+struct ConnectionErrorWrapped(ConnectionError);
+// ===============================================
+
+type CacheEntry<T> = cache_loader_async::cache_api::CacheEntry<T, ConnectionErrorWrapped>;
+type HashMapBacking<K, V> = cache_loader_async::backing::HashMapBacking<K, CacheEntry<V>>;
+type LoadingCacheHash<K, V> = LoadingCache<K, V, ConnectionErrorWrapped, HashMapBacking<K, V>>;
+
 /// Connection pool for the entire routing server.
 ///
 /// This avoids:
 /// 1. That every [`Router`](crate::router::Router) uses their own connections
 /// 2. That we open too many connections in total.
-#[derive(Debug)]
 pub struct ConnectionPool {
-    grpc_clients: LoadingCache<String, Arc<dyn GrpcClient>, ConnectionError>,
-    write_buffer_producers:
-        LoadingCache<KeyWriteBufferProducer, Arc<dyn WriteBufferWriting>, ConnectionError>,
+    grpc_clients: LoadingCacheHash<String, ArcDynGrpcClient>,
+    write_buffer_producers: LoadingCacheHash<KeyWriteBufferProducer, ArcDynWriteBufferWriting>,
+}
+
+impl std::fmt::Debug for ConnectionPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConnectionPool").finish_non_exhaustive()
+    }
 }
 
 impl ConnectionPool {
@@ -55,11 +80,14 @@ impl ConnectionPool {
         // Note: this function is async even though it does not contain any `.await` calls because `LoadingCache::new`
         // requires tokio to be running and even if documented people will forget about this.
 
+        // let grpc_clients = Arc::new(LoadingCache::new(foo));
         let grpc_clients = if use_mock_grpc {
             LoadingCache::new(|_connection_string: String| async move {
                 use crate::grpc_client::MockClient;
 
-                Ok(Arc::new(MockClient::default()) as Arc<dyn GrpcClient>)
+                Ok(ArcDynGrpcClient(
+                    Arc::new(MockClient::default()) as Arc<dyn GrpcClient>
+                ))
             })
         } else {
             LoadingCache::new(|connection_string: String| async move {
@@ -69,8 +97,10 @@ impl ConnectionPool {
                 let connection = Builder::default()
                     .build(&connection_string)
                     .await
-                    .map_err(|e| Arc::new(e) as ConnectionError)?;
-                Ok(Arc::new(RealClient::new(connection)) as Arc<dyn GrpcClient>)
+                    .map_err(|e| ConnectionErrorWrapped(Arc::new(e) as ConnectionError))?;
+                Ok(ArcDynGrpcClient(
+                    Arc::new(RealClient::new(connection)) as Arc<dyn GrpcClient>
+                ))
             })
         };
 
@@ -81,7 +111,8 @@ impl ConnectionPool {
                 wb_factory
                     .new_config_write(&key.0, trace_collector.as_ref(), &key.1)
                     .await
-                    .map_err(|e| Arc::new(EWrapper(e)) as ConnectionError)
+                    .map(ArcDynWriteBufferWriting)
+                    .map_err(|e| ConnectionErrorWrapped(Arc::new(EWrapper(e)) as ConnectionError))
             }
         });
 
@@ -120,7 +151,7 @@ impl ConnectionPool {
             .await
             .map_err(|e| Arc::new(e) as ConnectionError)?;
         debug!(was_cached=%res.cached, %connection_string, "getting IOx client");
-        Ok(res.result)
+        Ok(res.result.0)
     }
 
     /// Get write buffer producer given a DB name and config.
@@ -135,7 +166,7 @@ impl ConnectionPool {
             .await
             .map_err(|e| Arc::new(e) as ConnectionError)?;
         debug!(was_cached=%res.cached, %db_name, "getting write buffer");
-        Ok(res.result)
+        Ok(res.result.0)
     }
 }
 

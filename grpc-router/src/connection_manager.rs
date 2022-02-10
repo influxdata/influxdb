@@ -14,6 +14,7 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::time::Instant;
 
 pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -67,17 +68,28 @@ pub trait ConnectionManager<T, E = Error> {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug)]
-pub struct CachingConnectionManager<T>
+pub struct CachingConnectionManager<T, B>
 where
     T: Clone + Send + 'static,
+    B: CacheBacking<String, CacheEntry<T>> + Send + 'static,
 {
-    cache: LoadingCache<String, T, Arc<Error>>,
+    cache: LoadingCache<String, T, Arc<Error>, B>,
+}
+
+impl<T, B> std::fmt::Debug for CachingConnectionManager<T, B>
+where
+    T: Clone + Send + 'static,
+    B: CacheBacking<String, CacheEntry<T>> + Send + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CachingConnectionManager")
+            .finish_non_exhaustive()
+    }
 }
 
 pub type ClientFuture<T> = Pin<Box<dyn Future<Output = Result<T, tonic::transport::Error>> + Send>>;
 
-impl<T> CachingConnectionManager<T>
+impl<T> CachingConnectionManager<T, HashMapBacking<String, CacheEntry<T>>>
 where
     T: Clone + Send + 'static,
 {
@@ -88,9 +100,10 @@ where
 }
 
 #[tonic::async_trait]
-impl<T> ConnectionManager<T> for CachingConnectionManager<T>
+impl<T, B> ConnectionManager<T> for CachingConnectionManager<T, B>
 where
     T: Clone + Send + 'static,
+    B: CacheBacking<String, CacheEntry<T>> + Send + 'static,
 {
     async fn remote_server(&self, connect: String) -> Result<T, Error> {
         let cached = self.cache.get_with_meta(connect.to_string()).await?;
@@ -141,6 +154,8 @@ where
 }
 
 type CacheEntry<T> = cache_api::CacheEntry<T, Arc<Error>>;
+type TtlBacking<T> =
+    TtlCacheBacking<String, CacheEntry<T>, HashMapBacking<String, (CacheEntry<T>, Instant)>>;
 
 // This needs to be a separate impl block because they place different bounds on the type parameters.
 impl<T, B, F> CachingConnectionManagerBuilder<T, B, F>
@@ -149,10 +164,7 @@ where
     B: CacheBacking<String, CacheEntry<T>> + Send + 'static,
 {
     /// Use a cache backing store that expires entries once they are older than `ttl`.
-    pub fn with_ttl(
-        self,
-        ttl: Duration,
-    ) -> CachingConnectionManagerBuilder<T, TtlCacheBacking<String, CacheEntry<T>>, F> {
+    pub fn with_ttl(self, ttl: Duration) -> CachingConnectionManagerBuilder<T, TtlBacking<T>, F> {
         self.with_backing(TtlCacheBacking::new(ttl))
     }
 
@@ -188,7 +200,7 @@ where
     F: Fn(String) -> ClientFuture<T> + Copy + Send + Sync + 'static,
 {
     /// Builds a [`CachingConnectionManager`].
-    pub fn build(self) -> CachingConnectionManager<T> {
+    pub fn build(self) -> CachingConnectionManager<T, B> {
         let make_client = self.make_client;
         let cache = LoadingCache::with_backing(self.backing, move |connect| async move {
             (make_client)(connect)
