@@ -1435,6 +1435,110 @@ async fn test_get_server_status_db_error() {
 }
 
 #[tokio::test]
+async fn test_restart_wipe() {
+    let fixture = ServerFixture::create_single_use(ServerType::Database).await;
+
+    let mut deployment_client = fixture.deployment_client();
+    let mut management_client = fixture.management_client();
+    let mut operations_client = fixture.operations_client();
+    let mut write_client = fixture.write_client();
+
+    deployment_client
+        .update_server_id(NonZeroU32::new(1).unwrap())
+        .await
+        .unwrap();
+
+    fixture.wait_server_initialized().await;
+
+    let db_name = rand_name();
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1)
+        .late_arrive_window_seconds(1)
+        .build(fixture.grpc_channel())
+        .await;
+
+    // Check database is running
+    let status = management_client.get_server_status().await.unwrap();
+    assert_eq!(status.database_statuses.len(), 1);
+    assert_eq!(
+        DatabaseState::from_i32(status.database_statuses[0].state).unwrap(),
+        DatabaseState::Initialized
+    );
+
+    write_client
+        .write_lp(&db_name, "cpu,region=west user=23.2 100", 0)
+        .await
+        .unwrap();
+
+    let chunks = management_client.list_chunks(&db_name).await.unwrap();
+    assert_eq!(chunks.len(), 1);
+
+    // Persist data
+    management_client
+        .persist_partition(&db_name, "cpu", &chunks[0].partition_key, true)
+        .await
+        .unwrap();
+
+    // Shutdown database
+    management_client.shutdown_database(&db_name).await.unwrap();
+    let status = management_client.get_server_status().await.unwrap();
+    assert_eq!(status.database_statuses.len(), 1);
+    assert_eq!(
+        DatabaseState::from_i32(status.database_statuses[0].state).unwrap(),
+        DatabaseState::Shutdown
+    );
+
+    // Start it up again
+    management_client
+        .restart_database(&db_name, false)
+        .await
+        .unwrap();
+    let status = management_client.get_server_status().await.unwrap();
+    assert_eq!(status.database_statuses.len(), 1);
+    assert_eq!(
+        DatabaseState::from_i32(status.database_statuses[0].state).unwrap(),
+        DatabaseState::Initialized
+    );
+
+    // Should still have data
+    let chunks = management_client.list_chunks(&db_name).await.unwrap();
+    assert_eq!(chunks.len(), 1);
+
+    // Shut it down
+    management_client.shutdown_database(&db_name).await.unwrap();
+    let status = management_client.get_server_status().await.unwrap();
+    assert_eq!(status.database_statuses.len(), 1);
+    assert_eq!(
+        DatabaseState::from_i32(status.database_statuses[0].state).unwrap(),
+        DatabaseState::Shutdown
+    );
+
+    // Wipe it
+    let operation = management_client
+        .wipe_preserved_catalog(&db_name)
+        .await
+        .unwrap();
+
+    operations_client
+        .wait_operation(operation.operation.id(), None)
+        .await
+        .unwrap();
+
+    // Wipe will complete and then startup the server
+    let status = management_client.get_server_status().await.unwrap();
+    assert_eq!(status.database_statuses.len(), 1);
+    assert_eq!(
+        DatabaseState::from_i32(status.database_statuses[0].state).unwrap(),
+        DatabaseState::Initialized
+    );
+
+    // Data should have been deleted
+    let chunks = management_client.list_chunks(&db_name).await.unwrap();
+    assert_eq!(chunks.len(), 0);
+}
+
+#[tokio::test]
 async fn test_unload_read_buffer() {
     use data_types::chunk_metadata::ChunkStorage;
 

@@ -751,15 +751,7 @@ async fn force_claim_database() {
         )));
 }
 
-#[tokio::test]
-async fn list_database_detailed() {
-    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
-    let addr = server_fixture.grpc_base();
-    let db_name = rand_name();
-    let db = &db_name;
-    let uuid = create_readable_database(&db_name, server_fixture.grpc_channel()).await;
-
-    // Listing the databases includes the db name, and status
+fn list_detailed(addr: &str, db: &str) -> String {
     let output = String::from_utf8(
         Command::cargo_bin("influxdb_iox")
             .unwrap()
@@ -776,6 +768,26 @@ async fn list_database_detailed() {
     )
     .expect("non utf8 in output");
 
+    println!("looking for {} in", db);
+    println!("{}", output);
+    output
+        .split('\n')
+        .find(|line| line.contains(db))
+        .expect("can't find db name")
+        .to_string()
+}
+
+#[tokio::test]
+async fn list_database_detailed() {
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+    let db = &db_name;
+    let uuid = create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    // Listing the databases includes the db name, and status
+    let line = list_detailed(addr, db);
+
     // Output looks like:
     // +------------+--------------------------------------+-------------+--------+
     // | Name       | UUID                                 | State       | Error  |
@@ -783,16 +795,50 @@ async fn list_database_detailed() {
     // | ie9HrfSBQB | 299b541d-e3fb-47ef-bdd4-98f94ad1f1b3 | Initialized | <none> |
     // +------------+--------------------------------------+-------------+--------+
 
-    println!("looking for {} in", db);
-    println!("{}", output);
-    let line = output
-        .split('\n')
-        .find(|line| line.contains(db))
-        .expect("can't find db name");
+    assert_contains!(&line, uuid.to_string());
+    assert_contains!(&line, "Initialized"); // state
+    assert_contains!(&line, "<none>"); // error
+}
 
-    assert_contains!(line, uuid.to_string());
-    assert_contains!(line, "Initialized"); // state
-    assert_contains!(line, "<none>"); // error
+#[tokio::test]
+async fn restart_database() {
+    let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+    let db = &db_name;
+    let uuid = create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    let line = list_detailed(addr, db);
+    assert_contains!(&line, &uuid.to_string());
+    assert_contains!(&line, "Initialized");
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("shutdown")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success();
+
+    let line = list_detailed(addr, db);
+    assert_contains!(&line, uuid.to_string());
+    assert_contains!(&line, "Shutdown");
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("restart")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success();
+
+    let line = list_detailed(addr, db);
+    assert_contains!(&line, uuid.to_string());
+    assert_contains!(&line, "Initialized");
 }
 
 #[tokio::test]
@@ -1250,7 +1296,7 @@ async fn test_wipe_persisted_catalog_error_db_exists() {
     create_readable_database(&db_name, server_fixture.grpc_channel()).await;
 
     let expected_err = format!(
-        "database ({}) in invalid state (Initialized) for wiping preserved catalog. Expected CatalogLoadError, WriteBufferCreationError, ReplayError",
+        "Error wiping preserved catalog: The system is not in a state required for the operation\'s execution: database ({}) in invalid state (Initialized) for transition (WipePreservedCatalog)",
         db_name
     );
 

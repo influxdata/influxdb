@@ -2122,7 +2122,7 @@ mod tests {
                 .unwrap_err()
                 .to_string(),
              "error wiping preserved catalog: database (db_existing) in invalid state (Initialized) \
-              for wiping preserved catalog. Expected CatalogLoadError, WriteBufferCreationError, ReplayError"
+              for transition (WipePreservedCatalog)"
         );
         assert!(PreservedCatalog::exists(&existing.iox_object_store())
             .await
@@ -2169,7 +2169,7 @@ mod tests {
                 .unwrap_err()
                 .to_string(),
             "error wiping preserved catalog: database (db_broken_rules) in invalid state (RulesLoadError) \
-             for wiping preserved catalog. Expected CatalogLoadError, WriteBufferCreationError, ReplayError"
+             for transition (WipePreservedCatalog)"
         );
 
         // 4. wipe DB with broken catalog, this will bring the DB back to life
@@ -2213,7 +2213,7 @@ mod tests {
                 .unwrap_err()
                 .to_string(),
             "error wiping preserved catalog: database (db_created) in invalid state (Initialized) \
-             for wiping preserved catalog. Expected CatalogLoadError, WriteBufferCreationError, ReplayError"
+             for transition (WipePreservedCatalog)"
         );
         assert!(PreservedCatalog::exists(&created.iox_object_store())
             .await

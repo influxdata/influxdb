@@ -553,4 +553,36 @@ impl Client {
             .unwrap_field("operation")?
             .try_into()?)
     }
+
+    /// Shutdown database
+    pub async fn shutdown_database(
+        &mut self,
+        db_name: impl Into<String> + Send,
+    ) -> Result<(), Error> {
+        let db_name = db_name.into();
+
+        self.inner
+            .shutdown_database(ShutdownDatabaseRequest { db_name })
+            .await?;
+
+        Ok(())
+    }
+
+    /// Restart database
+    pub async fn restart_database(
+        &mut self,
+        db_name: impl Into<String> + Send,
+        skip_replay: bool,
+    ) -> Result<(), Error> {
+        let db_name = db_name.into();
+
+        self.inner
+            .restart_database(RestartDatabaseRequest {
+                db_name,
+                skip_replay,
+            })
+            .await?;
+
+        Ok(())
+    }
 }

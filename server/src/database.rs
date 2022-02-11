@@ -32,13 +32,13 @@ use uuid::Uuid;
 
 /// Matches an error [`DatabaseState`] and clones the contained state
 macro_rules! error_state {
-    ($s:expr, $transition: literal, $variant:ident) => {
-        match &**$s.shared.state.read() {
-            DatabaseState::$variant(state, ..) => state.clone(),
+    ($s:expr, $transition: literal, $code: pat) => {
+        match $s.state_code() {
+            $code => {}
             state => {
                 return InvalidStateSnafu {
                     db_name: &$s.shared.config.read().name,
-                    state: state.state_code(),
+                    state,
                     transition: $transition,
                 }
                 .fail()
@@ -59,18 +59,6 @@ pub enum Error {
         db_name: String,
         state: DatabaseStateCode,
         transition: String,
-    },
-
-    #[snafu(display(
-        "database ({}) in invalid state ({:?}) for wiping preserved catalog. Expected {}",
-        db_name,
-        state,
-        expected
-    ))]
-    InvalidStateForWipePreservedCatalog {
-        db_name: String,
-        state: DatabaseStateCode,
-        expected: String,
     },
 
     #[snafu(display(
@@ -222,14 +210,21 @@ impl Database {
         self.shutdown.lock().cancel()
     }
 
-    /// Triggers a restart of this `Database` and wait for it to re-initialize
+    /// Trigger a restart of this `Database` and wait for it to re-initialize
     pub async fn restart(&self) -> Result<(), Arc<InitError>> {
+        self.restart_with_options(false).await
+    }
+
+    /// Trigger a restart of this `Database` and wait for it to re-initialize
+    pub async fn restart_with_options(&self, skip_replay: bool) -> Result<(), Arc<InitError>> {
         let db_name = self.name();
         info!(%db_name, "restarting database");
 
         // Ensure database is shut down
         self.shutdown();
         let _ = self.join().await.log_if_error("restarting database");
+
+        self.shared.config.write().skip_replay = skip_replay;
 
         {
             let mut shutdown = self.shutdown.lock();
@@ -414,19 +409,14 @@ impl Database {
     pub async fn wipe_preserved_catalog(self: &Arc<Self>) -> Result<TaskTracker<Job>, Error> {
         let db_name = self.name();
 
-        match self.state_code() {
+        error_state!(
+            self,
+            "WipePreservedCatalog",
             DatabaseStateCode::CatalogLoadError
-            | DatabaseStateCode::WriteBufferCreationError
-            | DatabaseStateCode::ReplayError => {}
-            state => {
-                return InvalidStateForWipePreservedCatalogSnafu {
-                    db_name,
-                    state,
-                    expected: "CatalogLoadError, WriteBufferCreationError, ReplayError",
-                }
-                .fail()
-            }
-        }
+                | DatabaseStateCode::WriteBufferCreationError
+                | DatabaseStateCode::ReplayError
+                | DatabaseStateCode::Shutdown
+        );
 
         // Shutdown database
         self.shutdown();
@@ -436,7 +426,7 @@ impl Database {
         let handle = self.shared.state.read().freeze();
         let handle = handle.await;
 
-        error_state!(self, "WipePreservedCatalog", Shutdown);
+        error_state!(self, "WipePreservedCatalog", DatabaseStateCode::Shutdown);
 
         let registry = self.shared.application.job_registry();
         let (tracker, registration) = registry.register(Job::WipePreservedCatalog {
@@ -478,7 +468,11 @@ impl Database {
         force: bool,
     ) -> Result<TaskTracker<Job>, Error> {
         if !force {
-            error_state!(self, "RebuildPreservedCatalog", CatalogLoadError);
+            error_state!(
+                self,
+                "RebuildPreservedCatalog",
+                DatabaseStateCode::CatalogLoadError | DatabaseStateCode::Shutdown
+            );
         }
 
         let shared = Arc::clone(&self.shared);
@@ -492,7 +486,7 @@ impl Database {
         let handle = self.shared.state.read().freeze();
         let handle = handle.await;
 
-        error_state!(self, "RebuildPreservedCatalog", Shutdown);
+        error_state!(self, "RebuildPreservedCatalog", DatabaseStateCode::Shutdown);
 
         let registry = self.shared.application.job_registry();
         let (tracker, registration) = registry.register(Job::RebuildPreservedCatalog {
@@ -544,7 +538,7 @@ impl Database {
 
     /// Recover from a ReplayError by skipping replay
     pub async fn skip_replay(&self) -> Result<(), Error> {
-        error_state!(self, "SkipReplay", ReplayError);
+        error_state!(self, "SkipReplay", DatabaseStateCode::ReplayError);
 
         self.shared.config.write().skip_replay = true;
 

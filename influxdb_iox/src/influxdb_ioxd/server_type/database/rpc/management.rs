@@ -1,3 +1,4 @@
+use data_types::error::ErrorLogger;
 use data_types::{chunk_metadata::ChunkId, DatabaseName};
 use generated_types::{
     google::{FieldViolation, FieldViolationExt},
@@ -582,6 +583,50 @@ impl management_service_server::ManagementService for ManagementService {
         Ok(Response::new(CompactObjectStorePartitionResponse {
             operation,
         }))
+    }
+
+    async fn shutdown_database(
+        &self,
+        request: Request<ShutdownDatabaseRequest>,
+    ) -> Result<Response<ShutdownDatabaseResponse>, Status> {
+        let request = request.into_inner();
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(request.db_name).scope("db_name")?;
+
+        let database = self
+            .server
+            .database(&db_name)
+            .map_err(default_server_error_handler)?;
+
+        // Wait for database to shutdown
+        database.shutdown();
+        // Ignore error as database is still shutdown
+        let _ = database.join().await.log_if_error("shutdown database");
+        Ok(Response::new(ShutdownDatabaseResponse {}))
+    }
+
+    async fn restart_database(
+        &self,
+        request: Request<RestartDatabaseRequest>,
+    ) -> Result<Response<RestartDatabaseResponse>, Status> {
+        let request = request.into_inner();
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(request.db_name).scope("db_name")?;
+
+        let database = self
+            .server
+            .database(&db_name)
+            .map_err(default_server_error_handler)?;
+
+        // restart database
+        database
+            .restart_with_options(request.skip_replay)
+            .await
+            .map_err(|source| {
+                tonic::Status::invalid_argument(format!("Cannot initialize database: {}", source))
+            })?;
+
+        Ok(Response::new(RestartDatabaseResponse {}))
     }
 }
 

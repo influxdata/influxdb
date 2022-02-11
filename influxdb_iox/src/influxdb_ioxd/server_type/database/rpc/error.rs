@@ -86,9 +86,6 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
         Error::RulesNotUpdateable { .. } => {
             PreconditionViolation::DatabaseInvalidState(error.to_string()).into()
         }
-        Error::InvalidStateForWipePreservedCatalog { .. } => {
-            PreconditionViolation::DatabaseInvalidState(error.to_string()).into()
-        }
         Error::WipePreservedCatalog { source, .. } => {
             error!(%source, "Unexpected error while wiping catalog");
             InternalError {}.into()

@@ -190,6 +190,24 @@ struct Claim {
     force: bool,
 }
 
+/// Shutdown database
+#[derive(Debug, clap::Parser)]
+struct Shutdown {
+    /// The name of the database
+    name: String,
+}
+
+/// Restart database
+#[derive(Debug, clap::Parser)]
+struct Restart {
+    /// The name of the database
+    name: String,
+
+    /// Skip replay
+    #[clap(long)]
+    skip_replay: bool,
+}
+
 /// All possible subcommands for database
 #[derive(Debug, clap::Parser)]
 enum Command {
@@ -222,6 +240,12 @@ enum Command {
 
     /// Claim an unowned database
     Claim(Claim),
+
+    /// Shutdown a database
+    Shutdown(Shutdown),
+
+    /// Restart a database
+    Restart(Restart),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
@@ -401,6 +425,18 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             let mut client = management::Client::new(connection);
             let db_name = client.claim_database(command.uuid, command.force).await?;
             println!("Claimed database {}", db_name);
+        }
+        Command::Shutdown(command) => {
+            let mut client = management::Client::new(connection);
+            client.shutdown_database(command.name).await?;
+            println!("Database shutdown");
+        }
+        Command::Restart(command) => {
+            let mut client = management::Client::new(connection);
+            client
+                .restart_database(command.name, command.skip_replay)
+                .await?;
+            println!("Database restarted");
         }
     }
 
