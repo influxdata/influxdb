@@ -1500,7 +1500,7 @@ func (c *KeyCursor) nextDescending() {
 	c.current[0] = c.seeks[c.pos]
 
 	// If we have ovelapping blocks, append all their values so we can dedup
-	for i := c.pos; i >= 0; i-- {
+	for i := c.pos - 1; i >= 0; i-- {
 		if c.seeks[i].read() {
 			continue
 		}
