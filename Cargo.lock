@@ -909,14 +909,14 @@ dependencies = [
 name = "datafusion"
 version = "0.1.0"
 dependencies = [
- "datafusion 6.0.0",
+ "datafusion 7.0.0",
  "workspace-hack",
 ]
 
 [[package]]
 name = "datafusion"
-version = "6.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=071f14ade65b7e491898c06e7b086282cf12a442#071f14ade65b7e491898c06e7b086282cf12a442"
+version = "7.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=0a50dcdfb1f2854e59b17da2d87c106c614b226d#0a50dcdfb1f2854e59b17da2d87c106c614b226d"
 dependencies = [
  "ahash",
  "arrow",
@@ -936,7 +936,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser 0.13.0",
+ "sqlparser",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -944,24 +944,24 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "6.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=071f14ade65b7e491898c06e7b086282cf12a442#071f14ade65b7e491898c06e7b086282cf12a442"
+version = "7.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=0a50dcdfb1f2854e59b17da2d87c106c614b226d#0a50dcdfb1f2854e59b17da2d87c106c614b226d"
 dependencies = [
  "arrow",
  "ordered-float 2.10.0",
  "parquet",
- "sqlparser 0.13.0",
+ "sqlparser",
 ]
 
 [[package]]
 name = "datafusion-expr"
-version = "6.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=071f14ade65b7e491898c06e7b086282cf12a442#071f14ade65b7e491898c06e7b086282cf12a442"
+version = "7.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=0a50dcdfb1f2854e59b17da2d87c106c614b226d#0a50dcdfb1f2854e59b17da2d87c106c614b226d"
 dependencies = [
  "ahash",
  "arrow",
  "datafusion-common",
- "sqlparser 0.13.0",
+ "sqlparser",
 ]
 
 [[package]]
@@ -2007,7 +2007,7 @@ version = "0.1.0"
 dependencies = [
  "generated_types",
  "snafu",
- "sqlparser 0.14.0",
+ "sqlparser",
  "workspace-hack",
 ]
 
@@ -3612,7 +3612,7 @@ dependencies = [
  "schema",
  "serde_json",
  "snafu",
- "sqlparser 0.14.0",
+ "sqlparser",
  "test_helpers",
  "tokio",
  "workspace-hack",
@@ -4769,15 +4769,6 @@ dependencies = [
  "itertools",
  "nom",
  "unicode_categories",
-]
-
-[[package]]
-name = "sqlparser"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9907f54bd0f7b6ce72c2be1e570a614819ee08e3deb66d90480df341d8a12a8"
-dependencies = [
- "log",
 ]
 
 [[package]]
