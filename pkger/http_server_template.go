@@ -316,6 +316,14 @@ type RespApply struct {
 	Errors []ValidationErr `json:"errors,omitempty" yaml:"errors,omitempty"`
 }
 
+// RespApplyErr is the response body for a dry-run parse error in the apply template endpoint.
+type RespApplyErr struct {
+	RespApply
+
+	Code    string `json:"code" yaml:"code"`
+	Message string `json:"message" yaml:"message"`
+}
+
 func (s *HTTPServerTemplates) apply(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqApply
 	encoding, err := decodeWithEncoding(r, &reqBody)
@@ -415,7 +423,11 @@ func (s *HTTPServerTemplates) apply(w http.ResponseWriter, r *http.Request) {
 	if reqBody.DryRun {
 		impact, err := s.svc.DryRun(r.Context(), *orgID, userID, applyOpts...)
 		if IsParseErr(err) {
-			s.api.Respond(w, r, http.StatusUnprocessableEntity, impactToRespApply(impact, err))
+			s.api.Respond(w, r, http.StatusUnprocessableEntity, RespApplyErr{
+				RespApply: impactToRespApply(impact, err),
+				Code:      errors.EUnprocessableEntity,
+				Message:   "unprocessable entity",
+			})
 			return
 		}
 		if err != nil {
