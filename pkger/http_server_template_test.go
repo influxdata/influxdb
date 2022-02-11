@@ -606,6 +606,76 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 				t.Run(tt.name, fn)
 			}
 		})
+
+		t.Run("resp apply err response", func(t *testing.T) {
+			tests := []struct {
+				name string
+				contentType string
+				reqBody pkger.ReqApply
+			}{
+				{
+					name: "invalid json",
+					contentType: "application/json",
+					reqBody: pkger.ReqApply{
+						DryRun:      true,
+						OrgID:       platform.ID(9000).String(),
+						RawTemplate: simpleInvalidBody(t, pkger.EncodingJSON),
+					},
+				},
+			}
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					svc := &fakeSVC{
+						dryRunFn: func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+							var opt pkger.ApplyOpt
+							for _, o := range opts {
+								o(&opt)
+							}
+							pkg, err := pkger.Combine(opt.Templates)
+							if err != nil {
+								return pkger.ImpactSummary{}, err
+							}
+
+							if err := pkg.Validate(); err != nil {
+								return pkger.ImpactSummary{}, err
+							}
+							sum := pkg.Summary()
+							var diff pkger.Diff
+							for _, b := range sum.Buckets {
+								diff.Buckets = append(diff.Buckets, pkger.DiffBucket{
+									DiffIdentifier: pkger.DiffIdentifier{
+										MetaName: b.Name,
+									},
+								})
+							}
+							return pkger.ImpactSummary{
+								Summary: sum,
+								Diff:    diff,
+							}, nil
+						},
+					}
+
+					pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+					svr := newMountedHandler(pkgHandler, 1)
+
+					testttp.
+						PostJSON(t, "/api/v2/templates/apply", tt.reqBody).
+						Headers("Content-Type", tt.contentType).
+						Do(svr).
+						ExpectStatus(http.StatusUnprocessableEntity).
+						ExpectBody(func(buf *bytes.Buffer) {
+							var resp pkger.RespApplyErr
+							decodeBody(t, buf, &resp)
+							require.Equal(t, "unprocessable entity", resp.Code)
+							require.Greater(t, len(resp.Message), 0)
+							require.NotNil(t, resp.Summary)
+							require.NotNil(t, resp.Diff)
+							require.Greater(t, len(resp.Errors), 0)
+						})
+				}
+				t.Run(tt.name, fn)
+			}
+		})
 	})
 
 	t.Run("apply a pkg", func(t *testing.T) {
@@ -847,6 +917,17 @@ func bucketPkgJsonWithJsonnetRemote(t *testing.T) pkger.ReqRawTemplate {
 		ContentType: pkger.EncodingJsonnet.String(),
 		Sources:     []string{"file:///nonexistent.jsonnet"},
 		Template:    b,
+	}
+}
+
+func simpleInvalidBody(t *testing.T, encoding pkger.Encoding) pkger.ReqRawTemplate {
+	t.Helper()
+	b := bytes.Buffer{}
+	b.WriteString("[ {}, {} ]")
+	return pkger.ReqRawTemplate{
+		ContentType: encoding.String(),
+		Sources:     []string{"test1.json"},
+		Template:    b.Bytes(),
 	}
 }
 
