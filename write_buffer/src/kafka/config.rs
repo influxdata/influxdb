@@ -18,7 +18,11 @@ impl TryFrom<&BTreeMap<String, String>> for ClientConfig {
 
     fn try_from(cfg: &BTreeMap<String, String>) -> Result<Self, Self::Error> {
         Ok(Self {
-            max_message_size: parse_key(cfg, "max_message_size")?,
+            // TODO: Revert this back to after we have proper prod config management.
+            //       See https://github.com/influxdata/influxdb_iox/issues/3723
+            //
+            //       max_message_size: parse_key(cfg, "max_message_size")?,
+            max_message_size: Some(parse_key(cfg, "max_message_size")?.unwrap_or(10485760)),
         })
     }
 }
@@ -79,7 +83,11 @@ impl TryFrom<&BTreeMap<String, String>> for ConsumerConfig {
         Ok(Self {
             max_wait_ms: parse_key(cfg, "consumer_max_wait_ms")?,
             min_batch_size: parse_key(cfg, "consumer_min_batch_size")?,
-            max_batch_size: parse_key(cfg, "consumer_max_batch_size")?,
+            // TODO: Revert this back to after we have proper prod config management.
+            //       See https://github.com/influxdata/influxdb_iox/issues/3723
+            //
+            //       max_batch_size: parse_key(cfg, "consumer_max_batch_size")?,
+            max_batch_size: Some(parse_key(cfg, "consumer_max_batch_size")?.unwrap_or(5242880)),
         })
     }
 }
@@ -106,7 +114,11 @@ impl TryFrom<&BTreeMap<String, String>> for ProducerConfig {
 
         Ok(Self {
             linger: linger_ms.map(Duration::from_millis),
-            max_batch_size: parse_key(cfg, "producer_max_batch_size")?.unwrap_or(512 * 1024),
+            // TODO: Revert this back to after we have proper prod config management.
+            //       See https://github.com/influxdata/influxdb_iox/issues/3723
+            //
+            //       max_batch_size: parse_key(cfg, "producer_max_batch_size")?.unwrap_or(512 * 1024),
+            max_batch_size: parse_key(cfg, "producer_max_batch_size")?.unwrap_or(2621440),
         })
     }
 }
@@ -136,7 +148,7 @@ mod tests {
     fn test_client_config_default() {
         let actual = ClientConfig::try_from(&BTreeMap::default()).unwrap();
         let expected = ClientConfig {
-            max_message_size: None,
+            max_message_size: Some(10485760),
         };
         assert_eq!(actual, expected);
     }
@@ -230,7 +242,7 @@ mod tests {
         let expected = ConsumerConfig {
             max_wait_ms: None,
             min_batch_size: None,
-            max_batch_size: None,
+            max_batch_size: Some(5242880),
         };
         assert_eq!(actual, expected);
     }
@@ -290,7 +302,7 @@ mod tests {
         let actual = ProducerConfig::try_from(&BTreeMap::default()).unwrap();
         let expected = ProducerConfig {
             linger: None,
-            max_batch_size: 512 * 1024,
+            max_batch_size: 2621440,
         };
         assert_eq!(actual, expected);
     }
