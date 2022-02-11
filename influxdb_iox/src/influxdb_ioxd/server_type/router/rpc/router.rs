@@ -1,14 +1,17 @@
 use std::sync::Arc;
 
+use tonic::{Request, Response, Status};
+
+use generated_types::google::PreconditionViolation;
 use generated_types::{
     google::{FromOptionalField, NotFound, ResourceType},
     influxdata::iox::router::v1::*,
 };
 use router::server::RouterServer;
-use tonic::{Request, Response, Status};
 
 struct RouterService {
     server: Arc<RouterServer>,
+    config_immutable: bool,
 }
 
 #[tonic::async_trait]
@@ -45,6 +48,10 @@ impl router_service_server::RouterService for RouterService {
         &self,
         request: Request<UpdateRouterRequest>,
     ) -> Result<Response<UpdateRouterResponse>, Status> {
+        if self.config_immutable {
+            return Err(PreconditionViolation::RouterConfigImmutable.into());
+        }
+
         use data_types::router::Router as RouterConfig;
 
         let UpdateRouterRequest { router } = request.into_inner();
@@ -57,6 +64,10 @@ impl router_service_server::RouterService for RouterService {
         &self,
         request: Request<DeleteRouterRequest>,
     ) -> Result<Response<DeleteRouterResponse>, Status> {
+        if self.config_immutable {
+            return Err(PreconditionViolation::RouterConfigImmutable.into());
+        }
+
         let DeleteRouterRequest { router_name } = request.into_inner();
         self.server.delete_router(&router_name);
         Ok(Response::new(DeleteRouterResponse {}))
@@ -65,6 +76,10 @@ impl router_service_server::RouterService for RouterService {
 
 pub fn make_server(
     server: Arc<RouterServer>,
+    config_immutable: bool,
 ) -> router_service_server::RouterServiceServer<impl router_service_server::RouterService> {
-    router_service_server::RouterServiceServer::new(RouterService { server })
+    router_service_server::RouterServiceServer::new(RouterService {
+        server,
+        config_immutable,
+    })
 }

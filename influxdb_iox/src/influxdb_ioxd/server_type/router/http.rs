@@ -255,7 +255,7 @@ mod tests {
             query_sinks: Default::default(),
         });
 
-        let server_type = Arc::new(RouterServerType::new(server, &common_state));
+        let server_type = Arc::new(RouterServerType::new(server, &common_state, false));
         TestServer::new(server_type)
     }
 

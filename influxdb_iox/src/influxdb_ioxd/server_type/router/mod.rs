@@ -26,10 +26,15 @@ pub struct RouterServerType {
     shutdown: CancellationToken,
     max_request_size: usize,
     lp_metrics: Arc<LineProtocolMetrics>,
+    config_immutable: bool,
 }
 
 impl RouterServerType {
-    pub fn new(server: Arc<RouterServer>, common_state: &CommonServerState) -> Self {
+    pub fn new(
+        server: Arc<RouterServer>,
+        common_state: &CommonServerState,
+        config_immutable: bool,
+    ) -> Self {
         let lp_metrics = Arc::new(LineProtocolMetrics::new(server.metric_registry().as_ref()));
 
         Self {
@@ -38,6 +43,7 @@ impl RouterServerType {
             shutdown: CancellationToken::new(),
             max_request_size: common_state.run_config().max_http_request_size,
             lp_metrics,
+            config_immutable,
         }
     }
 }

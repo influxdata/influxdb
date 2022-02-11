@@ -119,3 +119,9 @@ message QuerySinks {
   // gRPC-based remotes, addressed by their server IDs.
   repeated uint32 grpc_remotes = 1;
 }
+
+// A config file for a router server
+message RouterConfigFile {
+  // A list of router configurations
+  repeated Router routers = 1;
+}

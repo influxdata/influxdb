@@ -471,6 +471,8 @@ pub enum PreconditionViolation {
     PartitionInvalidState(String),
     /// Chunk not in required state for operation
     ChunkInvalidState(String),
+    /// Configuration is immutable
+    RouterConfigImmutable,
     /// An unknown precondition violation
     Unknown {
         category: String,
@@ -488,6 +490,7 @@ impl PreconditionViolation {
             Self::DatabaseInvalidState(description) => description.clone(),
             Self::PartitionInvalidState(description) => description.clone(),
             Self::ChunkInvalidState(description) => description.clone(),
+            Self::RouterConfigImmutable => "router configuration is not mutable".to_string(),
             Self::Unknown { description, .. } => description.clone(),
         }
     }
@@ -526,6 +529,11 @@ impl From<PreconditionViolation> for rpc::precondition_failure::Violation {
                 subject: "influxdata.com/iox/chunk".to_string(),
                 description: v.description(),
             },
+            PreconditionViolation::RouterConfigImmutable => Self {
+                r#type: "config".to_string(),
+                subject: "influxdata.com/iox/router".to_string(),
+                description: v.description(),
+            },
             PreconditionViolation::Unknown {
                 category,
                 subject,
@@ -556,6 +564,7 @@ impl From<rpc::precondition_failure::Violation> for PreconditionViolation {
             ("state", "influxdata.com/iox/chunk") => {
                 PreconditionViolation::ChunkInvalidState(v.description)
             }
+            ("config", "influxdata.com/iox/router") => PreconditionViolation::RouterConfigImmutable,
             _ => Self::Unknown {
                 category: v.r#type,
                 subject: v.subject,

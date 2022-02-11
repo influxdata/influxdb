@@ -32,7 +32,10 @@ pub async fn server_grpc(
     );
     add_service!(
         builder,
-        router::make_server(Arc::clone(&server_type.server))
+        router::make_server(
+            Arc::clone(&server_type.server),
+            server_type.config_immutable
+        )
     );
     add_gated_service!(
         builder,

@@ -12,6 +12,7 @@ use crate::{
         },
     },
 };
+use generated_types::{google::FieldViolation, influxdata::iox::router::v1::RouterConfigFile};
 use observability_deps::tracing::warn;
 use router::{resolver::RemoteTemplate, server::RouterServer};
 use thiserror::Error;
@@ -27,6 +28,15 @@ pub enum Error {
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
+
+    #[error("error reading config file: {0}")]
+    ReadConfig(#[from] std::io::Error),
+
+    #[error("error decoding config file: {0}")]
+    DecodeConfig(#[from] serde_json::Error),
+
+    #[error("invalid config for router {0} in config file: {1}")]
+    InvalidRouterConfig(String, FieldViolation),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -58,6 +68,13 @@ pub struct Config {
     /// Example: http://node-{id}.ioxmydomain.com:8082
     #[clap(long = "--remote-template", env = "INFLUXDB_IOX_REMOTE_TEMPLATE")]
     pub remote_template: Option<String>,
+
+    /// Path to a configuration file to use for routing configuration, this will
+    /// disable dynamic configuration via `influxdata.iox.router.v1.RouterService`
+    ///
+    /// The config file should contain a JSON encoded `influxdata.iox.router.v1.RouterConfigFile`
+    #[clap(long = "--config-file", env = "INFLUXDB_IOX_CONFIG_FILE")]
+    pub config_file: Option<String>,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -73,6 +90,26 @@ pub async fn command(config: Config) -> Result<()> {
         )
         .await,
     );
+
+    let config_immutable = match config.config_file {
+        Some(file) => {
+            let data = tokio::fs::read(file).await?;
+            let config: RouterConfigFile = serde_json::from_slice(data.as_slice())?;
+
+            for router in config.routers {
+                let name = router.name.clone();
+                let config = router
+                    .try_into()
+                    .map_err(|e| Error::InvalidRouterConfig(name, e))?;
+
+                router_server.update_router(config);
+            }
+
+            true
+        }
+        None => false,
+    };
+
     if let Some(id) = config.run_config.server_id_config.server_id {
         router_server
             .set_server_id(id)
@@ -80,7 +117,12 @@ pub async fn command(config: Config) -> Result<()> {
     } else {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
     }
-    let server_type = Arc::new(RouterServerType::new(router_server, &common_state));
+
+    let server_type = Arc::new(RouterServerType::new(
+        router_server,
+        &common_state,
+        config_immutable,
+    ));
 
     Ok(influxdb_ioxd::main(common_state, server_type).await?)
 }
