@@ -81,6 +81,7 @@ use database::{
     state::DatabaseConfig,
     Database,
 };
+use std::any::Any;
 
 use db::Db;
 use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
@@ -90,15 +91,17 @@ use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use lifecycle::{LockableChunk, LockablePartition};
 use observability_deps::tracing::{error, info, warn};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
 use tracker::TaskTracker;
 use uuid::Uuid;
 
 pub use application::ApplicationState;
+use metric::{Attributes, MetricKind, Observation, Reporter};
+
 mod application;
 pub mod database;
 pub mod rules;
@@ -256,6 +259,82 @@ impl Drop for Server {
     }
 }
 
+/// A [`metric::Instrument`] that reports on the state of the server and its databases
+///
+/// This internally stores a weak reference to a [`ServerShared`] and is designed
+/// to potentially outlive the server itself.
+///
+/// If multiple servers are created using the same metric registry, only the state
+/// of the last server to be registered will be reported
+#[derive(Debug, Clone, Default)]
+struct ServerMetricReporter {
+    shared: Arc<Mutex<Weak<ServerShared>>>,
+}
+
+impl ServerMetricReporter {
+    fn set_shared(&self, shared: &Arc<ServerShared>) {
+        *self.shared.lock() = Arc::downgrade(shared);
+    }
+}
+
+impl metric::Instrument for ServerMetricReporter {
+    fn report(&self, reporter: &mut dyn Reporter) {
+        let shared = match self.shared.lock().upgrade() {
+            Some(shared) => shared,
+            None => return,
+        };
+
+        reporter.start_metric("server_state", "IOx server status", MetricKind::U64Gauge);
+
+        let (server_state, server_id) = {
+            let state = shared.state.read();
+            (state.description(), state.server_id())
+        };
+
+        let mut attributes = Attributes::from(&[("state", server_state)]);
+        if let Some(server_id) = server_id {
+            attributes.insert("server_id", server_id.to_string())
+        }
+
+        reporter.report_observation(&attributes, Observation::U64Gauge(1));
+        reporter.finish_metric();
+
+        let databases: Vec<_> = {
+            let state = shared.state.read();
+            match state.initialized() {
+                Ok(initialized) => initialized
+                    .databases
+                    .values()
+                    .map(|x| (x.name(), x.state_code()))
+                    .collect(),
+                Err(_) => vec![],
+            }
+        };
+
+        reporter.start_metric(
+            "database_state",
+            "IOx database status",
+            MetricKind::U64Gauge,
+        );
+
+        for (name, state) in databases {
+            reporter.report_observation(
+                &Attributes::from([
+                    ("name", name.to_string().into()),
+                    ("state", state.description().into()),
+                ]),
+                Observation::U64Gauge(1),
+            )
+        }
+
+        reporter.finish_metric();
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 #[derive(Debug)]
 struct ServerShared {
     /// A token that is used to trigger shutdown of the background worker
@@ -340,6 +419,15 @@ impl ServerState {
             ServerState::InitReady(state) => Some(state.server_id),
             ServerState::InitError(state, _) => Some(state.server_id),
             ServerState::Initialized(state) => Some(state.server_id),
+        }
+    }
+
+    fn description(&self) -> &'static str {
+        match self {
+            ServerState::Startup(_) => "Startup",
+            ServerState::InitReady(_) => "InitReady",
+            ServerState::InitError(_, _) => "InitError",
+            ServerState::Initialized(_) => "Initialized",
         }
     }
 }
@@ -481,13 +569,18 @@ impl Server {
     pub fn new(application: Arc<ApplicationState>, config: ServerConfig) -> Self {
         let shared = Arc::new(ServerShared {
             shutdown: Default::default(),
-            application,
+            application: Arc::clone(&application),
             state: RwLock::new(Freezable::new(ServerState::Startup(ServerStateStartup {
                 wipe_catalog_on_error: config.wipe_catalog_on_error,
                 skip_replay_and_seek_instead: config.skip_replay_and_seek_instead,
             }))),
             state_notify: Default::default(),
         });
+
+        application
+            .metric_registry()
+            .register_instrument("server_metrics", ServerMetricReporter::default)
+            .set_shared(&shared);
 
         let handle = tokio::spawn(background_worker(Arc::clone(&shared)));
         let join = handle.map_err(Arc::new).boxed().shared();
@@ -1153,6 +1246,7 @@ mod tests {
         test_helpers::{load_ok, new_empty},
     };
     use query::QueryDatabase;
+    use std::num::NonZeroU32;
     use std::{
         convert::TryFrom,
         sync::Arc,
@@ -2286,6 +2380,61 @@ mod tests {
                 ("db_name", "some_db"),
             ])
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_server_reporter() {
+        let application = make_application();
+        let server = make_server(Arc::clone(&application));
+
+        let report = || {
+            let mut reporter = metric::RawReporter::default();
+            application.metric_registry().report(&mut reporter);
+            reporter
+        };
+
+        let reporter = report();
+        let server_state = reporter.metric("server_state").unwrap();
+        assert_eq!(server_state.observations.len(), 1);
+        assert_eq!(
+            server_state.observations[0].0,
+            Attributes::from(&[("state", "Startup")])
+        );
+
+        server
+            .set_id(ServerId::new(NonZeroU32::new(123).unwrap()))
+            .unwrap();
+
+        server.wait_for_init().await.unwrap();
+
+        // Should report ID with state
+        let reporter = report();
+        let server_state = reporter.metric("server_state").unwrap();
+        assert_eq!(server_state.observations.len(), 1);
+        assert_eq!(
+            server_state.observations[0].0,
+            Attributes::from(&[("state", "Initialized"), ("server_id", "123")])
+        );
+
+        let database = create_simple_database(&server, "test_db").await.unwrap();
+        let reporter = report();
+        let db_state = reporter.metric("database_state").unwrap();
+        assert_eq!(db_state.observations.len(), 1);
+        assert_eq!(
+            db_state.observations[0].0,
+            Attributes::from(&[("name", "test_db"), ("state", "Initialized")])
+        );
+
+        database.shutdown();
+        database.join().await.unwrap();
+
+        let reporter = report();
+        let db_state = reporter.metric("database_state").unwrap();
+        assert_eq!(db_state.observations.len(), 1);
+        assert_eq!(
+            db_state.observations[0].0,
+            Attributes::from(&[("name", "test_db"), ("state", "Shutdown")])
+        );
     }
 
     #[tokio::test]
