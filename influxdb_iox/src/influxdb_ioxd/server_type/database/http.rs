@@ -315,6 +315,7 @@ mod tests {
             Arc::new(ObjectStore::new_in_memory()),
             None,
             Some(Arc::new(RingBufferTraceCollector::new(5))),
+            None,
         ))
     }
 

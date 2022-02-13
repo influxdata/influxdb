@@ -1351,8 +1351,10 @@ async fn test_get_server_status_global_error() {
         loop {
             let status = management_client.get_server_status().await.unwrap();
             if let Some(err) = status.error {
-                assert!(dbg!(err.message)
-                    .starts_with("error getting server config from object storage:"));
+                assert_contains!(
+                    err.message,
+                    "error getting server config from object storage"
+                );
                 assert!(status.database_statuses.is_empty());
                 return;
             }

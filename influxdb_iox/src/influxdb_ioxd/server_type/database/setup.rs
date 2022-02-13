@@ -42,6 +42,7 @@ pub async fn make_application(
         object_storage,
         config.num_worker_threads,
         trace_collector,
+        None,
     )))
 }
 

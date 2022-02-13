@@ -8,7 +8,7 @@ use crate::{
         owner::{update_owner_info, OwnerInfoUpdateError},
         state::{DatabaseConfig, DatabaseShared},
     },
-    rules::{PersistedDatabaseRules, ProvidedDatabaseRules},
+    rules::ProvidedDatabaseRules,
     ApplicationState,
 };
 use data_types::error::ErrorLogger;
@@ -23,7 +23,7 @@ use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::{Mutex, RwLock, RwLockReadGuard};
 use parquet_catalog::core::{PreservedCatalog, PreservedCatalogConfig};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use std::{future::Future, sync::Arc};
 use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
@@ -116,7 +116,7 @@ pub enum Error {
     },
 
     #[snafu(display("cannot persisted updated rules: {}", source))]
-    CannotPersistUpdatedRules { source: crate::rules::Error },
+    CannotPersistUpdatedRules { source: crate::config::Error },
 
     #[snafu(display(
         "cannot release database named {} that has already been released",
@@ -303,7 +303,7 @@ impl Database {
     /// Update the database rules, panic'ing if the state is invalid
     pub async fn update_provided_rules(
         &self,
-        new_provided_rules: ProvidedDatabaseRules,
+        provided_rules: ProvidedDatabaseRules,
     ) -> Result<Arc<ProvidedDatabaseRules>, Error> {
         // get a handle to signal our intention to update the state
         let handle = self.shared.state.read().freeze();
@@ -314,33 +314,17 @@ impl Database {
         // doesn't hold a lock for the entire time)
         let handle = handle.await;
 
-        // scope so we drop the read lock
-        let (iox_object_store, uuid) = {
-            let state = self.shared.state.read();
-            let state_code = state.state_code();
-            let db_name = new_provided_rules.db_name();
-
-            // ensure the database is in initialized state (since we
-            // hold the freeze handle, nothing could have changed this)
-            let initialized = state.get_initialized().context(RulesNotUpdateableSnafu {
-                db_name,
-                state: state_code,
-            })?;
-
-            // A handle to the object store and a copy of the UUID so we can update the rules
-            // in object store prior to obtaining exclusive write access to the `DatabaseState`
-            // (which we can't hold across the await to write to the object store)
-            (initialized.db().iox_object_store(), initialized.uuid())
-        }; // drop read lock
+        error_state!(self, "UpdateProvidedRules", DatabaseStateCode::Initialized);
 
         // Attempt to persist to object store, if that fails, roll
         // back the whole transaction (leave the rules unchanged).
         //
         // Even though we don't hold a lock here, the freeze handle
         // ensures the state can not be modified.
-        let rules_to_persist = PersistedDatabaseRules::new(uuid, new_provided_rules);
-        rules_to_persist
-            .persist(&iox_object_store)
+        self.shared
+            .application
+            .config_provider()
+            .store_rules(self.uuid(), &provided_rules)
             .await
             .context(CannotPersistUpdatedRulesSnafu)?;
 
@@ -353,9 +337,11 @@ impl Database {
         if let DatabaseState::Initialized(initialized) = &mut *state {
             initialized
                 .db()
-                .update_rules(Arc::clone(rules_to_persist.rules()));
-            initialized.set_provided_rules(rules_to_persist.provided_rules());
-            Ok(Arc::clone(initialized.provided_rules()))
+                .update_rules(Arc::clone(provided_rules.rules()));
+
+            let rules = Arc::new(provided_rules);
+            initialized.set_provided_rules(Arc::clone(&rules));
+            Ok(rules)
         } else {
             // The freeze handle should have prevented any changes to
             // the database state between when it was checked above
@@ -969,7 +955,7 @@ mod tests {
         };
 
         let store = Arc::new(ObjectStore::new_in_memory_throttled(throttle_config));
-        let application = Arc::new(ApplicationState::new(Arc::clone(&store), None, None));
+        let application = Arc::new(ApplicationState::new(Arc::clone(&store), None, None, None));
 
         let db_config = DatabaseConfig {
             name: DatabaseName::new("test").unwrap(),

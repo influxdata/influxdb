@@ -4,7 +4,7 @@ use crate::{
         fetch_owner_info, update_owner_info, OwnerInfoCreateError, OwnerInfoFetchError,
         OwnerInfoUpdateError,
     },
-    rules::{PersistedDatabaseRules, ProvidedDatabaseRules},
+    rules::ProvidedDatabaseRules,
     ApplicationState,
 };
 use data_types::{server_id::ServerId, DatabaseName};
@@ -78,10 +78,10 @@ pub enum InitError {
     CantClaimDatabaseCurrentlyOwned { uuid: Uuid, server_id: u32 },
 
     #[snafu(display("error saving database rules: {}", source))]
-    SavingRules { source: crate::rules::Error },
+    SavingRules { source: crate::config::Error },
 
     #[snafu(display("error loading database rules: {}", source))]
-    LoadingRules { source: crate::rules::Error },
+    LoadingRules { source: crate::config::Error },
 
     #[snafu(display("{}", source))]
     IoxObjectStoreError {
@@ -348,22 +348,25 @@ impl DatabaseStateOwnerInfoLoaded {
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateRulesLoaded, InitError> {
-        let rules = PersistedDatabaseRules::load(&shared.iox_object_store)
+        let uuid = shared.config.read().database_uuid;
+        let provided_rules = shared
+            .application
+            .config_provider()
+            .fetch_rules(uuid)
             .await
             .context(LoadingRulesSnafu)?;
 
         let db_name = shared.config.read().name.clone();
-        if rules.db_name() != &db_name {
+        if provided_rules.db_name() != &db_name {
             return RulesDatabaseNameMismatchSnafu {
-                actual: rules.db_name(),
+                actual: provided_rules.db_name(),
                 expected: db_name.as_str(),
             }
             .fail();
         }
 
         Ok(DatabaseStateRulesLoaded {
-            provided_rules: rules.provided_rules(),
-            uuid: rules.uuid(),
+            provided_rules: Arc::new(provided_rules),
             owner_info: self.owner_info.clone(),
         })
     }
@@ -372,7 +375,6 @@ impl DatabaseStateOwnerInfoLoaded {
 #[derive(Debug, Clone)]
 pub(crate) struct DatabaseStateRulesLoaded {
     provided_rules: Arc<ProvidedDatabaseRules>,
-    uuid: Uuid,
     owner_info: management::v1::OwnerInfo,
 }
 
@@ -425,7 +427,6 @@ impl DatabaseStateRulesLoaded {
             lifecycle_worker,
             replay_plan: Arc::new(replay_plan),
             provided_rules: Arc::clone(&self.provided_rules),
-            uuid: self.uuid,
             owner_info: self.owner_info.clone(),
         })
     }
@@ -437,7 +438,6 @@ pub(crate) struct DatabaseStateCatalogLoaded {
     lifecycle_worker: Arc<LifecycleWorker>,
     replay_plan: Arc<Option<ReplayPlan>>,
     provided_rules: Arc<ProvidedDatabaseRules>,
-    uuid: Uuid,
     owner_info: management::v1::OwnerInfo,
 }
 
@@ -491,7 +491,6 @@ impl DatabaseStateCatalogLoaded {
             write_buffer_consumer,
             lifecycle_worker: Arc::clone(&self.lifecycle_worker),
             provided_rules: Arc::clone(&self.provided_rules),
-            uuid: self.uuid,
             owner_info: self.owner_info.clone(),
         })
     }
@@ -501,7 +500,6 @@ impl DatabaseStateCatalogLoaded {
         warn!(db_name=%self.db.name(), "throwing away loaded catalog to recover from replay error");
         DatabaseStateRulesLoaded {
             provided_rules: Arc::clone(&self.provided_rules),
-            uuid: self.uuid,
             owner_info: self.owner_info.clone(),
         }
     }
@@ -513,7 +511,6 @@ pub(crate) struct DatabaseStateInitialized {
     write_buffer_consumer: Option<Arc<WriteBufferConsumer>>,
     lifecycle_worker: Arc<LifecycleWorker>,
     provided_rules: Arc<ProvidedDatabaseRules>,
-    uuid: Uuid,
     owner_info: management::v1::OwnerInfo,
 }
 
@@ -528,14 +525,6 @@ impl DatabaseStateInitialized {
 
     pub fn set_provided_rules(&mut self, provided_rules: Arc<ProvidedDatabaseRules>) {
         self.provided_rules = provided_rules
-    }
-
-    pub fn provided_rules(&self) -> &Arc<ProvidedDatabaseRules> {
-        &self.provided_rules
-    }
-
-    pub fn uuid(&self) -> Uuid {
-        self.uuid
     }
 
     /// Get a reference to the database state initialized's lifecycle worker.
@@ -652,9 +641,9 @@ pub async fn create_empty_db_in_object_store(
         .await
         .context(CreatingOwnerInfoSnafu)?;
 
-    let rules_to_persist = PersistedDatabaseRules::new(uuid, provided_rules);
-    rules_to_persist
-        .persist(&iox_object_store)
+    application
+        .config_provider()
+        .store_rules(uuid, &provided_rules)
         .await
         .context(SavingRulesSnafu)?;
 

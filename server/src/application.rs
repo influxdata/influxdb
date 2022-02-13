@@ -1,3 +1,4 @@
+use crate::config::{object_store::ConfigProviderObjectStorage, ConfigProvider};
 use job_registry::JobRegistry;
 use object_store::ObjectStore;
 use observability_deps::tracing::info;
@@ -18,6 +19,7 @@ pub struct ApplicationState {
     metric_registry: Arc<metric::Registry>,
     time_provider: Arc<dyn TimeProvider>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
+    config_provider: Arc<dyn ConfigProvider>,
 }
 
 impl ApplicationState {
@@ -28,6 +30,7 @@ impl ApplicationState {
         object_store: Arc<ObjectStore>,
         num_worker_threads: Option<usize>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
+        config_provider: Option<Arc<dyn ConfigProvider>>,
     ) -> Self {
         let num_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
         info!(%num_threads, "using specified number of threads per thread pool");
@@ -44,6 +47,10 @@ impl ApplicationState {
             Arc::clone(&metric_registry),
         ));
 
+        let config_provider = config_provider.unwrap_or_else(|| {
+            Arc::new(ConfigProviderObjectStorage::new(Arc::clone(&object_store)))
+        });
+
         Self {
             object_store,
             write_buffer_factory,
@@ -52,6 +59,7 @@ impl ApplicationState {
             metric_registry,
             time_provider,
             trace_collector,
+            config_provider,
         }
     }
 
@@ -77,6 +85,10 @@ impl ApplicationState {
 
     pub fn trace_collector(&self) -> &Option<Arc<dyn TraceCollector>> {
         &self.trace_collector
+    }
+
+    pub fn config_provider(&self) -> &Arc<dyn ConfigProvider> {
+        &self.config_provider
     }
 
     pub fn executor(&self) -> &Arc<Executor> {

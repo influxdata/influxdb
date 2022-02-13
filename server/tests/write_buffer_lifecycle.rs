@@ -14,7 +14,7 @@ use db::{
 use futures_util::FutureExt;
 use query::QueryDatabase;
 use server::{
-    rules::{PersistedDatabaseRules, ProvidedDatabaseRules},
+    rules::ProvidedDatabaseRules,
     test_utils::{make_application, make_initialized_server},
 };
 use std::{
@@ -154,27 +154,27 @@ async fn write_buffer_lifecycle() {
     //
 
     // Override rules to set persist row threshold lower on restart
-    PersistedDatabaseRules::new(
-        database_uuid,
-        ProvidedDatabaseRules::new_rules(
-            DatabaseRules {
-                partition_template,
-                lifecycle_rules: LifecycleRules {
-                    persist: true,
-                    late_arrive_window_seconds: NonZeroU32::new(1).unwrap(),
-                    persist_row_threshold: NonZeroUsize::new(5).unwrap(),
-                    ..Default::default()
-                },
-                write_buffer_connection: Some(write_buffer_connection),
-                ..DatabaseRules::new(db_name.clone())
-            }
-            .into(),
-        )
-        .unwrap(),
+    let rules = ProvidedDatabaseRules::new_rules(
+        DatabaseRules {
+            partition_template,
+            lifecycle_rules: LifecycleRules {
+                persist: true,
+                late_arrive_window_seconds: NonZeroU32::new(1).unwrap(),
+                persist_row_threshold: NonZeroUsize::new(5).unwrap(),
+                ..Default::default()
+            },
+            write_buffer_connection: Some(write_buffer_connection),
+            ..DatabaseRules::new(db_name.clone())
+        }
+        .into(),
     )
-    .persist(&db.iox_object_store())
-    .await
     .unwrap();
+
+    application
+        .config_provider()
+        .store_rules(database_uuid, &rules)
+        .await
+        .unwrap();
 
     std::mem::drop(server);
     std::mem::drop(database);

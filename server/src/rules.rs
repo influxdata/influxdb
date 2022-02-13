@@ -1,41 +1,13 @@
 use data_types::{database_rules::DatabaseRules, DatabaseName};
 use generated_types::{
-    database_rules::encode_persisted_database_rules, google::FieldViolation,
+    google::{FieldViolation, FieldViolationExt},
     influxdata::iox::management,
 };
-use iox_object_store::IoxObjectStore;
-use snafu::{ResultExt, Snafu};
 use std::{
     convert::{TryFrom, TryInto},
     sync::Arc,
 };
 use uuid::Uuid;
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Error saving rules for {}: {}", db_name, source))]
-    ObjectStore {
-        db_name: String,
-        source: object_store::Error,
-    },
-
-    #[snafu(display("error deserializing database rules: {}", source))]
-    Deserialization {
-        source: generated_types::DecodeError,
-    },
-
-    #[snafu(display("error serializing database rules: {}", source))]
-    Serialization {
-        source: generated_types::EncodeError,
-    },
-
-    #[snafu(display("error fetching rules: {}", source))]
-    RulesFetch { source: object_store::Error },
-
-    #[snafu(display("error converting grpc to database rules: {}", source))]
-    ConvertingRules { source: FieldViolation },
-}
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// The configuration ([`DatabaseRules`]) used to create and update
 /// databases, both in original and "materialized" (with defaults filled in) form.
@@ -109,19 +81,12 @@ impl ProvidedDatabaseRules {
 #[derive(Debug, Clone)]
 pub struct PersistedDatabaseRules {
     uuid: Uuid,
-    provided: Arc<ProvidedDatabaseRules>,
+    provided: ProvidedDatabaseRules,
 }
 
 impl PersistedDatabaseRules {
     pub fn new(uuid: Uuid, provided: ProvidedDatabaseRules) -> Self {
-        Self {
-            uuid,
-            provided: Arc::new(provided),
-        }
-    }
-
-    pub fn provided_rules(&self) -> Arc<ProvidedDatabaseRules> {
-        Arc::clone(&self.provided)
+        Self { uuid, provided }
     }
 
     pub fn uuid(&self) -> Uuid {
@@ -142,58 +107,9 @@ impl PersistedDatabaseRules {
         &self.provided.original
     }
 
-    /// Load from object storage
-    pub async fn load(iox_object_store: &IoxObjectStore) -> Result<Self> {
-        // TODO: Retry this
-        let bytes = iox_object_store
-            .get_database_rules_file()
-            .await
-            .context(RulesFetchSnafu)?;
-
-        let proto: management::v1::PersistedDatabaseRules =
-            generated_types::database_rules::decode_persisted_database_rules(bytes)
-                .context(DeserializationSnafu)?;
-
-        let original: management::v1::DatabaseRules = proto
-            .rules
-            .ok_or_else(|| FieldViolation::required("rules"))
-            .context(ConvertingRulesSnafu)?;
-
-        let full = Arc::new(original.clone().try_into().context(ConvertingRulesSnafu)?);
-
-        let uuid = Uuid::from_slice(&proto.uuid)
-            .map_err(|e| FieldViolation {
-                field: "uuid".to_string(),
-                description: e.to_string(),
-            })
-            .context(ConvertingRulesSnafu)?;
-
-        Ok(Self {
-            uuid,
-            provided: Arc::new(ProvidedDatabaseRules { full, original }),
-        })
-    }
-
-    /// Persist to object storage
-    pub async fn persist(&self, iox_object_store: &IoxObjectStore) -> Result<()> {
-        let persisted_database_rules = management::v1::PersistedDatabaseRules {
-            uuid: self.uuid.as_bytes().to_vec(),
-            // Note we save the original version
-            rules: Some(self.provided.original.clone()),
-        };
-
-        let mut data = bytes::BytesMut::new();
-        encode_persisted_database_rules(&persisted_database_rules, &mut data)
-            .context(SerializationSnafu)?;
-
-        iox_object_store
-            .put_database_rules_file(data.freeze())
-            .await
-            .context(ObjectStoreSnafu {
-                db_name: self.provided.db_name(),
-            })?;
-
-        Ok(())
+    /// Convert to its inner representation
+    pub fn into_inner(self) -> (Uuid, ProvidedDatabaseRules) {
+        (self.uuid, self.provided)
     }
 }
 
@@ -208,14 +124,11 @@ impl TryFrom<management::v1::PersistedDatabaseRules> for PersistedDatabaseRules 
 
         let full = Arc::new(original.clone().try_into()?);
 
-        let uuid = Uuid::from_slice(&proto.uuid).map_err(|e| FieldViolation {
-            field: "uuid".to_string(),
-            description: e.to_string(),
-        })?;
+        let uuid = Uuid::from_slice(&proto.uuid).scope("uuid")?;
 
         Ok(Self {
             uuid,
-            provided: Arc::new(ProvidedDatabaseRules { full, original }),
+            provided: ProvidedDatabaseRules { full, original },
         })
     }
 }

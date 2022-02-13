@@ -85,7 +85,7 @@ use std::any::Any;
 
 use db::Db;
 use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
-use generated_types::{google::FieldViolation, influxdata::iox::management};
+use generated_types::google::FieldViolation;
 use hashbrown::HashMap;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
@@ -103,6 +103,7 @@ pub use application::ApplicationState;
 use metric::{Attributes, MetricKind, Observation, Reporter};
 
 mod application;
+pub mod config;
 pub mod database;
 pub mod rules;
 use rules::{PersistedDatabaseRules, ProvidedDatabaseRules};
@@ -202,8 +203,8 @@ pub enum Error {
         source: Arc<database::init::InitError>,
     },
 
-    #[snafu(display("error persisting server config to object storage: {}", source))]
-    PersistServerConfig { source: object_store::Error },
+    #[snafu(display("error persisting server config: {}", source))]
+    PersistServerConfig { source: crate::config::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -352,28 +353,11 @@ struct ServerShared {
 
 #[derive(Debug, Snafu)]
 pub enum InitError {
-    #[snafu(display("error listing databases in object storage: {}", source))]
-    ListDatabases { source: object_store::Error },
-
-    #[snafu(display("error getting server config from object storage: {}", source))]
-    GetServerConfig { source: object_store::Error },
-
-    #[snafu(display("error deserializing server config from protobuf: {}", source))]
-    DeserializeServerConfig {
-        source: generated_types::DecodeError,
-    },
-
-    #[snafu(display("error persisting initial server config to object storage: {}", source))]
-    PersistInitialServerConfig { source: object_store::Error },
+    #[snafu(display("error getting server config: {}", source))]
+    GetServerConfig { source: crate::config::Error },
 
     #[snafu(display("invalid database name in server config: {}", source))]
     InvalidDatabase { source: DatabaseNameError },
-
-    #[snafu(display(
-        "invalid database uuid in server config while finding location: {}",
-        source
-    ))]
-    InvalidDatabaseLocation { source: uuid::Error },
 }
 
 /// The stage of the server in the startup process
@@ -446,41 +430,18 @@ struct ServerStateInitReady {
 }
 
 impl ServerStateInitReady {
-    /// Parse the UUID from an object storage path
-    ///
-    /// TODO: Encode this data directly in server config
-    fn parse_location(location: &str) -> Result<Uuid, InitError> {
-        // Strip trailing / if any
-        let location = location.strip_suffix('/').unwrap_or(location);
-        let uuid = location.rsplit('/').next().unwrap();
-        std::str::FromStr::from_str(uuid).context(InvalidDatabaseLocationSnafu)
-    }
-
     async fn advance(&self, shared: &ServerShared) -> Result<ServerStateInitialized, InitError> {
-        let fetch_result = IoxObjectStore::get_server_config_file(
-            shared.application.object_store(),
-            self.server_id,
-        )
-        .await;
-
-        let server_config_bytes = match fetch_result {
-            Ok(bytes) => bytes,
-            // If this is the first time starting up this server and there is no config file yet,
-            // this isn't a problem. Start an empty server config.
-            Err(object_store::Error::NotFound { .. }) => bytes::Bytes::new(),
-            Err(source) => return Err(InitError::GetServerConfig { source }),
-        };
-
-        let server_config =
-            generated_types::server_config::decode_persisted_server_config(server_config_bytes)
-                .map_err(|source| InitError::DeserializeServerConfig { source })?;
+        let server_config = shared
+            .application
+            .config_provider()
+            .fetch_server_config(self.server_id)
+            .await
+            .context(GetServerConfigSnafu)?;
 
         let databases = server_config
-            .databases
             .into_iter()
-            .map(|(name, location)| {
+            .map(|(name, database_uuid)| {
                 let database_name = DatabaseName::new(name).context(InvalidDatabaseSnafu)?;
-                let database_uuid = Self::parse_location(&location)?;
 
                 let database = Database::new(
                     Arc::clone(&shared.application),
@@ -497,20 +458,10 @@ impl ServerStateInitReady {
             })
             .collect::<Result<_, InitError>>()?;
 
-        let next_state = ServerStateInitialized {
+        Ok(ServerStateInitialized {
             server_id: self.server_id,
             databases,
-        };
-
-        IoxObjectStore::put_server_config_file(
-            shared.application.object_store(),
-            self.server_id,
-            next_state.server_config(),
-        )
-        .await
-        .map_err(|source| InitError::PersistInitialServerConfig { source })?;
-
-        Ok(next_state)
+        })
     }
 }
 
@@ -545,23 +496,6 @@ impl ServerStateInitialized {
             }
             .fail(),
         }
-    }
-
-    /// Serialize the list of databases this server owns with their names and object storage
-    /// locations into protobuf.
-    fn server_config(&self) -> bytes::Bytes {
-        let data = management::v1::ServerConfig {
-            databases: self
-                .databases
-                .iter()
-                .map(|(name, database)| (name.to_string(), database.iox_object_store().root_path()))
-                .collect(),
-        };
-
-        let mut encoded = bytes::BytesMut::new();
-        generated_types::server_config::encode_persisted_server_config(&data, &mut encoded)
-            .expect("server config serialization should be valid");
-        encoded.freeze()
     }
 }
 
@@ -909,19 +843,25 @@ impl Server {
 
     /// Write this server's databases out to the server config in object storage.
     async fn persist_server_config(&self) -> Result<()> {
-        let (server_id, bytes) = {
+        let (server_id, config) = {
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
-            (initialized.server_id, initialized.server_config())
+
+            let config: Vec<_> = initialized
+                .databases
+                .iter()
+                .map(|(name, database)| (name.to_string(), database.uuid()))
+                .collect();
+
+            (initialized.server_id, config)
         };
 
-        IoxObjectStore::put_server_config_file(
-            self.shared.application.object_store(),
-            server_id,
-            bytes,
-        )
-        .await
-        .context(PersistServerConfigSnafu)?;
+        self.shared
+            .application
+            .config_provider()
+            .store_server_config(server_id, &config)
+            .await
+            .context(PersistServerConfigSnafu)?;
 
         Ok(())
     }
@@ -1203,6 +1143,7 @@ pub mod test_utils {
             Arc::new(ObjectStore::new_in_memory()),
             None,
             None,
+            None,
         ))
     }
 
@@ -1238,6 +1179,7 @@ mod tests {
         write_buffer::WriteBufferConnection,
     };
     use dml::DmlWrite;
+    use generated_types::influxdata::iox::management;
     use iox_object_store::IoxObjectStore;
     use mutable_batch_lp::lines_to_batches;
     use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
@@ -1334,11 +1276,12 @@ mod tests {
             .await
             .expect("failed to create database");
 
-        let iox_object_store = bananas.iox_object_store();
-        let read_rules = PersistedDatabaseRules::load(&iox_object_store)
+        let bananas_uuid = bananas.uuid();
+        let read_rules = application
+            .config_provider()
+            .fetch_rules(bananas_uuid)
             .await
             .unwrap();
-        let bananas_uuid = read_rules.uuid();
 
         // Same rules that were provided are read
         assert_eq!(provided_rules.original(), read_rules.original());
@@ -1759,7 +1702,7 @@ mod tests {
     async fn init_error_generic() {
         // use an object store that will hopefully fail to read
         let store = Arc::new(ObjectStore::new_failing_store().unwrap());
-        let application = Arc::new(ApplicationState::new(store, None, None));
+        let application = Arc::new(ApplicationState::new(store, None, None, None));
         let server = make_server(application);
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
