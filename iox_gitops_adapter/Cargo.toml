@@ -19,12 +19,12 @@ chrono = "0.4.15"
 clap = { version = "3", features = ["derive", "env"] }
 dotenv = "0.15"
 futures = "0.3"
-k8s-openapi = { version = "0.13.1", features = ["v1_17", "schemars"], default-features = false }
-kube = "0.64"
-kube-derive = { version = "0.64", default-features = false } # only needed to opt out of schema
-kube-runtime = "0.64"
+k8s-openapi = { version = "0.14", features = ["v1_19", "schemars"], default-features = false }
+kube = { version = "0.69", features = ["derive"] }
+kube-derive = { version = "0.69", default-features = false } # only needed to opt out of schema
+kube-runtime = "0.69"
 prost = "0.9"
-schemars = "0.8.3"
+schemars = { version = "0.8.8", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"

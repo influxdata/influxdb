@@ -206,7 +206,7 @@ async fn reconcile_topics(
 
 /// Controller triggers this whenever our main object or our children changed
 async fn reconcile<T>(
-    topics: KafkaTopicList,
+    topics: Arc<KafkaTopicList>,
     ctx: Context<Data<T>>,
 ) -> Result<ReconcilerAction, CatalogError>
 where
@@ -446,7 +446,7 @@ mod tests {
             1,
             create_topics_status(0, true, "".to_string(), now),
         );
-        let result = reconcile(c, Context::new(data)).await;
+        let result = reconcile(Arc::new(c), Context::new(data)).await;
         // whole operation returns a successful result.
         assert_matches!(result, Ok(ReconcilerAction { .. }));
         // ensure status was updated accordingly.
@@ -482,7 +482,7 @@ mod tests {
             1,
             create_topics_status(0, true, "".to_string(), now),
         );
-        let result = reconcile(c, Context::new(data)).await;
+        let result = reconcile(Arc::new(c), Context::new(data)).await;
         // whole operation returns a successful result.
         assert_matches!(result, Ok(ReconcilerAction { .. }));
         // ensure status was updated accordingly.
@@ -517,7 +517,7 @@ mod tests {
             1,
             create_topics_status(0, false, "".to_string(), now),
         );
-        let result = reconcile(c, Context::new(data)).await;
+        let result = reconcile(Arc::new(c), Context::new(data)).await;
         // whole operation returns a successful result
         assert_matches!(result, Err(CatalogError::UpdateTopicError { .. }));
         // Ensure status was updated accordingly

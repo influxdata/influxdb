@@ -15,7 +15,7 @@ publish = false
 [dependencies]
 ahash = { version = "0.7", features = ["std"] }
 arrow = { version = "8", features = ["comfy-table", "csv", "csv_crate", "flatbuffers", "ipc", "prettyprint", "rand", "test_utils"] }
-base64 = { version = "0.13", features = ["std"] }
+base64 = { version = "0.13", features = ["alloc", "std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
@@ -46,14 +46,14 @@ regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cac
 regex-automata = { version = "0.1", features = ["regex-syntax", "std"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 reqwest = { version = "0.11", features = ["__tls", "default-tls", "hyper-tls", "json", "native-tls-crate", "serde_json", "tokio-native-tls"] }
-serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
-serde_json = { version = "1", features = ["indexmap", "preserve_order", "raw_value", "std"] }
+serde = { version = "1", features = ["alloc", "derive", "rc", "serde_derive", "std"] }
+serde_json = { version = "1", features = ["alloc", "indexmap", "preserve_order", "raw_value", "std"] }
 sha2 = { version = "0.9", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "sync", "time", "tokio-macros", "winapi"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 tokio-util = { version = "0.6", features = ["codec", "io", "slab", "time"] }
-tower = { version = "0.4", features = ["balance", "buffer", "discover", "futures-util", "indexmap", "limit", "load", "log", "make", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-stream", "tokio-util", "tracing", "util"] }
+tower = { version = "0.4", features = ["balance", "buffer", "discover", "filter", "futures-util", "indexmap", "limit", "load", "log", "make", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-stream", "tokio-util", "tracing", "util"] }
 tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace", "release_max_level_debug", "std", "tracing-attributes"] }
 tracing-core = { version = "0.1", features = ["lazy_static", "std", "valuable"] }
 tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
@@ -62,7 +62,7 @@ uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
 
 [build-dependencies]
 ahash = { version = "0.7", features = ["std"] }
-base64 = { version = "0.13", features = ["std"] }
+base64 = { version = "0.13", features = ["alloc", "std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
@@ -86,8 +86,8 @@ parking_lot = { version = "0.11" }
 rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "rand_hc", "small_rng", "std", "std_rng"] }
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
-serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
-serde_json = { version = "1", features = ["indexmap", "preserve_order", "raw_value", "std"] }
+serde = { version = "1", features = ["alloc", "derive", "rc", "serde_derive", "std"] }
+serde_json = { version = "1", features = ["alloc", "indexmap", "preserve_order", "raw_value", "std"] }
 sha2 = { version = "0.9", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 syn = { version = "1", features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "quote", "visit", "visit-mut"] }
