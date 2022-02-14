@@ -4,7 +4,7 @@ use data_types::sequence::Sequence;
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use hashbrown::{hash_map::Entry, HashMap};
 use mutable_batch::MutableBatch;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::warn;
 use rskafka::{
     client::producer::aggregator::{self, Aggregator, StatusDeaggregator, TryPush},
     record::Record,
@@ -141,28 +141,26 @@ impl WriteAggregator {
         );
     }
 
-    /// Flush aggregator to a ready-to-use DML write.
-    fn flush(mut self) -> DmlWrite {
-        // attach a span if there is at least 1 active link
-        let ctx = if let Some(span_recorder) = self.span_recorder.as_mut() {
+    /// Finalizes span recording.
+    fn finalize_span(mut self) {
+        if let Some(span_recorder) = self.span_recorder.as_mut() {
             span_recorder.ok("aggregated");
+        }
+    }
+
+    /// Encode into DML write.
+    ///
+    /// This copies the inner data.
+    fn encode(&self) -> DmlWrite {
+        // attach a span if there is at least 1 active link
+        let ctx = if let Some(span_recorder) = self.span_recorder.as_ref() {
             span_recorder.span().map(|span| span.ctx.clone())
         } else {
             None
         };
 
         let meta = DmlMeta::unsequenced(ctx);
-        DmlWrite::new(self.namespace, self.tables, meta)
-    }
-
-    /// Current estimated size of the aggregated data.
-    fn size(&self) -> usize {
-        self.namespace.len()
-            + self
-                .tables
-                .iter()
-                .map(|(k, v)| std::mem::size_of_val(k) + k.capacity() + v.size())
-                .sum::<usize>()
+        DmlWrite::new(self.namespace.clone(), self.tables.clone(), meta)
     }
 }
 
@@ -171,13 +169,10 @@ impl WriteAggregator {
 #[derive(Debug, Default)]
 struct DmlAggregatorState {
     /// Completed (i.e. aggregated or flushed) operations in correct order.
-    completed_ops: Vec<DmlOperation>,
-
-    /// Sum of all sizes of `completed_ops` for fast access.
-    completed_size: usize,
+    completed_ops: Vec<(Record, Metadata)>,
 
     /// Current writes per namespace.
-    current_writes: HashMap<String, WriteAggregator>,
+    current_writes: HashMap<String, (WriteAggregator, Record, Metadata)>,
 
     /// Maps tags to record.
     tag_to_record: Vec<usize>,
@@ -186,11 +181,14 @@ struct DmlAggregatorState {
 impl DmlAggregatorState {
     /// Current estimated size of all aggregated data.
     fn size(&self) -> usize {
-        self.completed_size
+        self.completed_ops
+            .iter()
+            .map(|(op, _md)| op.approximate_size())
+            .sum::<usize>()
             + self
                 .current_writes
                 .values()
-                .map(|agg| agg.size())
+                .map(|(_agg, record, _md)| record.approximate_size())
                 .sum::<usize>()
     }
 
@@ -204,23 +202,21 @@ impl DmlAggregatorState {
         tag
     }
 
-    /// Push given DML operation to completed operations.
-    ///
-    /// Takes an optional pre-calculated size.
-    fn push_op(&mut self, op: DmlOperation, size: Option<usize>, tag: Tag) {
-        self.completed_size += size.unwrap_or_else(|| op.size());
+    /// Push given encoded DML operation to completed operations.
+    fn push_op(&mut self, record: Record, md: Metadata, tag: Tag) {
         let offset = self.completed_ops.len();
         self.tag_to_record[tag.0] = offset;
-        self.completed_ops.push(op);
+        self.completed_ops.push((record, md));
     }
 
     /// Flushes write for given namespace to completed operations.
     ///
     /// This is a no-op if no active write exists.
     fn flush_write(&mut self, namespace: &str) {
-        if let Some(agg) = self.current_writes.remove(namespace) {
+        if let Some((agg, record, md)) = self.current_writes.remove(namespace) {
             let tag = agg.tag;
-            self.push_op(DmlOperation::Write(agg.flush()), None, tag);
+            agg.finalize_span();
+            self.push_op(record, md, tag);
         }
     }
 
@@ -229,9 +225,10 @@ impl DmlAggregatorState {
         let mut writes: Vec<_> = self.current_writes.drain().collect();
         writes.sort_by_key(|(k, _v)| k.clone());
 
-        for (_k, agg) in writes {
+        for (_k, (agg, record, md)) in writes {
             let tag = agg.tag;
-            self.push_op(DmlOperation::Write(agg.flush()), None, tag);
+            agg.finalize_span();
+            self.push_op(record, md, tag);
         }
     }
 }
@@ -288,8 +285,17 @@ impl Aggregator for DmlAggregator {
         &mut self,
         op: Self::Input,
     ) -> Result<TryPush<Self::Input, Self::Tag>, aggregator::Error> {
-        let op_size = op.size();
+        let (op_record, op_md) =
+            encode_operation(&op, &self.database_name, self.time_provider.as_ref())?;
+        let op_size = op_record.approximate_size();
+
         if self.state.size() + op_size > self.max_size {
+            if op_size > self.max_size {
+                warn!(
+                    max_size = self.max_size,
+                    op_size, "Got operation that is too large for operator",
+                );
+            }
             return Ok(TryPush::NoCapacity(op));
         }
 
@@ -302,11 +308,21 @@ impl Aggregator for DmlAggregator {
                 {
                     Entry::Occupied(mut o) => {
                         // Open write aggregator => check if we can push to it.
-                        let agg = o.get_mut();
+                        let (agg, record, md) = o.get_mut();
 
                         if agg.can_push(&write) {
                             // Schemas match => use this aggregator.
                             agg.push(write);
+
+                            // update cached record
+                            let (record_new, md_new) = encode_operation(
+                                &DmlOperation::Write(agg.encode()),
+                                &self.database_name,
+                                self.time_provider.as_ref(),
+                            )?;
+                            *record = record_new;
+                            *md = md_new;
+
                             agg.tag
                         } else {
                             // Schemas don't match => use new aggregator (the write will likely fail on the ingester
@@ -318,14 +334,15 @@ impl Aggregator for DmlAggregator {
                                 self.collector.as_ref().map(Arc::clone),
                                 new_tag,
                             );
+                            let mut record2 = op_record;
+                            let mut md2 = op_md;
                             std::mem::swap(agg, &mut agg2);
+                            std::mem::swap(record, &mut record2);
+                            std::mem::swap(md, &mut md2);
 
                             let flushed_tag = agg2.tag;
-                            self.state.push_op(
-                                DmlOperation::Write(agg2.flush()),
-                                None,
-                                flushed_tag,
-                            );
+                            agg2.finalize_span();
+                            self.state.push_op(record2, md2, flushed_tag);
 
                             new_tag
                         }
@@ -333,10 +350,14 @@ impl Aggregator for DmlAggregator {
                     Entry::Vacant(v) => {
                         // No open write aggregator yet => create one.
                         let tag = DmlAggregatorState::reserve_tag(&mut self.state.tag_to_record);
-                        v.insert(WriteAggregator::new(
-                            write,
-                            self.collector.as_ref().map(Arc::clone),
-                            tag,
+                        v.insert((
+                            WriteAggregator::new(
+                                write,
+                                self.collector.as_ref().map(Arc::clone),
+                                tag,
+                            ),
+                            op_record,
+                            op_md,
                         ));
                         tag
                     }
@@ -349,7 +370,7 @@ impl Aggregator for DmlAggregator {
                 self.state.flush_write(op.namespace());
 
                 let tag = DmlAggregatorState::reserve_tag(&mut self.state.tag_to_record);
-                self.state.push_op(op, Some(op_size), tag);
+                self.state.push_op(op_record, op_md, tag);
                 Ok(TryPush::Aggregated(tag))
             }
         }
@@ -359,52 +380,7 @@ impl Aggregator for DmlAggregator {
         let mut state = std::mem::take(&mut self.state);
         state.flush_writes();
 
-        let mut records = Vec::with_capacity(state.completed_ops.len());
-        let mut metadata = Vec::with_capacity(state.completed_ops.len());
-
-        for op in state.completed_ops {
-            // truncate milliseconds from timestamps because that's what Kafka supports
-            let now = op
-                .meta()
-                .producer_ts()
-                .unwrap_or_else(|| self.time_provider.now());
-
-            let timestamp_millis = now.date_time().timestamp_millis();
-            let timestamp = Time::from_timestamp_millis(timestamp_millis);
-
-            let headers = IoxHeaders::new(
-                ContentType::Protobuf,
-                op.meta().span_context().cloned(),
-                op.namespace().to_owned(),
-            );
-
-            let mut buf = Vec::new();
-            crate::codec::encode_operation(&self.database_name, &op, &mut buf)?;
-            let buf_len = buf.len();
-
-            let record = Record {
-                key: None,
-                value: Some(buf),
-                headers: headers
-                    .headers()
-                    .map(|(k, v)| (k.to_owned(), v.as_bytes().to_vec()))
-                    .collect(),
-                timestamp: rskafka::time::OffsetDateTime::from_unix_timestamp_nanos(
-                    timestamp_millis as i128 * 1_000_000,
-                )?,
-            };
-
-            debug!(db_name=%self.database_name, partition=self.sequencer_id, size=buf_len, "writing to kafka");
-
-            let kafka_write_size = record.approximate_size();
-
-            metadata.push(Metadata {
-                timestamp,
-                span_ctx: op.meta().span_context().cloned(),
-                kafka_write_size,
-            });
-            records.push(record);
-        }
+        let (records, metadata) = state.completed_ops.into_iter().unzip();
 
         Ok((
             records,
@@ -415,6 +391,52 @@ impl Aggregator for DmlAggregator {
             },
         ))
     }
+}
+
+fn encode_operation(
+    op: &DmlOperation,
+    db_name: &str,
+    time_provider: &dyn TimeProvider,
+) -> Result<(Record, Metadata), aggregator::Error> {
+    // truncate milliseconds from timestamps because that's what Kafka supports
+    let now = op
+        .meta()
+        .producer_ts()
+        .unwrap_or_else(|| time_provider.now());
+
+    let timestamp_millis = now.date_time().timestamp_millis();
+    let timestamp = Time::from_timestamp_millis(timestamp_millis);
+
+    let headers = IoxHeaders::new(
+        ContentType::Protobuf,
+        op.meta().span_context().cloned(),
+        op.namespace().to_owned(),
+    );
+
+    let mut buf = Vec::new();
+    crate::codec::encode_operation(db_name, op, &mut buf)?;
+
+    let record = Record {
+        key: None,
+        value: Some(buf),
+        headers: headers
+            .headers()
+            .map(|(k, v)| (k.to_owned(), v.as_bytes().to_vec()))
+            .collect(),
+        timestamp: rskafka::time::OffsetDateTime::from_unix_timestamp_nanos(
+            timestamp_millis as i128 * 1_000_000,
+        )?,
+    };
+
+    let kafka_write_size = record.approximate_size();
+
+    let md = Metadata {
+        timestamp,
+        span_ctx: op.meta().span_context().cloned(),
+        kafka_write_size,
+    };
+
+    Ok((record, md))
 }
 
 /// Metadata that we carry over for each pushed [`DmlOperation`] so we can return a proper [`DmlMeta`].
