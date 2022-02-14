@@ -630,6 +630,7 @@ func (l *WAL) newSegmentFile() error {
 		l.sync()
 
 		if err := l.currentSegmentWriter.close(); err != nil {
+			l.currentSegmentWriter = nil
 			return err
 		}
 	}
