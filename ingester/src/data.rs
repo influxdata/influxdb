@@ -632,7 +632,7 @@ pub struct QueryableBatch {
 }
 
 /// Request received from the query service for data the ingester has
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct IngesterQueryRequest {
     /// Table to search
     table: String,
@@ -657,18 +657,18 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
             columns,
             min_time,
             max_time,
-            // predicate,
+            predicate,
             greater_than_sequence_number,
         } = proto;
 
-        // let predicate = predicate.try_into()?;
+        let predicate = predicate.map(TryInto::try_into).transpose()?;
 
         Ok(Self {
             table,
             columns,
             min_time,
             max_time,
-            predicate: None,
+            predicate,
             greater_than_sequence_number,
         })
     }
@@ -682,21 +682,50 @@ pub struct QueryData {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use datafusion::logical_plan::col;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use test_helpers::assert_error;
 
     #[test]
-    fn convert_query_proto_to_rust() {
-        let proto = proto::IngesterQueryRequest {
+    fn query_from_protobuf() {
+        let rust_predicate = predicate::PredicateBuilder::new()
+            .timestamp_range(1, 100)
+            .add_expr(col("foo"))
+            .build();
+
+        let proto_predicate = proto::Predicate {
+            exprs: vec![proto::LogicalExprNode {
+                expr_type: Some(proto::logical_expr_node::ExprType::Column(proto::Column {
+                    name: "foo".into(),
+                    relation: None,
+                })),
+            }],
+            field_columns: vec![],
+            partition_key: None,
+            range: Some(proto::TimestampRange { start: 1, end: 100 }),
+            value_expr: vec![],
+        };
+
+        let rust_query = IngesterQueryRequest {
             table: "cpu".into(),
             columns: vec!["usage".into(), "time".into()],
             min_time: 1,
             max_time: 20,
-            // predicate: None,
-            greater_than_sequence_number: None,
+            predicate: Some(rust_predicate),
+            greater_than_sequence_number: Some(5),
+        };
+        let proto_query = proto::IngesterQueryRequest {
+            table: "cpu".into(),
+            columns: vec!["usage".into(), "time".into()],
+            min_time: 1,
+            max_time: 20,
+            predicate: Some(proto_predicate),
+            greater_than_sequence_number: Some(5),
         };
 
-        let _query: IngesterQueryRequest = proto.try_into().unwrap();
+        let rust_query_converted = IngesterQueryRequest::try_from(proto_query).unwrap();
+
+        assert_eq!(rust_query, rust_query_converted);
     }
 
     #[test]
