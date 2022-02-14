@@ -65,12 +65,12 @@ func (f Flagger) coerce(s string, flag feature.Flag) (iface interface{}, err err
 		flag, _ = f.byKey(base.Key())
 	}
 
-	switch flag.(type) {
-	case feature.BoolFlag:
+	switch flag.Default().(type) {
+	case bool:
 		iface, err = strconv.ParseBool(s)
-	case feature.IntFlag:
+	case int32:
 		iface, err = strconv.Atoi(s)
-	case feature.FloatFlag:
+	case float64:
 		iface, err = strconv.ParseFloat(s, 64)
 	default:
 		iface = s

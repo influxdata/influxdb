@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"github.com/influxdata/flux"
+	fluxfeature "github.com/influxdata/flux/dependencies/feature"
 	influxdeps "github.com/influxdata/flux/dependencies/influxdb"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/storage"
@@ -62,7 +64,8 @@ type Dependencies struct {
 
 func (d Dependencies) Inject(ctx context.Context) context.Context {
 	ctx = d.FluxDeps.Inject(ctx)
-	return d.StorageDeps.Inject(ctx)
+	ctx = d.StorageDeps.Inject(ctx)
+	return InjectFlagsFromContext(ctx)
 }
 
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
@@ -107,4 +110,27 @@ func NewDependencies(
 		return Dependencies{}, err
 	}
 	return deps, nil
+}
+
+type flags map[string]interface{}
+
+// InjectFlagsFromContext will take the idpe feature flags from
+// the context and wrap them in a flux feature flagger for the
+// flux engine.
+func InjectFlagsFromContext(ctx context.Context) context.Context {
+	flagger := flags(feature.FlagsFromContext(ctx))
+	return fluxfeature.Inject(ctx, flagger)
+}
+
+func (f flags) FlagValue(ctx context.Context, flag fluxfeature.Flag) interface{} {
+	v, ok := f[flag.Key()]
+	if !ok {
+		v = flag.Default()
+	}
+
+	// Flux uses int for intflag and influxdb uses int32 so convert here.
+	if i, ok := v.(int32); ok {
+		return int(i)
+	}
+	return v
 }
