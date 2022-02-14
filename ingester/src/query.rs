@@ -2,21 +2,33 @@
 
 use std::sync::Arc;
 
-use arrow::record_batch::RecordBatch;
+use arrow::{
+    array::BooleanArray, compute::filter_record_batch, error::Result as ArrowResult,
+    record_batch::RecordBatch,
+};
 use arrow_util::util::merge_record_batches;
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
     delete_predicate::DeletePredicate,
     partition_metadata::TableSummary,
 };
-use datafusion::physical_plan::{
-    common::SizedRecordBatchStream,
-    metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics},
-    SendableRecordBatchStream,
+use datafusion::{
+    error::DataFusionError,
+    logical_plan::ExprRewritable,
+    physical_plan::{
+        common::SizedRecordBatchStream,
+        metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics},
+        PhysicalExpr, SendableRecordBatchStream,
+    },
 };
 use iox_catalog::interface::{SequenceNumber, Tombstone};
+use observability_deps::tracing::debug;
 use predicate::{delete_predicate::parse_delete_predicate, Predicate, PredicateMatch};
-use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
+use query::{
+    exec::stringset::StringSet,
+    util::{df_physical_expr_from_schema_and_expr, MissingColumnsToNull},
+    QueryChunk, QueryChunkMeta,
+};
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
 
@@ -26,11 +38,27 @@ use crate::data::{QueryableBatch, SnapshotBatch};
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Internal error while concat record batches {}", source))]
+    #[snafu(display("Internal error concatenating record batches {}", source))]
     ConcatBatches { source: arrow::error::ArrowError },
 
     #[snafu(display("Internal error filtering columns from a record batch {}", source))]
     FilterColumns { source: crate::data::Error },
+
+    #[snafu(display("Internal error rewriting predicate for QueryableBatch: {}", source))]
+    RewritingFilterPredicate {
+        source: datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display(
+        "Internal error converting logical expression to physical one: {}",
+        source
+    ))]
+    ToPhysicalExpr {
+        source: datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display("Internal error filtering record batch: {}", source))]
+    FilterBatch { source: arrow::error::ArrowError },
 }
 
 /// A specialized `Error` for Ingester's Query errors
@@ -181,28 +209,51 @@ impl QueryChunk for QueryableBatch {
     /// streams from several different `QueryChunk`s.
     fn read_filter(
         &self,
-        _predicate: &Predicate, // no needs because all data will be read for compaction
-        // todo: will need for the case we read data to send to Querier
+        predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         // Get all record batches from their snapshots
         let mut batches = vec![];
         for snapshot in &self.data {
+            // Only return columns in the selection
             let batch = snapshot.scan(selection).context(FilterColumnsSnafu {})?;
             if let Some(batch) = batch {
                 batches.push(batch);
             }
         }
 
-        // Combine record batches into one bacth and padding null values as needed
+        // Combine record batches into one batch and padding null values as needed
         // Schema of all record batches after mergeing
         let schema = merge_record_batch_schemas(&batches);
         let batch =
             merge_record_batches(schema.as_arrow(), batches).context(ConcatBatchesSnafu {})?;
 
         let mut stream_batches = vec![];
-        if let Some(batch) = batch {
-            stream_batches.push(Arc::new(batch));
+        if let Some(mut batch) = batch {
+            // Apply predicate to filter data
+            if let Some(filter_expr) = predicate.filter_expr() {
+                // Since the predicate may include columns that the batches do not have,
+                // we need to rewrite the predicate to replace those column names with NULL
+                let mut rewriter = MissingColumnsToNull::new(&schema);
+                let filter_expr = filter_expr
+                    .rewrite(&mut rewriter)
+                    .context(RewritingFilterPredicateSnafu {})?;
+                let df_phy_expr =
+                    df_physical_expr_from_schema_and_expr(schema.as_arrow(), filter_expr)
+                        .context(ToPhysicalExprSnafu)?;
+                let num_rows_before = batch.num_rows();
+                batch = batch_filter(&batch, &df_phy_expr).context(FilterBatchSnafu)?;
+                let num_rows_after = batch.num_rows();
+                debug!(
+                    ?num_rows_before,
+                    ?num_rows_after,
+                    "predicate pushdown for QueryableBatch"
+                );
+            }
+
+            if batch.num_rows() > 0 {
+                stream_batches.push(Arc::new(batch));
+            }
         }
 
         // Return stream of data
@@ -234,6 +285,32 @@ impl QueryChunk for QueryableBatch {
     }
 }
 
+// Filter data from RecordBatch
+// Borrow from DF's https://github.com/apache/arrow-datafusion/blob/ecd0081bde98e9031b81aa6e9ae2a4f309fcec12/datafusion/src/physical_plan/filter.rs#L186
+// TODO: if we make DF batch_filter public, we can call that function directly
+fn batch_filter(
+    batch: &RecordBatch,
+    predicate: &Arc<dyn PhysicalExpr>,
+) -> ArrowResult<RecordBatch> {
+    predicate
+        .evaluate(batch)
+        .map(|v| v.into_array(batch.num_rows()))
+        .map_err(DataFusionError::into)
+        .and_then(|array| {
+            array
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .ok_or_else(|| {
+                    DataFusionError::Internal(
+                        "Filter predicate evaluated to non-boolean value".to_string(),
+                    )
+                    .into()
+                })
+                // apply filter array to record batch
+                .and_then(|filter_array| filter_record_batch(batch, filter_array))
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use crate::test_util::{
@@ -256,6 +333,8 @@ mod tests {
         delete_predicate::{DeleteExpr, Op, Scalar},
         timestamp::TimestampRange,
     };
+    use datafusion::logical_plan::{col, lit};
+    use predicate::PredicateBuilder;
 
     #[tokio::test]
     async fn test_merge_batch_schema() {
@@ -383,6 +462,73 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_filter_predicate() {
+        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
+        let batch = make_queryable_batch("test_table", 1, batches);
+        // tag1 = VT
+        let expr = col("tag1").eq(lit("VT"));
+        let pred = PredicateBuilder::default().add_expr(expr).build();
+
+        let stream = batch.read_filter(&pred, Selection::All).unwrap();
+        let batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        let expected = vec![
+            "+-----------+------+-----------------------------+",
+            "| field_int | tag1 | time                        |",
+            "+-----------+------+-----------------------------+",
+            "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
+            "+-----------+------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_read_filter_predicate_on_missing_column() {
+        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
+        let batch = make_queryable_batch("test_table", 1, batches);
+        // foo = VT
+        let expr = col("foo").eq(lit("VT")); // `foo` column not available
+        let pred = PredicateBuilder::default().add_expr(expr).build();
+
+        let stream = batch.read_filter(&pred, Selection::All).unwrap();
+        let batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        // missing_column = "VT" -> return nothing
+        let expected = vec!["++", "++"];
+        assert_batches_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_read_filter_predicate_on_missing_column_is_null() {
+        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
+        let batch = make_queryable_batch("test_table", 1, batches);
+        // foo is NULL
+        let expr = col("foo").is_null();
+        let pred = PredicateBuilder::default().add_expr(expr).build();
+
+        let stream = batch.read_filter(&pred, Selection::All).unwrap();
+        let batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        // missing_column is NULL  --> return everything
+        let expected = vec![
+            "+-----------+------+-----------------------------+",
+            "| field_int | tag1 | time                        |",
+            "+-----------+------+-----------------------------+",
+            "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
+            "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
+            "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
+            "+-----------+------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
     async fn test_read_filter_not_exist_columns() {
         let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
         let batch = make_queryable_batch("test_table", 1, batches);
@@ -436,35 +582,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_filter_many_batches_filer_columns() {
+    async fn test_read_filter_many_batches_filer_columns_predicates() {
         let batches = create_batches_with_influxtype_different_columns_different_order().await;
         let batch = make_queryable_batch("test_table", 1, batches);
-        let stream = batch
-            .read_filter(&Predicate::default(), Selection::Some(&["tag1", "time"])) // return 2 out of 4 columns
-            .unwrap();
+
+        // Only read 2 columns: "tag1" and "time"
+        let selection = Selection::Some(&["tag1", "time"]);
+
+        // foo is NULL AND tag1=CT
+        let expr = col("foo").is_null().and(col("tag1").eq(lit("CT")));
+        let pred = PredicateBuilder::default().add_expr(expr).build();
+
+        let stream = batch.read_filter(&pred, selection).unwrap();
         let batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
 
+        // missing_column is NULL AND tag1=CT --> return 2 columns with tag1=CT only
         let expected = vec![
             "+------+--------------------------------+",
             "| tag1 | time                           |",
             "+------+--------------------------------+",
-            "| MT   | 1970-01-01T00:00:00.000001Z    |",
-            "| MT   | 1970-01-01T00:00:00.000007Z    |",
             "| CT   | 1970-01-01T00:00:00.000000100Z |",
-            "| AL   | 1970-01-01T00:00:00.000000050Z |",
-            "| MT   | 1970-01-01T00:00:00.000000005Z |",
-            "| MT   | 1970-01-01T00:00:00.000002Z    |",
-            "| MT   | 1970-01-01T00:00:00.000007Z    |",
             "| CT   | 1970-01-01T00:00:00.000000500Z |",
-            "| AL   | 1970-01-01T00:00:00.000000050Z |",
-            "| MT   | 1970-01-01T00:00:00.000000005Z |",
-            "|      | 1970-01-01T00:00:00.000001Z    |",
-            "|      | 1970-01-01T00:00:00.000007Z    |",
-            "|      | 1970-01-01T00:00:00.000000100Z |",
-            "|      | 1970-01-01T00:00:00.000000050Z |",
-            "|      | 1970-01-01T00:00:00.000005Z    |",
             "+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &batches);
