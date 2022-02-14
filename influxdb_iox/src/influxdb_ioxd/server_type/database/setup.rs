@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use object_store::ObjectStore;
 use observability_deps::tracing::warn;
+use server::config::ConfigProvider;
 use server::{ApplicationState, Server, ServerConfig};
 use snafu::{ResultExt, Snafu};
 use trace::TraceCollector;
@@ -9,6 +10,7 @@ use trace::TraceCollector;
 use crate::{
     clap_blocks::object_store::{check_object_store, warn_about_inmem_store},
     commands::run::database::Config,
+    influxdb_ioxd::server_type::database::config::ServerConfigFile,
 };
 
 #[derive(Debug, Snafu)]
@@ -33,20 +35,27 @@ pub async fn make_application(
     warn_about_inmem_store(&config.run_config.object_store_config);
     let object_store = ObjectStore::try_from(&config.run_config.object_store_config)
         .context(ObjectStoreParsingSnafu)?;
+
     check_object_store(&object_store)
         .await
         .context(ObjectStoreCheckSnafu)?;
+
     let object_storage = Arc::new(object_store);
+
+    let config_provider = config
+        .config_file
+        .clone()
+        .map(|path| Arc::new(ServerConfigFile::new(path)) as Arc<dyn ConfigProvider>);
 
     Ok(Arc::new(ApplicationState::new(
         object_storage,
         config.num_worker_threads,
         trace_collector,
-        None,
+        config_provider,
     )))
 }
 
-pub fn make_server(application: Arc<ApplicationState>, config: &Config) -> Arc<Server> {
+pub fn make_server(application: Arc<ApplicationState>, config: &Config) -> Result<Arc<Server>> {
     let server_config = ServerConfig {
         wipe_catalog_on_error: config.wipe_catalog_on_error.into(),
         skip_replay_and_seek_instead: config.skip_replay_and_seek_instead.into(),
@@ -62,5 +71,5 @@ pub fn make_server(application: Arc<ApplicationState>, config: &Config) -> Arc<S
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
     }
 
-    app_server
+    Ok(app_server)
 }

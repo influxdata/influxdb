@@ -671,8 +671,12 @@ mod tests {
             .await
             .unwrap();
 
-        let server_type =
-            DatabaseServerType::new(application, app_server, &CommonServerState::for_testing());
+        let server_type = DatabaseServerType::new(
+            application,
+            app_server,
+            &CommonServerState::for_testing(),
+            false,
+        );
 
         TestServer::new(Arc::new(server_type))
     }

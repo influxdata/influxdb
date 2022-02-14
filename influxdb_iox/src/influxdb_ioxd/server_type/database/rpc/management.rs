@@ -1,5 +1,6 @@
 use data_types::error::ErrorLogger;
 use data_types::{chunk_metadata::ChunkId, DatabaseName};
+use generated_types::google::PreconditionViolation;
 use generated_types::{
     google::{FieldViolation, FieldViolationExt},
     influxdata::iox::management::v1::{Error as ProtobufError, *},
@@ -13,6 +14,7 @@ use uuid::Uuid;
 struct ManagementService {
     application: Arc<ApplicationState>,
     server: Arc<Server>,
+    config_immutable: bool,
 }
 
 use super::error::{
@@ -71,6 +73,10 @@ impl management_service_server::ManagementService for ManagementService {
         &self,
         request: Request<CreateDatabaseRequest>,
     ) -> Result<Response<CreateDatabaseResponse>, Status> {
+        if self.config_immutable {
+            return Err(PreconditionViolation::DatabaseConfigImmutable.into());
+        }
+
         let rules: DatabaseRules = request
             .into_inner()
             .rules
@@ -94,6 +100,10 @@ impl management_service_server::ManagementService for ManagementService {
         &self,
         request: Request<UpdateDatabaseRequest>,
     ) -> Result<Response<UpdateDatabaseResponse>, Status> {
+        if self.config_immutable {
+            return Err(PreconditionViolation::DatabaseConfigImmutable.into());
+        }
+
         let rules: DatabaseRules = request
             .into_inner()
             .rules
@@ -117,6 +127,10 @@ impl management_service_server::ManagementService for ManagementService {
         &self,
         request: Request<ReleaseDatabaseRequest>,
     ) -> Result<Response<ReleaseDatabaseResponse>, Status> {
+        if self.config_immutable {
+            return Err(PreconditionViolation::DatabaseConfigImmutable.into());
+        }
+
         let ReleaseDatabaseRequest { db_name, uuid } = request.into_inner();
 
         let db_name = DatabaseName::new(db_name).scope("db_name")?;
@@ -141,6 +155,10 @@ impl management_service_server::ManagementService for ManagementService {
         &self,
         request: Request<ClaimDatabaseRequest>,
     ) -> Result<Response<ClaimDatabaseResponse>, Status> {
+        if self.config_immutable {
+            return Err(PreconditionViolation::DatabaseConfigImmutable.into());
+        }
+
         let ClaimDatabaseRequest { uuid, force } = request.into_inner();
 
         let uuid = Uuid::from_slice(&uuid).scope("uuid")?;
@@ -381,7 +399,7 @@ impl management_service_server::ManagementService for ManagementService {
                 databases
                     .into_iter()
                     .map(|database| DatabaseStatus {
-                        db_name: database.config().name.to_string(),
+                        db_name: database.name().to_string(),
                         error: database.init_error().map(|e| ProtobufError {
                             message: e.to_string(),
                         }),
@@ -645,11 +663,13 @@ fn format_rules(provided_rules: Arc<ProvidedDatabaseRules>, omit_defaults: bool)
 pub fn make_server(
     application: Arc<ApplicationState>,
     server: Arc<Server>,
+    config_immutable: bool,
 ) -> management_service_server::ManagementServiceServer<
     impl management_service_server::ManagementService,
 > {
     management_service_server::ManagementServiceServer::new(ManagementService {
         application,
         server,
+        config_immutable,
     })
 }

@@ -1,15 +1,25 @@
 use super::Result as ConfigResult;
-use crate::config::ConfigProvider;
-use crate::{PersistedDatabaseRules, ProvidedDatabaseRules};
+use crate::{
+    config::{
+        owner::{
+            create_owner_info, fetch_owner_info, update_owner_info, OwnerInfoCreateError,
+            OwnerInfoFetchError, OwnerInfoUpdateError,
+        },
+        ConfigProvider,
+    },
+    PersistedDatabaseRules, ProvidedDatabaseRules,
+};
 use async_trait::async_trait;
 use data_types::server_id::ServerId;
 use generated_types::database_rules::encode_persisted_database_rules;
 use generated_types::google::FieldViolation;
 use generated_types::influxdata::iox::management;
+use generated_types::influxdata::iox::management::v1::OwnerInfo;
 use iox_object_store::IoxObjectStore;
 use object_store::ObjectStore;
 use snafu::{ensure, ResultExt, Snafu};
 use std::sync::Arc;
+use time::TimeProvider;
 use uuid::Uuid;
 
 /// Error enumeration for [`ConfigProviderObjectStorage`]
@@ -65,6 +75,15 @@ pub enum Error {
 
     #[snafu(display("error converting to database rules: {}", source))]
     ConvertingRules { source: FieldViolation },
+
+    #[snafu(display("error creating database owner info: {}", source))]
+    CreatingOwnerInfo { source: OwnerInfoCreateError },
+
+    #[snafu(display("error getting database owner info: {}", source))]
+    FetchingOwnerInfo { source: OwnerInfoFetchError },
+
+    #[snafu(display("error updating database owner info: {}", source))]
+    UpdatingOwnerInfo { source: OwnerInfoUpdateError },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -83,11 +102,20 @@ fn parse_location(location: &str) -> Result<Uuid> {
 #[derive(Debug)]
 pub struct ConfigProviderObjectStorage {
     object_store: Arc<ObjectStore>,
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl ConfigProviderObjectStorage {
-    pub fn new(object_store: Arc<ObjectStore>) -> Self {
-        Self { object_store }
+    pub fn new(object_store: Arc<ObjectStore>, time_provider: Arc<dyn TimeProvider>) -> Self {
+        Self {
+            object_store,
+            time_provider,
+        }
+    }
+
+    fn iox_object_store(&self, uuid: Uuid) -> IoxObjectStore {
+        let root_path = IoxObjectStore::root_path_for(&self.object_store, uuid);
+        IoxObjectStore::existing(Arc::clone(&self.object_store), root_path)
     }
 }
 
@@ -182,15 +210,46 @@ impl ConfigProvider for ConfigProviderObjectStorage {
         encode_persisted_database_rules(&persisted_database_rules, &mut data)
             .context(SerializeRulesSnafu)?;
 
-        let root_path = IoxObjectStore::root_path_for(&self.object_store, uuid);
-        let store = IoxObjectStore::existing(Arc::clone(&self.object_store), root_path);
-
-        store
+        self.iox_object_store(uuid)
             .put_database_rules_file(data.freeze())
             .await
             .context(StoreRulesSnafu {
                 db_name: rules.db_name(),
             })?;
+
+        Ok(())
+    }
+
+    async fn fetch_owner_info(&self, _server_id: ServerId, uuid: Uuid) -> ConfigResult<OwnerInfo> {
+        let config = fetch_owner_info(&self.iox_object_store(uuid))
+            .await
+            .context(FetchingOwnerInfoSnafu)?;
+
+        Ok(config)
+    }
+
+    async fn update_owner_info(&self, server_id: Option<ServerId>, uuid: Uuid) -> ConfigResult<()> {
+        let path = server_id.map(|server_id| {
+            IoxObjectStore::server_config_path(&self.object_store, server_id).to_string()
+        });
+
+        update_owner_info(
+            server_id,
+            path,
+            self.time_provider.now(),
+            &self.iox_object_store(uuid),
+        )
+        .await
+        .context(UpdatingOwnerInfoSnafu)?;
+
+        Ok(())
+    }
+
+    async fn create_owner_info(&self, server_id: ServerId, uuid: Uuid) -> ConfigResult<()> {
+        let path = IoxObjectStore::server_config_path(&self.object_store, server_id).to_string();
+        create_owner_info(server_id, path, &self.iox_object_store(uuid))
+            .await
+            .context(CreatingOwnerInfoSnafu)?;
 
         Ok(())
     }

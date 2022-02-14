@@ -1,6 +1,6 @@
 use super::scenario::{create_readable_database, rand_name};
 use crate::{
-    common::server_fixture::{ServerFixture, ServerType},
+    common::server_fixture::{ServerFixture, ServerType, TestConfig},
     end_to_end_cases::scenario::{
         fixture_broken_catalog, fixture_replay_broken, list_chunks, wait_for_exact_chunk_states,
         wait_for_operations_to_complete, DatabaseBuilder,
@@ -13,6 +13,7 @@ use generated_types::{
     influxdata::iox::management::v1::{operation_metadata::Job, WipePreservedCatalog},
 };
 use predicates::prelude::*;
+use std::io::Write;
 use std::{path::PathBuf, sync::Arc, time::Duration};
 use tempfile::TempDir;
 use test_helpers::{assert_contains, make_temp_file};
@@ -1805,4 +1806,167 @@ pub async fn setup_load_and_persist_two_partition_chunks(
     let chunk_ids: Vec<_> = chunks.iter().map(|c| c.id.get().to_string()).collect();
 
     (Arc::clone(&fixture), db_name, String::from(addr), chunk_ids)
+}
+
+#[tokio::test]
+async fn test_router_static_config() {
+    let mut file = tempfile::NamedTempFile::new().unwrap();
+
+    // UUIDs generated with `uuid -rF BIN | base64`
+    //
+    // Then decoded with `echo -n "..." | base64 --decode | uuid -dF BIN -`
+
+    let config = r#"
+    {
+      "rules": [
+        {
+          "name": "default",
+          "lifecycleRules": {
+            "bufferSizeSoft": 1048576,
+            "bufferSizeHard": 10485760,
+            "mubRowThreshold": 1337
+          }
+        }
+      ],
+      "databases": [
+        {
+          "name": "test_db1",
+          "uuid": "b511418e-8cd0-11ec-bee7-cb910d4fbdb8",
+          "rules": "default"
+        },
+        {
+          "name": "test_db2",
+          "uuid": "bd32cb58-8cd0-11ec-b14c-0bb33fb6cdcf",
+          "rules": "default"
+        }
+      ]
+    }"#;
+
+    write!(file, "{}", config).unwrap();
+
+    let config = TestConfig::new(ServerType::Database)
+        .with_env("INFLUXDB_IOX_CONFIG_FILE", file.path().to_str().unwrap());
+
+    let server_fixture = ServerFixture::create_single_use_with_config(config).await;
+    let addr = server_fixture.grpc_base();
+
+    // Can delay setting server ID
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("server")
+        .arg("set")
+        .arg("42")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ok"));
+
+    // Wait for server to finish starting up
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("server")
+        .arg("wait-server-initialized")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Server initialized."));
+
+    // Can list databases
+    let line = list_detailed(addr, "test_db1");
+    assert_contains!(&line, "Initialized");
+    assert_contains!(&line, "b511418e-8cd0-11ec-bee7-cb910d4fbdb8");
+
+    let line = list_detailed(addr, "test_db2");
+    assert_contains!(&line, "Initialized");
+    assert_contains!(&line, "bd32cb58-8cd0-11ec-b14c-0bb33fb6cdcf");
+
+    // Can get a database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("get")
+        .arg("test_db1")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("\"bufferSizeSoft\": \"1048576\"")
+                .and(predicate::str::contains("\"mubRowThreshold\": \"1337\"")),
+        );
+
+    // Can shutdown a database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("shutdown")
+        .arg("test_db1")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success();
+
+    let line = list_detailed(addr, "test_db1");
+    assert_contains!(&line, "Shutdown");
+
+    // Can startup a database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("restart")
+        .arg("test_db1")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success();
+
+    let line = list_detailed(addr, "test_db1");
+    assert_contains!(&line, "Initialized");
+
+    // Cannot create a new database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg("test_db3")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "database configuration is not mutable",
+        ));
+
+    // Cannot release a database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("release")
+        .arg("test_db2")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "database configuration is not mutable",
+        ));
+
+    // Cannot claim a database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("claim")
+        .arg("9d40a878-3257-4fb6-ad32-7e40c250035d")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "database configuration is not mutable",
+        ));
+
+    // Cleanup temporary file
+    std::mem::drop(file);
 }

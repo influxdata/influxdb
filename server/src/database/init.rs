@@ -1,12 +1,5 @@
 //! Database initialization / creation logic
-use crate::{
-    database::owner::{
-        fetch_owner_info, update_owner_info, OwnerInfoCreateError, OwnerInfoFetchError,
-        OwnerInfoUpdateError,
-    },
-    rules::ProvidedDatabaseRules,
-    ApplicationState,
-};
+use crate::{rules::ProvidedDatabaseRules, ApplicationState};
 use data_types::{server_id::ServerId, DatabaseName};
 use db::{
     load::{create_preserved_catalog, load_or_create_preserved_catalog},
@@ -26,7 +19,7 @@ use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::{owner::create_owner_info, state::DatabaseShared};
+use super::state::DatabaseShared;
 
 /// Errors encountered during initialization of a database
 #[derive(Debug, Snafu)]
@@ -55,13 +48,13 @@ pub enum InitError {
     Replay { source: db::Error },
 
     #[snafu(display("error creating database owner info: {}", source))]
-    CreatingOwnerInfo { source: OwnerInfoCreateError },
+    CreatingOwnerInfo { source: crate::config::Error },
 
     #[snafu(display("error getting database owner info: {}", source))]
-    FetchingOwnerInfo { source: OwnerInfoFetchError },
+    FetchingOwnerInfo { source: crate::config::Error },
 
     #[snafu(display("error updating database owner info: {}", source))]
-    UpdatingOwnerInfo { source: OwnerInfoUpdateError },
+    UpdatingOwnerInfo { source: crate::config::Error },
 
     #[snafu(display(
         "Server ID in the database's owner info file ({}) does not match this server's ID ({})",
@@ -320,15 +313,22 @@ impl DatabaseStateKnown {
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateOwnerInfoLoaded, InitError> {
-        let owner_info = fetch_owner_info(&shared.iox_object_store)
+        let (server_id, uuid) = {
+            let config = shared.config.read();
+            (config.server_id, config.database_uuid)
+        };
+
+        let owner_info = shared
+            .application
+            .config_provider()
+            .fetch_owner_info(server_id, uuid)
             .await
             .context(FetchingOwnerInfoSnafu)?;
 
-        let server_id = shared.config.read().server_id.get_u32();
-        if owner_info.id != server_id {
+        if owner_info.id != server_id.get_u32() {
             return DatabaseOwnerMismatchSnafu {
                 actual: owner_info.id,
-                expected: server_id,
+                expected: server_id.get_u32(),
             }
             .fail();
         }
@@ -634,10 +634,10 @@ pub async fn create_empty_db_in_object_store(
     );
 
     let database_location = iox_object_store.root_path();
-    let server_location =
-        IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
 
-    create_owner_info(server_id, server_location, &iox_object_store)
+    application
+        .config_provider()
+        .create_owner_info(server_id, uuid)
         .await
         .context(CreatingOwnerInfoSnafu)?;
 
@@ -679,7 +679,9 @@ pub async fn claim_database_in_object_store(
         .await
         .context(IoxObjectStoreSnafu)?;
 
-    let owner_info = fetch_owner_info(&iox_object_store)
+    let owner_info = application
+        .config_provider()
+        .fetch_owner_info(server_id, uuid)
         .await
         .context(FetchingOwnerInfoSnafu);
 
@@ -688,15 +690,15 @@ pub async fn claim_database_in_object_store(
         Err(_) if force => {
             warn!("Attempting to recreate missing owner info due to force");
 
-            let server_location =
-                IoxObjectStore::server_config_path(application.object_store(), server_id)
-                    .to_string();
-
-            create_owner_info(server_id, server_location, &iox_object_store)
+            application
+                .config_provider()
+                .create_owner_info(server_id, uuid)
                 .await
                 .context(CreatingOwnerInfoSnafu)?;
 
-            fetch_owner_info(&iox_object_store)
+            application
+                .config_provider()
+                .fetch_owner_info(server_id, uuid)
                 .await
                 .context(FetchingOwnerInfoSnafu)
         }
@@ -719,17 +721,11 @@ pub async fn claim_database_in_object_store(
     }
 
     let database_location = iox_object_store.root_path();
-    let server_location =
-        IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
-
-    update_owner_info(
-        Some(server_id),
-        Some(server_location),
-        application.time_provider().now(),
-        &iox_object_store,
-    )
-    .await
-    .context(UpdatingOwnerInfoSnafu)?;
+    application
+        .config_provider()
+        .update_owner_info(Some(server_id), uuid)
+        .await
+        .context(UpdatingOwnerInfoSnafu)?;
 
     Ok(database_location)
 }

@@ -48,7 +48,10 @@ impl ApplicationState {
         ));
 
         let config_provider = config_provider.unwrap_or_else(|| {
-            Arc::new(ConfigProviderObjectStorage::new(Arc::clone(&object_store)))
+            Arc::new(ConfigProviderObjectStorage::new(
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider),
+            ))
         });
 
         Self {

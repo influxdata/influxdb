@@ -1,34 +1,35 @@
-pub(crate) mod init;
-mod owner;
-pub(crate) mod state;
+use std::{future::Future, sync::Arc};
 
-use crate::{
-    database::{
-        init::{initialize_database, DatabaseState, InitError},
-        owner::{update_owner_info, OwnerInfoUpdateError},
-        state::{DatabaseConfig, DatabaseShared},
-    },
-    rules::ProvidedDatabaseRules,
-    ApplicationState,
-};
+use futures::{future::FusedFuture, FutureExt};
+use parking_lot::{Mutex, RwLock, RwLockReadGuard};
+use snafu::{ResultExt, Snafu};
+use tokio::task::JoinError;
+use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
+
 use data_types::error::ErrorLogger;
 use data_types::{job::Job, DatabaseName};
 use db::Db;
-use futures::{future::FusedFuture, FutureExt};
 use generated_types::{
     database_state::DatabaseState as DatabaseStateCode, influxdata::iox::management,
 };
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
-use parking_lot::{Mutex, RwLock, RwLockReadGuard};
 use parquet_catalog::core::{PreservedCatalog, PreservedCatalogConfig};
-use snafu::{ResultExt, Snafu};
-use std::{future::Future, sync::Arc};
-use tokio::task::JoinError;
-use tokio_util::sync::CancellationToken;
 use tracker::{TaskTracker, TrackedFutureExt};
-use uuid::Uuid;
+
+use crate::{
+    database::{
+        init::{initialize_database, DatabaseState, InitError},
+        state::{DatabaseConfig, DatabaseShared},
+    },
+    rules::ProvidedDatabaseRules,
+    ApplicationState,
+};
+
+pub(crate) mod init;
+pub(crate) mod state;
 
 /// Matches an error [`DatabaseState`] and clones the contained state
 macro_rules! error_state {
@@ -127,7 +128,7 @@ pub enum Error {
     #[snafu(display("cannot release database {}: {}", db_name, source))]
     CannotRelease {
         db_name: String,
-        source: OwnerInfoUpdateError,
+        source: crate::config::Error,
     },
 }
 
@@ -191,16 +192,16 @@ impl Database {
         self.shutdown();
         let _ = self.join().await.log_if_error("releasing database");
 
-        update_owner_info(
-            None,
-            None,
-            self.shared.application.time_provider().now(),
-            &self.shared.iox_object_store,
-        )
-        .await
-        .context(CannotReleaseSnafu { db_name })?;
+        let uuid = self.uuid();
 
-        Ok(self.uuid())
+        self.shared
+            .application
+            .config_provider()
+            .update_owner_info(None, uuid)
+            .await
+            .context(CannotReleaseSnafu { db_name })?;
+
+        Ok(uuid)
     }
 
     /// Triggers shutdown of this `Database` if it is running
@@ -755,12 +756,11 @@ async fn background_worker(shared: Arc<DatabaseShared>, shutdown: CancellationTo
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::{
-        init::{claim_database_in_object_store, create_empty_db_in_object_store},
-        owner::fetch_owner_info,
-    };
-    use crate::test_utils::make_application;
+    use std::time::Duration;
+    use std::{num::NonZeroU32, time::Instant};
+
+    use uuid::Uuid;
+
     use data_types::server_id::ServerId;
     use data_types::{
         database_rules::{PartitionTemplate, TemplatePart},
@@ -768,11 +768,13 @@ mod tests {
         write_buffer::WriteBufferConnection,
     };
     use object_store::{ObjectStore, ObjectStoreIntegration, ThrottleConfig};
-    use std::time::Duration;
-    use std::{num::NonZeroU32, time::Instant};
     use test_helpers::assert_contains;
-    use uuid::Uuid;
     use write_buffer::mock::MockBufferSharedState;
+
+    use crate::test_utils::make_application;
+
+    use super::init::{claim_database_in_object_store, create_empty_db_in_object_store};
+    use super::*;
 
     #[tokio::test]
     async fn database_shutdown_waits_for_jobs() {
@@ -847,14 +849,18 @@ mod tests {
         let server_id = database.shared.config.read().server_id;
         let server_location =
             IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
-        let iox_object_store = database.iox_object_store();
 
-        database.release().await.unwrap();
+        let uuid = database.release().await.unwrap();
 
         assert_eq!(database.state_code(), DatabaseStateCode::Shutdown);
         assert!(database.init_error().is_none());
 
-        let owner_info = fetch_owner_info(&iox_object_store).await.unwrap();
+        let owner_info = application
+            .config_provider()
+            .fetch_owner_info(server_id, uuid)
+            .await
+            .unwrap();
+
         assert_eq!(owner_info.id, 0);
         assert_eq!(owner_info.location, "");
         assert_eq!(owner_info.transactions.len(), 1);
@@ -871,7 +877,6 @@ mod tests {
         let server_id = database.shared.config.read().server_id;
         let server_location =
             IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
-        let iox_object_store = database.iox_object_store();
         let new_server_id = ServerId::try_from(2).unwrap();
         let new_server_location =
             IoxObjectStore::server_config_path(application.object_store(), new_server_id)
@@ -892,7 +897,12 @@ mod tests {
         .await
         .unwrap();
 
-        let owner_info = fetch_owner_info(&iox_object_store).await.unwrap();
+        let owner_info = application
+            .config_provider()
+            .fetch_owner_info(server_id, uuid)
+            .await
+            .unwrap();
+
         assert_eq!(owner_info.id, new_server_id.get_u32());
         assert_eq!(owner_info.location, new_server_location);
         assert_eq!(owner_info.transactions.len(), 2);

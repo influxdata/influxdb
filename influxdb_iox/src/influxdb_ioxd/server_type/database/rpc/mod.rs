@@ -43,6 +43,7 @@ pub async fn server_grpc(
         management::make_server(
             Arc::clone(&server_type.application),
             Arc::clone(&server_type.server),
+            server_type.config_immutable,
         )
     );
     add_service!(

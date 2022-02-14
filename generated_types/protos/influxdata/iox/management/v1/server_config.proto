@@ -4,8 +4,11 @@ option go_package = "github.com/influxdata/iox/management/v1";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/any.proto";
 
-// Stores a server's map of the databases it owns. The keys are the database names and the values
-// are the database's location in object storage.
+import "influxdata/iox/management/v1/database_rules.proto";
+
+// Used by IOx to store store a map of the databases it owns in object storage
+//
+// The keys are the database names and the values are the database's location in object storage.
 //
 // Example (current): "foo" => "/1/foo" ("/[server id]/[database name]")
 // Example (after completing the switch to floating databases):
@@ -41,4 +44,25 @@ message OwnershipTransaction {
 
   // When the transaction took place
   google.protobuf.Timestamp timestamp = 3;
+}
+
+// A user-provided configuration file listing the databases for this server
+message ServerConfigFile {
+  message DatabaseConfig {
+    /// The name of this database
+    string name = 1;
+
+    // The UUID for this database formatted as a string
+    // e.g. 7e9c8f61-20c8-48c2-af76-0cec8e66a6d7
+    string uuid = 2;
+
+    // The name of the rules to use for this database
+    string rules = 3;
+  }
+
+  // A list of database rules
+  repeated DatabaseRules rules = 1;
+
+  // A list of database configurations
+  repeated DatabaseConfig databases = 2;
 }

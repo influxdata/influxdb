@@ -88,17 +88,25 @@ pub struct Config {
         default_value = "no"
     )]
     pub skip_replay_and_seek_instead: BooleanFlag,
+
+    /// Path to a configuration file to use for routing configuration, this will
+    /// disable dynamic configuration via `influxdata.iox.management.v1.ManagementService`
+    ///
+    /// The config file should contain a JSON encoded `influxdata.iox.management.v1.ServerConfigFile`
+    #[clap(long = "--config-file", env = "INFLUXDB_IOX_CONFIG_FILE")]
+    pub config_file: Option<String>,
 }
 
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
     let application = make_application(&config, common_state.trace_collector()).await?;
-    let app_server = make_server(Arc::clone(&application), &config);
+    let app_server = make_server(Arc::clone(&application), &config)?;
     let server_type = Arc::new(DatabaseServerType::new(
         Arc::clone(&application),
         Arc::clone(&app_server),
         &common_state,
+        config.config_file.is_some(),
     ));
 
     Ok(influxdb_ioxd::main(common_state, server_type).await?)

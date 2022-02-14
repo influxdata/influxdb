@@ -14,6 +14,7 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
+mod config;
 mod http;
 mod rpc;
 pub mod setup;
@@ -28,6 +29,7 @@ pub struct DatabaseServerType {
     pub lp_metrics: Arc<LineProtocolMetrics>,
     pub max_request_size: usize,
     pub serving_readiness: ServingReadiness,
+    config_immutable: bool,
     shutdown: CancellationToken,
 }
 
@@ -36,6 +38,7 @@ impl DatabaseServerType {
         application: Arc<ApplicationState>,
         server: Arc<Server>,
         common_state: &CommonServerState,
+        config_immutable: bool,
     ) -> Self {
         let lp_metrics = Arc::new(LineProtocolMetrics::new(
             application.metric_registry().as_ref(),
@@ -45,6 +48,7 @@ impl DatabaseServerType {
             application,
             server,
             lp_metrics,
+            config_immutable,
             max_request_size: common_state.run_config().max_http_request_size,
             serving_readiness: common_state.serving_readiness().clone(),
             shutdown: CancellationToken::new(),
@@ -157,7 +161,12 @@ mod tests {
             .unwrap();
 
         let common_state = CommonServerState::from_config(config).unwrap();
-        let server_type = Arc::new(DatabaseServerType::new(application, server, &common_state));
+        let server_type = Arc::new(DatabaseServerType::new(
+            application,
+            server,
+            &common_state,
+            false,
+        ));
 
         serve(common_state, grpc_listener, http_listener, server_type).await
     }
@@ -169,7 +178,7 @@ mod tests {
         // Create a server and wait for it to initialize
         let config = test_config(Some(23));
         let application = make_application(&config, None).await.unwrap();
-        let server = make_server(Arc::clone(&application), &config);
+        let server = make_server(Arc::clone(&application), &config).unwrap();
         server.wait_for_init().await.unwrap();
 
         // Start serving
@@ -197,7 +206,7 @@ mod tests {
         // Create a server but don't set a server id
         let config = test_config(None);
         let application = make_application(&config, None).await.unwrap();
-        let server = make_server(Arc::clone(&application), &config);
+        let server = make_server(Arc::clone(&application), &config).unwrap();
 
         let serve_fut = test_serve(config.run_config, application, Arc::clone(&server)).fuse();
         pin_mut!(serve_fut);
@@ -228,7 +237,7 @@ mod tests {
         // Create a server and wait for it to initialize
         let config = test_config(Some(999999999));
         let application = make_application(&config, None).await.unwrap();
-        let server = make_server(Arc::clone(&application), &config);
+        let server = make_server(Arc::clone(&application), &config).unwrap();
         server.wait_for_init().await.unwrap();
 
         let serve_fut = test_serve(config.run_config, application, Arc::clone(&server)).fuse();
@@ -255,7 +264,7 @@ mod tests {
         // Create a server and wait for it to initialize
         let config = test_config(Some(23));
         let application = make_application(&config, None).await.unwrap();
-        let server = make_server(Arc::clone(&application), &config);
+        let server = make_server(Arc::clone(&application), &config).unwrap();
         server.wait_for_init().await.unwrap();
 
         let other_db_name = DatabaseName::new("other").unwrap();
@@ -333,7 +342,7 @@ mod tests {
         let application = make_application(&config, Some(Arc::<T>::clone(collector)))
             .await
             .unwrap();
-        let server = make_server(Arc::clone(&application), &config);
+        let server = make_server(Arc::clone(&application), &config).unwrap();
         server.wait_for_init().await.unwrap();
 
         let grpc_listener = grpc_listener(config.run_config.grpc_bind_address.into())
@@ -350,6 +359,7 @@ mod tests {
             application,
             Arc::clone(&server),
             &common_state,
+            false,
         ));
 
         let fut = serve(common_state, grpc_listener, http_listener, server_type);
