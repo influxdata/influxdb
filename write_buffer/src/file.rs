@@ -271,7 +271,7 @@ pub struct FileBufferStreamHandler {
 
 #[async_trait]
 impl WriteBufferStreamHandler for FileBufferStreamHandler {
-    fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
+    async fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
         let committed = self.path.join("committed");
 
         ConsumerStream::new(
@@ -828,7 +828,7 @@ mod tests {
 
         let reader = ctx.reading(true).await.unwrap();
         let mut handler = reader.stream_handler(sequencer_id).await.unwrap();
-        let mut stream = handler.stream();
+        let mut stream = handler.stream().await;
 
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w1);
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w4);
@@ -857,7 +857,7 @@ mod tests {
 
         let reader = ctx.reading(true).await.unwrap();
         let mut handler = reader.stream_handler(sequencer_id).await.unwrap();
-        let mut stream = handler.stream();
+        let mut stream = handler.stream().await;
 
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w2);
     }

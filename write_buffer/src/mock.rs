@@ -400,7 +400,7 @@ pub struct MockBufferStreamHandler {
 
 #[async_trait]
 impl WriteBufferStreamHandler for MockBufferStreamHandler {
-    fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
+    async fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
         futures::stream::poll_fn(|cx| {
             if self.terminated {
                 return Poll::Ready(None);
@@ -525,7 +525,7 @@ pub struct MockStreamHandlerThatAlwaysErrors;
 
 #[async_trait]
 impl WriteBufferStreamHandler for MockStreamHandlerThatAlwaysErrors {
-    fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
+    async fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
         futures::stream::poll_fn(|_cx| {
             Poll::Ready(Some(Err(String::from(
                 "Something bad happened while reading from stream",
@@ -777,6 +777,7 @@ mod tests {
         assert_contains!(
             stream_handler
                 .stream()
+                .await
                 .next()
                 .await
                 .unwrap()
@@ -854,7 +855,7 @@ mod tests {
         let barrier_captured = Arc::clone(&barrier);
         let consumer = tokio::spawn(async move {
             let mut stream_handler = read.stream_handler(0).await.unwrap();
-            let mut stream = stream_handler.stream();
+            let mut stream = stream_handler.stream().await;
             stream.next().await.unwrap().unwrap();
             barrier_captured.wait().await;
             stream.next().await.unwrap().unwrap();
