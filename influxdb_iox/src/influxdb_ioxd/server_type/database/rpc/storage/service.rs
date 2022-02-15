@@ -441,7 +441,7 @@ where
         // Special case a request for 'tag_key=_measurement" means to list all
         // measurements
         let response = if tag_key.is_measurement() {
-            info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[x00] (measurement name)");
+            info!(%db_name, ?range, tag_key="_measurement", predicate=%predicate.loggable(), "tag_values");
 
             if predicate.is_some() {
                 return Err(Error::NotYetImplemented {
@@ -452,7 +452,7 @@ where
 
             measurement_name_impl(Arc::clone(&db), db_name, range, predicate, span_ctx).await
         } else if tag_key.is_field() {
-            info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[xff] (field name)");
+            info!(%db_name, ?range, tag_key="_field", predicate=%predicate.loggable(), "tag_values");
 
             let fieldlist =
                 field_names_impl(Arc::clone(&db), db_name, None, range, predicate, span_ctx)
@@ -468,8 +468,7 @@ where
             Ok(StringValuesResponse { values })
         } else {
             let tag_key = String::from_utf8(tag_key).context(ConvertingTagKeyInTagValuesSnafu)?;
-
-            info!(%db_name, ?range, %tag_key, predicate=%predicate.loggable(), "tag_values",);
+            info!(%db_name, ?range, %tag_key, predicate=%predicate.loggable(), "tag_values");
 
             tag_values_impl(
                 Arc::clone(&db),
