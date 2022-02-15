@@ -168,14 +168,13 @@ impl SequencerData {
         namespace: &str,
         catalog: &dyn Catalog,
     ) -> Result<Arc<NamespaceData>> {
-        let mut txn = catalog.start_transaction().await.context(CatalogSnafu)?;
-        let namespace = txn
+        let mut repos = catalog.repositories().await;
+        let namespace = repos
             .namespaces()
             .get_by_name(namespace)
             .await
             .context(CatalogSnafu)?
             .context(NamespaceNotFoundSnafu { namespace })?;
-        txn.commit().await.context(CatalogSnafu)?;
 
         let mut n = self.namespaces.write();
         let data = Arc::clone(
@@ -257,13 +256,12 @@ impl NamespaceData {
         table_name: &str,
         catalog: &dyn Catalog,
     ) -> Result<Arc<TableData>> {
-        let mut txn = catalog.start_transaction().await.context(CatalogSnafu)?;
-        let table = txn
+        let mut repos = catalog.repositories().await;
+        let table = repos
             .tables()
             .create_or_get(table_name, self.namespace_id)
             .await
             .context(CatalogSnafu)?;
-        txn.commit().await.context(CatalogSnafu)?;
 
         let mut t = self.tables.write();
         let data = Arc::clone(
@@ -336,8 +334,8 @@ impl TableData {
         let min_time = Timestamp::new(predicate.range.start());
         let max_time = Timestamp::new(predicate.range.end());
 
-        let mut txn = catalog.start_transaction().await.context(CatalogSnafu)?;
-        let tombstone = txn
+        let mut repos = catalog.repositories().await;
+        let tombstone = repos
             .tombstones()
             .create_or_get(
                 self.table_id,
@@ -349,7 +347,6 @@ impl TableData {
             )
             .await
             .context(CatalogSnafu)?;
-        txn.commit().await.context(CatalogSnafu)?;
 
         let partitions = self.partition_data.read();
         for data in partitions.values() {
@@ -371,13 +368,12 @@ impl TableData {
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
     ) -> Result<Arc<PartitionData>> {
-        let mut txn = catalog.start_transaction().await.context(CatalogSnafu)?;
-        let partition = txn
+        let mut repos = catalog.repositories().await;
+        let partition = repos
             .partitions()
             .create_or_get(partition_key, sequencer_id, self.table_id)
             .await
             .context(CatalogSnafu)?;
-        txn.commit().await.context(CatalogSnafu)?;
         let mut p = self.partition_data.write();
         let data = Arc::new(PartitionData::new(partition.id));
         p.insert(partition.partition_key, Arc::clone(&data));

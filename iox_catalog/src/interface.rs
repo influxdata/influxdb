@@ -314,6 +314,9 @@ pub trait Catalog: Send + Sync + Debug {
     /// transactions might be limited per catalog, so you MUST NOT rely on the ability to create multiple transactions in
     /// parallel for correctness but only for scaling.
     async fn start_transaction(&self) -> Result<Box<dyn Transaction>, Error>;
+
+    /// Access the repositories w/o a transaction scope.
+    async fn repositories(&self) -> Box<dyn RepoCollection>;
 }
 
 /// Secret module for [sealed traits].
@@ -344,22 +347,12 @@ pub(crate) mod sealed {
 /// transaction MIGHT be poisoned and will return errors for all operations, depending on the backend.
 ///
 ///
-/// # Repositories
-/// The methods (e.g. "get or create") for handling entities (e.g. namespaces, tombstones, ...) are grouped into
-/// *repositories* with one *repository* per entity. A repository can be thought of a collection of a single entity.
-/// Getting repositories from the transaction is cheap.
-///
-/// Note that a repository might internally map to a wide range of different storage abstractions, ranging from one or
-/// more SQL tables over key-value key spaces to simple in-memory vectors. The user should and must not care how these
-/// are implemented.
-///
-///
 /// # Drop
 /// Dropping a transaction without calling [`commit`](Self::commit) or [`abort`](Self::abort) will abort the
 /// transaction. However resources might not be released immediately, so it is adviced to always call
 /// [`abort`](Self::abort) when you want to enforce that. Dropping w/o commiting/aborting will also log a warning.
 #[async_trait]
-pub trait Transaction: Send + Sync + Debug + sealed::TransactionFinalize {
+pub trait Transaction: Send + Sync + Debug + sealed::TransactionFinalize + RepoCollection {
     /// Commit transaction.
     ///
     /// # Error Handling
@@ -376,7 +369,22 @@ pub trait Transaction: Send + Sync + Debug + sealed::TransactionFinalize {
     async fn abort(mut self: Box<Self>) -> Result<(), Error> {
         self.abort_inplace().await
     }
+}
 
+impl<T> Transaction for T where T: Send + Sync + Debug + sealed::TransactionFinalize + RepoCollection
+{}
+
+/// Collection of the different repositories that the catalog offers.
+///
+/// The methods (e.g. "get or create") for handling entities (e.g. namespaces, tombstones, ...) are grouped into
+/// *repositories* with one *repository* per entity. A repository can be thought of a collection of a single entity.
+/// Getting repositories from the transaction is cheap.
+///
+/// Note that a repository might internally map to a wide range of different storage abstractions, ranging from one or
+/// more SQL tables over key-value key spaces to simple in-memory vectors. The user should and must not care how these
+/// are implemented.
+#[async_trait]
+pub trait RepoCollection: Send + Sync + Debug {
     /// repo for kafka topics
     fn kafka_topics(&mut self) -> &mut dyn KafkaTopicRepo;
 
@@ -588,12 +596,12 @@ pub trait ParquetFileRepo: Send + Sync {
 /// Functions for working with processed tombstone pointers in the catalog
 #[async_trait]
 pub trait ProcessedTombstoneRepo: Send + Sync {
-    /// create processed tombstones
-    async fn create_many(
+    /// create a processed tombstone
+    async fn create(
         &mut self,
         parquet_file_id: ParquetFileId,
-        tombstones: &[Tombstone],
-    ) -> Result<Vec<ProcessedTombstone>>;
+        tombstone_id: TombstoneId,
+    ) -> Result<ProcessedTombstone>;
 
     /// Verify if a processed tombstone exists in the catalog
     async fn exist(
@@ -667,16 +675,19 @@ impl NamespaceSchema {
 }
 
 /// Gets the namespace schema including all tables and columns.
-pub async fn get_schema_by_name(name: &str, txn: &mut dyn Transaction) -> Result<NamespaceSchema> {
-    let namespace = txn
+pub async fn get_schema_by_name<R>(name: &str, repos: &mut R) -> Result<NamespaceSchema>
+where
+    R: RepoCollection + ?Sized,
+{
+    let namespace = repos
         .namespaces()
         .get_by_name(name)
         .await?
         .context(NamespaceNotFoundSnafu { name })?;
 
     // get the columns first just in case someone else is creating schema while we're doing this.
-    let columns = txn.columns().list_by_namespace_id(namespace.id).await?;
-    let tables = txn.tables().list_by_namespace_id(namespace.id).await?;
+    let columns = repos.columns().list_by_namespace_id(namespace.id).await?;
+    let tables = repos.tables().list_by_namespace_id(namespace.id).await?;
 
     let mut namespace = NamespaceSchema::new(
         namespace.id,
@@ -1043,8 +1054,8 @@ pub(crate) mod test_helpers {
     }
 
     async fn test_kafka_topic(catalog: Arc<dyn Catalog>) {
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let kafka_repo = txn.kafka_topics();
+        let mut repos = catalog.repositories().await;
+        let kafka_repo = repos.kafka_topics();
 
         let k = kafka_repo.create_or_get("foo").await.unwrap();
         assert!(k.id > KafkaTopicId::new(0));
@@ -1055,40 +1066,34 @@ pub(crate) mod test_helpers {
         assert_eq!(k3, k);
         let k3 = kafka_repo.get_by_name("asdf").await.unwrap();
         assert!(k3.is_none());
-
-        txn.commit().await.unwrap();
     }
 
     async fn test_query_pool(catalog: Arc<dyn Catalog>) {
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let query_repo = txn.query_pools();
+        let mut repos = catalog.repositories().await;
+        let query_repo = repos.query_pools();
 
         let q = query_repo.create_or_get("foo").await.unwrap();
         assert!(q.id > QueryPoolId::new(0));
         assert_eq!(q.name, "foo");
         let q2 = query_repo.create_or_get("foo").await.unwrap();
         assert_eq!(q, q2);
-
-        txn.commit().await.unwrap();
     }
 
     async fn test_namespace(catalog: Arc<dyn Catalog>) {
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
-        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
+        let mut repos = catalog.repositories().await;
+        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
 
         let namespace_name = "test_namespace";
-        let namespace = txn
+        let namespace = repos
             .namespaces()
             .create(namespace_name, "inf", kafka.id, pool.id)
             .await
             .unwrap();
         assert!(namespace.id > NamespaceId::new(0));
         assert_eq!(namespace.name, namespace_name);
-        txn.commit().await.unwrap();
 
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let conflict = txn
+        let conflict = repos
             .namespaces()
             .create(namespace_name, "inf", kafka.id, pool.id)
             .await;
@@ -1096,36 +1101,33 @@ pub(crate) mod test_helpers {
             conflict.unwrap_err(),
             Error::NameExists { name: _ }
         ));
-        txn.abort().await.unwrap();
 
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let found = txn
+        let found = repos
             .namespaces()
             .get_by_name(namespace_name)
             .await
             .unwrap()
             .expect("namespace should be there");
         assert_eq!(namespace, found);
-        txn.commit().await.unwrap();
     }
 
     async fn test_table(catalog: Arc<dyn Catalog>) {
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
-        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = txn
+        let mut repos = catalog.repositories().await;
+        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = repos
             .namespaces()
             .create("namespace_table_test", "inf", kafka.id, pool.id)
             .await
             .unwrap();
 
         // test we can create or get a table
-        let t = txn
+        let t = repos
             .tables()
             .create_or_get("test_table", namespace.id)
             .await
             .unwrap();
-        let tt = txn
+        let tt = repos
             .tables()
             .create_or_get("test_table", namespace.id)
             .await
@@ -1133,7 +1135,7 @@ pub(crate) mod test_helpers {
         assert!(t.id > TableId::new(0));
         assert_eq!(t, tt);
 
-        let tables = txn
+        let tables = repos
             .tables()
             .list_by_namespace_id(namespace.id)
             .await
@@ -1141,33 +1143,31 @@ pub(crate) mod test_helpers {
         assert_eq!(vec![t], tables);
 
         // test we can create a table of the same name in a different namespace
-        let namespace2 = txn
+        let namespace2 = repos
             .namespaces()
             .create("two", "inf", kafka.id, pool.id)
             .await
             .unwrap();
         assert_ne!(namespace, namespace2);
-        let test_table = txn
+        let test_table = repos
             .tables()
             .create_or_get("test_table", namespace2.id)
             .await
             .unwrap();
         assert_ne!(tt, test_table);
         assert_eq!(test_table.namespace_id, namespace2.id);
-
-        txn.commit().await.unwrap();
     }
 
     async fn test_column(catalog: Arc<dyn Catalog>) {
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
-        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = txn
+        let mut repos = catalog.repositories().await;
+        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = repos
             .namespaces()
             .create("namespace_column_test", "inf", kafka.id, pool.id)
             .await
             .unwrap();
-        let table = txn
+        let table = repos
             .tables()
             .create_or_get("test_table", namespace.id)
             .await
@@ -1175,12 +1175,12 @@ pub(crate) mod test_helpers {
         assert_eq!(table.namespace_id, namespace.id);
 
         // test we can create or get a column
-        let c = txn
+        let c = repos
             .columns()
             .create_or_get("column_test", table.id, ColumnType::Tag)
             .await
             .unwrap();
-        let cc = txn
+        let cc = repos
             .columns()
             .create_or_get("column_test", table.id, ColumnType::Tag)
             .await
@@ -1189,7 +1189,7 @@ pub(crate) mod test_helpers {
         assert_eq!(c, cc);
 
         // test that attempting to create an already defined column of a different type returns error
-        let err = txn
+        let err = repos
             .columns()
             .create_or_get("column_test", table.id, ColumnType::U64)
             .await
@@ -1204,31 +1204,29 @@ pub(crate) mod test_helpers {
         ));
 
         // test that we can create a column of the same name under a different table
-        let table2 = txn
+        let table2 = repos
             .tables()
             .create_or_get("test_table_2", namespace.id)
             .await
             .unwrap();
-        let ccc = txn
+        let ccc = repos
             .columns()
             .create_or_get("column_test", table2.id, ColumnType::U64)
             .await
             .unwrap();
         assert_ne!(c, ccc);
 
-        let columns = txn
+        let columns = repos
             .columns()
             .list_by_namespace_id(namespace.id)
             .await
             .unwrap();
         assert_eq!(vec![c, ccc], columns);
-
-        txn.commit().await.unwrap();
     }
 
     async fn test_sequencer(catalog: Arc<dyn Catalog>) {
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let kafka = txn
+        let mut repos = catalog.repositories().await;
+        let kafka = repos
             .kafka_topics()
             .create_or_get("sequencer_test")
             .await
@@ -1237,7 +1235,7 @@ pub(crate) mod test_helpers {
         // Create 10 sequencers
         let mut created = BTreeMap::new();
         for partition in 1..=10 {
-            let sequencer = txn
+            let sequencer = repos
                 .sequencers()
                 .create_or_get(&kafka, KafkaPartition::new(partition))
                 .await
@@ -1246,7 +1244,7 @@ pub(crate) mod test_helpers {
         }
 
         // List them and assert they match
-        let listed = txn
+        let listed = repos
             .sequencers()
             .list_by_kafka_topic(&kafka)
             .await
@@ -1259,7 +1257,7 @@ pub(crate) mod test_helpers {
 
         // get by the sequencer id and partition
         let kafka_partition = KafkaPartition::new(1);
-        let sequencer = txn
+        let sequencer = repos
             .sequencers()
             .get_by_topic_id_and_partition(kafka.id, kafka_partition)
             .await
@@ -1268,36 +1266,34 @@ pub(crate) mod test_helpers {
         assert_eq!(kafka.id, sequencer.kafka_topic_id);
         assert_eq!(kafka_partition, sequencer.kafka_partition);
 
-        let sequencer = txn
+        let sequencer = repos
             .sequencers()
             .get_by_topic_id_and_partition(kafka.id, KafkaPartition::new(523))
             .await
             .unwrap();
         assert!(sequencer.is_none());
-
-        txn.commit().await.unwrap();
     }
 
     async fn test_partition(catalog: Arc<dyn Catalog>) {
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
-        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = txn
+        let mut repos = catalog.repositories().await;
+        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = repos
             .namespaces()
             .create("namespace_partition_test", "inf", kafka.id, pool.id)
             .await
             .unwrap();
-        let table = txn
+        let table = repos
             .tables()
             .create_or_get("test_table", namespace.id)
             .await
             .unwrap();
-        let sequencer = txn
+        let sequencer = repos
             .sequencers()
             .create_or_get(&kafka, KafkaPartition::new(1))
             .await
             .unwrap();
-        let other_sequencer = txn
+        let other_sequencer = repos
             .sequencers()
             .create_or_get(&kafka, KafkaPartition::new(2))
             .await
@@ -1305,21 +1301,21 @@ pub(crate) mod test_helpers {
 
         let mut created = BTreeMap::new();
         for key in ["foo", "bar"] {
-            let partition = txn
+            let partition = repos
                 .partitions()
                 .create_or_get(key, sequencer.id, table.id)
                 .await
                 .expect("failed to create partition");
             created.insert(partition.id, partition);
         }
-        let other_partition = txn
+        let other_partition = repos
             .partitions()
             .create_or_get("asdf", other_sequencer.id, table.id)
             .await
             .unwrap();
 
         // List them and assert they match
-        let listed = txn
+        let listed = repos
             .partitions()
             .list_by_sequencer(sequencer.id)
             .await
@@ -1331,7 +1327,7 @@ pub(crate) mod test_helpers {
         assert_eq!(created, listed);
 
         // test get_partition_info_by_id
-        let info = txn
+        let info = repos
             .partitions()
             .partition_info_by_id(other_partition.id)
             .await
@@ -1340,30 +1336,28 @@ pub(crate) mod test_helpers {
         assert_eq!(info.partition, other_partition);
         assert_eq!(info.table_name, "test_table");
         assert_eq!(info.namespace_name, "namespace_partition_test");
-
-        txn.commit().await.unwrap();
     }
 
     async fn test_tombstone(catalog: Arc<dyn Catalog>) {
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
-        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = txn
+        let mut repos = catalog.repositories().await;
+        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = repos
             .namespaces()
             .create("namespace_tombstone_test", "inf", kafka.id, pool.id)
             .await
             .unwrap();
-        let table = txn
+        let table = repos
             .tables()
             .create_or_get("test_table", namespace.id)
             .await
             .unwrap();
-        let other_table = txn
+        let other_table = repos
             .tables()
             .create_or_get("other", namespace.id)
             .await
             .unwrap();
-        let sequencer = txn
+        let sequencer = repos
             .sequencers()
             .create_or_get(&kafka, KafkaPartition::new(1))
             .await
@@ -1371,7 +1365,7 @@ pub(crate) mod test_helpers {
 
         let min_time = Timestamp::new(1);
         let max_time = Timestamp::new(10);
-        let t1 = txn
+        let t1 = repos
             .tombstones()
             .create_or_get(
                 table.id,
@@ -1389,7 +1383,7 @@ pub(crate) mod test_helpers {
         assert_eq!(t1.min_time, min_time);
         assert_eq!(t1.max_time, max_time);
         assert_eq!(t1.serialized_predicate, "whatevs");
-        let t2 = txn
+        let t2 = repos
             .tombstones()
             .create_or_get(
                 other_table.id,
@@ -1401,7 +1395,7 @@ pub(crate) mod test_helpers {
             )
             .await
             .unwrap();
-        let t3 = txn
+        let t3 = repos
             .tombstones()
             .create_or_get(
                 table.id,
@@ -1414,46 +1408,44 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        let listed = txn
+        let listed = repos
             .tombstones()
             .list_tombstones_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(1))
             .await
             .unwrap();
         assert_eq!(vec![t2, t3], listed);
-
-        txn.commit().await.unwrap();
     }
 
     async fn test_parquet_file(catalog: Arc<dyn Catalog>) {
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
-        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = txn
+        let mut repos = catalog.repositories().await;
+        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = repos
             .namespaces()
             .create("namespace_parquet_file_test", "inf", kafka.id, pool.id)
             .await
             .unwrap();
-        let table = txn
+        let table = repos
             .tables()
             .create_or_get("test_table", namespace.id)
             .await
             .unwrap();
-        let other_table = txn
+        let other_table = repos
             .tables()
             .create_or_get("other", namespace.id)
             .await
             .unwrap();
-        let sequencer = txn
+        let sequencer = repos
             .sequencers()
             .create_or_get(&kafka, KafkaPartition::new(1))
             .await
             .unwrap();
-        let partition = txn
+        let partition = repos
             .partitions()
             .create_or_get("one", sequencer.id, table.id)
             .await
             .unwrap();
-        let other_partition = txn
+        let other_partition = repos
             .partitions()
             .create_or_get("one", sequencer.id, other_table.id)
             .await
@@ -1463,10 +1455,10 @@ pub(crate) mod test_helpers {
         let max_time = Timestamp::new(10);
 
         // Must have no rows
-        let row_count = txn.parquet_files().count().await.unwrap();
+        let row_count = repos.parquet_files().count().await.unwrap();
         assert_eq!(row_count, 0);
 
-        let parquet_file = txn
+        let parquet_file = repos
             .parquet_files()
             .create(
                 sequencer.id,
@@ -1480,11 +1472,9 @@ pub(crate) mod test_helpers {
             )
             .await
             .unwrap();
-        txn.commit().await.unwrap();
 
         // verify that trying to create a file with the same UUID throws an error
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let err = txn
+        let err = repos
             .parquet_files()
             .create(
                 sequencer.id,
@@ -1499,10 +1489,8 @@ pub(crate) mod test_helpers {
             .await
             .unwrap_err();
         assert!(matches!(err, Error::FileExists { object_store_id: _ }));
-        txn.abort().await.unwrap();
 
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let other_file = txn
+        let other_file = repos
             .parquet_files()
             .create(
                 sequencer.id,
@@ -1518,23 +1506,23 @@ pub(crate) mod test_helpers {
             .unwrap();
 
         // Must have 2 rows
-        let row_count = txn.parquet_files().count().await.unwrap();
+        let row_count = repos.parquet_files().count().await.unwrap();
         assert_eq!(row_count, 2);
 
         let exist_id = parquet_file.id;
         let non_exist_id = ParquetFileId::new(other_file.id.get() + 10);
         // make sure exists_id != non_exist_id
         assert_ne!(exist_id, non_exist_id);
-        assert!(txn.parquet_files().exist(exist_id).await.unwrap());
-        assert!(!txn.parquet_files().exist(non_exist_id).await.unwrap());
+        assert!(repos.parquet_files().exist(exist_id).await.unwrap());
+        assert!(!repos.parquet_files().exist(non_exist_id).await.unwrap());
 
-        let files = txn
+        let files = repos
             .parquet_files()
             .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(1))
             .await
             .unwrap();
         assert_eq!(vec![parquet_file, other_file], files);
-        let files = txn
+        let files = repos
             .parquet_files()
             .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(150))
             .await
@@ -1543,18 +1531,17 @@ pub(crate) mod test_helpers {
 
         // verify that to_delete is initially set to false and that it can be updated to true
         assert!(!parquet_file.to_delete);
-        txn.parquet_files()
+        repos
+            .parquet_files()
             .flag_for_delete(parquet_file.id)
             .await
             .unwrap();
-        let files = txn
+        let files = repos
             .parquet_files()
             .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(1))
             .await
             .unwrap();
         assert!(files.first().unwrap().to_delete);
-
-        txn.commit().await.unwrap();
     }
 
     async fn test_add_parquet_file_with_tombstones(catalog: Arc<dyn Catalog>) {

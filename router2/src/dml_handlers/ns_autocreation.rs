@@ -91,13 +91,9 @@ where
         if self.cache.get_schema(&namespace).is_none() {
             trace!(%namespace, "namespace auto-create cache miss");
 
-            let mut txn = self
-                .catalog
-                .start_transaction()
-                .await
-                .map_err(NamespaceCreationError::Create)?;
+            let mut repos = self.catalog.repositories().await;
 
-            match txn
+            match repos
                 .namespaces()
                 .create(
                     namespace.as_str(),
@@ -108,8 +104,6 @@ where
                 .await
             {
                 Ok(_) => {
-                    txn.commit().await.map_err(NamespaceCreationError::Create)?;
-
                     debug!(%namespace, "created namespace");
                 }
                 Err(iox_catalog::interface::Error::NameExists { .. }) => {
@@ -117,11 +111,9 @@ where
                     // namespace, or another thread raced populating the catalog
                     // and beat this thread to it.
                     debug!(%namespace, "spurious namespace create failed");
-                    txn.abort().await.map_err(NamespaceCreationError::Create)?;
                 }
                 Err(e) => {
                     error!(error=%e, %namespace, "failed to auto-create namespace");
-                    txn.abort().await.map_err(NamespaceCreationError::Create)?;
                     return Err(NamespaceCreationError::Create(e));
                 }
             }
@@ -199,19 +191,16 @@ mod tests {
 
         // The cache hit should mean the catalog SHOULD NOT see a create request
         // for the namespace.
-        let mut txn = catalog
-            .start_transaction()
-            .await
-            .expect("failed to start UoW");
+        let mut repos = catalog.repositories().await;
         assert!(
-            txn.namespaces()
+            repos
+                .namespaces()
                 .get_by_name(ns.as_str())
                 .await
                 .expect("lookup should not error")
                 .is_none(),
             "expected no request to the catalog"
         );
-        txn.abort().await.expect("failed to abort UoW");
 
         // And the DML handler must be called.
         assert_matches!(mock_handler.calls().as_slice(), [MockDmlHandlerCall::Write { namespace, .. }] => {
@@ -243,17 +232,13 @@ mod tests {
 
         // The cache miss should mean the catalog MUST see a create request for
         // the namespace.
-        let mut txn = catalog
-            .start_transaction()
-            .await
-            .expect("failed to start UoW");
-        let got = txn
+        let mut repos = catalog.repositories().await;
+        let got = repos
             .namespaces()
             .get_by_name(ns.as_str())
             .await
             .expect("lookup should not error")
             .expect("creation request should be sent to catalog");
-        txn.abort().await.expect("failed to abort UoW");
 
         assert_eq!(
             got,

@@ -47,9 +47,8 @@ pub async fn command(config: Config) -> Result<(), Error> {
     match config.command {
         Command::Update(update) => {
             let catalog = update.catalog_dsn.get_catalog("cli").await?;
-            let mut txn = catalog.start_transaction().await?;
-            let topic = txn.kafka_topics().create_or_get(&update.db_name).await?;
-            txn.commit().await?;
+            let mut repos = catalog.repositories().await;
+            let topic = repos.kafka_topics().create_or_get(&update.db_name).await?;
             println!("{}", topic.id);
             Ok(())
         }

@@ -16,7 +16,7 @@ use crate::interface::{
     SequencerId, TableSchema, Transaction,
 };
 
-use interface::{ParquetFile, ProcessedTombstone, Tombstone};
+use interface::{ParquetFile, ProcessedTombstone, RepoCollection, Tombstone};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};
 
@@ -40,14 +40,15 @@ pub mod postgres;
 /// This function pushes schema additions through to the backend catalog, and
 /// relies on the catalog to serialise concurrent additions of a given column,
 /// ensuring only one type is ever accepted per column.
-pub async fn validate_or_insert_schema<'a, T, U>(
+pub async fn validate_or_insert_schema<'a, T, U, R>(
     tables: T,
     schema: &NamespaceSchema,
-    txn: &mut dyn Transaction,
+    repos: &mut R,
 ) -> Result<Option<NamespaceSchema>>
 where
     T: IntoIterator<IntoIter = U, Item = (&'a str, &'a MutableBatch)> + Send + Sync,
     U: Iterator<Item = T::Item> + Send,
+    R: RepoCollection + ?Sized,
 {
     let tables = tables.into_iter();
 
@@ -55,7 +56,7 @@ where
     let mut schema = Cow::Borrowed(schema);
 
     for (table_name, batch) in tables {
-        validate_mutable_batch(batch, table_name, &mut schema, txn).await?;
+        validate_mutable_batch(batch, table_name, &mut schema, repos).await?;
     }
 
     match schema {
@@ -64,12 +65,15 @@ where
     }
 }
 
-async fn validate_mutable_batch(
+async fn validate_mutable_batch<R>(
     mb: &MutableBatch,
     table_name: &str,
     schema: &mut Cow<'_, NamespaceSchema>,
-    txn: &mut dyn Transaction,
-) -> Result<()> {
+    repos: &mut R,
+) -> Result<()>
+where
+    R: RepoCollection + ?Sized,
+{
     // Check if the table exists in the schema.
     //
     // Because the entry API requires &mut it is not used to avoid a premature
@@ -81,14 +85,14 @@ async fn validate_mutable_batch(
             //
             // Attempt to create the table in the catalog, or load an existing
             // table from the catalog to populate the cache.
-            let mut table = txn
+            let mut table = repos
                 .tables()
                 .create_or_get(table_name, schema.id)
                 .await
                 .map(|t| TableSchema::new(t.id))?;
 
             // Always add a time column to all new tables.
-            let time_col = txn
+            let time_col = repos
                 .columns()
                 .create_or_get(TIME_COLUMN, table.id, ColumnType::Time)
                 .await?;
@@ -134,7 +138,7 @@ async fn validate_mutable_batch(
             None => {
                 // The column does not exist in the cache, create/get it from
                 // the catalog, and add it to the table.
-                let column = txn
+                let column = repos
                     .columns()
                     .create_or_get(name.as_str(), table.id, ColumnType::from(col.influx_type()))
                     .await?;
@@ -200,10 +204,14 @@ pub async fn add_parquet_file_with_tombstones(
         .await?;
 
     // Now the parquet available, create its processed tombstones
-    let processed_tombstones = txn
-        .processed_tombstones()
-        .create_many(parquet.id, tombstones)
-        .await?;
+    let mut processed_tombstones = Vec::with_capacity(tombstones.len());
+    for tombstone in tombstones {
+        processed_tombstones.push(
+            txn.processed_tombstones()
+                .create(parquet.id, tombstone.id)
+                .await?,
+        );
+    }
 
     Ok((parquet, processed_tombstones))
 }
