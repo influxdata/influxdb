@@ -280,7 +280,7 @@ where
             aggregate,
         } = req;
 
-        info!(%db_name, ?range, ?group_keys, ?group, ?aggregate,predicate=%predicate.loggable(),"read_group");
+        info!(%db_name, ?range, ?group_keys, ?group, ?aggregate, predicate=%predicate.loggable(), "read_group");
 
         let aggregate_string = format!(
             "aggregate: {:?}, group: {:?}, group_keys: {:?}",
@@ -338,7 +338,7 @@ where
             window,
         } = req;
 
-        info!(%db_name, ?range, ?window_every, ?offset, ?aggregate, ?window, predicate=%predicate.loggable(),"read_window_aggregate");
+        info!(%db_name, ?range, ?window_every, ?offset, ?aggregate, ?window, predicate=%predicate.loggable(), "read_window_aggregate");
 
         let aggregate_string = format!(
             "aggregate: {:?}, window_every: {:?}, offset: {:?}, window: {:?}",
@@ -547,6 +547,7 @@ where
         // idpe/storage/read/capabilities.go (aka window aggregate /
         // pushdown)
         //
+        info!("capabilities");
 
         // For now, hard code our list of support
         let caps = [
@@ -733,7 +734,7 @@ where
             predicate,
         } = req;
 
-        info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_fields");
+        info!(%db_name, ?range, %measurement, predicate=%predicate.loggable(), "measurement_fields");
 
         let measurement = Some(measurement);
 
