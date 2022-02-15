@@ -106,6 +106,12 @@ impl ChunkGenerator {
             GeneratorConfig::Full => make_record_batch(&self.column_prefix, TestSize::Full),
         };
 
+        // ensure we make multiple row groups if we have more than one
+        // record batch
+        if let Some(batch) = record_batches.get(0) {
+            self.storage.set_max_row_group_size(batch.num_rows());
+        }
+
         let table_summary = TableSummary {
             name: self.partition.table_name.to_string(),
             columns: column_summaries,

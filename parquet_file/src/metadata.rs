@@ -1114,6 +1114,9 @@ mod tests {
         let parquet_metadata = chunk.parquet_metadata();
         let decoded = parquet_metadata.decode().unwrap();
 
+        // Several of these tests cover merging
+        // metata from several different row groups, so this should
+        // not be changed.
         assert!(decoded.md.num_row_groups() > 1);
         assert_ne!(decoded.md.file_metadata().schema_descr().num_columns(), 0);
 
@@ -1194,7 +1197,7 @@ mod tests {
         let mut generator = ChunkGenerator::new().await;
         let (chunk, _) = generator.generate().await.unwrap();
         let parquet_metadata = chunk.parquet_metadata();
-        assert_eq!(parquet_metadata.size(), 3719);
+        assert_eq!(parquet_metadata.size(), 4068);
     }
 
     #[test]

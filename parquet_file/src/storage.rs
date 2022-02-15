@@ -87,11 +87,22 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone)]
 pub struct Storage {
     iox_object_store: Arc<IoxObjectStore>,
+
+    // If `Some`, restricts the size of the row groups created in the parquet file
+    max_row_group_size: Option<usize>,
 }
 
 impl Storage {
     pub fn new(iox_object_store: Arc<IoxObjectStore>) -> Self {
-        Self { iox_object_store }
+        Self {
+            iox_object_store,
+            max_row_group_size: None,
+        }
+    }
+
+    /// Specify the maximum sized row group to make
+    pub fn set_max_row_group_size(&mut self, max_row_group_size: usize) {
+        self.max_row_group_size = Some(max_row_group_size);
     }
 
     /// Write the given stream of data of a specified table of
@@ -112,7 +123,9 @@ impl Storage {
         let path = ParquetFilePath::new(&chunk_addr);
 
         let schema = stream.schema();
-        let data = Self::parquet_stream_to_bytes(stream, schema, metadata).await?;
+        let data = self
+            .parquet_stream_to_bytes(stream, schema, metadata)
+            .await?;
         // no data
         if data.is_empty() {
             return Ok(None);
@@ -128,30 +141,40 @@ impl Storage {
         Ok(Some((path, file_size_bytes, md)))
     }
 
-    fn writer_props(metadata_bytes: &[u8]) -> WriterProperties {
-        WriterProperties::builder()
+    fn writer_props(&self, metadata_bytes: &[u8]) -> WriterProperties {
+        let builder = WriterProperties::builder()
             .set_key_value_metadata(Some(vec![KeyValue {
                 key: METADATA_KEY.to_string(),
                 value: Some(base64::encode(&metadata_bytes)),
             }]))
-            .set_compression(Compression::ZSTD)
-            .build()
+            .set_compression(Compression::ZSTD);
+
+        let builder = if let Some(max_row_group_size) = self.max_row_group_size.as_ref() {
+            builder.set_max_row_group_size(*max_row_group_size)
+        } else {
+            builder
+        };
+
+        builder.build()
     }
 
     /// Convert the given stream of RecordBatches to bytes. This should be deleted when switching
     /// over to use `ingester` only.
     async fn parquet_stream_to_bytes(
+        &self,
         stream: SendableRecordBatchStream,
         schema: SchemaRef,
         metadata: IoxMetadataOld,
     ) -> Result<Vec<u8>> {
         let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailureSnafu)?;
 
-        Self::record_batches_to_parquet_bytes(stream, schema, &metadata_bytes).await
+        self.record_batches_to_parquet_bytes(stream, schema, &metadata_bytes)
+            .await
     }
 
     /// Convert the given metadata and RecordBatches to parquet file bytes. Used by `ingester`.
     pub async fn parquet_bytes(
+        &self,
         record_batches: Vec<RecordBatch>,
         schema: SchemaRef,
         metadata: &IoxMetadata,
@@ -160,18 +183,20 @@ impl Storage {
 
         let stream = Box::pin(stream::iter(record_batches.into_iter().map(Ok)));
 
-        Self::record_batches_to_parquet_bytes(stream, schema, &metadata_bytes).await
+        self.record_batches_to_parquet_bytes(stream, schema, &metadata_bytes)
+            .await
     }
 
     /// Share code between `parquet_stream_to_bytes` and `parquet_bytes`. When
     /// `parquet_stream_to_bytes` is deleted, this code can be moved into `parquet_bytes` and
     /// made simpler by using a plain `Iter` rather than a `Stream`.
     async fn record_batches_to_parquet_bytes(
+        &self,
         mut stream: impl Stream<Item = ArrowResult<RecordBatch>> + Send + Sync + Unpin,
         schema: SchemaRef,
         metadata_bytes: &[u8],
     ) -> Result<Vec<u8>> {
-        let props = Self::writer_props(metadata_bytes);
+        let props = self.writer_props(metadata_bytes);
 
         let mem_writer = MemWriter::default();
         {
@@ -403,10 +428,10 @@ mod tests {
             record_batches,
             Arc::clone(schema.inner()),
         ));
-        let bytes =
-            Storage::parquet_stream_to_bytes(stream, Arc::clone(schema.inner()), metadata.clone())
-                .await
-                .unwrap();
+        let bytes = Storage::new(make_iox_object_store().await)
+            .parquet_stream_to_bytes(stream, Arc::clone(schema.inner()), metadata.clone())
+            .await
+            .unwrap();
 
         // extract metadata
         let md = IoxParquetMetaData::from_file_bytes(bytes).unwrap().unwrap();
@@ -501,10 +526,12 @@ mod tests {
         assert_batches_eq!(&expected, &read_batches);
     }
 
-    #[test]
-    fn test_props_have_compression() {
+    #[tokio::test]
+    async fn test_props_have_compression() {
+        let storage = Storage::new(make_iox_object_store().await);
+
         // should be writing with compression
-        let props = Storage::writer_props(&[]);
+        let props = storage.writer_props(&[]);
 
         // arbitrary column name to get default values
         let col_path: ColumnPath = "default".into();

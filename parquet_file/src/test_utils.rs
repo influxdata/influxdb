@@ -651,6 +651,8 @@ fn create_column_timestamp(
 /// RecordBatches, schema and IOx statistics will be generated in separate ways to emulate what the normal data
 /// ingestion would do. This also ensures that the Parquet data that will later be created out of the RecordBatch is
 /// indeed self-contained and can act as a source to recorder schema and statistics.
+///
+/// Returns: `(record_batches, schema, summaries, num_rows)`
 pub fn make_record_batch(
     column_prefix: &str,
     test_size: TestSize,
