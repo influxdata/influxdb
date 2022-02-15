@@ -32,7 +32,7 @@ schema = { path = "../schema" }
 snafu = "0.7"
 tokio = { version = "1.13", features = ["macros", "parking_lot"] }
 tokio-stream = "0.1"
-tokio-util = { version = "0.6.9" }
+tokio-util = { version = "0.7.0" }
 trace = { path = "../trace" }
 predicate = { path = "../predicate" }
 workspace-hack = { path = "../workspace-hack"}

@@ -366,7 +366,7 @@ impl WriteBufferReading for FileBufferConsumer {
 
 #[pin_project]
 struct ConsumerStream {
-    fut: ReusableBoxFuture<Option<Result<DmlOperation, WriteBufferError>>>,
+    fut: ReusableBoxFuture<'static, Option<Result<DmlOperation, WriteBufferError>>>,
     sequencer_id: u32,
     path: PathBuf,
     next_sequence_number: Arc<AtomicU64>,

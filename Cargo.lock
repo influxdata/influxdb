@@ -1016,7 +1016,7 @@ dependencies = [
  "test_helpers",
  "time 0.1.0",
  "tokio",
- "tokio-util",
+ "tokio-util 0.7.0",
  "trace",
  "tracker",
  "uuid",
@@ -1532,7 +1532,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
- "tokio-util",
+ "tokio-util 0.7.0",
  "tonic",
  "tonic-build",
  "tonic-reflection",
@@ -1564,7 +1564,7 @@ dependencies = [
  "indexmap",
  "slab",
  "tokio",
- "tokio-util",
+ "tokio-util 0.6.9",
  "tracing",
 ]
 
@@ -1929,7 +1929,7 @@ dependencies = [
  "time 0.1.0",
  "tokio",
  "tokio-stream",
- "tokio-util",
+ "tokio-util 0.7.0",
  "tonic",
  "tonic-health",
  "tonic-reflection",
@@ -2054,7 +2054,7 @@ dependencies = [
  "thiserror",
  "time 0.1.0",
  "tokio",
- "tokio-util",
+ "tokio-util 0.7.0",
  "tonic",
  "trace",
  "uuid",
@@ -2351,7 +2351,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-native-tls",
- "tokio-util",
+ "tokio-util 0.6.9",
  "tower",
  "tower-http",
  "tracing",
@@ -2408,7 +2408,7 @@ dependencies = [
  "smallvec",
  "thiserror",
  "tokio",
- "tokio-util",
+ "tokio-util 0.6.9",
  "tracing",
 ]
 
@@ -3079,7 +3079,7 @@ dependencies = [
  "snafu",
  "tempfile",
  "tokio",
- "tokio-util",
+ "tokio-util 0.7.0",
  "walkdir",
  "workspace-hack",
 ]
@@ -3813,7 +3813,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-stream",
- "tokio-util",
+ "tokio-util 0.7.0",
  "trace",
  "workspace-hack",
 ]
@@ -4063,7 +4063,7 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-rustls",
- "tokio-util",
+ "tokio-util 0.6.9",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -4608,7 +4608,7 @@ dependencies = [
  "test_helpers",
  "time 0.1.0",
  "tokio",
- "tokio-util",
+ "tokio-util 0.7.0",
  "trace",
  "tracker",
  "uuid",
@@ -5276,6 +5276,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-util"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64910e1b9c1901aaf5375561e35b9c057d95ff41a44ede043a03e09279eabaf1"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-sink",
+ "log",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "toml"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5307,7 +5321,7 @@ dependencies = [
  "prost-derive",
  "tokio",
  "tokio-stream",
- "tokio-util",
+ "tokio-util 0.6.9",
  "tower",
  "tower-layer",
  "tower-service",
@@ -5372,7 +5386,7 @@ dependencies = [
  "slab",
  "tokio",
  "tokio-stream",
- "tokio-util",
+ "tokio-util 0.6.9",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -5555,7 +5569,7 @@ dependencies = [
  "pin-project",
  "time 0.1.0",
  "tokio",
- "tokio-util",
+ "tokio-util 0.7.0",
  "workspace-hack",
 ]
 
@@ -6022,7 +6036,8 @@ dependencies = [
  "syn",
  "tokio",
  "tokio-stream",
- "tokio-util",
+ "tokio-util 0.6.9",
+ "tokio-util 0.7.0",
  "tower",
  "tracing",
  "tracing-core",
@@ -6059,7 +6074,7 @@ dependencies = [
  "test_helpers",
  "time 0.1.0",
  "tokio",
- "tokio-util",
+ "tokio-util 0.7.0",
  "trace",
  "trace_http",
  "uuid",
