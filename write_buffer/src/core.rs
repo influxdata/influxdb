@@ -37,6 +37,10 @@ impl WriteBufferError {
         Self::new(WriteBufferErrorKind::InvalidInput, e)
     }
 
+    pub fn unknown_sequence_number(e: impl Into<Box<dyn std::error::Error + Sync + Send>>) -> Self {
+        Self::new(WriteBufferErrorKind::UnknownSequenceNumber, e)
+    }
+
     /// Returns the kind of error this was
     pub fn kind(&self) -> WriteBufferErrorKind {
         self.kind
@@ -101,16 +105,22 @@ impl From<&'static str> for WriteBufferError {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum WriteBufferErrorKind {
     /// This operation failed for an unknown reason
     Unknown,
+
     /// This operation was provided with invalid input data
     InvalidInput,
+
     /// This operation encountered invalid data
     InvalidData,
+
     /// A fatal IO error occurred - non-fatal errors should be retried internally
     IO,
+
+    /// The sequence number that we are trying to read is unknown.
+    UnknownSequenceNumber,
 }
 
 /// Writing to a Write Buffer takes a [`DmlWrite`] and returns the [`DmlMeta`] for the
@@ -168,15 +178,19 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
 
 /// Handles a stream of a specific sequencer.
 ///
-/// This can be used to consume data via a stream or to seek the stream to a given offset.
+/// This can be used to consume data via a stream or to seek the stream to a given sequence number.
 #[async_trait]
 pub trait WriteBufferStreamHandler: Sync + Send + Debug + 'static {
     /// Stream that produces DML operations.
     ///
     /// Note that due to the mutable borrow, it is not possible to have multiple streams from the same
     /// [`WriteBufferStreamHandler`] instance at the same time. If all streams are dropped and requested again, the last
-    /// offsets of the old streams will be the start offsets for the new streams. If you want to prevent that either
-    /// create a new [`WriteBufferStreamHandler`] or use [`seek`](Self::seek).
+    /// sequence number of the old streams will be the start sequence number for the new streams. If you want to
+    /// prevent that either create a new [`WriteBufferStreamHandler`] or use [`seek`](Self::seek).
+    ///
+    /// If the sequence number that the stream wants to read is unknown (either because it is in the future or because
+    /// some retention policy removed it already), the stream will return an error with
+    /// [`WriteBufferErrorKind::UnknownSequenceNumber`] and will end immediately.
     fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>>;
 
     /// Seek sequencer to given sequence number. The next output of related streams will be an entry with at least
@@ -196,7 +210,7 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
 
     /// Get stream handler for a dedicated sequencer.
     ///
-    /// Handlers do NOT share any state (e.g. last offsets).
+    /// Handlers do NOT share any state (e.g. last sequence number).
     async fn stream_handler(
         &self,
         sequencer_id: u32,
@@ -227,12 +241,14 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
 
 pub mod test_utils {
     //! Generic tests for all write buffer implementations.
+    use crate::core::WriteBufferErrorKind;
+
     use super::{
         WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting,
     };
     use async_trait::async_trait;
     use dml::{test_util::assert_write_op_eq, DmlMeta, DmlOperation, DmlWrite};
-    use futures::{stream::FuturesUnordered, StreamExt, TryStreamExt};
+    use futures::{stream::FuturesUnordered, Stream, StreamExt, TryStreamExt};
     use std::{
         collections::{BTreeSet, HashSet},
         convert::TryFrom,
@@ -370,18 +386,15 @@ pub mod test_utils {
         let mut stream_handler = reader.stream_handler(sequencer_id).await.unwrap();
         let mut stream = stream_handler.stream();
 
-        let waker = futures::task::noop_waker();
-        let mut cx = futures::task::Context::from_waker(&waker);
-
         // empty stream is pending
-        assert!(stream.poll_next_unpin(&mut cx).is_pending());
+        assert_stream_pending(&mut stream).await;
 
         // adding content allows us to get results
         let w1 = write("namespace", &writer, entry_1, sequencer_id, None).await;
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w1);
 
         // stream is pending again
-        assert!(stream.poll_next_unpin(&mut cx).is_pending());
+        assert_stream_pending(&mut stream).await;
 
         // adding more data unblocks the stream
         let w2 = write("namespace", &writer, entry_2, sequencer_id, None).await;
@@ -391,13 +404,13 @@ pub mod test_utils {
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w3);
 
         // stream is pending again
-        assert!(stream.poll_next_unpin(&mut cx).is_pending());
+        assert_stream_pending(&mut stream).await;
     }
 
     /// Tests multiple subsequently created streams from a single [`WriteBufferStreamHandler`].
     ///
     /// This tests that:
-    /// - readers remember their offset (and "pending" state) even when streams are dropped
+    /// - readers remember their sequence number (and "pending" state) even when streams are dropped
     /// - state is not shared between handlers
     async fn test_multi_stream_io<T>(adapter: &T)
     where
@@ -412,9 +425,6 @@ pub mod test_utils {
         let writer = context.writing(true).await.unwrap();
         let reader = context.reading(true).await.unwrap();
 
-        let waker = futures::task::noop_waker();
-        let mut cx = futures::task::Context::from_waker(&waker);
-
         let w1 = write("namespace", &writer, entry_1, 0, None).await;
         let w2 = write("namespace", &writer, entry_2, 0, None).await;
         let w3 = write("namespace", &writer, entry_3, 0, None).await;
@@ -427,8 +437,8 @@ pub mod test_utils {
         let mut stream = stream_handler.stream();
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w1);
 
-        // re-creating stream after reading remembers offset, but wait a bit to provoke the stream to buffer some
-        // entries
+        // re-creating stream after reading remembers sequence number, but wait a bit to provoke the stream to buffer
+        // some entries
         tokio::time::sleep(Duration::from_millis(10)).await;
         drop(stream);
         let mut stream = stream_handler.stream();
@@ -438,13 +448,13 @@ pub mod test_utils {
         // re-creating stream after reading everything makes it pending
         drop(stream);
         let mut stream = stream_handler.stream();
-        assert!(stream.poll_next_unpin(&mut cx).is_pending());
+        assert_stream_pending(&mut stream).await;
 
         // use a different handler => stream starts from beginning
         let mut stream_handler2 = reader.stream_handler(sequencer_id).await.unwrap();
         let mut stream2 = stream_handler2.stream();
         assert_write_op_eq(&stream2.next().await.unwrap().unwrap(), &w1);
-        assert!(stream.poll_next_unpin(&mut cx).is_pending());
+        assert_stream_pending(&mut stream).await;
     }
 
     /// Test single reader-writer IO w/ multiple sequencers.
@@ -472,34 +482,31 @@ pub mod test_utils {
         let sequencer_id_2 = set_pop_first(&mut sequencer_ids).unwrap();
         assert_ne!(sequencer_id_1, sequencer_id_2);
 
-        let waker = futures::task::noop_waker();
-        let mut cx = futures::task::Context::from_waker(&waker);
-
         let mut stream_handler_1 = reader.stream_handler(sequencer_id_1).await.unwrap();
         let mut stream_handler_2 = reader.stream_handler(sequencer_id_2).await.unwrap();
         let mut stream_1 = stream_handler_1.stream();
         let mut stream_2 = stream_handler_2.stream();
 
         // empty streams are pending
-        assert!(stream_1.poll_next_unpin(&mut cx).is_pending());
-        assert!(stream_2.poll_next_unpin(&mut cx).is_pending());
+        assert_stream_pending(&mut stream_1).await;
+        assert_stream_pending(&mut stream_2).await;
 
         // entries arrive at the right target stream
         let w1 = write("namespace", &writer, entry_1, sequencer_id_1, None).await;
         assert_write_op_eq(&stream_1.next().await.unwrap().unwrap(), &w1);
-        assert!(stream_2.poll_next_unpin(&mut cx).is_pending());
+        assert_stream_pending(&mut stream_2).await;
 
         let w2 = write("namespace", &writer, entry_2, sequencer_id_2, None).await;
-        assert!(stream_1.poll_next_unpin(&mut cx).is_pending());
+        assert_stream_pending(&mut stream_1).await;
         assert_write_op_eq(&stream_2.next().await.unwrap().unwrap(), &w2);
 
         let w3 = write("namespace", &writer, entry_3, sequencer_id_1, None).await;
-        assert!(stream_2.poll_next_unpin(&mut cx).is_pending());
+        assert_stream_pending(&mut stream_2).await;
         assert_write_op_eq(&stream_1.next().await.unwrap().unwrap(), &w3);
 
         // streams are pending again
-        assert!(stream_1.poll_next_unpin(&mut cx).is_pending());
-        assert!(stream_2.poll_next_unpin(&mut cx).is_pending());
+        assert_stream_pending(&mut stream_1).await;
+        assert_stream_pending(&mut stream_2).await;
     }
 
     /// Test multiple multiple writers and multiple readers on multiple sequencers.
@@ -559,9 +566,6 @@ pub mod test_utils {
     {
         let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
-        let waker = futures::task::noop_waker();
-        let mut cx = futures::task::Context::from_waker(&waker);
-
         let entry_east_1 = "upc,region=east user=1 100";
         let entry_east_2 = "upc,region=east user=2 200";
         let entry_east_3 = "upc,region=east user=3 300";
@@ -605,11 +609,28 @@ pub mod test_utils {
         assert_reader_content(&mut handler_1_1_a, &[&w_east_1, &w_east_2]).await;
 
         // seek to far end and then add data
+        // The affected stream should error and then stop. The other streams should still be pending.
         handler_1_1_a.seek(1_000_000).await.unwrap();
-        write("namespace", &writer, entry_east_3, 0, None).await;
+        let w_east_3 = write("namespace", &writer, entry_east_3, 0, None).await;
 
-        assert!(handler_1_1_a.stream().poll_next_unpin(&mut cx).is_pending());
-        assert!(handler_1_2_a.stream().poll_next_unpin(&mut cx).is_pending());
+        let err = handler_1_1_a
+            .stream()
+            .next()
+            .await
+            .expect("stream not ended")
+            .unwrap_err();
+        assert_eq!(err.kind(), WriteBufferErrorKind::UnknownSequenceNumber);
+        assert!(handler_1_1_a.stream().next().await.is_none());
+
+        assert_stream_pending(&mut handler_1_2_a.stream()).await;
+        assert_reader_content(&mut handler_1_1_b, &[&w_east_3]).await;
+        assert_stream_pending(&mut handler_1_2_b.stream()).await;
+        assert_reader_content(&mut handler_2_1, &[&w_east_3]).await;
+        assert_stream_pending(&mut handler_2_2.stream()).await;
+
+        // seeking again should recover the stream
+        handler_1_1_a.seek(0).await.unwrap();
+        assert_reader_content(&mut handler_1_1_a, &[&w_east_1, &w_east_2, &w_east_3]).await;
     }
 
     /// Test watermark fetching.
@@ -926,10 +947,8 @@ pub mod test_utils {
         }
 
         // Ensure that stream is pending
-        let waker = futures::task::noop_waker();
-        let mut cx = futures::task::Context::from_waker(&waker);
         let mut actual_stream = actual_stream_handler.stream();
-        assert!(actual_stream.poll_next_unpin(&mut cx).is_pending());
+        assert_stream_pending(&mut actual_stream).await;
     }
 
     /// Asserts that given span context are the same or that `second` links back to `first`.
@@ -979,6 +998,20 @@ pub mod test_utils {
                 assert!(all_ids.contains(link));
             }
         }
+    }
+
+    /// Assert that given stream is pending.
+    ///
+    /// This will will try to poll the stream for a bit to ensure that async IO has a chance to catch up.
+    async fn assert_stream_pending<S>(stream: &mut S)
+    where
+        S: Stream + Send + Unpin,
+        S::Item: std::fmt::Debug,
+    {
+        tokio::select! {
+            e = stream.next() => panic!("stream is not pending, yielded: {e:?}"),
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {},
+        };
     }
 
     /// Pops first entry from set.

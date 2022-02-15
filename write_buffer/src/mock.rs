@@ -393,12 +393,19 @@ pub struct MockBufferStreamHandler {
 
     /// Offset within the sequencer IDs.
     offset: u64,
+
+    /// Flags if the stream is terminated, e.g. due to "offset out of range"
+    terminated: bool,
 }
 
 #[async_trait]
 impl WriteBufferStreamHandler for MockBufferStreamHandler {
     fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
         futures::stream::poll_fn(|cx| {
+            if self.terminated {
+                return Poll::Ready(None);
+            }
+
             let mut guard = self.shared_state.writes.lock();
             let writes = guard.as_mut().unwrap();
             let writes_vec = writes.get_mut(&self.sequencer_id).unwrap();
@@ -429,6 +436,27 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
                 }
             }
 
+            // check if we have seeked to far
+            let next_offset = entries
+                .iter()
+                .filter_map(|write_result| {
+                    if let Ok(write) = write_result {
+                        let sequence = write.meta().sequence().unwrap();
+                        Some(sequence.number)
+                    } else {
+                        None
+                    }
+                })
+                .max()
+                .map(|x| x + 1)
+                .unwrap_or_default();
+            if self.offset > next_offset {
+                self.terminated = true;
+                return Poll::Ready(Some(Err(WriteBufferError::unknown_sequence_number(
+                    format!("unknown sequence number, high watermark is {next_offset}"),
+                ))));
+            }
+
             // we are at the end of the recorded entries => report pending
             writes_vec.register_waker(cx.waker());
             Poll::Pending
@@ -441,6 +469,9 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
 
         // reset position to start since seeking might go backwards
         self.vector_index = 0;
+
+        // reset termination state
+        self.terminated = false;
 
         Ok(())
     }
@@ -464,6 +495,7 @@ impl WriteBufferReading for MockBufferForReading {
             sequencer_id,
             vector_index: 0,
             offset: 0,
+            terminated: false,
         }))
     }
 

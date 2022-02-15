@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{
-        atomic::{AtomicI64, Ordering},
+        atomic::{AtomicBool, AtomicI64, Ordering},
         Arc,
     },
 };
@@ -13,7 +13,7 @@ use futures::{stream::BoxStream, StreamExt};
 use rskafka::client::{
     consumer::StreamConsumerBuilder,
     error::{Error as RSKafkaError, ProtocolError},
-    partition::PartitionClient,
+    partition::{OffsetAt, PartitionClient},
     producer::{BatchProducer, BatchProducerBuilder},
     ClientBuilder,
 };
@@ -22,7 +22,10 @@ use trace::TraceCollector;
 
 use crate::{
     codec::IoxHeaders,
-    core::{WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting},
+    core::{
+        WriteBufferError, WriteBufferErrorKind, WriteBufferReading, WriteBufferStreamHandler,
+        WriteBufferWriting,
+    },
 };
 
 use self::{
@@ -119,6 +122,7 @@ impl WriteBufferWriting for RSKafkaProducer {
 pub struct RSKafkaStreamHandler {
     partition_client: Arc<PartitionClient>,
     next_offset: Arc<AtomicI64>,
+    terminated: Arc<AtomicBool>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
     consumer_config: ConsumerConfig,
     sequencer_id: u32,
@@ -127,8 +131,13 @@ pub struct RSKafkaStreamHandler {
 #[async_trait]
 impl WriteBufferStreamHandler for RSKafkaStreamHandler {
     fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
+        if self.terminated.load(Ordering::SeqCst) {
+            return futures::stream::empty().boxed();
+        }
+
         let trace_collector = self.trace_collector.clone();
         let next_offset = Arc::clone(&self.next_offset);
+        let terminated = Arc::clone(&self.terminated);
 
         let mut stream_builder = StreamConsumerBuilder::new(
             Arc::clone(&self.partition_client),
@@ -146,7 +155,19 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
         let stream = stream_builder.build();
 
         let stream = stream.map(move |res| {
-            let (record, _watermark) = res?;
+            let (record, _watermark) = match res {
+                Ok(x) => x,
+                Err(e) => {
+                    terminated.store(true, Ordering::SeqCst);
+                    let kind = match e {
+                        RSKafkaError::ServerError(ProtocolError::OffsetOutOfRange, _) => {
+                            WriteBufferErrorKind::UnknownSequenceNumber
+                        }
+                        _ => WriteBufferErrorKind::Unknown,
+                    };
+                    return Err(WriteBufferError::new(kind, e));
+                }
+            };
 
             // store new offset already so we don't get stuck on invalid records
             next_offset.store(record.offset + 1, Ordering::SeqCst);
@@ -189,6 +210,7 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
     async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError> {
         let offset = i64::try_from(sequence_number).map_err(WriteBufferError::invalid_input)?;
         self.next_offset.store(offset, Ordering::SeqCst);
+        self.terminated.store(false, Ordering::SeqCst);
         Ok(())
     }
 }
@@ -249,6 +271,7 @@ impl WriteBufferReading for RSKafkaConsumer {
         Ok(Box::new(RSKafkaStreamHandler {
             partition_client: Arc::clone(partition_client),
             next_offset: Arc::new(AtomicI64::new(0)),
+            terminated: Arc::new(AtomicBool::new(false)),
             trace_collector: self.trace_collector.clone(),
             consumer_config: self.consumer_config.clone(),
             sequencer_id,
@@ -263,7 +286,7 @@ impl WriteBufferReading for RSKafkaConsumer {
                 format!("Unknown partition: {}", sequencer_id).into()
             })?;
 
-        let watermark = partition_client.get_high_watermark().await?;
+        let watermark = partition_client.get_offset(OffsetAt::Latest).await?;
         u64::try_from(watermark).map_err(WriteBufferError::invalid_data)
     }
 

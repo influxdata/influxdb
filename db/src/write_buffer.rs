@@ -154,6 +154,9 @@ async fn stream_in_sequenced_entries<'a>(
                     // If invalid data, simply skip over it
                     WriteBufferErrorKind::InvalidData => {}
 
+                    // unknown sequence will only occur once
+                    WriteBufferErrorKind::UnknownSequenceNumber => {}
+
                     // Otherwise backoff for a period
                     WriteBufferErrorKind::Unknown
                     | WriteBufferErrorKind::IO

@@ -48,18 +48,12 @@ struct WriteAggregator {
 
 impl WriteAggregator {
     fn new(write: DmlWrite, collector: Option<Arc<dyn TraceCollector>>, tag: Tag) -> Self {
-        // TODO: `.into_tables()` could be helpful
-        let tables = write
-            .tables()
-            .map(|(name, batch)| (name.to_owned(), batch.clone()))
-            .collect();
-
         let mut span_recorder = None;
         Self::record_span(&mut span_recorder, write.meta().span_context(), &collector);
 
         Self {
             namespace: write.namespace().to_owned(),
-            tables,
+            tables: write.into_tables().collect(),
             span_recorder,
             tag,
             collector,
@@ -122,23 +116,22 @@ impl WriteAggregator {
     fn push(&mut self, write: DmlWrite) {
         assert_eq!(write.namespace(), self.namespace);
 
-        // TODO: `.into_tables()` could be helpful
-        for (table, batch) in write.tables() {
-            self.tables
-                .entry(table.to_owned())
-                .and_modify(|existing| {
-                    existing
-                        .extend_from(batch)
-                        .expect("Caller should have checked if schemas are compatible")
-                })
-                .or_insert_with(|| batch.clone());
-        }
-
         Self::record_span(
             &mut self.span_recorder,
             write.meta().span_context(),
             &self.collector,
         );
+
+        for (table, batch) in write.into_tables() {
+            self.tables
+                .entry(table)
+                .and_modify(|existing| {
+                    existing
+                        .extend_from(&batch)
+                        .expect("Caller should have checked if schemas are compatible")
+                })
+                .or_insert(batch);
+        }
     }
 
     /// Finalizes span recording.
