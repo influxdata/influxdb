@@ -2120,6 +2120,7 @@ dependencies = [
  "schema",
  "snafu",
  "sqlx",
+ "sqlx-hotswap-pool",
  "test_helpers",
  "tokio",
  "uuid",
@@ -4865,6 +4866,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlx-hotswap-pool"
+version = "0.0.0"
+dependencies = [
+ "dotenv",
+ "either",
+ "futures",
+ "rand",
+ "sqlx",
+ "tokio",
+ "tokio-stream",
+ "workspace-hack",
+]
+
+[[package]]
 name = "sqlx-macros"
 version = "0.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4876,6 +4891,7 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
+ "serde_json",
  "sha2",
  "sqlx-core",
  "sqlx-rt",
@@ -6034,6 +6050,9 @@ dependencies = [
  "serde_json",
  "sha2",
  "smallvec",
+ "sqlx",
+ "sqlx-core",
+ "sqlx-macros",
  "syn",
  "tokio",
  "tokio-stream",
