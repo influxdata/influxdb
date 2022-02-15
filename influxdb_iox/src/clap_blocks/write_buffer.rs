@@ -23,7 +23,7 @@ pub struct WriteBufferConfig {
     #[clap(
         long = "--write-buffer-topic",
         env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
-        default_value = "iox_shared"
+        default_value = "iox-shared"
     )]
     pub(crate) topic: String,
 
