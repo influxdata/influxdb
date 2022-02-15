@@ -10,7 +10,8 @@ use crate::interface::{
 };
 use async_trait::async_trait;
 use observability_deps::tracing::{info, warn};
-use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Executor, Pool, Postgres, Row};
+use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgres, Row};
+use sqlx_hotswap_pool::HotSwapPool;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -25,7 +26,7 @@ static MIGRATOR: Migrator = sqlx::migrate!();
 /// PostgreSQL catalog.
 #[derive(Debug)]
 pub struct PostgresCatalog {
-    pool: Pool<Postgres>,
+    pool: HotSwapPool<Postgres>,
 }
 
 // struct to get return value from "select count(*) ..." wuery"
@@ -66,6 +67,9 @@ impl PostgresCatalog {
         // name for cross-correlation between Conductor logs & database connections.
         info!(application_name=%app_name, "connected to catalog store");
 
+        // Upgrade the pool to a hot swap pool
+        let pool = HotSwapPool::new(pool);
+
         Ok(Self { pool })
     }
 }
@@ -80,7 +84,7 @@ pub struct PostgresTxn {
 #[allow(clippy::large_enum_variant)]
 enum PostgresTxnInner {
     Txn(Option<sqlx::Transaction<'static, Postgres>>),
-    Oneshot(Pool<Postgres>),
+    Oneshot(HotSwapPool<Postgres>),
 }
 
 impl<'c> Executor<'c> for &'c mut PostgresTxnInner {
@@ -943,7 +947,7 @@ mod tests {
         crate::interface::test_helpers::test_catalog(postgres).await;
     }
 
-    async fn clear_schema(pool: &Pool<Postgres>) {
+    async fn clear_schema(pool: &HotSwapPool<Postgres>) {
         sqlx::query("delete from processed_tombstone;")
             .execute(pool)
             .await

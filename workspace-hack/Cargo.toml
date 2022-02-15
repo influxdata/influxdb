@@ -50,6 +50,8 @@ serde = { version = "1", features = ["alloc", "derive", "rc", "serde_derive", "s
 serde_json = { version = "1", features = ["alloc", "indexmap", "preserve_order", "raw_value", "std"] }
 sha2 = { version = "0.9", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
+sqlx = { version = "0.5", features = ["_rt-tokio", "json", "macros", "migrate", "postgres", "runtime-tokio-native-tls", "sqlx-macros", "tls", "uuid"] }
+sqlx-core = { version = "0.5", default-features = false, features = ["_rt-tokio", "_tls-native-tls", "base64", "crc", "dirs", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-native-tls", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "whoami"] }
 tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "sync", "time", "tokio-macros", "winapi"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 tokio-util-3b31131e45eafb45 = { package = "tokio-util", version = "0.6", features = ["codec", "io", "slab", "time"] }
@@ -91,6 +93,8 @@ serde = { version = "1", features = ["alloc", "derive", "rc", "serde_derive", "s
 serde_json = { version = "1", features = ["alloc", "indexmap", "preserve_order", "raw_value", "std"] }
 sha2 = { version = "0.9", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
+sqlx-core = { version = "0.5", default-features = false, features = ["_rt-tokio", "_tls-native-tls", "base64", "crc", "dirs", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-native-tls", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "whoami"] }
+sqlx-macros = { version = "0.5", default-features = false, features = ["_rt-tokio", "json", "migrate", "postgres", "runtime-tokio-native-tls", "serde_json", "sha2", "uuid"] }
 syn = { version = "1", features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "quote", "visit", "visit-mut"] }
 tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "sync", "time", "tokio-macros", "winapi"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }

@@ -7,15 +7,16 @@ edition = "2021"
 [dependencies] # In alphabetical order
 async-trait = "0.1.42"
 futures = "0.3"
+influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+mutable_batch = { path = "../mutable_batch" }
 observability_deps = { path = "../observability_deps" }
+schema = { path = "../schema" }
 snafu = "0.7"
 sqlx = { version = "0.5", features = [ "runtime-tokio-native-tls" , "postgres", "uuid" ] }
+sqlx-hotswap-pool = { path = "../sqlx-hotswap-pool" }
 tokio = { version = "1.13", features = ["io-util", "macros", "parking_lot", "rt-multi-thread", "time"] }
-influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-workspace-hack = { path = "../workspace-hack"}
 uuid = { version = "0.8", features = ["v4"] }
-mutable_batch = { path = "../mutable_batch" }
-schema = { path = "../schema" }
+workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
 dotenv = "0.15.0"
