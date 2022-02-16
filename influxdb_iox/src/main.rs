@@ -209,8 +209,12 @@ fn main() -> Result<(), std::io::Error> {
                     trace_exporters::DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME,
                 )
                 .unwrap();
-                let value = http::header::HeaderValue::from_str(gen_trace_id().as_str()).unwrap();
+                let trace_id = gen_trace_id();
+                let value = http::header::HeaderValue::from_str(trace_id.as_str()).unwrap();
                 builder = builder.header(key, value);
+
+                // Emit trace id information
+                println!("Trace ID set to {}", trace_id);
             }
 
             match builder.build(&host).await {
