@@ -21,6 +21,12 @@ message IngesterQueryRequest {
 
   // Optionally only return rows with a sequence number greater than this
   optional uint64 greater_than_sequence_number = 6;
+
+  // Namespace to search
+  string namespace = 7;
+
+  // Sequencer to search
+  int32 sequencer_id = 8;
 }
 
 // Serialization of `predicate::predicate::Predicate` that contains DataFusion `Expr`s
