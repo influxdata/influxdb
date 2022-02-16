@@ -14,9 +14,10 @@ use crate::{
         },
     },
 };
+use data_types::database_rules::{PartitionTemplate, TemplatePart};
 use observability_deps::tracing::*;
 use router2::{
-    dml_handlers::{NamespaceAutocreation, SchemaValidator, ShardedWriteBuffer},
+    dml_handlers::{NamespaceAutocreation, Partitioner, SchemaValidator, ShardedWriteBuffer},
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
     server::{http::HttpDelegate, RouterServer},
@@ -93,11 +94,23 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
 
+    // Initialise a namespace cache to be shared with the schema validator, and
+    // namespace auto-creator.
     let ns_cache = Arc::new(ShardedCache::new(
         iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
     ));
+    // Add the schema validator layer.
     let handler_stack =
         SchemaValidator::new(write_buffer, Arc::clone(&catalog), Arc::clone(&ns_cache));
+
+    // Add a write partitioner into the handler stack that splits by the date
+    // portion of the write's timestamp.
+    let handler_stack = Partitioner::new(
+        handler_stack,
+        PartitionTemplate {
+            parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
+        },
+    );
 
     ////////////////////////////////////////////////////////////////////////////
     //

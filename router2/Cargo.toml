@@ -15,6 +15,7 @@ futures = "0.3.21"
 generated_types = { path = "../generated_types" }
 hashbrown = "0.12"
 hyper = "0.14"
+influxdb_line_protocol = { version = "0.1.0", path = "../influxdb_line_protocol" }
 iox_catalog = { path = "../iox_catalog" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
@@ -36,7 +37,9 @@ write_buffer = { path = "../write_buffer" }
 [dev-dependencies]
 assert_matches = "1.5"
 criterion = { version = "0.3.4", features = ["async_tokio", "html_reports"] }
+lazy_static = "1.4.0"
 paste = "1.0.6"
+pretty_assertions = "1.1.0"
 rand = "0.8.3"
 schema = { path = "../schema" }
 

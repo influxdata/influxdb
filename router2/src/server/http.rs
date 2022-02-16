@@ -6,7 +6,9 @@ use bytes::{Bytes, BytesMut};
 use data_types::names::{org_and_bucket_to_database, OrgBucketMappingError};
 
 use futures::StreamExt;
+use hashbrown::HashMap;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
+use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use serde::Deserialize;
@@ -14,7 +16,7 @@ use thiserror::Error;
 use time::{SystemProvider, TimeProvider};
 use trace::ctx::SpanContext;
 
-use crate::dml_handlers::{DmlError, DmlHandler};
+use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
 
 /// Errors returned by the `router2` HTTP request handler.
 #[derive(Debug, Error)]
@@ -69,9 +71,7 @@ impl Error {
     /// the end user.
     pub fn as_status_code(&self) -> StatusCode {
         match self {
-            Error::NoHandler | Error::DmlHandler(DmlError::DatabaseNotFound(_)) => {
-                StatusCode::NOT_FOUND
-            }
+            Error::NoHandler => StatusCode::NOT_FOUND,
             Error::InvalidOrgBucket(_) => StatusCode::BAD_REQUEST,
             Error::ClientHangup(_) => StatusCode::BAD_REQUEST,
             Error::InvalidGzip(_) => StatusCode::BAD_REQUEST,
@@ -85,9 +85,21 @@ impl Error {
                 // https://www.rfc-editor.org/rfc/rfc7231#section-6.5.13
                 StatusCode::UNSUPPORTED_MEDIA_TYPE
             }
-            Error::DmlHandler(
-                DmlError::Internal(_) | DmlError::WriteBuffer(_) | DmlError::NamespaceCreation(_),
-            ) => StatusCode::INTERNAL_SERVER_ERROR,
+            Error::DmlHandler(err) => StatusCode::from(err),
+        }
+    }
+}
+
+impl From<&DmlError> for StatusCode {
+    fn from(e: &DmlError) -> Self {
+        match e {
+            DmlError::DatabaseNotFound(_) => StatusCode::NOT_FOUND,
+            DmlError::Schema(_) => StatusCode::BAD_REQUEST,
+            DmlError::Internal(_) | DmlError::WriteBuffer(_) | DmlError::NamespaceCreation(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            DmlError::Partition(PartitionError::BatchWrite(_)) => StatusCode::INTERNAL_SERVER_ERROR,
+            DmlError::Partition(PartitionError::Inner(err)) => StatusCode::from(&**err),
         }
     }
 }
@@ -162,7 +174,7 @@ impl<D> HttpDelegate<D, SystemProvider> {
 
 impl<D, T> HttpDelegate<D, T>
 where
-    D: DmlHandler,
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>>,
     T: TimeProvider,
 {
     /// Routes `req` to the appropriate handler, if any, returning the handler

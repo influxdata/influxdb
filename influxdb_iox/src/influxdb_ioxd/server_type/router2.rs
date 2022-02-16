@@ -4,8 +4,10 @@ use std::{
 };
 
 use async_trait::async_trait;
+use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
 use metric::Registry;
+use mutable_batch::MutableBatch;
 use router2::{dml_handlers::DmlHandler, server::RouterServer};
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
@@ -36,7 +38,7 @@ impl<D> RouterServerType<D> {
 #[async_trait]
 impl<D> ServerType for RouterServerType<D>
 where
-    D: DmlHandler + 'static,
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>> + 'static,
 {
     type RouteError = IoxHttpErrorAdaptor;
 

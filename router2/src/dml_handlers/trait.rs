@@ -3,12 +3,10 @@ use std::{error::Error, fmt::Debug};
 use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 
-use hashbrown::HashMap;
-use mutable_batch::MutableBatch;
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
-use super::{NamespaceCreationError, SchemaError, ShardError};
+use super::{partitioner::PartitionError, NamespaceCreationError, SchemaError, ShardError};
 
 /// Errors emitted by a [`DmlHandler`] implementation during DML request
 /// processing.
@@ -30,6 +28,10 @@ pub enum DmlError {
     #[error(transparent)]
     NamespaceCreation(#[from] NamespaceCreationError),
 
+    /// An error partitioning the request.
+    #[error(transparent)]
+    Partition(#[from] PartitionError),
+
     /// An unknown error occured while processing the DML request.
     #[error("internal dml handler error: {0}")]
     Internal(Box<dyn Error + Send + Sync>),
@@ -38,11 +40,19 @@ pub enum DmlError {
 /// A composable, abstract handler of DML requests.
 #[async_trait]
 pub trait DmlHandler: Debug + Send + Sync {
+    /// The input type this handler expects for a DML write.
+    ///
+    /// By allowing handlers to vary their input type, it is possible to
+    /// construct a chain of [`DmlHandler`] implementations that transform the
+    /// input request as it progresses through the handler pipeline.
+    type WriteInput: Debug + Send + Sync;
+
     /// The type of error a [`DmlHandler`] implementation produces for write
     /// requests.
     ///
     /// All errors must be mappable into the concrete [`DmlError`] type.
     type WriteError: Error + Into<DmlError> + Send;
+
     /// The error type of the delete handler.
     type DeleteError: Error + Into<DmlError> + Send;
 
@@ -50,7 +60,7 @@ pub trait DmlHandler: Debug + Send + Sync {
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
-        batches: HashMap<String, MutableBatch>,
+        input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::WriteError>;
 

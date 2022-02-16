@@ -1,20 +1,20 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 
-use hashbrown::HashMap;
-use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
 use trace::ctx::SpanContext;
 
 use super::{DmlError, DmlHandler};
 
+/// A captured call to a [`MockDmlHandler`], generic over `W`, the captured
+/// [`DmlHandler::WriteInput`] type.
 #[derive(Debug, Clone)]
-pub enum MockDmlHandlerCall {
+pub enum MockDmlHandlerCall<W> {
     Write {
         namespace: String,
-        batches: HashMap<String, MutableBatch>,
+        write_input: W,
     },
     Delete {
         namespace: String,
@@ -23,23 +23,42 @@ pub enum MockDmlHandlerCall {
     },
 }
 
-#[derive(Debug, Default)]
-struct Inner {
-    calls: Vec<MockDmlHandlerCall>,
+#[derive(Debug)]
+struct Inner<W> {
+    calls: Vec<MockDmlHandlerCall<W>>,
     write_return: VecDeque<Result<(), DmlError>>,
     delete_return: VecDeque<Result<(), DmlError>>,
 }
 
-impl Inner {
-    fn record_call(&mut self, call: MockDmlHandlerCall) {
+impl<W> Default for Inner<W> {
+    fn default() -> Self {
+        Self {
+            calls: Default::default(),
+            write_return: Default::default(),
+            delete_return: Default::default(),
+        }
+    }
+}
+
+impl<W> Inner<W> {
+    fn record_call(&mut self, call: MockDmlHandlerCall<W>) {
         self.calls.push(call);
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MockDmlHandler(Mutex<Inner>);
+#[derive(Debug)]
+pub struct MockDmlHandler<W>(Mutex<Inner<W>>);
 
-impl MockDmlHandler {
+impl<W> Default for MockDmlHandler<W> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
+impl<W> MockDmlHandler<W>
+where
+    W: Clone,
+{
     pub fn with_write_return(self, ret: impl Into<VecDeque<Result<(), DmlError>>>) -> Self {
         self.0.lock().write_return = ret.into();
         self
@@ -50,7 +69,7 @@ impl MockDmlHandler {
         self
     }
 
-    pub fn calls(&self) -> Vec<MockDmlHandlerCall> {
+    pub fn calls(&self) -> Vec<MockDmlHandlerCall<W>> {
         self.0.lock().calls.clone()
     }
 }
@@ -68,21 +87,25 @@ macro_rules! record_and_return {
 }
 
 #[async_trait]
-impl DmlHandler for Arc<MockDmlHandler> {
+impl<W> DmlHandler for Arc<MockDmlHandler<W>>
+where
+    W: Debug + Send + Sync,
+{
     type WriteError = DmlError;
     type DeleteError = DmlError;
+    type WriteInput = W;
 
     async fn write(
         &self,
         namespace: DatabaseName<'static>,
-        batches: HashMap<String, MutableBatch>,
+        write_input: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::WriteError> {
         record_and_return!(
             self,
             MockDmlHandlerCall::Write {
                 namespace: namespace.into(),
-                batches,
+                write_input,
             },
             write_return
         )
