@@ -1,14 +1,18 @@
-use std::collections::BTreeSet;
-use std::sync::Arc;
+use std::{collections::BTreeSet, iter, sync::Arc};
 
-use criterion::measurement::WallTime;
-use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use data_types::database_rules::{PartitionTemplate, TemplatePart};
 use hyper::{Body, Request};
-use router2::dml_handlers::{Partitioner, ShardedWriteBuffer};
-use router2::sequencer::Sequencer;
-use router2::server::http::HttpDelegate;
-use router2::sharder::JumpHash;
+use iox_catalog::{interface::Catalog, mem::MemCatalog};
+use router2::{
+    dml_handlers::{
+        DmlHandlerChainExt, FanOutAdaptor, Partitioner, SchemaValidator, ShardedWriteBuffer,
+    },
+    namespace_cache::{MemoryNamespaceCache, ShardedCache},
+    sequencer::Sequencer,
+    server::http::HttpDelegate,
+    sharder::JumpHash,
+};
 use tokio::runtime::Runtime;
 use write_buffer::core::WriteBufferWriting;
 use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
@@ -37,17 +41,6 @@ fn init_write_buffer(n_sequencers: u32) -> ShardedWriteBuffer<JumpHash<Arc<Seque
     )
 }
 
-fn setup_server() -> HttpDelegate<Partitioner<ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>>> {
-    let handler_stack = init_write_buffer(1);
-    let handler_stack = Partitioner::new(
-        handler_stack,
-        PartitionTemplate {
-            parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
-        },
-    );
-    HttpDelegate::new(1024, handler_stack)
-}
-
 fn runtime() -> Runtime {
     tokio::runtime::Builder::new_multi_thread()
         .enable_io()
@@ -59,34 +52,39 @@ fn runtime() -> Runtime {
 fn e2e_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("e2e");
 
-    let delegate = setup_server();
-    benchmark_e2e(
-        &mut group,
-        &delegate,
-        "https://bananas.example/api/v2/write?org=bananas&bucket=test",
-        "platanos,tag1=A,tag2=B val=42i 123456",
-    );
+    let delegate = {
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::default());
+        let ns_cache = Arc::new(ShardedCache::new(
+            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+        ));
 
-    group.finish();
-}
+        let write_buffer = init_write_buffer(1);
+        let schema_validator = SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+        let partitioner = Partitioner::new(PartitionTemplate {
+            parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
+        });
 
-fn benchmark_e2e(
-    group: &mut BenchmarkGroup<WallTime>,
-    http_delegate: &HttpDelegate<Partitioner<ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>>>,
-    uri: &'static str,
-    body_str: &'static str,
-) {
+        let handler_stack =
+            partitioner.and_then(FanOutAdaptor::new(schema_validator.and_then(write_buffer)));
+
+        HttpDelegate::new(1024, handler_stack)
+    };
+
+    let body_str = "platanos,tag1=A,tag2=B val=42i 123456";
+
     group.throughput(Throughput::Bytes(body_str.len() as u64));
     group.bench_function("e2e", |b| {
         b.to_async(runtime()).iter(|| {
             let request = Request::builder()
-                .uri(uri)
+                .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
                 .method("POST")
                 .body(Body::from(body_str.as_bytes()))
                 .unwrap();
-            http_delegate.route(request)
+            delegate.route(request)
         })
     });
+
+    group.finish();
 }
 
 criterion_group!(benches, e2e_benchmarks);

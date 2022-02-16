@@ -93,5 +93,11 @@ pub use partitioner::*;
 mod instrumentation;
 pub use instrumentation::*;
 
+mod chain;
+pub use chain::*;
+
+mod fan_out;
+pub use fan_out::*;
+
 #[cfg(test)]
 pub mod mock;

@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
@@ -9,7 +9,7 @@ use trace::ctx::SpanContext;
 
 use crate::namespace_cache::NamespaceCache;
 
-use super::{DmlError, DmlHandler};
+use super::DmlHandler;
 
 /// An error auto-creating the request namespace.
 #[derive(Debug, Error)]
@@ -17,10 +17,6 @@ pub enum NamespaceCreationError {
     /// An error returned from a namespace creation request.
     #[error("failed to create namespace: {0}")]
     Create(iox_catalog::interface::Error),
-
-    /// The inner DML handler returned an error.
-    #[error(transparent)]
-    Inner(Box<DmlError>),
 }
 
 /// A layer to populate the [`Catalog`] with all the namespaces the router
@@ -29,20 +25,19 @@ pub enum NamespaceCreationError {
 /// Uses a [`NamespaceCache`] to limit issuing create requests to namespaces the
 /// router has not yet observed a schema for.
 #[derive(Debug)]
-pub struct NamespaceAutocreation<D, C> {
+pub struct NamespaceAutocreation<C, T> {
     catalog: Arc<dyn Catalog>,
     cache: C,
 
     topic_id: KafkaTopicId,
     query_id: QueryPoolId,
     retention: String,
-
-    inner: D,
+    _input: PhantomData<T>,
 }
 
-impl<D, C> NamespaceAutocreation<D, C> {
+impl<C, T> NamespaceAutocreation<C, T> {
     /// Return a new [`NamespaceAutocreation`] layer that ensures a requested
-    /// namespace exists in `catalog` before passing the request to `inner`.
+    /// namespace exists in `catalog`.
     ///
     /// If the namespace does not exist, it is created with the specified
     /// `topic_id`, `query_id` and `retention` policy.
@@ -55,7 +50,6 @@ impl<D, C> NamespaceAutocreation<D, C> {
         topic_id: KafkaTopicId,
         query_id: QueryPoolId,
         retention: String,
-        inner: D,
     ) -> Self {
         Self {
             catalog,
@@ -63,35 +57,35 @@ impl<D, C> NamespaceAutocreation<D, C> {
             topic_id,
             query_id,
             retention,
-            inner,
+            _input: Default::default(),
         }
     }
 }
 
 #[async_trait]
-impl<D, C, T> DmlHandler for NamespaceAutocreation<D, C>
+impl<C, T> DmlHandler for NamespaceAutocreation<C, T>
 where
-    D: DmlHandler<WriteInput = T>,
     C: NamespaceCache,
-    T: Debug + Send + Sync + 'static,
+    T: Debug + Send + Sync,
 {
     type WriteError = NamespaceCreationError;
     type DeleteError = NamespaceCreationError;
 
-    // This handler accepts any input type, passing it through to the next
-    // handler unmodified.
+    // This handler accepts any write input type, returning it to the caller
+    // unmodified.
     type WriteInput = T;
+    type WriteOutput = T;
 
     /// Write `batches` to `namespace`.
     async fn write(
         &self,
-        namespace: DatabaseName<'static>,
+        namespace: &'_ DatabaseName<'static>,
         batches: Self::WriteInput,
-        span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::WriteError> {
+        _span_ctx: Option<SpanContext>,
+    ) -> Result<Self::WriteOutput, Self::WriteError> {
         // If the namespace does not exist in the schema cache (populated by the
         // schema validator) request an (idempotent) creation.
-        if self.cache.get_schema(&namespace).is_none() {
+        if self.cache.get_schema(namespace).is_none() {
             trace!(%namespace, "namespace auto-create cache miss");
 
             let mut repos = self.catalog.repositories().await;
@@ -122,24 +116,18 @@ where
             }
         }
 
-        self.inner
-            .write(namespace, batches, span_ctx)
-            .await
-            .map_err(|e| NamespaceCreationError::Inner(Box::new(e.into())))
+        Ok(batches)
     }
 
     /// Delete the data specified in `delete`.
-    async fn delete<'a>(
+    async fn delete(
         &self,
-        namespace: DatabaseName<'static>,
-        table_name: impl Into<String> + Send + Sync + 'a,
-        predicate: DeletePredicate,
-        span_ctx: Option<SpanContext>,
+        _namespace: &DatabaseName<'static>,
+        _table_name: &str,
+        _predicate: &DeletePredicate,
+        _span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::DeleteError> {
-        self.inner
-            .delete(namespace, table_name, predicate, span_ctx)
-            .await
-            .map_err(|e| NamespaceCreationError::Inner(Box::new(e.into())))
+        Ok(())
     }
 }
 
@@ -147,16 +135,12 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use assert_matches::assert_matches;
     use iox_catalog::{
         interface::{Namespace, NamespaceId, NamespaceSchema},
         mem::MemCatalog,
     };
 
-    use crate::{
-        dml_handlers::mock::{MockDmlHandler, MockDmlHandlerCall},
-        namespace_cache::MemoryNamespaceCache,
-    };
+    use crate::namespace_cache::MemoryNamespaceCache;
 
     use super::*;
 
@@ -164,6 +148,7 @@ mod tests {
     async fn test_cache_hit() {
         let ns = DatabaseName::try_from("bananas").unwrap();
 
+        // Prep the cache before the test to cause a hit
         let cache = Arc::new(MemoryNamespaceCache::default());
         cache.put_schema(
             ns.clone(),
@@ -176,7 +161,6 @@ mod tests {
         );
 
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::default());
-        let mock_handler = Arc::new(MockDmlHandler::<()>::default().with_write_return([Ok(())]));
 
         let creator = NamespaceAutocreation::new(
             Arc::clone(&catalog),
@@ -184,11 +168,11 @@ mod tests {
             KafkaTopicId::new(42),
             QueryPoolId::new(42),
             "inf".to_owned(),
-            Arc::clone(&mock_handler),
         );
 
+        // Drive the code under test
         creator
-            .write(ns.clone(), (), None)
+            .write(&ns, (), None)
             .await
             .expect("handler should succeed");
 
@@ -204,11 +188,6 @@ mod tests {
                 .is_none(),
             "expected no request to the catalog"
         );
-
-        // And the DML handler must be called.
-        assert_matches!(mock_handler.calls().as_slice(), [MockDmlHandlerCall::Write { namespace, .. }] => {
-            assert_eq!(*namespace, *ns);
-        });
     }
 
     #[tokio::test]
@@ -217,7 +196,6 @@ mod tests {
 
         let cache = Arc::new(MemoryNamespaceCache::default());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::default());
-        let mock_handler = Arc::new(MockDmlHandler::<()>::default().with_write_return([Ok(())]));
 
         let creator = NamespaceAutocreation::new(
             Arc::clone(&catalog),
@@ -225,11 +203,10 @@ mod tests {
             KafkaTopicId::new(42),
             QueryPoolId::new(42),
             "inf".to_owned(),
-            Arc::clone(&mock_handler),
         );
 
         creator
-            .write(ns.clone(), (), None)
+            .write(&ns, (), None)
             .await
             .expect("handler should succeed");
 
@@ -253,10 +230,5 @@ mod tests {
                 query_pool_id: QueryPoolId::new(42),
             }
         );
-
-        // And the DML handler must be called.
-        assert_matches!(mock_handler.calls().as_slice(), [MockDmlHandlerCall::Write { namespace, .. }] => {
-            assert_eq!(*namespace, *ns);
-        });
     }
 }
