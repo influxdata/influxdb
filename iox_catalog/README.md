@@ -11,11 +11,18 @@ user and password filled in:
 DATABASE_URL=postgres://<postgres user>:<postgres password>@localhost/iox_shared
 ```
 
+You can omit the host part if your postgres is running on the default unix domain socket (useful on macos because, by default,
+the config installed by `brew install postgres` doesn't listen to a TCP port): 
+
+```
+DATABASE_URL=postgres:///iox_shared
+```
+
 You'll then need to create the database. You can do this via the sqlx command line.
 
 ```
 cargo install sqlx-cli
-sqlx database create
+sqlx database setup
 ```
 
 This will set up the database based on the files in `./migrations` in this crate. SQLx also creates a table
@@ -30,3 +37,20 @@ To run the Postgres integration tests, ensure the above setup is complete first.
 * Run `cargo test`
 
 **CAUTION:** existing data in the database is dropped when tests are run
+
+## Schema namespace
+
+All iox catalog tables are created in a `iox_catalog` schema. Remember to set the schema search path when accessing the database with `psql`.
+
+There are several ways to set the default search path, depending if you want to do it for your session, for the database or for the user.
+
+Setting a default search path for the database or user may interfere with tests (e.g. it may make some test pass when they should fail).
+The safest option is set the search path on a per session basis. As always, there are a few ways to do that: 
+
+1. you can type `set search_path to public,iox_catalog;` inside psql.
+2. you can add (1) to your `~/.psqlrc`
+3. or you can just pass it as a CLI argument with:
+
+```
+psql 'dbname=iox_shared options=-csearch_path=public,iox_catalog'
+```
