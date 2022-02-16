@@ -275,7 +275,7 @@ impl Dictionary {
                         }
                     }
                 }
-                _ => unreachable!(format!("operator {:?} not supported for row_ids_equal", op)),
+                _ => unreachable!("operator {:?} not supported for row_ids_equal", op),
             }
         } else if let cmp::Operator::NotEqual = op {
             // special case - the column does not contain the value in the
@@ -410,7 +410,7 @@ impl Dictionary {
                     self.row_ids_encoded_cmp(id, &cmp::Operator::LT, dst)
                 }
                 _ => {
-                    unreachable!(format!("operator {:?} not supported for row_ids_cmp", op));
+                    unreachable!("operator {:?} not supported for row_ids_cmp", op);
                 }
             },
         }
