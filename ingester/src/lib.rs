@@ -18,6 +18,7 @@ pub mod data;
 pub mod handler;
 pub mod lifecycle;
 pub mod persist;
+pub mod querier_handler;
 pub mod query;
 pub mod server;
 pub mod test_util;

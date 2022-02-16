@@ -25,7 +25,7 @@ rskafka = { git = "https://github.com/influxdata/rskafka.git", rev="7c74d43f50c5
 schema = { path = "../schema" }
 time = { path = "../time" }
 tokio = { version = "1.13", features = ["fs", "macros", "parking_lot", "rt", "sync", "time"] }
-tokio-util = "0.6.9"
+tokio-util = "0.7.0"
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
 uuid = { version = "0.8", features = ["v4"] }

@@ -1,5 +1,7 @@
 //! Persist compacted data to parquet files in object storage
 
+use std::sync::Arc;
+
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
 use object_store::{
@@ -28,7 +30,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub async fn persist(
     metadata: &IoxMetadata,
     record_batches: Vec<RecordBatch>,
-    object_store: &ObjectStore,
+    object_store: &Arc<ObjectStore>,
 ) -> Result<()> {
     if record_batches.is_empty() {
         return Ok(());
@@ -38,7 +40,17 @@ pub async fn persist(
         .expect("record_batches.is_empty was just checked")
         .schema();
 
-    let data = parquet_file::storage::Storage::parquet_bytes(record_batches, schema, metadata)
+    // Make a fake IOx object store to conform to the parquet file
+    // interface, but note this isn't actually used to find parquet
+    // paths to write to
+    use iox_object_store::IoxObjectStore;
+    let iox_object_store = Arc::new(IoxObjectStore::existing(
+        Arc::clone(object_store),
+        IoxObjectStore::root_path_for(object_store, uuid::Uuid::new_v4()),
+    ));
+
+    let data = parquet_file::storage::Storage::new(iox_object_store)
+        .parquet_bytes(record_batches, schema, metadata)
         .await
         .context(ConvertingToBytesSnafu)?;
 

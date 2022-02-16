@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-arrow = { version = "8.0", features = ["prettyprint"] }
+arrow = { version = "9.0", features = ["prettyprint"] }
 base64 = "0.13"
 bytes = "1.0"
 data_types = { path = "../data_types" }
@@ -16,7 +16,7 @@ iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
-parquet = "8.0"
+parquet = "9.0"
 parquet_file = { path = "../parquet_file" }
 parquet-format = "4.0"
 parking_lot = "0.12"
@@ -32,5 +32,5 @@ time = { path = "../time" }
 tokio = { version = "1.13", features = ["macros", "parking_lot", "rt", "rt-multi-thread", "sync"] }
 tokio-stream = "0.1"
 uuid = { version = "0.8", features = ["v4"] }
-zstd = "0.9"
+zstd = "0.10"
 workspace-hack = { path = "../workspace-hack"}

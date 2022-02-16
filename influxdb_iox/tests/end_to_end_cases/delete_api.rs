@@ -181,7 +181,7 @@ pub async fn test_delete_on_router() {
 
     let sequencer_id = write_buffer.sequencer_ids().into_iter().next().unwrap();
     let mut handler = write_buffer.stream_handler(sequencer_id).await.unwrap();
-    let mut stream = handler.stream();
+    let mut stream = handler.stream().await;
     let delete_actual = stream.next().await.unwrap().unwrap();
     let delete_expected = DmlDelete::new(
         &db_name,

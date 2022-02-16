@@ -17,8 +17,8 @@ client_util = { path = "../client_util" }
 generated_types = { path = "../generated_types", default-features = false }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "8.0", optional = true }
-arrow-flight = { version = "8.0", optional = true }
+arrow = { version = "9.0", optional = true }
+arrow-flight = { version = "9.0", optional = true }
 bytes = "1.0"
 futures-util = { version = "0.3", optional = true }
 dml = { path = "../dml", optional = true }

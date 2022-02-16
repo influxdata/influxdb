@@ -14,7 +14,7 @@ publish = false
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.7", features = ["std"] }
-arrow = { version = "8", features = ["comfy-table", "csv", "csv_crate", "flatbuffers", "ipc", "prettyprint", "rand", "test_utils"] }
+arrow = { version = "9", features = ["comfy-table", "csv", "csv_crate", "flatbuffers", "ipc", "prettyprint", "rand", "test_utils"] }
 base64 = { version = "0.13", features = ["alloc", "std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
@@ -40,7 +40,7 @@ num-integer = { version = "0.1", default-features = false, features = ["i128", "
 num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "race", "std"] }
 parking_lot = { version = "0.11" }
-parquet = { version = "8", features = ["arrow", "base64", "brotli", "experimental", "flate2", "lz4", "snap", "zstd"] }
+parquet = { version = "9", features = ["arrow", "base64", "brotli", "experimental", "flate2", "lz4", "snap", "zstd"] }
 rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "rand_hc", "small_rng", "std", "std_rng"] }
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-automata = { version = "0.1", features = ["regex-syntax", "std"] }
@@ -50,9 +50,12 @@ serde = { version = "1", features = ["alloc", "derive", "rc", "serde_derive", "s
 serde_json = { version = "1", features = ["alloc", "indexmap", "preserve_order", "raw_value", "std"] }
 sha2 = { version = "0.9", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
+sqlx = { version = "0.5", features = ["_rt-tokio", "json", "macros", "migrate", "postgres", "runtime-tokio-native-tls", "sqlx-macros", "tls", "uuid"] }
+sqlx-core = { version = "0.5", default-features = false, features = ["_rt-tokio", "_tls-native-tls", "base64", "crc", "dirs", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-native-tls", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "whoami"] }
 tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "sync", "time", "tokio-macros", "winapi"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
-tokio-util = { version = "0.6", features = ["codec", "io", "slab", "time"] }
+tokio-util-3b31131e45eafb45 = { package = "tokio-util", version = "0.6", features = ["codec", "io", "slab", "time"] }
+tokio-util-ca01ad9e24f5d932 = { package = "tokio-util", version = "0.7", features = ["codec", "io"] }
 tower = { version = "0.4", features = ["balance", "buffer", "discover", "filter", "futures-util", "indexmap", "limit", "load", "log", "make", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-stream", "tokio-util", "tracing", "util"] }
 tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace", "release_max_level_debug", "std", "tracing-attributes"] }
 tracing-core = { version = "0.1", features = ["lazy_static", "std", "valuable"] }
@@ -90,6 +93,8 @@ serde = { version = "1", features = ["alloc", "derive", "rc", "serde_derive", "s
 serde_json = { version = "1", features = ["alloc", "indexmap", "preserve_order", "raw_value", "std"] }
 sha2 = { version = "0.9", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
+sqlx-core = { version = "0.5", default-features = false, features = ["_rt-tokio", "_tls-native-tls", "base64", "crc", "dirs", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-native-tls", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "whoami"] }
+sqlx-macros = { version = "0.5", default-features = false, features = ["_rt-tokio", "json", "migrate", "postgres", "runtime-tokio-native-tls", "serde_json", "sha2", "uuid"] }
 syn = { version = "1", features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "quote", "visit", "visit-mut"] }
 tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "sync", "time", "tokio-macros", "winapi"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }

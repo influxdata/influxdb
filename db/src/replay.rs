@@ -223,7 +223,7 @@ pub async fn perform_replay(
                 "replay sequencer",
             );
 
-            let mut stream = handler.stream();
+            let mut stream = handler.stream().await;
             while let Some(dml_operation) = stream.try_next().await.context(EntrySnafu {
                 sequencer_id: *sequencer_id,
             })? {

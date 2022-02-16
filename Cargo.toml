@@ -51,6 +51,7 @@ members = [
     "schema",
     "server",
     "server_benchmarks",
+    "sqlx-hotswap-pool",
     "test_helpers",
     "time",
     "trace",

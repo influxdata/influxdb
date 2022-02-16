@@ -183,7 +183,7 @@ pub fn make_queryable_batch_with_deletes(
     let mut seq_num = seq_num_start;
     for batch in batches {
         let seq = SequenceNumber::new(seq_num);
-        snapshots.push(make_snapshot_batch(batch, seq, seq));
+        snapshots.push(Arc::new(make_snapshot_batch(batch, seq, seq)));
         seq_num += 1;
     }
 

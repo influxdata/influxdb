@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use datafusion::logical_plan::{col, lit_timestamp_nano, LogicalPlan, LogicalPlanBuilder};
+use datafusion::logical_plan::{col, lit_timestamp_nano, Expr, LogicalPlan, LogicalPlanBuilder};
 use observability_deps::tracing::{debug, trace};
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
@@ -56,6 +56,20 @@ impl ReorgPlanner {
     where
         C: QueryChunk + 'static,
     {
+        self.scan_single_chunk_plan_with_filter(schema, chunk, None, vec![])
+    }
+
+    /// Creates an execution plan for a scan and filter data of a single chunk
+    pub fn scan_single_chunk_plan_with_filter<C>(
+        &self,
+        schema: Arc<Schema>,
+        chunk: Arc<C>,
+        projection: Option<Vec<usize>>,
+        filters: Vec<Expr>,
+    ) -> Result<LogicalPlan>
+    where
+        C: QueryChunk + 'static,
+    {
         let table_name = chunk.table_name();
         // Prepare the plan for the table
         let mut builder = ProviderBuilder::new(table_name, schema);
@@ -68,11 +82,16 @@ impl ReorgPlanner {
             .build()
             .context(CreatingProviderSnafu { table_name })?;
 
-        // Logical plan to scan all columns with no predicates
-        let plan = LogicalPlanBuilder::scan(table_name, Arc::new(provider) as _, None)
-            .context(BuildingPlanSnafu)?
-            .build()
-            .context(BuildingPlanSnafu)?;
+        // Logical plan to scan given columns and apply predicates
+        let plan = LogicalPlanBuilder::scan_with_filters(
+            table_name,
+            Arc::new(provider) as _,
+            projection,
+            filters,
+        )
+        .context(BuildingPlanSnafu)?
+        .build()
+        .context(BuildingPlanSnafu)?;
 
         debug!(%table_name, plan=%plan.display_indent_schema(),
                "created single chunk scan plan");

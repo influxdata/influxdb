@@ -22,7 +22,7 @@ use datafusion::{
     },
 };
 use iox_catalog::interface::{SequenceNumber, Tombstone};
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, trace};
 use predicate::{delete_predicate::parse_delete_predicate, Predicate, PredicateMatch};
 use query::{
     exec::stringset::StringSet,
@@ -66,7 +66,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl QueryableBatch {
     /// Initilaize a QueryableBatch
-    pub fn new(table_name: &str, data: Vec<SnapshotBatch>, deletes: Vec<Tombstone>) -> Self {
+    pub fn new(table_name: &str, data: Vec<Arc<SnapshotBatch>>, deletes: Vec<Tombstone>) -> Self {
         let mut delete_predicates = vec![];
         for delete in &deletes {
             let delete_predicate = Arc::new(
@@ -212,6 +212,8 @@ impl QueryChunk for QueryableBatch {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
+        trace!(?selection, "selection");
+
         // Get all record batches from their snapshots
         let mut batches = vec![];
         for snapshot in &self.data {
@@ -259,8 +261,7 @@ impl QueryChunk for QueryableBatch {
         // Return stream of data
         let dummy_metrics = ExecutionPlanMetricsSet::new();
         let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
-        let stream =
-            SizedRecordBatchStream::new(self.schema().as_arrow(), stream_batches, mem_metrics);
+        let stream = SizedRecordBatchStream::new(schema.as_arrow(), stream_batches, mem_metrics);
         Ok(Box::pin(stream))
     }
 

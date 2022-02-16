@@ -30,7 +30,7 @@ rusoto_s3 = { version = "0.47.0", optional = true}
 snafu = "0.7"
 tokio = { version = "1.13", features = ["fs", "io-util", "macros", "parking_lot", "rt-multi-thread", "time"] }
 # Filesystem integration
-tokio-util = { version = "0.6.9", features = [ "codec", "io" ] }
+tokio-util = { version = "0.7.0", features = [ "codec", "io" ] }
 reqwest = { version = "0.11", optional = true }
 # Filesystem integration
 walkdir = "2"

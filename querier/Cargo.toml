@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-arrow-flight = "8.0"
+arrow-flight = "9.0"
 client_util = { path = "../client_util" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }

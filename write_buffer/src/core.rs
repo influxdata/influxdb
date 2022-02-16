@@ -191,7 +191,7 @@ pub trait WriteBufferStreamHandler: Sync + Send + Debug + 'static {
     /// If the sequence number that the stream wants to read is unknown (either because it is in the future or because
     /// some retention policy removed it already), the stream will return an error with
     /// [`WriteBufferErrorKind::UnknownSequenceNumber`] and will end immediately.
-    fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>>;
+    async fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>>;
 
     /// Seek sequencer to given sequence number. The next output of related streams will be an entry with at least
     /// the given sequence number (the actual sequence number might be skipped due to "holes" in the stream).
@@ -384,7 +384,7 @@ pub mod test_utils {
 
         let sequencer_id = set_pop_first(&mut reader.sequencer_ids()).unwrap();
         let mut stream_handler = reader.stream_handler(sequencer_id).await.unwrap();
-        let mut stream = stream_handler.stream();
+        let mut stream = stream_handler.stream().await;
 
         // empty stream is pending
         assert_stream_pending(&mut stream).await;
@@ -434,25 +434,25 @@ pub mod test_utils {
         let mut stream_handler = reader.stream_handler(sequencer_id).await.unwrap();
         let stream = stream_handler.stream();
         drop(stream);
-        let mut stream = stream_handler.stream();
+        let mut stream = stream_handler.stream().await;
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w1);
 
         // re-creating stream after reading remembers sequence number, but wait a bit to provoke the stream to buffer
         // some entries
         tokio::time::sleep(Duration::from_millis(10)).await;
         drop(stream);
-        let mut stream = stream_handler.stream();
+        let mut stream = stream_handler.stream().await;
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w2);
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w3);
 
         // re-creating stream after reading everything makes it pending
         drop(stream);
-        let mut stream = stream_handler.stream();
+        let mut stream = stream_handler.stream().await;
         assert_stream_pending(&mut stream).await;
 
         // use a different handler => stream starts from beginning
         let mut stream_handler2 = reader.stream_handler(sequencer_id).await.unwrap();
-        let mut stream2 = stream_handler2.stream();
+        let mut stream2 = stream_handler2.stream().await;
         assert_write_op_eq(&stream2.next().await.unwrap().unwrap(), &w1);
         assert_stream_pending(&mut stream).await;
     }
@@ -484,8 +484,8 @@ pub mod test_utils {
 
         let mut stream_handler_1 = reader.stream_handler(sequencer_id_1).await.unwrap();
         let mut stream_handler_2 = reader.stream_handler(sequencer_id_2).await.unwrap();
-        let mut stream_1 = stream_handler_1.stream();
-        let mut stream_2 = stream_handler_2.stream();
+        let mut stream_1 = stream_handler_1.stream().await;
+        let mut stream_2 = stream_handler_2.stream().await;
 
         // empty streams are pending
         assert_stream_pending(&mut stream_1).await;
@@ -615,18 +615,19 @@ pub mod test_utils {
 
         let err = handler_1_1_a
             .stream()
+            .await
             .next()
             .await
             .expect("stream not ended")
             .unwrap_err();
         assert_eq!(err.kind(), WriteBufferErrorKind::UnknownSequenceNumber);
-        assert!(handler_1_1_a.stream().next().await.is_none());
+        assert!(handler_1_1_a.stream().await.next().await.is_none());
 
-        assert_stream_pending(&mut handler_1_2_a.stream()).await;
+        assert_stream_pending(&mut handler_1_2_a.stream().await).await;
         assert_reader_content(&mut handler_1_1_b, &[&w_east_3]).await;
-        assert_stream_pending(&mut handler_1_2_b.stream()).await;
+        assert_stream_pending(&mut handler_1_2_b.stream().await).await;
         assert_reader_content(&mut handler_2_1, &[&w_east_3]).await;
-        assert_stream_pending(&mut handler_2_2.stream()).await;
+        assert_stream_pending(&mut handler_2_2.stream().await).await;
 
         // seeking again should recover the stream
         handler_1_1_a.seek(0).await.unwrap();
@@ -712,7 +713,7 @@ pub mod test_utils {
 
         // check that the timestamp records the ingestion time, not the read time
         let mut handler = reader.stream_handler(sequencer_id).await.unwrap();
-        let sequenced_entry = handler.stream().next().await.unwrap().unwrap();
+        let sequenced_entry = handler.stream().await.next().await.unwrap().unwrap();
         let ts_entry = sequenced_entry.meta().producer_ts().unwrap();
         assert_eq!(ts_entry, t0);
         assert_eq!(reported_ts, t0);
@@ -789,7 +790,7 @@ pub mod test_utils {
         assert_eq!(sequencer_ids.len(), 1);
         let sequencer_id = set_pop_first(&mut sequencer_ids).unwrap();
         let mut handler = reader.stream_handler(sequencer_id).await.unwrap();
-        let mut stream = handler.stream();
+        let mut stream = handler.stream().await;
 
         // 1: no context
         write("namespace", &writer, entry, sequencer_id, None).await;
@@ -932,7 +933,7 @@ pub mod test_utils {
         actual_stream_handler: &mut Box<dyn WriteBufferStreamHandler>,
         expected_writes: &[&DmlWrite],
     ) {
-        let actual_stream = actual_stream_handler.stream();
+        let actual_stream = actual_stream_handler.stream().await;
 
         // we need to limit the stream to `expected_writes.len()` elements, otherwise it might be pending forever
         let actual_writes: Vec<_> = actual_stream
@@ -947,7 +948,7 @@ pub mod test_utils {
         }
 
         // Ensure that stream is pending
-        let mut actual_stream = actual_stream_handler.stream();
+        let mut actual_stream = actual_stream_handler.stream().await;
         assert_stream_pending(&mut actual_stream).await;
     }
 

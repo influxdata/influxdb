@@ -430,7 +430,7 @@ mod tests {
         let mock_topics_api = Arc::new(MockKafkaTopicListApi::default().with_patch_status_ret(
             vec![Ok(create_topics(
                 "iox",
-                KafkaTopicListSpec::new(vec!["iox_shared".to_string()]),
+                KafkaTopicListSpec::new(vec!["iox-shared".to_string()]),
                 1,
                 create_topics_status(0, true, "".to_string(), now),
             ))],
@@ -442,7 +442,7 @@ mod tests {
         };
         let c = create_topics(
             "iox",
-            KafkaTopicListSpec::new(vec!["iox_shared".to_string()]),
+            KafkaTopicListSpec::new(vec!["iox-shared".to_string()]),
             1,
             create_topics_status(0, true, "".to_string(), now),
         );
@@ -501,7 +501,7 @@ mod tests {
         let mock_topics_api = Arc::new(MockKafkaTopicListApi::default().with_patch_status_ret(
             vec![Ok(create_topics(
                 "iox",
-                KafkaTopicListSpec::new(vec!["iox_shared".to_string()]),
+                KafkaTopicListSpec::new(vec!["iox-shared".to_string()]),
                 1,
                 create_topics_status(0, true, "".to_string(), now),
             ))],
@@ -513,7 +513,7 @@ mod tests {
         };
         let c = create_topics(
             "iox",
-            KafkaTopicListSpec::new(vec!["iox_shared".to_string()]),
+            KafkaTopicListSpec::new(vec!["iox-shared".to_string()]),
             1,
             create_topics_status(0, false, "".to_string(), now),
         );

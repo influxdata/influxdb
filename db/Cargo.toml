@@ -5,7 +5,7 @@ authors = ["pauldix <paul@pauldix.net>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
-arrow = { version = "8.0", features = ["prettyprint"] }
+arrow = { version = "9.0", features = ["prettyprint"] }
 async-trait = "0.1"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
@@ -38,7 +38,7 @@ schema = { path = "../schema" }
 snafu = "0.7"
 time = { path = "../time" }
 tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
-tokio-util = { version = "0.6.9" }
+tokio-util = { version = "0.7.0" }
 trace = { path = "../trace" }
 tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["v4"] }

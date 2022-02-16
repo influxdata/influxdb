@@ -8,7 +8,8 @@ use db::write_buffer::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
 use futures::StreamExt;
 use iox_catalog::interface::{Catalog, KafkaPartition, KafkaTopic, Sequencer, SequencerId};
 use object_store::ObjectStore;
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::{debug, info, warn};
+use query::exec::Executor;
 use snafu::{ResultExt, Snafu};
 use std::collections::BTreeMap;
 use std::{
@@ -40,6 +41,11 @@ pub enum Error {
     },
 }
 
+/// When the lifecycle manager indicates that ingest should be paused because of
+/// memory pressure, the sequencer will loop, sleeping this long before checking
+/// with the manager if it can resume ingest.
+const INGEST_PAUSE_DELAY: Duration = Duration::from_millis(100);
+
 /// A specialized `Error` for Catalog errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -70,6 +76,7 @@ impl std::fmt::Debug for IngestHandlerImpl {
 
 impl IngestHandlerImpl {
     /// Initialize the Ingester
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         lifecycle_config: LifecycleConfig,
         topic: KafkaTopic,
@@ -77,6 +84,7 @@ impl IngestHandlerImpl {
         catalog: Arc<dyn Catalog>,
         object_store: Arc<ObjectStore>,
         write_buffer: Arc<dyn WriteBufferReading>,
+        exec: Executor,
         registry: &metric::Registry,
     ) -> Result<Self> {
         // build the initial ingester data state
@@ -88,33 +96,12 @@ impl IngestHandlerImpl {
             object_store,
             catalog,
             sequencers,
+            exec,
         });
 
         let ingester_data = Arc::clone(&data);
         let kafka_topic_name = topic.name.clone();
         let ingest_metrics = WriteBufferIngestMetrics::new(registry, &topic.name);
-
-        let mut join_handles = Vec::with_capacity(sequencer_states.len());
-        for (kafka_partition, sequencer) in sequencer_states {
-            let metrics = ingest_metrics.new_sequencer_metrics(kafka_partition.get() as u32);
-            let ingester_data = Arc::clone(&ingester_data);
-            let kafka_topic_name = kafka_topic_name.clone();
-
-            let stream_handler = write_buffer
-                .stream_handler(kafka_partition.get() as u32)
-                .await
-                .context(WriteBufferSnafu)?;
-
-            join_handles.push(tokio::task::spawn(stream_in_sequenced_entries(
-                ingester_data,
-                sequencer.id,
-                kafka_topic_name,
-                kafka_partition,
-                Arc::clone(&write_buffer),
-                stream_handler,
-                metrics,
-            )));
-        }
 
         // start the lifecycle manager
         let persister = Arc::clone(&data);
@@ -126,7 +113,35 @@ impl IngestHandlerImpl {
         let handle = tokio::task::spawn(async move {
             run_lifecycle_manager(manager, persister).await;
         });
+        info!(
+            "ingester handler and lifecycle started with config {:?}",
+            lifecycle_config
+        );
+
+        let mut join_handles = Vec::with_capacity(sequencer_states.len());
         join_handles.push(handle);
+
+        for (kafka_partition, sequencer) in sequencer_states {
+            let metrics = ingest_metrics.new_sequencer_metrics(kafka_partition.get() as u32);
+            let ingester_data = Arc::clone(&ingester_data);
+            let kafka_topic_name = kafka_topic_name.clone();
+
+            let stream_handler = write_buffer
+                .stream_handler(kafka_partition.get() as u32)
+                .await
+                .context(WriteBufferSnafu)?;
+
+            join_handles.push(tokio::task::spawn(stream_in_sequenced_entries(
+                Arc::clone(&lifecycle_manager),
+                ingester_data,
+                sequencer.id,
+                kafka_topic_name,
+                kafka_partition,
+                Arc::clone(&write_buffer),
+                stream_handler,
+                metrics,
+            )));
+        }
 
         Ok(Self {
             data,
@@ -156,7 +171,9 @@ impl Drop for IngestHandlerImpl {
 ///
 /// Note all errors reading / parsing / writing entries from the write
 /// buffer are ignored.
+#[allow(clippy::too_many_arguments)]
 async fn stream_in_sequenced_entries(
+    lifecycle_manager: Arc<LifecycleManager>,
     ingester_data: Arc<IngesterData>,
     sequencer_id: SequencerId,
     kafka_topic: String,
@@ -167,7 +184,7 @@ async fn stream_in_sequenced_entries(
 ) {
     let mut watermark_last_updated: Option<Instant> = None;
     let mut watermark = 0_u64;
-    let mut stream = write_buffer_stream.stream();
+    let mut stream = write_buffer_stream.stream().await;
 
     while let Some(db_write_result) = stream.next().await {
         // maybe update sequencer watermark
@@ -226,13 +243,21 @@ async fn stream_in_sequenced_entries(
         );
 
         let result = ingester_data
-            .buffer_operation(sequencer_id, dml_operation.clone())
+            .buffer_operation(sequencer_id, dml_operation.clone(), &lifecycle_manager)
             .await;
 
         match result {
-            Ok(_) => {
+            Ok(should_pause) => {
                 ingest_recorder.success();
                 span_recorder.ok("stored write");
+
+                if should_pause {
+                    warn!(%sequencer_id, "pausing ingest until persistence has run");
+                    while !lifecycle_manager.can_resume_ingest() {
+                        tokio::time::sleep(INGEST_PAUSE_DELAY).await;
+                    }
+                    warn!(%sequencer_id, "resuming ingest");
+                }
             }
             Err(e) => {
                 // skip over invalid data in the write buffer so recovery can succeed
@@ -323,6 +348,7 @@ mod tests {
             Arc::new(catalog),
             object_store,
             reading,
+            Executor::new(1),
             &metrics,
         )
         .await

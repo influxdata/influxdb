@@ -5,8 +5,8 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2021"
 
 [dependencies]
-arrow = { version = "8.0", features = ["prettyprint"] }
-arrow-flight = "8.0"
+arrow = { version = "9.0", features = ["prettyprint"] }
+arrow-flight = "9.0"
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1.42"
 base64 = "0.13"
@@ -20,11 +20,12 @@ db = { path = "../db" }
 dml = { path = "../dml" }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
+iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch"}
 object_store = { path = "../object_store" }
 parking_lot = "0.12"
-parquet = "8.0"
+parquet = "9.0"
 parquet_file = { path = "../parquet_file" }
 observability_deps = { path = "../observability_deps" }
 predicate = { path = "../predicate" }
@@ -39,7 +40,7 @@ tonic = { version = "0.6" }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 write_buffer = { path = "../write_buffer" }
-tokio-util = { version = "0.6.9" }
+tokio-util = { version = "0.7.0" }
 trace = { path = "../trace" }
 
 [dev-dependencies]

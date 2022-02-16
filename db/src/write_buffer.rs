@@ -109,7 +109,7 @@ async fn stream_in_sequenced_entries<'a>(
     let db_name = db.rules().name.to_string();
     let mut watermark_last_updated: Option<Instant> = None;
     let mut watermark = 0_u64;
-    let mut stream = stream_handler.stream();
+    let mut stream = stream_handler.stream().await;
 
     while let Some(db_write_result) = stream.next().await {
         // maybe update sequencer watermark

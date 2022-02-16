@@ -7,7 +7,7 @@ description = "Apache Arrow utilities"
 
 [dependencies]
 ahash = { version = "0.7.5", default-features = false }
-arrow = { version = "8.0", features = ["prettyprint"] }
+arrow = { version = "9.0", features = ["prettyprint"] }
 # used by arrow anyway (needed for printing workaround)
 chrono = { version = "0.4", default-features = false }
 comfy-table = { version = "5.0", default-features = false }

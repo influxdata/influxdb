@@ -16,7 +16,7 @@ use time::{Time, TimeProvider};
 /// The lifecycle manager keeps track of the size and age of partitions across all sequencers.
 /// It triggers persistence based on keeping total memory usage around a set amount while
 /// ensuring that partitions don't get too old or large before being persisted.
-pub(crate) struct LifecycleManager {
+pub struct LifecycleManager {
     config: LifecycleConfig,
     time_provider: Arc<dyn TimeProvider>,
     state: Mutex<LifecycleState>,
