@@ -8,7 +8,10 @@ use async_trait::async_trait;
 use chrono::{format::StrftimeItems, TimeZone, Utc};
 use data_types::delete_predicate::DeletePredicate;
 use dml::DmlOperation;
-use generated_types::{google::FieldViolation, influxdata::iox::ingester::v1 as proto};
+use generated_types::{
+    google::{FieldViolation, FieldViolationExt},
+    influxdata::iox::ingester::v1 as proto,
+};
 use iox_catalog::interface::{
     Catalog, KafkaPartition, NamespaceId, PartitionId, PartitionInfo, SequenceNumber, SequencerId,
     TableId, Timestamp, Tombstone,
@@ -949,6 +952,8 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
 
     fn try_from(proto: proto::IngesterQueryRequest) -> Result<Self, Self::Error> {
         let proto::IngesterQueryRequest {
+            namespace,
+            sequencer_id,
             table,
             columns,
             min_time,
@@ -958,10 +963,11 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
         } = proto;
 
         let predicate = predicate.map(TryInto::try_into).transpose()?;
+        let sequencer_id: i16 = sequencer_id.try_into().scope("sequencer_id")?;
 
         Ok(Self::new(
-            "todo_namespace".to_string(), // todo #3753
-            SequencerId::new(0),          // todo #3573
+            namespace,
+            SequencerId::new(sequencer_id),
             table,
             columns,
             min_time,
@@ -1050,8 +1056,8 @@ mod tests {
         };
 
         let rust_query = IngesterQueryRequest::new(
-            "todo_namespace".to_string(),
-            SequencerId::new(0),
+            "mydb".into(),
+            SequencerId::new(5),
             "cpu".into(),
             vec!["usage".into(), "time".into()],
             1,
@@ -1061,6 +1067,8 @@ mod tests {
         );
 
         let proto_query = proto::IngesterQueryRequest {
+            namespace: "mydb".into(),
+            sequencer_id: 5,
             table: "cpu".into(),
             columns: vec!["usage".into(), "time".into()],
             min_time: 1,
