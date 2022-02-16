@@ -20,6 +20,7 @@ use ingester::{
 use iox_catalog::interface::KafkaPartition;
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
+use query::exec::Executor;
 use std::{collections::BTreeMap, convert::TryFrom, sync::Arc, time::Duration};
 use thiserror::Error;
 
@@ -134,6 +135,14 @@ pub struct Config {
         default_value = "1800"
     )]
     pub persist_partition_age_threshold_seconds: u64,
+
+    /// Number of threads to use for the ingester query execution, compaction and persistence.
+    #[clap(
+        long = "--query-exec-thread-count",
+        env = "INFLUXDB_IOX_QUERY_EXEC_THREAD_COUNT",
+        default_value = "4"
+    )]
+    pub query_exect_thread_count: usize,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -191,6 +200,7 @@ pub async fn command(config: Config) -> Result<()> {
             catalog,
             object_store,
             write_buffer,
+            Executor::new(config.query_exect_thread_count),
             &metric_registry,
         )
         .await?,
