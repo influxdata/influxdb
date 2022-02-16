@@ -667,7 +667,7 @@ impl TombstoneRepo for PostgresTxn {
         max_time: Timestamp,
         predicate: &str,
     ) -> Result<Tombstone> {
-        sqlx::query_as::<_, Tombstone>(
+        let v = sqlx::query_as::<_, Tombstone>(
             r#"
         INSERT INTO tombstone
             ( table_id, sequencer_id, sequence_number, min_time, max_time, serialized_predicate )
@@ -691,7 +691,28 @@ impl TombstoneRepo for PostgresTxn {
             } else {
                 Error::SqlxError { source: e }
             }
-        })
+        })?;
+
+        // If tombstone_unique is hit, a record with (table_id, sequencer_id,
+        // sequence_number) already exists.
+        //
+        // Ensure the caller does not falsely believe they have created the
+        // record with the provided values if the DB row contains different
+        // values.
+        assert_eq!(
+            v.min_time, min_time,
+            "attempted to overwrite min_time in tombstone record"
+        );
+        assert_eq!(
+            v.max_time, max_time,
+            "attempted to overwrite max_time in tombstone record"
+        );
+        assert_eq!(
+            v.serialized_predicate, predicate,
+            "attempted to overwrite predicate in tombstone record"
+        );
+
+        Ok(v)
     }
 
     async fn list_tombstones_by_sequencer_greater_than(
