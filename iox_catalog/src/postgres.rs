@@ -578,7 +578,7 @@ impl PartitionRepo for PostgresTxn {
         sequencer_id: SequencerId,
         table_id: TableId,
     ) -> Result<Partition> {
-        sqlx::query_as::<_, Partition>(
+        let v = sqlx::query_as::<_, Partition>(
             r#"
         INSERT INTO partition
             ( partition_key, sequencer_id, table_id )
@@ -599,7 +599,18 @@ impl PartitionRepo for PostgresTxn {
             } else {
                 Error::SqlxError { source: e }
             }
-        })
+        })?;
+
+        // If the partition_key_unique constraint was hit because there was an
+        // existing record for (table_id, partition_key) ensure the partition
+        // key in the DB is mapped to the same sequencer_id the caller
+        // requested.
+        assert_eq!(
+            v.sequencer_id, sequencer_id,
+            "attempted to overwrite partition with different sequencer ID"
+        );
+
+        Ok(v)
     }
 
     async fn list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
