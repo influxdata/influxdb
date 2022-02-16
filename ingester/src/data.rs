@@ -900,6 +900,10 @@ pub struct QueryableBatch {
 /// Request received from the query service for data the ingester has
 #[derive(Debug, PartialEq)]
 pub struct IngesterQueryRequest {
+    /// namespace to search
+    namespace: String,
+    /// sequencer to search
+    sequencer_id: SequencerId,
     /// Table to search
     table: String,
     /// Columns the query service is interested in
@@ -912,6 +916,32 @@ pub struct IngesterQueryRequest {
     predicate: Option<Predicate>,
     /// Optionally only return rows with a sequence number greater than this
     greater_than_sequence_number: Option<u64>,
+}
+
+impl IngesterQueryRequest {
+    /// Make a request
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        namespace: String,
+        sequencer_id: SequencerId,
+        table: String,
+        columns: Vec<String>,
+        min_time: i64,
+        max_time: i64,
+        predicate: Option<Predicate>,
+        greater_than_sequence_number: Option<u64>,
+    ) -> Self {
+        Self {
+            namespace,
+            sequencer_id,
+            table,
+            columns,
+            min_time,
+            max_time,
+            predicate,
+            greater_than_sequence_number,
+        }
+    }
 }
 
 impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
@@ -929,14 +959,50 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
 
         let predicate = predicate.map(TryInto::try_into).transpose()?;
 
-        Ok(Self {
+        Ok(Self::new(
+            "todo_namespace".to_string(), // todo #3753
+            SequencerId::new(0),          // todo #3573
             table,
             columns,
             min_time,
             max_time,
             predicate,
             greater_than_sequence_number,
-        })
+        ))
+    }
+}
+
+/// Response sending to the query service per its request defined in IngesterQueryRequest
+#[derive(Debug, PartialEq)]
+pub struct IngesterQueryResponse {
+    // TODO: talk with Carol to see if it is better to keep this a stream to record batches
+    //       or a vector  of record bacthes  #3640 & #3754
+    /// Responding Data
+    pub data: Option<RecordBatch>,
+
+    /// Delete predicates
+    /// Note: this delete prdicates are just for the Querier to apply to the persisted data it reads from Parquet File.
+    /// These predicates are already applied APPROPRIATEDLY to the snapshot and persiting batches of DataBuffer to
+    /// produce the `data` and should not be reapplied WRONGLY to the full `data` at the Querier
+    pub delete_predicates: Vec<Arc<DeletePredicate>>,
+
+    /// Max persisted sequence number of the table
+    /// Only return this if it is larger than the IngesterQueryRequest's greater_than_sequence_number
+    pub max_sequencer_number: Option<SequenceNumber>,
+}
+
+impl IngesterQueryResponse {
+    /// Make a response
+    pub fn new(
+        data: Option<RecordBatch>,
+        delete_predicates: Vec<Arc<DeletePredicate>>,
+        max_sequencer_number: Option<SequenceNumber>,
+    ) -> Self {
+        Self {
+            data,
+            delete_predicates,
+            max_sequencer_number,
+        }
     }
 }
 
@@ -983,14 +1049,17 @@ mod tests {
             value_expr: vec![],
         };
 
-        let rust_query = IngesterQueryRequest {
-            table: "cpu".into(),
-            columns: vec!["usage".into(), "time".into()],
-            min_time: 1,
-            max_time: 20,
-            predicate: Some(rust_predicate),
-            greater_than_sequence_number: Some(5),
-        };
+        let rust_query = IngesterQueryRequest::new(
+            "todo_namespace".to_string(),
+            SequencerId::new(0),
+            "cpu".into(),
+            vec!["usage".into(), "time".into()],
+            1,
+            20,
+            Some(rust_predicate),
+            Some(5),
+        );
+
         let proto_query = proto::IngesterQueryRequest {
             table: "cpu".into(),
             columns: vec!["usage".into(), "time".into()],
