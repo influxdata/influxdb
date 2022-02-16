@@ -14,7 +14,12 @@ use dotenv::dotenv;
 use influxdb_iox_client::connection::Builder;
 use observability_deps::tracing::warn;
 use once_cell::sync::Lazy;
-use std::str::FromStr;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    str::FromStr,
+};
+use time::{SystemProvider, TimeProvider};
 use tokio::runtime::Runtime;
 
 mod commands {
@@ -135,6 +140,11 @@ struct Config {
     #[clap(long, global = true)]
     header: Vec<KeyValue<http::header::HeaderName, http::HeaderValue>>,
 
+    #[clap(long, global = true)]
+    /// Automatically generate an uber-trace-id header. The generated trace ID
+    /// will be emitted at the beginning of the response.
+    gen_trace_id: bool,
+
     #[clap(long)]
     /// Set the maximum number of threads to use. Defaults to the number of
     /// cores on the system
@@ -190,9 +200,22 @@ fn main() -> Result<(), std::io::Error> {
         let log_verbose_count = config.log_verbose_count;
 
         let connection = || async move {
-            let builder = headers.into_iter().fold(Builder::default(), |builder, kv| {
+            let mut builder = headers.into_iter().fold(Builder::default(), |builder, kv| {
                 builder.header(kv.key, kv.value)
             });
+
+            if config.gen_trace_id {
+                let key = http::header::HeaderName::from_str(
+                    trace_exporters::DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME,
+                )
+                .unwrap();
+                let trace_id = gen_trace_id();
+                let value = http::header::HeaderValue::from_str(trace_id.as_str()).unwrap();
+                builder = builder.header(key, value);
+
+                // Emit trace id information
+                println!("Trace ID set to {}", trace_id);
+            }
 
             match builder.build(&host).await {
                 Ok(connection) => connection,
@@ -288,6 +311,15 @@ fn main() -> Result<(), std::io::Error> {
     });
 
     Ok(())
+}
+
+// Generates a compatible header values for a jaeger trace context header.
+fn gen_trace_id() -> String {
+    let now = SystemProvider::new().now();
+    let mut hasher = DefaultHasher::new();
+    now.timestamp_nanos().hash(&mut hasher);
+
+    format!("{:x}:1112223334445:0:1", hasher.finish())
 }
 
 /// Creates the tokio runtime for executing IOx
