@@ -2118,6 +2118,7 @@ dependencies = [
  "observability_deps",
  "paste",
  "pretty_assertions",
+ "rand",
  "schema",
  "snafu",
  "sqlx",
