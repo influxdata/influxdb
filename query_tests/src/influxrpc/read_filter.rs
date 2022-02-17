@@ -1,21 +1,25 @@
 //! Tests for the Influx gRPC queries
+use std::sync::Arc;
+
 #[cfg(test)]
 use crate::scenarios::{
     DbScenario, DbSetup, NoData, TwoMeasurements, TwoMeasurementsManyFields,
     TwoMeasurementsWithDelete, TwoMeasurementsWithDeleteAll,
 };
 use crate::{
-    influxrpc::util::run_series_set_plan,
+    influxrpc::util::run_series_set_plan_maybe_error,
     scenarios::{
         MeasurementStatusCode, MeasurementsForDefect2845, MeasurementsSortableTags,
         MeasurementsSortableTagsWithDelete, TwoMeasurementsMultiSeries,
         TwoMeasurementsMultiSeriesWithDelete, TwoMeasurementsMultiSeriesWithDeleteAll,
     },
 };
-use datafusion::logical_plan::{col, lit};
+use datafusion::logical_plan::{col, lit, when};
+use db::Db;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
 use query::frontend::influxrpc::InfluxRpcPlanner;
+use test_helpers::assert_contains;
 
 /// runs read_filter(predicate) and compares it to the expected
 /// output
@@ -34,20 +38,57 @@ async fn run_read_filter_test_case<D>(
         } = scenario;
         println!("Running scenario '{}'", scenario_name);
         println!("Predicate: '{:#?}'", predicate);
-        let planner = InfluxRpcPlanner::new();
-
-        let plan = planner
-            .read_filter(db.as_ref(), predicate.clone())
-            .expect("built plan successfully");
-
-        let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
-        let string_results = run_series_set_plan(&ctx, plan).await;
+        let string_results = run_read_filter(predicate.clone(), db)
+            .await
+            .expect("Unexpected error running read filter");
 
         assert_eq!(
             expected_results, string_results,
             "Error in  scenario '{}'\n\nexpected:\n{:#?}\n\nactual:\n{:#?}\n\n",
             scenario_name, expected_results, string_results
         );
+    }
+}
+
+/// runs read_filter(predicate) and compares it to the expected
+/// output
+async fn run_read_filter(
+    predicate: InfluxRpcPredicate,
+    db: Arc<Db>,
+) -> Result<Vec<String>, String> {
+    let planner = InfluxRpcPlanner::new();
+
+    let plan = planner
+        .read_filter(db.as_ref(), predicate)
+        .map_err(|e| e.to_string())?;
+
+    let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
+    run_series_set_plan_maybe_error(&ctx, plan)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// runs read_filter(predicate), expecting an error and compares to expected message
+async fn run_read_filter_error_case<D>(
+    db_setup: D,
+    predicate: InfluxRpcPredicate,
+    expected_error: &str,
+) where
+    D: DbSetup,
+{
+    test_helpers::maybe_start_logging();
+
+    for scenario in db_setup.make().await {
+        let DbScenario {
+            scenario_name, db, ..
+        } = scenario;
+        println!("Running scenario '{}'", scenario_name);
+        println!("Predicate: '{:#?}'", predicate);
+        let result = run_read_filter(predicate.clone(), db)
+            .await
+            .expect_err("Unexpected success running error case");
+
+        assert_contains!(result.to_string(), expected_error);
     }
 }
 
@@ -139,12 +180,64 @@ async fn test_read_filter_data_tag_predicate() {
 }
 
 #[tokio::test]
+async fn test_read_filter_invalid_predicate() {
+    let predicate = PredicateBuilder::new()
+        // region > 5 (region is a tag(string) column, so this predicate is invalid)
+        .add_expr(col("region").gt(lit(5i32)))
+        .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_error = "Error during planning: 'Dictionary(Int32, Utf8) > Int32' can't be evaluated because there isn't a common type to coerce the types to";
+
+    run_read_filter_error_case(TwoMeasurements {}, predicate, expected_error).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_invalid_predicate_case() {
+    let predicate = PredicateBuilder::new()
+        // https://github.com/influxdata/influxdb_iox/issues/3635
+        // model what happens when a field is treated like a tag
+        // CASE WHEN system" IS NULL THEN '' ELSE system END = 5;
+        .add_expr(
+            when(col("system").is_null(), lit(""))
+                .otherwise(col("system"))
+                .unwrap()
+                .eq(lit(5i32)),
+        )
+        .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_error = "gRPC planner got error creating predicates: Error during planning: 'Utf8 = Int32' can't be evaluated because there isn't a common type to coerce the types to";
+
+    run_read_filter_error_case(TwoMeasurements {}, predicate, expected_error).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_unknown_column_in_predicate() {
+    let predicate = PredicateBuilder::new()
+        // mystery_region is not a real column, so this predicate is
+        // invalid but IOx should be able to handle it (and produce no results)
+        .add_expr(
+            col("baz")
+                .eq(lit(4i32))
+                .or(col("bar").and(col("mystery_region").gt(lit(5i32)))),
+        )
+        .build();
+
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_results = vec![];
+
+    run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
 async fn test_read_filter_data_no_pred_with_delete() {
     let expected_results = vec![
-    "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100], values: [70.4]",
-    "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [350], values: [90.0]",
-    "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
-    "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+        "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100], values: [70.4]",
+        "Series tags={_measurement=h2o, city=LA, state=CA, _field=temp}\n  FloatPoints timestamps: [350], values: [90.0]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
     ];
 
     run_read_filter_test_case(

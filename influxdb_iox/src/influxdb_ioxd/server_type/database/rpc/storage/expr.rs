@@ -894,7 +894,7 @@ mod tests {
     }
 
     fn table_predicate(predicate: InfluxRpcPredicate) -> Predicate {
-        let predicates = predicate.table_predicates(&Tables::new(&["foo"]));
+        let predicates = predicate.table_predicates(&Tables::new(&["foo"])).unwrap();
         assert_eq!(predicates.len(), 1);
         predicates.into_iter().next().unwrap().1
     }
@@ -986,7 +986,7 @@ mod tests {
 
         let tables = Tables::new(&["foo", "bar"]);
 
-        let table_predicates = predicate.table_predicates(&tables);
+        let table_predicates = predicate.table_predicates(&tables).unwrap();
         assert_eq!(table_predicates.len(), 2);
 
         for (expected_table, (table, predicate)) in tables.table_names.iter().zip(table_predicates)

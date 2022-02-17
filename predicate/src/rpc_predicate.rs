@@ -2,7 +2,7 @@
 //! InfluxDB Storage gRPC API
 use crate::{rewrite, BinaryExpr, Predicate};
 
-use datafusion::error::Result as DataFusionResult;
+use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::ExecutionProps;
 use datafusion::logical_plan::{
     lit, Column, Expr, ExprRewritable, ExprRewriter, ExprSchema, ExprSchemable, ExprSimplifiable,
@@ -84,7 +84,7 @@ impl InfluxRpcPredicate {
     pub fn table_predicates<D: QueryDatabaseMeta>(
         &self,
         table_info: &D,
-    ) -> Vec<(String, Predicate)> {
+    ) -> DataFusionResult<Vec<(String, Predicate)>> {
         let table_names = match &self.table_names {
             Some(table_names) => itertools::Either::Left(table_names.iter().cloned()),
             None => itertools::Either::Right(table_info.table_names().into_iter()),
@@ -93,9 +93,9 @@ impl InfluxRpcPredicate {
         table_names
             .map(|table| {
                 let schema = table_info.table_schema(&table);
-                let predicate = normalize_predicate(&table, schema, &self.inner);
+                let predicate = normalize_predicate(&table, schema, &self.inner)?;
 
-                (table, predicate)
+                Ok((table, predicate))
             })
             .collect()
     }
@@ -154,7 +154,7 @@ fn normalize_predicate(
     table_name: &str,
     schema: Option<Arc<Schema>>,
     predicate: &Predicate,
-) -> Predicate {
+) -> DataFusionResult<Predicate> {
     let mut predicate = predicate.clone();
     let mut field_projections = BTreeSet::new();
     let mut field_value_exprs = vec![];
@@ -162,35 +162,31 @@ fn normalize_predicate(
     predicate.exprs = predicate
         .exprs
         .into_iter()
-        .map(|e| rewrite_measurement_references(table_name, e))
-        // Rewrite any references to `_value = some_value` to literal true values.
-        // Keeps track of these expressions, which can then be used to
-        // augment field projections with conditions using `CASE` statements.
-        .map(|e| rewrite_field_value_references(&mut field_value_exprs, e))
         .map(|e| {
-            // Rewrite any references to `_field = a_field_name` with a literal true
-            // and keep track of referenced field names to add to the field
-            // column projection set.
-            rewrite_field_column_references(&mut field_projections, e)
+            rewrite_measurement_references(table_name, e)
+                // Rewrite any references to `_value = some_value` to literal true values.
+                // Keeps track of these expressions, which can then be used to
+                // augment field projections with conditions using `CASE` statements.
+                .and_then(|e| rewrite_field_value_references(&mut field_value_exprs, e))
+                // Rewrite any references to `_field = a_field_name` with a literal true
+                // and keep track of referenced field names to add to the field
+                // column projection set.
+                .and_then(|e| rewrite_field_column_references(&mut field_projections, e))
+                // apply IOx specific rewrites (that unlock other simplifications)
+                .and_then(rewrite::rewrite)
+                // Call the core DataFusion simplification logic
+                .and_then(|e| {
+                    if let Some(schema) = &schema {
+                        let adapter = SimplifyAdapter::new(schema.as_ref());
+                        // simplify twice to ensure "full" cleanup
+                        e.simplify(&adapter)?.simplify(&adapter)
+                    } else {
+                        Ok(e)
+                    }
+                })
+                .and_then(rewrite::simplify_predicate)
         })
-        .map(|e| {
-            // apply IOx specific rewrites (that unlock other simplifications)
-            rewrite::rewrite(e).expect("rewrite failed")
-        })
-        .map(|e| {
-            if let Some(schema) = &schema {
-                let adapter = SimplifyAdapter::new(schema.as_ref());
-                // simplify twice to ensure "full" cleanup
-                e.simplify(&adapter)
-                    .expect("Expression simplificiation round 1 failed")
-                    .simplify(&adapter)
-                    .expect("Expression simplificiation round 2 failed")
-            } else {
-                e
-            }
-        })
-        .map(|e| rewrite::simplify_predicate(e).expect("simplify failed"))
-        .collect::<Vec<_>>();
+        .collect::<DataFusionResult<Vec<_>>>()?;
     // Store any field value (`_value`) expressions on the `Predicate`.
     predicate.value_expr = field_value_exprs;
 
@@ -200,7 +196,7 @@ fn normalize_predicate(
             None => predicate.field_columns = Some(field_projections),
         };
     }
-    predicate
+    Ok(predicate)
 }
 
 struct SimplifyAdapter<'a> {
@@ -254,18 +250,17 @@ impl<'a> ExprSchema for SimplifyAdapter<'a> {
 
     fn data_type(&self, col: &Column) -> DataFusionResult<&arrow::datatypes::DataType> {
         assert!(col.relation.is_none());
-        Ok(self
-            .field(&col.name)
+        self.field(&col.name)
             .map(|f| f.data_type())
-            .expect("found field for datatype"))
+            .ok_or_else(|| DataFusionError::Plan(format!("Unknown field {}", &col.name)))
     }
 }
 
 /// Rewrites all references to the [MEASUREMENT_COLUMN_NAME] column
 /// with the actual table name
-fn rewrite_measurement_references(table_name: &str, expr: Expr) -> Expr {
+fn rewrite_measurement_references(table_name: &str, expr: Expr) -> DataFusionResult<Expr> {
     let mut rewriter = MeasurementRewriter { table_name };
-    expr.rewrite(&mut rewriter).expect("rewrite is infallible")
+    expr.rewrite(&mut rewriter)
 }
 
 struct MeasurementRewriter<'a> {
@@ -291,9 +286,12 @@ impl ExprRewriter for MeasurementRewriter<'_> {
 /// Rewrites an expression on `_value` as a boolean true literal, pushing any
 /// encountered expressions onto `value_exprs` so they can be moved onto column
 /// projections.
-fn rewrite_field_value_references(value_exprs: &mut Vec<BinaryExpr>, expr: Expr) -> Expr {
+fn rewrite_field_value_references(
+    value_exprs: &mut Vec<BinaryExpr>,
+    expr: Expr,
+) -> DataFusionResult<Expr> {
     let mut rewriter = FieldValueRewriter { value_exprs };
-    expr.rewrite(&mut rewriter).expect("rewrite is infallible")
+    expr.rewrite(&mut rewriter)
 }
 
 struct FieldValueRewriter<'a> {
@@ -334,9 +332,9 @@ impl<'a> ExprRewriter for FieldValueRewriter<'a> {
 fn rewrite_field_column_references(
     field_projections: &'_ mut BTreeSet<String>,
     expr: Expr,
-) -> Expr {
+) -> DataFusionResult<Expr> {
     let mut rewriter = FieldColumnRewriter { field_projections };
-    expr.rewrite(&mut rewriter).expect("rewrite is infallible")
+    expr.rewrite(&mut rewriter)
 }
 
 struct FieldColumnRewriter<'a> {

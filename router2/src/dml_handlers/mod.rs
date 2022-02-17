@@ -90,5 +90,8 @@ pub use ns_autocreation::*;
 mod partitioner;
 pub use partitioner::*;
 
+mod instrumentation;
+pub use instrumentation::*;
+
 #[cfg(test)]
 pub mod mock;

@@ -12,7 +12,7 @@ use observability_deps::tracing::*;
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
-use crate::namespace_cache::{MemoryNamespaceCache, NamespaceCache};
+use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
 
 use super::{DmlError, DmlHandler, Partitioned};
 
@@ -82,7 +82,7 @@ pub enum SchemaError {
 ///
 /// [#3573]: https://github.com/influxdata/influxdb_iox/issues/3573
 #[derive(Debug)]
-pub struct SchemaValidator<D, C = Arc<MemoryNamespaceCache>> {
+pub struct SchemaValidator<D, C = Arc<InstrumentedCache<MemoryNamespaceCache>>> {
     inner: D,
     catalog: Arc<dyn Catalog>,
 
@@ -266,7 +266,10 @@ mod tests {
         catalog
     }
 
-    fn assert_cache<D>(handler: &SchemaValidator<D>, table: &str, col: &str, want: ColumnType) {
+    fn assert_cache<D, C>(handler: &SchemaValidator<D, C>, table: &str, col: &str, want: ColumnType)
+    where
+        C: NamespaceCache,
+    {
         // The cache should be populated.
         let ns = handler
             .cache

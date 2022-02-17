@@ -96,6 +96,11 @@ pub enum Error {
         source: crate::provider::Error,
     },
 
+    #[snafu(display("gRPC planner got error creating predicates: {}", source))]
+    CreatingPredicates {
+        source: datafusion::error::DataFusionError,
+    },
+
     #[snafu(display("gRPC planner got error building plan: {}", source))]
     BuildingPlan {
         source: datafusion::error::DataFusionError,
@@ -227,7 +232,9 @@ impl InfluxRpcPlanner {
         // Mapping between table and chunks that need full plan
         let mut full_plan_table_chunks = BTreeMap::new();
 
-        let table_predicates = rpc_predicate.table_predicates(database);
+        let table_predicates = rpc_predicate
+            .table_predicates(database)
+            .context(CreatingPredicatesSnafu)?;
         for (table_name, predicate) in &table_predicates {
             // Identify which chunks can answer from its metadata and then record its table,
             // and which chunks needs full plan and group them into their table
@@ -334,7 +341,9 @@ impl InfluxRpcPlanner {
         let mut need_full_plans = BTreeMap::new();
         let mut known_columns = BTreeSet::new();
 
-        let table_predicates = rpc_predicate.table_predicates(database);
+        let table_predicates = rpc_predicate
+            .table_predicates(database)
+            .context(CreatingPredicatesSnafu)?;
         for (table_name, predicate) in &table_predicates {
             for chunk in database.chunks(table_name, predicate) {
                 // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
@@ -464,7 +473,9 @@ impl InfluxRpcPlanner {
         let mut need_full_plans = BTreeMap::new();
         let mut known_values = BTreeSet::new();
 
-        let table_predicates = rpc_predicate.table_predicates(database);
+        let table_predicates = rpc_predicate
+            .table_predicates(database)
+            .context(CreatingPredicatesSnafu)?;
         for (table_name, predicate) in &table_predicates {
             for chunk in database.chunks(table_name, predicate) {
                 // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
@@ -629,7 +640,9 @@ impl InfluxRpcPlanner {
         // The executor then figures out which columns have non-null
         // values and stops the plan executing once it has them
 
-        let table_predicates = rpc_predicate.table_predicates(database);
+        let table_predicates = rpc_predicate
+            .table_predicates(database)
+            .context(CreatingPredicatesSnafu)?;
         let mut field_list_plan = FieldListPlan::with_capacity(table_predicates.len());
 
         for (table_name, predicate) in &table_predicates {
@@ -680,7 +693,9 @@ impl InfluxRpcPlanner {
     {
         debug!(?rpc_predicate, "planning read_filter");
 
-        let table_predicates = rpc_predicate.table_predicates(database);
+        let table_predicates = rpc_predicate
+            .table_predicates(database)
+            .context(CreatingPredicatesSnafu)?;
         let mut ss_plans = Vec::with_capacity(table_predicates.len());
         for (table_name, predicate) in &table_predicates {
             let chunks = database.chunks(table_name, predicate);
@@ -736,7 +751,9 @@ impl InfluxRpcPlanner {
     {
         debug!(?rpc_predicate, ?agg, "planning read_group");
 
-        let table_predicates = rpc_predicate.table_predicates(database);
+        let table_predicates = rpc_predicate
+            .table_predicates(database)
+            .context(CreatingPredicatesSnafu)?;
         let mut ss_plans = Vec::with_capacity(table_predicates.len());
 
         for (table_name, predicate) in &table_predicates {
@@ -798,7 +815,9 @@ impl InfluxRpcPlanner {
         );
 
         // group tables by chunk, pruning if possible
-        let table_predicates = rpc_predicate.table_predicates(database);
+        let table_predicates = rpc_predicate
+            .table_predicates(database)
+            .context(CreatingPredicatesSnafu)?;
         let mut ss_plans = Vec::with_capacity(table_predicates.len());
         for (table_name, predicate) in &table_predicates {
             let chunks = database.chunks(table_name, predicate);
