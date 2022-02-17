@@ -34,33 +34,28 @@ pub struct InstrumentationDecorator<T, P = SystemProvider> {
 
 impl<T> InstrumentationDecorator<T> {
     /// Wrap a new [`InstrumentationDecorator`] over `T` exposing metrics
-    /// prefixed by `name`.
-    ///
-    /// # Memory leak
-    ///
-    /// Calling this method constructs a set of metric names derived from `name`
-    /// and leaks them once to acquire a static str for each.
+    /// labelled with `handler=name`.
     pub fn new(name: &'static str, registry: Arc<metric::Registry>, inner: T) -> Self {
         let buckets = || {
             U64HistogramOptions::new([5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, u64::MAX])
         };
 
         let write: Metric<U64Histogram> = registry.register_metric_with_options(
-            leak_concat_name(name, "_write_duration_ms"),
+            "dml_handler_write_duration_ms",
             "write handler call duration in milliseconds",
             buckets,
         );
         let delete: Metric<U64Histogram> = registry.register_metric_with_options(
-            leak_concat_name(name, "_delete_duration_ms"),
-            "write handler call duration in milliseconds",
+            "dml_handler_delete_duration_ms",
+            "delete handler call duration in milliseconds",
             buckets,
         );
 
-        let write_success = write.recorder(&[("result", "success")]);
-        let write_error = write.recorder(&[("result", "error")]);
+        let write_success = write.recorder(&[("handler", name), ("result", "success")]);
+        let write_error = write.recorder(&[("handler", name), ("result", "error")]);
 
-        let delete_success = delete.recorder(&[("result", "success")]);
-        let delete_error = delete.recorder(&[("result", "error")]);
+        let delete_success = delete.recorder(&[("handler", name), ("result", "success")]);
+        let delete_error = delete.recorder(&[("handler", name), ("result", "error")]);
 
         Self {
             inner,
@@ -129,9 +124,4 @@ where
 
         res
     }
-}
-
-fn leak_concat_name(prefix: &str, suffix: &str) -> &'static str {
-    let s = format!("{}{}", prefix, suffix);
-    Box::leak(s.into_boxed_str())
 }
