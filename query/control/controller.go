@@ -32,7 +32,6 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/v2/kit/errors"
-	"github.com/influxdata/influxdb/v2/kit/feature"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -247,10 +246,6 @@ func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query,
 	// The controller injects the dependencies for each incoming request.
 	for _, dep := range c.dependencies {
 		ctx = dep.Inject(ctx)
-	}
-	// Add per-transformation spans if the feature flag is set.
-	if feature.QueryTracing().Enabled(ctx) {
-		ctx = flux.WithQueryTracingEnabled(ctx)
 	}
 	q, err := c.query(ctx, req.Compiler)
 	if err != nil {
