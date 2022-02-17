@@ -12,7 +12,7 @@ use dml::{DmlMeta, DmlOperation};
 use futures::{stream::BoxStream, StreamExt};
 use parking_lot::Mutex;
 use rskafka::client::{
-    consumer::StreamConsumerBuilder,
+    consumer::{StartOffset, StreamConsumerBuilder},
     error::{Error as RSKafkaError, ProtocolError},
     partition::{OffsetAt, PartitionClient},
     producer::{BatchProducer, BatchProducerBuilder},
@@ -145,14 +145,8 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
             *next_offset.lock()
         };
         let start_offset = match start_offset {
-            Some(x) => x,
-            None => {
-                // try to guess next offset from upstream
-                self.partition_client
-                    .get_offset(OffsetAt::Earliest)
-                    .await
-                    .unwrap_or_default()
-            }
+            Some(x) => StartOffset::At(x),
+            None => StartOffset::Earliest,
         };
 
         let mut stream_builder =

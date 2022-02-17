@@ -35,6 +35,8 @@ mod thrift {
     pub mod jaeger;
 }
 
+pub const DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME: &str = "uber-trace-id";
+
 /// CLI config for distributed tracing options
 #[derive(Debug, Clone, clap::Parser)]
 pub struct TracingConfig {
@@ -88,7 +90,7 @@ pub struct TracingConfig {
     #[clap(
         long = "--traces-exporter-jaeger-trace-context-header-name",
         env = "TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME",
-        default_value = "uber-trace-id"
+        default_value = DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME
     )]
     pub traces_jaeger_trace_context_header_name: String,
 
