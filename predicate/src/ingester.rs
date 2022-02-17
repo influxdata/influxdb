@@ -20,9 +20,39 @@ use generated_types::{
     influxdata::iox::ingester::v1 as proto,
 };
 
-impl From<Predicate> for proto::Predicate {
-    fn from(_pred: Predicate) -> Self {
-        unimplemented!()
+impl TryFrom<Predicate> for proto::Predicate {
+    type Error = FieldViolation;
+
+    fn try_from(pred: Predicate) -> Result<Self, Self::Error> {
+        let Predicate {
+            field_columns,
+            partition_key,
+            range,
+            exprs,
+            value_expr,
+        } = pred;
+
+        let field_columns = field_columns.into_iter().flatten().collect();
+        let range = range.map(|r| proto::TimestampRange {
+            start: r.start(),
+            end: r.end(),
+        });
+        let exprs = exprs
+            .into_iter()
+            .map(from_expr)
+            .collect::<Result<Vec<_>, _>>()?;
+        let value_expr = value_expr
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Self {
+            field_columns,
+            partition_key,
+            range,
+            exprs,
+            value_expr,
+        })
     }
 }
 
@@ -72,6 +102,29 @@ impl TryFrom<proto::Predicate> for Predicate {
             exprs,
             value_expr,
         })
+    }
+}
+
+impl TryFrom<BinaryExpr> for proto::BinaryExpr {
+    type Error = FieldViolation;
+
+    fn try_from(bin_expr: BinaryExpr) -> Result<Self, Self::Error> {
+        let BinaryExpr { left, op, right } = bin_expr;
+
+        Ok(Self {
+            left: Some(from_column(left)),
+            op: op.to_string(),
+            right: Some(from_expr(right)?),
+        })
+    }
+}
+
+fn from_column(column: Column) -> proto::Column {
+    proto::Column {
+        relation: column
+            .relation
+            .map(|relation| proto::ColumnRelation { relation }),
+        name: column.name,
     }
 }
 
@@ -396,6 +449,653 @@ fn from_proto_expr(proto: proto::LogicalExprNode) -> Result<Expr, FieldViolation
     }
 }
 
+fn from_expr(expr: Expr) -> Result<proto::LogicalExprNode, FieldViolation> {
+    use proto::logical_expr_node::ExprType;
+    match expr {
+        Expr::Column(c) => {
+            let expr = proto::LogicalExprNode {
+                expr_type: Some(ExprType::Column(from_column(c))),
+            };
+            Ok(expr)
+        }
+        Expr::Alias(expr, alias) => {
+            let alias = Box::new(proto::AliasNode {
+                expr: Some(Box::new(from_expr(*expr)?)),
+                alias,
+            });
+            let expr = proto::LogicalExprNode {
+                expr_type: Some(ExprType::Alias(alias)),
+            };
+            Ok(expr)
+        }
+        Expr::Literal(value) => {
+            let pb_value = from_scalar_value(&value)?;
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(ExprType::Literal(pb_value)),
+            })
+        }
+        Expr::BinaryExpr { left, op, right } => {
+            let binary_expr = Box::new(proto::BinaryExprNode {
+                l: Some(Box::new(from_expr(*left)?)),
+                r: Some(Box::new(from_expr(*right)?)),
+                op: format!("{:?}", op),
+            });
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(ExprType::BinaryExpr(binary_expr)),
+            })
+        }
+        Expr::WindowFunction {
+            fun,
+            args,
+            partition_by,
+            order_by,
+            ref window_frame,
+        } => {
+            let window_function = match fun {
+                window_functions::WindowFunction::AggregateFunction(fun) => {
+                    proto::window_expr_node::WindowFunction::AggrFunction(
+                        from_aggr_function(fun).into(),
+                    )
+                }
+                window_functions::WindowFunction::BuiltInWindowFunction(fun) => {
+                    use window_functions::BuiltInWindowFunction;
+
+                    proto::window_expr_node::WindowFunction::BuiltInFunction(
+                        match fun {
+                            BuiltInWindowFunction::FirstValue => {
+                                proto::BuiltInWindowFunction::FirstValue
+                            }
+                            BuiltInWindowFunction::LastValue => {
+                                proto::BuiltInWindowFunction::LastValue
+                            }
+                            BuiltInWindowFunction::NthValue => {
+                                proto::BuiltInWindowFunction::NthValue
+                            }
+                            BuiltInWindowFunction::Ntile => proto::BuiltInWindowFunction::Ntile,
+                            BuiltInWindowFunction::CumeDist => {
+                                proto::BuiltInWindowFunction::CumeDist
+                            }
+                            BuiltInWindowFunction::PercentRank => {
+                                proto::BuiltInWindowFunction::PercentRank
+                            }
+                            BuiltInWindowFunction::RowNumber => {
+                                proto::BuiltInWindowFunction::RowNumber
+                            }
+                            BuiltInWindowFunction::Rank => proto::BuiltInWindowFunction::Rank,
+                            BuiltInWindowFunction::Lag => proto::BuiltInWindowFunction::Lag,
+                            BuiltInWindowFunction::Lead => proto::BuiltInWindowFunction::Lead,
+                            BuiltInWindowFunction::DenseRank => {
+                                proto::BuiltInWindowFunction::DenseRank
+                            }
+                        }
+                        .into(),
+                    )
+                }
+            };
+            let arg_expr: Option<Box<proto::LogicalExprNode>> = if !args.is_empty() {
+                let mut args_iter = args.into_iter();
+                let arg = args_iter.next().expect("at least one");
+                Some(Box::new(from_expr(arg)?))
+            } else {
+                None
+            };
+            let partition_by = partition_by
+                .into_iter()
+                .map(from_expr)
+                .collect::<Result<Vec<_>, _>>()?;
+            let order_by = order_by
+                .into_iter()
+                .map(from_expr)
+                .collect::<Result<Vec<_>, _>>()?;
+            let window_frame = window_frame.map(from_window_frame);
+            let window_expr = Box::new(proto::WindowExprNode {
+                expr: arg_expr,
+                window_function: Some(window_function),
+                partition_by,
+                order_by,
+                window_frame,
+            });
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(ExprType::WindowExpr(window_expr)),
+            })
+        }
+        Expr::AggregateFunction { ref fun, args, .. } => {
+            use aggregates::AggregateFunction;
+            let aggr_function = match fun {
+                AggregateFunction::ApproxDistinct => proto::AggregateFunction::ApproxDistinct,
+                AggregateFunction::ApproxPercentileCont => {
+                    proto::AggregateFunction::ApproxPercentileCont
+                }
+                AggregateFunction::ArrayAgg => proto::AggregateFunction::ArrayAgg,
+                AggregateFunction::Min => proto::AggregateFunction::Min,
+                AggregateFunction::Max => proto::AggregateFunction::Max,
+                AggregateFunction::Sum => proto::AggregateFunction::Sum,
+                AggregateFunction::Avg => proto::AggregateFunction::Avg,
+                AggregateFunction::Count => proto::AggregateFunction::Count,
+                AggregateFunction::Variance => proto::AggregateFunction::Variance,
+                AggregateFunction::VariancePop => proto::AggregateFunction::VariancePop,
+                AggregateFunction::Covariance => proto::AggregateFunction::Covariance,
+                AggregateFunction::CovariancePop => proto::AggregateFunction::CovariancePop,
+                AggregateFunction::Stddev => proto::AggregateFunction::Stddev,
+                AggregateFunction::StddevPop => proto::AggregateFunction::StddevPop,
+                AggregateFunction::Correlation => proto::AggregateFunction::Correlation,
+                AggregateFunction::ApproxMedian => proto::AggregateFunction::ApproxMedian,
+            };
+
+            let aggregate_expr = proto::AggregateExprNode {
+                aggr_function: aggr_function.into(),
+                expr: args
+                    .into_iter()
+                    .map(from_expr)
+                    .collect::<Result<Vec<_>, _>>()?,
+            };
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(ExprType::AggregateExpr(aggregate_expr)),
+            })
+        }
+        Expr::ScalarVariable(_) => unimplemented!(),
+        Expr::ScalarFunction { fun, args } => {
+            let fun = from_scalar_function(fun)?;
+            let args: Vec<proto::LogicalExprNode> = args
+                .into_iter()
+                .map(from_expr)
+                .collect::<Result<Vec<proto::LogicalExprNode>, FieldViolation>>()?;
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(proto::logical_expr_node::ExprType::ScalarFunction(
+                    proto::ScalarFunctionNode {
+                        fun: fun.into(),
+                        args,
+                    },
+                )),
+            })
+        }
+        Expr::ScalarUDF { .. } => unimplemented!(),
+        Expr::AggregateUDF { .. } => unimplemented!(),
+        Expr::Not(expr) => {
+            let expr = Box::new(proto::Not {
+                expr: Some(Box::new(from_expr(*expr)?)),
+            });
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(ExprType::NotExpr(expr)),
+            })
+        }
+        Expr::IsNull(expr) => {
+            let expr = Box::new(proto::IsNull {
+                expr: Some(Box::new(from_expr(*expr)?)),
+            });
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(ExprType::IsNullExpr(expr)),
+            })
+        }
+        Expr::IsNotNull(expr) => {
+            let expr = Box::new(proto::IsNotNull {
+                expr: Some(Box::new(from_expr(*expr)?)),
+            });
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(ExprType::IsNotNullExpr(expr)),
+            })
+        }
+        Expr::Between {
+            expr,
+            negated,
+            low,
+            high,
+        } => {
+            let expr = Box::new(proto::BetweenNode {
+                expr: Some(Box::new(from_expr(*expr)?)),
+                negated,
+                low: Some(Box::new(from_expr(*low)?)),
+                high: Some(Box::new(from_expr(*high)?)),
+            });
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(ExprType::Between(expr)),
+            })
+        }
+        Expr::Case {
+            expr,
+            when_then_expr,
+            else_expr,
+        } => {
+            let when_then_expr = when_then_expr
+                .into_iter()
+                .map(|(w, t)| {
+                    Ok(proto::WhenThen {
+                        when_expr: Some(from_expr(*w)?),
+                        then_expr: Some(from_expr(*t)?),
+                    })
+                })
+                .collect::<Result<Vec<proto::WhenThen>, FieldViolation>>()?;
+            let expr = Box::new(proto::CaseNode {
+                expr: match expr {
+                    Some(e) => Some(Box::new(from_expr(*e)?)),
+                    None => None,
+                },
+                when_then_expr,
+                else_expr: match else_expr {
+                    Some(e) => Some(Box::new(from_expr(*e)?)),
+                    None => None,
+                },
+            });
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(ExprType::CaseNode(expr)),
+            })
+        }
+        Expr::Cast { expr, data_type } => {
+            let expr = Box::new(proto::CastNode {
+                expr: Some(Box::new(from_expr(*expr)?)),
+                arrow_type: Some(from_arrow_type(&data_type)),
+            });
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(ExprType::Cast(expr)),
+            })
+        }
+        Expr::Sort {
+            expr,
+            asc,
+            nulls_first,
+        } => {
+            let expr = Box::new(proto::SortExprNode {
+                expr: Some(Box::new(from_expr(*expr)?)),
+                asc,
+                nulls_first,
+            });
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(ExprType::Sort(expr)),
+            })
+        }
+        Expr::Negative(expr) => {
+            let expr = Box::new(proto::NegativeNode {
+                expr: Some(Box::new(from_expr(*expr)?)),
+            });
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(proto::logical_expr_node::ExprType::Negative(expr)),
+            })
+        }
+        Expr::InList {
+            expr,
+            list,
+            negated,
+        } => {
+            let expr = Box::new(proto::InListNode {
+                expr: Some(Box::new(from_expr(*expr)?)),
+                list: list
+                    .into_iter()
+                    .map(from_expr)
+                    .collect::<Result<Vec<_>, FieldViolation>>()?,
+                negated,
+            });
+            Ok(proto::LogicalExprNode {
+                expr_type: Some(proto::logical_expr_node::ExprType::InList(expr)),
+            })
+        }
+        Expr::Wildcard => Ok(proto::LogicalExprNode {
+            expr_type: Some(proto::logical_expr_node::ExprType::Wildcard(true)),
+        }),
+        _ => unimplemented!(),
+    }
+}
+
+fn create_proto_scalar<I, T: FnOnce(&I) -> proto::scalar_value::Value>(
+    v: &Option<I>,
+    null_arrow_type: proto::PrimitiveScalarType,
+    constructor: T,
+) -> proto::ScalarValue {
+    proto::ScalarValue {
+        value: Some(
+            v.as_ref()
+                .map(constructor)
+                .unwrap_or(proto::scalar_value::Value::NullValue(
+                    null_arrow_type as i32,
+                )),
+        ),
+    }
+}
+
+fn from_scalar_type(
+    value: &arrow::datatypes::DataType,
+) -> Result<proto::ScalarType, FieldViolation> {
+    let datatype = from_data_type(value)?;
+    Ok(proto::ScalarType {
+        datatype: Some(datatype),
+    })
+}
+
+fn from_data_type(
+    val: &arrow::datatypes::DataType,
+) -> Result<proto::scalar_type::Datatype, FieldViolation> {
+    use arrow::datatypes::{DataType, TimeUnit};
+    use proto::{scalar_type, PrimitiveScalarType};
+    let scalar_value = match val {
+        DataType::Boolean => scalar_type::Datatype::Scalar(PrimitiveScalarType::Bool as i32),
+        DataType::Int8 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Int8 as i32),
+        DataType::Int16 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Int16 as i32),
+        DataType::Int32 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Int32 as i32),
+        DataType::Int64 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Int64 as i32),
+        DataType::UInt8 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Uint8 as i32),
+        DataType::UInt16 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Uint16 as i32),
+        DataType::UInt32 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Uint32 as i32),
+        DataType::UInt64 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Uint64 as i32),
+        DataType::Float32 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Float32 as i32),
+        DataType::Float64 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Float64 as i32),
+        DataType::Date32 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Date32 as i32),
+        DataType::Time64(time_unit) => match time_unit {
+            TimeUnit::Microsecond => {
+                scalar_type::Datatype::Scalar(PrimitiveScalarType::TimeMicrosecond as i32)
+            }
+            TimeUnit::Nanosecond => {
+                scalar_type::Datatype::Scalar(PrimitiveScalarType::TimeNanosecond as i32)
+            }
+            _ => return Err(proto_error("time_unit", "invalid time unit")),
+        },
+        DataType::Utf8 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Utf8 as i32),
+        DataType::LargeUtf8 => scalar_type::Datatype::Scalar(PrimitiveScalarType::LargeUtf8 as i32),
+        DataType::List(field_type) => {
+            let mut field_names: Vec<String> = Vec::new();
+            let mut curr_field = field_type.as_ref();
+            field_names.push(curr_field.name().to_owned());
+            // For each nested field check nested datatype, since datafusion scalars only support
+            // recursive lists with a leaf scalar type
+            // any other compound types are errors.
+
+            while let DataType::List(nested_field_type) = curr_field.data_type() {
+                curr_field = nested_field_type.as_ref();
+                field_names.push(curr_field.name().to_owned());
+                if !is_valid_scalar_type_no_list_check(curr_field.data_type()) {
+                    return Err(proto_error(
+                        curr_field.name(),
+                        format!("{:?} is an invalid scalar type", curr_field),
+                    ));
+                }
+            }
+            let deepest_datatype = curr_field.data_type();
+            if !is_valid_scalar_type_no_list_check(deepest_datatype) {
+                return Err(proto_error(
+                    curr_field.name(),
+                    format!(
+                        "The list nested type {:?} is an invalid scalar type",
+                        curr_field
+                    ),
+                ));
+            }
+            let pb_deepest_type: PrimitiveScalarType = match deepest_datatype {
+                DataType::Boolean => PrimitiveScalarType::Bool,
+                DataType::Int8 => PrimitiveScalarType::Int8,
+                DataType::Int16 => PrimitiveScalarType::Int16,
+                DataType::Int32 => PrimitiveScalarType::Int32,
+                DataType::Int64 => PrimitiveScalarType::Int64,
+                DataType::UInt8 => PrimitiveScalarType::Uint8,
+                DataType::UInt16 => PrimitiveScalarType::Uint16,
+                DataType::UInt32 => PrimitiveScalarType::Uint32,
+                DataType::UInt64 => PrimitiveScalarType::Uint64,
+                DataType::Float32 => PrimitiveScalarType::Float32,
+                DataType::Float64 => PrimitiveScalarType::Float64,
+                DataType::Date32 => PrimitiveScalarType::Date32,
+                DataType::Time64(time_unit) => match time_unit {
+                    TimeUnit::Microsecond => PrimitiveScalarType::TimeMicrosecond,
+                    TimeUnit::Nanosecond => PrimitiveScalarType::TimeNanosecond,
+                    _ => {
+                        return Err(proto_error(
+                            "time unit",
+                            "invalid time unit for scalar value",
+                        ))
+                    }
+                },
+
+                DataType::Utf8 => PrimitiveScalarType::Utf8,
+                DataType::LargeUtf8 => PrimitiveScalarType::LargeUtf8,
+                _ => return Err(proto_error("data_type", "invalid datafusion scalar")),
+            };
+            proto::scalar_type::Datatype::List(proto::ScalarListType {
+                field_names,
+                deepest_type: pb_deepest_type as i32,
+            })
+        }
+        DataType::Null
+        | DataType::Float16
+        | DataType::Timestamp(_, _)
+        | DataType::Date64
+        | DataType::Time32(_)
+        | DataType::Duration(_)
+        | DataType::Interval(_)
+        | DataType::Binary
+        | DataType::FixedSizeBinary(_)
+        | DataType::LargeBinary
+        | DataType::FixedSizeList(_, _)
+        | DataType::LargeList(_)
+        | DataType::Struct(_)
+        | DataType::Union(_, _)
+        | DataType::Dictionary(_, _)
+        | DataType::Map(_, _)
+        | DataType::Decimal(_, _) => {
+            return Err(proto_error("data_type", "invalid datafusion scalar"))
+        }
+    };
+    Ok(scalar_value)
+}
+
+fn from_scalar_value(
+    val: &datafusion::scalar::ScalarValue,
+) -> Result<proto::ScalarValue, FieldViolation> {
+    use arrow::datatypes::DataType;
+    use datafusion::scalar;
+    use proto::{scalar_value::Value, PrimitiveScalarType};
+
+    let scalar_val = match val {
+        scalar::ScalarValue::Boolean(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Bool, |s| Value::BoolValue(*s))
+        }
+        scalar::ScalarValue::Float32(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Float32, |s| {
+                Value::Float32Value(*s)
+            })
+        }
+        scalar::ScalarValue::Float64(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Float64, |s| {
+                Value::Float64Value(*s)
+            })
+        }
+        scalar::ScalarValue::Int8(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Int8, |s| {
+                Value::Int8Value(*s as i32)
+            })
+        }
+        scalar::ScalarValue::Int16(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Int16, |s| {
+                Value::Int16Value(*s as i32)
+            })
+        }
+        scalar::ScalarValue::Int32(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Int32, |s| Value::Int32Value(*s))
+        }
+        scalar::ScalarValue::Int64(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Int64, |s| Value::Int64Value(*s))
+        }
+        scalar::ScalarValue::UInt8(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Uint8, |s| {
+                Value::Uint8Value(*s as u32)
+            })
+        }
+        scalar::ScalarValue::UInt16(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Uint16, |s| {
+                Value::Uint16Value(*s as u32)
+            })
+        }
+        scalar::ScalarValue::UInt32(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Uint32, |s| Value::Uint32Value(*s))
+        }
+        scalar::ScalarValue::UInt64(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Uint64, |s| Value::Uint64Value(*s))
+        }
+        scalar::ScalarValue::Utf8(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Utf8, |s| {
+                Value::Utf8Value(s.to_owned())
+            })
+        }
+        scalar::ScalarValue::LargeUtf8(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::LargeUtf8, |s| {
+                Value::LargeUtf8Value(s.to_owned())
+            })
+        }
+        scalar::ScalarValue::List(value, datatype) => {
+            println!("Current datatype of list: {:?}", datatype);
+            match value {
+                Some(values) => {
+                    if values.is_empty() {
+                        proto::ScalarValue {
+                            value: Some(proto::scalar_value::Value::ListValue(
+                                proto::ScalarListValue {
+                                    datatype: Some(from_scalar_type(&*datatype)?),
+                                    values: Vec::new(),
+                                },
+                            )),
+                        }
+                    } else {
+                        let scalar_type = match datatype.as_ref() {
+                            DataType::List(field) => field.as_ref().data_type(),
+                            _ => todo!("Proper error handling"),
+                        };
+                        println!("Current scalar type for list: {:?}", scalar_type);
+                        let type_checked_values: Vec<proto::ScalarValue> = values
+                            .iter()
+                            .map(|scalar| match (scalar, scalar_type) {
+                                (
+                                    scalar::ScalarValue::List(_, list_type),
+                                    DataType::List(field),
+                                ) => {
+                                    if let DataType::List(list_field) = list_type.as_ref() {
+                                        let scalar_datatype = field.data_type();
+                                        let list_datatype = list_field.data_type();
+                                        if std::mem::discriminant(list_datatype)
+                                            != std::mem::discriminant(scalar_datatype)
+                                        {
+                                            return Err(proto_error("list", "inconsistent typing"));
+                                        }
+                                        from_scalar_value(scalar)
+                                    } else {
+                                        Err(proto_error(
+                                            "list",
+                                            "inconsistent with designated type",
+                                        ))
+                                    }
+                                }
+                                (scalar::ScalarValue::Boolean(_), DataType::Boolean) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::Float32(_), DataType::Float32) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::Float64(_), DataType::Float64) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::Int8(_), DataType::Int8) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::Int16(_), DataType::Int16) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::Int32(_), DataType::Int32) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::Int64(_), DataType::Int64) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::UInt8(_), DataType::UInt8) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::UInt16(_), DataType::UInt16) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::UInt32(_), DataType::UInt32) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::UInt64(_), DataType::UInt64) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::Utf8(_), DataType::Utf8) => {
+                                    from_scalar_value(scalar)
+                                }
+                                (scalar::ScalarValue::LargeUtf8(_), DataType::LargeUtf8) => {
+                                    from_scalar_value(scalar)
+                                }
+                                _ => Err(proto_error("list", "inconsistent with designated type")),
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        proto::ScalarValue {
+                            value: Some(proto::scalar_value::Value::ListValue(
+                                proto::ScalarListValue {
+                                    datatype: Some(from_scalar_type(&*datatype)?),
+                                    values: type_checked_values,
+                                },
+                            )),
+                        }
+                    }
+                }
+                None => proto::ScalarValue {
+                    value: Some(proto::scalar_value::Value::NullListValue(from_scalar_type(
+                        &*datatype,
+                    )?)),
+                },
+            }
+        }
+        datafusion::scalar::ScalarValue::Date32(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Date32, |s| Value::Date32Value(*s))
+        }
+        datafusion::scalar::ScalarValue::TimestampMicrosecond(val, _) => {
+            create_proto_scalar(val, PrimitiveScalarType::TimeMicrosecond, |s| {
+                Value::TimeMicrosecondValue(*s)
+            })
+        }
+        datafusion::scalar::ScalarValue::TimestampNanosecond(val, _) => {
+            create_proto_scalar(val, PrimitiveScalarType::TimeNanosecond, |s| {
+                Value::TimeNanosecondValue(*s)
+            })
+        }
+        datafusion::scalar::ScalarValue::Decimal128(val, p, s) => match val {
+            Some(v) => {
+                let array = v.to_be_bytes();
+                let vec_val: Vec<u8> = array.to_vec();
+                proto::ScalarValue {
+                    value: Some(Value::Decimal128Value(proto::Decimal128 {
+                        value: vec_val,
+                        p: *p as i64,
+                        s: *s as i64,
+                    })),
+                }
+            }
+            None => proto::ScalarValue {
+                value: Some(proto::scalar_value::Value::NullValue(
+                    PrimitiveScalarType::Decimal128 as i32,
+                )),
+            },
+        },
+        datafusion::scalar::ScalarValue::Date64(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::Date64, |s| Value::Date64Value(*s))
+        }
+        datafusion::scalar::ScalarValue::TimestampSecond(val, _) => {
+            create_proto_scalar(val, PrimitiveScalarType::TimeSecond, |s| {
+                Value::TimeSecondValue(*s)
+            })
+        }
+        datafusion::scalar::ScalarValue::TimestampMillisecond(val, _) => {
+            create_proto_scalar(val, PrimitiveScalarType::TimeMillisecond, |s| {
+                Value::TimeMillisecondValue(*s)
+            })
+        }
+        datafusion::scalar::ScalarValue::IntervalYearMonth(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::IntervalYearmonth, |s| {
+                Value::IntervalYearmonthValue(*s)
+            })
+        }
+        datafusion::scalar::ScalarValue::IntervalDayTime(val) => {
+            create_proto_scalar(val, PrimitiveScalarType::IntervalDaytime, |s| {
+                Value::IntervalDaytimeValue(*s)
+            })
+        }
+        _ => return Err(proto_error("data_type", "invalid datafusion scalar")),
+    };
+    Ok(scalar_val)
+}
+
 fn from_proto_scalar_value(
     proto: proto::ScalarValue,
 ) -> Result<datafusion::scalar::ScalarValue, FieldViolation> {
@@ -435,6 +1135,72 @@ fn from_proto_scalar_value(
     Ok(result)
 }
 
+fn from_aggr_function(fun: aggregates::AggregateFunction) -> proto::AggregateFunction {
+    use aggregates::AggregateFunction;
+    match fun {
+        AggregateFunction::ApproxDistinct => proto::AggregateFunction::ApproxDistinct,
+        AggregateFunction::ApproxPercentileCont => proto::AggregateFunction::ApproxPercentileCont,
+        AggregateFunction::ArrayAgg => proto::AggregateFunction::ArrayAgg,
+        AggregateFunction::Min => proto::AggregateFunction::Min,
+        AggregateFunction::Max => proto::AggregateFunction::Max,
+        AggregateFunction::Sum => proto::AggregateFunction::Sum,
+        AggregateFunction::Avg => proto::AggregateFunction::Avg,
+        AggregateFunction::Count => proto::AggregateFunction::Count,
+        AggregateFunction::Variance => proto::AggregateFunction::Variance,
+        AggregateFunction::VariancePop => proto::AggregateFunction::VariancePop,
+        AggregateFunction::Covariance => proto::AggregateFunction::Covariance,
+        AggregateFunction::CovariancePop => proto::AggregateFunction::CovariancePop,
+        AggregateFunction::Stddev => proto::AggregateFunction::Stddev,
+        AggregateFunction::StddevPop => proto::AggregateFunction::StddevPop,
+        AggregateFunction::Correlation => proto::AggregateFunction::Correlation,
+        AggregateFunction::ApproxMedian => proto::AggregateFunction::ApproxMedian,
+    }
+}
+
+fn from_scalar_function(
+    fun: functions::BuiltinScalarFunction,
+) -> Result<proto::ScalarFunction, FieldViolation> {
+    use functions::BuiltinScalarFunction;
+    match fun {
+        BuiltinScalarFunction::Sqrt => Ok(proto::ScalarFunction::Sqrt),
+        BuiltinScalarFunction::Sin => Ok(proto::ScalarFunction::Sin),
+        BuiltinScalarFunction::Cos => Ok(proto::ScalarFunction::Cos),
+        BuiltinScalarFunction::Tan => Ok(proto::ScalarFunction::Tan),
+        BuiltinScalarFunction::Asin => Ok(proto::ScalarFunction::Asin),
+        BuiltinScalarFunction::Acos => Ok(proto::ScalarFunction::Acos),
+        BuiltinScalarFunction::Atan => Ok(proto::ScalarFunction::Atan),
+        BuiltinScalarFunction::Exp => Ok(proto::ScalarFunction::Exp),
+        BuiltinScalarFunction::Log => Ok(proto::ScalarFunction::Log),
+        BuiltinScalarFunction::Ln => Ok(proto::ScalarFunction::Ln),
+        BuiltinScalarFunction::Log10 => Ok(proto::ScalarFunction::Log10),
+        BuiltinScalarFunction::Floor => Ok(proto::ScalarFunction::Floor),
+        BuiltinScalarFunction::Ceil => Ok(proto::ScalarFunction::Ceil),
+        BuiltinScalarFunction::Round => Ok(proto::ScalarFunction::Round),
+        BuiltinScalarFunction::Trunc => Ok(proto::ScalarFunction::Trunc),
+        BuiltinScalarFunction::Abs => Ok(proto::ScalarFunction::Abs),
+        BuiltinScalarFunction::OctetLength => Ok(proto::ScalarFunction::Octetlength),
+        BuiltinScalarFunction::Concat => Ok(proto::ScalarFunction::Concat),
+        BuiltinScalarFunction::Lower => Ok(proto::ScalarFunction::Lower),
+        BuiltinScalarFunction::Upper => Ok(proto::ScalarFunction::Upper),
+        BuiltinScalarFunction::Trim => Ok(proto::ScalarFunction::Trim),
+        BuiltinScalarFunction::Ltrim => Ok(proto::ScalarFunction::Ltrim),
+        BuiltinScalarFunction::Rtrim => Ok(proto::ScalarFunction::Rtrim),
+        BuiltinScalarFunction::ToTimestamp => Ok(proto::ScalarFunction::Totimestamp),
+        BuiltinScalarFunction::Array => Ok(proto::ScalarFunction::Array),
+        BuiltinScalarFunction::NullIf => Ok(proto::ScalarFunction::Nullif),
+        BuiltinScalarFunction::DatePart => Ok(proto::ScalarFunction::Datepart),
+        BuiltinScalarFunction::DateTrunc => Ok(proto::ScalarFunction::Datetrunc),
+        BuiltinScalarFunction::MD5 => Ok(proto::ScalarFunction::Md5),
+        BuiltinScalarFunction::SHA224 => Ok(proto::ScalarFunction::Sha224),
+        BuiltinScalarFunction::SHA256 => Ok(proto::ScalarFunction::Sha256),
+        BuiltinScalarFunction::SHA384 => Ok(proto::ScalarFunction::Sha384),
+        BuiltinScalarFunction::SHA512 => Ok(proto::ScalarFunction::Sha512),
+        BuiltinScalarFunction::Digest => Ok(proto::ScalarFunction::Digest),
+        BuiltinScalarFunction::ToTimestampMillis => Ok(proto::ScalarFunction::Totimestampmillis),
+        _ => Err(proto_error("scalar_function", "unsupported")),
+    }
+}
+
 fn from_proto_aggr_function(
     proto: proto::AggregateFunction,
 ) -> Result<aggregates::AggregateFunction, FieldViolation> {
@@ -462,6 +1228,37 @@ fn from_proto_aggr_function(
     };
 
     Ok(agg)
+}
+
+fn from_window_frame(window_frame: WindowFrame) -> proto::WindowFrame {
+    let units = match window_frame.units {
+        WindowFrameUnits::Rows => proto::WindowFrameUnits::Rows,
+        WindowFrameUnits::Range => proto::WindowFrameUnits::Range,
+        WindowFrameUnits::Groups => proto::WindowFrameUnits::Groups,
+    };
+
+    proto::WindowFrame {
+        window_frame_units: units.into(),
+        start_bound: Some(from_window_frame_bound(&window_frame.start_bound)),
+        end_bound: Some(from_window_frame_bound(&window_frame.end_bound)),
+    }
+}
+
+fn from_window_frame_bound(bound: &WindowFrameBound) -> proto::WindowFrameBound {
+    match bound {
+        WindowFrameBound::CurrentRow => proto::WindowFrameBound {
+            window_frame_bound_type: proto::WindowFrameBoundType::CurrentRow.into(),
+            bound_value: None,
+        },
+        WindowFrameBound::Preceding(v) => proto::WindowFrameBound {
+            window_frame_bound_type: proto::WindowFrameBoundType::Preceding.into(),
+            bound_value: *v,
+        },
+        WindowFrameBound::Following(v) => proto::WindowFrameBound {
+            window_frame_bound_type: proto::WindowFrameBoundType::Following.into(),
+            bound_value: *v,
+        },
+    }
 }
 
 fn from_proto_window_frame(proto: proto::WindowFrame) -> Result<WindowFrame, FieldViolation> {
@@ -537,6 +1334,150 @@ fn from_proto_time_unit(
     };
 
     Ok(unit)
+}
+
+fn from_arrow_type(arrow: &arrow::datatypes::DataType) -> proto::ArrowType {
+    proto::ArrowType {
+        arrow_type_enum: Some(from_inner_arrow_type(arrow)),
+    }
+}
+
+fn from_inner_arrow_type(val: &arrow::datatypes::DataType) -> proto::arrow_type::ArrowTypeEnum {
+    use arrow::datatypes::{DataType, UnionMode};
+    use proto::{arrow_type::ArrowTypeEnum, EmptyMessage};
+
+    match val {
+        DataType::Null => ArrowTypeEnum::None(EmptyMessage {}),
+        DataType::Boolean => ArrowTypeEnum::Bool(EmptyMessage {}),
+        DataType::Int8 => ArrowTypeEnum::Int8(EmptyMessage {}),
+        DataType::Int16 => ArrowTypeEnum::Int16(EmptyMessage {}),
+        DataType::Int32 => ArrowTypeEnum::Int32(EmptyMessage {}),
+        DataType::Int64 => ArrowTypeEnum::Int64(EmptyMessage {}),
+        DataType::UInt8 => ArrowTypeEnum::Uint8(EmptyMessage {}),
+        DataType::UInt16 => ArrowTypeEnum::Uint16(EmptyMessage {}),
+        DataType::UInt32 => ArrowTypeEnum::Uint32(EmptyMessage {}),
+        DataType::UInt64 => ArrowTypeEnum::Uint64(EmptyMessage {}),
+        DataType::Float16 => ArrowTypeEnum::Float16(EmptyMessage {}),
+        DataType::Float32 => ArrowTypeEnum::Float32(EmptyMessage {}),
+        DataType::Float64 => ArrowTypeEnum::Float64(EmptyMessage {}),
+        DataType::Timestamp(time_unit, timezone) => ArrowTypeEnum::Timestamp(proto::Timestamp {
+            time_unit: from_arrow_time_unit(time_unit).into(),
+            timezone: timezone.to_owned().unwrap_or_else(String::new),
+        }),
+        DataType::Date32 => ArrowTypeEnum::Date32(EmptyMessage {}),
+        DataType::Date64 => ArrowTypeEnum::Date64(EmptyMessage {}),
+        DataType::Time32(time_unit) => {
+            ArrowTypeEnum::Time32(from_arrow_time_unit(time_unit) as i32)
+        }
+        DataType::Time64(time_unit) => {
+            ArrowTypeEnum::Time64(from_arrow_time_unit(time_unit) as i32)
+        }
+        DataType::Duration(time_unit) => {
+            ArrowTypeEnum::Duration(from_arrow_time_unit(time_unit) as i32)
+        }
+        DataType::Interval(interval_unit) => {
+            ArrowTypeEnum::Interval(from_arrow_interval_unit(interval_unit) as i32)
+        }
+        DataType::Binary => ArrowTypeEnum::Binary(EmptyMessage {}),
+        DataType::FixedSizeBinary(size) => ArrowTypeEnum::FixedSizeBinary(*size),
+        DataType::LargeBinary => ArrowTypeEnum::LargeBinary(EmptyMessage {}),
+        DataType::Utf8 => ArrowTypeEnum::Utf8(EmptyMessage {}),
+        DataType::LargeUtf8 => ArrowTypeEnum::LargeUtf8(EmptyMessage {}),
+        DataType::List(item_type) => ArrowTypeEnum::List(Box::new(proto::List {
+            field_type: Some(Box::new(from_field(&*item_type))),
+        })),
+        DataType::FixedSizeList(item_type, list_size) => {
+            ArrowTypeEnum::FixedSizeList(Box::new(proto::FixedSizeList {
+                field_type: Some(Box::new(from_field(&*item_type))),
+                list_size: *list_size,
+            }))
+        }
+        DataType::LargeList(item_type) => ArrowTypeEnum::LargeList(Box::new(proto::List {
+            field_type: Some(Box::new(from_field(&*item_type))),
+        })),
+        DataType::Struct(struct_fields) => ArrowTypeEnum::Struct(proto::Struct {
+            sub_field_types: struct_fields.iter().map(from_field).collect::<Vec<_>>(),
+        }),
+        DataType::Union(union_types, union_mode) => {
+            let union_mode = match union_mode {
+                UnionMode::Sparse => proto::UnionMode::Sparse,
+                UnionMode::Dense => proto::UnionMode::Dense,
+            };
+            ArrowTypeEnum::Union(proto::Union {
+                union_types: union_types.iter().map(from_field).collect::<Vec<_>>(),
+                union_mode: union_mode.into(),
+            })
+        }
+        DataType::Dictionary(key_type, value_type) => {
+            ArrowTypeEnum::Dictionary(Box::new(proto::Dictionary {
+                key: Some(Box::new(from_arrow_type(&*key_type))),
+                value: Some(Box::new(from_arrow_type(&*value_type))),
+            }))
+        }
+        DataType::Decimal(whole, fractional) => ArrowTypeEnum::Decimal(proto::Decimal {
+            whole: *whole as u64,
+            fractional: *fractional as u64,
+        }),
+        DataType::Map(_, _) => {
+            unimplemented!("Map data type not yet supported")
+        }
+    }
+}
+
+fn from_field(field: &arrow::datatypes::Field) -> proto::Field {
+    proto::Field {
+        name: field.name().to_owned(),
+        arrow_type: Some(Box::new(from_arrow_type(field.data_type()))),
+        nullable: field.is_nullable(),
+        children: Vec::new(),
+    }
+}
+
+fn from_arrow_time_unit(val: &arrow::datatypes::TimeUnit) -> proto::TimeUnit {
+    use arrow::datatypes::TimeUnit;
+    match val {
+        TimeUnit::Second => proto::TimeUnit::Second,
+        TimeUnit::Millisecond => proto::TimeUnit::TimeMillisecond,
+        TimeUnit::Microsecond => proto::TimeUnit::Microsecond,
+        TimeUnit::Nanosecond => proto::TimeUnit::Nanosecond,
+    }
+}
+
+fn from_arrow_interval_unit(interval_unit: &arrow::datatypes::IntervalUnit) -> proto::IntervalUnit {
+    use arrow::datatypes::IntervalUnit;
+
+    match interval_unit {
+        IntervalUnit::YearMonth => proto::IntervalUnit::YearMonth,
+        IntervalUnit::DayTime => proto::IntervalUnit::DayTime,
+        IntervalUnit::MonthDayNano => proto::IntervalUnit::MonthDayNano,
+    }
+}
+
+//Does not check if list subtypes are valid
+fn is_valid_scalar_type_no_list_check(datatype: &arrow::datatypes::DataType) -> bool {
+    use arrow::datatypes::{DataType, TimeUnit};
+    match datatype {
+        DataType::Boolean
+        | DataType::Int8
+        | DataType::Int16
+        | DataType::Int32
+        | DataType::Int64
+        | DataType::UInt8
+        | DataType::UInt16
+        | DataType::UInt32
+        | DataType::UInt64
+        | DataType::Float32
+        | DataType::Float64
+        | DataType::LargeUtf8
+        | DataType::Utf8
+        | DataType::Date32 => true,
+        DataType::Time64(time_unit) => {
+            matches!(time_unit, TimeUnit::Microsecond | TimeUnit::Nanosecond)
+        }
+
+        DataType::List(_) => true,
+        _ => false,
+    }
 }
 
 fn from_proto_arrow_type(

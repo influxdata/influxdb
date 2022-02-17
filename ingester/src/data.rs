@@ -1244,6 +1244,28 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
     }
 }
 
+impl TryFrom<IngesterQueryRequest> for proto::IngesterQueryRequest {
+    type Error = FieldViolation;
+
+    fn try_from(query: IngesterQueryRequest) -> Result<Self, Self::Error> {
+        let IngesterQueryRequest {
+            namespace,
+            sequencer_id,
+            table,
+            columns,
+            predicate,
+        } = query;
+
+        Ok(Self {
+            namespace,
+            sequencer_id: sequencer_id.get().into(),
+            table,
+            columns,
+            predicate: predicate.map(TryInto::try_into).transpose()?,
+        })
+    }
+}
+
 /// Response sending to the query service per its request defined in IngesterQueryRequest
 pub struct IngesterQueryResponse {
     /// Stream of RecordBatch results that match the requested query

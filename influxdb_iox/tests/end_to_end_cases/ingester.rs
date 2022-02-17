@@ -1,4 +1,6 @@
 use crate::common::server_fixture::{ServerFixture, ServerType, TestConfig};
+use ingester::data::IngesterQueryRequest;
+use iox_catalog::interface::SequencerId;
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -23,4 +25,22 @@ async fn querying_without_data_returns_nothing() {
 
     // This does nothing except test the client handshake implementation.
     querier_flight.handshake().await.unwrap();
+
+    let query = IngesterQueryRequest::new(
+        "mynamespace".into(),
+        SequencerId::new(2),
+        "mytable".into(),
+        vec![],
+        Some(predicate::EMPTY_PREDICATE),
+    );
+
+    let query_results = querier_flight
+        .perform_query(query)
+        .await
+        .unwrap()
+        .collect()
+        .await
+        .unwrap();
+
+    assert!(query_results.is_empty());
 }
