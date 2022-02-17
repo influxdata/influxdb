@@ -125,10 +125,11 @@ pub async fn compact_persisting_batch(
         .await
         .context(CollectStreamSnafu {})?;
 
-    // No data after compaction
-    if output_batches.iter().all(|b| b.num_rows() == 0) {
-        return Ok(None);
-    }
+    // Filter empty record batches
+    let output_batches: Vec<_> = output_batches
+        .into_iter()
+        .filter(|b| b.num_rows() != 0)
+        .collect();
 
     // Compute min and max of the `time` column
     let (min_time, max_time) = compute_timenanosecond_min_max(&output_batches)?;
@@ -193,8 +194,77 @@ mod tests {
         make_persisting_batch, make_queryable_batch, make_queryable_batch_with_deletes,
     };
     use arrow_util::assert_batches_eq;
+    use mutable_batch_lp::lines_to_batches;
+    use schema::selection::Selection;
     use time::SystemProvider;
     use uuid::Uuid;
+
+    // this test was added to guard against https://github.com/influxdata/influxdb_iox/issues/3782
+    // where if sending in a single row it would compact into an output of two batches, one of
+    // which was empty, which would cause this to panic.
+    #[tokio::test]
+    async fn test_compact_persisting_batch_on_one_record_batch_with_one_row() {
+        // create input data
+        let batch = lines_to_batches("cpu bar=2 20", 0)
+            .unwrap()
+            .get("cpu")
+            .unwrap()
+            .to_arrow(Selection::All)
+            .unwrap();
+        let batches = vec![Arc::new(batch)];
+        // build persisting batch from the input batches
+        let uuid = Uuid::new_v4();
+        let namespace_name = "test_namespace";
+        let partition_key = "test_partition_key";
+        let table_name = "test_table";
+        let seq_id = 1;
+        let seq_num_start: i64 = 1;
+        let table_id = 1;
+        let partition_id = 1;
+        let persisting_batch = make_persisting_batch(
+            seq_id,
+            seq_num_start,
+            table_id,
+            table_name,
+            partition_id,
+            uuid,
+            batches,
+            vec![],
+        );
+
+        // verify PK
+        let schema = persisting_batch.data.schema();
+        let pk = schema.primary_key();
+        let expected_pk = vec!["time"];
+        assert_eq!(expected_pk, pk);
+
+        // compact
+        let exc = Executor::new(1);
+        let time_provider = Arc::new(SystemProvider::new());
+        let (output_batches, _) = compact_persisting_batch(
+            time_provider,
+            &exc,
+            1,
+            namespace_name,
+            table_name,
+            partition_key,
+            persisting_batch,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // verify compacted data
+        // should be the same as the input but sorted on tag1 & time
+        let expected_data = vec![
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 2   | 1970-01-01T00:00:00.000000020Z |",
+            "+-----+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected_data, &output_batches);
+    }
 
     #[tokio::test]
     async fn test_compact_persisting_batch_on_one_record_batch_no_dupilcates() {
