@@ -37,11 +37,8 @@ struct Count {
 
 impl PostgresCatalog {
     /// Connect to the catalog store.
-    pub async fn connect(
-        app_name: &'static str,
-        schema_name: &'static str,
-        dsn: &str,
-    ) -> Result<Self> {
+    pub async fn connect(app_name: &'static str, schema_name: &str, dsn: &str) -> Result<Self> {
+        let schema_name = schema_name.to_owned();
         let pool = PgPoolOptions::new()
             .min_connections(1)
             .max_connections(MAX_CONNECTIONS)
@@ -49,11 +46,12 @@ impl PostgresCatalog {
             .idle_timeout(IDLE_TIMEOUT)
             .test_before_acquire(true)
             .after_connect(move |c| {
+                let schema_name = schema_name.to_owned();
                 Box::pin(async move {
                     // Tag the connection with the provided application name.
                     c.execute(sqlx::query("SET application_name = '$1';").bind(app_name))
                         .await?;
-                    let search_path_query = format!("SET search_path TO public,{}", schema_name);
+                    let search_path_query = format!("SET search_path TO {};", schema_name);
                     c.execute(sqlx::query(&search_path_query)).await?;
 
                     Ok(())
@@ -885,6 +883,8 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use rand::Rng;
     use std::env;
     use std::sync::Arc;
 
@@ -926,10 +926,45 @@ mod tests {
     }
 
     async fn setup_db() -> PostgresCatalog {
+        // create a random schema for this particular pool
+        let schema_name = {
+            // use scope to make it clear to clippy / rust that `rng` is
+            // not carried past await points
+            let mut rng = rand::thread_rng();
+            (&mut rng)
+                .sample_iter(rand::distributions::Alphanumeric)
+                .filter(|c| c.is_ascii_alphabetic())
+                .take(20)
+                .map(char::from)
+                .collect::<String>()
+        };
+
         let dsn = std::env::var("DATABASE_URL").unwrap();
-        PostgresCatalog::connect("test", SCHEMA_NAME, &dsn)
+        let pg = PostgresCatalog::connect("test", &schema_name, &dsn)
             .await
-            .unwrap()
+            .expect("failed to connect catalog");
+
+        // Create the test schema
+        pg.pool
+            .execute(format!("CREATE SCHEMA {};", schema_name).as_str())
+            .await
+            .expect("failed to create test schema");
+
+        // Ensure the test user has permission to interact with the test schema.
+        pg.pool
+            .execute(
+                format!(
+                    "GRANT USAGE ON SCHEMA {} TO public; GRANT CREATE ON SCHEMA {} TO public;",
+                    schema_name, schema_name
+                )
+                .as_str(),
+            )
+            .await
+            .expect("failed to grant privileges to schema");
+
+        // Run the migrations against this random schema.
+        pg.setup().await.expect("failed to initialise database");
+        pg
     }
 
     #[tokio::test]
@@ -940,45 +975,8 @@ mod tests {
         maybe_skip_integration!();
 
         let postgres = setup_db().await;
-        postgres.setup().await.unwrap();
-        clear_schema(&postgres.pool).await;
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
 
         crate::interface::test_helpers::test_catalog(postgres).await;
-    }
-
-    async fn clear_schema(pool: &HotSwapPool<Postgres>) {
-        sqlx::query("delete from processed_tombstone;")
-            .execute(pool)
-            .await
-            .unwrap();
-        sqlx::query("delete from tombstone;")
-            .execute(pool)
-            .await
-            .unwrap();
-        sqlx::query("delete from parquet_file;")
-            .execute(pool)
-            .await
-            .unwrap();
-        sqlx::query("delete from column_name;")
-            .execute(pool)
-            .await
-            .unwrap();
-        sqlx::query("delete from partition;")
-            .execute(pool)
-            .await
-            .unwrap();
-        sqlx::query("delete from table_name;")
-            .execute(pool)
-            .await
-            .unwrap();
-        sqlx::query("delete from namespace;")
-            .execute(pool)
-            .await
-            .unwrap();
-        sqlx::query("delete from sequencer;")
-            .execute(pool)
-            .await
-            .unwrap();
     }
 }
