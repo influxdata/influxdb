@@ -631,6 +631,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "compactor"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "data_types",
+ "futures",
+ "generated_types",
+ "hyper",
+ "iox_catalog",
+ "iox_object_store",
+ "metric",
+ "object_store",
+ "observability_deps",
+ "parking_lot 0.12.0",
+ "predicate",
+ "prost",
+ "test_helpers",
+ "thiserror",
+ "tokio",
+ "tokio-util 0.7.0",
+ "tonic",
+ "trace",
+ "workspace-hack",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1859,6 +1885,7 @@ dependencies = [
  "chrono",
  "clap 3.0.14",
  "comfy-table",
+ "compactor",
  "csv",
  "data_types",
  "datafusion 0.1.0",
