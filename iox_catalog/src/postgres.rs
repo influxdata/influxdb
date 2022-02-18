@@ -578,7 +578,7 @@ impl PartitionRepo for PostgresTxn {
         sequencer_id: SequencerId,
         table_id: TableId,
     ) -> Result<Partition> {
-        sqlx::query_as::<_, Partition>(
+        let v = sqlx::query_as::<_, Partition>(
             r#"
         INSERT INTO partition
             ( partition_key, sequencer_id, table_id )
@@ -599,7 +599,18 @@ impl PartitionRepo for PostgresTxn {
             } else {
                 Error::SqlxError { source: e }
             }
-        })
+        })?;
+
+        // If the partition_key_unique constraint was hit because there was an
+        // existing record for (table_id, partition_key) ensure the partition
+        // key in the DB is mapped to the same sequencer_id the caller
+        // requested.
+        assert_eq!(
+            v.sequencer_id, sequencer_id,
+            "attempted to overwrite partition with different sequencer ID"
+        );
+
+        Ok(v)
     }
 
     async fn list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
@@ -656,7 +667,7 @@ impl TombstoneRepo for PostgresTxn {
         max_time: Timestamp,
         predicate: &str,
     ) -> Result<Tombstone> {
-        sqlx::query_as::<_, Tombstone>(
+        let v = sqlx::query_as::<_, Tombstone>(
             r#"
         INSERT INTO tombstone
             ( table_id, sequencer_id, sequence_number, min_time, max_time, serialized_predicate )
@@ -680,7 +691,28 @@ impl TombstoneRepo for PostgresTxn {
             } else {
                 Error::SqlxError { source: e }
             }
-        })
+        })?;
+
+        // If tombstone_unique is hit, a record with (table_id, sequencer_id,
+        // sequence_number) already exists.
+        //
+        // Ensure the caller does not falsely believe they have created the
+        // record with the provided values if the DB row contains different
+        // values.
+        assert_eq!(
+            v.min_time, min_time,
+            "attempted to overwrite min_time in tombstone record"
+        );
+        assert_eq!(
+            v.max_time, max_time,
+            "attempted to overwrite max_time in tombstone record"
+        );
+        assert_eq!(
+            v.serialized_predicate, predicate,
+            "attempted to overwrite predicate in tombstone record"
+        );
+
+        Ok(v)
     }
 
     async fn list_tombstones_by_sequencer_greater_than(
@@ -882,11 +914,12 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::create_or_get_default_records;
+
     use super::*;
 
     use rand::Rng;
-    use std::env;
-    use std::sync::Arc;
+    use std::{env, ops::DerefMut, sync::Arc};
 
     // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
     macro_rules! maybe_skip_integration {
@@ -978,5 +1011,285 @@ mod tests {
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
 
         crate::interface::test_helpers::test_catalog(postgres).await;
+    }
+
+    #[tokio::test]
+    async fn test_tombstone_create_or_get_idempotent() {
+        // If running an integration test on your laptop, this requires that you have Postgres
+        // running and that you've done the sqlx migrations. See the README in this crate for
+        // info to set it up.
+        maybe_skip_integration!();
+
+        let postgres = setup_db().await;
+        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+
+        let mut txn = postgres.start_transaction().await.expect("txn start");
+        let (kafka, query, sequencers) = create_or_get_default_records(1, txn.deref_mut())
+            .await
+            .expect("db init failed");
+        txn.commit().await.expect("txn commit");
+
+        let namespace_id = postgres
+            .repositories()
+            .await
+            .namespaces()
+            .create("ns", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+            .await
+            .expect("namespace create failed")
+            .id;
+        let table_id = postgres
+            .repositories()
+            .await
+            .tables()
+            .create_or_get("table", namespace_id)
+            .await
+            .expect("create table failed")
+            .id;
+
+        let sequencer_id = *sequencers.keys().next().expect("no sequencer");
+        let sequence_number = SequenceNumber::new(3);
+        let min_timestamp = Timestamp::new(10);
+        let max_timestamp = Timestamp::new(100);
+        let predicate = "bananas";
+
+        let a = postgres
+            .repositories()
+            .await
+            .tombstones()
+            .create_or_get(
+                table_id,
+                sequencer_id,
+                sequence_number,
+                min_timestamp,
+                max_timestamp,
+                predicate,
+            )
+            .await
+            .expect("should create OK");
+
+        // Call create_or_get for the same (table_id, sequencer_id,
+        // sequence_number) triplet, setting the same metadata to ensure the
+        // write is idempotent.
+        let b = postgres
+            .repositories()
+            .await
+            .tombstones()
+            .create_or_get(
+                table_id,
+                sequencer_id,
+                sequence_number,
+                min_timestamp,
+                max_timestamp,
+                predicate,
+            )
+            .await
+            .expect("idempotent write should succeed");
+
+        assert_eq!(a, b);
+    }
+
+    #[tokio::test]
+    #[should_panic = "attempted to overwrite predicate"]
+    async fn test_tombstone_create_or_get_no_overwrite() {
+        // If running an integration test on your laptop, this requires that you have Postgres
+        // running and that you've done the sqlx migrations. See the README in this crate for
+        // info to set it up.
+        maybe_skip_integration!();
+
+        let postgres = setup_db().await;
+        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+
+        let mut txn = postgres.start_transaction().await.expect("txn start");
+        let (kafka, query, sequencers) = create_or_get_default_records(1, txn.deref_mut())
+            .await
+            .expect("db init failed");
+        txn.commit().await.expect("txn commit");
+
+        let namespace_id = postgres
+            .repositories()
+            .await
+            .namespaces()
+            .create("ns2", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+            .await
+            .expect("namespace create failed")
+            .id;
+        let table_id = postgres
+            .repositories()
+            .await
+            .tables()
+            .create_or_get("table2", namespace_id)
+            .await
+            .expect("create table failed")
+            .id;
+
+        let sequencer_id = *sequencers.keys().next().expect("no sequencer");
+        let sequence_number = SequenceNumber::new(3);
+        let min_timestamp = Timestamp::new(10);
+        let max_timestamp = Timestamp::new(100);
+
+        let a = postgres
+            .repositories()
+            .await
+            .tombstones()
+            .create_or_get(
+                table_id,
+                sequencer_id,
+                sequence_number,
+                min_timestamp,
+                max_timestamp,
+                "bananas",
+            )
+            .await
+            .expect("should create OK");
+
+        // Call create_or_get for the same (table_id, sequencer_id,
+        // sequence_number) triplet with different metadata.
+        //
+        // The caller should not falsely believe it has persisted the incorrect
+        // predicate.
+        let b = postgres
+            .repositories()
+            .await
+            .tombstones()
+            .create_or_get(
+                table_id,
+                sequencer_id,
+                sequence_number,
+                min_timestamp,
+                max_timestamp,
+                "some other serialised predicate which is different",
+            )
+            .await
+            .expect("should panic before result evaluated");
+
+        assert_eq!(a, b);
+    }
+
+    #[tokio::test]
+    async fn test_partition_create_or_get_idempotent() {
+        // If running an integration test on your laptop, this requires that you have Postgres
+        // running and that you've done the sqlx migrations. See the README in this crate for
+        // info to set it up.
+        maybe_skip_integration!();
+
+        let postgres = setup_db().await;
+
+        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+        let mut txn = postgres.start_transaction().await.expect("txn start");
+        let (kafka, query, sequencers) = create_or_get_default_records(1, txn.deref_mut())
+            .await
+            .expect("db init failed");
+        txn.commit().await.expect("txn commit");
+
+        let namespace_id = postgres
+            .repositories()
+            .await
+            .namespaces()
+            .create("ns4", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+            .await
+            .expect("namespace create failed")
+            .id;
+        let table_id = postgres
+            .repositories()
+            .await
+            .tables()
+            .create_or_get("table", namespace_id)
+            .await
+            .expect("create table failed")
+            .id;
+
+        let key = "bananas";
+        let sequencer_id = *sequencers.keys().next().expect("no sequencer");
+
+        let a = postgres
+            .repositories()
+            .await
+            .partitions()
+            .create_or_get(key, sequencer_id, table_id)
+            .await
+            .expect("should create OK");
+
+        // Call create_or_get for the same (key, table_id, sequencer_id)
+        // triplet, setting the same sequencer ID to ensure the write is
+        // idempotent.
+        let b = postgres
+            .repositories()
+            .await
+            .partitions()
+            .create_or_get(key, sequencer_id, table_id)
+            .await
+            .expect("idempotent write should succeed");
+
+        assert_eq!(a, b);
+    }
+
+    #[tokio::test]
+    #[should_panic = "attempted to overwrite partition"]
+    async fn test_partition_create_or_get_no_overwrite() {
+        // If running an integration test on your laptop, this requires that you have Postgres
+        // running and that you've done the sqlx migrations. See the README in this crate for
+        // info to set it up.
+        maybe_skip_integration!();
+
+        let postgres = setup_db().await;
+
+        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+        let mut txn = postgres.start_transaction().await.expect("txn start");
+        let (kafka, query, _) = create_or_get_default_records(2, txn.deref_mut())
+            .await
+            .expect("db init failed");
+        txn.commit().await.expect("txn commit");
+
+        let namespace_id = postgres
+            .repositories()
+            .await
+            .namespaces()
+            .create("ns3", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+            .await
+            .expect("namespace create failed")
+            .id;
+        let table_id = postgres
+            .repositories()
+            .await
+            .tables()
+            .create_or_get("table", namespace_id)
+            .await
+            .expect("create table failed")
+            .id;
+
+        let key = "bananas";
+
+        let sequencers = postgres
+            .repositories()
+            .await
+            .sequencers()
+            .list()
+            .await
+            .expect("failed to list sequencers");
+        assert!(
+            sequencers.len() > 1,
+            "expected more sequencers to be created, got {}",
+            sequencers.len()
+        );
+
+        let a = postgres
+            .repositories()
+            .await
+            .partitions()
+            .create_or_get(key, sequencers[0].id, table_id)
+            .await
+            .expect("should create OK");
+
+        // Call create_or_get for the same (key, table_id) tuple, setting a
+        // different sequencer ID
+        let b = postgres
+            .repositories()
+            .await
+            .partitions()
+            .create_or_get(key, sequencers[1].id, table_id)
+            .await
+            .expect("result should not be evaluated");
+
+        assert_eq!(a, b);
     }
 }
