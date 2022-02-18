@@ -5,13 +5,18 @@
 //! some absolute number and individual Parquet files that get persisted below some number. It
 //! is expected that they may be above or below the absolute thresholds.
 
-use crate::data::Persister;
+use crate::{
+    data::Persister,
+    poison::{PoisonCabinet, PoisonPill},
+};
 use iox_catalog::interface::PartitionId;
+use observability_deps::tracing::{error, info};
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 use time::{Time, TimeProvider};
+use tokio_util::sync::CancellationToken;
 
 /// The lifecycle manager keeps track of the size and age of partitions across all sequencers.
 /// It triggers persistence based on keeping total memory usage around a set amount while
@@ -238,10 +243,29 @@ const CHECK_INTERVAL: Duration = Duration::from_secs(1);
 pub(crate) async fn run_lifecycle_manager<P: Persister>(
     manager: Arc<LifecycleManager>,
     persister: Arc<P>,
+    shutdown: CancellationToken,
+    poison_cabinet: Arc<PoisonCabinet>,
 ) {
     loop {
+        if poison_cabinet.contains(&PoisonPill::LifecyclePanic) {
+            panic!("Lifecycle manager poisened, panic");
+        }
+        if poison_cabinet.contains(&PoisonPill::LifecycleExit) {
+            error!("Lifecycle manager poisened, exit early");
+            return;
+        }
+
+        if shutdown.is_cancelled() {
+            info!("Lifecycle manager shutdown");
+            return;
+        }
+
         manager.maybe_persist(&persister).await;
-        tokio::time::sleep(CHECK_INTERVAL).await;
+
+        tokio::select!(
+            _ = tokio::time::sleep(CHECK_INTERVAL) => {},
+            _ = shutdown.cancelled() => {},
+        );
     }
 }
 

@@ -27,6 +27,7 @@ object_store = { path = "../object_store" }
 parking_lot = "0.12"
 parquet = "9.0"
 parquet_file = { path = "../parquet_file" }
+pin-project = "1.0"
 observability_deps = { path = "../observability_deps" }
 predicate = { path = "../predicate" }
 prost = "0.9"
