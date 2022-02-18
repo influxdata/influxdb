@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 use metric::{Metric, U64Histogram, U64HistogramOptions};
 use time::{SystemProvider, TimeProvider};
-use trace::ctx::SpanContext;
+use trace::{ctx::SpanContext, span::SpanRecorder};
 
 use super::DmlHandler;
 
@@ -15,6 +15,7 @@ use super::DmlHandler;
 /// (success/error) with call latency reported in milliseconds.
 #[derive(Debug)]
 pub struct InstrumentationDecorator<T, P = SystemProvider> {
+    name: &'static str,
     inner: T,
     time_provider: P,
 
@@ -51,6 +52,7 @@ impl<T> InstrumentationDecorator<T> {
         let delete_error = delete.recorder(&[("handler", name), ("result", "error")]);
 
         Self {
+            name,
             inner,
             time_provider: Default::default(),
             write_success,
@@ -79,14 +81,25 @@ where
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
         let t = self.time_provider.now();
+
+        // Create a tracing span for this handler.
+        let mut span_recorder =
+            SpanRecorder::new(span_ctx.clone().map(|parent| parent.child(self.name)));
+
         let res = self.inner.write(namespace, input, span_ctx).await;
 
         // Avoid exploding if time goes backwards - simply drop the measurement
         // if it happens.
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Ok(_) => self.write_success.record(delta.as_millis() as _),
-                Err(_) => self.write_error.record(delta.as_millis() as _),
+                Ok(_) => {
+                    span_recorder.ok("success");
+                    self.write_success.record(delta.as_millis() as _)
+                }
+                Err(e) => {
+                    span_recorder.error(e.to_string());
+                    self.write_error.record(delta.as_millis() as _)
+                }
             };
         }
 
@@ -102,6 +115,11 @@ where
         span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::DeleteError> {
         let t = self.time_provider.now();
+
+        // Create a tracing span for this handler.
+        let mut span_recorder =
+            SpanRecorder::new(span_ctx.clone().map(|parent| parent.child(self.name)));
+
         let res = self
             .inner
             .delete(namespace, table_name, predicate, span_ctx)
@@ -111,8 +129,14 @@ where
         // if it happens.
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Ok(_) => self.delete_success.record(delta.as_millis() as _),
-                Err(_) => self.delete_error.record(delta.as_millis() as _),
+                Ok(_) => {
+                    span_recorder.ok("success");
+                    self.delete_success.record(delta.as_millis() as _)
+                }
+                Err(e) => {
+                    span_recorder.error(e.to_string());
+                    self.delete_error.record(delta.as_millis() as _)
+                }
             };
         }
 
