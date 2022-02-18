@@ -2124,6 +2124,7 @@ dependencies = [
  "snafu",
  "sqlx",
  "sqlx-hotswap-pool",
+ "tempfile",
  "test_helpers",
  "tokio",
  "uuid",

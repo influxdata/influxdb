@@ -24,6 +24,7 @@ mutable_batch_lp = { path = "../mutable_batch_lp" }
 paste = "1.0.6"
 pretty_assertions = "1.0.0"
 rand = "0.8"
+tempfile = "3"
 test_helpers = { path = "../test_helpers" }
 
 [features]
