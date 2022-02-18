@@ -253,7 +253,7 @@ async fn new_raw_pool(
                         .execute(&mut *c)
                         .await?;
                 }
-                let search_path_query = format!("SET search_path TO {}", schema_name);
+                let search_path_query = format!("SET search_path TO {},public", schema_name);
                 c.execute(sqlx::query(&search_path_query)).await?;
                 Ok(())
             })
