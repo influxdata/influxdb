@@ -7,6 +7,7 @@ use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use chrono::{format::StrftimeItems, TimeZone, Utc};
 use data_types::delete_predicate::DeletePredicate;
+use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
 use generated_types::{
     google::{FieldViolation, FieldViolationExt},
@@ -23,13 +24,9 @@ use observability_deps::tracing::{error, warn};
 use parking_lot::RwLock;
 use predicate::Predicate;
 use query::exec::Executor;
-use schema::selection::Selection;
-use schema::TIME_COLUMN_NAME;
+use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::convert::TryFrom;
-use std::ops::DerefMut;
-use std::time::Duration;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, convert::TryFrom, ops::DerefMut, sync::Arc, time::Duration};
 use time::SystemProvider;
 use uuid::Uuid;
 
@@ -918,7 +915,7 @@ pub struct IngesterQueryRequest {
     /// Predicate for filtering
     predicate: Option<Predicate>,
     /// Optionally only return rows with a sequence number greater than this
-    greater_than_sequence_number: Option<u64>,
+    greater_than_sequence_number: Option<SequenceNumber>,
 }
 
 impl IngesterQueryRequest {
@@ -932,7 +929,7 @@ impl IngesterQueryRequest {
         min_time: i64,
         max_time: i64,
         predicate: Option<Predicate>,
-        greater_than_sequence_number: Option<u64>,
+        greater_than_sequence_number: Option<SequenceNumber>,
     ) -> Self {
         Self {
             namespace,
@@ -964,6 +961,11 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
 
         let predicate = predicate.map(TryInto::try_into).transpose()?;
         let sequencer_id: i16 = sequencer_id.try_into().scope("sequencer_id")?;
+        let greater_than_sequence_number = greater_than_sequence_number
+            .map(TryInto::try_into)
+            .transpose()
+            .scope("greater_than_sequence_number")?
+            .map(SequenceNumber::new);
 
         Ok(Self::new(
             namespace,
@@ -979,18 +981,12 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
 }
 
 /// Response sending to the query service per its request defined in IngesterQueryRequest
-#[derive(Debug, PartialEq)]
 pub struct IngesterQueryResponse {
-    // TODO: talk with Carol to see if it is better to keep this a stream to record batches
-    //       or a vector  of record bacthes  #3640 & #3754
-    /// Responding Data
-    pub data: Option<RecordBatch>,
+    /// Stream of RecordBatch results that match the requested query
+    pub data: SendableRecordBatchStream,
 
-    /// Delete predicates
-    /// Note: this delete prdicates are just for the Querier to apply to the persisted data it reads from Parquet File.
-    /// These predicates are already applied APPROPRIATEDLY to the snapshot and persiting batches of DataBuffer to
-    /// produce the `data` and should not be reapplied WRONGLY to the full `data` at the Querier
-    pub delete_predicates: Vec<Arc<DeletePredicate>>,
+    /// The schema of the record batches
+    pub schema: Schema,
 
     /// Max persisted sequence number of the table
     /// Only return this if it is larger than the IngesterQueryRequest's greater_than_sequence_number
@@ -1000,22 +996,17 @@ pub struct IngesterQueryResponse {
 impl IngesterQueryResponse {
     /// Make a response
     pub fn new(
-        data: Option<RecordBatch>,
-        delete_predicates: Vec<Arc<DeletePredicate>>,
+        data: SendableRecordBatchStream,
+        schema: Schema,
         max_sequencer_number: Option<SequenceNumber>,
     ) -> Self {
         Self {
             data,
-            delete_predicates,
+            schema,
             max_sequencer_number,
         }
     }
 }
-
-/// Struct to manage returning data to a query request
-#[derive(Debug)]
-#[allow(missing_copy_implementations)]
-pub struct QueryData {}
 
 #[cfg(test)]
 mod tests {
@@ -1063,7 +1054,7 @@ mod tests {
             1,
             20,
             Some(rust_predicate),
-            Some(5),
+            Some(SequenceNumber::new(5)),
         );
 
         let proto_query = proto::IngesterQueryRequest {

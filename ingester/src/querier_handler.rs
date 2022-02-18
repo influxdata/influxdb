@@ -1,7 +1,6 @@
 //! Handle all requests from Querier
 
-use std::sync::Arc;
-
+use arrow::datatypes::Schema as ArrowSchema;
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use predicate::Predicate;
 use query::{
@@ -11,6 +10,7 @@ use query::{
 };
 use schema::selection::Selection;
 use snafu::{ResultExt, Snafu};
+use std::sync::Arc;
 
 use crate::data::{IngesterQueryRequest, IngesterQueryResponse, QueryableBatch};
 
@@ -56,7 +56,14 @@ pub async fn prepare_data_to_querier(
     //     3.5. Merge RecordBatches into one RecordBatch
     //  4. Send the RecordBatch to Querier. Or if possible (TBD with Carol), we should send them as a stream amd do not need to merge record batches
 
-    Ok(IngesterQueryResponse::new(None, vec![], None))
+    let schema = Arc::new(ArrowSchema::new(vec![]));
+    let stream = datafusion::physical_plan::EmptyRecordBatchStream::new(Arc::clone(&schema));
+
+    Ok(IngesterQueryResponse::new(
+        Box::pin(stream),
+        schema.try_into().unwrap(),
+        None,
+    ))
 }
 
 /// Query a given Queryable Batch, applying selection and filters as appropriate

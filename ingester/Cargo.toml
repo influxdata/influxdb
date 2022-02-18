@@ -24,11 +24,11 @@ iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch"}
 object_store = { path = "../object_store" }
+observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 parquet = "9.0"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.0"
-observability_deps = { path = "../observability_deps" }
 predicate = { path = "../predicate" }
 prost = "0.9"
 query = { path = "../query" }
