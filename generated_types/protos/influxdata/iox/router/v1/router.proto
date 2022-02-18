@@ -122,6 +122,19 @@ message QuerySinks {
 
 // A config file for a router server
 message RouterConfigFile {
+  message Instance {
+    // The name of this router instance
+    string name = 1;
+    // The `Router.name` of the template to use
+    string template = 2;
+  }
+
   // A list of router configurations
   repeated Router routers = 1;
+
+  // A list of router templates identified by `Router.name`
+  repeated Router templates = 2;
+
+  // A list of router configurations that instantiate a specific template by name
+  repeated Instance instances = 3;
 }

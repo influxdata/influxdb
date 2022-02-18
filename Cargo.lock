@@ -2047,6 +2047,7 @@ dependencies = [
  "parking_lot 0.12.0",
  "parquet",
  "parquet_file",
+ "pin-project",
  "predicate",
  "prost",
  "query",

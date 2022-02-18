@@ -17,6 +17,8 @@ pub struct IngesterServer<I: IngestHandler> {
 
     http: HttpDelegate<I>,
     grpc: GrpcDelegate<I>,
+
+    handler: Arc<I>,
 }
 
 impl<I: IngestHandler> IngesterServer<I> {
@@ -26,17 +28,29 @@ impl<I: IngestHandler> IngesterServer<I> {
         metrics: Arc<metric::Registry>,
         http: HttpDelegate<I>,
         grpc: GrpcDelegate<I>,
+        handler: Arc<I>,
     ) -> Self {
         Self {
             metrics,
             http,
             grpc,
+            handler,
         }
     }
 
     /// Return the [`metric::Registry`] used by the router.
     pub fn metric_registry(&self) -> Arc<metric::Registry> {
         Arc::clone(&self.metrics)
+    }
+
+    /// Join shutdown worker.
+    pub async fn join(&self) {
+        self.handler.join().await;
+    }
+
+    /// Shutdown background worker.
+    pub fn shutdown(&self) {
+        self.handler.shutdown();
     }
 }
 

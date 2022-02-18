@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use hyper::{Body, Request, Response};
 use ingester::server::IngesterServer;
 use metric::Registry;
-use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 use crate::influxdb_ioxd::{
@@ -20,7 +19,6 @@ use ingester::handler::IngestHandler;
 #[derive(Debug)]
 pub struct IngesterServerType<I: IngestHandler> {
     server: IngesterServer<I>,
-    shutdown: CancellationToken,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
@@ -28,7 +26,6 @@ impl<I: IngestHandler> IngesterServerType<I> {
     pub fn new(server: IngesterServer<I>, common_state: &CommonServerState) -> Self {
         Self {
             server,
-            shutdown: CancellationToken::new(),
             trace_collector: common_state.trace_collector(),
         }
     }
@@ -66,11 +63,11 @@ impl<I: IngestHandler + Sync + Send + Debug + 'static> ServerType for IngesterSe
     }
 
     async fn join(self: Arc<Self>) {
-        self.shutdown.cancelled().await;
+        self.server.join().await;
     }
 
     fn shutdown(&self) {
-        self.shutdown.cancel();
+        self.server.shutdown();
     }
 }
 

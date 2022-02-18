@@ -4,6 +4,7 @@ use crate::{
     end_to_end_cases::scenario::rand_name,
 };
 use assert_cmd::Command;
+use generated_types::influxdata::iox::router::v1::{write_sink::Sink, Router};
 use predicates::prelude::*;
 use std::io::Write;
 
@@ -98,23 +99,65 @@ async fn test_router_static_config() {
 
     let config = r#"
     {
-      "routers": [
+      "routers":[
         {
-          "name": "foo",
-          "writeSharder": {
-            "hashRing": {
-              "shards": [1]
+          "name":"foo",
+          "writeSharder":{
+            "hashRing":{
+              "shards":[
+                1
+              ]
             }
           },
-          "writeSinks": {
-            "1": {
-              "sinks": [
+          "writeSinks":{
+            "1":{
+              "sinks":[
                 {
-                  "grpcRemote": 12
+                  "grpcRemote":12
                 }
               ]
             }
           }
+        }
+      ],
+      "templates":[
+        {
+          "name":"default",
+          "writeSharder":{
+            "specificTargets":[
+              {
+                "matcher":{
+                  "tableNameRegex":".*"
+                },
+                "shard":1
+              }
+            ]
+          },
+          "writeSinks":{
+            "1":{
+              "sinks":[
+                {
+                  "writeBuffer":{
+                    "type":"kafka",
+                    "connection":"kafka-bootstrap:9092",
+                    "creationConfig":{
+                      "nSequencers":1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "instances": [
+        {
+          "name": "instance1",
+          "template": "default"
+        },
+        {
+          "name": "instance2",
+          "template": "default"
         }
       ]
     }"#;
@@ -150,6 +193,32 @@ async fn test_router_static_config() {
         .assert()
         .success()
         .stdout(predicate::str::contains("\"grpcRemote\": 12"));
+
+    // Template instantiated
+    for instance in ["instance1", "instance2"] {
+        let output = Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("router")
+            .arg("get")
+            .arg(instance)
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success();
+
+        let decoded: Router = serde_json::from_slice(&output.get_output().stdout).unwrap();
+        assert_eq!(decoded.name, instance);
+        match &decoded.write_sinks.get(&1).unwrap().sinks[0].sink {
+            Some(Sink::WriteBuffer(x)) => {
+                assert_eq!(x.creation_config.as_ref().unwrap().n_sequencers, 1);
+                assert_eq!(x.connection, "kafka-bootstrap:9092");
+            }
+            _ => panic!(
+                "unexpected output: {}",
+                String::from_utf8_lossy(&output.get_output().stdout)
+            ),
+        }
+    }
 
     // Cannot create router
     Command::cargo_bin("influxdb_iox")

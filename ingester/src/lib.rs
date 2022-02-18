@@ -18,6 +18,7 @@ pub mod data;
 pub mod handler;
 pub mod lifecycle;
 pub mod persist;
+mod poison;
 pub mod querier_handler;
 pub mod query;
 pub mod server;

@@ -1,5 +1,6 @@
 //! Implementation of command line option for running server
 
+use hashbrown::HashMap;
 use std::sync::Arc;
 
 use crate::{
@@ -12,6 +13,7 @@ use crate::{
         },
     },
 };
+use data_types::router::Router as RouterConfig;
 use generated_types::{google::FieldViolation, influxdata::iox::router::v1::RouterConfigFile};
 use observability_deps::tracing::warn;
 use router::{resolver::RemoteTemplate, server::RouterServer};
@@ -35,8 +37,14 @@ pub enum Error {
     #[error("error decoding config file: {0}")]
     DecodeConfig(#[from] serde_json::Error),
 
-    #[error("invalid config for router {0} in config file: {1}")]
+    #[error("invalid config for router \"{0}\" in config file: {1}")]
     InvalidRouterConfig(String, FieldViolation),
+
+    #[error("invalid router template \"{0}\" in config file: {1}")]
+    InvalidRouterTemplate(String, FieldViolation),
+
+    #[error("router template \"{template}\" not found for router \"{name}\"")]
+    TemplateNotFound { name: String, template: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -103,6 +111,35 @@ pub async fn command(config: Config) -> Result<()> {
                     .map_err(|e| Error::InvalidRouterConfig(name, e))?;
 
                 router_server.update_router(config);
+            }
+
+            let templates = config
+                .templates
+                .into_iter()
+                .map(|router| {
+                    let name = router.name.clone();
+                    match router.try_into() {
+                        Ok(router) => Ok((name, router)),
+                        Err(e) => Err(Error::InvalidRouterTemplate(name, e)),
+                    }
+                })
+                .collect::<Result<HashMap<String, RouterConfig>>>()?;
+
+            for instance in config.instances {
+                match templates.get(&instance.template) {
+                    Some(template) => {
+                        router_server.update_router(RouterConfig {
+                            name: instance.name,
+                            ..template.clone()
+                        });
+                    }
+                    None => {
+                        return Err(Error::TemplateNotFound {
+                            name: instance.name,
+                            template: instance.template,
+                        })
+                    }
+                }
             }
 
             true
