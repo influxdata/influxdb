@@ -2396,9 +2396,9 @@ dependencies = [
 
 [[package]]
 name = "kube-runtime"
-version = "0.69.0"
+version = "0.69.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc3a141c952b29f5ef3a1f0ec397dcf1a473be55f162bceac9ebec046c524330"
+checksum = "32e8bf2258850dbc0a062b561656a1d7020fa8040d552e149f0a0361f0d6794e"
 dependencies = [
  "ahash",
  "backoff",
