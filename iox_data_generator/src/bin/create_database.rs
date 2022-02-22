@@ -12,7 +12,7 @@
 
 use std::collections::HashMap;
 
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use influxdb_iox_client::{
     management::generated_types::{
         lifecycle_rules, partition_template, DatabaseRules, LifecycleRules, PartitionTemplate,
@@ -37,7 +37,7 @@ Examples:
     create_database --grpc-bind 127.0.0.1:9000 myorg_mybucket
 "#;
 
-    let matches = App::new(help)
+    let matches = Command::new(help)
         .about("IOx Database creation script")
         .arg(
             Arg::new("DATABASE_NAME")

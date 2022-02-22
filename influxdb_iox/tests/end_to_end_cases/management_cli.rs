@@ -484,7 +484,7 @@ async fn release_database() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "Invalid value for '--uuid <UUID>'",
+            r#"Invalid value "foo" for '--uuid <UUID>'"#,
         ));
 
     // If an optional UUID is specified, release the database if the UUID does match
@@ -636,7 +636,9 @@ async fn claim_database() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Invalid value for '<UUID>'"));
+        .stderr(predicate::str::contains(
+            r#"Invalid value "foo" for '<UUID>'"#,
+        ));
 
     // Claiming a valid but unknown UUID is an error
     let unknown_uuid = Uuid::new_v4();

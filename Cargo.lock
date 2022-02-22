@@ -533,9 +533,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.0.14"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b63edc3f163b3c71ec8aa23f9bd6070f77edbf3d1d198b164afa90ff00e4ec62"
+checksum = "6d76c22c9b9b215eeb8d016ad3a90417bd13cb24cf8142756e6472445876cab7"
 dependencies = [
  "atty",
  "bitflags",
@@ -550,9 +550,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.0.12"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fd2078197a22f338bd4fbf7d6387eb6f0d6a3c69e6cbc09f5c93e97321fd92a"
+checksum = "5fd1122e63869df2cb309f449da1ad54a7c6dfeb7c7e6ccd8e0825d9eb93bb72"
 dependencies = [
  "heck 0.4.0",
  "proc-macro-error",
@@ -1883,7 +1883,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
- "clap 3.0.14",
+ "clap 3.1.1",
  "comfy-table",
  "compactor",
  "csv",
@@ -2164,7 +2164,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 3.0.14",
+ "clap 3.1.1",
  "criterion",
  "data_types",
  "futures",
@@ -2193,7 +2193,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
- "clap 3.0.14",
+ "clap 3.1.1",
  "dotenv",
  "futures",
  "glob",
@@ -5497,7 +5497,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 3.0.14",
+ "clap 3.1.1",
  "futures",
  "observability_deps",
  "snafu",
@@ -5642,7 +5642,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 3.0.14",
+ "clap 3.1.1",
  "logfmt",
  "observability_deps",
  "regex",

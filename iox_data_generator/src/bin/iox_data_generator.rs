@@ -12,7 +12,7 @@
 
 use chrono::prelude::*;
 use chrono_english::{parse_date_string, Dialect};
-use clap::{crate_authors, crate_version, App, Arg};
+use clap::{crate_authors, crate_version, Arg, Command};
 use iox_data_generator::{specification::DataSpec, write::PointsWriterBuilder};
 use std::fs::File;
 use std::io::{self, BufRead};
@@ -47,7 +47,7 @@ Logging:
 
 "#;
 
-    let matches = App::new(help)
+    let matches = Command::new(help)
         .version(crate_version!())
         .author(crate_authors!())
         .about("IOx data point generator")

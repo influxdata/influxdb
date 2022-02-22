@@ -40,7 +40,7 @@ pub struct WriteBufferConfig {
         env = "INFLUXDB_IOX_WRITE_BUFFER_CONNECTION_CONFIG",
         default_value = "",
         multiple_values = true,
-        use_delimiter = true
+        use_value_delimiter = true
     )]
     pub(crate) connection_config: Vec<String>,
 
