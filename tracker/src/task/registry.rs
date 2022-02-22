@@ -26,6 +26,37 @@ impl ToString for TaskId {
     }
 }
 
+pub trait AbstractTaskRegistry<T>
+where
+    T: std::fmt::Debug + Send + Sync,
+{
+    /// Register a new tracker in the registry
+    fn register(&mut self, metadata: T) -> (TaskTracker<T>, TaskRegistration);
+
+    /// Returns a complete tracker
+    fn complete(&mut self, metadata: T) -> TaskTracker<T> {
+        self.register(metadata).0
+    }
+
+    /// Get the tracker associated with a given id
+    fn get(&self, id: TaskId) -> Option<TaskTracker<T>>;
+
+    /// Returns the number of tracked tasks
+    fn tracked_len(&self) -> usize;
+
+    /// Returns a list of trackers, including those that are no longer running
+    fn tracked(&self) -> Vec<TaskTracker<T>>;
+
+    /// Returns a list of active trackers
+    fn running(&self) -> Vec<TaskTracker<T>>;
+
+    /// Removes completed tasks from the registry and returns a vector of
+    /// those removed.
+    ///
+    /// Should be called periodically.
+    fn reclaim(&mut self) -> Vec<TaskTracker<T>>;
+}
+
 /// Allows tracking the lifecycle of futures registered by
 /// `TrackedFutureExt::track` with an accompanying metadata payload of type T
 ///
@@ -51,9 +82,13 @@ where
             time_provider,
         }
     }
+}
 
-    /// Register a new tracker in the registry
-    pub fn register(&mut self, metadata: T) -> (TaskTracker<T>, TaskRegistration) {
+impl<T> AbstractTaskRegistry<T> for TaskRegistry<T>
+where
+    T: std::fmt::Debug + Send + Sync,
+{
+    fn register(&mut self, metadata: T) -> (TaskTracker<T>, TaskRegistration) {
         let id = TaskId(self.next_id);
         self.next_id += 1;
 
@@ -65,35 +100,19 @@ where
         (tracker, registration)
     }
 
-    /// Returns a complete tracker
-    pub fn complete(&mut self, metadata: T) -> TaskTracker<T> {
-        self.register(metadata).0
-    }
-
-    /// Removes completed tasks from the registry and returns an iterator of
-    /// those removed
-    pub fn reclaim(&mut self) -> impl Iterator<Item = TaskTracker<T>> + '_ {
-        self.tasks
-            .drain_filter(|_, v| v.is_complete())
-            .map(|(_, v)| v)
-    }
-
-    pub fn get(&self, id: TaskId) -> Option<TaskTracker<T>> {
+    fn get(&self, id: TaskId) -> Option<TaskTracker<T>> {
         self.tasks.get(&id).cloned()
     }
 
-    /// Returns the number of tracked tasks
-    pub fn tracked_len(&self) -> usize {
+    fn tracked_len(&self) -> usize {
         self.tasks.len()
     }
 
-    /// Returns a list of trackers, including those that are no longer running
-    pub fn tracked(&self) -> Vec<TaskTracker<T>> {
+    fn tracked(&self) -> Vec<TaskTracker<T>> {
         self.tasks.values().cloned().collect()
     }
 
-    /// Returns a list of active trackers
-    pub fn running(&self) -> Vec<TaskTracker<T>> {
+    fn running(&self) -> Vec<TaskTracker<T>> {
         self.tasks
             .values()
             .filter_map(|v| {
@@ -102,6 +121,15 @@ where
                 }
                 None
             })
+            .collect()
+    }
+
+    /// Removes completed tasks from the registry and returns an iterator of
+    /// those removed
+    fn reclaim(&mut self) -> Vec<TaskTracker<T>> {
+        self.tasks
+            .drain_filter(|_, v| v.is_complete())
+            .map(|(_, v)| v)
             .collect()
     }
 }

@@ -727,7 +727,7 @@ mod tests {
         sync::Arc,
     };
     use time::{MockProvider, TimeProvider};
-    use tracker::{RwLock, TaskRegistry};
+    use tracker::{AbstractTaskRegistry, RwLock, TaskRegistry};
 
     #[derive(Debug, Eq, PartialEq)]
     enum MoverEvents {

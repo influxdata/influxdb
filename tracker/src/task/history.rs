@@ -1,77 +1,75 @@
-use super::{TaskId, TaskRegistration, TaskRegistry, TaskTracker};
+use super::registry::AbstractTaskRegistry;
+use super::{TaskId, TaskRegistration, TaskTracker};
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
 use observability_deps::tracing::info;
 use std::hash::Hash;
-use std::sync::Arc;
-use time::TimeProvider;
 
 /// A wrapper around a TaskRegistry that automatically retains a history
 #[derive(Debug)]
-pub struct TaskRegistryWithHistory<T>
+pub struct TaskRegistryWithHistory<T, R>
 where
-    T: Send + Sync,
+    T: std::fmt::Debug + Send + Sync,
+    R: AbstractTaskRegistry<T>,
 {
-    registry: TaskRegistry<T>,
+    registry: R,
     history: SizeLimitedHashMap<TaskId, TaskTracker<T>>,
 }
 
-impl<T: std::fmt::Display> TaskRegistryWithHistory<T>
+impl<T, R> TaskRegistryWithHistory<T, R>
 where
-    T: Send + Sync,
+    T: std::fmt::Debug + Send + Sync,
+    R: AbstractTaskRegistry<T>,
 {
-    pub fn new(time_provider: Arc<dyn TimeProvider>, capacity: usize) -> Self {
+    pub fn new(inner: R, capacity: usize) -> Self {
         Self {
             history: SizeLimitedHashMap::new(capacity),
-            registry: TaskRegistry::new(time_provider),
+            registry: inner,
         }
     }
+}
 
-    /// Register a new tracker in the registry
-    pub fn register(&mut self, metadata: T) -> (TaskTracker<T>, TaskRegistration) {
+impl<T, R> AbstractTaskRegistry<T> for TaskRegistryWithHistory<T, R>
+where
+    T: std::fmt::Debug + Send + Sync,
+    R: AbstractTaskRegistry<T>,
+{
+    fn register(&mut self, metadata: T) -> (TaskTracker<T>, TaskRegistration) {
         self.registry.register(metadata)
     }
 
-    /// Get the tracker associated with a given id
-    pub fn get(&self, id: TaskId) -> Option<TaskTracker<T>> {
+    fn get(&self, id: TaskId) -> Option<TaskTracker<T>> {
         match self.history.get(&id) {
             Some(x) => Some(x.clone()),
             None => self.registry.get(id),
         }
     }
 
-    pub fn tracked_len(&self) -> usize {
+    fn tracked_len(&self) -> usize {
         self.registry.tracked_len()
     }
 
-    /// Returns a list of trackers, including those that are no longer running
-    pub fn tracked(&self) -> Vec<TaskTracker<T>> {
+    fn tracked(&self) -> Vec<TaskTracker<T>> {
         let mut tracked = self.registry.tracked();
         tracked.extend(self.history.values().cloned());
         tracked
     }
 
-    /// Returns a list of running trackers
-    pub fn running(&self) -> Vec<TaskTracker<T>> {
+    fn running(&self) -> Vec<TaskTracker<T>> {
         self.registry.running()
     }
 
-    /// Reclaims jobs into the historical archive
-    ///
-    /// Returns list of reclaimed jobs as well as a list of jobs that were pruned from the history.
-    pub fn reclaim(&mut self) -> (Vec<TaskTracker<T>>, Vec<TaskTracker<T>>) {
-        let mut reclaimed = vec![];
+    fn reclaim(&mut self) -> Vec<TaskTracker<T>> {
         let mut pruned = vec![];
 
         for job in self.registry.reclaim() {
-            info!(%job, "job finished");
-            reclaimed.push(job.clone());
+            info!(?job, "job finished");
             if let Some((_pruned_id, pruned_job)) = self.history.push(job.id(), job) {
                 pruned.push(pruned_job);
             }
         }
 
-        (reclaimed, pruned)
+        pruned
     }
 }
 
@@ -153,6 +151,10 @@ impl<K: Copy + Hash + Eq + Ord, V> SizeLimitedHashMap<K, V> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use crate::TaskRegistry;
+
     use super::*;
 
     #[test]
@@ -188,14 +190,16 @@ mod tests {
 
     #[test]
     fn test_registry_archive() {
-        let compare = |expected_ids: &[TaskId], archive: &TaskRegistryWithHistory<i32>| {
-            let mut collected: Vec<_> = archive.history.values().map(|x| x.id()).collect();
-            collected.sort();
-            assert_eq!(&collected, expected_ids);
-        };
+        let compare =
+            |expected_ids: &[TaskId], archive: &TaskRegistryWithHistory<i32, TaskRegistry<i32>>| {
+                let mut collected: Vec<_> = archive.history.values().map(|x| x.id()).collect();
+                collected.sort();
+                assert_eq!(&collected, expected_ids);
+            };
 
         let time_provider = Arc::new(time::SystemProvider::new());
-        let mut archive = TaskRegistryWithHistory::new(time_provider, 4);
+        let registry = TaskRegistry::new(time_provider);
+        let mut archive = TaskRegistryWithHistory::new(registry, 4);
 
         for i in 0..=3 {
             archive.register(i);

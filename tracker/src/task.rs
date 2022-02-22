@@ -91,11 +91,13 @@ use tokio_util::sync::CancellationToken;
 
 pub use future::{TrackedFuture, TrackedFutureExt};
 pub use history::TaskRegistryWithHistory;
-pub use registry::{TaskId, TaskRegistry};
+pub use metrics::TaskRegistryWithMetrics;
+pub use registry::{AbstractTaskRegistry, TaskId, TaskRegistry};
 use tokio::sync::Notify;
 
 mod future;
 mod history;
+mod metrics;
 mod registry;
 
 /// The state shared between all sibling tasks
@@ -551,6 +553,8 @@ impl Drop for TaskRegistration {
 mod tests {
     use std::time::Duration;
 
+    use crate::task::registry::AbstractTaskRegistry;
+
     use super::*;
     use futures::FutureExt;
     use std::convert::Infallible;
@@ -736,7 +740,7 @@ mod tests {
         assert_eq!(get_metadata(&tracked), vec![1, 2, 3]);
 
         // Expect reclaim to find now finished registration1
-        let reclaimed = sorted(registry.reclaim().collect());
+        let reclaimed = sorted(registry.reclaim());
         assert_eq!(reclaimed.len(), 1);
         assert_eq!(get_metadata(&reclaimed), vec![1]);
 
@@ -786,7 +790,7 @@ mod tests {
             TaskStatus::Complete { total_count: 2, .. }
         ));
 
-        let reclaimed = sorted(registry.reclaim().collect());
+        let reclaimed = sorted(registry.reclaim());
 
         assert_eq!(reclaimed.len(), 2);
         assert_eq!(get_metadata(&reclaimed), vec![2, 3]);
@@ -884,13 +888,13 @@ mod tests {
 
         // Should only consider tasks complete once cannot register more Futures
         let reclaimed = registry.reclaim();
-        assert_eq!(reclaimed.count(), 0);
+        assert_eq!(reclaimed.len(), 0);
 
         let task2 = tokio::spawn(ready_ok().track(registration));
         task2.await.unwrap().unwrap().unwrap();
 
         let reclaimed = registry.reclaim();
-        assert_eq!(reclaimed.count(), 1);
+        assert_eq!(reclaimed.len(), 1);
     }
 
     #[tokio::test]
