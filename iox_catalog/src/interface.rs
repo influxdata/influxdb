@@ -505,6 +505,13 @@ pub trait SequencerRepo: Send + Sync {
 
     /// list all sequencers for a given kafka topic
     async fn list_by_kafka_topic(&mut self, topic: &KafkaTopic) -> Result<Vec<Sequencer>>;
+
+    /// updates the `min_unpersisted_sequence_number` for a sequencer
+    async fn update_min_unpersisted_sequence_number(
+        &mut self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) -> Result<()>;
 }
 
 /// Functions for working with IOx partitions in the catalog. Note that these are how
@@ -1291,6 +1298,20 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_eq!(kafka.id, sequencer.kafka_topic_id);
         assert_eq!(kafka_partition, sequencer.kafka_partition);
+
+        // update the number
+        repos
+            .sequencers()
+            .update_min_unpersisted_sequence_number(sequencer.id, SequenceNumber::new(53))
+            .await
+            .unwrap();
+        let updated_sequencer = repos
+            .sequencers()
+            .create_or_get(&kafka, kafka_partition)
+            .await
+            .unwrap();
+        assert_eq!(updated_sequencer.id, sequencer.id);
+        assert_eq!(updated_sequencer.min_unpersisted_sequence_number, 53);
 
         let sequencer = repos
             .sequencers()

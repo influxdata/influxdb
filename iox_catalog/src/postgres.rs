@@ -724,6 +724,23 @@ SELECT * FROM sequencer WHERE kafka_topic_id = $1 AND kafka_partition = $2;
             .await
             .map_err(|e| Error::SqlxError { source: e })
     }
+
+    async fn update_min_unpersisted_sequence_number(
+        &mut self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) -> Result<()> {
+        let _ = sqlx::query(
+            r#"UPDATE sequencer SET min_unpersisted_sequence_number = $1 WHERE id = $2;"#,
+        )
+        .bind(&sequence_number.get()) // $1
+        .bind(&sequencer_id) // $2
+        .execute(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(())
+    }
 }
 
 #[async_trait]

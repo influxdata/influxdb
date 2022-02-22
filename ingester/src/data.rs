@@ -134,12 +134,22 @@ impl IngesterData {
     }
 }
 
-/// The Persister has a single function that will persist a given partition Id. It is expected
-/// that the persist function will retry forever until it succeeds.
+/// The Persister has a function to persist a given partition ID and to update the
+/// assocated sequencer's `min_unpersisted_sequence_number`.
 #[async_trait]
 pub trait Persister: Send + Sync + 'static {
     /// Persits the partition ID. Will retry forever until it succeeds.
     async fn persist(&self, partition_id: PartitionId);
+
+    /// Updates the sequencer's `min_unpersisted_sequence_number` in the catalog.
+    /// This number represents the minimum that might be unpersisted, which is the
+    /// farthest back the ingester would need to read in the write buffer to ensure
+    /// that all data would be correctly replayed on startup.
+    async fn update_min_unpersisted_sequence_number(
+        &self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    );
 }
 
 #[async_trait]
@@ -278,6 +288,29 @@ impl Persister for IngesterData {
             &partition_info.table_name,
             &partition_info.partition.partition_key,
         );
+    }
+
+    async fn update_min_unpersisted_sequence_number(
+        &self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) {
+        loop {
+            if let Err(e) = self
+                .catalog
+                .repositories()
+                .await
+                .sequencers()
+                .update_min_unpersisted_sequence_number(sequencer_id, sequence_number)
+                .await
+            {
+                warn!(%e, ?sequencer_id, "updating min_unpersisted_sequence_number: retrying.");
+                tokio::time::sleep(RETRY_TIME).await;
+                continue;
+            }
+
+            break;
+        }
     }
 }
 
@@ -537,7 +570,12 @@ impl TableData {
             }
         };
 
-        let should_pause = lifecycle_manager.log_write(partition_data.id, batch.size());
+        let should_pause = lifecycle_manager.log_write(
+            partition_data.id,
+            sequencer_id,
+            sequence_number,
+            batch.size(),
+        );
         partition_data.buffer_write(sequence_number, batch);
 
         Ok(should_pause)

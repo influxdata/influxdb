@@ -9,7 +9,7 @@ use crate::{
     data::Persister,
     poison::{PoisonCabinet, PoisonPill},
 };
-use iox_catalog::interface::PartitionId;
+use iox_catalog::interface::{PartitionId, SequenceNumber, SequencerId};
 use observability_deps::tracing::{error, info};
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
@@ -96,6 +96,8 @@ pub struct LifecycleStats {
 /// The stats for a partition
 #[derive(Debug, Clone, Copy)]
 pub struct PartitionLifecycleStats {
+    /// The sequencer this partition is under
+    sequencer_id: SequencerId,
     /// The partition identifier
     partition_id: PartitionId,
     /// Time that the partition received its first write. This is reset anytime
@@ -103,6 +105,9 @@ pub struct PartitionLifecycleStats {
     first_write: Time,
     /// The number of bytes in the partition as estimated by the mutable batch sizes.
     bytes_written: usize,
+    /// The sequence number the partition received on its first write. This is reset anytime
+    /// the partition is persisted.
+    first_sequence_number: SequenceNumber,
 }
 
 impl LifecycleManager {
@@ -120,14 +125,22 @@ impl LifecycleManager {
     /// Logs bytes written into a partition so that it can be tracked for the manager to
     /// trigger persistence. Returns true if the ingester should pause consuming from the
     /// write buffer so that persistence can catch up and free up memory.
-    pub fn log_write(&self, partition_id: PartitionId, bytes_written: usize) -> bool {
+    pub fn log_write(
+        &self,
+        partition_id: PartitionId,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+        bytes_written: usize,
+    ) -> bool {
         let mut s = self.state.lock();
         s.partition_stats
             .entry(partition_id)
             .or_insert_with(|| PartitionLifecycleStats {
+                sequencer_id,
                 partition_id,
                 first_write: self.time_provider.now(),
                 bytes_written: 0,
+                first_sequence_number: sequence_number,
             })
             .bytes_written += bytes_written;
         s.total_bytes += bytes_written;
@@ -158,25 +171,62 @@ impl LifecycleManager {
         // get anything over the threshold size or age to persist
         let now = self.time_provider.now();
 
-        let (to_persist, mut rest): (Vec<PartitionLifecycleStats>, Vec<PartitionLifecycleStats>) =
-            partition_stats.into_iter().partition(|s| {
-                let aged_out = now
-                    .checked_duration_since(s.first_write)
-                    .map(|age| age > self.config.partition_age_threshold)
-                    .unwrap_or(false);
-                let sized_out = s.bytes_written > self.config.partition_size_threshold;
+        let (mut to_persist, mut rest): (
+            Vec<PartitionLifecycleStats>,
+            Vec<PartitionLifecycleStats>,
+        ) = partition_stats.into_iter().partition(|s| {
+            let aged_out = now
+                .checked_duration_since(s.first_write)
+                .map(|age| age > self.config.partition_age_threshold)
+                .unwrap_or(false);
+            let sized_out = s.bytes_written > self.config.partition_size_threshold;
 
-                aged_out || sized_out
-            });
+            aged_out || sized_out
+        });
 
-        let mut persist_tasks: Vec<_> = to_persist
+        // keep track of what we'll be evicting to see what else to drop
+        for s in &to_persist {
+            total_bytes -= s.bytes_written;
+        }
+
+        // if we're still over the memory threshold, persist as many of the largest partitions
+        // until we're under. It's ok if this is stale, it'll just get handled on the next pass
+        // through.
+        if total_bytes > self.config.persist_memory_threshold {
+            rest.sort_by(|a, b| b.bytes_written.cmp(&a.bytes_written));
+
+            let mut remaining = vec![];
+
+            for s in rest {
+                if total_bytes >= self.config.persist_memory_threshold {
+                    total_bytes -= s.bytes_written;
+                    to_persist.push(s);
+                } else {
+                    remaining.push(s);
+                }
+            }
+
+            rest = remaining;
+        }
+
+        // for the sequencers that are getting data persisted, keep track of what
+        // the highest seqeunce number was for each.
+        let mut sequencer_maxes = BTreeMap::new();
+        for s in &to_persist {
+            sequencer_maxes
+                .entry(s.sequencer_id)
+                .and_modify(|sn| {
+                    if *sn < s.first_sequence_number {
+                        *sn = s.first_sequence_number;
+                    }
+                })
+                .or_insert(s.first_sequence_number);
+        }
+
+        let persist_tasks: Vec<_> = to_persist
             .into_iter()
             .map(|s| {
-                let bytes_removed = self
-                    .remove(s.partition_id)
-                    .map(|s| s.bytes_written)
-                    .unwrap_or(0);
-                total_bytes -= bytes_removed;
+                self.remove(s.partition_id);
                 let persister = Arc::clone(persister);
 
                 tokio::task::spawn(async move {
@@ -185,38 +235,27 @@ impl LifecycleManager {
             })
             .collect();
 
-        // if we're still over the memory threshold, persist as many of the largest partitions
-        // until we're under. It's ok if this is stale, it'll just get handled on the next pass
-        // through.
-        if total_bytes > self.config.persist_memory_threshold {
-            let mut to_persist = vec![];
+        if !persist_tasks.is_empty() {
+            let persists = futures::future::join_all(persist_tasks.into_iter());
+            persists.await;
 
-            rest.sort_by(|a, b| b.bytes_written.cmp(&a.bytes_written));
-
-            for s in rest {
-                total_bytes -= s.bytes_written;
-                to_persist.push(s);
-                if total_bytes < self.config.persist_memory_threshold {
-                    break;
-                }
+            // for the sequencers that had data persisted, update their min_unpersisted_sequence_number to
+            // either the minimum remaining in everything that didn't get persisted, or the highest
+            // number that was persisted. Marking the highest number as the state is ok because it
+            // just needs to represent the farthest we'd have to seek back in the write buffer. Any
+            // data replayed during recovery that has already been persisted will just be ignored.
+            for (sequencer_id, sequence_number) in sequencer_maxes {
+                let min = rest
+                    .iter()
+                    .filter(|s| s.sequencer_id == sequencer_id)
+                    .max_by_key(|s| s.first_sequence_number)
+                    .map(|s| s.first_sequence_number)
+                    .unwrap_or(sequence_number);
+                persister
+                    .update_min_unpersisted_sequence_number(sequencer_id, min)
+                    .await;
             }
-
-            let mut to_persist: Vec<_> = to_persist
-                .into_iter()
-                .map(|s| {
-                    self.remove(s.partition_id);
-                    let persister = Arc::clone(persister);
-                    tokio::task::spawn(async move {
-                        persister.persist(s.partition_id).await;
-                    })
-                })
-                .collect();
-
-            persist_tasks.append(&mut to_persist);
         }
-
-        let persists = futures::future::join_all(persist_tasks.into_iter());
-        persists.await;
     }
 
     /// Returns a point in time snapshot of the lifecycle state.
@@ -279,6 +318,7 @@ mod tests {
     #[derive(Default)]
     struct TestPersister {
         persist_called: Mutex<BTreeSet<PartitionId>>,
+        update_min_calls: Mutex<Vec<(SequencerId, SequenceNumber)>>,
     }
 
     #[async_trait]
@@ -287,12 +327,26 @@ mod tests {
             let mut p = self.persist_called.lock();
             p.insert(partition_id);
         }
+
+        async fn update_min_unpersisted_sequence_number(
+            &self,
+            sequencer_id: SequencerId,
+            sequence_number: SequenceNumber,
+        ) {
+            let mut u = self.update_min_calls.lock();
+            u.push((sequencer_id, sequence_number));
+        }
     }
 
     impl TestPersister {
         fn persist_called_for(&self, partition_id: PartitionId) -> bool {
             let p = self.persist_called.lock();
             p.contains(&partition_id)
+        }
+
+        fn update_min_calls(&self) -> Vec<(SequencerId, SequenceNumber)> {
+            let u = self.update_min_calls.lock();
+            u.clone()
         }
     }
 
@@ -307,14 +361,15 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let tp = Arc::clone(&time_provider);
         let m = LifecycleManager::new(config, tp);
+        let sequencer_id = SequencerId::new(1);
 
         // log first two writes at different times
-        assert!(!m.log_write(PartitionId::new(1), 1));
+        assert!(!m.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(1), 1));
         time_provider.inc(Duration::from_nanos(10));
-        assert!(!m.log_write(PartitionId::new(1), 1));
+        assert!(!m.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(2), 1));
 
         // log another write for different partition
-        assert!(!m.log_write(PartitionId::new(2), 3));
+        assert!(!m.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(3), 3));
 
         let stats = m.stats();
         assert_eq!(stats.total_bytes, 5);
@@ -340,16 +395,27 @@ mod tests {
         };
         let time_provider = Arc::new(SystemProvider::new());
         let m = LifecycleManager::new(config, time_provider);
+        let sequencer_id = SequencerId::new(1);
 
-        assert!(!m.log_write(PartitionId::new(1), 15));
+        assert!(!m.log_write(
+            PartitionId::new(1),
+            sequencer_id,
+            SequenceNumber::new(1),
+            15
+        ));
 
         // now it should indicate a pause
-        assert!(m.log_write(PartitionId::new(1), 10));
+        assert!(m.log_write(
+            PartitionId::new(1),
+            sequencer_id,
+            SequenceNumber::new(2),
+            10
+        ));
         assert!(!m.can_resume_ingest());
 
         m.remove(PartitionId::new(1));
         assert!(m.can_resume_ingest());
-        assert!(!m.log_write(PartitionId::new(1), 3));
+        assert!(!m.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(3), 3));
     }
 
     #[tokio::test]
@@ -365,7 +431,9 @@ mod tests {
         let m = LifecycleManager::new(config, tp);
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
-        m.log_write(partition_id, 10);
+        let sequencer_id = SequencerId::new(1);
+
+        m.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 10);
 
         m.maybe_persist(&persister).await;
         let stats = m.stats();
@@ -379,12 +447,16 @@ mod tests {
         assert!(!persister.persist_called_for(partition_id));
 
         // write in data for a new partition so we can be sure it isn't persisted, but the older one is
-        m.log_write(PartitionId::new(2), 6);
+        m.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 6);
 
         m.maybe_persist(&persister).await;
 
         assert!(persister.persist_called_for(partition_id));
         assert!(!persister.persist_called_for(PartitionId::new(2)));
+        assert_eq!(
+            persister.update_min_calls(),
+            vec![(sequencer_id, SequenceNumber::new(2))]
+        );
 
         let stats = m.stats();
         assert_eq!(stats.total_bytes, 6);
@@ -401,11 +473,12 @@ mod tests {
             partition_age_threshold: Duration::from_millis(100),
         };
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let sequencer_id = SequencerId::new(1);
 
         let m = LifecycleManager::new(config, time_provider);
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
-        m.log_write(partition_id, 4);
+        m.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 4);
 
         m.maybe_persist(&persister).await;
 
@@ -415,13 +488,17 @@ mod tests {
         assert!(!persister.persist_called_for(partition_id));
 
         // introduce a new partition under the limit to verify it doesn't get taken with the other
-        m.log_write(PartitionId::new(2), 3);
-        m.log_write(partition_id, 5);
+        m.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 3);
+        m.log_write(partition_id, sequencer_id, SequenceNumber::new(3), 5);
 
         m.maybe_persist(&persister).await;
 
         assert!(persister.persist_called_for(partition_id));
         assert!(!persister.persist_called_for(PartitionId::new(2)));
+        assert_eq!(
+            persister.update_min_calls(),
+            vec![(sequencer_id, SequenceNumber::new(2))]
+        );
 
         let stats = m.stats();
         assert_eq!(stats.total_bytes, 3);
@@ -437,12 +514,18 @@ mod tests {
             partition_size_threshold: 20,
             partition_age_threshold: Duration::from_millis(1000),
         };
+        let sequencer_id = SequencerId::new(1);
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let m = LifecycleManager::new(config, time_provider);
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
-        m.log_write(partition_id, 8);
-        m.log_write(PartitionId::new(2), 13);
+        m.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 8);
+        m.log_write(
+            PartitionId::new(2),
+            sequencer_id,
+            SequenceNumber::new(2),
+            13,
+        );
 
         m.maybe_persist(&persister).await;
 
@@ -452,16 +535,35 @@ mod tests {
         assert_eq!(stats.partition_stats[0].partition_id, partition_id);
         assert!(!persister.persist_called_for(partition_id));
         assert!(persister.persist_called_for(PartitionId::new(2)));
+        assert_eq!(
+            persister.update_min_calls(),
+            vec![(sequencer_id, SequenceNumber::new(1))]
+        );
 
         // add that partition back in over size
-        m.log_write(partition_id, 20);
-        m.log_write(PartitionId::new(2), 21);
+        m.log_write(partition_id, sequencer_id, SequenceNumber::new(3), 20);
+        m.log_write(
+            PartitionId::new(2),
+            sequencer_id,
+            SequenceNumber::new(4),
+            21,
+        );
 
         // both partitions should now need to be persisted to bring us below the mem threshold of 20.
         m.maybe_persist(&persister).await;
 
         assert!(persister.persist_called_for(partition_id));
         assert!(persister.persist_called_for(PartitionId::new(2)));
+        // because the persister is now empty, it has to make the last call with the last sequence number it
+        // knows about. Even though this has been persisted, this fine since any already persisted
+        // data will just be ignored on startup.
+        assert_eq!(
+            persister.update_min_calls(),
+            vec![
+                (sequencer_id, SequenceNumber::new(1)),
+                (sequencer_id, SequenceNumber::new(4))
+            ]
+        );
 
         let stats = m.stats();
         assert_eq!(stats.total_bytes, 0);
@@ -476,15 +578,16 @@ mod tests {
             partition_size_threshold: 5,
             partition_age_threshold: Duration::from_millis(1000),
         };
+        let sequencer_id = SequencerId::new(1);
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let tp = Arc::clone(&time_provider);
         let m = LifecycleManager::new(config, tp);
         let persister = Arc::new(TestPersister::default());
-        m.log_write(PartitionId::new(1), 4);
+        m.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(1), 4);
         time_provider.inc(Duration::from_nanos(1));
-        m.log_write(PartitionId::new(2), 6);
+        m.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 6);
         time_provider.inc(Duration::from_nanos(1));
-        m.log_write(PartitionId::new(3), 3);
+        m.log_write(PartitionId::new(3), sequencer_id, SequenceNumber::new(3), 3);
 
         m.maybe_persist(&persister).await;
 
@@ -495,5 +598,9 @@ mod tests {
         assert!(!persister.persist_called_for(PartitionId::new(3)));
         assert!(persister.persist_called_for(PartitionId::new(2)));
         assert!(persister.persist_called_for(PartitionId::new(1)));
+        assert_eq!(
+            persister.update_min_calls(),
+            vec![(sequencer_id, SequenceNumber::new(3))]
+        );
     }
 }

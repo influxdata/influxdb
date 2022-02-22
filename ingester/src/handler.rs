@@ -449,15 +449,24 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        txn.commit().await.unwrap();
         ingester.write_buffer_state.push_write(w2);
+        let w3 = DmlWrite::new(
+            "foo",
+            lines_to_batches("a b=2 200", 0).unwrap(),
+            DmlMeta::sequenced(Sequence::new(0, 9), ingest_ts2, None, 150),
+        );
+        let _schema = validate_or_insert_schema(w3.tables(), &schema, txn.deref_mut())
+            .await
+            .unwrap()
+            .unwrap();
+        ingester.write_buffer_state.push_write(w3);
+        txn.commit().await.unwrap();
 
         // give the writes some time to go through the buffer. Exit once we've verified there's
         // data in there from both writes.
         tokio::time::timeout(Duration::from_secs(2), async {
             loop {
-                let mut have_mem = false;
-                let mut have_cpu = false;
+                let mut has_measurement = false;
 
                 if let Some(data) = ingester
                     .ingester
@@ -467,24 +476,12 @@ mod tests {
                 {
                     if let Some(data) = data.namespace(&ingester.namespace.name) {
                         // verify mem table
-                        if let Some(table) = data.table_data("mem") {
+                        if let Some(table) = data.table_data("a") {
                             if let Some(partition) = table.partition_data("1970-01-01") {
                                 let snapshots = partition.snapshot().unwrap();
                                 if let Some(s) = snapshots.last() {
                                     if s.data.num_rows() > 0 {
-                                        have_mem = true;
-                                    }
-                                }
-                            }
-                        }
-
-                        // verify cpu table
-                        if let Some(table) = data.table_data("cpu") {
-                            if let Some(partition) = table.partition_data("1970-01-01") {
-                                let snapshots = partition.snapshot().unwrap();
-                                if let Some(s) = snapshots.last() {
-                                    if s.data.num_rows() > 0 {
-                                        have_cpu = true;
+                                        has_measurement = true;
                                     }
                                 }
                             }
@@ -492,11 +489,21 @@ mod tests {
                     }
                 }
 
-                if have_mem && have_cpu {
+                // and ensure that the sequencer state was actually updated
+                let seq = ingester
+                    .catalog
+                    .repositories()
+                    .await
+                    .sequencers()
+                    .create_or_get(&ingester.kafka_topic, ingester.kafka_partition)
+                    .await
+                    .unwrap();
+
+                if has_measurement && seq.min_unpersisted_sequence_number == 9 {
                     break;
                 }
 
-                tokio::time::sleep(Duration::from_millis(10)).await;
+                tokio::time::sleep(Duration::from_millis(200)).await;
             }
         })
         .await
@@ -513,7 +520,7 @@ mod tests {
             ]))
             .unwrap()
             .fetch();
-        assert_eq!(observation, 2);
+        assert_eq!(observation, 3);
 
         let observation = ingester
             .metrics
@@ -525,7 +532,7 @@ mod tests {
             ]))
             .unwrap()
             .fetch();
-        assert_eq!(observation, 200);
+        assert_eq!(observation, 350);
 
         let observation = ingester
             .metrics
@@ -537,7 +544,7 @@ mod tests {
             ]))
             .unwrap()
             .fetch();
-        assert_eq!(observation, 7);
+        assert_eq!(observation, 9);
 
         let observation = ingester
             .metrics
@@ -561,7 +568,7 @@ mod tests {
             ]))
             .unwrap()
             .fetch();
-        assert_eq!(observation, 20);
+        assert_eq!(observation, 200);
 
         let observation = ingester
             .metrics
@@ -573,7 +580,7 @@ mod tests {
             ]))
             .unwrap()
             .fetch();
-        assert_eq!(observation, 30);
+        assert_eq!(observation, 200);
 
         let observation = ingester
             .metrics

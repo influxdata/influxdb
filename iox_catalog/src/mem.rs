@@ -470,6 +470,20 @@ impl SequencerRepo for MemTxn {
             .collect();
         Ok(sequencers)
     }
+
+    async fn update_min_unpersisted_sequence_number(
+        &mut self,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+    ) -> Result<()> {
+        let stage = self.stage();
+
+        if let Some(s) = stage.sequencers.iter_mut().find(|s| s.id == sequencer_id) {
+            s.min_unpersisted_sequence_number = sequence_number.get()
+        };
+
+        Ok(())
+    }
 }
 
 #[async_trait]
