@@ -1,5 +1,7 @@
 //! This module implements the `partition` CLI command
+use data_types::chunk_metadata::ChunkStorage;
 use generated_types::google::FieldViolation;
+use hashbrown::HashSet;
 use influxdb_iox_client::{
     connection::Connection,
     management::{self},
@@ -18,6 +20,9 @@ pub enum Error {
 
     #[error("Received invalid response: {0}")]
     InvalidResponse(#[from] FieldViolation),
+
+    #[error("Must either specify a TABLE_NAME or --all-tables")]
+    MissingTableName,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -59,11 +64,15 @@ struct Persist {
     partition_key: String,
 
     /// The table name
-    table_name: String,
+    table_name: Option<String>,
 
     /// Persist all data irrespective of arrival time
     #[clap(long)]
     force: bool,
+
+    /// Persist all tables that have data
+    #[clap(long)]
+    all_tables: bool,
 }
 
 /// Compact Object Store Chunks
@@ -245,11 +254,38 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 partition_key,
                 table_name,
                 force,
+                all_tables,
             } = persist;
 
-            client
-                .persist_partition(db_name, table_name, partition_key, force)
-                .await?;
+            match (table_name, all_tables) {
+                (Some(table_name), false) => {
+                    client
+                        .persist_partition(db_name, table_name, partition_key, force)
+                        .await?;
+                }
+                (None, true) => {
+                    let tables: HashSet<_> = client
+                        .list_partition_chunks(&db_name, &partition_key)
+                        .await?
+                        .into_iter()
+                        .filter(|chunk| {
+                            ChunkStorage::try_from(chunk.storage())
+                                .map(|s| !s.has_object_store())
+                                .unwrap_or(false)
+                        })
+                        .map(|chunk| chunk.table_name)
+                        .collect();
+
+                    for table_name in tables {
+                        println!("Persisting table: {}", table_name);
+                        client
+                            .persist_partition(&db_name, table_name, &partition_key, force)
+                            .await?;
+                    }
+                }
+                _ => return Err(Error::MissingTableName),
+            }
+
             println!("Ok");
         }
         Command::CompactObjectStoreChunks(compact) => {

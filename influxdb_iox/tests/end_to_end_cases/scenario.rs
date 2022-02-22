@@ -353,6 +353,11 @@ impl DatabaseBuilder {
         }
     }
 
+    pub fn partition_template(mut self, partition_template: PartitionTemplate) -> Self {
+        self.partition_template = partition_template;
+        self
+    }
+
     pub fn buffer_size_hard(mut self, buffer_size_hard: u64) -> Self {
         self.lifecycle_rules.buffer_size_hard = buffer_size_hard;
         self

@@ -1592,6 +1592,8 @@ async fn test_drop_partition_error() {
 
 #[tokio::test]
 async fn test_persist_partition() {
+    use generated_types::influxdata::iox::management::v1::{partition_template, PartitionTemplate};
+
     let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let addr = fixture.grpc_base();
     let db_name = rand_name();
@@ -1600,16 +1602,29 @@ async fn test_persist_partition() {
         .persist(true)
         .persist_age_threshold_seconds(1_000)
         .late_arrive_window_seconds(1)
+        .partition_template(PartitionTemplate {
+            parts: vec![partition_template::Part {
+                part: Some(partition_template::part::Part::Time("00-00-00".into())),
+            }],
+        })
         .build(fixture.grpc_channel())
         .await;
 
-    let lp_data = vec!["cpu,region=west user=23.2 10"];
+    let lp_data = vec![
+        "cpu,region=west user=23.2 10",
+        "foo,region=west user=23.2 10",
+        "bar,region=west user=23.2 10",
+    ];
     load_lp(addr, &db_name, lp_data);
 
     wait_for_exact_chunk_states(
         &fixture,
         &db_name,
-        vec![ChunkStorage::OpenMutableBuffer],
+        vec![
+            ChunkStorage::OpenMutableBuffer,
+            ChunkStorage::OpenMutableBuffer,
+            ChunkStorage::OpenMutableBuffer,
+        ],
         std::time::Duration::from_secs(5),
     )
     .await;
@@ -1622,13 +1637,32 @@ async fn test_persist_partition() {
         .arg("partition")
         .arg("persist")
         .arg(&db_name)
-        .arg("cpu")
+        .arg("00-00-00")
         .arg("cpu")
         .arg("--host")
         .arg(addr)
         .assert()
         .success()
         .stdout(predicate::str::contains("Ok"));
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("persist")
+        .arg(&db_name)
+        .arg("00-00-00")
+        .arg("--all-tables")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("Ok")
+                .and(predicate::str::contains("foo"))
+                .and(predicate::str::contains("bar"))
+                .and(predicate::str::contains("cpu").not()),
+        );
 }
 
 #[tokio::test]
