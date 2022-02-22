@@ -94,6 +94,53 @@ impl Drop for WriteBufferConsumer {
     }
 }
 
+/// [`WatermarkFetcher`] contains the logic to periodically fetch a high watermark from
+/// a [`WriteBufferReading`]. As this may be an expensive operation, and is solely used
+/// for observability, we only wish to do this periodically
+pub struct WatermarkFetcher {
+    delay: Duration,
+    last_updated: Instant,
+    watermark: u64,
+    sequencer_id: u32,
+}
+
+impl WatermarkFetcher {
+    /// Create a new [`WatermarkFetcher`] that waits `delay` between fetches
+    pub fn new(delay: Duration, sequencer_id: u32) -> Self {
+        Self {
+            delay,
+            last_updated: Instant::now() - delay,
+            watermark: 0,
+            sequencer_id,
+        }
+    }
+
+    /// Fetch the current high watermark, or return the last watermark if
+    /// sufficient time has not passed
+    pub async fn fetch(&mut self, write_buffer: &dyn WriteBufferReading) -> u64 {
+        let now = Instant::now();
+        if now.duration_since(self.last_updated) < self.delay {
+            return self.watermark;
+        }
+
+        match write_buffer.fetch_high_watermark(self.sequencer_id).await {
+            Ok(w) => {
+                self.watermark = w;
+            }
+            // skip over invalid data in the write buffer so recovery can succeed
+            Err(e) => {
+                debug!(
+                    %e,
+                    sequencer_id=self.sequencer_id,
+                    "Error while reading sequencer watermark",
+                )
+            }
+        }
+        self.last_updated = now;
+        self.watermark
+    }
+}
+
 /// This is used to take entries from a `Stream` and put them in the
 /// mutable buffer, such as streaming entries from a write buffer.
 ///
@@ -107,36 +154,11 @@ async fn stream_in_sequenced_entries<'a>(
     mut metrics: SequencerMetrics,
 ) {
     let db_name = db.rules().name.to_string();
-    let mut watermark_last_updated: Option<Instant> = None;
-    let mut watermark = 0_u64;
+    let mut watermark_fetcher = WatermarkFetcher::new(Duration::from_secs(10), sequencer_id);
     let mut stream = stream_handler.stream().await;
 
     while let Some(db_write_result) = stream.next().await {
-        // maybe update sequencer watermark
-        // We are not updating this watermark every round because asking the sequencer for that watermark can be
-        // quite expensive.
-        let now = Instant::now();
-        if watermark_last_updated
-            .map(|ts| now.duration_since(ts) > Duration::from_secs(10))
-            .unwrap_or(true)
-        {
-            match write_buffer.fetch_high_watermark(sequencer_id).await {
-                Ok(w) => {
-                    watermark = w;
-                }
-                // skip over invalid data in the write buffer so recovery can succeed
-                Err(e) => {
-                    debug!(
-                        %e,
-                        %db_name,
-                        sequencer_id,
-                        "Error while reading sequencer watermark",
-                    )
-                }
-            }
-            watermark_last_updated = Some(now);
-        }
-
+        let watermark = watermark_fetcher.fetch(write_buffer.as_ref()).await;
         let ingest_recorder = metrics.recorder(watermark);
 
         // get entry from sequencer

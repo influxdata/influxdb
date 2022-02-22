@@ -1,6 +1,7 @@
 use crate::{
     catalog::chunk::{CatalogChunk, ChunkStage},
     write::{DeleteFilter, WriteFilter},
+    write_buffer::{metrics::WriteBufferIngestMetrics, WatermarkFetcher},
     Db,
 };
 use data_types::sequence::Sequence;
@@ -161,7 +162,9 @@ pub async fn seek_to_end(
 pub async fn perform_replay(
     db: &Db,
     replay_plan: &ReplayPlan,
+    write_buffer: &dyn WriteBufferReading,
     write_buffer_streams: BTreeMap<u32, Box<dyn WriteBufferStreamHandler>>,
+    ingest_metrics: WriteBufferIngestMetrics,
 ) -> Result<BTreeMap<u32, Box<dyn WriteBufferStreamHandler>>> {
     let db_name = db.rules.read().db_name().to_string();
     info!(%db_name, "starting replay");
@@ -194,7 +197,7 @@ pub async fn perform_replay(
     for (sequencer_id, handler) in write_buffer_streams.iter_mut() {
         if let Some(min_max) = replay_ranges.get(sequencer_id) {
             if let Some(min) = min_max.min() {
-                info!(%db_name, sequencer_id, sequence_number=min, "seek sequencer in preperation for replay");
+                info!(%db_name, sequencer_id, sequence_number=min, "seek sequencer in preparation for replay");
                 handler.seek(min).await.context(SeekSnafu {
                     sequencer_id: *sequencer_id,
                 })?;
@@ -223,14 +226,21 @@ pub async fn perform_replay(
                 "replay sequencer",
             );
 
+            let mut watermark_fetcher =
+                WatermarkFetcher::new(Duration::from_secs(10), *sequencer_id);
+            let mut metrics = ingest_metrics.new_sequencer_metrics(*sequencer_id);
             let mut stream = handler.stream().await;
             while let Some(dml_operation) = stream.try_next().await.context(EntrySnafu {
                 sequencer_id: *sequencer_id,
             })? {
+                let watermark = watermark_fetcher.fetch(write_buffer).await;
+                let ingest_recorder = metrics.recorder(watermark).operation(&dml_operation);
+
                 let sequence = *dml_operation
                     .meta()
                     .sequence()
                     .expect("entry must be sequenced");
+
                 if sequence.number > min_max.max() {
                     return Err(Error::EntryLostError {
                         sequencer_id: *sequencer_id,
@@ -254,6 +264,7 @@ pub async fn perform_replay(
 
                     match result {
                         Ok(_) => {
+                            ingest_recorder.success();
                             break;
                         }
                         Err(crate::DmlError::HardLimitReached {}) if n_try < n_tries => {
@@ -502,6 +513,9 @@ mod tests {
 
         /// Check query results.
         Query(&'static str, Vec<&'static str>),
+
+        /// Check metric
+        Metric(&'static str, metric::Attributes, metric::Observation),
     }
 
     /// Action or check for replay test.
@@ -598,7 +612,6 @@ mod tests {
                 parts: vec![TemplatePart::Column("tag_partition_by".to_string())],
             };
 
-            let registry = metric::Registry::new();
             let write_buffer_state =
                 MockBufferSharedState::empty_with_n_sequencers(self.n_sequencers);
 
@@ -623,7 +636,7 @@ mod tests {
                 write_buffer,
                 streams,
                 Arc::clone(&test_db.db),
-                &registry,
+                &test_db.metric_registry,
             ));
 
             // This is used to carry the write buffer from replay to await
@@ -762,7 +775,7 @@ mod tests {
                                 write_buffer,
                                 streams,
                                 Arc::clone(&test_db.db),
-                                &registry,
+                                &test_db.metric_registry,
                             ));
                         }
 
@@ -923,6 +936,30 @@ mod tests {
                             expected == &actual_lines
                         }
                     }
+                    Check::Metric(name, attributes, observation) => match observation {
+                        metric::Observation::U64Gauge(expected) => {
+                            let maybe_instrument = test_db
+                                .metric_registry
+                                .get_instrument::<metric::Metric<metric::U64Gauge>>(*name);
+
+                            match use_assert {
+                                true => {
+                                    let instrument = maybe_instrument.expect("instrument");
+                                    let observer =
+                                        instrument.get_observer(attributes).expect("observer");
+                                    assert_eq!(observer.fetch(), *expected);
+                                    true
+                                }
+                                false => {
+                                    let maybe_observation = maybe_instrument
+                                        .and_then(|x| Some(x.get_observer(attributes)?.fetch()));
+
+                                    matches!(maybe_observation, Some(x) if x == *expected)
+                                }
+                            }
+                        }
+                        _ => unimplemented!(),
+                    },
                 };
 
                 if !res {
@@ -1000,6 +1037,9 @@ mod tests {
     #[tokio::test]
     async fn replay_ok_two_partitions_persist_second() {
         test_helpers::maybe_start_logging();
+        let attributes =
+            metric::Attributes::from(&[("db_name", "replay_test"), ("sequencer_id", "0")]);
+
         // acts as regression test for the following PRs:
         // - https://github.com/influxdata/influxdb_iox/pull/2079
         // - https://github.com/influxdata/influxdb_iox/pull/2084
@@ -1021,6 +1061,28 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
+                Step::Assert(vec![
+                    Check::Metric(
+                        "write_buffer_last_sequence_number",
+                        attributes.clone(),
+                        metric::Observation::U64Gauge(1),
+                    ),
+                    Check::Metric(
+                        "write_buffer_last_min_ts",
+                        attributes.clone(),
+                        metric::Observation::U64Gauge(0),
+                    ),
+                    Check::Metric(
+                        "write_buffer_last_max_ts",
+                        attributes.clone(),
+                        metric::Observation::U64Gauge(0),
+                    ),
+                    Check::Metric(
+                        "write_buffer_sequence_number_lag",
+                        attributes.clone(),
+                        metric::Observation::U64Gauge(0),
+                    ),
+                ]),
                 Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_2", "tag_partition_by_a")]),
                 Step::Restart,
@@ -1041,6 +1103,28 @@ mod tests {
                     },
                 ]),
                 Step::Replay,
+                Step::Assert(vec![
+                    Check::Metric(
+                        "write_buffer_last_sequence_number",
+                        attributes.clone(),
+                        metric::Observation::U64Gauge(1),
+                    ),
+                    Check::Metric(
+                        "write_buffer_last_min_ts",
+                        attributes.clone(),
+                        metric::Observation::U64Gauge(0),
+                    ),
+                    Check::Metric(
+                        "write_buffer_last_max_ts",
+                        attributes.clone(),
+                        metric::Observation::U64Gauge(0),
+                    ),
+                    Check::Metric(
+                        "write_buffer_sequence_number_lag",
+                        attributes.clone(),
+                        metric::Observation::U64Gauge(2),
+                    ),
+                ]),
                 Step::Assert(vec![
                     Check::Partitions(vec![
                         ("table_1", "tag_partition_by_a"),
@@ -2429,8 +2513,8 @@ mod tests {
             ],
             ..Default::default()
         }
-        .run()
-        .await
+            .run()
+            .await
     }
 
     #[tokio::test]

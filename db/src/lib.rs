@@ -3,6 +3,7 @@
 
 pub(crate) use crate::chunk::DbChunk;
 pub use crate::lifecycle::{ArcDb, LifecycleWorker};
+use crate::write_buffer::metrics::WriteBufferIngestMetrics;
 use crate::{
     access::QueryCatalogAccess,
     catalog::{
@@ -897,13 +898,20 @@ impl Db {
         consumer: Arc<dyn WriteBufferReading>,
     ) -> Result<BTreeMap<u32, Box<dyn WriteBufferStreamHandler>>> {
         use crate::replay::{perform_replay, seek_to_end};
-
+        let ingest_metrics =
+            WriteBufferIngestMetrics::new(&self.metric_registry, self.name.as_ref());
         let streams = consumer.stream_handlers().await.context(WriteBufferSnafu)?;
 
         let streams = if let Some(replay_plan) = replay_plan {
-            perform_replay(self, replay_plan, streams)
-                .await
-                .context(ReplaySnafu)?
+            perform_replay(
+                self,
+                replay_plan,
+                consumer.as_ref(),
+                streams,
+                ingest_metrics,
+            )
+            .await
+            .context(ReplaySnafu)?
         } else {
             seek_to_end(self, consumer.as_ref(), streams)
                 .await
