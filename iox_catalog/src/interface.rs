@@ -448,6 +448,12 @@ pub trait NamespaceRepo: Send + Sync {
 
     /// Gets the namespace by its unique name.
     async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>>;
+
+    /// Update the limit on the number of tables that can exist per namespace.
+    async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
+
+    /// Update the limit on the number of columns that can exist per table in a given namespace.
+    async fn update_column_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace>;
 }
 
 /// Functions for working with tables in the catalog
@@ -646,6 +652,10 @@ pub struct Namespace {
     pub kafka_topic_id: KafkaTopicId,
     /// The query pool assigned to answer queries for this namespace
     pub query_pool_id: QueryPoolId,
+    /// The maximum number of tables that can exist in this namespace
+    pub max_tables: i32,
+    /// The maximum number of columns per table in this namespace
+    pub max_columns_per_table: i32,
 }
 
 /// Schema collection for a namespace. This is an in-memory object useful for a schema
@@ -1109,6 +1119,22 @@ pub(crate) mod test_helpers {
             .unwrap()
             .expect("namespace should be there");
         assert_eq!(namespace, found);
+
+        const NEW_TABLE_LIMIT: i32 = 15000;
+        let modified = repos
+            .namespaces()
+            .update_table_limit(namespace_name, NEW_TABLE_LIMIT)
+            .await
+            .expect("namespace should be updateable");
+        assert_eq!(NEW_TABLE_LIMIT, modified.max_tables);
+
+        const NEW_COLUMN_LIMIT: i32 = 1500;
+        let modified = repos
+            .namespaces()
+            .update_column_limit(namespace_name, NEW_COLUMN_LIMIT)
+            .await
+            .expect("namespace should be updateable");
+        assert_eq!(NEW_COLUMN_LIMIT, modified.max_columns_per_table);
     }
 
     async fn test_table(catalog: Arc<dyn Catalog>) {

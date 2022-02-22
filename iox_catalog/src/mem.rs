@@ -267,6 +267,8 @@ impl NamespaceRepo for MemTxn {
             kafka_topic_id,
             query_pool_id,
             retention_duration: Some(retention_duration.to_string()),
+            max_tables: 10000,
+            max_columns_per_table: 1000,
         };
         stage.namespaces.push(namespace);
         Ok(stage.namespaces.last().unwrap().clone())
@@ -276,6 +278,32 @@ impl NamespaceRepo for MemTxn {
         let stage = self.stage();
 
         Ok(stage.namespaces.iter().find(|n| n.name == name).cloned())
+    }
+
+    async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
+        let stage = self.stage();
+        match stage.namespaces.iter_mut().find(|n| n.name == name) {
+            Some(n) => {
+                n.max_tables = new_max;
+                Ok(n.clone())
+            }
+            None => Err(Error::NamespaceNotFound {
+                name: name.to_string(),
+            }),
+        }
+    }
+
+    async fn update_column_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
+        let stage = self.stage();
+        match stage.namespaces.iter_mut().find(|n| n.name == name) {
+            Some(n) => {
+                n.max_columns_per_table = new_max;
+                Ok(n.clone())
+            }
+            None => Err(Error::NamespaceNotFound {
+                name: name.to_string(),
+            }),
+        }
     }
 }
 

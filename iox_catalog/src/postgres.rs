@@ -511,6 +511,48 @@ SELECT * FROM namespace WHERE name = $1;
 
         Ok(Some(namespace))
     }
+
+    async fn update_table_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
+        let rec = sqlx::query_as::<_, Namespace>(
+            r#"
+UPDATE namespace SET max_tables = $1 WHERE name = $2 RETURNING *;
+        "#,
+        )
+        .bind(&new_max)
+        .bind(&name)
+        .fetch_one(&mut self.inner)
+        .await;
+
+        let namespace = rec.map_err(|e| match e {
+            sqlx::Error::RowNotFound => Error::NamespaceNotFound {
+                name: name.to_string(),
+            },
+            _ => Error::SqlxError { source: e },
+        })?;
+
+        Ok(namespace)
+    }
+
+    async fn update_column_limit(&mut self, name: &str, new_max: i32) -> Result<Namespace> {
+        let rec = sqlx::query_as::<_, Namespace>(
+            r#"
+UPDATE namespace SET max_columns_per_table = $1 WHERE name = $2 RETURNING *;
+        "#,
+        )
+        .bind(&new_max)
+        .bind(&name)
+        .fetch_one(&mut self.inner)
+        .await;
+
+        let namespace = rec.map_err(|e| match e {
+            sqlx::Error::RowNotFound => Error::NamespaceNotFound {
+                name: name.to_string(),
+            },
+            _ => Error::SqlxError { source: e },
+        })?;
+
+        Ok(namespace)
+    }
 }
 
 #[async_trait]

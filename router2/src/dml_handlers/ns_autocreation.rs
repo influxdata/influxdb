@@ -228,6 +228,8 @@ mod tests {
                 retention_duration: Some("inf".to_owned()),
                 kafka_topic_id: KafkaTopicId::new(42),
                 query_pool_id: QueryPoolId::new(42),
+                max_tables: 10000,
+                max_columns_per_table: 1000,
             }
         );
     }
