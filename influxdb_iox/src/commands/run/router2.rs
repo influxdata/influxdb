@@ -18,8 +18,8 @@ use data_types::database_rules::{PartitionTemplate, TemplatePart};
 use observability_deps::tracing::*;
 use router2::{
     dml_handlers::{
-        InstrumentationDecorator, NamespaceAutocreation, Partitioner, SchemaValidator,
-        ShardedWriteBuffer,
+        DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, NamespaceAutocreation,
+        Partitioner, SchemaValidator, ShardedWriteBuffer,
     },
     namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
@@ -90,15 +90,15 @@ pub async fn command(config: Config) -> Result<()> {
 
     let catalog = config.catalog_dsn.get_catalog("router2").await?;
 
+    // Initialise the sharded write buffer and instrument it with DML handler
+    // metrics.
     let write_buffer = init_write_buffer(
         &config,
         Arc::clone(&metrics),
         common_state.trace_collector(),
     )
     .await?;
-
-    // Wrap the write buffer with metrics
-    let handler_stack =
+    let write_buffer =
         InstrumentationDecorator::new("sharded_write_buffer", Arc::clone(&metrics), write_buffer);
 
     // Initialise an instrumented namespace cache to be shared with the schema
@@ -110,22 +110,19 @@ pub async fn command(config: Config) -> Result<()> {
         )),
         Arc::clone(&metrics),
     ));
-    // Add the schema validator layer.
-    let handler_stack =
-        SchemaValidator::new(handler_stack, Arc::clone(&catalog), Arc::clone(&ns_cache));
-    let handler_stack =
-        InstrumentationDecorator::new("schema_validator", Arc::clone(&metrics), handler_stack);
+
+    // Initialise and instrument the schema validator
+    let schema_validator = SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+    let schema_validator =
+        InstrumentationDecorator::new("schema_validator", Arc::clone(&metrics), schema_validator);
 
     // Add a write partitioner into the handler stack that splits by the date
     // portion of the write's timestamp.
-    let handler_stack = Partitioner::new(
-        handler_stack,
-        PartitionTemplate {
-            parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
-        },
-    );
-    let handler_stack =
-        InstrumentationDecorator::new("partitioner", Arc::clone(&metrics), handler_stack);
+    let partitioner = Partitioner::new(PartitionTemplate {
+        parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
+    });
+    let partitioner =
+        InstrumentationDecorator::new("partitioner", Arc::clone(&metrics), partitioner);
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -167,16 +164,32 @@ pub async fn command(config: Config) -> Result<()> {
         });
     txn.commit().await?;
 
-    let handler_stack = NamespaceAutocreation::new(
+    let ns_creator = NamespaceAutocreation::new(
         catalog,
         ns_cache,
         topic_id,
         query_id,
         iox_catalog::INFINITE_RETENTION_POLICY.to_owned(),
-        handler_stack,
     );
     //
     ////////////////////////////////////////////////////////////////////////////
+
+    // Build the chain of DML handlers that forms the request processing
+    // pipeline, starting with the namespace creator (for testing purposes) and
+    // write partitioner that yields a set of partitioned batches.
+    let handler_stack = ns_creator
+        .and_then(partitioner)
+        // Once writes have been partitioned, they are processed in parallel.
+        //
+        // This block initialises a fan-out adaptor that parallelises partitioned
+        // writes into the handler chain it decorates (schema validation, and then
+        // into the sharded write buffer), and instruments the parallelised
+        // operation.
+        .and_then(InstrumentationDecorator::new(
+            "parallel_write",
+            Arc::clone(&metrics),
+            FanOutAdaptor::new(schema_validator.and_then(write_buffer)),
+        ));
 
     // Record the overall request handling latency
     let handler_stack =

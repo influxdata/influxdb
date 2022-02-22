@@ -47,6 +47,10 @@ pub trait DmlHandler: Debug + Send + Sync {
     /// input request as it progresses through the handler pipeline.
     type WriteInput: Debug + Send + Sync;
 
+    /// The (possibly transformed) output type returned by this handler after
+    /// processing a write.
+    type WriteOutput: Debug + Send + Sync;
+
     /// The type of error a [`DmlHandler`] implementation produces for write
     /// requests.
     ///
@@ -59,17 +63,17 @@ pub trait DmlHandler: Debug + Send + Sync {
     /// Write `batches` to `namespace`.
     async fn write(
         &self,
-        namespace: DatabaseName<'static>,
+        namespace: &DatabaseName<'static>,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::WriteError>;
+    ) -> Result<Self::WriteOutput, Self::WriteError>;
 
     /// Delete the data specified in `delete`.
-    async fn delete<'a>(
+    async fn delete(
         &self,
-        namespace: DatabaseName<'static>,
-        table_name: impl Into<String> + Send + Sync + 'a,
-        predicate: DeletePredicate,
+        namespace: &DatabaseName<'static>,
+        table_name: &str,
+        predicate: &DeletePredicate,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::DeleteError>;
 }

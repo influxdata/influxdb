@@ -13,13 +13,6 @@ use super::DmlHandler;
 ///
 /// Metrics are broken down by operation (write/delete) and result
 /// (success/error) with call latency reported in milliseconds.
-///
-/// # Chained / Nested Handlers
-///
-/// Because [`DmlHandler`] implementations are constructed as a chain of
-/// decorators to build up a full request handling pipeline, the reported call
-/// latency of a given handler is a cumulative measure of the execution time for
-/// handler and all of its children.
 #[derive(Debug)]
 pub struct InstrumentationDecorator<T, P = SystemProvider> {
     inner: T,
@@ -76,14 +69,15 @@ where
     type WriteInput = T::WriteInput;
     type WriteError = T::WriteError;
     type DeleteError = T::DeleteError;
+    type WriteOutput = T::WriteOutput;
 
     /// Call the inner `write` method and record the call latency.
     async fn write(
         &self,
-        namespace: DatabaseName<'static>,
+        namespace: &DatabaseName<'static>,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::WriteError> {
+    ) -> Result<Self::WriteOutput, Self::WriteError> {
         let t = self.time_provider.now();
         let res = self.inner.write(namespace, input, span_ctx).await;
 
@@ -100,11 +94,11 @@ where
     }
 
     /// Call the inner `delete` method and record the call latency.
-    async fn delete<'a>(
+    async fn delete(
         &self,
-        namespace: DatabaseName<'static>,
-        table_name: impl Into<String> + Send + Sync + 'a,
-        predicate: DeletePredicate,
+        namespace: &DatabaseName<'static>,
+        table_name: &str,
+        predicate: &DeletePredicate,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::DeleteError> {
         let t = self.time_provider.now();

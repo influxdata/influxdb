@@ -1,44 +1,53 @@
 //! A NOP implementation of [`DmlHandler`].
 
+use std::{fmt::Debug, marker::PhantomData};
+
 use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 
-use hashbrown::HashMap;
-use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use trace::ctx::SpanContext;
 
 use super::{DmlError, DmlHandler};
 
 /// A [`DmlHandler`] implementation that does nothing.
-#[derive(Debug, Default)]
-pub struct NopDmlHandler;
+#[derive(Debug)]
+pub struct NopDmlHandler<T>(PhantomData<T>);
+
+impl<T> Default for NopDmlHandler<T> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
 
 #[async_trait]
-impl DmlHandler for NopDmlHandler {
+impl<T> DmlHandler for NopDmlHandler<T>
+where
+    T: Debug + Send + Sync,
+{
     type WriteError = DmlError;
     type DeleteError = DmlError;
-    type WriteInput = HashMap<String, MutableBatch>;
+    type WriteInput = T;
+    type WriteOutput = T;
 
     async fn write(
         &self,
-        namespace: DatabaseName<'static>,
+        namespace: &DatabaseName<'static>,
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::WriteError> {
+    ) -> Result<Self::WriteOutput, Self::WriteError> {
         info!(%namespace, ?batches, "dropping write operation");
-        Ok(())
+        Ok(batches)
     }
 
-    async fn delete<'a>(
+    async fn delete(
         &self,
-        namespace: DatabaseName<'static>,
-        table: impl Into<String> + Send + Sync + 'a,
-        predicate: DeletePredicate,
+        namespace: &DatabaseName<'static>,
+        table_name: &str,
+        predicate: &DeletePredicate,
         _span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::DeleteError> {
-        let table = table.into();
-        info!(%namespace, %table, ?predicate, "dropping delete operation");
+        info!(%namespace, %table_name, ?predicate, "dropping delete operation");
         Ok(())
     }
 }

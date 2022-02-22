@@ -94,13 +94,14 @@ where
     type WriteError = DmlError;
     type DeleteError = DmlError;
     type WriteInput = W;
+    type WriteOutput = ();
 
     async fn write(
         &self,
-        namespace: DatabaseName<'static>,
+        namespace: &DatabaseName<'static>,
         write_input: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::WriteError> {
+    ) -> Result<Self::WriteOutput, Self::WriteError> {
         record_and_return!(
             self,
             MockDmlHandlerCall::Write {
@@ -111,19 +112,19 @@ where
         )
     }
 
-    async fn delete<'a>(
+    async fn delete(
         &self,
-        namespace: DatabaseName<'static>,
-        table: impl Into<String> + Send + Sync + 'a,
-        predicate: DeletePredicate,
+        namespace: &DatabaseName<'static>,
+        table_name: &str,
+        predicate: &DeletePredicate,
         _span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::DeleteError> {
         record_and_return!(
             self,
             MockDmlHandlerCall::Delete {
                 namespace: namespace.into(),
-                table: table.into(),
-                predicate,
+                table: table_name.to_owned(),
+                predicate: predicate.clone(),
             },
             delete_return
         )

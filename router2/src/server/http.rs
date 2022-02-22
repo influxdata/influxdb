@@ -99,7 +99,6 @@ impl From<&DmlError> for StatusCode {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             DmlError::Partition(PartitionError::BatchWrite(_)) => StatusCode::INTERNAL_SERVER_ERROR,
-            DmlError::Partition(PartitionError::Inner(err)) => StatusCode::from(&**err),
         }
     }
 }
@@ -225,7 +224,7 @@ where
         );
 
         self.dml_handler
-            .write(namespace, batches, span_ctx)
+            .write(&namespace, batches, span_ctx)
             .await
             .map_err(Into::into)?;
 
@@ -266,7 +265,12 @@ where
         );
 
         self.dml_handler
-            .delete(namespace, parsed_delete.table_name, predicate, span_ctx)
+            .delete(
+                &namespace,
+                parsed_delete.table_name.as_str(),
+                &predicate,
+                span_ctx,
+            )
             .await
             .map_err(Into::into)?;
 

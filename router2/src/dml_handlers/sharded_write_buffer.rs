@@ -84,14 +84,15 @@ where
     type DeleteError = ShardError;
 
     type WriteInput = Partitioned<HashMap<String, MutableBatch>>;
+    type WriteOutput = ();
 
     /// Shard `writes` and dispatch the resultant DML operations.
     async fn write(
         &self,
-        namespace: DatabaseName<'static>,
+        namespace: &DatabaseName<'static>,
         writes: Self::WriteInput,
         span_ctx: Option<SpanContext>,
-    ) -> Result<(), ShardError> {
+    ) -> Result<Self::WriteOutput, ShardError> {
         let mut collated: HashMap<_, HashMap<String, MutableBatch>> = HashMap::new();
 
         // Extract the partition key & DML writes.
@@ -101,7 +102,7 @@ where
         // per shard to maximise the size of each write, and therefore increase
         // the effectiveness of compression of ops in the write buffer.
         for (table, batch) in writes.into_iter() {
-            let sequencer = Arc::clone(self.sharder.shard(&table, &namespace, &batch));
+            let sequencer = Arc::clone(self.sharder.shard(&table, namespace, &batch));
 
             let existing = collated
                 .entry(sequencer)
@@ -112,7 +113,7 @@ where
         }
 
         let iter = collated.into_iter().map(|(sequencer, batch)| {
-            let dml = DmlWrite::new(&namespace, batch, DmlMeta::unsequenced(span_ctx.clone()));
+            let dml = DmlWrite::new(namespace, batch, DmlMeta::unsequenced(span_ctx.clone()));
 
             trace!(
                 %partition_key,
@@ -130,20 +131,20 @@ where
     }
 
     /// Shard `predicate` and dispatch it to the appropriate shard.
-    async fn delete<'a>(
+    async fn delete(
         &self,
-        namespace: DatabaseName<'static>,
-        table_name: impl Into<String> + Send + Sync + 'a,
-        predicate: DeletePredicate,
+        namespace: &DatabaseName<'static>,
+        table_name: &str,
+        predicate: &DeletePredicate,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), ShardError> {
-        let table_name = table_name.into();
-        let sequencer = self.sharder.shard(&table_name, &namespace, &predicate);
+        let predicate = predicate.clone();
+        let sequencer = self.sharder.shard(table_name, namespace, &predicate);
 
         trace!(sequencer_id=%sequencer.id(), %table_name, %namespace, "routing delete to shard");
 
         let dml = DmlDelete::new(
-            &namespace,
+            namespace,
             predicate,
             NonEmptyString::new(table_name),
             DmlMeta::unsequenced(span_ctx),
@@ -253,7 +254,7 @@ mod tests {
 
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("bananas").unwrap();
-        w.write(ns, writes, None).await.expect("write failed");
+        w.write(&ns, writes, None).await.expect("write failed");
 
         // Assert the sharder saw all the tables
         let calls = sharder.calls();
@@ -311,7 +312,7 @@ mod tests {
 
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("bananas").unwrap();
-        w.write(ns, writes, None).await.expect("write failed");
+        w.write(&ns, writes, None).await.expect("write failed");
 
         // Assert the sharder saw all the tables
         let calls = sharder.calls();
@@ -380,7 +381,7 @@ mod tests {
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("bananas").unwrap();
         let err = w
-            .write(ns, writes, None)
+            .write(&ns, writes, None)
             .await
             .expect_err("write should return a failure");
         assert_matches!(err, ShardError::WriteBufferErrors{successes, errs} => {
@@ -415,7 +416,7 @@ mod tests {
 
         // Call the ShardedWriteBuffer and drive the test
         let ns = DatabaseName::new("namespace").unwrap();
-        w.delete(ns, TABLE, predicate.clone(), None)
+        w.delete(&ns, TABLE, &predicate, None)
             .await
             .expect("delete failed");
 
