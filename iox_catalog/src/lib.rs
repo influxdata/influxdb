@@ -182,6 +182,7 @@ pub async fn create_or_get_default_records(
     Ok((kafka_topic, query_pool, sequencers))
 }
 
+// TODO: this function is no longer needed in the ingester. It might be needed by the Compactor
 /// Insert the conpacted parquet file and its tombstones
 pub async fn add_parquet_file_with_tombstones(
     parquet_file: &ParquetFile,

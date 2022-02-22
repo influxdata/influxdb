@@ -3,6 +3,7 @@
 use crate::compact::compact_persisting_batch;
 use crate::lifecycle::LifecycleManager;
 use crate::persist::persist;
+use crate::querier_handler::query;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use chrono::{format::StrftimeItems, TimeZone, Utc};
@@ -26,7 +27,7 @@ use predicate::Predicate;
 use query::exec::Executor;
 use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::{collections::BTreeMap, convert::TryFrom, ops::DerefMut, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, convert::TryFrom, sync::Arc, time::Duration};
 use time::SystemProvider;
 use uuid::Uuid;
 
@@ -127,6 +128,7 @@ impl IngesterData {
                 sequencer_id,
                 self.catalog.as_ref(),
                 lifecycle_manager,
+                &self.exec,
             )
             .await
     }
@@ -243,42 +245,33 @@ impl Persister for IngesterData {
             }
         }
 
-        // Commit the parquet file and tombstones to the catalog. This is pretty ugly because of all
-        // the failures that might happen where we just want to keep retrying it.
+        // Add the parquet file to the catalog until succeed
         // TODO: clean this up when updating the min_sequence_number is added in.
         let parquet_file = iox_meta.to_parquet_file();
+        let mut repos = self.catalog.repositories().await;
         loop {
-            match self.catalog.start_transaction().await {
-                Ok(mut txn) => {
-                    match iox_catalog::add_parquet_file_with_tombstones(
-                        &parquet_file,
-                        &persisting_batch.data.deletes,
-                        txn.deref_mut(),
-                    )
-                    .await
-                    {
-                        Ok(_) => match txn.commit().await {
-                            Ok(_) => break,
-                            Err(e) => {
-                                error!(%e, "error commiting transaction to catalog");
-                                tokio::time::sleep(RETRY_TIME).await;
-                            }
-                        },
-                        Err(e) => {
-                            error!(%e, "error from catalog adding parquet file and processed tombstones");
-                            if let Err(e) = txn.abort().await {
-                                error!(%e, "error aborting failed transaction to add parquet file and tombstones");
-                            }
-                            tokio::time::sleep(RETRY_TIME).await;
-                        }
-                    }
-                }
+            match repos
+                .parquet_files()
+                .create(
+                    parquet_file.sequencer_id,
+                    parquet_file.table_id,
+                    parquet_file.partition_id,
+                    parquet_file.object_store_id,
+                    parquet_file.min_sequence_number,
+                    parquet_file.max_sequence_number,
+                    parquet_file.min_time,
+                    parquet_file.max_time,
+                )
+                .await
+            {
+                Ok(_) => break,
                 Err(e) => {
-                    error!(%e, "error starting catalog transaction");
+                    error!(%e, "error from catalog adding parquet file ");
                     tokio::time::sleep(RETRY_TIME).await;
                 }
             }
         }
+        std::mem::drop(repos);
 
         // and remove the persisted data from memory
         namespace.mark_persisted_and_remove_if_empty(
@@ -306,6 +299,7 @@ impl SequencerData {
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
         lifecycle_manager: &LifecycleManager,
+        executor: &Executor,
     ) -> Result<bool> {
         let namespace_data = match self.namespace(dml_operation.namespace()) {
             Some(d) => d,
@@ -316,7 +310,13 @@ impl SequencerData {
         };
 
         namespace_data
-            .buffer_operation(dml_operation, sequencer_id, catalog, lifecycle_manager)
+            .buffer_operation(
+                dml_operation,
+                sequencer_id,
+                catalog,
+                lifecycle_manager,
+                executor,
+            )
             .await
     }
 
@@ -374,6 +374,7 @@ impl NamespaceData {
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
         lifecycle_manager: &LifecycleManager,
+        executor: &Executor,
     ) -> Result<bool> {
         let sequence_number = dml_operation
             .meta()
@@ -415,7 +416,14 @@ impl NamespaceData {
                 };
 
                 table_data
-                    .buffer_delete(delete.predicate(), sequencer_id, sequence_number, catalog)
+                    .buffer_delete(
+                        table_name,
+                        delete.predicate(),
+                        sequencer_id,
+                        sequence_number,
+                        catalog,
+                        executor,
+                    )
                     .await?;
 
                 // don't pause writes since deletes don't count towards memory limits
@@ -466,6 +474,8 @@ impl NamespaceData {
             if let Some(p) = partition {
                 let mut data = p.inner.write();
                 data.persisting = None;
+                // clear the deletes kept for this persisting batch
+                data.deletes_during_persisting.clear();
                 if data.is_empty() {
                     partitions.remove(partition_key);
                 }
@@ -535,10 +545,12 @@ impl TableData {
 
     async fn buffer_delete(
         &self,
+        table_name: &str,
         predicate: &DeletePredicate,
         sequencer_id: SequencerId,
         sequence_number: SequenceNumber,
         catalog: &dyn Catalog,
+        executor: &Executor,
     ) -> Result<()> {
         let min_time = Timestamp::new(predicate.range.start());
         let max_time = Timestamp::new(predicate.range.end());
@@ -557,9 +569,12 @@ impl TableData {
             .await
             .context(CatalogSnafu)?;
 
-        let partitions = self.partition_data.read();
-        for data in partitions.values() {
-            data.buffer_tombstone(tombstone.clone());
+        // take and release lock immediately to only get pointers to all partittions
+        let partitions: Vec<_> = self.partition_data.read().values().cloned().collect();
+        // modify one partition at a time
+        for data in partitions {
+            data.buffer_tombstone(executor, table_name, tombstone.clone())
+                .await;
         }
 
         Ok(())
@@ -642,9 +657,87 @@ impl PartitionData {
         })
     }
 
-    fn buffer_tombstone(&self, tombstone: Tombstone) {
-        let mut data = self.inner.write();
-        data.deletes.push(tombstone);
+    /// Buffers a new tombstone:
+    ///   . All the data in the `buffer` and `snapshots` will be replaced with one tombstone-applied snapshot
+    ///   . The tombstone is only added in the `deletes_during_persisting` if the `persisting` exists
+    async fn buffer_tombstone(&self, executor: &Executor, table_name: &str, tombstone: Tombstone) {
+        // ----------------------------------------------------------
+        // keep the tombstone if needed
+        // acquire and release lock
+        {
+            let mut data = self.inner.write();
+            data.add_tombstone(tombstone.clone());
+        }
+
+        // ----------------------------------------------------------
+        // First apply the tombstone on all in-memeory & non-persisting data
+        // Make a QueryableBatch for all buffer + snapshots + the given tombstone
+        let max_sequencer_number = tombstone.sequence_number;
+        let query_batch = {
+            // take lock, do write and then release
+            let mut data = self.inner.write();
+            // After this function, the `buffer` and `snapshots` will be empty
+            // Hence the rest of this function should not error, otherwise
+            // we will lose data
+            data.snapshot_to_queryable_batch(table_name, Some(tombstone.clone()))
+        };
+        if query_batch.is_empty() {
+            //No need to procedd further
+            return;
+        }
+
+        let (min_sequencer_number, _) = query_batch.min_max_sequence_numbers();
+        assert!(min_sequencer_number <= max_sequencer_number);
+
+        // Run query on the QueryableBatch to apply the tombstone.
+        let stream = match query(
+            executor,
+            Arc::new(query_batch),
+            Predicate::default(),
+            Selection::All,
+        )
+        .await
+        {
+            Err(e) => {
+                // this should never error out. if it does, we need to crash hard so
+                // someone can take a look.
+                panic!("unable to apply tombstones on snapshots: {:?}", e);
+            }
+            Ok(stream) => stream,
+        };
+        let record_batches = match datafusion::physical_plan::common::collect(stream).await {
+            Err(e) => {
+                // this should never error out. if it does, we need to crash hard so
+                // someone can take a look.
+                panic!("unable to collect record batches: {:?}", e);
+            }
+            Ok(batches) => batches,
+        };
+
+        // Merge all result record batches into one record batch
+        // and make a snapshot for it
+        let snapshot = if !record_batches.is_empty() {
+            let record_batch = RecordBatch::concat(&record_batches[0].schema(), &record_batches)
+                .unwrap_or_else(|e| {
+                    panic!("unable to concat record batches: {:?}", e);
+                });
+            let snapshot = SnapshotBatch {
+                min_sequencer_number,
+                max_sequencer_number,
+                data: Arc::new(record_batch),
+            };
+
+            Some(Arc::new(snapshot))
+        } else {
+            None
+        };
+
+        // ----------------------------------------------------------
+        // Add the tombstone-applied data back in as one snapshot
+        if let Some(snapshot) = snapshot {
+            let mut data = self.inner.write();
+            data.snapshots.push(snapshot);
+        }
     }
 }
 
@@ -676,10 +769,12 @@ pub struct DataBuffer {
     pub buffer: Vec<BufferBatch>,
 
     /// Buffer of tombstones whose time range may overlap with this partition.
-    /// These tombstone first will be written into the Catalog and then here.
-    /// When a persist is called, these tombstones will be moved into the
-    /// PersistingBatch to get applied in those data.
-    pub deletes: Vec<Tombstone>,
+    /// All tombstones were already applied to corresponding snapshots. This list
+    /// only keep the ones that come during persisting. The reason
+    /// we keep them becasue if a query comes, we need to apply these tombstones
+    /// on the persiting data before sending it to the Querier
+    /// When the `persiting` is done and removed, this list will get empty, too
+    pub deletes_during_persisting: Vec<Tombstone>,
 
     /// Data in `buffer` will be moved to a `snapshot` when one of these happens:
     ///  . A background persist is called
@@ -705,6 +800,14 @@ pub struct DataBuffer {
 }
 
 impl DataBuffer {
+    /// Add a new tombstones into the DataBuffer
+    pub fn add_tombstone(&mut self, tombstone: Tombstone) {
+        // Only keep this tombstone if some data is being persisted
+        if self.persisting.is_some() {
+            self.deletes_during_persisting.push(tombstone);
+        }
+    }
+
     /// Move `BufferBatch`es to a `SnapshotBatch`.
     pub fn snapshot(&mut self) -> Result<(), mutable_batch::Error> {
         if !self.buffer.is_empty() {
@@ -745,6 +848,26 @@ impl DataBuffer {
         self.snapshots.is_empty() && self.buffer.is_empty() && self.persisting.is_none()
     }
 
+    /// Snapshots the buffer and make a QueryableBatch for all the snapshots
+    /// Both buffer and snapshots will be empty after this
+    pub fn snapshot_to_queryable_batch(
+        &mut self,
+        table_name: &str,
+        tombstone: Option<Tombstone>,
+    ) -> QueryableBatch {
+        self.snapshot()
+            .expect("This mutable batch snapshot error should be impossible.");
+
+        let mut data = vec![];
+        std::mem::swap(&mut data, &mut self.snapshots);
+
+        let mut tombstones = vec![];
+        if let Some(tombstone) = tombstone {
+            tombstones.push(tombstone);
+        }
+        QueryableBatch::new(table_name, data, tombstones)
+    }
+
     /// Snapshots the buffer and moves snapshots over to the `PersistingBatch`. Returns error
     /// if there is already a persisting batch.
     pub fn snapshot_to_persisting(
@@ -758,15 +881,7 @@ impl DataBuffer {
             panic!("Unable to snapshot while persisting. This is an unexpected state.")
         }
 
-        self.snapshot()
-            .expect("This mutable batch snapshot error should be impossible.");
-
-        let mut data = vec![];
-        std::mem::swap(&mut data, &mut self.snapshots);
-        let mut deletes = vec![];
-        std::mem::swap(&mut deletes, &mut self.deletes);
-
-        let queryable_batch = QueryableBatch::new(table_name, data, deletes);
+        let queryable_batch = self.snapshot_to_queryable_batch(table_name, None);
 
         let persisting_batch = Arc::new(PersistingBatch {
             sequencer_id,
@@ -1012,6 +1127,8 @@ impl IngesterQueryResponse {
 mod tests {
     use super::*;
     use crate::lifecycle::LifecycleConfig;
+    use crate::test_util::create_tombstone;
+    use arrow_util::assert_batches_sorted_eq;
     use data_types::sequence::Sequence;
     use datafusion::logical_plan::col;
     use dml::{DmlMeta, DmlWrite};
@@ -1397,5 +1514,236 @@ mod tests {
 
         // verify that the partition got removed from the table because it is now empty
         assert!(mem_table.partition_data("1970-01-01").is_none());
+    }
+
+    // Test deletes mixed with writes on a single parittion
+    #[tokio::test]
+    async fn writes_and_deletes() {
+        // Make a partition with empty DataBuffer
+        let s_id = 1;
+        let t_id = 1;
+        let p_id = 1;
+        let table_name = "restaurant";
+        let p = PartitionData::new(PartitionId::new(p_id));
+        let exec = Executor::new(1);
+
+        // ------------------------------------------
+        // Fill `buffer`
+        // --- seq_num: 1
+        let (_, mb) = lp_to_mutable_batch(r#"restaurant,city=Boston day="fri",temp=50 10"#);
+        p.buffer_write(SequenceNumber::new(1), mb);
+
+        // --- seq_num: 2
+        let (_, mb) = lp_to_mutable_batch(r#"restaurant,city=Andover day="thu",temp=44 15"#);
+
+        p.buffer_write(SequenceNumber::new(2), mb);
+
+        // verify data
+        assert_eq!(p.inner.read().buffer.len(), 2);
+        assert_eq!(p.inner.read().snapshots.len(), 0);
+        assert_eq!(p.inner.read().deletes_during_persisting.len(), 0);
+        assert_eq!(p.inner.read().persisting, None);
+
+        // ------------------------------------------
+        // Delete
+        // --- seq_num: 3
+        let ts = create_tombstone(
+            1,         // tombstone id
+            t_id,      // table id
+            s_id,      // sequencer id
+            3,         // delete's seq_number
+            0,         // min time of data to get deleted
+            20,        // max time of data to get deleted
+            "day=thu", // delete predicate
+        );
+        // one row will get deleted, the other is moved to snapshot
+        p.buffer_tombstone(&exec, "restaurant", ts).await;
+
+        // verify data
+        assert_eq!(p.inner.read().buffer.len(), 0); // always empty after delete
+        assert_eq!(p.inner.read().snapshots.len(), 1); // one snpashot if there is data
+        assert_eq!(p.inner.read().deletes_during_persisting.len(), 0);
+        assert_eq!(p.inner.read().persisting, None);
+        // snapshot only has one row since the other one got deleted
+        let data = (*p.inner.read().snapshots[0].data).clone();
+        let expected = vec![
+            "+--------+-----+------+--------------------------------+",
+            "| city   | day | temp | time                           |",
+            "+--------+-----+------+--------------------------------+",
+            "| Boston | fri | 50   | 1970-01-01T00:00:00.000000010Z |",
+            "+--------+-----+------+--------------------------------+",
+        ];
+        assert_batches_sorted_eq!(&expected, &[data]);
+        assert_eq!(p.inner.read().snapshots[0].min_sequencer_number.get(), 1);
+        assert_eq!(p.inner.read().snapshots[0].max_sequencer_number.get(), 3);
+
+        // ------------------------------------------
+        // Fill `buffer`
+        // --- seq_num: 4
+        let (_, mb) = lp_to_mutable_batch(
+            r#"
+                restaurant,city=Medford day="sun",temp=55 22
+                restaurant,city=Boston day="sun",temp=57 24
+            "#,
+        );
+        p.buffer_write(SequenceNumber::new(4), mb);
+
+        // --- seq_num: 5
+        let (_, mb) = lp_to_mutable_batch(r#"restaurant,city=Andover day="tue",temp=56 30"#);
+
+        p.buffer_write(SequenceNumber::new(5), mb);
+
+        // verify data
+        assert_eq!(p.inner.read().buffer.len(), 2); // 2 newlly added mutable batches of 3 rows of data
+        assert_eq!(p.inner.read().snapshots.len(), 1); // existing sanpshot
+        assert_eq!(p.inner.read().deletes_during_persisting.len(), 0);
+        assert_eq!(p.inner.read().persisting, None);
+
+        // ------------------------------------------
+        // Delete
+        // --- seq_num: 6
+        let ts = create_tombstone(
+            2,             // tombstone id
+            t_id,          // table id
+            s_id,          // sequencer id
+            6,             // delete's seq_number
+            10,            // min time of data to get deleted
+            50,            // max time of data to get deleted
+            "city=Boston", // delete predicate
+        );
+        // two rows will get deleted, one from exisitng sanpshot, one from the buffer being moved to snpashot
+        p.buffer_tombstone(&exec, "restaurant", ts).await;
+
+        // verify data
+        assert_eq!(p.inner.read().buffer.len(), 0); // always empty after delete
+        assert_eq!(p.inner.read().snapshots.len(), 1); // one snpashot
+        assert_eq!(p.inner.read().deletes_during_persisting.len(), 0);
+        assert_eq!(p.inner.read().persisting, None);
+        // snapshot only has two rows since the other 2 rows with city=Boston have got deleted
+        let data = (*p.inner.read().snapshots[0].data).clone();
+        let expected = vec![
+            "+---------+-----+------+--------------------------------+",
+            "| city    | day | temp | time                           |",
+            "+---------+-----+------+--------------------------------+",
+            "| Andover | tue | 56   | 1970-01-01T00:00:00.000000030Z |",
+            "| Medford | sun | 55   | 1970-01-01T00:00:00.000000022Z |",
+            "+---------+-----+------+--------------------------------+",
+        ];
+        assert_batches_sorted_eq!(&expected, &[data]);
+        assert_eq!(p.inner.read().snapshots[0].min_sequencer_number.get(), 1);
+        assert_eq!(p.inner.read().snapshots[0].max_sequencer_number.get(), 6);
+
+        // ------------------------------------------
+        // Persisting
+        let p_batch = p.snapshot_to_persisting_batch(
+            SequencerId::new(s_id),
+            TableId::new(t_id),
+            PartitionId::new(p_id),
+            table_name,
+        );
+
+        // verify data
+        assert_eq!(p.inner.read().buffer.len(), 0); // always empty after issuing persit
+        assert_eq!(p.inner.read().snapshots.len(), 0); // always empty after issuing persit
+        assert_eq!(p.inner.read().deletes_during_persisting.len(), 0); // deletes not happen yet
+        assert_eq!(p.inner.read().persisting, Some(Arc::clone(&p_batch)));
+
+        // ------------------------------------------
+        // Delete
+        // --- seq_num: 7
+        let ts = create_tombstone(
+            3,         // tombstone id
+            t_id,      // table id
+            s_id,      // sequencer id
+            7,         // delete's seq_number
+            10,        // min time of data to get deleted
+            50,        // max time of data to get deleted
+            "temp=55", // delete predicate
+        );
+        // if a query come while persisting, the row with temp=55 will be deleted before
+        // data is sent back to Querier
+        p.buffer_tombstone(&exec, "restaurant", ts).await;
+
+        // verify data
+        assert_eq!(p.inner.read().buffer.len(), 0); // always empty after delete
+                                                    // no snpashots becasue buffer has not data yet and the sanpshot was empty too
+        assert_eq!(p.inner.read().snapshots.len(), 0);
+        assert_eq!(p.inner.read().deletes_during_persisting.len(), 1); // tombstone added since data is persisting
+        assert_eq!(p.inner.read().persisting, Some(Arc::clone(&p_batch)));
+
+        // ------------------------------------------
+        // Fill `buffer`
+        // --- seq_num: 8
+        let (_, mb) = lp_to_mutable_batch(
+            r#"
+                restaurant,city=Wilmington day="sun",temp=55 35
+                restaurant,city=Boston day="sun",temp=60 36   
+                restaurant,city=Boston day="sun",temp=62 38
+            "#,
+        );
+        p.buffer_write(SequenceNumber::new(8), mb);
+
+        // verify data
+        assert_eq!(p.inner.read().buffer.len(), 1); // 1 newlly added mutable batch of 3 rows of data
+        assert_eq!(p.inner.read().snapshots.len(), 0); // still empty
+        assert_eq!(p.inner.read().deletes_during_persisting.len(), 1);
+        assert_eq!(p.inner.read().persisting, Some(Arc::clone(&p_batch)));
+
+        // ------------------------------------------
+        // Take snaphot of the `buffer`
+        p.snapshot().unwrap();
+        // verify data
+        assert_eq!(p.inner.read().buffer.len(), 0); // empty after snaphot
+        assert_eq!(p.inner.read().snapshots.len(), 1); // data moved from buffer
+        assert_eq!(p.inner.read().deletes_during_persisting.len(), 1);
+        assert_eq!(p.inner.read().persisting, Some(Arc::clone(&p_batch)));
+        // snapshot has three rows moved from buffer
+        let data = (*p.inner.read().snapshots[0].data).clone();
+        let expected = vec![
+            "+------------+-----+------+--------------------------------+",
+            "| city       | day | temp | time                           |",
+            "+------------+-----+------+--------------------------------+",
+            "| Wilmington | sun | 55   | 1970-01-01T00:00:00.000000035Z |",
+            "| Boston     | sun | 60   | 1970-01-01T00:00:00.000000036Z |",
+            "| Boston     | sun | 62   | 1970-01-01T00:00:00.000000038Z |",
+            "+------------+-----+------+--------------------------------+",
+        ];
+        assert_batches_sorted_eq!(&expected, &[data]);
+        assert_eq!(p.inner.read().snapshots[0].min_sequencer_number.get(), 8);
+        assert_eq!(p.inner.read().snapshots[0].max_sequencer_number.get(), 8);
+
+        // ------------------------------------------
+        // Delete
+        // --- seq_num: 9
+        let ts = create_tombstone(
+            4,         // tombstone id
+            t_id,      // table id
+            s_id,      // sequencer id
+            9,         // delete's seq_number
+            10,        // min time of data to get deleted
+            50,        // max time of data to get deleted
+            "temp=60", // delete predicate
+        );
+        // the row with temp=60 will be removed from the sanphot
+        p.buffer_tombstone(&exec, "restaurant", ts).await;
+
+        // verify data
+        assert_eq!(p.inner.read().buffer.len(), 0); // always empty after delete
+        assert_eq!(p.inner.read().snapshots.len(), 1); // new snapshot of the existing with delete applied
+        assert_eq!(p.inner.read().deletes_during_persisting.len(), 2); // one more tombstone added make it 2
+        assert_eq!(p.inner.read().persisting, Some(Arc::clone(&p_batch)));
+        // snapshot has only 2 rows becasue the row with tem=60 was removed
+        let data = (*p.inner.read().snapshots[0].data).clone();
+        let expected = vec![
+            "+------------+-----+------+--------------------------------+",
+            "| city       | day | temp | time                           |",
+            "+------------+-----+------+--------------------------------+",
+            "| Wilmington | sun | 55   | 1970-01-01T00:00:00.000000035Z |",
+            "| Boston     | sun | 62   | 1970-01-01T00:00:00.000000038Z |",
+            "+------------+-----+------+--------------------------------+",
+        ];
+        assert_batches_sorted_eq!(&expected, &[data]);
+        assert_eq!(p.inner.read().snapshots[0].min_sequencer_number.get(), 8);
+        assert_eq!(p.inner.read().snapshots[0].max_sequencer_number.get(), 9);
     }
 }

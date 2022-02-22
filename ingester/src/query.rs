@@ -107,6 +107,11 @@ impl QueryableBatch {
 
         (min, max)
     }
+
+    /// return true if it has no data
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
 }
 
 impl QueryChunkMeta for QueryableBatch {

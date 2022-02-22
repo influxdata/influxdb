@@ -41,20 +41,22 @@ pub enum Error {
 /// A specialized `Error` for Ingester's Query errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Return data to send as a response back to the Querier's request
+/// Return data to send as a response back to the Querier per its request
 pub async fn prepare_data_to_querier(
     _request: &IngesterQueryRequest,
 ) -> Result<IngesterQueryResponse> {
     // Steps:
     //  1. Read the IngesterData to get TableData for the given request's table
     //  3. For each PartitionData of the TableData above, get its DataBuffer by:
-    //     3.1. Snapshot the buffer by invoking DataBuffer::snapshot + implement #3699 to add the right tombstones
-    //     3.2. Converting all N snapshots to N QueryableBatches
-    //     3.3. Convert PersistingBatch into a QueryableBatch and add just-arrived tomstones if any (See #3699)
+    //     3.1. Snapshot the buffer by invoking DataBuffer::snapshot
+    //          This snapshot will not inlcude any tombstones because if there are tomstones
+    //          right before this, it would trigger the sanpshot creation already
+    //     3.2. Converting all snapshots to a QueryableBatch that won't have any tombstones.
+    //     3.3. Get PersistingBatch's QueryableBatches and add tomstones in the list `deletes_during_persisting` if any
     //     3.4. For each QueryableBatch produced in 3.2 and 3.3, invoke the avaialble `query` function to filter data per request.
-    //          The request's columns, time range, and predicates will be applied at this step. Each will return a RecordBatch.
-    //     3.5. Merge RecordBatches into one RecordBatch
-    //  4. Send the RecordBatch to Querier. Or if possible (TBD with Carol), we should send them as a stream amd do not need to merge record batches
+    //          . The request's columns, time range, and predicates will be applied at this step. Each will return a RecordBatch.
+    //     3.5. Put all RecordBatches in a stream
+    //  4. The stream is a part of the returned result
 
     let schema = Arc::new(ArrowSchema::new(vec![]));
     let stream = datafusion::physical_plan::EmptyRecordBatchStream::new(Arc::clone(&schema));
