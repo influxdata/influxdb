@@ -65,6 +65,7 @@ To compile and run InfluxDB IOx from source, you'll need the following:
 * [Clang](#clang)
 * [lld (on Linux)](#lld)
 * [protoc (on Apple Silicon)](#protoc)
+* [openssl](#openssl)
 
 #### Rust
 
@@ -135,6 +136,20 @@ PROTOC_INCLUDE=/opt/homebrew/include
 ```
 
 IOx should then build correctly.
+
+#### openssl
+
+Install the `openssl` library.
+
+Check if you have `openssl` installed with `$ openssl version`. If it's missing then openssl can typically be installed with your system package manager.
+
+More information can be found [here](https://github.com/sfackler/rust-openssl/issues/1021) on build errors due to "openssl" not being installed.
+
+If you don't install `openssl`, build would fail with an error like:
+
+```shell
+error: failed to run custom build command for `openssl-sys v0.9.72`
+```
 
 ### Clone the repository
 

@@ -29,6 +29,15 @@ message IngesterQueryRequest {
   int32 sequencer_id = 8;
 }
 
+// Metadata that the ingester provides to the query service along with the results. Serialized
+// in the FlightData's app_metadata for the schema that is returned as the first item from the
+// Arrow Flight doGet request.
+message IngesterQueryResponseMetadata {
+  // Max persisted sequence number of the table, if it is larger than the IngesterQueryRequest's
+  // greater_than_sequence_number
+  optional int64 max_sequencer_number = 2;
+}
+
 // Serialization of `predicate::predicate::Predicate` that contains DataFusion `Expr`s
 message Predicate {
   // Optional field restriction. If any are present, restricts the results to only tables which

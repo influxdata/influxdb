@@ -9,6 +9,7 @@ use trace::TraceCollector;
 use crate::influxdb_ioxd::{http::error::HttpApiErrorSource, rpc::RpcBuilderInput};
 
 pub mod common_state;
+pub mod compactor;
 pub mod database;
 pub mod ingester;
 pub mod router;

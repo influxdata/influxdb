@@ -459,9 +459,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.72"
+version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22a9137b95ea06864e018375b72adfb7db6e6f68cfc8df5a04d00288050485ee"
+checksum = "2fff2a6927b3bb87f9595d67196a70493f627687a71d87a0d692242c33f58c11"
 dependencies = [
  "jobserver",
 ]
@@ -628,6 +628,32 @@ dependencies = [
  "strum",
  "strum_macros",
  "unicode-width",
+]
+
+[[package]]
+name = "compactor"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "data_types",
+ "futures",
+ "generated_types",
+ "hyper",
+ "iox_catalog",
+ "iox_object_store",
+ "metric",
+ "object_store",
+ "observability_deps",
+ "parking_lot 0.12.0",
+ "predicate",
+ "prost",
+ "test_helpers",
+ "thiserror",
+ "tokio",
+ "tokio-util 0.7.0",
+ "tonic",
+ "trace",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1859,6 +1885,7 @@ dependencies = [
  "chrono",
  "clap 3.0.14",
  "comfy-table",
+ "compactor",
  "csv",
  "data_types",
  "datafusion 0.1.0",
@@ -2124,6 +2151,7 @@ dependencies = [
  "snafu",
  "sqlx",
  "sqlx-hotswap-pool",
+ "tempfile",
  "test_helpers",
  "tokio",
  "uuid",
@@ -2316,9 +2344,9 @@ dependencies = [
 
 [[package]]
 name = "kube"
-version = "0.69.0"
+version = "0.69.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f06ab5c1d0d0bffbc96240728792fbe0f50139cf1320c285c8dc8eb0b4a09da"
+checksum = "86835e9147615457c1edc2b11c723acd1d21372e9cefa80a9d2742f6d69042d0"
 dependencies = [
  "k8s-openapi",
  "kube-client",
@@ -2395,9 +2423,9 @@ dependencies = [
 
 [[package]]
 name = "kube-runtime"
-version = "0.69.0"
+version = "0.69.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc3a141c952b29f5ef3a1f0ec397dcf1a473be55f162bceac9ebec046c524330"
+checksum = "32e8bf2258850dbc0a062b561656a1d7020fa8040d552e149f0a0361f0d6794e"
 dependencies = [
  "ahash",
  "backoff",
@@ -2495,9 +2523,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.117"
+version = "0.2.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e74d72e0f9b65b5b4ca49a346af3976df0f9c61d550727f349ecd559f251a26c"
+checksum = "1bf2e165bb3457c8e098ea76f3e3bc9db55f87aa90d52d0e6be741470916aaa4"
 
 [[package]]
 name = "libloading"
@@ -4823,9 +4851,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-core"
-version = "0.5.10"
+version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "518be6f6fff5ca76f985d434f9c37f3662af279642acf730388f271dff7b9016"
+checksum = "195183bf6ff8328bb82c0511a83faf60aacf75840103388851db61d7a9854ae3"
 dependencies = [
  "ahash",
  "atoi",
@@ -4834,9 +4862,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "crc",
- "crossbeam-channel",
  "crossbeam-queue",
- "crossbeam-utils",
  "dirs",
  "either",
  "futures-channel",
@@ -4853,7 +4879,7 @@ dependencies = [
  "md-5",
  "memchr",
  "once_cell",
- "parking_lot 0.11.2",
+ "paste",
  "percent-encoding",
  "rand",
  "serde",
@@ -4907,9 +4933,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-rt"
-version = "0.5.10"
+version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8061cbaa91ee75041514f67a09398c65a64efed72c90151ecd47593bad53da99"
+checksum = "b555e70fbbf84e269ec3858b7a6515bcfe7a166a7cc9c636dd6efd20431678b6"
 dependencies = [
  "native-tls",
  "once_cell",
@@ -5495,9 +5521,9 @@ dependencies = [
 
 [[package]]
 name = "tracing"
-version = "0.1.30"
+version = "0.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d8d93354fe2a8e50d5953f5ae2e47a3fc2ef03292e7ea46e3cc38f549525fb9"
+checksum = "f6c650a8ef0cd2dd93736f033d21cbd1224c5a967aa0c258d00fcf7dafef9b9f"
 dependencies = [
  "cfg-if",
  "log",

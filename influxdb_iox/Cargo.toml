@@ -7,6 +7,7 @@ default-run = "influxdb_iox"
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
+compactor = { path = "../compactor" }
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 db = { path = "../db" }

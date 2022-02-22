@@ -3,6 +3,7 @@
 members = [
     "arrow_util",
     "client_util",
+    "compactor",
     "data_types",
     "datafusion",
     "datafusion_util",

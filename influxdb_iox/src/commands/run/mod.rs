@@ -2,6 +2,7 @@ use snafu::{ResultExt, Snafu};
 
 use crate::clap_blocks::run_config::RunConfig;
 
+pub mod compactor;
 pub mod database;
 pub mod ingester;
 pub mod router;
@@ -11,6 +12,9 @@ pub mod test;
 #[derive(Debug, Snafu)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("Error in compactor subcommand: {}", source))]
+    CompactorError { source: compactor::Error },
+
     #[snafu(display("Error in database subcommand: {}", source))]
     DatabaseError { source: database::Error },
 
@@ -44,6 +48,7 @@ impl Config {
     pub fn run_config(&self) -> &RunConfig {
         match &self.command {
             None => &self.database_config.run_config,
+            Some(Command::Compactor(config)) => &config.run_config,
             Some(Command::Database(config)) => &config.run_config,
             Some(Command::Router(config)) => &config.run_config,
             Some(Command::Router2(config)) => &config.run_config,
@@ -55,6 +60,9 @@ impl Config {
 
 #[derive(Debug, clap::Parser)]
 enum Command {
+    /// Run the server in compactor mode
+    Compactor(compactor::Config),
+
     /// Run the server in database mode
     Database(database::Config),
 
@@ -80,6 +88,9 @@ pub async fn command(config: Config) -> Result<()> {
             database::command(config.database_config)
                 .await
                 .context(DatabaseSnafu)
+        }
+        Some(Command::Compactor(config)) => {
+            compactor::command(config).await.context(CompactorSnafu)
         }
         Some(Command::Database(config)) => database::command(config).await.context(DatabaseSnafu),
         Some(Command::Router(config)) => router::command(config).await.context(RouterSnafu),

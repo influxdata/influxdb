@@ -97,6 +97,8 @@ async fn test_full_lifecycle() {
         // Only trigger persistence once we've finished writing
         .persist_row_threshold(total_rows)
         .persist_age_threshold_seconds(1000)
+        // Prevent persistence being triggered by soft limit
+        .buffer_size_soft(5 * 1024 * 1024) // 5 MB
         // A low late arrival time to speed up the test
         .late_arrive_window_seconds(1)
         .build(fixture.grpc_channel())
@@ -114,7 +116,7 @@ async fn test_full_lifecycle() {
     wait_for_exact_chunk_states(
         &fixture,
         &db_name,
-        vec![ChunkStorage::ObjectStoreOnly],
+        vec![ChunkStorage::ReadBufferAndObjectStore],
         std::time::Duration::from_secs(10),
     )
     .await;
