@@ -35,7 +35,7 @@ rand = "0.8.3"
 snafu = "0.7"
 time = { path = "../time" }
 trace = { path = "../trace" }
-tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.0" }
 tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["v4"] }

@@ -37,7 +37,7 @@ read_buffer = { path = "../read_buffer" }
 schema = { path = "../schema" }
 snafu = "0.7"
 time = { path = "../time" }
-tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.0" }
 trace = { path = "../trace" }
 tracker = { path = "../tracker" }

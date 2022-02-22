@@ -21,7 +21,7 @@ regex = "1.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.79"
 snafu = "0.7"
-tokio = { version = "1.13", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 toml = "0.5.6"
 tracing = "0.1"
 tracing-subscriber = "0.3"
