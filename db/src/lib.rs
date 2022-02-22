@@ -1596,7 +1596,6 @@ mod tests {
             .get_observer(&Attributes::from(&[
                 ("db_name", "placeholder"),
                 ("location", location),
-                ("table", "cpu"),
             ]))
             .unwrap()
             .fetch();

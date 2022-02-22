@@ -80,7 +80,10 @@ impl CatalogMetrics {
     }
 
     pub(super) fn new_table_metrics(self: &Arc<Self>, table_name: &str) -> TableMetrics {
-        let base_attributes = metric::Attributes::from([
+        let database_attributes =
+            metric::Attributes::from([("db_name", self.db_name.to_string().into())]);
+
+        let table_attributes = metric::Attributes::from([
             ("db_name", self.db_name.to_string().into()),
             ("table", table_name.to_string().into()),
         ]);
@@ -95,12 +98,11 @@ impl CatalogMetrics {
             "The number of rows loaded in each chunk storage location",
         );
 
-        let timestamp_histogram = report_timestamp_metrics(table_name).then(|| {
-            TimestampHistogram::new(self.metric_registry.as_ref(), base_attributes.clone())
-        });
+        let timestamp_histogram = report_timestamp_metrics(table_name)
+            .then(|| TimestampHistogram::new(self.metric_registry.as_ref(), table_attributes));
 
-        let chunk_storage = StorageGauge::new(&storage_gauge, base_attributes.clone());
-        let row_count = StorageGauge::new(&row_gauge, base_attributes);
+        let chunk_storage = StorageGauge::new(&storage_gauge, database_attributes.clone());
+        let row_count = StorageGauge::new(&row_gauge, database_attributes);
 
         TableMetrics {
             catalog_metrics: Arc::clone(self),

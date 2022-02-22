@@ -110,10 +110,7 @@ impl AccessMetrics {
     fn table_metrics(&self, table: &str) -> Arc<TableAccessMetrics> {
         let mut tables = self.tables.lock();
         let (_, metrics) = tables.raw_entry_mut().from_key(table).or_insert_with(|| {
-            let attributes = Attributes::from([
-                ("db_name", self.db_name.to_string().into()),
-                ("table_name", table.to_string().into()),
-            ]);
+            let attributes = Attributes::from([("db_name", self.db_name.to_string().into())]);
 
             let metrics = TableAccessMetrics {
                 pruned_chunks: self.pruned_chunks.recorder(attributes.clone()),
