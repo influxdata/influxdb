@@ -76,8 +76,7 @@ pub struct Config {
     #[clap(
         long = "--wipe-catalog-on-error",
         env = "INFLUXDB_IOX_WIPE_CATALOG_ON_ERROR",
-        // TODO: Don't automatically wipe on error (#1522)
-        default_value = "yes"
+        default_value = "no"
     )]
     pub wipe_catalog_on_error: BooleanFlag,
 
