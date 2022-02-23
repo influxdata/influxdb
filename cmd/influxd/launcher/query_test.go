@@ -146,7 +146,7 @@ func TestLauncher_WriteV2_Query(t *testing.T) {
 			name:         "only read permission",
 			permissions:  fmt.Sprintf(`[{"action": "read", "resource": {"type": "buckets", "name": %q}}]`, be.Bucket.Name),
 			expectStatus: 200,
-			expectBody:   fmt.Sprintf(`{"results":[{"statement_id":0,"series":[{"name":"ctr","columns":["time","n"],"values":[["%v",1]]}]}]}`, now.Format("2006-01-02T15:04:05.999999Z")) + "\n",
+			expectBody:   fmt.Sprintf(`{"results":[{"statement_id":0,"series":[{"name":"ctr","columns":["time","n"],"values":[["%v",1]]}]}]}`, now.Format("2006-01-02T15:04:05.999999999Z")) + "\n",
 		},
 	}
 	for _, tt := range tests {
