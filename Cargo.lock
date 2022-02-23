@@ -3309,9 +3309,9 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "9.0.2"
+version = "9.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36531313e3e81a646672001c02d1764fabc1320055fe8b176e696b08d3cf44cd"
+checksum = "1697d963e6319c19099adcf131a5440685053d4902890f9e4bb272cbd0dc6532"
 dependencies = [
  "arrow",
  "base64 0.13.0",
@@ -3320,6 +3320,7 @@ dependencies = [
  "chrono",
  "flate2",
  "lz4",
+ "num",
  "num-bigint 0.4.3",
  "parquet-format",
  "rand",

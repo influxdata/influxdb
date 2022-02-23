@@ -10,7 +10,7 @@ influxdb_tsm = { path = "../influxdb_tsm" }
 schema = { path = "../schema" }
 snafu = "0.7"
 observability_deps = { path = "../observability_deps" }
-parquet = "9.0"
+parquet = "9.1"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order

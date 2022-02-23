@@ -26,7 +26,7 @@ mutable_batch = { path = "../mutable_batch"}
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
-parquet = "9.0"
+parquet = "9.1"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.0"
 predicate = { path = "../predicate" }
