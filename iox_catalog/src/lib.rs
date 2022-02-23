@@ -30,6 +30,7 @@ pub const INFINITE_RETENTION_POLICY: &str = "inf";
 
 pub mod interface;
 pub mod mem;
+pub mod metrics;
 pub mod postgres;
 
 /// Given an iterator of `(table_name, batch)` to validate, this function
