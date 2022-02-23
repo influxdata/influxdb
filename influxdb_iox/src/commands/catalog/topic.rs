@@ -46,7 +46,7 @@ enum Command {
 pub async fn command(config: Config) -> Result<(), Error> {
     match config.command {
         Command::Update(update) => {
-            let catalog = update.catalog_dsn.get_catalog("cli").await?;
+            let catalog = update.catalog_dsn.get_catalog("cli", None).await?;
             let mut repos = catalog.repositories().await;
             let topic = repos.kafka_topics().create_or_get(&update.db_name).await?;
             println!("{}", topic.id);

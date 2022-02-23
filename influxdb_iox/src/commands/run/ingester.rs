@@ -147,8 +147,12 @@ pub struct Config {
 
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
+    let metric_registry: Arc<metric::Registry> = Default::default();
 
-    let catalog = config.catalog_dsn.get_catalog("ingester").await?;
+    let catalog = config
+        .catalog_dsn
+        .get_catalog("ingester", Some(Arc::clone(&metric_registry)))
+        .await?;
 
     let mut txn = catalog.start_transaction().await?;
     let kafka_topic = txn
@@ -178,7 +182,6 @@ pub async fn command(config: Config) -> Result<()> {
     }
     txn.commit().await?;
 
-    let metric_registry: Arc<metric::Registry> = Default::default();
     let trace_collector = common_state.trace_collector();
 
     let write_buffer = config
@@ -201,7 +204,7 @@ pub async fn command(config: Config) -> Result<()> {
             object_store,
             write_buffer,
             Executor::new(config.query_exect_thread_count),
-            &metric_registry,
+            Arc::clone(&metric_registry),
         )
         .await?,
     );

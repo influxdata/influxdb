@@ -10,11 +10,13 @@ message IngesterQueryRequest {
   // Columns the query service is interested in
   repeated string columns = 2;
 
-  // Start time of the query
-  int64 min_time = 3;
+  // Was start time of the query; now use the one in predicate
+  reserved "min_time";
+  reserved 3;
 
-  // End time of the query
-  int64 max_time = 4;
+  // Was end time of the query; now use the one in predicate
+  reserved "max_time";
+  reserved 4;
 
   // Predicate for filtering
   optional Predicate predicate = 5;

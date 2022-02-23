@@ -91,7 +91,7 @@ use tokio_util::sync::CancellationToken;
 
 pub use future::{TrackedFuture, TrackedFutureExt};
 pub use history::TaskRegistryWithHistory;
-pub use metrics::TaskRegistryWithMetrics;
+pub use metrics::{FAttributes, TaskRegistryWithMetrics};
 pub use registry::{AbstractTaskRegistry, TaskId, TaskRegistry};
 use tokio::sync::Notify;
 

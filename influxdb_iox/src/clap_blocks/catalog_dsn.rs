@@ -39,13 +39,18 @@ pub enum CatalogType {
 }
 
 impl CatalogDsnConfig {
-    pub async fn get_catalog(&self, app_name: &'static str) -> Result<Arc<dyn Catalog>, Error> {
+    pub async fn get_catalog(
+        &self,
+        app_name: &'static str,
+        metrics: Option<Arc<metric::Registry>>,
+    ) -> Result<Arc<dyn Catalog>, Error> {
         let catalog = match self.catalog_type_ {
             CatalogType::Postgres => Arc::new(
                 PostgresCatalog::connect(
                     app_name,
                     iox_catalog::postgres::SCHEMA_NAME,
                     self.dsn.as_ref().context(ConnectionStringRequiredSnafu)?,
+                    metrics.unwrap_or_default(),
                 )
                 .await
                 .context(CatalogSnafu)?,

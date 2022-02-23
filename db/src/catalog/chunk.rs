@@ -14,7 +14,7 @@ use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use parquet_file::chunk::ParquetChunk;
 use read_buffer::RBChunk;
-use schema::{Schema, TIME_COLUMN_NAME};
+use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
 use snafu::Snafu;
 use std::sync::Arc;
 use time::{Time, TimeProvider};
@@ -456,6 +456,15 @@ impl CatalogChunk {
 
     pub fn order(&self) -> ChunkOrder {
         self.order
+    }
+
+    pub fn schema(&self) -> Arc<Schema> {
+        match &self.stage {
+            ChunkStage::Open { mb_chunk } => Arc::new(mb_chunk.schema(Selection::All).unwrap()),
+            ChunkStage::Frozen { meta, .. } | ChunkStage::Persisted { meta, .. } => {
+                Arc::clone(&meta.schema)
+            }
+        }
     }
 
     /// Updates `self.metrics` to match the contents of `self.stage`

@@ -56,7 +56,7 @@ tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc",
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 tokio-util-3b31131e45eafb45 = { package = "tokio-util", version = "0.6", features = ["codec", "io", "slab", "time"] }
 tokio-util-ca01ad9e24f5d932 = { package = "tokio-util", version = "0.7", features = ["codec", "io"] }
-tower = { version = "0.4", features = ["balance", "buffer", "discover", "filter", "futures-util", "indexmap", "limit", "load", "log", "make", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-stream", "tokio-util", "tracing", "util"] }
+tower = { version = "0.4", features = ["__common", "balance", "buffer", "discover", "filter", "futures-core", "futures-util", "indexmap", "limit", "load", "log", "make", "pin-project", "pin-project-lite", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-util", "tracing", "util"] }
 tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace", "release_max_level_debug", "std", "tracing-attributes"] }
 tracing-core = { version = "0.1", features = ["lazy_static", "std", "valuable"] }
 tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
