@@ -1099,7 +1099,7 @@ mod tests {
 
     // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
     macro_rules! maybe_skip_integration {
-        () => {{
+        ($panic_msg:expr) => {{
             dotenv::dotenv().ok();
 
             let required_vars = ["DATABASE_URL"];
@@ -1129,9 +1129,18 @@ mod tests {
                         format!("{} and ", unset_var_names)
                     }
                 );
+
+                let panic_msg: &'static str = $panic_msg;
+                if !panic_msg.is_empty() {
+                    panic!("{}", panic_msg);
+                }
+
                 return;
             }
         }};
+        () => {
+            maybe_skip_integration!("")
+        };
     }
 
     async fn setup_db() -> PostgresCatalog {
@@ -1270,7 +1279,7 @@ mod tests {
         // If running an integration test on your laptop, this requires that you have Postgres
         // running and that you've done the sqlx migrations. See the README in this crate for
         // info to set it up.
-        maybe_skip_integration!();
+        maybe_skip_integration!("attempted to overwrite predicate");
 
         let postgres = setup_db().await;
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
@@ -1405,7 +1414,7 @@ mod tests {
         // If running an integration test on your laptop, this requires that you have Postgres
         // running and that you've done the sqlx migrations. See the README in this crate for
         // info to set it up.
-        maybe_skip_integration!();
+        maybe_skip_integration!("attempted to overwrite partition");
 
         let postgres = setup_db().await;
 
