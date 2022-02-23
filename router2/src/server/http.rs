@@ -1,6 +1,9 @@
 //! HTTP service implementations for `router2`.
 
+use std::{str::Utf8Error, sync::Arc};
+
 use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
+
 use bytes::{Bytes, BytesMut};
 use data_types2::{org_and_bucket_to_database, OrgBucketMappingError};
 use futures::StreamExt;
@@ -11,7 +14,6 @@ use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use serde::Deserialize;
-use std::str::Utf8Error;
 use thiserror::Error;
 use time::{SystemProvider, TimeProvider};
 use trace::ctx::SpanContext;
@@ -78,7 +80,6 @@ impl Error {
             Error::ParseLineProtocol(_) => StatusCode::BAD_REQUEST,
             Error::ParseDelete(_) => StatusCode::BAD_REQUEST,
             Error::RequestSizeExceeded(_) => StatusCode::PAYLOAD_TOO_LARGE,
-            Error::DmlHandler(DmlError::Schema(_)) => StatusCode::BAD_REQUEST,
             Error::InvalidContentEncoding(_) => {
                 // https://www.rfc-editor.org/rfc/rfc7231#section-6.5.13
                 StatusCode::UNSUPPORTED_MEDIA_TYPE
@@ -151,7 +152,7 @@ impl<T> TryFrom<&Request<T>> for OrgBucketInfo {
 pub struct HttpDelegate<D, T = SystemProvider> {
     max_request_bytes: usize,
     time_provider: T,
-    dml_handler: D,
+    dml_handler: Arc<D>,
 
     write_metric_lines: U64Counter,
     write_metric_fields: U64Counter,
@@ -166,7 +167,7 @@ impl<D> HttpDelegate<D, SystemProvider> {
     ///
     /// HTTP request bodies are limited to `max_request_bytes` in size,
     /// returning an error if exceeded.
-    pub fn new(max_request_bytes: usize, dml_handler: D, metrics: &metric::Registry) -> Self {
+    pub fn new(max_request_bytes: usize, dml_handler: Arc<D>, metrics: &metric::Registry) -> Self {
         let write_metric_lines = metrics
             .register_metric::<U64Counter>(
                 "http_write_lines_total",

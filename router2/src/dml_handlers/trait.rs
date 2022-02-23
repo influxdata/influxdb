@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use data_types2::{DatabaseName, DeletePredicate};
-use std::{error::Error, fmt::Debug};
+use std::{error::Error, fmt::Debug, sync::Arc};
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
@@ -74,4 +74,37 @@ pub trait DmlHandler: Debug + Send + Sync {
         predicate: &DeletePredicate,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), Self::DeleteError>;
+}
+
+#[async_trait]
+impl<T> DmlHandler for Arc<T>
+where
+    T: DmlHandler,
+{
+    type WriteInput = T::WriteInput;
+    type WriteOutput = T::WriteOutput;
+    type WriteError = T::WriteError;
+    type DeleteError = T::DeleteError;
+
+    async fn write(
+        &self,
+        namespace: &DatabaseName<'static>,
+        input: Self::WriteInput,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<Self::WriteOutput, Self::WriteError> {
+        (**self).write(namespace, input, span_ctx).await
+    }
+
+    /// Delete the data specified in `delete`.
+    async fn delete(
+        &self,
+        namespace: &DatabaseName<'static>,
+        table_name: &str,
+        predicate: &DeletePredicate,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<(), Self::DeleteError> {
+        (**self)
+            .delete(namespace, table_name, predicate, span_ctx)
+            .await
+    }
 }
