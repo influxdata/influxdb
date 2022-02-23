@@ -181,6 +181,7 @@ pub async fn command(config: Config) -> Result<()> {
     // pipeline, starting with the namespace creator (for testing purposes) and
     // write partitioner that yields a set of partitioned batches.
     let handler_stack = ns_creator
+        .and_then(schema_validator)
         .and_then(partitioner)
         // Once writes have been partitioned, they are processed in parallel.
         //
@@ -191,7 +192,7 @@ pub async fn command(config: Config) -> Result<()> {
         .and_then(InstrumentationDecorator::new(
             "parallel_write",
             Arc::clone(&metrics),
-            FanOutAdaptor::new(schema_validator.and_then(write_buffer)),
+            FanOutAdaptor::new(write_buffer),
         ));
 
     // Record the overall request handling latency

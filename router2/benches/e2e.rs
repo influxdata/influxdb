@@ -65,7 +65,7 @@ fn e2e_benchmarks(c: &mut Criterion) {
         });
 
         let handler_stack =
-            partitioner.and_then(FanOutAdaptor::new(schema_validator.and_then(write_buffer)));
+            schema_validator.and_then(partitioner.and_then(FanOutAdaptor::new(write_buffer)));
 
         HttpDelegate::new(1024, handler_stack)
     };
