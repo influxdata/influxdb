@@ -2,6 +2,7 @@
 //! DataFusion
 
 use async_trait::async_trait;
+use executor::DedicatedExecutor;
 use std::{convert::TryInto, fmt, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
@@ -47,7 +48,6 @@ pub use datafusion::error::{DataFusionError as Error, Result};
 
 use super::{
     non_null_checker::NonNullCheckerNode, seriesset::series::Either, split::StreamSplitNode,
-    task::DedicatedExecutor,
 };
 
 // The default catalog name - this impacts what SQL queries use if not specified

@@ -22,6 +22,7 @@ croaring = "0.5"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
+executor = { path = "../executor"}
 futures = "0.3"
 hashbrown = "0.12"
 observability_deps = { path = "../observability_deps" }
@@ -36,10 +37,6 @@ tokio-util = { version = "0.7.0" }
 trace = { path = "../trace" }
 predicate = { path = "../predicate" }
 workspace-hack = { path = "../workspace-hack"}
-
-# use libc on unix like platforms to set worker priority in DedicatedExecutor
-[target."cfg(unix)".dependencies.libc]
-version = "0.2"
 
 [dev-dependencies] # In alphabetical order
 itertools = "0.10.1"

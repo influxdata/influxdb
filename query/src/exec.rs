@@ -10,8 +10,8 @@ mod schema_pivot;
 pub mod seriesset;
 pub(crate) mod split;
 pub mod stringset;
-mod task;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
+use executor::DedicatedExecutor;
 
 use std::sync::Arc;
 
@@ -25,7 +25,7 @@ use datafusion::{
 pub use context::{IOxExecutionConfig, IOxExecutionContext};
 use schema_pivot::SchemaPivotNode;
 
-use self::{non_null_checker::NonNullCheckerNode, split::StreamSplitNode, task::DedicatedExecutor};
+use self::{non_null_checker::NonNullCheckerNode, split::StreamSplitNode};
 
 /// Configuration for an Executor
 #[derive(Debug, Clone)]

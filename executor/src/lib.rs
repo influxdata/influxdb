@@ -1,5 +1,15 @@
 //! This module contains a dedicated thread pool for running "cpu
 //! intensive" workloads such as DataFusion plans
+#![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    missing_docs,
+    clippy::explicit_iter_loop,
+    clippy::future_not_send,
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
+)]
 
 use parking_lot::Mutex;
 use pin_project::{pin_project, pinned_drop};
@@ -42,6 +52,7 @@ pub type Error = tokio::sync::oneshot::error::RecvError;
 ///
 /// Dropping the job will cancel its linked task.
 #[pin_project(PinnedDrop)]
+#[derive(Debug)]
 pub struct Job<T> {
     cancel: CancellationToken,
     #[pin]
