@@ -51,7 +51,7 @@ enum Command {
 pub async fn command(config: Config) -> Result<(), Error> {
     match config.command {
         Command::Setup(command) => {
-            let catalog = command.catalog_dsn.get_catalog("cli").await?;
+            let catalog = command.catalog_dsn.get_catalog("cli", None).await?;
             catalog.setup().await?;
             println!("OK");
         }

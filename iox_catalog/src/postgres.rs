@@ -1,12 +1,16 @@
 //! A Postgres backed implementation of the Catalog
 
-use crate::interface::{
-    sealed::TransactionFinalize, Catalog, Column, ColumnRepo, ColumnType, Error, KafkaPartition,
-    KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile,
-    ParquetFileId, ParquetFileRepo, Partition, PartitionId, PartitionInfo, PartitionRepo,
-    ProcessedTombstone, ProcessedTombstoneRepo, QueryPool, QueryPoolId, QueryPoolRepo,
-    RepoCollection, Result, SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId,
-    TableRepo, Timestamp, Tombstone, TombstoneId, TombstoneRepo, Transaction,
+use crate::{
+    interface::{
+        sealed::TransactionFinalize, Catalog, Column, ColumnRepo, ColumnType, Error,
+        KafkaPartition, KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace, NamespaceId,
+        NamespaceRepo, ParquetFile, ParquetFileId, ParquetFileRepo, Partition, PartitionId,
+        PartitionInfo, PartitionRepo, ProcessedTombstone, ProcessedTombstoneRepo, QueryPool,
+        QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer, SequencerId,
+        SequencerRepo, Table, TableId, TableRepo, Timestamp, Tombstone, TombstoneId, TombstoneRepo,
+        Transaction,
+    },
+    metrics::MetricDecorator,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::{info, warn};
@@ -29,6 +33,7 @@ static MIGRATOR: Migrator = sqlx::migrate!();
 /// PostgreSQL catalog.
 #[derive(Debug)]
 pub struct PostgresCatalog {
+    metrics: Arc<metric::Registry>,
     pool: HotSwapPool<Postgres>,
 }
 
@@ -40,12 +45,17 @@ struct Count {
 
 impl PostgresCatalog {
     /// Connect to the catalog store.
-    pub async fn connect(app_name: &str, schema_name: &str, dsn: &str) -> Result<Self> {
+    pub async fn connect(
+        app_name: &str,
+        schema_name: &str,
+        dsn: &str,
+        metrics: Arc<metric::Registry>,
+    ) -> Result<Self> {
         let pool = new_pool(app_name, schema_name, dsn, HOTSWAP_POLL_INTERVAL)
             .await
             .map_err(|e| Error::SqlxError { source: e })?;
 
-        Ok(Self { pool })
+        Ok(Self { pool, metrics })
     }
 }
 
@@ -205,15 +215,21 @@ impl Catalog for PostgresCatalog {
             .await
             .map_err(|e| Error::SqlxError { source: e })?;
 
-        Ok(Box::new(PostgresTxn {
-            inner: PostgresTxnInner::Txn(Some(transaction)),
-        }))
+        Ok(Box::new(MetricDecorator::new(
+            PostgresTxn {
+                inner: PostgresTxnInner::Txn(Some(transaction)),
+            },
+            Arc::clone(&self.metrics),
+        )))
     }
 
     async fn repositories(&self) -> Box<dyn RepoCollection> {
-        Box::new(PostgresTxn {
-            inner: PostgresTxnInner::Oneshot(self.pool.clone()),
-        })
+        Box::new(MetricDecorator::new(
+            PostgresTxn {
+                inner: PostgresTxnInner::Oneshot(self.pool.clone()),
+            },
+            Arc::clone(&self.metrics),
+        ))
     }
 }
 
@@ -1091,6 +1107,7 @@ mod tests {
 
     use super::*;
 
+    use metric::{Attributes, Metric, U64Histogram};
     use rand::Rng;
     use std::{env, ops::DerefMut, sync::Arc};
     use std::{io::Write, time::Instant};
@@ -1143,6 +1160,18 @@ mod tests {
         };
     }
 
+    fn assert_metric_hit(metrics: &metric::Registry, name: &'static str) {
+        let histogram = metrics
+            .get_instrument::<Metric<U64Histogram>>("catalog_op_duration_ms")
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[("op", name), ("result", "success")]))
+            .expect("failed to get observer")
+            .fetch();
+
+        let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+        assert!(hit_count > 1, "metric did not record any calls");
+    }
+
     async fn setup_db() -> PostgresCatalog {
         // create a random schema for this particular pool
         let schema_name = {
@@ -1157,8 +1186,9 @@ mod tests {
                 .collect::<String>()
         };
 
+        let metrics = Arc::new(metric::Registry::default());
         let dsn = std::env::var("DATABASE_URL").unwrap();
-        let pg = PostgresCatalog::connect("test", &schema_name, &dsn)
+        let pg = PostgresCatalog::connect("test", &schema_name, &dsn, metrics)
             .await
             .expect("failed to connect catalog");
 
@@ -1193,9 +1223,20 @@ mod tests {
         maybe_skip_integration!();
 
         let postgres = setup_db().await;
+        let metrics = Arc::clone(&postgres.metrics);
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
 
         crate::interface::test_helpers::test_catalog(postgres).await;
+
+        assert_metric_hit(&*metrics, "kafka_create_or_get");
+        assert_metric_hit(&*metrics, "query_create_or_get");
+        assert_metric_hit(&*metrics, "namespace_create");
+        assert_metric_hit(&*metrics, "table_create_or_get");
+        assert_metric_hit(&*metrics, "column_create_or_get");
+        assert_metric_hit(&*metrics, "sequencer_create_or_get");
+        assert_metric_hit(&*metrics, "partition_create_or_get");
+        assert_metric_hit(&*metrics, "tombstone_create_or_get");
+        assert_metric_hit(&*metrics, "parquet_create");
     }
 
     #[tokio::test]
