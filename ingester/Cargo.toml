@@ -9,6 +9,7 @@ arrow = { version = "9.1", features = ["prettyprint"] }
 arrow-flight = "9.1"
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1.42"
+backoff = { path = "../backoff" }
 base64 = "0.13"
 bytes = "1.0"
 datafusion = { path = "../datafusion" }

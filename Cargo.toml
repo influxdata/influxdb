@@ -2,6 +2,7 @@
 # In alphabetical order
 members = [
     "arrow_util",
+    "backoff",
     "client_util",
     "compactor",
     "data_types",

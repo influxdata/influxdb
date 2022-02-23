@@ -7,6 +7,7 @@ use crate::{
     querier_handler::prepare_data_to_querier,
 };
 use async_trait::async_trait;
+use backoff::BackoffConfig;
 use db::write_buffer::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
 use futures::{
     future::{BoxFuture, Shared},
@@ -135,6 +136,7 @@ impl IngestHandlerImpl {
             catalog,
             sequencers,
             exec,
+            backoff_config: BackoffConfig::default(),
         });
 
         let ingester_data = Arc::clone(&data);

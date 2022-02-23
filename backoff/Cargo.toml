@@ -1,0 +1,10 @@
+[package]
+name = "backoff"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.17", features = ["macros", "time"] }
+observability_deps = { path = "../observability_deps" }
+rand = "0.8"
+workspace-hack = { path = "../workspace-hack"}

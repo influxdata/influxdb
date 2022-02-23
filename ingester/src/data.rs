@@ -6,6 +6,7 @@ use crate::persist::persist;
 use crate::querier_handler::query;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
+use backoff::{Backoff, BackoffConfig};
 use chrono::{format::StrftimeItems, TimeZone, Utc};
 use data_types::delete_predicate::DeletePredicate;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -15,19 +16,19 @@ use generated_types::{
     influxdata::iox::ingester::v1 as proto,
 };
 use iox_catalog::interface::{
-    Catalog, KafkaPartition, NamespaceId, PartitionId, PartitionInfo, SequenceNumber, SequencerId,
-    TableId, Timestamp, Tombstone,
+    Catalog, KafkaPartition, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
+    Timestamp, Tombstone,
 };
 use mutable_batch::column::ColumnData;
 use mutable_batch::MutableBatch;
 use object_store::ObjectStore;
-use observability_deps::tracing::{error, warn};
+use observability_deps::tracing::warn;
 use parking_lot::RwLock;
 use predicate::Predicate;
 use query::exec::Executor;
 use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::{collections::BTreeMap, convert::TryFrom, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, convert::TryFrom, sync::Arc};
 use time::SystemProvider;
 use uuid::Uuid;
 
@@ -85,9 +86,6 @@ pub enum Error {
     PartitionNotFound { partition_id: PartitionId },
 }
 
-/// Time to wait to retry if there is some sort of network error with the catalog or object storage.
-const RETRY_TIME: Duration = Duration::from_secs(1);
-
 /// A specialized `Error` for Ingester Data errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -103,6 +101,9 @@ pub struct IngesterData {
     pub(crate) sequencers: BTreeMap<SequencerId, SequencerData>,
     /// Executor for running queries and compacting and persisting
     pub(crate) exec: Executor,
+
+    /// Backoff config
+    pub(crate) backoff_config: BackoffConfig,
 }
 
 impl IngesterData {
@@ -155,19 +156,14 @@ pub trait Persister: Send + Sync + 'static {
 #[async_trait]
 impl Persister for IngesterData {
     async fn persist(&self, partition_id: PartitionId) {
-        let mut repos = self.catalog.repositories().await;
-
         // lookup the partition_info from the catalog
-        let partition_info: Option<PartitionInfo> = loop {
-            match repos.partitions().partition_info_by_id(partition_id).await {
-                Ok(p) => break p,
-                Err(e) => {
-                    warn!(%e, ?partition_id, "getting partition_info_by_id failed: retrying.");
-                    tokio::time::sleep(RETRY_TIME).await;
-                }
-            }
-        };
-        std::mem::drop(repos);
+        let partition_info = Backoff::new(&self.backoff_config)
+            .retry_all_errors("get partition_info_by_id", || async {
+                let mut repos = self.catalog.repositories().await;
+                repos.partitions().partition_info_by_id(partition_id).await
+            })
+            .await
+            .expect("retry forever");
 
         // lookup the state from the ingester data. If something isn't found, it's unexpected. Crash
         // so someone can take a look.
@@ -245,43 +241,35 @@ impl Persister for IngesterData {
         };
 
         // save the compacted data to a parquet file in object storage
-        loop {
-            match persist(&iox_meta, record_batches.to_vec(), &self.object_store).await {
-                Ok(_) => break,
-                Err(e) => {
-                    warn!(%e, "persisting to object store failed: retrying.");
-                    tokio::time::sleep(RETRY_TIME).await;
-                }
-            }
-        }
+        Backoff::new(&self.backoff_config)
+            .retry_all_errors("persist to object store", || {
+                persist(&iox_meta, record_batches.to_vec(), &self.object_store)
+            })
+            .await
+            .expect("retry forever");
 
         // Add the parquet file to the catalog until succeed
         // TODO: clean this up when updating the min_sequence_number is added in.
         let parquet_file = iox_meta.to_parquet_file();
-        let mut repos = self.catalog.repositories().await;
-        loop {
-            match repos
-                .parquet_files()
-                .create(
-                    parquet_file.sequencer_id,
-                    parquet_file.table_id,
-                    parquet_file.partition_id,
-                    parquet_file.object_store_id,
-                    parquet_file.min_sequence_number,
-                    parquet_file.max_sequence_number,
-                    parquet_file.min_time,
-                    parquet_file.max_time,
-                )
-                .await
-            {
-                Ok(_) => break,
-                Err(e) => {
-                    error!(%e, "error from catalog adding parquet file ");
-                    tokio::time::sleep(RETRY_TIME).await;
-                }
-            }
-        }
-        std::mem::drop(repos);
+        Backoff::new(&self.backoff_config)
+            .retry_all_errors("add parquet file to catalog", || async {
+                let mut repos = self.catalog.repositories().await;
+                repos
+                    .parquet_files()
+                    .create(
+                        parquet_file.sequencer_id,
+                        parquet_file.table_id,
+                        parquet_file.partition_id,
+                        parquet_file.object_store_id,
+                        parquet_file.min_sequence_number,
+                        parquet_file.max_sequence_number,
+                        parquet_file.min_time,
+                        parquet_file.max_time,
+                    )
+                    .await
+            })
+            .await
+            .expect("retry forever");
 
         // and remove the persisted data from memory
         namespace.mark_persisted_and_remove_if_empty(
@@ -295,22 +283,17 @@ impl Persister for IngesterData {
         sequencer_id: SequencerId,
         sequence_number: SequenceNumber,
     ) {
-        loop {
-            if let Err(e) = self
-                .catalog
-                .repositories()
-                .await
-                .sequencers()
-                .update_min_unpersisted_sequence_number(sequencer_id, sequence_number)
-                .await
-            {
-                warn!(%e, ?sequencer_id, "updating min_unpersisted_sequence_number: retrying.");
-                tokio::time::sleep(RETRY_TIME).await;
-                continue;
-            }
-
-            break;
-        }
+        Backoff::new(&self.backoff_config)
+            .retry_all_errors("updating min_unpersisted_sequence_number", || async {
+                self.catalog
+                    .repositories()
+                    .await
+                    .sequencers()
+                    .update_min_unpersisted_sequence_number(sequencer_id, sequence_number)
+                    .await
+            })
+            .await
+            .expect("retry forever")
     }
 }
 
@@ -1166,6 +1149,7 @@ mod tests {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use object_store::ObjectStoreApi;
     use std::ops::DerefMut;
+    use std::time::Duration;
     use test_helpers::assert_error;
     use time::Time;
 
@@ -1381,6 +1365,7 @@ mod tests {
             catalog: Arc::clone(&catalog),
             sequencers,
             exec: Executor::new(1),
+            backoff_config: BackoffConfig::default(),
         });
 
         let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
@@ -1450,6 +1435,7 @@ mod tests {
             catalog: Arc::clone(&catalog),
             sequencers,
             exec: Executor::new(1),
+            backoff_config: BackoffConfig::default(),
         });
 
         let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
