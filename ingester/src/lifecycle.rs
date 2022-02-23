@@ -7,6 +7,7 @@
 
 use crate::{
     data::Persister,
+    job::{Job, JobRegistry},
     poison::{PoisonCabinet, PoisonPill},
 };
 use iox_catalog::interface::{PartitionId, SequenceNumber, SequencerId};
@@ -17,6 +18,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use time::{Time, TimeProvider};
 use tokio_util::sync::CancellationToken;
+use tracker::TrackedFutureExt;
 
 /// The lifecycle manager keeps track of the size and age of partitions across all sequencers.
 /// It triggers persistence based on keeping total memory usage around a set amount while
@@ -26,6 +28,7 @@ pub struct LifecycleManager {
     time_provider: Arc<dyn TimeProvider>,
     state: Mutex<LifecycleState>,
     persist_running: tokio::sync::Mutex<()>,
+    job_registry: Arc<JobRegistry>,
 }
 
 /// The configuration options for the lifecycle on the ingester.
@@ -113,12 +116,21 @@ pub struct PartitionLifecycleStats {
 impl LifecycleManager {
     /// Initialize a new lifecycle manager that will persist when `maybe_persist` is called
     /// if anything is over the size or age threshold.
-    pub(crate) fn new(config: LifecycleConfig, time_provider: Arc<dyn TimeProvider>) -> Self {
+    pub(crate) fn new(
+        config: LifecycleConfig,
+        metric_registry: Arc<metric::Registry>,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
+        let job_registry = Arc::new(JobRegistry::new(
+            metric_registry,
+            Arc::clone(&time_provider),
+        ));
         Self {
             config,
             time_provider,
             state: Default::default(),
             persist_running: Default::default(),
+            job_registry,
         }
     }
 
@@ -229,9 +241,13 @@ impl LifecycleManager {
                 self.remove(s.partition_id);
                 let persister = Arc::clone(persister);
 
+                let (_tracker, registration) = self.job_registry.register(Job::Persist {
+                    partition_id: s.partition_id,
+                });
                 tokio::task::spawn(async move {
                     persister.persist(s.partition_id).await;
                 })
+                .track(registration)
             })
             .collect();
 
@@ -301,6 +317,8 @@ pub(crate) async fn run_lifecycle_manager<P: Persister>(
 
         manager.maybe_persist(&persister).await;
 
+        manager.job_registry.reclaim();
+
         tokio::select!(
             _ = tokio::time::sleep(CHECK_INTERVAL) => {},
             _ = shutdown.cancelled() => {},
@@ -313,7 +331,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use std::collections::BTreeSet;
-    use time::{MockProvider, SystemProvider};
+    use time::MockProvider;
 
     #[derive(Default)]
     struct TestPersister {
@@ -358,9 +376,7 @@ mod tests {
             partition_size_threshold: 5,
             partition_age_threshold: Duration::from_nanos(0),
         };
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let tp = Arc::clone(&time_provider);
-        let m = LifecycleManager::new(config, tp);
+        let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
 
         // log first two writes at different times
@@ -393,8 +409,7 @@ mod tests {
             partition_size_threshold: 5,
             partition_age_threshold: Duration::from_nanos(0),
         };
-        let time_provider = Arc::new(SystemProvider::new());
-        let m = LifecycleManager::new(config, time_provider);
+        let TestLifecycleManger { m, .. } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
 
         assert!(!m.log_write(
@@ -426,9 +441,7 @@ mod tests {
             partition_size_threshold: 10,
             partition_age_threshold: Duration::from_nanos(5),
         };
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let tp = Arc::clone(&time_provider);
-        let m = LifecycleManager::new(config, tp);
+        let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
         let sequencer_id = SequencerId::new(1);
@@ -472,10 +485,9 @@ mod tests {
             partition_size_threshold: 5,
             partition_age_threshold: Duration::from_millis(100),
         };
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let TestLifecycleManger { m, .. } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
 
-        let m = LifecycleManager::new(config, time_provider);
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
         m.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 4);
@@ -515,8 +527,7 @@ mod tests {
             partition_age_threshold: Duration::from_millis(1000),
         };
         let sequencer_id = SequencerId::new(1);
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let m = LifecycleManager::new(config, time_provider);
+        let TestLifecycleManger { m, .. } = TestLifecycleManger::new(config);
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
         m.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 8);
@@ -579,9 +590,7 @@ mod tests {
             partition_age_threshold: Duration::from_millis(1000),
         };
         let sequencer_id = SequencerId::new(1);
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let tp = Arc::clone(&time_provider);
-        let m = LifecycleManager::new(config, tp);
+        let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
         let persister = Arc::new(TestPersister::default());
         m.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(1), 4);
         time_provider.inc(Duration::from_nanos(1));
@@ -602,5 +611,23 @@ mod tests {
             persister.update_min_calls(),
             vec![(sequencer_id, SequenceNumber::new(3))]
         );
+    }
+
+    struct TestLifecycleManger {
+        m: LifecycleManager,
+        time_provider: Arc<MockProvider>,
+    }
+
+    impl TestLifecycleManger {
+        fn new(config: LifecycleConfig) -> Self {
+            let metric_registry = Arc::new(metric::Registry::new());
+            let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+            let m = LifecycleManager::new(
+                config,
+                metric_registry,
+                Arc::<MockProvider>::clone(&time_provider),
+            );
+            Self { m, time_provider }
+        }
     }
 }

@@ -38,6 +38,7 @@ thiserror = "1.0"
 time = { path = "../time" }
 tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tonic = { version = "0.6" }
+tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 write_buffer = { path = "../write_buffer" }

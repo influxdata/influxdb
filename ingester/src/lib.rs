@@ -16,6 +16,7 @@
 pub mod compact;
 pub mod data;
 pub mod handler;
+mod job;
 pub mod lifecycle;
 pub mod persist;
 mod poison;
