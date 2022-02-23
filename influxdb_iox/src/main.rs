@@ -14,6 +14,7 @@ use dotenv::dotenv;
 use influxdb_iox_client::connection::Builder;
 use observability_deps::tracing::warn;
 use once_cell::sync::Lazy;
+use std::time::Duration;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
@@ -140,14 +141,19 @@ struct Config {
     #[clap(long, global = true)]
     header: Vec<KeyValue<http::header::HeaderName, http::HeaderValue>>,
 
+    /// Configure the request timeout for CLI requests
+    #[clap(long, global = true, default_value = "30s", parse(try_from_str = humantime::parse_duration))]
+    rpc_timeout: Duration,
+
+    /// Automatically generate an uber-trace-id header for CLI requests
+    ///
+    /// The generated trace ID will be emitted at the beginning of the response.
     #[clap(long, global = true)]
-    /// Automatically generate an uber-trace-id header. The generated trace ID
-    /// will be emitted at the beginning of the response.
     gen_trace_id: bool,
 
-    #[clap(long)]
     /// Set the maximum number of threads to use. Defaults to the number of
     /// cores on the system
+    #[clap(long)]
     num_threads: Option<usize>,
 
     #[clap(subcommand)]
@@ -198,11 +204,14 @@ fn main() -> Result<(), std::io::Error> {
         let host = config.host;
         let headers = config.header;
         let log_verbose_count = config.log_verbose_count;
+        let rpc_timeout = config.rpc_timeout;
 
         let connection = || async move {
             let mut builder = headers.into_iter().fold(Builder::default(), |builder, kv| {
                 builder.header(kv.key, kv.value)
             });
+
+            builder = builder.timeout(rpc_timeout);
 
             if config.gen_trace_id {
                 let key = http::header::HeaderName::from_str(
