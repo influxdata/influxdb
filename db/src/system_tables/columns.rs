@@ -1,18 +1,22 @@
-use crate::system_tables::BatchIterator;
-use crate::{catalog::Catalog, system_tables::IoxSystemTable};
-use arrow::array::UInt32Array;
+use std::{collections::HashMap, sync::Arc};
+
 use arrow::{
-    array::{ArrayRef, StringArray, StringBuilder, UInt64Array},
+    array::{ArrayRef, StringArray, StringBuilder, UInt32Array, UInt64Array},
     datatypes::{DataType, Field, Schema, SchemaRef},
     error::Result,
     record_batch::RecordBatch,
 };
+
 use data_types::{
     chunk_metadata::DetailedChunkSummary,
     error::ErrorLogger,
     partition_metadata::{ColumnSummary, PartitionSummary, TableSummary},
 };
-use std::{collections::HashMap, sync::Arc};
+
+use crate::{
+    catalog::Catalog,
+    system_tables::{BatchIterator, IoxSystemTable},
+};
 
 /// Implementation of `system.columns` system table
 #[derive(Debug)]
@@ -122,7 +126,15 @@ impl IoxSystemTable for ChunkColumnsTable {
         let schema = Arc::clone(&self.schema);
         let catalog = Arc::clone(&self.catalog);
         Ok(Box::new(std::iter::once_with(move || {
-            assemble_chunk_columns(schema, catalog.detailed_chunk_summaries())
+            let chunk_summaries = catalog.filtered_chunks(None, None, |chunk| {
+                (
+                    chunk.table_summary(),
+                    chunk.detailed_summary(),
+                    chunk.schema(),
+                )
+            });
+
+            assemble_chunk_columns(schema, chunk_summaries)
                 .log_if_error("system.column_chunks table")
         })))
     }
@@ -141,29 +153,34 @@ fn chunk_columns_schema() -> SchemaRef {
         Field::new("max_value", DataType::Utf8, true),
         Field::new("memory_bytes", DataType::UInt64, true),
         Field::new("chunk_order", DataType::UInt32, false),
+        Field::new("sort_ordinal", DataType::UInt32, true),
     ]))
 }
 
 fn assemble_chunk_columns(
     schema: SchemaRef,
-    chunk_summaries: Vec<(Arc<TableSummary>, DetailedChunkSummary)>,
+    chunk_summaries: Vec<(Arc<TableSummary>, DetailedChunkSummary, Arc<schema::Schema>)>,
 ) -> Result<RecordBatch> {
     // Create an iterator over each column in each table in each chunk
     // so we can build  `chunk_columns` column by column
     struct EachColumn<'a> {
         chunk_summary: &'a DetailedChunkSummary,
         column_summary: &'a ColumnSummary,
+        column_sort: Option<schema::sort::ColumnSort>,
     }
 
     let rows = chunk_summaries
         .iter()
-        .map(|(table_summary, chunk_summary)| {
+        .map(|(table_summary, chunk_summary, schema)| {
+            let sort_key = schema.sort_key().unwrap_or_default();
+
             table_summary
                 .columns
                 .iter()
                 .map(move |column_summary| EachColumn {
                     chunk_summary,
                     column_summary,
+                    column_sort: sort_key.get(&column_summary.name),
                 })
         })
         .flatten()
@@ -226,11 +243,16 @@ fn assemble_chunk_columns(
         .map(|each| Some(each.chunk_summary.inner.order.get()))
         .collect::<UInt32Array>();
 
+    let sort_order = rows
+        .iter()
+        .map(|each| each.column_sort.map(|x| x.sort_ordinal as u32))
+        .collect::<UInt32Array>();
+
     // handle memory bytes specially to avoid having to search for
     // each column in ColumnSummary
     let memory_bytes = chunk_summaries
         .iter()
-        .map(|(table_summary, chunk_summary)| {
+        .map(|(table_summary, chunk_summary, _)| {
             // Don't assume column order in DetailedColumnSummary are
             // consistent with ColumnSummary
             let mut column_sizes = chunk_summary
@@ -266,19 +288,23 @@ fn assemble_chunk_columns(
             Arc::new(max_values),
             Arc::new(memory_bytes),
             Arc::new(order),
+            Arc::new(sort_order),
         ],
     )
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use arrow_util::assert_batches_eq;
     use data_types::{
         chunk_metadata::{ChunkColumnSummary, ChunkId, ChunkOrder, ChunkStorage, ChunkSummary},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
     };
+    use schema::builder::SchemaBuilder;
+    use schema::sort::SortKey;
     use time::Time;
+
+    use super::*;
 
     #[test]
     fn test_from_partition_summaries() {
@@ -341,6 +367,26 @@ mod tests {
     fn test_assemble_chunk_columns() {
         let lifecycle_action = None;
 
+        let mut sort1 = SortKey::default();
+        sort1.push("c2", Default::default());
+        sort1.push("c1", Default::default());
+
+        let schema1 = SchemaBuilder::new()
+            .field("c1", DataType::Utf8)
+            .field("c2", DataType::Float64)
+            .build_with_sort_key(&sort1)
+            .unwrap();
+
+        let schema2 = SchemaBuilder::new()
+            .field("c1", DataType::Float64)
+            .build()
+            .unwrap();
+
+        let schema3 = SchemaBuilder::new()
+            .field("c3", DataType::Float64)
+            .build()
+            .unwrap();
+
         let summaries = vec![
             (
                 Arc::new(TableSummary {
@@ -389,6 +435,7 @@ mod tests {
                         },
                     ],
                 },
+                Arc::new(schema1),
             ),
             (
                 Arc::new(TableSummary {
@@ -419,6 +466,7 @@ mod tests {
                         memory_bytes: 100,
                     }],
                 },
+                Arc::new(schema2),
             ),
             (
                 Arc::new(TableSummary {
@@ -449,18 +497,19 @@ mod tests {
                         memory_bytes: 200,
                     }],
                 },
+                Arc::new(schema3),
             ),
         ];
 
         let expected = vec![
-            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+",
-            "| partition_key | chunk_id                             | table_name | column_name | storage           | row_count | null_count | min_value | max_value | memory_bytes | chunk_order |",
-            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+",
-            "| p1            | 00000000-0000-0000-0000-00000000002a | t1         | c1          | ReadBuffer        | 55        | 0          | bar       | foo       | 11           | 5           |",
-            "| p1            | 00000000-0000-0000-0000-00000000002a | t1         | c2          | ReadBuffer        | 66        | 0          | 11        | 43        | 12           | 5           |",
-            "| p2            | 00000000-0000-0000-0000-00000000002b | t1         | c1          | OpenMutableBuffer | 667       | 99         | 110       | 430       | 100          | 6           |",
-            "| p2            | 00000000-0000-0000-0000-00000000002c | t2         | c3          | OpenMutableBuffer | 4         | 0          | -1        | 2         | 200          | 5           |",
-            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+",
+            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+--------------+",
+            "| partition_key | chunk_id                             | table_name | column_name | storage           | row_count | null_count | min_value | max_value | memory_bytes | chunk_order | sort_ordinal |",
+            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+--------------+",
+            "| p1            | 00000000-0000-0000-0000-00000000002a | t1         | c1          | ReadBuffer        | 55        | 0          | bar       | foo       | 11           | 5           | 1            |",
+            "| p1            | 00000000-0000-0000-0000-00000000002a | t1         | c2          | ReadBuffer        | 66        | 0          | 11        | 43        | 12           | 5           | 0            |",
+            "| p2            | 00000000-0000-0000-0000-00000000002b | t1         | c1          | OpenMutableBuffer | 667       | 99         | 110       | 430       | 100          | 6           |              |",
+            "| p2            | 00000000-0000-0000-0000-00000000002c | t2         | c3          | OpenMutableBuffer | 4         | 0          | -1        | 2         | 200          | 5           |              |",
+            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+--------------+",
         ];
 
         let batch = assemble_chunk_columns(chunk_columns_schema(), summaries).unwrap();

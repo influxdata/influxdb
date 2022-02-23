@@ -6,8 +6,7 @@ use data_types::chunk_metadata::ChunkOrder;
 use hashbrown::{HashMap, HashSet};
 
 use data_types::chunk_metadata::ChunkSummary;
-use data_types::chunk_metadata::DetailedChunkSummary;
-use data_types::partition_metadata::{PartitionAddr, PartitionSummary, TableSummary};
+use data_types::partition_metadata::{PartitionAddr, PartitionSummary};
 use snafu::{OptionExt, Snafu};
 use tracker::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
@@ -236,13 +235,6 @@ impl Catalog {
 
     pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {
         self.filtered_chunks(None, None, CatalogChunk::summary)
-    }
-
-    pub fn detailed_chunk_summaries(&self) -> Vec<(Arc<TableSummary>, DetailedChunkSummary)> {
-        // TODO: Having two summaries with overlapping information seems unfortunate
-        self.filtered_chunks(None, None, |chunk| {
-            (chunk.table_summary(), chunk.detailed_summary())
-        })
     }
 
     /// Returns all chunks within the catalog in an arbitrary order
