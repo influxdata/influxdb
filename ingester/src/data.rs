@@ -1418,6 +1418,7 @@ mod tests {
         let pause_size = w1.size() + 1;
         let manager = LifecycleManager::new(
             LifecycleConfig::new(pause_size, 0, 0, Duration::from_secs(1)),
+            Arc::new(metric::Registry::new()),
             Arc::new(SystemProvider::new()),
         );
         let should_pause = data
@@ -1501,6 +1502,7 @@ mod tests {
         std::mem::drop(repos);
         let manager = LifecycleManager::new(
             LifecycleConfig::new(1, 0, 0, Duration::from_secs(1)),
+            Arc::new(metric::Registry::new()),
             Arc::new(SystemProvider::new()),
         );
 

@@ -2101,6 +2101,7 @@ dependencies = [
  "tokio-util 0.7.0",
  "tonic",
  "trace",
+ "tracker",
  "uuid",
  "workspace-hack",
  "write_buffer",

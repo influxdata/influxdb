@@ -201,7 +201,7 @@ pub async fn command(config: Config) -> Result<()> {
             object_store,
             write_buffer,
             Executor::new(config.query_exect_thread_count),
-            &metric_registry,
+            Arc::clone(&metric_registry),
         )
         .await?,
     );

@@ -123,7 +123,7 @@ impl IngestHandlerImpl {
         object_store: Arc<ObjectStore>,
         write_buffer: Arc<dyn WriteBufferReading>,
         exec: Executor,
-        registry: &metric::Registry,
+        metric_registry: Arc<metric::Registry>,
     ) -> Result<Self> {
         // build the initial ingester data state
         let mut sequencers = BTreeMap::new();
@@ -139,12 +139,13 @@ impl IngestHandlerImpl {
 
         let ingester_data = Arc::clone(&data);
         let kafka_topic_name = topic.name.clone();
-        let ingest_metrics = WriteBufferIngestMetrics::new(registry, &topic.name);
+        let ingest_metrics = WriteBufferIngestMetrics::new(&metric_registry, &topic.name);
 
         // start the lifecycle manager
         let persister = Arc::clone(&data);
         let lifecycle_manager = Arc::new(LifecycleManager::new(
             lifecycle_config,
+            metric_registry,
             Arc::new(SystemProvider::new()),
         ));
         let manager = Arc::clone(&lifecycle_manager);
@@ -710,7 +711,7 @@ mod tests {
                 object_store,
                 reading,
                 Executor::new(1),
-                &metrics,
+                Arc::clone(&metrics),
             )
             .await
             .unwrap();
