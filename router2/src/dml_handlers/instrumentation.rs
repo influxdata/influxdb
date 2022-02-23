@@ -143,3 +143,154 @@ where
         res
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use assert_matches::assert_matches;
+    use data_types::timestamp::TimestampRange;
+    use metric::Attributes;
+    use trace::{span::SpanStatus, RingBufferTraceCollector, TraceCollector};
+
+    use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
+
+    use super::*;
+
+    const HANDLER_NAME: &str = "bananas";
+
+    fn assert_metric_hit(
+        metrics: &metric::Registry,
+        metric_name: &'static str,
+        result: &'static str,
+    ) {
+        let histogram = metrics
+            .get_instrument::<Metric<U64Histogram>>(metric_name)
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[
+                ("handler", HANDLER_NAME),
+                ("result", result),
+            ]))
+            .expect("failed to get observer")
+            .fetch();
+
+        let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+        assert!(hit_count > 0, "metric did not record any calls");
+    }
+
+    fn assert_trace(traces: Arc<dyn TraceCollector>, status: SpanStatus) {
+        let traces = traces
+            .as_any()
+            .downcast_ref::<RingBufferTraceCollector>()
+            .expect("unexpected collector impl");
+
+        let span = traces
+            .spans()
+            .into_iter()
+            .find(|s| s.name == HANDLER_NAME)
+            .expect("tracing span not found");
+
+        assert_eq!(
+            span.status, status,
+            "span status does not match expected value"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_write_ok() {
+        let ns = "platanos".try_into().unwrap();
+        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
+
+        let metrics = Arc::new(metric::Registry::default());
+        let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+        let span = SpanContext::new(Arc::clone(&traces));
+
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, Arc::clone(&metrics), handler);
+
+        decorator
+            .write(&ns, (), Some(span))
+            .await
+            .expect("inner handler configured to succeed");
+
+        assert_metric_hit(&*metrics, "dml_handler_write_duration_ms", "success");
+        assert_trace(traces, SpanStatus::Ok);
+    }
+
+    #[tokio::test]
+    async fn test_write_err() {
+        let ns = "platanos".try_into().unwrap();
+        let handler = Arc::new(
+            MockDmlHandler::default()
+                .with_write_return([Err(DmlError::DatabaseNotFound("nope".to_owned()))]),
+        );
+
+        let metrics = Arc::new(metric::Registry::default());
+        let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+        let span = SpanContext::new(Arc::clone(&traces));
+
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, Arc::clone(&metrics), handler);
+
+        let err = decorator
+            .write(&ns, (), Some(span))
+            .await
+            .expect_err("inner handler configured to fail");
+
+        assert_matches!(err, DmlError::DatabaseNotFound(_));
+
+        assert_metric_hit(&*metrics, "dml_handler_write_duration_ms", "error");
+        assert_trace(traces, SpanStatus::Err);
+    }
+
+    #[tokio::test]
+    async fn test_delete_ok() {
+        let ns = "platanos".try_into().unwrap();
+        let handler = Arc::new(MockDmlHandler::<()>::default().with_delete_return([Ok(())]));
+
+        let metrics = Arc::new(metric::Registry::default());
+        let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+        let span = SpanContext::new(Arc::clone(&traces));
+
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, Arc::clone(&metrics), handler);
+
+        let pred = DeletePredicate {
+            range: TimestampRange::new(1, 2),
+            exprs: vec![],
+        };
+
+        decorator
+            .delete(&ns, "a table", &pred, Some(span))
+            .await
+            .expect("inner handler configured to succeed");
+
+        assert_metric_hit(&*metrics, "dml_handler_delete_duration_ms", "success");
+        assert_trace(traces, SpanStatus::Ok);
+    }
+
+    #[tokio::test]
+    async fn test_delete_err() {
+        let ns = "platanos".try_into().unwrap();
+        let handler = Arc::new(
+            MockDmlHandler::<()>::default()
+                .with_delete_return([Err(DmlError::DatabaseNotFound("nope".to_owned()))]),
+        );
+
+        let metrics = Arc::new(metric::Registry::default());
+        let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+        let span = SpanContext::new(Arc::clone(&traces));
+
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, Arc::clone(&metrics), handler);
+
+        let pred = DeletePredicate {
+            range: TimestampRange::new(1, 2),
+            exprs: vec![],
+        };
+
+        decorator
+            .delete(&ns, "a table", &pred, Some(span))
+            .await
+            .expect_err("inner handler configured to fail");
+
+        assert_metric_hit(&*metrics, "dml_handler_delete_duration_ms", "error");
+        assert_trace(traces, SpanStatus::Err);
+    }
+}
