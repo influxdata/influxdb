@@ -16,8 +16,7 @@ use generated_types::{
     influxdata::iox::ingester::v1 as proto,
 };
 use iox_catalog::interface::{
-    Catalog, KafkaPartition, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
-    Timestamp, Tombstone,
+    Catalog, KafkaPartition, NamespaceId, PartitionId, SequencerId, TableId, Timestamp, Tombstone,
 };
 use mutable_batch::column::ColumnData;
 use mutable_batch::MutableBatch;
@@ -31,6 +30,8 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeMap, convert::TryFrom, sync::Arc};
 use time::SystemProvider;
 use uuid::Uuid;
+
+pub use iox_catalog::interface::SequenceNumber;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]

@@ -11,7 +11,7 @@ use arrow_flight::{
 };
 use futures::{stream, StreamExt};
 use generated_types::influxdata::iox::ingester::v1 as proto;
-use ingester::data::IngesterQueryRequest;
+use ingester::data::{IngesterQueryRequest, SequenceNumber};
 use rand::Rng;
 use std::{convert::TryFrom, sync::Arc};
 use thiserror::Error;
@@ -56,6 +56,10 @@ pub enum Error {
     /// Serializing the protobuf structs into bytes failed.
     #[error(transparent)]
     Serialization(#[from] prost::EncodeError),
+
+    /// Deserializing the protobuf structs from bytes failed.
+    #[error(transparent)]
+    Deserialization(#[from] prost::DecodeError),
 }
 
 /// An ingester Arrow Flight gRPC API client for the query service to use.
@@ -110,8 +114,12 @@ impl Client {
 /// Flight [`Client`].
 #[derive(Debug)]
 pub struct PerformQuery {
-    schema: Arc<Schema>,
-    dictionaries_by_field: Vec<Option<Arc<dyn Array>>>,
+    /// The schema sent back in the first FlightData message.
+    pub schema: Arc<Schema>,
+    /// The max_sequencer_number sent back in the app_metadata of the first FlightData message.
+    pub max_sequencer_number: Option<SequenceNumber>,
+    /// The dictionaries as collected from the FlightData messages received
+    pub dictionaries_by_field: Vec<Option<Arc<dyn Array>>>,
     response: Streaming<FlightData>,
 }
 
@@ -129,12 +137,19 @@ impl PerformQuery {
         let mut response = flight.inner.do_get(t).await?.into_inner();
 
         let flight_data_schema = response.next().await.ok_or(Error::NoSchema)??;
+
+        let app_metadata = &flight_data_schema.app_metadata[..];
+        let app_metadata: proto::IngesterQueryResponseMetadata =
+            prost::Message::decode(app_metadata)?;
+        let max_sequencer_number = app_metadata.max_sequencer_number.map(SequenceNumber::new);
+
         let schema = Arc::new(Schema::try_from(&flight_data_schema)?);
 
         let dictionaries_by_field = vec![None; schema.fields().len()];
 
         Ok(Self {
             schema,
+            max_sequencer_number,
             dictionaries_by_field,
             response,
         })
@@ -147,6 +162,7 @@ impl PerformQuery {
             schema,
             dictionaries_by_field,
             response,
+            ..
         } = self;
 
         let mut data = match response.next().await {

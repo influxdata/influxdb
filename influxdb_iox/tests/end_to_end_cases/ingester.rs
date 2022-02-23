@@ -34,13 +34,11 @@ async fn querying_without_data_returns_nothing() {
         Some(predicate::EMPTY_PREDICATE),
     );
 
-    let query_results = querier_flight
-        .perform_query(query)
-        .await
-        .unwrap()
-        .collect()
-        .await
-        .unwrap();
+    let mut performed_query = querier_flight.perform_query(query).await.unwrap();
+
+    assert!(performed_query.max_sequencer_number.is_none());
+
+    let query_results = performed_query.collect().await.unwrap();
 
     assert!(query_results.is_empty());
 }
