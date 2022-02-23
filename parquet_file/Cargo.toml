@@ -5,7 +5,7 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
-arrow = { version = "9.0", features = ["prettyprint"] }
+arrow = { version = "9.1", features = ["prettyprint"] }
 base64 = "0.13"
 bytes = "1.0"
 data_types = { path = "../data_types" }

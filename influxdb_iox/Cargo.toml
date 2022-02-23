@@ -52,7 +52,7 @@ write_buffer = { path = "../write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
 ansi_term = "0.12"
-arrow = { version = "9.0", features = ["prettyprint"] }
+arrow = { version = "9.1", features = ["prettyprint"] }
 arrow-flight = "9.0"
 async-trait = "0.1"
 backtrace = "0.3"
