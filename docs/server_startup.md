@@ -66,11 +66,9 @@ influxdb_iox database recover rebuild ...
 Once the catalog is rebuilt, the server will retry to initialize the database. If the database
 init process is successful, the error status within the `GetServerStatus` gRPC response will be cleared.
 
-
 ## Creating a Database from Parquet Files
 
-It is possible to copy parquet files from one IOx server to another
-and then have IOx reimport them.
+It is possible to copy parquet files from one IOx server to another and then have IOx reimport them.
 
 ### Create a new empty database to receive the data
 
@@ -81,6 +79,27 @@ influxdb_iox database create imported_db
 
 Created database imported_db
 4fc2236c-7ab8-4200-83c7-f29cd0c2385f
+```
+
+### Shutdown Database
+
+Shutdown the database so we can safely make changes to its data files, but leave the server process running
+
+```
+influxdb_iox database shutdown imported_db
+```
+
+You can check it has shutdown correctly with
+
+```
+$ cargo run -- database list --detailed
+    Finished dev [unoptimized + debuginfo] target(s) in 0.17s
+     Running `target/debug/influxdb_iox database list --detailed`
++-------------+--------------------------------------+-------------+--------+
+| Name        | UUID                                 | State       | Error  |
++-------------+--------------------------------------+-------------+--------+
+| imported_db | 4fc2236c-7ab8-4200-83c7-f29cd0c2385f | Shutdown    | <none> |
++-------------+--------------------------------------+-------------+--------+
 ```
 
 ### Copy parquet files into the new database
@@ -103,20 +122,47 @@ my_awesome_table
     --> a8d07291-0546-4fa7-ae93-c2f888c0611a.parquet
 ```
 
-Copy that directory structure into the the database's catalog:
+Copy that directory structure into the database's catalog:
 
 ```shell
 mkdir -p ~/.influxdb_iox/dbs/4fc2236c-7ab8-4200-83c7-f29cd0c2385f/data
 cp -R 'my_awesome_table' ~/.influxdb_iox/dbs/4fc2236c-7ab8-4200-83c7-f29cd0c2385f/data/
 ```
 
-### WARNING
+### Option 1: Copy Catalog
 
-Note that If you create/move/copy files into the domain of a running database, the database's background cleanup worker thread may delete these files prior to the catalog rebuild; You can check the logs to see if this happened.
+If you wish to construct an exact replica of a remote database, you may wish to copy the upstream catalog. 
 
-### Rebuild catalog with the `recover rebuild --force` command
+To do this, ensure you have copied all the parquet files in the step above, then navigate on your local machine to the `transactions` directory. 
 
-Now, tell IOx to rebuild the catalog from parquet files:
+This should contain a single directory with a single `.txn` file
+
+```
+├── 4fc2236c-7ab8-4200-83c7-f29cd0c2385f
+│ └── transactions
+│     └── 00000000000000000000
+│         └── 581c2682-a2b2-4d17-918c-65972b702216.txn
+```
+
+Delete this file, and copy the contents of `transactions` from the remote server.
+
+You can then start the database up with
+
+```
+influxdb_iox database restart imported_db
+```
+
+You should then be able to see the chunks
+
+```
+influxdb_iox database query imported_db "select * from system.chunks"
+```
+
+### Option 2: Rebuild Catalog from Parquet Files
+
+If you did not copy the `transactions` directory as described above, you will need to rebuild the catalog from the parquet files 
+
+To do this run:
 
 ```shell
 ./target/debug/influxdb_iox  database recover rebuild imported_db --force
@@ -136,6 +182,8 @@ Now, tell IOx to rebuild the catalog from parquet files:
     }
   }
 ```
+
+_You can omit the `--force` option if either the remote or local server is using static configuration provided by `--config-file`_
 
 You can check on the status with `./target/debug/influxdb_iox operation list`
 
