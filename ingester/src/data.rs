@@ -1061,10 +1061,6 @@ pub struct IngesterQueryRequest {
     table: String,
     /// Columns the query service is interested in
     columns: Vec<String>,
-    /// Start time of the query
-    min_time: i64,
-    /// End time of the query
-    max_time: i64,
     /// Predicate for filtering
     predicate: Option<Predicate>,
     /// Optionally only return rows with a sequence number greater than this
@@ -1079,8 +1075,6 @@ impl IngesterQueryRequest {
         sequencer_id: SequencerId,
         table: String,
         columns: Vec<String>,
-        min_time: i64,
-        max_time: i64,
         predicate: Option<Predicate>,
         greater_than_sequence_number: Option<SequenceNumber>,
     ) -> Self {
@@ -1089,8 +1083,6 @@ impl IngesterQueryRequest {
             sequencer_id,
             table,
             columns,
-            min_time,
-            max_time,
             predicate,
             greater_than_sequence_number,
         }
@@ -1106,8 +1098,6 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
             sequencer_id,
             table,
             columns,
-            min_time,
-            max_time,
             predicate,
             greater_than_sequence_number,
         } = proto;
@@ -1125,8 +1115,6 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
             SequencerId::new(sequencer_id),
             table,
             columns,
-            min_time,
-            max_time,
             predicate,
             greater_than_sequence_number,
         ))
@@ -1206,8 +1194,6 @@ mod tests {
             SequencerId::new(5),
             "cpu".into(),
             vec!["usage".into(), "time".into()],
-            1,
-            20,
             Some(rust_predicate),
             Some(SequenceNumber::new(5)),
         );
@@ -1217,8 +1203,6 @@ mod tests {
             sequencer_id: 5,
             table: "cpu".into(),
             columns: vec!["usage".into(), "time".into()],
-            min_time: 1,
-            max_time: 20,
             predicate: Some(proto_predicate),
             greater_than_sequence_number: Some(5),
         };
@@ -1717,7 +1701,7 @@ mod tests {
         let (_, mb) = lp_to_mutable_batch(
             r#"
                 restaurant,city=Wilmington day="sun",temp=55 35
-                restaurant,city=Boston day="sun",temp=60 36   
+                restaurant,city=Boston day="sun",temp=60 36
                 restaurant,city=Boston day="sun",temp=62 38
             "#,
         );
