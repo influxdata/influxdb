@@ -88,7 +88,10 @@ pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let metrics = Arc::new(metric::Registry::default());
 
-    let catalog = config.catalog_dsn.get_catalog("router2").await?;
+    let catalog = config
+        .catalog_dsn
+        .get_catalog("router2", Some(Arc::clone(&metrics)))
+        .await?;
 
     // Initialise the sharded write buffer and instrument it with DML handler
     // metrics.

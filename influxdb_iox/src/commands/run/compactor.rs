@@ -62,9 +62,11 @@ pub struct Config {
 pub async fn command(config: Config) -> Result<(), Error> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
-    let catalog = config.catalog_dsn.get_catalog("compactor").await?;
-
     let metric_registry: Arc<metric::Registry> = Default::default();
+    let catalog = config
+        .catalog_dsn
+        .get_catalog("compactor", Some(Arc::clone(&metric_registry)))
+        .await?;
 
     let object_store = Arc::new(
         ObjectStore::try_from(&config.run_config.object_store_config)
