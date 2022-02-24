@@ -283,7 +283,7 @@ mod tests {
 
         // Remove a table
         let schema = new_schema(&[1, 10]);
-        assert!(cache.put_schema(ns.clone(), schema).is_some());
+        assert!(cache.put_schema(ns, schema).is_some());
         assert_eq!(
             cache.put_insert_counter.observe(),
             Observation::U64Counter(1)
@@ -294,5 +294,20 @@ mod tests {
         );
         assert_eq!(cache.table_count.observe(), Observation::U64Gauge(2));
         assert_eq!(cache.column_count.observe(), Observation::U64Gauge(11));
+
+        // Add a new namespace
+        let ns = DatabaseName::new("another").expect("database name is valid");
+        let schema = new_schema(&[10, 12, 9]);
+        assert!(cache.put_schema(ns, schema).is_none());
+        assert_eq!(
+            cache.put_insert_counter.observe(),
+            Observation::U64Counter(2)
+        );
+        assert_eq!(
+            cache.put_update_counter.observe(),
+            Observation::U64Counter(6)
+        );
+        assert_eq!(cache.table_count.observe(), Observation::U64Gauge(5));
+        assert_eq!(cache.column_count.observe(), Observation::U64Gauge(42));
     }
 }
