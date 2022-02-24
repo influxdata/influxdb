@@ -1,9 +1,6 @@
 //! Implementation of command line option for running the compactor
 
-use compactor::{
-    handler::CompactorHandlerImpl,
-    server::{grpc::GrpcDelegate, http::HttpDelegate, CompactorServer},
-};
+use compactor::{handler::CompactorHandlerImpl, server::CompactorServer};
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use std::sync::Arc;
@@ -77,10 +74,8 @@ pub async fn command(config: Config) -> Result<(), Error> {
         object_store,
         &metric_registry,
     ));
-    let http = HttpDelegate::new(Arc::clone(&compactor_handler));
-    let grpc = GrpcDelegate::new(Arc::clone(&compactor_handler));
 
-    let compactor = CompactorServer::new(metric_registry, http, grpc, compactor_handler);
+    let compactor = CompactorServer::new(metric_registry, compactor_handler);
     let server_type = Arc::new(CompactorServerType::new(compactor, &common_state));
 
     info!("starting compactor");

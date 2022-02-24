@@ -1,11 +1,17 @@
 //! Compactor handler
 
 use async_trait::async_trait;
+use futures::{
+    future::{BoxFuture, Shared},
+    stream::FuturesUnordered,
+    FutureExt, StreamExt, TryFutureExt,
+};
 use iox_catalog::interface::Catalog;
 use object_store::ObjectStore;
 use observability_deps::tracing::warn;
-use std::{fmt::Formatter, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
+use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Error)]
@@ -24,21 +30,28 @@ pub trait CompactorHandler: Send + Sync {
     fn shutdown(&self);
 }
 
+/// A [`JoinHandle`] that can be cloned
+type SharedJoinHandle = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
+
+/// Convert a [`JoinHandle`] into a [`SharedJoinHandle`].
+fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
+    handle.map_err(Arc::new).boxed().shared()
+}
+
 /// Implementation of the `CompactorHandler` trait (that currently does nothing)
+#[derive(Debug)]
 pub struct CompactorHandlerImpl {
     /// The global catalog for schema, parquet files and tombstones
     catalog: Arc<dyn Catalog>,
+
+    /// Future that resolves when the background worker exits
+    join_handles: Vec<(String, SharedJoinHandle)>,
+
     /// Object store for persistence of parquet files
     object_store: Arc<ObjectStore>,
+
     /// A token that is used to trigger shutdown of the background worker
     shutdown: CancellationToken,
-}
-
-// LB: copied this over from the ingester handler; doesn't seem to be needed there either
-impl std::fmt::Debug for CompactorHandlerImpl {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
 }
 
 impl CompactorHandlerImpl {
@@ -50,10 +63,10 @@ impl CompactorHandlerImpl {
     ) -> Self {
         let shutdown = CancellationToken::new();
 
-        // TODO: initialise compactor threads here
-
+        let join_handles = vec![];
         Self {
             catalog,
+            join_handles,
             object_store,
             shutdown,
         }
@@ -63,8 +76,21 @@ impl CompactorHandlerImpl {
 #[async_trait]
 impl CompactorHandler for CompactorHandlerImpl {
     async fn join(&self) {
-        // join compactor threads here
-        todo!();
+        // Need to poll handlers unordered to detect early exists of any worker in the list.
+        let mut unordered: FuturesUnordered<_> = self
+            .join_handles
+            .iter()
+            .cloned()
+            .map(|(name, handle)| async move { handle.await.map(|_| name) })
+            .collect();
+
+        while let Some(e) = unordered.next().await {
+            let name = e.unwrap();
+
+            if !self.shutdown.is_cancelled() {
+                panic!("Background worker '{name}' exited early!");
+            }
+        }
     }
 
     fn shutdown(&self) {
