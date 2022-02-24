@@ -4,10 +4,8 @@ use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
-use object_store::{
-    path::{ObjectStorePath, Path},
-    ObjectStore, ObjectStoreApi,
-};
+use iox_object_store::ParquetFilePath;
+use object_store::ObjectStore;
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use snafu::{ResultExt, Snafu};
 
@@ -51,7 +49,7 @@ pub async fn persist(
         IoxObjectStore::root_path_for(object_store, uuid::Uuid::new_v4()),
     ));
 
-    let data = parquet_file::storage::Storage::new(iox_object_store)
+    let data = parquet_file::storage::Storage::new(Arc::clone(&iox_object_store))
         .parquet_bytes(record_batches, schema, metadata)
         .await
         .context(ConvertingToBytesSnafu)?;
@@ -70,29 +68,20 @@ pub async fn persist(
     let file_size = data.len();
     let bytes = Bytes::from(data);
 
-    let path = parquet_file_object_store_path(metadata, object_store);
+    let path = ParquetFilePath::new_new_gen(
+        metadata.namespace_id,
+        metadata.table_id,
+        metadata.sequencer_id,
+        metadata.partition_id,
+        metadata.object_store_id,
+    );
 
-    object_store
-        .put(&path, bytes)
+    iox_object_store
+        .put_parquet_file(&path, bytes)
         .await
         .context(WritingToObjectStoreSnafu)?;
 
     Ok(Some((file_size, md)))
-}
-
-fn parquet_file_object_store_path(metadata: &IoxMetadata, object_store: &ObjectStore) -> Path {
-    let mut path = object_store.new_path();
-
-    path.push_all_dirs(&[
-        metadata.namespace_id.to_string().as_str(),
-        metadata.table_id.to_string().as_str(),
-        metadata.sequencer_id.to_string().as_str(),
-        metadata.partition_id.to_string().as_str(),
-    ]);
-
-    path.set_file_name(format!("{}.parquet", metadata.object_store_id));
-
-    path
 }
 
 #[cfg(test)]
@@ -100,6 +89,7 @@ mod tests {
     use super::*;
     use futures::{stream, StreamExt, TryStreamExt};
     use iox_catalog::interface::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
+    use object_store::{path::Path, ObjectStoreApi};
     use query::test::{raw_data, TestChunk};
     use std::sync::Arc;
     use time::Time;
@@ -139,6 +129,7 @@ mod tests {
             time_of_last_write: now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
+            row_count: 0,
         };
         let object_store = object_store();
 
@@ -163,6 +154,7 @@ mod tests {
             time_of_last_write: now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
+            row_count: 3,
         };
 
         let chunk1 = Arc::new(
@@ -182,32 +174,5 @@ mod tests {
 
         let obj_store_paths = list_all(&object_store).await.unwrap();
         assert_eq!(obj_store_paths.len(), 1);
-    }
-
-    #[test]
-    fn parquet_file_path_in_object_storage() {
-        let object_store = object_store();
-        let metadata = IoxMetadata {
-            object_store_id: Uuid::new_v4(),
-            creation_timestamp: now(),
-            namespace_id: NamespaceId::new(1),
-            namespace_name: "mydata".into(),
-            sequencer_id: SequencerId::new(3),
-            table_id: TableId::new(2),
-            table_name: "temperature".into(),
-            partition_id: PartitionId::new(4),
-            partition_key: "somehour".into(),
-            time_of_first_write: now(),
-            time_of_last_write: now(),
-            min_sequence_number: SequenceNumber::new(5),
-            max_sequence_number: SequenceNumber::new(6),
-        };
-
-        let path = parquet_file_object_store_path(&metadata, &object_store);
-
-        assert_eq!(
-            path.to_raw(),
-            format!("1/2/3/4/{}.parquet", metadata.object_store_id)
-        );
     }
 }

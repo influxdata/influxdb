@@ -299,23 +299,28 @@ impl IoxObjectStore {
         &self,
         location: &ParquetFilePath,
     ) -> Result<GetResult<object_store::Error>> {
-        let full_path = self.data_path.join(location);
-
-        self.inner.get(&full_path).await
+        self.inner.get(&self.full_parquet_path(location)).await
     }
 
     /// Store the data for this parquet file in this database's object store.
     pub async fn put_parquet_file(&self, location: &ParquetFilePath, bytes: Bytes) -> Result<()> {
-        let full_path = self.data_path.join(location);
-
-        self.inner.put(&full_path, bytes).await
+        self.inner
+            .put(&self.full_parquet_path(location), bytes)
+            .await
     }
 
     /// Remove the data for this parquet file from this database's object store
     pub async fn delete_parquet_file(&self, location: &ParquetFilePath) -> Result<()> {
-        let full_path = self.data_path.join(location);
+        self.inner.delete(&self.full_parquet_path(location)).await
+    }
 
-        self.inner.delete(&full_path).await
+    fn full_parquet_path(&self, location: &ParquetFilePath) -> Path {
+        if location.is_new_gen() {
+            self.inner
+                .path_from_dirs_and_filename(location.absolute_dirs_and_file_name())
+        } else {
+            self.data_path.join(location)
+        }
     }
 
     // Database rule file methods =================================================================
@@ -390,6 +395,7 @@ mod tests {
     use super::*;
     use crate::paths::ALL_DATABASES_DIRECTORY;
     use data_types::chunk_metadata::{ChunkAddr, ChunkId};
+    use iox_catalog::interface::{NamespaceId, PartitionId, SequencerId, TableId};
     use object_store::{parsed_path, path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use test_helpers::assert_error;
     use uuid::Uuid;
@@ -483,7 +489,7 @@ mod tests {
             partition_key: "my_partition".into(),
             chunk_id: ChunkId::new_test(13),
         };
-        let p1 = ParquetFilePath::new(&chunk_addr);
+        let p1 = ParquetFilePath::new_old_gen(&chunk_addr);
         add_parquet_file(&iox_object_store, &p1).await;
 
         // Only the real file should be returned
@@ -802,5 +808,45 @@ mod tests {
         // hasn't been fully initialized yet
         let alternate = IoxObjectStore::root_path_for(&object_store, uuid).to_string();
         assert_eq!(alternate, saved_root_path);
+    }
+
+    #[tokio::test]
+    async fn test_ng_parquet_io() {
+        let object_store = make_object_store();
+        let iox_object_store = Arc::new(IoxObjectStore::existing(
+            Arc::clone(&object_store),
+            IoxObjectStore::root_path_for(&object_store, uuid::Uuid::new_v4()),
+        ));
+
+        let pfp = ParquetFilePath::new_new_gen(
+            NamespaceId::new(1),
+            TableId::new(2),
+            SequencerId::new(3),
+            PartitionId::new(4),
+            Uuid::nil(),
+        );
+
+        // file does not exist yet
+        iox_object_store.get_parquet_file(&pfp).await.unwrap_err();
+
+        // create file
+        let content = Bytes::from(b"foo".to_vec());
+        iox_object_store
+            .put_parquet_file(&pfp, content.clone())
+            .await
+            .unwrap();
+
+        let actual = iox_object_store
+            .get_parquet_file(&pfp)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap();
+        assert_eq!(content.to_vec(), actual);
+
+        // delete file
+        iox_object_store.delete_parquet_file(&pfp).await.unwrap();
+        iox_object_store.get_parquet_file(&pfp).await.unwrap_err();
     }
 }

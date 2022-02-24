@@ -1,4 +1,5 @@
 use data_types::chunk_metadata::{ChunkAddr, ChunkId};
+use iox_catalog::interface::{NamespaceId, PartitionId, SequencerId, TableId};
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path as ObjStoPath},
     Result,
@@ -7,33 +8,110 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
+enum Variant {
+    Old {
+        table_name: Arc<str>,
+        partition_key: Arc<str>,
+        chunk_id: ChunkId,
+    },
+    New {
+        namespace_id: NamespaceId,
+        table_id: TableId,
+        sequencer_id: SequencerId,
+        partition_id: PartitionId,
+        object_store_id: Uuid,
+    },
+}
+
 /// Location of a Parquet file within a database's object store.
 /// The exact format is an implementation detail and is subject to change.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct ParquetFilePath {
-    table_name: Arc<str>,
-    partition_key: Arc<str>,
-    chunk_id: ChunkId,
-}
+pub struct ParquetFilePath(Variant);
 
 impl ParquetFilePath {
     /// Create a location for this chunk's parquet file. Calling this twice on the same `ChunkAddr`
     /// will return different `parquet_file::Path`s.
-    pub fn new(chunk_addr: &ChunkAddr) -> Self {
-        Self {
+    pub fn new_old_gen(chunk_addr: &ChunkAddr) -> Self {
+        Self(Variant::Old {
             table_name: Arc::clone(&chunk_addr.table_name),
             partition_key: Arc::clone(&chunk_addr.partition_key),
             chunk_id: chunk_addr.chunk_id,
-        }
+        })
+    }
+
+    /// Create parquet file path relevant for the NG storage layout.
+    pub fn new_new_gen(
+        namespace_id: NamespaceId,
+        table_id: TableId,
+        sequencer_id: SequencerId,
+        partition_id: PartitionId,
+        object_store_id: Uuid,
+    ) -> Self {
+        Self(Variant::New {
+            namespace_id,
+            table_id,
+            sequencer_id,
+            partition_id,
+            object_store_id,
+        })
+    }
+
+    /// Checks if this is an NG-style path.
+    pub fn is_new_gen(&self) -> bool {
+        matches!(self.0, Variant::New { .. })
     }
 
     /// Turn this into directories and file names to be added to a root path or to be serialized
     /// in protobuf.
+    ///
+    /// # Panic
+    /// Panics if this is an NG-style path.
     pub fn relative_dirs_and_file_name(&self) -> DirsAndFileName {
-        let mut result = DirsAndFileName::default();
-        result.push_all_dirs(&[self.table_name.as_ref(), self.partition_key.as_ref()]);
-        result.set_file_name(format!("{}.parquet", self.chunk_id.get()));
-        result
+        match &self.0 {
+            Variant::Old {
+                table_name,
+                partition_key,
+                chunk_id,
+            } => {
+                let mut result = DirsAndFileName::default();
+                result.push_all_dirs(&[table_name.as_ref(), partition_key.as_ref()]);
+                result.set_file_name(format!("{}.parquet", chunk_id.get()));
+                result
+            }
+            Variant::New { .. } => {
+                panic!("relative dirs don't apply to new-gen parquet file paths")
+            }
+        }
+    }
+
+    /// Get absolute storage location.
+    ///
+    /// # Panic
+    /// Panics if this is an old-style path.
+    pub fn absolute_dirs_and_file_name(&self) -> DirsAndFileName {
+        match &self.0 {
+            Variant::Old { .. } => {
+                panic!("absolute dirs don't apply to old-gen parquet file paths")
+            }
+            Variant::New {
+                namespace_id,
+                table_id,
+                sequencer_id,
+                partition_id,
+                object_store_id,
+            } => {
+                let mut result = DirsAndFileName::default();
+                result.push_all_dirs(&[
+                    namespace_id.to_string().as_str(),
+                    table_id.to_string().as_str(),
+                    sequencer_id.to_string().as_str(),
+                    partition_id.to_string().as_str(),
+                ]);
+                result.set_file_name(format!("{}.parquet", object_store_id));
+                result
+            }
+        }
     }
 
     /// Create from serialized protobuf strings.
@@ -70,11 +148,11 @@ impl ParquetFilePath {
         ensure!(ext == "parquet", InvalidExtensionSnafu { ext });
         ensure!(parts.next().is_none(), UnexpectedExtensionSnafu);
 
-        Ok(Self {
+        Ok(Self(Variant::Old {
             table_name,
             partition_key,
             chunk_id,
-        })
+        }))
     }
 
     // Deliberately pub(crate); this transformation should only happen within this crate
@@ -214,11 +292,11 @@ mod tests {
         let result = ParquetFilePath::from_relative_dirs_and_file_name(&df).unwrap();
         assert_eq!(
             result,
-            ParquetFilePath {
+            ParquetFilePath(Variant::Old {
                 table_name: "foo".into(),
                 partition_key: "bar".into(),
                 chunk_id: ChunkId::new_test(10),
-            }
+            })
         );
         let round_trip = result.relative_dirs_and_file_name();
         assert_eq!(round_trip, df);
@@ -235,11 +313,11 @@ mod tests {
         let result = ParquetFilePath::from_absolute(path);
         assert_eq!(
             result.unwrap(),
-            ParquetFilePath {
+            ParquetFilePath(Variant::Old {
                 table_name: "}*".into(),
                 partition_key: "aoeu".into(),
                 chunk_id: ChunkId::new_test(10),
-            }
+            })
         );
 
         // Error cases
@@ -261,11 +339,11 @@ mod tests {
 
     #[test]
     fn parquet_file_relative_dirs_and_file_path() {
-        let pfp = ParquetFilePath {
+        let pfp = ParquetFilePath(Variant::Old {
             table_name: "}*".into(),
             partition_key: "aoeu".into(),
             chunk_id: ChunkId::new_test(10),
-        };
+        });
         let dirs_and_file_name = pfp.relative_dirs_and_file_name();
         assert_eq!(
             dirs_and_file_name.to_string(),
@@ -277,17 +355,76 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "relative dirs don't apply to new-gen parquet file paths")]
+    fn parquet_file_relative_dirs_and_file_path_new_gen() {
+        let pfp = ParquetFilePath(Variant::New {
+            namespace_id: NamespaceId::new(1),
+            table_id: TableId::new(2),
+            sequencer_id: SequencerId::new(3),
+            partition_id: PartitionId::new(4),
+            object_store_id: Uuid::nil(),
+        });
+        pfp.relative_dirs_and_file_name();
+    }
+
+    #[test]
+    fn parquet_file_absolute_dirs_and_file_path() {
+        let pfp = ParquetFilePath(Variant::New {
+            namespace_id: NamespaceId::new(1),
+            table_id: TableId::new(2),
+            sequencer_id: SequencerId::new(3),
+            partition_id: PartitionId::new(4),
+            object_store_id: Uuid::nil(),
+        });
+        let dirs_and_file_name = pfp.absolute_dirs_and_file_name();
+        assert_eq!(
+            dirs_and_file_name.to_string(),
+            "1/2/3/4/00000000-0000-0000-0000-000000000000.parquet".to_string(),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "absolute dirs don't apply to old-gen parquet file paths")]
+    fn parquet_file_absolute_dirs_and_file_path_old_gen() {
+        let pfp = ParquetFilePath(Variant::Old {
+            table_name: "}*".into(),
+            partition_key: "aoeu".into(),
+            chunk_id: ChunkId::new_test(10),
+        });
+        pfp.absolute_dirs_and_file_name();
+    }
+
+    #[test]
+    fn parquet_file_is_new_gen() {
+        let pfp = ParquetFilePath(Variant::Old {
+            table_name: "}*".into(),
+            partition_key: "aoeu".into(),
+            chunk_id: ChunkId::new_test(10),
+        });
+        assert!(!pfp.is_new_gen());
+
+        let pfp = ParquetFilePath(Variant::New {
+            namespace_id: NamespaceId::new(1),
+            table_id: TableId::new(2),
+            sequencer_id: SequencerId::new(3),
+            partition_id: PartitionId::new(4),
+            object_store_id: Uuid::nil(),
+        });
+        assert!(pfp.is_new_gen());
+    }
+
+    #[test]
     fn data_path_join_with_parquet_file_path() {
         let db_uuid = Uuid::new_v4();
         let object_store = make_object_store();
         let root_path = RootPath::new(&object_store, db_uuid);
         let iox_object_store = IoxObjectStore::existing(Arc::clone(&object_store), root_path);
 
-        let pfp = ParquetFilePath {
+        let pfp = ParquetFilePath(Variant::Old {
             table_name: "}*".into(),
             partition_key: "aoeu".into(),
             chunk_id: ChunkId::new_test(10),
-        };
+        });
 
         let path = iox_object_store.data_path.join(&pfp);
 

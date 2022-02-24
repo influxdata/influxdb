@@ -204,6 +204,7 @@ pub async fn add_parquet_file_with_tombstones(
             parquet_file.max_time,
             parquet_file.file_size_bytes,
             parquet_file.parquet_metadata.clone(),
+            parquet_file.row_count,
         )
         .await?;
 

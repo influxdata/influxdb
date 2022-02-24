@@ -435,7 +435,7 @@ mod tests {
             partition_key: Arc::from("part1"),
             chunk_id,
         };
-        let path = ParquetFilePath::new(&chunk_addr);
+        let path = ParquetFilePath::new_old_gen(&chunk_addr);
         storage.to_object_store(data, &path).await.unwrap();
 
         (path, md)

@@ -7,8 +7,8 @@ use crate::{
         NamespaceRepo, ParquetFile, ParquetFileId, ParquetFileRepo, Partition, PartitionId,
         PartitionInfo, PartitionRepo, ProcessedTombstone, ProcessedTombstoneRepo, QueryPool,
         QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer, SequencerId,
-        SequencerRepo, Table, TableId, TableRepo, Timestamp, Tombstone, TombstoneId, TombstoneRepo,
-        Transaction,
+        SequencerRepo, Table, TableId, TablePersistInfo, TableRepo, Timestamp, Tombstone,
+        TombstoneId, TombstoneRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
@@ -626,6 +626,48 @@ WHERE namespace_id = $1;
 
         Ok(rec)
     }
+
+    async fn get_table_persist_info(
+        &mut self,
+        sequencer_id: SequencerId,
+        namespace_id: NamespaceId,
+        table_name: &str,
+    ) -> Result<Option<TablePersistInfo>> {
+        let rec = sqlx::query_as::<_, TablePersistInfo>(
+            r#"
+            WITH tid as (SELECT id FROM table_name WHERE name = $2 AND namespace_id = $3)
+            SELECT $1 as sequencer_id, id as table_id, parquet_file.max_sequence_number AS parquet_max_sequence_number,
+                   tombstone.sequence_number as tombstone_max_sequence_number
+            FROM tid
+            LEFT JOIN (
+              SELECT tombstone.table_id, sequence_number
+              FROM tombstone
+              WHERE sequencer_id = $1 AND tombstone.table_id = (SELECT id FROM tid)
+              ORDER BY sequence_number DESC
+              LIMIT 1
+            ) tombstone ON tombstone.table_id = tid.id
+            LEFT JOIN (
+              SELECT parquet_file.table_id, max_sequence_number
+              FROM parquet_file
+              WHERE parquet_file.sequencer_id = $1 AND parquet_file.table_id = (SELECT id from tid)
+              ORDER BY max_sequence_number DESC
+              LIMIT 1
+            ) parquet_file ON parquet_file.table_id = tid.id;
+            "#)
+            .bind(&sequencer_id) // $1
+            .bind(&table_name) // $2
+            .bind(&namespace_id) // $3
+            .fetch_one(&mut self.inner)
+            .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let info = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(info))
+    }
 }
 
 #[async_trait]
@@ -962,11 +1004,12 @@ impl ParquetFileRepo for PostgresTxn {
         max_time: Timestamp,
         file_size_bytes: i64,
         parquet_metadata: Vec<u8>,
+        row_count: i64,
     ) -> Result<ParquetFile> {
         let rec = sqlx::query_as::<_, ParquetFile>(
             r#"
-INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes, parquet_metadata )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10 )
+INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes, parquet_metadata, row_count )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10, $11 )
 RETURNING *
         "#,
         )
@@ -980,6 +1023,7 @@ RETURNING *
             .bind(max_time) // $8
             .bind(file_size_bytes) // $9
             .bind(parquet_metadata) // $10
+            .bind(row_count) // $11
             .fetch_one(&mut self.inner)
             .await
             .map_err(|e| {

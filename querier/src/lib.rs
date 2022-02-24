@@ -15,3 +15,5 @@ pub use client_util::connection;
 
 /// Flight client to the ingester to request in-memory data.
 pub mod flight;
+pub mod handler;
+pub mod server;

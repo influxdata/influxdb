@@ -7,8 +7,8 @@ use crate::interface::{
     NamespaceRepo, ParquetFile, ParquetFileId, ParquetFileRepo, Partition, PartitionId,
     PartitionInfo, PartitionRepo, ProcessedTombstone, ProcessedTombstoneRepo, QueryPool,
     QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer, SequencerId,
-    SequencerRepo, Table, TableId, TableRepo, Timestamp, Tombstone, TombstoneId, TombstoneRepo,
-    Transaction,
+    SequencerRepo, Table, TableId, TablePersistInfo, TableRepo, Timestamp, Tombstone, TombstoneId,
+    TombstoneRepo, Transaction,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::warn;
@@ -349,6 +349,43 @@ impl TableRepo for MemTxn {
             .collect();
         Ok(tables)
     }
+
+    async fn get_table_persist_info(
+        &mut self,
+        sequencer_id: SequencerId,
+        namespace_id: NamespaceId,
+        table_name: &str,
+    ) -> Result<Option<TablePersistInfo>> {
+        let stage = self.stage();
+
+        if let Some(table) = stage
+            .tables
+            .iter()
+            .find(|t| t.name == table_name && t.namespace_id == namespace_id)
+        {
+            let parquet_max_sequence_number = stage
+                .parquet_files
+                .iter()
+                .filter(|p| p.sequencer_id == sequencer_id && p.table_id == table.id)
+                .max_by_key(|p| p.max_sequence_number)
+                .map(|p| p.max_sequence_number);
+            let tombstone_max_sequence_number = stage
+                .tombstones
+                .iter()
+                .filter(|t| t.sequencer_id == sequencer_id && t.table_id == table.id)
+                .max_by_key(|t| t.sequence_number)
+                .map(|t| t.sequence_number);
+
+            return Ok(Some(TablePersistInfo {
+                sequencer_id,
+                table_id: table.id,
+                parquet_max_sequence_number,
+                tombstone_max_sequence_number,
+            }));
+        }
+
+        Ok(None)
+    }
 }
 
 #[async_trait]
@@ -649,6 +686,7 @@ impl ParquetFileRepo for MemTxn {
         max_time: Timestamp,
         file_size_bytes: i64,
         parquet_metadata: Vec<u8>,
+        row_count: i64,
     ) -> Result<ParquetFile> {
         let stage = self.stage();
 
@@ -670,6 +708,7 @@ impl ParquetFileRepo for MemTxn {
             max_sequence_number,
             min_time,
             max_time,
+            row_count,
             to_delete: false,
             file_size_bytes,
             parquet_metadata,

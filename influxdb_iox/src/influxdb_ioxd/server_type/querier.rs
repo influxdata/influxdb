@@ -4,9 +4,9 @@ use std::{
 };
 
 use async_trait::async_trait;
-use compactor::{handler::CompactorHandler, server::CompactorServer};
 use hyper::{Body, Request, Response};
 use metric::Registry;
+use querier::{handler::QuerierHandler, server::QuerierServer};
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
@@ -17,14 +17,14 @@ use crate::influxdb_ioxd::{
 };
 
 #[derive(Debug)]
-pub struct CompactorServerType<C: CompactorHandler> {
-    server: CompactorServer<C>,
+pub struct QuerierServerType<C: QuerierHandler> {
+    server: QuerierServer<C>,
     shutdown: CancellationToken,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
-impl<C: CompactorHandler> CompactorServerType<C> {
-    pub fn new(server: CompactorServer<C>, common_state: &CommonServerState) -> Self {
+impl<C: QuerierHandler> QuerierServerType<C> {
+    pub fn new(server: QuerierServer<C>, common_state: &CommonServerState) -> Self {
         Self {
             server,
             shutdown: CancellationToken::new(),
@@ -34,7 +34,7 @@ impl<C: CompactorHandler> CompactorServerType<C> {
 }
 
 #[async_trait]
-impl<C: CompactorHandler + std::fmt::Debug + 'static> ServerType for CompactorServerType<C> {
+impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServerType<C> {
     type RouteError = IoxHttpError;
 
     /// Return the [`metric::Registry`] used by the compactor.

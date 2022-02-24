@@ -1,0 +1,4 @@
+ALTER TABLE
+  IF EXISTS parquet_file
+ADD
+  COLUMN row_count BIGINT NOT NULL DEFAULT 0;

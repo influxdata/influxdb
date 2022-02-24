@@ -1,21 +1,21 @@
-//! Compactor server entrypoint.
+//! Querier server entrypoint.
 
 use std::sync::Arc;
 
-use crate::handler::CompactorHandler;
+use crate::handler::QuerierHandler;
 use std::fmt::Debug;
 
-/// The [`CompactorServer`] manages the lifecycle and contains all state for a
-/// `compactor` server instance.
+/// The [`QuerierServer`] manages the lifecycle and contains all state for a
+/// `querier` server instance.
 #[derive(Debug, Default)]
-pub struct CompactorServer<C: CompactorHandler> {
+pub struct QuerierServer<C: QuerierHandler> {
     metrics: Arc<metric::Registry>,
 
     handler: Arc<C>,
 }
 
-impl<C: CompactorHandler> CompactorServer<C> {
-    /// Initialise a new [`CompactorServer`] using the provided HTTP and gRPC
+impl<C: QuerierHandler> QuerierServer<C> {
+    /// Initialise a new [`QuerierServer`] using the provided HTTP and gRPC
     /// handlers.
     pub fn new(metrics: Arc<metric::Registry>, handler: Arc<C>) -> Self {
         Self { metrics, handler }

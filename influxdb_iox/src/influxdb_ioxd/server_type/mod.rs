@@ -12,6 +12,7 @@ pub mod common_state;
 pub mod compactor;
 pub mod database;
 pub mod ingester;
+pub mod querier;
 pub mod router;
 pub mod router2;
 pub mod test;

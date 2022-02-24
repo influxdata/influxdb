@@ -1,4 +1,4 @@
-//! Compactor handler
+//! Querier handler
 
 use async_trait::async_trait;
 use futures::{
@@ -7,7 +7,6 @@ use futures::{
     FutureExt, StreamExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
-use object_store::ObjectStore;
 use observability_deps::tracing::warn;
 use std::sync::Arc;
 use thiserror::Error;
@@ -18,9 +17,9 @@ use tokio_util::sync::CancellationToken;
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {}
 
-/// The [`CompactorHandler`] does nothing at this point
+/// The [`QuerierHandler`] does nothing at this point
 #[async_trait]
-pub trait CompactorHandler: Send + Sync {
+pub trait QuerierHandler: Send + Sync {
     /// Wait until the handler finished  to shutdown.
     ///
     /// Use [`shutdown`](Self::shutdown) to trigger a shutdown.
@@ -38,43 +37,35 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
     handle.map_err(Arc::new).boxed().shared()
 }
 
-/// Implementation of the `CompactorHandler` trait (that currently does nothing)
+/// Implementation of the `QuerierHandler` trait (that currently does nothing)
 #[derive(Debug)]
-pub struct CompactorHandlerImpl {
+pub struct QuerierHandlerImpl {
     /// The global catalog for schema, parquet files and tombstones
     catalog: Arc<dyn Catalog>,
 
     /// Future that resolves when the background worker exits
     join_handles: Vec<(String, SharedJoinHandle)>,
 
-    /// Object store for persistence of parquet files
-    object_store: Arc<ObjectStore>,
-
     /// A token that is used to trigger shutdown of the background worker
     shutdown: CancellationToken,
 }
 
-impl CompactorHandlerImpl {
-    /// Initialize the Compactor
-    pub fn new(
-        catalog: Arc<dyn Catalog>,
-        object_store: Arc<ObjectStore>,
-        _registry: &metric::Registry,
-    ) -> Self {
+impl QuerierHandlerImpl {
+    /// Initialize the Querier
+    pub fn new(catalog: Arc<dyn Catalog>, _registry: &metric::Registry) -> Self {
         let shutdown = CancellationToken::new();
 
         let join_handles = vec![];
         Self {
             catalog,
             join_handles,
-            object_store,
             shutdown,
         }
     }
 }
 
 #[async_trait]
-impl CompactorHandler for CompactorHandlerImpl {
+impl QuerierHandler for QuerierHandlerImpl {
     async fn join(&self) {
         // Need to poll handlers unordered to detect early exists of any worker in the list.
         let mut unordered: FuturesUnordered<_> = self
@@ -98,10 +89,10 @@ impl CompactorHandler for CompactorHandlerImpl {
     }
 }
 
-impl Drop for CompactorHandlerImpl {
+impl Drop for QuerierHandlerImpl {
     fn drop(&mut self) {
         if !self.shutdown.is_cancelled() {
-            warn!("CompactorHandlerImpl dropped without calling shutdown()");
+            warn!("QuerierHandlerImpl dropped without calling shutdown()");
             self.shutdown.cancel();
         }
     }

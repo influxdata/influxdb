@@ -48,6 +48,9 @@ pub enum Error {
 
     #[snafu(display("Error while casting Timenanosecond on Time column"))]
     TimeCasting,
+
+    #[snafu(display("Could not convert row count to i64"))]
+    RowCountTypeConversion { source: std::num::TryFromIntError },
 }
 
 /// A specialized `Error` for Ingester's Compact errors
@@ -131,6 +134,9 @@ pub async fn compact_persisting_batch(
         .filter(|b| b.num_rows() != 0)
         .collect();
 
+    let row_count: usize = output_batches.iter().map(|b| b.num_rows()).sum();
+    let row_count = row_count.try_into().context(RowCountTypeConversionSnafu)?;
+
     // Compute min and max of the `time` column
     let (min_time, max_time) = compute_timenanosecond_min_max(&output_batches)?;
 
@@ -151,6 +157,7 @@ pub async fn compact_persisting_batch(
         time_of_last_write: Time::from_timestamp_nanos(max_time),
         min_sequence_number: min_seq,
         max_sequence_number: max_seq,
+        row_count,
     };
 
     Ok(Some((output_batches, meta)))
@@ -342,6 +349,7 @@ mod tests {
             20000,
             seq_num_start,
             seq_num_end,
+            3,
         );
         assert_eq!(expected_meta, meta);
     }
