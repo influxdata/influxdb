@@ -1051,8 +1051,6 @@ pub struct IngesterQueryRequest {
     columns: Vec<String>,
     /// Predicate for filtering
     predicate: Option<Predicate>,
-    /// Optionally only return rows with a sequence number greater than this
-    greater_than_sequence_number: Option<SequenceNumber>,
 }
 
 impl IngesterQueryRequest {
@@ -1064,7 +1062,6 @@ impl IngesterQueryRequest {
         table: String,
         columns: Vec<String>,
         predicate: Option<Predicate>,
-        greater_than_sequence_number: Option<SequenceNumber>,
     ) -> Self {
         Self {
             namespace,
@@ -1072,7 +1069,6 @@ impl IngesterQueryRequest {
             table,
             columns,
             predicate,
-            greater_than_sequence_number,
         }
     }
 }
@@ -1087,16 +1083,10 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
             table,
             columns,
             predicate,
-            greater_than_sequence_number,
         } = proto;
 
         let predicate = predicate.map(TryInto::try_into).transpose()?;
         let sequencer_id: i16 = sequencer_id.try_into().scope("sequencer_id")?;
-        let greater_than_sequence_number = greater_than_sequence_number
-            .map(TryInto::try_into)
-            .transpose()
-            .scope("greater_than_sequence_number")?
-            .map(SequenceNumber::new);
 
         Ok(Self::new(
             namespace,
@@ -1104,7 +1094,6 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
             table,
             columns,
             predicate,
-            greater_than_sequence_number,
         ))
     }
 }
@@ -1118,7 +1107,6 @@ pub struct IngesterQueryResponse {
     pub schema: Schema,
 
     /// Max persisted sequence number of the table
-    /// Only return this if it is larger than the IngesterQueryRequest's greater_than_sequence_number
     pub max_sequencer_number: Option<SequenceNumber>,
 }
 
@@ -1184,7 +1172,6 @@ mod tests {
             "cpu".into(),
             vec!["usage".into(), "time".into()],
             Some(rust_predicate),
-            Some(SequenceNumber::new(5)),
         );
 
         let proto_query = proto::IngesterQueryRequest {
@@ -1193,7 +1180,6 @@ mod tests {
             table: "cpu".into(),
             columns: vec!["usage".into(), "time".into()],
             predicate: Some(proto_predicate),
-            greater_than_sequence_number: Some(5),
         };
 
         let rust_query_converted = IngesterQueryRequest::try_from(proto_query).unwrap();
