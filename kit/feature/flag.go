@@ -21,6 +21,9 @@ type Flag interface {
 
 // MakeFlag constructs a Flag. The concrete implementation is inferred from the provided default.
 func MakeFlag(name, key, owner string, defaultValue interface{}, lifetime Lifetime, expose bool) Flag {
+	if v, ok := defaultValue.(int); ok {
+		defaultValue = int32(v)
+	}
 	b := MakeBase(name, key, owner, defaultValue, lifetime, expose)
 	switch v := defaultValue.(type) {
 	case bool:
@@ -29,8 +32,6 @@ func MakeFlag(name, key, owner string, defaultValue interface{}, lifetime Lifeti
 		return FloatFlag{b, v}
 	case int32:
 		return IntFlag{b, v}
-	case int:
-		return IntFlag{b, int32(v)}
 	case string:
 		return StringFlag{b, v}
 	default:
