@@ -1,6 +1,7 @@
 //! This module contains the code to compact chunks together
 
 use super::{error::Result, merge_schemas, LockableCatalogChunk, LockableCatalogPartition};
+use crate::catalog::chunk::ChunkMetadata;
 use crate::{
     catalog::{chunk::CatalogChunk, partition::Partition},
     lifecycle::collect_rub,
@@ -140,15 +141,16 @@ pub(crate) fn compact_chunks(
 
         let rub_row_groups = rb_chunk.row_groups();
         let output_rows = rb_chunk.rows();
-        let (_, chunk) = partition.create_rub_chunk(
-            rb_chunk,
-            time_of_first_write,
-            time_of_last_write,
+
+        let metadata = ChunkMetadata {
+            table_summary: Arc::new(rb_chunk.table_summary()),
             schema,
             delete_predicates,
-            max_order,
-            None,
-        );
+            time_of_first_write,
+            time_of_last_write,
+        };
+
+        let (_, chunk) = partition.create_rub_chunk(None, max_order, metadata, rb_chunk);
 
         // input rows per second
         let elapsed = now.elapsed();

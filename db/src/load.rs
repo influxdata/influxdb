@@ -2,6 +2,7 @@
 //! [`PreservedCatalog`](parquet_catalog::core::PreservedCatalog).
 
 use super::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle, Catalog};
+use crate::catalog::chunk::ChunkMetadata;
 use data_types::delete_predicate::DeletePredicate;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use observability_deps::tracing::{error, info};
@@ -248,13 +249,19 @@ impl CatalogState for Loader {
         // we leave this list empty (for now).
         let delete_predicates: Vec<Arc<DeletePredicate>> = vec![];
 
+        let metadata = ChunkMetadata {
+            table_summary: Arc::clone(parquet_chunk.table_summary()),
+            schema: parquet_chunk.schema(),
+            delete_predicates,
+            time_of_first_write: iox_md.time_of_first_write,
+            time_of_last_write: iox_md.time_of_last_write,
+        };
+
         partition.insert_object_store_only_chunk(
             iox_md.chunk_id,
-            parquet_chunk,
-            iox_md.time_of_first_write,
-            iox_md.time_of_last_write,
-            delete_predicates,
             iox_md.chunk_order,
+            metadata,
+            parquet_chunk,
         );
 
         schema_handle.commit();

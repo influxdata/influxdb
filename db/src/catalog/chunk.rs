@@ -78,6 +78,16 @@ pub struct ChunkMetadata {
 
     /// Delete predicates of this chunk
     pub delete_predicates: Vec<Arc<DeletePredicate>>,
+
+    /// The earliest time at which data contained within this chunk was written
+    /// into IOx. Note due to the compaction, etc... this may not be the chunk
+    /// that data was originally written into
+    pub time_of_first_write: Time,
+
+    /// The latest time at which data contained within this chunk was written
+    /// into IOx. Note due to the compaction, etc... this may not be the chunk
+    /// that data was originally written into
+    pub time_of_last_write: Time,
 }
 
 /// Different memory representations of a frozen chunk.
@@ -132,6 +142,12 @@ pub enum ChunkStage {
     Open {
         /// Mutable Buffer that receives writes.
         mb_chunk: MBChunk,
+
+        /// See [`ChunkMetadata::time_of_first_write`]
+        time_of_first_write: Time,
+
+        /// See [`ChunkMetadata::time_of_last_write`]
+        time_of_last_write: Time,
     },
 
     /// A chunk in a _frozen_ stage.
@@ -223,16 +239,6 @@ pub struct CatalogChunk {
     /// Time provider
     time_provider: Arc<dyn TimeProvider>,
 
-    /// The earliest time at which data contained within this chunk was written
-    /// into IOx. Note due to the compaction, etc... this may not be the chunk
-    /// that data was originally written into
-    time_of_first_write: Time,
-
-    /// The latest time at which data contained within this chunk was written
-    /// into IOx. Note due to the compaction, etc... this may not be the chunk
-    /// that data was originally written into
-    time_of_last_write: Time,
-
     /// Order of this chunk relative to other overlapping chunks.
     order: ChunkOrder,
 }
@@ -294,9 +300,12 @@ impl CatalogChunk {
     ) -> Self {
         assert_eq!(chunk.table_name(), &addr.table_name);
 
-        let stage = ChunkStage::Open { mb_chunk: chunk };
-
         let now = time_provider.now();
+        let stage = ChunkStage::Open {
+            mb_chunk: chunk,
+            time_of_first_write: now,
+            time_of_last_write: now,
+        };
 
         let chunk = Self {
             addr,
@@ -306,8 +315,6 @@ impl CatalogChunk {
             metrics: Mutex::new(metrics),
             access_recorder: AccessRecorder::new(Arc::clone(&time_provider)),
             time_provider,
-            time_of_first_write: now,
-            time_of_last_write: now,
             order,
         };
         chunk.update_metrics();
@@ -317,24 +324,16 @@ impl CatalogChunk {
     /// Creates a new RUB chunk from the provided RUB chunk and metadata
     ///
     /// Panics if the provided chunk is empty
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn new_rub_chunk(
         addr: ChunkAddr,
-        chunk: read_buffer::RBChunk,
-        time_of_first_write: Time,
-        time_of_last_write: Time,
-        schema: Arc<Schema>,
-        metrics: ChunkMetrics,
-        delete_predicates: Vec<Arc<DeletePredicate>>,
         order: ChunkOrder,
+        metadata: ChunkMetadata,
+        chunk: read_buffer::RBChunk,
+        metrics: ChunkMetrics,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         let stage = ChunkStage::Frozen {
-            meta: Arc::new(ChunkMetadata {
-                table_summary: Arc::new(chunk.table_summary()),
-                schema,
-                delete_predicates,
-            }),
+            meta: Arc::new(metadata),
             representation: ChunkStageFrozenRepr::ReadBuffer(Arc::new(chunk)),
         };
 
@@ -346,8 +345,6 @@ impl CatalogChunk {
             metrics: Mutex::new(metrics),
             access_recorder: AccessRecorder::new(Arc::clone(&time_provider)),
             time_provider,
-            time_of_first_write,
-            time_of_last_write,
             order,
         };
         chunk.update_metrics();
@@ -356,30 +353,20 @@ impl CatalogChunk {
 
     /// Creates a new chunk that is only registered via an object store reference (= only exists in
     /// parquet).
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn new_object_store_only(
         addr: ChunkAddr,
-        chunk: Arc<parquet_file::chunk::ParquetChunk>,
-        time_of_first_write: Time,
-        time_of_last_write: Time,
-        metrics: ChunkMetrics,
-        delete_predicates: Vec<Arc<DeletePredicate>>,
         order: ChunkOrder,
+        metadata: ChunkMetadata,
+        chunk: Arc<parquet_file::chunk::ParquetChunk>,
+        metrics: ChunkMetrics,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
-        // Cache table summary + schema
-        let meta = Arc::new(ChunkMetadata {
-            table_summary: Arc::clone(chunk.table_summary()),
-            schema: chunk.schema(),
-            delete_predicates,
-        });
-
         let stage = ChunkStage::Persisted {
             parquet: chunk,
             read_buffer: None,
-            meta,
+            meta: Arc::new(metadata),
         };
 
         let chunk = Self {
@@ -390,8 +377,6 @@ impl CatalogChunk {
             metrics: Mutex::new(metrics),
             access_recorder: AccessRecorder::new(Arc::clone(&time_provider)),
             time_provider,
-            time_of_first_write,
-            time_of_last_write,
             order,
         };
         chunk.update_metrics();
@@ -447,11 +432,26 @@ impl CatalogChunk {
     }
 
     pub fn time_of_first_write(&self) -> Time {
-        self.time_of_first_write
+        match &self.stage {
+            ChunkStage::Open {
+                time_of_first_write,
+                ..
+            } => *time_of_first_write,
+            ChunkStage::Frozen { meta, .. } | ChunkStage::Persisted { meta, .. } => {
+                meta.time_of_first_write
+            }
+        }
     }
 
     pub fn time_of_last_write(&self) -> Time {
-        self.time_of_last_write
+        match &self.stage {
+            ChunkStage::Open {
+                time_of_last_write, ..
+            } => *time_of_last_write,
+            ChunkStage::Frozen { meta, .. } | ChunkStage::Persisted { meta, .. } => {
+                meta.time_of_last_write
+            }
+        }
     }
 
     pub fn order(&self) -> ChunkOrder {
@@ -460,7 +460,7 @@ impl CatalogChunk {
 
     pub fn schema(&self) -> Arc<Schema> {
         match &self.stage {
-            ChunkStage::Open { mb_chunk } => Arc::new(mb_chunk.schema(Selection::All).unwrap()),
+            ChunkStage::Open { mb_chunk, .. } => Arc::new(mb_chunk.schema(Selection::All).unwrap()),
             ChunkStage::Frozen { meta, .. } | ChunkStage::Persisted { meta, .. } => {
                 Arc::clone(&meta.schema)
             }
@@ -472,7 +472,7 @@ impl CatalogChunk {
         let mut metrics = self.metrics.lock();
 
         match &self.stage {
-            ChunkStage::Open { mb_chunk } => {
+            ChunkStage::Open { mb_chunk, .. } => {
                 metrics.memory_metrics.set_mub_only(mb_chunk.size());
                 metrics.row_count.set_mub_only(mb_chunk.rows());
                 metrics.chunk_storage.set_mub_only(1);
@@ -516,7 +516,7 @@ impl CatalogChunk {
             "Input delete predicate to CatalogChunk add_delete_predicate"
         );
         match &mut self.stage {
-            ChunkStage::Open { mb_chunk: _ } => {
+            ChunkStage::Open { mb_chunk: _, .. } => {
                 // Freeze/close this chunk and add delete_predicate to its frozen one
                 self.freeze_with_predicate(delete_predicate).expect(
                     "chunk stage was just checked to be 'Open', why can the chunk not be frozen?!",
@@ -530,6 +530,8 @@ impl CatalogChunk {
                     table_summary: Arc::clone(&meta.table_summary),
                     schema: Arc::clone(&meta.schema),
                     delete_predicates: del_preds,
+                    time_of_first_write: meta.time_of_first_write,
+                    time_of_last_write: meta.time_of_last_write,
                 });
             }
         }
@@ -537,7 +539,7 @@ impl CatalogChunk {
 
     pub fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         match &self.stage {
-            ChunkStage::Open { mb_chunk: _ } => {
+            ChunkStage::Open { mb_chunk: _, .. } => {
                 // no delete predicate for open chunk
                 debug!("delete_predicates of Open chunk is empty");
                 &[]
@@ -558,13 +560,27 @@ impl CatalogChunk {
     /// Record a write of row data to this chunk
     ///
     /// `time_of_write` is the wall clock time of the write
+    ///
+    /// # Panic
+    ///
+    /// Panics if this chunk is not mutable
     pub fn record_write(&mut self) {
+        match &mut self.stage {
+            ChunkStage::Open {
+                time_of_first_write,
+                time_of_last_write,
+                ..
+            } => {
+                let now = self.time_provider.now();
+                *time_of_first_write = now.min(*time_of_first_write);
+                *time_of_last_write = now.max(*time_of_last_write);
+            }
+            ChunkStage::Frozen { .. } | ChunkStage::Persisted { .. } => {
+                unreachable!("chunk not mutable")
+            }
+        }
+
         self.access_recorder.record_access();
-
-        let now = self.time_provider.now();
-        self.time_of_first_write = self.time_of_first_write.min(now);
-        self.time_of_last_write = self.time_of_last_write.max(now);
-
         self.update_metrics();
     }
 
@@ -617,8 +633,8 @@ impl CatalogChunk {
             object_store_bytes: self.object_store_bytes(),
             row_count,
             time_of_last_access,
-            time_of_first_write: self.time_of_first_write,
-            time_of_last_write: self.time_of_last_write,
+            time_of_first_write: self.time_of_first_write(),
+            time_of_last_write: self.time_of_last_write(),
             order: self.order,
         }
     }
@@ -731,7 +747,11 @@ impl CatalogChunk {
         delete_predicates: Vec<Arc<DeletePredicate>>,
     ) -> Result<()> {
         match &self.stage {
-            ChunkStage::Open { mb_chunk, .. } => {
+            ChunkStage::Open {
+                mb_chunk,
+                time_of_first_write,
+                time_of_last_write,
+            } => {
                 debug!(%self.addr, row_count=mb_chunk.rows(), "freezing chunk");
                 let (s, _) = mb_chunk.snapshot();
 
@@ -740,6 +760,8 @@ impl CatalogChunk {
                     table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: s.full_schema(),
                     delete_predicates,
+                    time_of_first_write: *time_of_first_write,
+                    time_of_last_write: *time_of_last_write,
                 };
 
                 self.stage = ChunkStage::Frozen {
@@ -1265,14 +1287,20 @@ mod tests {
 
         let now = Time::from_timestamp_nanos(43564);
 
+        let metadata = ChunkMetadata {
+            table_summary: Arc::clone(parquet_chunk.table_summary()),
+            schema: parquet_chunk.schema(),
+            delete_predicates: vec![],
+            time_of_first_write: now,
+            time_of_last_write: now,
+        };
+
         CatalogChunk::new_object_store_only(
             addr,
-            Arc::new(parquet_chunk),
-            now,
-            now,
-            ChunkMetrics::new_unregistered(),
-            vec![],
             ChunkOrder::new(6).unwrap(),
+            metadata,
+            Arc::new(parquet_chunk),
+            ChunkMetrics::new_unregistered(),
             Arc::new(time::SystemProvider::new()),
         )
     }

@@ -100,7 +100,11 @@ impl DbChunk {
         use super::catalog::chunk::{ChunkStage, ChunkStageFrozenRepr};
 
         let (state, meta) = match chunk.stage() {
-            ChunkStage::Open { mb_chunk, .. } => {
+            ChunkStage::Open {
+                mb_chunk,
+                time_of_first_write,
+                time_of_last_write,
+            } => {
                 let (snapshot, just_cached) = mb_chunk.snapshot();
 
                 // the snapshot might be cached, so we need to update the chunk metrics
@@ -115,6 +119,8 @@ impl DbChunk {
                     table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: snapshot.full_schema(),
                     delete_predicates: vec![], // open chunk does not have delete predicate
+                    time_of_first_write: *time_of_first_write,
+                    time_of_last_write: *time_of_last_write,
                 };
                 (state, Arc::new(meta))
             }

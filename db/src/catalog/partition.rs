@@ -1,10 +1,11 @@
 //! The catalog representation of a Partition
 
-use super::chunk::{CatalogChunk, Error as ChunkError};
-use crate::catalog::metrics::PartitionMetrics;
+use crate::catalog::{
+    chunk::{CatalogChunk, ChunkMetadata, Error as ChunkError},
+    metrics::PartitionMetrics,
+};
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
-    delete_predicate::DeletePredicate,
     partition_metadata::{PartitionAddr, PartitionSummary},
 };
 use hashbrown::HashMap;
@@ -12,7 +13,6 @@ use observability_deps::tracing::info;
 use persistence_windows::{
     min_max_sequence::OptionalMinMaxSequence, persistence_windows::PersistenceWindows,
 };
-use schema::Schema;
 use snafu::{OptionExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -245,16 +245,12 @@ impl Partition {
     /// Create a new read buffer chunk.
     ///
     /// Returns ID and chunk.
-    #[allow(clippy::too_many_arguments)] // TODO(marco) make it nicer
     pub fn create_rub_chunk(
         &mut self,
-        chunk: read_buffer::RBChunk,
-        time_of_first_write: Time,
-        time_of_last_write: Time,
-        schema: Arc<Schema>,
-        delete_predicates: Vec<Arc<DeletePredicate>>,
-        chunk_order: ChunkOrder,
         chunk_id: Option<ChunkId>,
+        chunk_order: ChunkOrder,
+        metadata: ChunkMetadata,
+        chunk: read_buffer::RBChunk,
     ) -> (ChunkId, &Arc<RwLock<CatalogChunk>>) {
         let chunk_id = chunk_id.unwrap_or_else(ChunkId::new);
         assert!(
@@ -267,18 +263,16 @@ impl Partition {
         let addr = ChunkAddr::new(&self.addr, chunk_id);
         info!(%addr, row_count=chunk.rows(), "inserting RUB chunk to catalog");
 
-        let chunk = Arc::new(self.metrics.new_chunk_lock(CatalogChunk::new_rub_chunk(
+        let chunk = CatalogChunk::new_rub_chunk(
             addr,
-            chunk,
-            time_of_first_write,
-            time_of_last_write,
-            schema,
-            self.metrics.new_chunk_metrics(),
-            delete_predicates,
             chunk_order,
+            metadata,
+            chunk,
+            self.metrics.new_chunk_metrics(),
             Arc::clone(&self.time_provider),
-        )));
+        );
 
+        let chunk = Arc::new(self.metrics.new_chunk_lock(chunk));
         let chunk = self.chunks.insert(chunk_id, chunk_order, chunk);
         (chunk_id, chunk)
     }
@@ -293,30 +287,24 @@ impl Partition {
     pub fn insert_object_store_only_chunk(
         &mut self,
         chunk_id: ChunkId,
-        chunk: Arc<parquet_file::chunk::ParquetChunk>,
-        time_of_first_write: Time,
-        time_of_last_write: Time,
-        delete_predicates: Vec<Arc<DeletePredicate>>,
         chunk_order: ChunkOrder,
+        metadata: ChunkMetadata,
+        chunk: Arc<parquet_file::chunk::ParquetChunk>,
     ) -> &Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name(), self.table_name());
 
         let addr = ChunkAddr::new(&self.addr, chunk_id);
 
-        let chunk = Arc::new(
-            self.metrics
-                .new_chunk_lock(CatalogChunk::new_object_store_only(
-                    addr,
-                    chunk,
-                    time_of_first_write,
-                    time_of_last_write,
-                    self.metrics.new_chunk_metrics(),
-                    delete_predicates,
-                    chunk_order,
-                    Arc::clone(&self.time_provider),
-                )),
+        let chunk = CatalogChunk::new_object_store_only(
+            addr,
+            chunk_order,
+            metadata,
+            chunk,
+            self.metrics.new_chunk_metrics(),
+            Arc::clone(&self.time_provider),
         );
 
+        let chunk = Arc::new(self.metrics.new_chunk_lock(chunk));
         let chunk = self.chunks.insert(chunk_id, chunk_order, chunk);
 
         // only update internal state when we know that insertion is OK

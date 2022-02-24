@@ -8,6 +8,7 @@ use super::{
     },
     LockableCatalogChunk, LockableCatalogPartition, Result,
 };
+use crate::catalog::chunk::ChunkMetadata;
 use crate::{
     catalog::{chunk::CatalogChunk, partition::Partition},
     lifecycle::merge_schemas,
@@ -469,13 +470,19 @@ async fn update_in_memory_catalog(
     // Only create a new chunk if compaction returns rows
     let dbchunk = match parquet_chunk {
         Some(parquet_chunk) => {
+            let metadata = ChunkMetadata {
+                table_summary: Arc::clone(parquet_chunk.table_summary()),
+                schema: parquet_chunk.schema(),
+                delete_predicates,
+                time_of_first_write: iox_metadata.time_of_first_write,
+                time_of_last_write: iox_metadata.time_of_last_write,
+            };
+
             let chunk = partition.insert_object_store_only_chunk(
                 iox_metadata.chunk_id,
-                parquet_chunk,
-                iox_metadata.time_of_first_write,
-                iox_metadata.time_of_last_write,
-                delete_predicates,
                 iox_metadata.chunk_order,
+                metadata,
+                parquet_chunk,
             );
             let dbchunk = DbChunk::parquet_file_snapshot(&*chunk.read());
             Some(dbchunk)

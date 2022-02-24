@@ -1,6 +1,7 @@
 //! This module contains the code that splits and persist chunks
 
 use super::{LockableCatalogChunk, LockableCatalogPartition, Result};
+use crate::catalog::chunk::ChunkMetadata;
 use crate::{
     catalog::{chunk::CatalogChunk, partition::Partition},
     lifecycle::{collect_rub, merge_schemas, write::write_chunk_to_object_store},
@@ -163,15 +164,15 @@ pub fn persist_chunks(
 
             // Upsert remainder to catalog if any
             if let Some(remainder) = remainder {
-                partition_write.create_rub_chunk(
-                    remainder,
+                let metadata = ChunkMetadata {
+                    table_summary: Arc::new(remainder.table_summary()),
+                    schema: Arc::clone(&schema),
+                    delete_predicates: delete_predicates.clone(),
                     time_of_first_write,
                     time_of_last_write,
-                    Arc::clone(&schema),
-                    delete_predicates.clone(),
-                    max_order,
-                    None,
-                );
+                };
+
+                partition_write.create_rub_chunk(None, max_order, metadata, remainder);
             }
 
             let to_persist = match to_persist {
@@ -186,15 +187,21 @@ pub fn persist_chunks(
                 }
             };
 
-            let (new_chunk_id, new_chunk) = partition_write.create_rub_chunk(
-                to_persist,
+            let metadata = ChunkMetadata {
+                table_summary: Arc::new(to_persist.table_summary()),
+                schema: Arc::clone(&schema),
+                delete_predicates,
                 time_of_first_write,
                 time_of_last_write,
-                schema,
-                delete_predicates,
-                max_order,
+            };
+
+            let (new_chunk_id, new_chunk) = partition_write.create_rub_chunk(
                 db.persisted_chunk_id_override.lock().as_ref().cloned(),
+                max_order,
+                metadata,
+                to_persist,
             );
+
             let to_persist = LockableCatalogChunk {
                 db,
                 chunk: Arc::clone(new_chunk),
