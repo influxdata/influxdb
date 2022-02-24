@@ -649,6 +649,7 @@ impl ParquetFileRepo for MemTxn {
         max_time: Timestamp,
         file_size_bytes: i64,
         parquet_metadata: Vec<u8>,
+        row_count: i64,
     ) -> Result<ParquetFile> {
         let stage = self.stage();
 
@@ -670,6 +671,7 @@ impl ParquetFileRepo for MemTxn {
             max_sequence_number,
             min_time,
             max_time,
+            row_count,
             to_delete: false,
             file_size_bytes,
             parquet_metadata,

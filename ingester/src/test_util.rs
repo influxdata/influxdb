@@ -13,10 +13,10 @@ use std::sync::Arc;
 use time::{SystemProvider, Time, TimeProvider};
 use uuid::Uuid;
 
-/// Create a persting batch, some tombstones and corresponding metadata fot them after compaction
+/// Create a persisting batch, some tombstones and corresponding metadata for them after compaction
 pub async fn make_persisting_batch_with_meta() -> (Arc<PersistingBatch>, Vec<Tombstone>, IoxMetadata)
 {
-    // record bacthes of input data
+    // record batches of input data
     let batches = create_batches_with_influxtype_different_columns_different_order().await;
 
     // tombstones
@@ -49,6 +49,8 @@ pub async fn make_persisting_batch_with_meta() -> (Arc<PersistingBatch>, Vec<Tom
     let namespace_id = 1;
     let table_id = 1;
     let partition_id = 1;
+    let row_count: usize = batches.iter().map(|b| b.num_rows()).sum();
+    let row_count = row_count.try_into().unwrap();
 
     // make the persisting batch
     let persisting_batch = make_persisting_batch(
@@ -78,6 +80,7 @@ pub async fn make_persisting_batch_with_meta() -> (Arc<PersistingBatch>, Vec<Tom
         7000,
         seq_num_start,
         seq_num_end,
+        row_count,
     );
 
     (persisting_batch, tombstones, meta)
@@ -120,6 +123,7 @@ pub fn make_meta(
     max_time: i64,
     min_sequence_number: i64,
     max_sequence_number: i64,
+    row_count: i64,
 ) -> IoxMetadata {
     IoxMetadata {
         object_store_id,
@@ -135,6 +139,7 @@ pub fn make_meta(
         time_of_last_write: Time::from_timestamp_nanos(max_time),
         min_sequence_number: SequenceNumber::new(min_sequence_number),
         max_sequence_number: SequenceNumber::new(max_sequence_number),
+        row_count,
     }
 }
 

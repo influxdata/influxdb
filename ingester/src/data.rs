@@ -268,6 +268,7 @@ impl Persister for IngesterData {
                             parquet_file.max_time,
                             parquet_file.file_size_bytes,
                             parquet_file.parquet_metadata.clone(),
+                            parquet_file.row_count,
                         )
                         .await
                 })

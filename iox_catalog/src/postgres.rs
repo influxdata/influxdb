@@ -962,11 +962,12 @@ impl ParquetFileRepo for PostgresTxn {
         max_time: Timestamp,
         file_size_bytes: i64,
         parquet_metadata: Vec<u8>,
+        row_count: i64,
     ) -> Result<ParquetFile> {
         let rec = sqlx::query_as::<_, ParquetFile>(
             r#"
-INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes, parquet_metadata )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10 )
+INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes, parquet_metadata, row_count )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10, $11 )
 RETURNING *
         "#,
         )
@@ -980,6 +981,7 @@ RETURNING *
             .bind(max_time) // $8
             .bind(file_size_bytes) // $9
             .bind(parquet_metadata) // $10
+            .bind(row_count) // $11
             .fetch_one(&mut self.inner)
             .await
             .map_err(|e| {

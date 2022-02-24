@@ -510,6 +510,9 @@ pub struct IoxMetadata {
 
     /// sequence number of the last write
     pub max_sequence_number: SequenceNumber,
+
+    /// number of rows of data
+    pub row_count: i64,
 }
 
 impl IoxMetadata {
@@ -529,6 +532,7 @@ impl IoxMetadata {
             time_of_last_write: Some(self.time_of_last_write.date_time().into()),
             min_sequence_number: self.min_sequence_number.get(),
             max_sequence_number: self.max_sequence_number.get(),
+            row_count: self.row_count,
         };
 
         let mut buf = Vec::new();
@@ -584,6 +588,7 @@ impl IoxMetadata {
             time_of_last_write,
             min_sequence_number: SequenceNumber::new(proto_msg.min_sequence_number),
             max_sequence_number: SequenceNumber::new(proto_msg.max_sequence_number),
+            row_count: proto_msg.row_count,
         })
     }
 
@@ -615,6 +620,7 @@ impl IoxMetadata {
             to_delete: false,
             file_size_bytes: file_size_bytes as i64,
             parquet_metadata: metadata.thrift_bytes().to_vec(),
+            row_count: self.row_count,
         }
     }
 }
@@ -1223,6 +1229,7 @@ mod tests {
             time_of_last_write: Time::from_timestamp(3234, 3456),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
+            row_count: 3,
         };
 
         let proto = iox_metadata.to_protobuf().unwrap();

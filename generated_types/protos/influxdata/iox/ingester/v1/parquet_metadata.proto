@@ -44,4 +44,7 @@ message IoxMetadata {
 
   // The maximum sequence number from a sequencer in this parquet file.
   int64 max_sequence_number = 13;
+
+  // Number of rows of data in this file.
+  int64 row_count = 14;
 }

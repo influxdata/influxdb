@@ -139,6 +139,7 @@ mod tests {
             time_of_last_write: now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
+            row_count: 0,
         };
         let object_store = object_store();
 
@@ -163,6 +164,7 @@ mod tests {
             time_of_last_write: now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
+            row_count: 3,
         };
 
         let chunk1 = Arc::new(
@@ -201,6 +203,7 @@ mod tests {
             time_of_last_write: now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
+            row_count: 0,
         };
 
         let path = parquet_file_object_store_path(&metadata, &object_store);

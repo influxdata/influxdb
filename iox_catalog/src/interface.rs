@@ -592,6 +592,7 @@ pub trait ParquetFileRepo: Send + Sync {
         max_time: Timestamp,
         file_size_bytes: i64,
         parquet_metadata: Vec<u8>,
+        row_count: i64,
     ) -> Result<ParquetFile>;
 
     /// Flag the parquet file for deletion
@@ -1041,6 +1042,8 @@ pub struct ParquetFile {
     pub file_size_bytes: i64,
     /// thrift-encoded parquet metadata
     pub parquet_metadata: Vec<u8>,
+    /// the number of rows of data in this file
+    pub row_count: i64,
 }
 
 /// Data for a processed tombstone reference in the catalog.
@@ -1539,9 +1542,9 @@ pub(crate) mod test_helpers {
         let min_time = Timestamp::new(1);
         let max_time = Timestamp::new(10);
 
-        // Must have no rows
-        let row_count = repos.parquet_files().count().await.unwrap();
-        assert_eq!(row_count, 0);
+        // Must have no parquet file records
+        let num_parquet_files = repos.parquet_files().count().await.unwrap();
+        assert_eq!(num_parquet_files, 0);
 
         let parquet_file = repos
             .parquet_files()
@@ -1556,6 +1559,7 @@ pub(crate) mod test_helpers {
                 max_time,
                 1337,
                 b"md1".to_vec(),
+                0,
             )
             .await
             .unwrap();
@@ -1574,6 +1578,7 @@ pub(crate) mod test_helpers {
                 max_time,
                 1338,
                 b"md2".to_vec(),
+                0,
             )
             .await
             .unwrap_err();
@@ -1592,13 +1597,14 @@ pub(crate) mod test_helpers {
                 max_time,
                 1339,
                 b"md3".to_vec(),
+                0,
             )
             .await
             .unwrap();
 
-        // Must have 2 rows
-        let row_count = repos.parquet_files().count().await.unwrap();
-        assert_eq!(row_count, 2);
+        // Must have 2 parquet files
+        let num_parquet_files = repos.parquet_files().count().await.unwrap();
+        assert_eq!(num_parquet_files, 2);
 
         let exist_id = parquet_file.id;
         let non_exist_id = ParquetFileId::new(other_file.id.get() + 10);
@@ -1719,6 +1725,7 @@ pub(crate) mod test_helpers {
             to_delete: false,
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
+            row_count: 0,
         };
         let other_parquet = ParquetFile {
             id: ParquetFileId::new(0), //fake id that will never be used
@@ -1733,6 +1740,7 @@ pub(crate) mod test_helpers {
             to_delete: false,
             file_size_bytes: 1338,
             parquet_metadata: b"md2".to_vec(),
+            row_count: 0,
         };
         let another_parquet = ParquetFile {
             id: ParquetFileId::new(0), //fake id that will never be used
@@ -1747,6 +1755,7 @@ pub(crate) mod test_helpers {
             to_delete: false,
             file_size_bytes: 1339,
             parquet_metadata: b"md3".to_vec(),
+            row_count: 0,
         };
 
         let parquet_file_count_before = txn.parquet_files().count().await.unwrap();
