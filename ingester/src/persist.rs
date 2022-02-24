@@ -8,7 +8,7 @@ use object_store::{
     path::{ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
-use parquet_file::metadata::IoxMetadata;
+use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -26,14 +26,16 @@ pub enum Error {
 /// A specialized `Error` for Ingester's persistence errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Write the given data to the given location in the given object storage
+/// Write the given data to the given location in the given object storage.
+///
+/// Returns the persisted file size (in bytes) and metadata if a file was created.
 pub async fn persist(
     metadata: &IoxMetadata,
     record_batches: Vec<RecordBatch>,
     object_store: &Arc<ObjectStore>,
-) -> Result<()> {
+) -> Result<Option<(usize, IoxParquetMetaData)>> {
     if record_batches.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let schema = record_batches
         .first()
@@ -55,9 +57,17 @@ pub async fn persist(
         .context(ConvertingToBytesSnafu)?;
 
     if data.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
 
+    // extract metadata
+    let data = Arc::new(data);
+    let md = IoxParquetMetaData::from_file_bytes(Arc::clone(&data))
+        .expect("cannot read parquet file metadata")
+        .expect("no metadata in parquet file");
+    let data = Arc::try_unwrap(data).expect("dangling reference to data");
+
+    let file_size = data.len();
     let bytes = Bytes::from(data);
 
     let path = parquet_file_object_store_path(metadata, object_store);
@@ -67,7 +77,7 @@ pub async fn persist(
         .await
         .context(WritingToObjectStoreSnafu)?;
 
-    Ok(())
+    Ok(Some((file_size, md)))
 }
 
 fn parquet_file_object_store_path(metadata: &IoxMetadata, object_store: &ObjectStore) -> Path {

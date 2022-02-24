@@ -131,11 +131,12 @@ impl Storage {
             return Ok(None);
         }
 
-        // TODO: make this work w/o cloning the byte vector (https://github.com/influxdata/influxdb_iox/issues/1504)
         let file_size_bytes = data.len();
-        let md = IoxParquetMetaData::from_file_bytes(data.clone())
+        let data = Arc::new(data);
+        let md = IoxParquetMetaData::from_file_bytes(Arc::clone(&data))
             .context(ExtractingMetadataFailureSnafu)?
             .context(NoDataSnafu)?;
+        let data = Arc::try_unwrap(data).expect("dangling reference to data");
         self.to_object_store(data, &path).await?;
 
         Ok(Some((path, file_size_bytes, md)))
@@ -434,7 +435,9 @@ mod tests {
             .unwrap();
 
         // extract metadata
-        let md = IoxParquetMetaData::from_file_bytes(bytes).unwrap().unwrap();
+        let md = IoxParquetMetaData::from_file_bytes(Arc::new(bytes))
+            .unwrap()
+            .unwrap();
         let metadata_roundtrip = md.decode().unwrap().read_iox_metadata().unwrap();
 
         // compare with input
@@ -550,10 +553,12 @@ mod tests {
         ////////////////////
         // Now let read it back
         //
-        let parquet_data = load_parquet_from_store(&chunk, Arc::clone(generator.store()))
-            .await
-            .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone())
+        let parquet_data = Arc::new(
+            load_parquet_from_store(&chunk, Arc::clone(generator.store()))
+                .await
+                .unwrap(),
+        );
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(Arc::clone(&parquet_data))
             .unwrap()
             .unwrap();
         let decoded = parquet_metadata.decode().unwrap();

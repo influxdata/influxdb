@@ -462,6 +462,9 @@ pub trait TableRepo: Send + Sync {
     /// Creates the table in the catalog or get the existing record by name.
     async fn create_or_get(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table>;
 
+    /// get table by ID
+    async fn get_by_id(&mut self, table_id: TableId) -> Result<Option<Table>>;
+
     /// Lists all tables in the catalog for the given namespace id.
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>>;
 }
@@ -526,6 +529,9 @@ pub trait PartitionRepo: Send + Sync {
         table_id: TableId,
     ) -> Result<Partition>;
 
+    /// get partition by ID
+    async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
+
     /// return partitions for a given sequencer
     async fn list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>>;
 
@@ -584,6 +590,8 @@ pub trait ParquetFileRepo: Send + Sync {
         max_sequence_number: SequenceNumber,
         min_time: Timestamp,
         max_time: Timestamp,
+        file_size_bytes: i64,
+        parquet_metadata: Vec<u8>,
     ) -> Result<ParquetFile>;
 
     /// Flag the parquet file for deletion
@@ -1007,7 +1015,7 @@ pub struct Tombstone {
 }
 
 /// Data for a parquet file reference in the catalog.
-#[derive(Debug, Copy, Clone, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct ParquetFile {
     /// the id of the file in the catalog
     pub id: ParquetFileId,
@@ -1029,6 +1037,10 @@ pub struct ParquetFile {
     pub max_time: Timestamp,
     /// flag to mark that this file should be deleted from object storage
     pub to_delete: bool,
+    /// file size in bytes
+    pub file_size_bytes: i64,
+    /// thrift-encoded parquet metadata
+    pub parquet_metadata: Vec<u8>,
 }
 
 /// Data for a processed tombstone reference in the catalog.
@@ -1167,6 +1179,15 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(t.id > TableId::new(0));
         assert_eq!(t, tt);
+
+        // get by id
+        assert_eq!(t, repos.tables().get_by_id(t.id).await.unwrap().unwrap());
+        assert!(repos
+            .tables()
+            .get_by_id(TableId::new(i32::MAX))
+            .await
+            .unwrap()
+            .is_none());
 
         let tables = repos
             .tables()
@@ -1361,6 +1382,23 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
+        // partitions can be retrieved easily
+        assert_eq!(
+            other_partition,
+            repos
+                .partitions()
+                .get_by_id(other_partition.id)
+                .await
+                .unwrap()
+                .unwrap()
+        );
+        assert!(repos
+            .partitions()
+            .get_by_id(PartitionId::new(i64::MAX))
+            .await
+            .unwrap()
+            .is_none());
+
         // List them and assert they match
         let listed = repos
             .partitions()
@@ -1516,6 +1554,8 @@ pub(crate) mod test_helpers {
                 SequenceNumber::new(140),
                 min_time,
                 max_time,
+                1337,
+                b"md1".to_vec(),
             )
             .await
             .unwrap();
@@ -1532,6 +1572,8 @@ pub(crate) mod test_helpers {
                 SequenceNumber::new(140),
                 min_time,
                 max_time,
+                1338,
+                b"md2".to_vec(),
             )
             .await
             .unwrap_err();
@@ -1548,6 +1590,8 @@ pub(crate) mod test_helpers {
                 SequenceNumber::new(200),
                 min_time,
                 max_time,
+                1339,
+                b"md3".to_vec(),
             )
             .await
             .unwrap();
@@ -1568,7 +1612,7 @@ pub(crate) mod test_helpers {
             .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(1))
             .await
             .unwrap();
-        assert_eq!(vec![parquet_file, other_file], files);
+        assert_eq!(vec![parquet_file.clone(), other_file.clone()], files);
         let files = repos
             .parquet_files()
             .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(150))
@@ -1673,6 +1717,8 @@ pub(crate) mod test_helpers {
             min_time,
             max_time,
             to_delete: false,
+            file_size_bytes: 1337,
+            parquet_metadata: b"md1".to_vec(),
         };
         let other_parquet = ParquetFile {
             id: ParquetFileId::new(0), //fake id that will never be used
@@ -1685,6 +1731,8 @@ pub(crate) mod test_helpers {
             min_time,
             max_time,
             to_delete: false,
+            file_size_bytes: 1338,
+            parquet_metadata: b"md2".to_vec(),
         };
         let another_parquet = ParquetFile {
             id: ParquetFileId::new(0), //fake id that will never be used
@@ -1697,6 +1745,8 @@ pub(crate) mod test_helpers {
             min_time,
             max_time,
             to_delete: false,
+            file_size_bytes: 1339,
+            parquet_metadata: b"md3".to_vec(),
         };
 
         let parquet_file_count_before = txn.parquet_files().count().await.unwrap();

@@ -188,6 +188,7 @@ decorate!(
     impl_trait = TableRepo,
     methods = [
         "table_create_or_get" = create_or_get(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table>;
+        "table_get_by_id" = get_by_id(&mut self, table_id: TableId) -> Result<Option<Table>>;
         "table_list_by_namespace_id" = list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>>;
     ]
 );
@@ -215,6 +216,7 @@ decorate!(
     impl_trait = PartitionRepo,
     methods = [
         "partition_create_or_get" = create_or_get(&mut self, key: &str, sequencer_id: SequencerId, table_id: TableId) -> Result<Partition>;
+        "partition_get_by_id" = get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
         "partition_list_by_sequencer" = list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>>;
         "partition_partition_info_by_id" = partition_info_by_id(&mut self, partition_id: PartitionId) -> Result<Option<PartitionInfo>>;
     ]
@@ -231,7 +233,7 @@ decorate!(
 decorate!(
     impl_trait = ParquetFileRepo,
     methods = [
-        "parquet_create" = create( &mut self, sequencer_id: SequencerId, table_id: TableId, partition_id: PartitionId, object_store_id: Uuid, min_sequence_number: SequenceNumber, max_sequence_number: SequenceNumber, min_time: Timestamp, max_time: Timestamp) -> Result<ParquetFile>;
+        "parquet_create" = create( &mut self, sequencer_id: SequencerId, table_id: TableId, partition_id: PartitionId, object_store_id: Uuid, min_sequence_number: SequenceNumber, max_sequence_number: SequenceNumber, min_time: Timestamp, max_time: Timestamp, file_size_bytes: i64, parquet_metadata: Vec<u8>) -> Result<ParquetFile>;
         "parquet_flag_for_delete" = flag_for_delete(&mut self, id: ParquetFileId) -> Result<()>;
         "parquet_list_by_sequencer_greater_than" = list_by_sequencer_greater_than(&mut self, sequencer_id: SequencerId, sequence_number: SequenceNumber) -> Result<Vec<ParquetFile>>;
         "parquet_exist" = exist(&mut self, id: ParquetFileId) -> Result<bool>;

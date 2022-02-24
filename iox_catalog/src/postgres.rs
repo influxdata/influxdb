@@ -597,6 +597,21 @@ DO UPDATE SET name = table_name.name RETURNING *;
         Ok(rec)
     }
 
+    async fn get_by_id(&mut self, table_id: TableId) -> Result<Option<Table>> {
+        let rec = sqlx::query_as::<_, Table>(r#"SELECT * FROM table_name WHERE id = $1;"#)
+            .bind(&table_id) // $1
+            .fetch_one(&mut self.inner)
+            .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let table = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(table))
+    }
+
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>> {
         let rec = sqlx::query_as::<_, Table>(
             r#"
@@ -802,6 +817,21 @@ impl PartitionRepo for PostgresTxn {
         Ok(v)
     }
 
+    async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>> {
+        let rec = sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE id = $1;"#)
+            .bind(&partition_id) // $1
+            .fetch_one(&mut self.inner)
+            .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let partition = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(partition))
+    }
+
     async fn list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
         sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE sequencer_id = $1;"#)
             .bind(&sequencer_id) // $1
@@ -930,11 +960,13 @@ impl ParquetFileRepo for PostgresTxn {
         max_sequence_number: SequenceNumber,
         min_time: Timestamp,
         max_time: Timestamp,
+        file_size_bytes: i64,
+        parquet_metadata: Vec<u8>,
     ) -> Result<ParquetFile> {
         let rec = sqlx::query_as::<_, ParquetFile>(
             r#"
-INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false )
+INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes, parquet_metadata )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10 )
 RETURNING *
         "#,
         )
@@ -946,6 +978,8 @@ RETURNING *
             .bind(max_sequence_number) // $6
             .bind(min_time) // $7
             .bind(max_time) // $8
+            .bind(file_size_bytes) // $9
+            .bind(parquet_metadata) // $10
             .fetch_one(&mut self.inner)
             .await
             .map_err(|e| {

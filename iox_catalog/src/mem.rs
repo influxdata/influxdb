@@ -332,6 +332,12 @@ impl TableRepo for MemTxn {
         Ok(table.clone())
     }
 
+    async fn get_by_id(&mut self, table_id: TableId) -> Result<Option<Table>> {
+        let stage = self.stage();
+
+        Ok(stage.tables.iter().find(|t| t.id == table_id).cloned())
+    }
+
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>> {
         let stage = self.stage();
 
@@ -515,6 +521,16 @@ impl PartitionRepo for MemTxn {
         Ok(partition.clone())
     }
 
+    async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>> {
+        let stage = self.stage();
+
+        Ok(stage
+            .partitions
+            .iter()
+            .find(|p| p.id == partition_id)
+            .cloned())
+    }
+
     async fn list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
         let stage = self.stage();
 
@@ -631,6 +647,8 @@ impl ParquetFileRepo for MemTxn {
         max_sequence_number: SequenceNumber,
         min_time: Timestamp,
         max_time: Timestamp,
+        file_size_bytes: i64,
+        parquet_metadata: Vec<u8>,
     ) -> Result<ParquetFile> {
         let stage = self.stage();
 
@@ -653,9 +671,11 @@ impl ParquetFileRepo for MemTxn {
             min_time,
             max_time,
             to_delete: false,
+            file_size_bytes,
+            parquet_metadata,
         };
         stage.parquet_files.push(parquet_file);
-        Ok(*stage.parquet_files.last().unwrap())
+        Ok(stage.parquet_files.last().unwrap().clone())
     }
 
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {

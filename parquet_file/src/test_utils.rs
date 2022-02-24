@@ -756,7 +756,10 @@ pub async fn make_iox_object_store() -> Arc<IoxObjectStore> {
     )
 }
 
-pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> Vec<RecordBatch> {
+pub fn read_data_from_parquet_data(
+    schema: SchemaRef,
+    parquet_data: Arc<Vec<u8>>,
+) -> Vec<RecordBatch> {
     let cursor = SliceableCursor::new(parquet_data);
     let reader = SerializedFileReader::new(cursor).unwrap();
     let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(reader));

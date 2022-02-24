@@ -145,7 +145,7 @@ async fn read_parquet(
 
     let file_size_bytes = data.len();
 
-    let parquet_metadata = IoxParquetMetaData::from_file_bytes(data)
+    let parquet_metadata = IoxParquetMetaData::from_file_bytes(Arc::new(data))
         .context(MetadataReadFailureSnafu { path: path.clone() })?; // Error reading metadata
 
     if parquet_metadata.is_none() {
@@ -425,7 +425,7 @@ mod tests {
         } // drop the reference to the MemWriter that the SerializedFileWriter has
 
         let data = mem_writer.into_inner().unwrap();
-        let md = IoxParquetMetaData::from_file_bytes(data.clone())
+        let md = IoxParquetMetaData::from_file_bytes(Arc::new(data.clone()))
             .unwrap()
             .unwrap();
         let storage = Storage::new(Arc::clone(iox_object_store));

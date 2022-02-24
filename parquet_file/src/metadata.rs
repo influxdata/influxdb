@@ -593,7 +593,11 @@ impl IoxMetadata {
     }
 
     // create a corresponding iox catalog's ParquetFile
-    pub fn to_parquet_file(&self) -> ParquetFile {
+    pub fn to_parquet_file(
+        &self,
+        file_size_bytes: usize,
+        metadata: &IoxParquetMetaData,
+    ) -> ParquetFile {
         ParquetFile {
             id: ParquetFileId::new(0), // this will be created in the DB. This 0 won't be used anywhere
             sequencer_id: self.sequencer_id,
@@ -609,6 +613,8 @@ impl IoxMetadata {
                 self.time_of_last_write.timestamp_nanos(),
             ),
             to_delete: false,
+            file_size_bytes: file_size_bytes as i64,
+            parquet_metadata: metadata.thrift_bytes().to_vec(),
         }
     }
 }
@@ -654,7 +660,7 @@ pub struct IoxParquetMetaData {
 
 impl IoxParquetMetaData {
     /// Read parquet metadata from a parquet file.
-    pub fn from_file_bytes(data: Vec<u8>) -> Result<Option<Self>> {
+    pub fn from_file_bytes(data: Arc<Vec<u8>>) -> Result<Option<Self>> {
         if data.is_empty() {
             return Ok(None);
         }

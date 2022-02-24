@@ -241,35 +241,39 @@ impl Persister for IngesterData {
         };
 
         // save the compacted data to a parquet file in object storage
-        Backoff::new(&self.backoff_config)
+        let file_size_and_md = Backoff::new(&self.backoff_config)
             .retry_all_errors("persist to object store", || {
                 persist(&iox_meta, record_batches.to_vec(), &self.object_store)
             })
             .await
             .expect("retry forever");
 
-        // Add the parquet file to the catalog until succeed
-        // TODO: clean this up when updating the min_sequence_number is added in.
-        let parquet_file = iox_meta.to_parquet_file();
-        Backoff::new(&self.backoff_config)
-            .retry_all_errors("add parquet file to catalog", || async {
-                let mut repos = self.catalog.repositories().await;
-                repos
-                    .parquet_files()
-                    .create(
-                        parquet_file.sequencer_id,
-                        parquet_file.table_id,
-                        parquet_file.partition_id,
-                        parquet_file.object_store_id,
-                        parquet_file.min_sequence_number,
-                        parquet_file.max_sequence_number,
-                        parquet_file.min_time,
-                        parquet_file.max_time,
-                    )
-                    .await
-            })
-            .await
-            .expect("retry forever");
+        if let Some((file_size, md)) = file_size_and_md {
+            // Add the parquet file to the catalog until succeed
+            // TODO: clean this up when updating the min_sequence_number is added in.
+            let parquet_file = iox_meta.to_parquet_file(file_size, &md);
+            Backoff::new(&self.backoff_config)
+                .retry_all_errors("add parquet file to catalog", || async {
+                    let mut repos = self.catalog.repositories().await;
+                    repos
+                        .parquet_files()
+                        .create(
+                            parquet_file.sequencer_id,
+                            parquet_file.table_id,
+                            parquet_file.partition_id,
+                            parquet_file.object_store_id,
+                            parquet_file.min_sequence_number,
+                            parquet_file.max_sequence_number,
+                            parquet_file.min_time,
+                            parquet_file.max_time,
+                            parquet_file.file_size_bytes,
+                            parquet_file.parquet_metadata.clone(),
+                        )
+                        .await
+                })
+                .await
+                .expect("retry forever");
+        }
 
         // and remove the persisted data from memory
         namespace.mark_persisted_and_remove_if_empty(

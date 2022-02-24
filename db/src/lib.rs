@@ -2150,11 +2150,12 @@ mod tests {
         assert_eq!(&path_list[0], path);
 
         // Now read data from that path
-        let parquet_data =
+        let parquet_data = Arc::new(
             load_parquet_from_store_for_path(&path_list[0], Arc::clone(&db.iox_object_store))
                 .await
-                .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone())
+                .unwrap(),
+        );
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(Arc::clone(&parquet_data))
             .unwrap()
             .unwrap();
         // Read metadata at file level
@@ -2282,11 +2283,12 @@ mod tests {
         assert_eq!(&path_list[0], path);
 
         // Now read data from that path
-        let parquet_data =
+        let parquet_data = Arc::new(
             load_parquet_from_store_for_path(&path_list[0], Arc::clone(&db.iox_object_store))
                 .await
-                .unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone())
+                .unwrap(),
+        );
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(Arc::clone(&parquet_data))
             .unwrap()
             .unwrap();
         // Read metadata at file level
