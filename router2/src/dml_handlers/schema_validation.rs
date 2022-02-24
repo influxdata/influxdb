@@ -127,8 +127,6 @@ where
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
-        let mut repos = self.catalog.repositories().await;
-
         // Load the namespace schema from the cache, falling back to pulling it
         // from the global catalog (if it exists).
         let schema = self.cache.get_schema(namespace);
@@ -137,6 +135,7 @@ where
             None => {
                 // Pull the schema from the global catalog or error if it does
                 // not exist.
+                let mut repos = self.catalog.repositories().await;
                 let schema = get_schema_by_name(namespace, repos.deref_mut())
                     .await
                     .map_err(|e| {
@@ -156,7 +155,7 @@ where
         let maybe_new_schema = validate_or_insert_schema(
             batches.iter().map(|(k, v)| (k.as_str(), v)),
             &schema,
-            repos.deref_mut(),
+            &*self.catalog,
         )
         .await
         .map_err(|e| {

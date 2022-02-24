@@ -16,7 +16,8 @@ use crate::interface::{
     SequencerId, TableSchema, Transaction,
 };
 
-use interface::{ParquetFile, ProcessedTombstone, RepoCollection, Tombstone};
+use futures::{future, stream, StreamExt, TryStreamExt};
+use interface::{Catalog, ParquetFile, ProcessedTombstone, Tombstone};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};
 
@@ -44,12 +45,12 @@ pub mod postgres;
 pub async fn validate_or_insert_schema<'a, T, U, R>(
     tables: T,
     schema: &NamespaceSchema,
-    repos: &mut R,
+    repos: &R,
 ) -> Result<Option<NamespaceSchema>>
 where
     T: IntoIterator<IntoIter = U, Item = (&'a str, &'a MutableBatch)> + Send + Sync,
     U: Iterator<Item = T::Item> + Send,
-    R: RepoCollection + ?Sized,
+    R: Catalog + ?Sized,
 {
     let tables = tables.into_iter();
 
@@ -70,10 +71,10 @@ async fn validate_mutable_batch<R>(
     mb: &MutableBatch,
     table_name: &str,
     schema: &mut Cow<'_, NamespaceSchema>,
-    repos: &mut R,
+    catalog: &R,
 ) -> Result<()>
 where
-    R: RepoCollection + ?Sized,
+    R: Catalog + ?Sized,
 {
     // Check if the table exists in the schema.
     //
@@ -82,6 +83,8 @@ where
     let mut table = match schema.tables.get(table_name) {
         Some(t) => Cow::Borrowed(t),
         None => {
+            let mut repos = catalog.repositories().await;
+
             // The table does not exist in the cached schema.
             //
             // Attempt to create the table in the catalog, or load an existing
@@ -110,13 +113,15 @@ where
         }
     };
 
+    let table_id = table.id;
+
     // The table is now in the schema (either by virtue of it already existing,
     // or through adding it above).
     //
     // If the table itself needs to be updated during column validation it
     // becomes a Cow::owned() copy and the modified copy should be inserted into
     // the schema before returning.
-
+    let mut column_futures = Vec::default();
     for (name, col) in mb.columns() {
         // Check if the column exists in the cached schema.
         //
@@ -139,15 +144,39 @@ where
             None => {
                 // The column does not exist in the cache, create/get it from
                 // the catalog, and add it to the table.
-                let column = repos
-                    .columns()
-                    .create_or_get(name.as_str(), table.id, ColumnType::from(col.influx_type()))
-                    .await?;
-
-                table.to_mut().add_column(&column);
+                column_futures.push({
+                    async {
+                        catalog
+                            .repositories()
+                            .await
+                            .columns()
+                            .create_or_get(
+                                name.as_str(),
+                                table_id,
+                                ColumnType::from(col.influx_type()),
+                            )
+                            .await
+                    }
+                });
             }
         };
     }
+
+    // Execute up to a maximum of 3 column resolution futures at a time to hide
+    // the call latency while avoiding monopolisation of the underlying
+    // connection pool.
+    //
+    // Any error causes an early return, possibly after some column futures have
+    // been executed to completion.
+    stream::iter(column_futures)
+        .buffer_unordered(3)
+        .try_for_each(|col| {
+            future::ready({
+                table.to_mut().add_column(&col);
+                Ok(())
+            })
+        })
+        .await?;
 
     if let Cow::Owned(table) = table {
         // The table schema was mutated and needs inserting into the namespace
@@ -248,11 +277,15 @@ mod tests {
                     use pretty_assertions::assert_eq;
                     const NAMESPACE_NAME: &str = "bananas";
 
-                    let repo = MemCatalog::new();
-                    let mut txn = repo.start_transaction().await.unwrap();
-                    let (kafka_topic, query_pool, _) = create_or_get_default_records(2, txn.deref_mut()).await.unwrap();
+                    let catalog = MemCatalog::new();
 
-                    let namespace = txn
+                    let mut txn = catalog.start_transaction().await.unwrap();
+                    let (kafka_topic, query_pool, _) = create_or_get_default_records(2, txn.deref_mut()).await.unwrap();
+                    txn.commit().await.expect("txn commit failed");
+
+                    let namespace = catalog
+                        .repositories()
+                        .await
                         .namespaces()
                         .create(NAMESPACE_NAME, "inf", kafka_topic.id, query_pool.id)
                         .await
@@ -275,7 +308,7 @@ mod tests {
                             let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp.as_str(), 42)
                                 .expect("failed to build test writes from LP");
 
-                            let got = validate_or_insert_schema(writes.iter().map(|(k, v)| (k.as_str(), v)), &schema, txn.deref_mut())
+                            let got = validate_or_insert_schema(writes.iter().map(|(k, v)| (k.as_str(), v)), &schema, &catalog)
                                 .await;
 
                             match got {
@@ -295,7 +328,8 @@ mod tests {
                     // Invariant: in absence of concurrency, the schema within
                     // the database must always match the incrementally built
                     // cached schema.
-                    let db_schema = get_schema_by_name(NAMESPACE_NAME, txn.deref_mut())
+                    let mut repo = catalog.repositories().await;
+                    let db_schema = get_schema_by_name(NAMESPACE_NAME, repo.deref_mut())
                         .await
                         .expect("database failed to query for namespace schema");
                     assert_eq!(schema, db_schema, "schema in DB and cached schema differ");
