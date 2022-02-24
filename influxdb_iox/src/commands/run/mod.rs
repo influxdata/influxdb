@@ -5,6 +5,7 @@ use crate::clap_blocks::run_config::RunConfig;
 pub mod compactor;
 pub mod database;
 pub mod ingester;
+pub mod querier;
 pub mod router;
 pub mod router2;
 pub mod test;
@@ -17,6 +18,9 @@ pub enum Error {
 
     #[snafu(display("Error in database subcommand: {}", source))]
     DatabaseError { source: database::Error },
+
+    #[snafu(display("Error in querier subcommand: {}", source))]
+    QuerierError { source: querier::Error },
 
     #[snafu(display("Error in router subcommand: {}", source))]
     RouterError { source: router::Error },
@@ -50,6 +54,7 @@ impl Config {
             None => &self.database_config.run_config,
             Some(Command::Compactor(config)) => &config.run_config,
             Some(Command::Database(config)) => &config.run_config,
+            Some(Command::Querier(config)) => &config.run_config,
             Some(Command::Router(config)) => &config.run_config,
             Some(Command::Router2(config)) => &config.run_config,
             Some(Command::Ingester(config)) => &config.run_config,
@@ -65,6 +70,9 @@ enum Command {
 
     /// Run the server in database mode
     Database(database::Config),
+
+    /// Run the server in querier mode
+    Querier(querier::Config),
 
     /// Run the server in routing mode
     Router(router::Config),
@@ -93,6 +101,7 @@ pub async fn command(config: Config) -> Result<()> {
             compactor::command(config).await.context(CompactorSnafu)
         }
         Some(Command::Database(config)) => database::command(config).await.context(DatabaseSnafu),
+        Some(Command::Querier(config)) => querier::command(config).await.context(QuerierSnafu),
         Some(Command::Router(config)) => router::command(config).await.context(RouterSnafu),
         Some(Command::Router2(config)) => router2::command(config).await.context(Router2Snafu),
         Some(Command::Ingester(config)) => ingester::command(config).await.context(IngesterSnafu),

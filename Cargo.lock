@@ -3840,12 +3840,20 @@ name = "querier"
 version = "0.1.0"
 dependencies = [
  "arrow-flight",
+ "async-trait",
  "client_util",
  "futures",
  "generated_types",
+ "hyper",
+ "iox_catalog",
+ "metric",
+ "observability_deps",
  "rand",
  "thiserror",
+ "tokio",
+ "tokio-util 0.7.0",
  "tonic",
+ "trace",
  "workspace-hack",
 ]
 
