@@ -3,8 +3,13 @@ package launcher_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	context2 "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -75,6 +80,19 @@ mem,server=b value=45.2`))
 	results.First(t).HasTablesWithCols([]int{4, 4, 5})
 }
 
+func mustDoRequest(t *testing.T, req *nethttp.Request, expectStatus int) []byte {
+	resp, err := nethttp.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, resp.Body.Close())
+	}()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, expectStatus, resp.StatusCode, "body is: %v", string(body))
+	return body
+}
+
 // This test initialises a default launcher writes some data,
 // and checks that the queried results contain the expected number of tables
 // and expected number of columns.
@@ -82,36 +100,73 @@ func TestLauncher_WriteV2_Query(t *testing.T) {
 	be := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer be.ShutdownOrFail(t, ctx)
 
+	now := time.Now().UTC()
+
 	// The default gateway instance inserts some values directly such that ID lookups seem to break,
 	// so go the roundabout way to insert things correctly.
 	req := be.MustNewHTTPRequest(
 		"POST",
 		fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", be.Org.ID, be.Bucket.ID),
-		fmt.Sprintf("ctr n=1i %d", time.Now().UnixNano()),
+		fmt.Sprintf("ctr n=1i %d", now.UnixNano()),
 	)
 	phttp.SetToken(be.Auth.Token, req)
 
-	resp, err := nethttp.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Error(err)
-		}
-	}()
-
-	if resp.StatusCode != nethttp.StatusNoContent {
-		buf := new(bytes.Buffer)
-		if _, err := io.Copy(buf, resp.Body); err != nil {
-			t.Fatalf("Could not read body: %s", err)
-		}
-		t.Fatalf("exp status %d; got %d, body: %s", nethttp.StatusNoContent, resp.StatusCode, buf.String())
-	}
+	mustDoRequest(t, req, nethttp.StatusNoContent)
 
 	res := be.MustExecuteQuery(fmt.Sprintf(`from(bucket:"%s") |> range(start:-5m)`, be.Bucket.Name))
 	defer res.Done()
 	res.HasTableCount(t, 1)
+
+	require.NoError(t, be.DBRPMappingService().Create(context2.SetAuthorizer(ctx, mock.NewMockAuthorizer(true, nil)), &influxdb.DBRPMapping{
+		ID:              0,
+		Database:        "mydb",
+		RetentionPolicy: "autogen",
+		Default:         true,
+		OrganizationID:  be.Org.ID,
+		BucketID:        be.Bucket.ID,
+	}))
+
+	tests := []struct {
+		name         string
+		permissions  string
+		expectStatus int
+		expectBody   string
+	}{
+		{
+			name:         "only auth permission",
+			permissions:  `[{"action": "read", "resource": {"type": "authorizations"}}]`,
+			expectStatus: 200,
+			expectBody:   `{"results":[{"statement_id":0,"error":"database not found: mydb"}]}` + "\n",
+		}, {
+			name:         "only write permission",
+			permissions:  fmt.Sprintf(`[{"action": "write", "resource": {"type": "buckets", "name": %q}}]`, be.Bucket.Name),
+			expectStatus: 200,
+			expectBody:   `{"results":[{"statement_id":0,"error":"database not found: mydb"}]}` + "\n",
+		}, {
+			name:         "only read permission",
+			permissions:  fmt.Sprintf(`[{"action": "read", "resource": {"type": "buckets", "name": %q}}]`, be.Bucket.Name),
+			expectStatus: 200,
+			expectBody:   fmt.Sprintf(`{"results":[{"statement_id":0,"series":[{"name":"ctr","columns":["time","n"],"values":[["%v",1]]}]}]}`, now.Format("2006-01-02T15:04:05.999999999Z")) + "\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokenReq := be.MustNewHTTPRequest(
+				"POST", "/api/v2/authorizations",
+				fmt.Sprintf(`{"status": "active", "orgID": %q, "permissions": %v}`, be.Org.ID.String(), tt.permissions),
+			)
+			token := struct {
+				Token string `json:"token"`
+			}{}
+			require.NoError(t, json.Unmarshal(mustDoRequest(t, tokenReq, nethttp.StatusCreated), &token))
+			queryReq := be.MustNewHTTPRequest("POST", "/query?db=mydb", "select * from /.*/")
+			phttp.SetToken(token.Token, queryReq)
+			queryReq.Header.Set("Content-Type", "application/vnd.influxql")
+			body := mustDoRequest(t, queryReq, tt.expectStatus)
+			assert.Equal(t, tt.expectBody, string(body))
+		})
+	}
+
 }
 
 func getMemoryUnused(t *testing.T, reg *prom.Registry) int64 {

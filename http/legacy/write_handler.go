@@ -111,6 +111,19 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The legacy write endpoint allows reading the DBRP mapping of buckets with only write permissions.
+	// Add the extra permissions we need here (rather than forcing clients to change).
+	extraPerms := []influxdb.Permission{}
+	for _, perm := range auth.Permissions {
+		if perm.Action == influxdb.WriteAction && perm.Resource.Type == influxdb.BucketsResourceType {
+			extraPerms = append(extraPerms, influxdb.Permission{
+				Action:   influxdb.ReadAction,
+				Resource: perm.Resource,
+			})
+		}
+	}
+	auth.Permissions = append(extraPerms, auth.Permissions...)
+
 	sw := kithttp.NewStatusResponseWriter(w)
 	recorder := newWriteUsageRecorder(sw, h.EventRecorder)
 	var requestBytes int
