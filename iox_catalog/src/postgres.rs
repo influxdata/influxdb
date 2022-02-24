@@ -19,7 +19,7 @@ use sqlx_hotswap_pool::HotSwapPool;
 use std::{sync::Arc, time::Duration};
 use uuid::Uuid;
 
-const MAX_CONNECTIONS: u32 = 5;
+const MAX_CONNECTIONS: u32 = 10;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(500);
 /// the default schema name to use in Postgres

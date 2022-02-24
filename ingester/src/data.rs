@@ -1141,7 +1141,6 @@ mod tests {
     use mutable_batch_lp::lines_to_batches;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use object_store::ObjectStoreApi;
-    use std::ops::DerefMut;
     use std::time::Duration;
     use test_helpers::assert_error;
     use time::Time;
@@ -1368,12 +1367,12 @@ mod tests {
             lines_to_batches("mem foo=1 10", 0).unwrap(),
             DmlMeta::sequenced(Sequence::new(1, 1), ignored_ts, None, 50),
         );
-        let _ = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
+
+        std::mem::drop(repos);
+        let _ = validate_or_insert_schema(w1.tables(), &schema, &*catalog)
             .await
             .unwrap()
             .unwrap();
-
-        std::mem::drop(repos);
 
         let pause_size = w1.size() + 1;
         let manager = LifecycleManager::new(
@@ -1438,7 +1437,9 @@ mod tests {
             lines_to_batches("mem foo=1 10", 0).unwrap(),
             DmlMeta::sequenced(Sequence::new(1, 1), ignored_ts, None, 50),
         );
-        let schema = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
+        // drop repos so the mem catalog won't deadlock.
+        std::mem::drop(repos);
+        let schema = validate_or_insert_schema(w1.tables(), &schema, &*catalog)
             .await
             .unwrap()
             .unwrap();
@@ -1448,7 +1449,7 @@ mod tests {
             lines_to_batches("cpu foo=1 10", 1).unwrap(),
             DmlMeta::sequenced(Sequence::new(2, 1), ignored_ts, None, 50),
         );
-        let _ = validate_or_insert_schema(w2.tables(), &schema, repos.deref_mut())
+        let _ = validate_or_insert_schema(w2.tables(), &schema, &*catalog)
             .await
             .unwrap()
             .unwrap();
@@ -1459,8 +1460,6 @@ mod tests {
             DmlMeta::sequenced(Sequence::new(1, 2), ignored_ts, None, 50),
         );
 
-        // drop repos so the mem catalog won't deadlock.
-        std::mem::drop(repos);
         let manager = LifecycleManager::new(
             LifecycleConfig::new(1, 0, 0, Duration::from_secs(1)),
             Arc::new(metric::Registry::new()),
