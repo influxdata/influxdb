@@ -27,7 +27,7 @@ pub struct InstrumentedCache<T> {
 
 impl<T> InstrumentedCache<T> {
     /// Instrument `T`, recording cache operations to `registry`.
-    pub fn new(inner: T, registry: Arc<metric::Registry>) -> Self {
+    pub fn new(inner: T, registry: &metric::Registry) -> Self {
         let get_counter: Metric<U64Counter> =
             registry.register_metric("namespace_cache_get_count", "cache read requests");
         let get_hit_counter = get_counter.recorder(&[("result", "hit")]);

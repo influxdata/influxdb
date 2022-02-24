@@ -111,7 +111,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::new(ShardedCache::new(
             iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
         )),
-        Arc::clone(&metrics),
+        &*metrics,
     ));
 
     // Initialise and instrument the schema validator
