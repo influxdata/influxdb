@@ -120,7 +120,7 @@ impl Storage {
         metadata: IoxMetadataOld,
     ) -> Result<Option<(ParquetFilePath, usize, IoxParquetMetaData)>> {
         // Create full path location of this file in object store
-        let path = ParquetFilePath::new(&chunk_addr);
+        let path = ParquetFilePath::new_old_gen(&chunk_addr);
 
         let schema = stream.schema();
         let data = self

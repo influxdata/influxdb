@@ -8,6 +8,7 @@ description = "IOx-specific semantics wrapping the general-purpose object store 
 bytes = "1.0"
 data_types = { path = "../data_types" }
 futures = "0.3"
+iox_catalog = { path = "../iox_catalog" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"

@@ -2251,6 +2251,7 @@ dependencies = [
  "bytes",
  "data_types",
  "futures",
+ "iox_catalog",
  "object_store",
  "observability_deps",
  "snafu",
