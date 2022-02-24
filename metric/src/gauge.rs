@@ -18,6 +18,33 @@ impl U64Gauge {
         self.state.store(value, Ordering::Relaxed);
     }
 
+    /// Increments the value of this U64Gauge by the specified amount.
+    pub fn inc(&self, delta: u64) {
+        self.state.fetch_add(delta, Ordering::Relaxed);
+    }
+
+    /// Decrements the value of this U64Gauge by the specified amount.
+    ///
+    /// # Underflow / Overflow
+    ///
+    /// This operation wraps around on over/underflow.
+    pub fn dec(&self, delta: u64) {
+        self.state.fetch_sub(delta, Ordering::Relaxed);
+    }
+
+    /// Adjusts the value of this U64Gauge by the specified delta.
+    ///
+    /// # Underflow / Overflow
+    ///
+    /// This operation wraps around on over/underflow.
+    pub fn delta(&self, delta: i64) {
+        if delta > 0 {
+            self.inc(delta as _);
+        } else {
+            self.dec(delta.abs() as _);
+        }
+    }
+
     /// Fetches the value of this U64Gauge
     pub fn fetch(&self) -> u64 {
         self.state.load(Ordering::Relaxed)
@@ -54,6 +81,18 @@ mod tests {
         assert_eq!(gauge.observe(), Observation::U64Gauge(345));
 
         gauge.set(23);
+        assert_eq!(gauge.observe(), Observation::U64Gauge(23));
+
+        gauge.inc(10);
+        assert_eq!(gauge.observe(), Observation::U64Gauge(33));
+
+        gauge.dec(10);
+        assert_eq!(gauge.observe(), Observation::U64Gauge(23));
+
+        gauge.delta(19);
+        assert_eq!(gauge.observe(), Observation::U64Gauge(42));
+
+        gauge.delta(-19);
         assert_eq!(gauge.observe(), Observation::U64Gauge(23));
 
         let r2 = gauge.recorder();
