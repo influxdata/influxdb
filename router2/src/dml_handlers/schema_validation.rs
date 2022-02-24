@@ -14,7 +14,7 @@ use trace::ctx::SpanContext;
 
 use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
 
-use super::{DmlHandler, Partitioned};
+use super::DmlHandler;
 
 /// Errors emitted during schema validation.
 #[derive(Debug, Error)]
@@ -105,7 +105,7 @@ where
     type WriteError = SchemaError;
     type DeleteError = SchemaError;
 
-    type WriteInput = Partitioned<HashMap<String, MutableBatch>>;
+    type WriteInput = HashMap<String, MutableBatch>;
     type WriteOutput = Self::WriteInput;
 
     /// Validate the schema of all the writes in `batches`.
@@ -154,7 +154,7 @@ where
         };
 
         let maybe_new_schema = validate_or_insert_schema(
-            batches.payload().iter().map(|(k, v)| (k.as_str(), v)),
+            batches.iter().map(|(k, v)| (k.as_str(), v)),
             &schema,
             repos.deref_mut(),
         )
@@ -218,10 +218,10 @@ mod tests {
     }
 
     // Parse `lp` into a table-keyed MutableBatch map.
-    fn lp_to_writes(lp: &str) -> Partitioned<HashMap<String, MutableBatch>> {
+    fn lp_to_writes(lp: &str) -> HashMap<String, MutableBatch> {
         let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp, 42)
             .expect("failed to build test writes from LP");
-        Partitioned::new("key".to_owned(), writes)
+        writes
     }
 
     /// Initialise an in-memory [`MemCatalog`] and create a single namespace
@@ -312,7 +312,7 @@ mod tests {
             .write(&*NAMESPACE, writes.clone(), None)
             .await
             .expect("request should succeed");
-        assert_eq!(writes.payload().len(), got.payload().len());
+        assert_eq!(writes.len(), got.len());
 
         // Second write attempts to violate it causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42.0 123456"); // val=float

@@ -47,17 +47,17 @@ type HttpDelegateStack = HttpDelegate<
     InstrumentationDecorator<
         Chain<
             Chain<
-                NamespaceAutocreation<
-                    Arc<ShardedCache<Arc<MemoryNamespaceCache>>>,
-                    HashMap<String, MutableBatch>,
+                Chain<
+                    NamespaceAutocreation<
+                        Arc<ShardedCache<Arc<MemoryNamespaceCache>>>,
+                        HashMap<String, MutableBatch>,
+                    >,
+                    SchemaValidator<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>,
                 >,
                 Partitioner,
             >,
             FanOutAdaptor<
-                Chain<
-                    SchemaValidator<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>,
-                    ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>,
-                >,
+                ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>,
                 Vec<Partitioned<HashMap<String, MutableBatch>>>,
             >,
         >,
@@ -108,10 +108,9 @@ impl TestContext {
         });
 
         let handler_stack = ns_creator
+            .and_then(schema_validator)
             .and_then(partitioner)
-            .and_then(FanOutAdaptor::new(
-                schema_validator.and_then(sharded_write_buffer),
-            ));
+            .and_then(FanOutAdaptor::new(sharded_write_buffer));
 
         let handler_stack =
             InstrumentationDecorator::new("request", Arc::clone(&metrics), handler_stack);
