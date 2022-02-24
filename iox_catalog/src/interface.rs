@@ -467,6 +467,27 @@ pub trait TableRepo: Send + Sync {
 
     /// Lists all tables in the catalog for the given namespace id.
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>>;
+
+    /// Gets the table persistence info for the given sequencer
+    async fn get_table_persist_info(
+        &mut self,
+        sequencer_id: SequencerId,
+        namespace_id: NamespaceId,
+        table_name: &str,
+    ) -> Result<Option<TablePersistInfo>>;
+}
+
+/// Information for a table's persistence information for a specific sequencer from the catalog
+#[derive(Debug, Copy, Clone, Eq, PartialEq, sqlx::FromRow)]
+pub struct TablePersistInfo {
+    /// sequencer the sequence numbers are associated with
+    pub sequencer_id: SequencerId,
+    /// the global identifier for the table
+    pub table_id: TableId,
+    /// max max_sequence_number from this table's parquet_files for this sequencer
+    pub parquet_max_sequence_number: Option<SequenceNumber>,
+    /// max sequence number from this table's tombstones for this sequencer
+    pub tombstone_max_sequence_number: Option<SequenceNumber>,
 }
 
 /// Functions for working with columns in the catalog
@@ -1197,7 +1218,7 @@ pub(crate) mod test_helpers {
             .list_by_namespace_id(namespace.id)
             .await
             .unwrap();
-        assert_eq!(vec![t], tables);
+        assert_eq!(vec![t.clone()], tables);
 
         // test we can create a table of the same name in a different namespace
         let namespace2 = repos
@@ -1213,6 +1234,130 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_ne!(tt, test_table);
         assert_eq!(test_table.namespace_id, namespace2.id);
+
+        // test we can get table persistence info with no persistence so far
+        let seq = repos
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(555))
+            .await
+            .unwrap();
+        let ti = repos
+            .tables()
+            .get_table_persist_info(seq.id, t.namespace_id, &t.name)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            ti,
+            TablePersistInfo {
+                sequencer_id: seq.id,
+                table_id: t.id,
+                parquet_max_sequence_number: None,
+                tombstone_max_sequence_number: None
+            }
+        );
+
+        // and now with a parquet file persisted
+        let partition = repos
+            .partitions()
+            .create_or_get("1970-01-01", seq.id, t.id)
+            .await
+            .unwrap();
+        let p1 = repos
+            .parquet_files()
+            .create(
+                seq.id,
+                t.id,
+                partition.id,
+                Uuid::new_v4(),
+                SequenceNumber::new(10),
+                SequenceNumber::new(513),
+                Timestamp::new(1),
+                Timestamp::new(2),
+                0,
+                vec![],
+                0,
+            )
+            .await
+            .unwrap();
+        let ti = repos
+            .tables()
+            .get_table_persist_info(seq.id, t.namespace_id, &t.name)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            ti,
+            TablePersistInfo {
+                sequencer_id: seq.id,
+                table_id: t.id,
+                parquet_max_sequence_number: Some(p1.max_sequence_number),
+                tombstone_max_sequence_number: None
+            }
+        );
+
+        // and with another parquet file persisted
+        let p1 = repos
+            .parquet_files()
+            .create(
+                seq.id,
+                t.id,
+                partition.id,
+                Uuid::new_v4(),
+                SequenceNumber::new(514),
+                SequenceNumber::new(1008),
+                Timestamp::new(1),
+                Timestamp::new(2),
+                0,
+                vec![],
+                0,
+            )
+            .await
+            .unwrap();
+        let ti = repos
+            .tables()
+            .get_table_persist_info(seq.id, t.namespace_id, &t.name)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            ti,
+            TablePersistInfo {
+                sequencer_id: seq.id,
+                table_id: t.id,
+                parquet_max_sequence_number: Some(p1.max_sequence_number),
+                tombstone_max_sequence_number: None
+            }
+        );
+
+        // and now with a tombstone persisted
+        let tombstone = repos
+            .tombstones()
+            .create_or_get(
+                t.id,
+                seq.id,
+                SequenceNumber::new(2001),
+                Timestamp::new(1),
+                Timestamp::new(10),
+                "wahtevs",
+            )
+            .await
+            .unwrap();
+        let ti = repos
+            .tables()
+            .get_table_persist_info(seq.id, t.namespace_id, &t.name)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            ti,
+            TablePersistInfo {
+                sequencer_id: seq.id,
+                table_id: t.id,
+                parquet_max_sequence_number: Some(p1.max_sequence_number),
+                tombstone_max_sequence_number: Some(tombstone.sequence_number),
+            }
+        );
     }
 
     async fn test_column(catalog: Arc<dyn Catalog>) {
@@ -1542,10 +1687,6 @@ pub(crate) mod test_helpers {
         let min_time = Timestamp::new(1);
         let max_time = Timestamp::new(10);
 
-        // Must have no parquet file records
-        let num_parquet_files = repos.parquet_files().count().await.unwrap();
-        assert_eq!(num_parquet_files, 0);
-
         let parquet_file = repos
             .parquet_files()
             .create(
@@ -1601,10 +1742,6 @@ pub(crate) mod test_helpers {
             )
             .await
             .unwrap();
-
-        // Must have 2 parquet files
-        let num_parquet_files = repos.parquet_files().count().await.unwrap();
-        assert_eq!(num_parquet_files, 2);
 
         let exist_id = parquet_file.id;
         let non_exist_id = ParquetFileId::new(other_file.id.get() + 10);
