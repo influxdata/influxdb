@@ -7,6 +7,7 @@
 use data_types::partition_metadata::{ColumnSummary, StatOverlap, Statistics};
 use schema::TIME_COLUMN_NAME;
 use snafu::Snafu;
+use std::cmp::Ordering;
 
 use crate::QueryChunkMeta;
 
@@ -81,7 +82,7 @@ where
     // the final resulting groups corresponding to the groups of
     // KeyStats
 
-    // drop all references to chunks, and only keep indicides
+    // drop all references to chunks, and only keep indices
     #[allow(clippy::needless_collect)] // required for the borrow checker
     let groups: Vec<Vec<usize>> = groups
         .into_iter()
@@ -162,7 +163,7 @@ where
     /// numbers of tags that have no overlap, which seems unlikely in
     /// the real world.
     ///
-    /// Note this algoritm is quite conservative (in that it will
+    /// Note this algorithm is quite conservative (in that it will
     /// assume that any column can contain nulls) and thus can match
     /// with chunks that do not have that column.   for example
     ///
@@ -189,52 +190,44 @@ where
             .key_summaries
             .windows(2)
             .all(|s| s[1].name == TIME_COLUMN_NAME || s[0].name <= s[1].name));
+
         debug_assert!(other
             .key_summaries
             .windows(2)
             .all(|s| s[1].name == TIME_COLUMN_NAME || s[0].name <= s[1].name));
-        self.potential_overlap_impl(0, other, 0)
-    }
 
-    // Checks the remainder of self.columns[self_idx..] and
-    // other.columns[..other_idx] if they are compatible
-    fn potential_overlap_impl(
-        &self,
-        mut self_idx: usize,
-        other: &Self,
-        mut other_idx: usize,
-    ) -> Result<bool> {
+        let mut iter1 = self.key_summaries.iter().peekable();
+        let mut iter2 = other.key_summaries.iter().peekable();
+
         loop {
-            let s1 = self.key_summaries.get(self_idx);
-            let s2 = other.key_summaries.get(other_idx);
-
-            if let (Some(s1), Some(s2)) = (s1, s2) {
-                if s1.name == s2.name {
-                    // pk matched in this position, so check values. If we
-                    // find no overlap, know this is false, otherwise need to keep checking
-                    if Self::columns_might_overlap(s1, s2)? {
-                        self_idx += 1;
-                        other_idx += 1;
-                    } else {
-                        return Ok(false);
+            match (iter1.peek(), iter2.peek()) {
+                (Some(s1), Some(s2)) => match s1.name.cmp(&s2.name) {
+                    Ordering::Equal => {
+                        if !Self::columns_might_overlap(s1, s2)? {
+                            // Chunks cannot overlap
+                            return Ok(false);
+                        }
+                        // Advance both iterators
+                        iter1.next();
+                        iter2.next();
                     }
-                } else {
-                    // name didn't match, so try and find the next
-                    // place it does.  Since there may be missing keys
-                    // in each side, need to check each in turn
-                    //
-                    // Note this will result in O(num_tags) stack
-                    // frames in the worst case, but we expect the
-                    // number of tags to be relatively small (~20 at
-                    // the time of this writing)
-                    return Ok(self.potential_overlap_impl(self_idx + 1, other, other_idx)?
-                        || self.potential_overlap_impl(self_idx, other, other_idx + 1)?);
-                }
-            } else {
+                    Ordering::Less if s1.name != TIME_COLUMN_NAME => {
+                        iter1.next();
+                    }
+                    Ordering::Less => {
+                        iter2.next();
+                    }
+                    Ordering::Greater if s2.name != TIME_COLUMN_NAME => {
+                        iter2.next();
+                    }
+                    Ordering::Greater => {
+                        iter1.next();
+                    }
+                },
                 // ran out of columns to check on one side, assume the
                 // other could have nulls all the way down (due to null
                 // assumption)
-                return Ok(true);
+                _ => return Ok(true),
             }
         }
     }
@@ -381,6 +374,54 @@ mod test {
             "Group 0: [chunk1, chunk4]",
             "Group 1: [chunk2]",
             "Group 2: [chunk3]",
+        ];
+        assert_groups_eq!(expected, groups);
+    }
+
+    #[test]
+    fn missing_columns() {
+        let c1 = TestChunk::new("chunk1")
+            .with_time_column_with_stats(Some(0), Some(1000))
+            .with_tag_column_with_stats("tag1", Some("boston"), Some("new york"))
+            .with_tag_column_with_stats("tag2", Some("boston"), Some("new york"))
+            .with_tag_column_with_stats("z", Some("a"), Some("b"));
+
+        // Overlaps in tag1, but not in time
+        let c2 = TestChunk::new("chunk2")
+            .with_tag_column_with_stats("tag1", Some("denver"), Some("zoo york"))
+            .with_time_column_with_stats(Some(2000), Some(3000));
+
+        // Overlaps in time and z, but not in tag2
+        let c3 = TestChunk::new("chunk3")
+            .with_tag_column_with_stats("tag2", Some("zzx"), Some("zzy"))
+            .with_tag_column_with_stats("z", Some("a"), Some("b"))
+            .with_time_column_with_stats(Some(0), Some(1000));
+
+        // Overlaps in time, but not in tag1
+        let c4 = TestChunk::new("chunk4")
+            .with_tag_column_with_stats("tag1", Some("zzx"), Some("zzy"))
+            .with_time_column_with_stats(Some(2000), Some(3000));
+
+        // Overlaps in time, but not z
+        let c5 = TestChunk::new("chunk5")
+            .with_tag_column_with_stats("z", Some("c"), Some("d"))
+            .with_time_column_with_stats(Some(0), Some(1000));
+
+        // Overlaps in z, but not in time
+        let c6 = TestChunk::new("chunk6")
+            .with_tag_column_with_stats("z", Some("a"), Some("b"))
+            .with_time_column_with_stats(Some(4000), Some(5000));
+
+        let groups =
+            group_potential_duplicates(vec![c1, c2, c3, c4, c5, c6]).expect("grouping succeeded");
+
+        let expected = vec![
+            "Group 0: [chunk1]",
+            "Group 1: [chunk2]",
+            "Group 2: [chunk3]",
+            "Group 3: [chunk4]",
+            "Group 4: [chunk5]",
+            "Group 5: [chunk6]",
         ];
         assert_groups_eq!(expected, groups);
     }

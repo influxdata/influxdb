@@ -486,7 +486,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             // no statistics, consider all chunks overlap
             self.overlapped_chunks_set.push(chunks);
         } else {
-            // Find all groups based on statstics
+            // Find all groups based on statistics
             let groups = group_potential_duplicates(chunks).context(InternalChunkGroupingSnafu)?;
 
             for mut group in groups {
