@@ -1,10 +1,8 @@
 //! HTTP service implementations for `router2`.
 
-use std::str::Utf8Error;
-
+use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
 use bytes::{Bytes, BytesMut};
-use data_types::names::{org_and_bucket_to_database, OrgBucketMappingError};
-
+use data_types2::{org_and_bucket_to_database, OrgBucketMappingError};
 use futures::StreamExt;
 use hashbrown::HashMap;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
@@ -13,11 +11,10 @@ use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use serde::Deserialize;
+use std::str::Utf8Error;
 use thiserror::Error;
 use time::{SystemProvider, TimeProvider};
 use trace::ctx::SpanContext;
-
-use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
 
 /// Errors returned by the `router2` HTTP request handler.
 #[derive(Debug, Error)]

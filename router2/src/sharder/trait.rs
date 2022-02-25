@@ -1,6 +1,5 @@
+use data_types2::DatabaseName;
 use std::fmt::Debug;
-
-use data_types::DatabaseName;
 
 /// A [`Sharder`] implementation is responsible for mapping an opaque payload
 /// for a given table name & namespace to an output type.

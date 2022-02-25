@@ -8,10 +8,9 @@ use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use chrono::{format::StrftimeItems, TimeZone, Utc};
-use data_types::delete_predicate::DeletePredicate;
 use data_types2::{
-    KafkaPartition, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
-    Tombstone,
+    DeletePredicate, KafkaPartition, NamespaceId, PartitionId, SequenceNumber, SequencerId,
+    TableId, Timestamp, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
@@ -1212,8 +1211,7 @@ mod tests {
     use super::*;
     use crate::{lifecycle::LifecycleConfig, test_util::create_tombstone};
     use arrow_util::assert_batches_sorted_eq;
-    use data_types::sequence::Sequence;
-    use data_types2::NamespaceSchema;
+    use data_types2::{NamespaceSchema, Sequence};
     use dml::{DmlMeta, DmlWrite};
     use futures::TryStreamExt;
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};

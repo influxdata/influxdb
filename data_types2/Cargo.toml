@@ -5,6 +5,7 @@ edition = "2021"
 description = "Shared data types in the Iox NG architecture"
 
 [dependencies]
+data_types = { path = "../data_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 mutable_batch = { path = "../mutable_batch" }
 predicate = { path = "../predicate" }

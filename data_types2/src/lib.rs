@@ -20,6 +20,18 @@ use std::{
 };
 use uuid::Uuid;
 
+pub use data_types::{
+    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder, ChunkSummary},
+    database_rules::{PartitionTemplate, TemplatePart},
+    delete_predicate::{DeleteExpr, DeletePredicate, Op, Scalar},
+    names::{org_and_bucket_to_database, OrgBucketMappingError},
+    non_empty::NonEmptyString,
+    partition_metadata::{InfluxDbType, PartitionAddr, TableSummary},
+    sequence::Sequence,
+    timestamp::TimestampRange,
+    DatabaseName,
+};
+
 /// Unique ID for a `Namespace`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]

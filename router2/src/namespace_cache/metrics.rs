@@ -1,8 +1,7 @@
 //! Metric instrumentation for a [`NamespaceCache`] implementation.
 
 use super::NamespaceCache;
-use data_types::DatabaseName;
-use data_types2::NamespaceSchema;
+use data_types2::{DatabaseName, NamespaceSchema};
 use metric::{Metric, U64Counter, U64Gauge};
 use std::sync::Arc;
 

@@ -8,8 +8,7 @@ pub use sharded_cache::*;
 
 pub mod metrics;
 
-use data_types::DatabaseName;
-use data_types2::NamespaceSchema;
+use data_types2::{DatabaseName, NamespaceSchema};
 use std::{fmt::Debug, sync::Arc};
 
 /// An abstract cache of [`NamespaceSchema`].

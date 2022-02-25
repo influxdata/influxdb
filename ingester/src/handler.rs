@@ -415,8 +415,7 @@ async fn stream_in_sequenced_entries(
 mod tests {
     use super::*;
     use crate::poison::PoisonPill;
-    use data_types::sequence::Sequence;
-    use data_types2::{Namespace, NamespaceSchema, QueryPool};
+    use data_types2::{Namespace, NamespaceSchema, QueryPool, Sequence};
     use dml::{DmlMeta, DmlWrite};
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
     use metric::{Attributes, Metric, U64Counter, U64Gauge};

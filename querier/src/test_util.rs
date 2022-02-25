@@ -1,8 +1,7 @@
 use bytes::Bytes;
-use data_types::partition_metadata::InfluxDbType;
 use data_types2::{
-    ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, Partition, QueryPool,
-    SequenceNumber, Sequencer, Table, Timestamp,
+    ColumnType, InfluxDbType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, Partition,
+    QueryPool, SequenceNumber, Sequencer, Table, Timestamp,
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};

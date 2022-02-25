@@ -1,7 +1,7 @@
 use super::DmlHandler;
 use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
 use async_trait::async_trait;
-use data_types::{delete_predicate::DeletePredicate, DatabaseName};
+use data_types2::{DatabaseName, DeletePredicate};
 use hashbrown::HashMap;
 use iox_catalog::{
     interface::{get_schema_by_name, Catalog},
@@ -200,8 +200,7 @@ where
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
-    use data_types::timestamp::TimestampRange;
-    use data_types2::{ColumnType, KafkaTopicId, QueryPoolId};
+    use data_types2::{ColumnType, KafkaTopicId, QueryPoolId, TimestampRange};
     use iox_catalog::mem::MemCatalog;
     use std::sync::Arc;
 

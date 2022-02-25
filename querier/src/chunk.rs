@@ -1,6 +1,5 @@
 use crate::cache::CatalogCache;
-use data_types::chunk_metadata::{ChunkAddr, ChunkOrder};
-use data_types2::ParquetFile;
+use data_types2::{ChunkAddr, ChunkId, ChunkOrder, ParquetFile};
 use db::catalog::chunk::{CatalogChunk, ChunkMetadata, ChunkMetrics as CatalogChunkMetrics};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::ObjectStore;
@@ -171,9 +170,7 @@ impl ParquetChunkAdapter {
                 .catalog_cache
                 .old_gen_partition_key(parquet_file.partition_id)
                 .await,
-            chunk_id: data_types::chunk_metadata::ChunkId::from(Uuid::from_u128(
-                parquet_file.id.get() as _,
-            )),
+            chunk_id: ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _)),
         }
     }
 }

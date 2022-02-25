@@ -1,10 +1,9 @@
-use criterion::measurement::WallTime;
-use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion, Throughput};
-use data_types::DatabaseName;
+use criterion::{
+    criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion, Throughput,
+};
+use data_types2::DatabaseName;
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use router2::sharder::{JumpHash, Sharder};
-
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
 
 fn get_random_string(length: usize) -> String {
     thread_rng()

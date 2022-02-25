@@ -1,6 +1,5 @@
 use super::NamespaceCache;
-use data_types::DatabaseName;
-use data_types2::NamespaceSchema;
+use data_types2::{DatabaseName, NamespaceSchema};
 use hashbrown::HashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;

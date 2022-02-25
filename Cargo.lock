@@ -946,6 +946,7 @@ dependencies = [
 name = "data_types2"
 version = "0.1.0"
 dependencies = [
+ "data_types",
  "influxdb_line_protocol",
  "mutable_batch",
  "predicate",
@@ -2094,7 +2095,6 @@ dependencies = [
  "bitflags",
  "bytes",
  "chrono",
- "data_types",
  "data_types2",
  "datafusion 0.1.0",
  "db",
@@ -3854,7 +3854,6 @@ dependencies = [
  "backoff 0.1.0",
  "bytes",
  "client_util",
- "data_types",
  "data_types2",
  "datafusion 0.1.0",
  "db",
@@ -4227,7 +4226,6 @@ dependencies = [
  "async-trait",
  "bytes",
  "criterion",
- "data_types",
  "data_types2",
  "dml",
  "flate2",

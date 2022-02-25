@@ -3,8 +3,7 @@
 use crate::{cache::CatalogCache, chunk::ParquetChunkAdapter};
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{chunk_metadata::ChunkSummary, partition_metadata::PartitionAddr};
-use data_types2::NamespaceId;
+use data_types2::{ChunkSummary, NamespaceId, PartitionAddr};
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use db::{access::QueryCatalogAccess, catalog::Catalog as DbCatalog, chunk::DbChunk};
 use iox_catalog::interface::{get_schema_by_name, Catalog};

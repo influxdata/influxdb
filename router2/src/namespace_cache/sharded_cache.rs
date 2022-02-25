@@ -1,7 +1,6 @@
 use super::NamespaceCache;
 use crate::sharder::JumpHash;
-use data_types::DatabaseName;
-use data_types2::NamespaceSchema;
+use data_types2::{DatabaseName, NamespaceSchema};
 use std::sync::Arc;
 
 /// A decorator sharding the [`NamespaceCache`] keyspace into a set of `T`.

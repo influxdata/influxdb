@@ -1,7 +1,7 @@
 use std::{collections::BTreeSet, iter, sync::Arc};
 
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use data_types::database_rules::{PartitionTemplate, TemplatePart};
+use data_types2::{PartitionTemplate, TemplatePart};
 use hyper::{Body, Request};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use router2::{

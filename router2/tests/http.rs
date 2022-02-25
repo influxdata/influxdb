@@ -1,6 +1,5 @@
 use assert_matches::assert_matches;
-use data_types::database_rules::{PartitionTemplate, TemplatePart};
-use data_types2::{KafkaTopicId, QueryPoolId};
+use data_types2::{KafkaTopicId, PartitionTemplate, QueryPoolId, TemplatePart};
 use dml::DmlOperation;
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};

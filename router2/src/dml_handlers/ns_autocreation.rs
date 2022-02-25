@@ -1,8 +1,7 @@
 use super::DmlHandler;
 use crate::namespace_cache::NamespaceCache;
 use async_trait::async_trait;
-use data_types::{delete_predicate::DeletePredicate, DatabaseName};
-use data_types2::{KafkaTopicId, QueryPoolId};
+use data_types2::{DatabaseName, DeletePredicate, KafkaTopicId, QueryPoolId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};

@@ -1,14 +1,11 @@
+use super::DmlHandler;
 use async_trait::async_trait;
-use data_types::{
-    database_rules::PartitionTemplate, delete_predicate::DeletePredicate, DatabaseName,
-};
+use data_types2::{DatabaseName, DeletePredicate, PartitionTemplate};
 use hashbrown::HashMap;
 use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
 use observability_deps::tracing::*;
 use thiserror::Error;
 use trace::ctx::SpanContext;
-
-use super::DmlHandler;
 
 /// An error raised by the [`Partitioner`] handler.
 #[derive(Debug, Error)]
@@ -118,14 +115,13 @@ impl DmlHandler for Partitioner {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use assert_matches::assert_matches;
-    use data_types::database_rules::TemplatePart;
+    use data_types2::TemplatePart;
 
     /// The default timestamp applied to test LP if the write does not specify
     /// one.
     const DEFAULT_TIMESTAMP_NANOS: i64 = 42000000000000000;
-
-    use super::*;
 
     // Generate a test case that partitions "lp".
     //
