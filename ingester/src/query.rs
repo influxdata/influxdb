@@ -1,7 +1,6 @@
 //! Module to handle query on Ingester's data
 
-use std::sync::Arc;
-
+use crate::data::{QueryableBatch, SnapshotBatch};
 use arrow::{
     array::BooleanArray, compute::filter_record_batch, error::Result as ArrowResult,
     record_batch::RecordBatch,
@@ -12,6 +11,7 @@ use data_types::{
     delete_predicate::DeletePredicate,
     partition_metadata::TableSummary,
 };
+use data_types2::{SequenceNumber, Tombstone};
 use datafusion::{
     error::DataFusionError,
     logical_plan::ExprRewritable,
@@ -21,7 +21,6 @@ use datafusion::{
         PhysicalExpr, SendableRecordBatchStream,
     },
 };
-use iox_catalog::interface::{SequenceNumber, Tombstone};
 use observability_deps::tracing::{debug, trace};
 use predicate::{delete_predicate::parse_delete_predicate, Predicate, PredicateMatch};
 use query::{
@@ -31,8 +30,7 @@ use query::{
 };
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
-
-use crate::data::{QueryableBatch, SnapshotBatch};
+use std::sync::Arc;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]

@@ -943,6 +943,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "data_types2"
+version = "0.1.0"
+dependencies = [
+ "influxdb_line_protocol",
+ "mutable_batch",
+ "schema",
+ "sqlx",
+ "uuid",
+ "workspace-hack",
+]
+
+[[package]]
 name = "datafusion"
 version = "0.1.0"
 dependencies = [
@@ -1906,6 +1918,7 @@ dependencies = [
  "compactor",
  "csv",
  "data_types",
+ "data_types2",
  "datafusion 0.1.0",
  "db",
  "dml",
@@ -2078,6 +2091,7 @@ dependencies = [
  "bytes",
  "chrono",
  "data_types",
+ "data_types2",
  "datafusion 0.1.0",
  "db",
  "dml",
@@ -2156,9 +2170,9 @@ name = "iox_catalog"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "data_types2",
  "dotenv",
  "futures",
- "influxdb_line_protocol",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
@@ -2166,7 +2180,6 @@ dependencies = [
  "paste",
  "pretty_assertions",
  "rand",
- "schema",
  "snafu",
  "sqlx",
  "sqlx-hotswap-pool",
@@ -2242,8 +2255,8 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "data_types",
+ "data_types2",
  "futures",
- "iox_catalog",
  "object_store",
  "observability_deps",
  "snafu",
@@ -3389,11 +3402,11 @@ dependencies = [
  "base64 0.13.0",
  "bytes",
  "data_types",
+ "data_types2",
  "datafusion 0.1.0",
  "datafusion_util",
  "futures",
  "generated_types",
- "iox_catalog",
  "iox_object_store",
  "metric",
  "object_store",
@@ -3839,6 +3852,7 @@ dependencies = [
  "bytes",
  "client_util",
  "data_types",
+ "data_types2",
  "datafusion 0.1.0",
  "db",
  "futures",
@@ -4212,6 +4226,7 @@ dependencies = [
  "bytes",
  "criterion",
  "data_types",
+ "data_types2",
  "dml",
  "flate2",
  "futures",

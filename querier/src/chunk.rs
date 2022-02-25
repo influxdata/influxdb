@@ -1,18 +1,16 @@
-use std::sync::Arc;
-
+use crate::cache::CatalogCache;
 use data_types::chunk_metadata::{ChunkAddr, ChunkOrder};
+use data_types2::ParquetFile;
 use db::catalog::chunk::{CatalogChunk, ChunkMetadata, ChunkMetrics as CatalogChunkMetrics};
-use iox_catalog::interface::ParquetFile;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::ObjectStore;
 use parquet_file::{
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     metadata::{DecodedIoxParquetMetaData, IoxMetadata, IoxParquetMetaData},
 };
+use std::sync::Arc;
 use time::TimeProvider;
 use uuid::Uuid;
-
-use crate::cache::CatalogCache;
 
 /// Parquet file with decoded metadata.
 struct DecodedParquetFile {
@@ -182,16 +180,14 @@ impl ParquetChunkAdapter {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::test_util::TestCatalog;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use db::chunk::DbChunk;
     use futures::StreamExt;
     use query::QueryChunk;
     use schema::selection::Selection;
-
-    use crate::test_util::TestCatalog;
-
-    use super::*;
 
     #[tokio::test]
     async fn test_create_record() {

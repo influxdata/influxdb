@@ -11,13 +11,12 @@
     clippy::clone_on_ref_ptr
 )]
 
-use crate::interface::{
-    ColumnType, Error, KafkaPartition, KafkaTopic, NamespaceSchema, QueryPool, Result, Sequencer,
-    SequencerId, TableSchema, Transaction,
+use crate::interface::{Catalog, Error, Result, Transaction};
+use data_types2::{
+    ColumnType, KafkaPartition, KafkaTopic, NamespaceSchema, ParquetFile, ProcessedTombstone,
+    QueryPool, Sequencer, SequencerId, TableSchema, Tombstone,
 };
-
 use futures::{future, stream, StreamExt, TryStreamExt};
-use interface::{Catalog, ParquetFile, ProcessedTombstone, Tombstone};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};
 

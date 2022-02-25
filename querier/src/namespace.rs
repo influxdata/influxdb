@@ -1,12 +1,13 @@
 //! Namespace within the whole database.
-use std::{any::Any, collections::HashSet, sync::Arc};
 
+use crate::{cache::CatalogCache, chunk::ParquetChunkAdapter};
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types::{chunk_metadata::ChunkSummary, partition_metadata::PartitionAddr};
+use data_types2::NamespaceId;
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use db::{access::QueryCatalogAccess, catalog::Catalog as DbCatalog, chunk::DbChunk};
-use iox_catalog::interface::{get_schema_by_name, Catalog, NamespaceId};
+use iox_catalog::interface::{get_schema_by_name, Catalog};
 use job_registry::JobRegistry;
 use object_store::ObjectStore;
 use observability_deps::tracing::{info, warn};
@@ -17,10 +18,9 @@ use query::{
     QueryCompletedToken, QueryDatabase, QueryText,
 };
 use schema::Schema;
+use std::{any::Any, collections::HashSet, sync::Arc};
 use time::TimeProvider;
 use trace::ctx::SpanContext;
-
-use crate::{cache::CatalogCache, chunk::ParquetChunkAdapter};
 
 /// Maps a catalog namespace to all the in-memory resources and sync-state that the querier needs.
 ///
@@ -265,12 +265,10 @@ impl ExecutionContextProvider for QuerierNamespace {
 
 #[cfg(test)]
 mod tests {
-    use iox_catalog::interface::ColumnType;
-    use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
-
-    use crate::test_util::{TestCatalog, TestNamespace};
-
     use super::*;
+    use crate::test_util::{TestCatalog, TestNamespace};
+    use data_types2::ColumnType;
+    use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
 
     #[tokio::test]
     async fn test_sync_namespace_gone() {

@@ -1,24 +1,24 @@
 //! Database for the querier that contains all namespaces.
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-    time::Duration,
-};
-
-use backoff::{Backoff, BackoffConfig};
-use iox_catalog::interface::{Catalog, NamespaceId};
-use object_store::ObjectStore;
-use observability_deps::tracing::{error, info};
-use parking_lot::RwLock;
-use query::exec::Executor;
-use time::TimeProvider;
-use tokio_util::sync::CancellationToken;
 
 use crate::{
     cache::CatalogCache,
     namespace::QuerierNamespace,
     poison::{PoisonCabinet, PoisonPill},
 };
+use backoff::{Backoff, BackoffConfig};
+use data_types2::NamespaceId;
+use iox_catalog::interface::Catalog;
+use object_store::ObjectStore;
+use observability_deps::tracing::{error, info};
+use parking_lot::RwLock;
+use query::exec::Executor;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+    time::Duration,
+};
+use time::TimeProvider;
+use tokio_util::sync::CancellationToken;
 
 const SYNC_INTERVAL: Duration = Duration::from_secs(1);
 

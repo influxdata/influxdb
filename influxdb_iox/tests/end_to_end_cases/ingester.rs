@@ -1,6 +1,6 @@
 use crate::common::server_fixture::{ServerFixture, ServerType, TestConfig};
+use data_types2::SequencerId;
 use ingester::data::IngesterQueryRequest;
-use iox_catalog::interface::SequencerId;
 use tempfile::TempDir;
 
 #[tokio::test]

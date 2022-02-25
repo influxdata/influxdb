@@ -1,15 +1,13 @@
-use std::{fmt::Debug, marker::PhantomData, sync::Arc};
-
+use super::DmlHandler;
+use crate::namespace_cache::NamespaceCache;
 use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
-use iox_catalog::interface::{Catalog, KafkaTopicId, QueryPoolId};
+use data_types2::{KafkaTopicId, QueryPoolId};
+use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
+use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 use thiserror::Error;
 use trace::ctx::SpanContext;
-
-use crate::namespace_cache::NamespaceCache;
-
-use super::DmlHandler;
 
 /// An error auto-creating the request namespace.
 #[derive(Debug, Error)]
@@ -133,16 +131,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use iox_catalog::{
-        interface::{Namespace, NamespaceId, NamespaceSchema},
-        mem::MemCatalog,
-    };
-
-    use crate::namespace_cache::MemoryNamespaceCache;
-
     use super::*;
+    use crate::namespace_cache::MemoryNamespaceCache;
+    use data_types2::{Namespace, NamespaceId, NamespaceSchema};
+    use iox_catalog::mem::MemCatalog;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_cache_hit() {

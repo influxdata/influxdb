@@ -1,5 +1,5 @@
-use std::{ops::DerefMut, sync::Arc};
-
+use super::DmlHandler;
+use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
 use async_trait::async_trait;
 use data_types::{delete_predicate::DeletePredicate, DatabaseName};
 use hashbrown::HashMap;
@@ -9,12 +9,9 @@ use iox_catalog::{
 };
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
+use std::{ops::DerefMut, sync::Arc};
 use thiserror::Error;
 use trace::ctx::SpanContext;
-
-use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
-
-use super::DmlHandler;
 
 /// Errors emitted during schema validation.
 #[derive(Debug, Error)]
@@ -201,16 +198,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
+    use super::*;
     use assert_matches::assert_matches;
     use data_types::timestamp::TimestampRange;
-    use iox_catalog::{
-        interface::{ColumnType, KafkaTopicId, QueryPoolId},
-        mem::MemCatalog,
-    };
-
-    use super::*;
+    use data_types2::{ColumnType, KafkaTopicId, QueryPoolId};
+    use iox_catalog::mem::MemCatalog;
+    use std::sync::Arc;
 
     lazy_static::lazy_static! {
         static ref NAMESPACE: DatabaseName<'static> = "bananas".try_into().unwrap();

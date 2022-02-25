@@ -1,12 +1,10 @@
 //! Metric instrumentation for a [`NamespaceCache`] implementation.
 
-use std::sync::Arc;
-
-use data_types::DatabaseName;
-use iox_catalog::interface::NamespaceSchema;
-use metric::{Metric, U64Counter, U64Gauge};
-
 use super::NamespaceCache;
+use data_types::DatabaseName;
+use data_types2::NamespaceSchema;
+use metric::{Metric, U64Counter, U64Gauge};
+use std::sync::Arc;
 
 /// An [`InstrumentedCache`] decorates a [`NamespaceCache`] with cache read
 /// hit/miss and cache put insert/update metrics.
@@ -140,17 +138,14 @@ impl NamespaceStats {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
-    use iox_catalog::interface::{
+    use super::*;
+    use crate::namespace_cache::MemoryNamespaceCache;
+    use data_types2::{
         ColumnId, ColumnSchema, ColumnType, KafkaTopicId, NamespaceId, QueryPoolId, TableId,
         TableSchema,
     };
     use metric::{MetricObserver, Observation};
-
-    use crate::namespace_cache::MemoryNamespaceCache;
-
-    use super::*;
+    use std::collections::BTreeMap;
 
     /// Deterministically generate a schema containing tables with the specified
     /// column cardinality.

@@ -1,12 +1,11 @@
+use data_types2::KafkaPartition;
+use futures::Future;
+use parking_lot::{RwLock, RwLockUpgradableReadGuard};
+use pin_project::pin_project;
 use std::{
     sync::Arc,
     task::{Poll, Waker},
 };
-
-use futures::Future;
-use iox_catalog::interface::KafkaPartition;
-use parking_lot::{RwLock, RwLockUpgradableReadGuard};
-use pin_project::pin_project;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PoisonPill {

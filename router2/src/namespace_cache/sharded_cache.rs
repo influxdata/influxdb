@@ -1,11 +1,8 @@
-use std::sync::Arc;
-
-use data_types::DatabaseName;
-use iox_catalog::interface::NamespaceSchema;
-
-use crate::sharder::JumpHash;
-
 use super::NamespaceCache;
+use crate::sharder::JumpHash;
+use data_types::DatabaseName;
+use data_types2::NamespaceSchema;
+use std::sync::Arc;
 
 /// A decorator sharding the [`NamespaceCache`] keyspace into a set of `T`.
 #[derive(Debug)]
@@ -42,14 +39,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, iter};
-
-    use iox_catalog::interface::{KafkaTopicId, NamespaceId, QueryPoolId};
-    use rand::{distributions::Alphanumeric, thread_rng, Rng};
-
-    use crate::namespace_cache::MemoryNamespaceCache;
-
     use super::*;
+    use crate::namespace_cache::MemoryNamespaceCache;
+    use data_types2::{KafkaTopicId, NamespaceId, QueryPoolId};
+    use rand::{distributions::Alphanumeric, thread_rng, Rng};
+    use std::{collections::HashMap, iter};
 
     fn rand_namespace() -> DatabaseName<'static> {
         thread_rng()

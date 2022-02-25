@@ -8,10 +8,9 @@ pub use sharded_cache::*;
 
 pub mod metrics;
 
-use std::{fmt::Debug, sync::Arc};
-
 use data_types::DatabaseName;
-use iox_catalog::interface::NamespaceSchema;
+use data_types2::NamespaceSchema;
+use std::{fmt::Debug, sync::Arc};
 
 /// An abstract cache of [`NamespaceSchema`].
 pub trait NamespaceCache: Debug + Send + Sync {

@@ -1,25 +1,26 @@
 //! Data for the lifecycle of the Ingester
 
-use crate::compact::compact_persisting_batch;
-use crate::lifecycle::LifecycleManager;
-use crate::persist::persist;
-use crate::querier_handler::query;
+use crate::{
+    compact::compact_persisting_batch, lifecycle::LifecycleManager, persist::persist,
+    querier_handler::query,
+};
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use chrono::{format::StrftimeItems, TimeZone, Utc};
 use data_types::delete_predicate::DeletePredicate;
+use data_types2::{
+    KafkaPartition, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
+    Tombstone,
+};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
 use generated_types::{
     google::{FieldViolation, FieldViolationExt},
     influxdata::iox::ingester::v1 as proto,
 };
-use iox_catalog::interface::{
-    Catalog, KafkaPartition, NamespaceId, PartitionId, SequencerId, TableId, Timestamp, Tombstone,
-};
-use mutable_batch::column::ColumnData;
-use mutable_batch::MutableBatch;
+use iox_catalog::interface::Catalog;
+use mutable_batch::{column::ColumnData, MutableBatch};
 use object_store::ObjectStore;
 use observability_deps::tracing::warn;
 use parking_lot::RwLock;
@@ -30,8 +31,6 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeMap, convert::TryFrom, sync::Arc};
 use time::SystemProvider;
 use uuid::Uuid;
-
-pub use iox_catalog::interface::SequenceNumber;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -1297,18 +1296,15 @@ impl IngesterQueryResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::LifecycleConfig;
-    use crate::test_util::create_tombstone;
+    use crate::{lifecycle::LifecycleConfig, test_util::create_tombstone};
     use arrow_util::assert_batches_sorted_eq;
     use data_types::sequence::Sequence;
+    use data_types2::NamespaceSchema;
     use datafusion::logical_plan::col;
     use dml::{DmlMeta, DmlWrite};
     use futures::TryStreamExt;
-    use iox_catalog::interface::NamespaceSchema;
-    use iox_catalog::mem::MemCatalog;
-    use iox_catalog::validate_or_insert_schema;
-    use mutable_batch_lp::lines_to_batches;
-    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
+    use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
+    use mutable_batch_lp::{lines_to_batches, test_helpers::lp_to_mutable_batch};
     use object_store::ObjectStoreApi;
     use std::time::Duration;
     use test_helpers::assert_error;
