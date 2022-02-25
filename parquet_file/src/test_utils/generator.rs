@@ -92,6 +92,7 @@ impl ChunkGenerator {
             database_checkpoint,
             time_of_first_write: Time::from_timestamp(30, 40),
             time_of_last_write: Time::from_timestamp(50, 60),
+            sort_key: None,
         };
 
         let (record_batches, schema, column_summaries, rows) = match self.config {

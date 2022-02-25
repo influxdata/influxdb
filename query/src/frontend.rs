@@ -6,7 +6,6 @@ pub mod sql;
 mod test {
     use std::sync::Arc;
 
-    use arrow::compute::SortOptions;
     use datafusion::physical_plan::{
         metrics::{self, MetricValue},
         ExecutionPlan, ExecutionPlanVisitor,
@@ -60,18 +59,10 @@ mod test {
     #[tokio::test]
     async fn test_metrics() {
         let (schema, chunks) = get_test_chunks();
-
-        let mut sort_key = SortKey::with_capacity(1);
-        sort_key.push(
-            "time",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
+        let sort_key = SortKey::from_columns(vec!["time", "tag1"]);
 
         // Use a split plan as it has StreamSplitExec, DeduplicateExec and IOxReadFilternode
-        let (_, split_plan) = ReorgPlanner::new()
+        let split_plan = ReorgPlanner::new()
             .split_plan(schema, chunks, sort_key, 1000)
             .expect("created compact plan");
 

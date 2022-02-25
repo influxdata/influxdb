@@ -3,8 +3,6 @@ use std::convert::TryInto;
 use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField};
 use snafu::{ResultExt, Snafu};
 
-use crate::sort::SortKey;
-
 use super::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
 
 /// Database schema creation / validation errors.
@@ -145,20 +143,11 @@ impl SchemaBuilder {
     /// assert_eq!(influxdb_column_type, Some(InfluxColumnType::Timestamp));
     /// ```
     pub fn build(&mut self) -> Result<Schema> {
-        self.build_with_sort_key(&Default::default())
-    }
-
-    pub fn build_with_sort_key(&mut self, sort_key: &SortKey<'_>) -> Result<Schema> {
         assert!(!self.finished, "build called multiple times");
         self.finished = true;
 
-        Schema::new_from_parts(
-            self.measurement.take(),
-            self.fields.drain(..),
-            sort_key,
-            false,
-        )
-        .context(ValidatingSchemaSnafu)
+        Schema::new_from_parts(self.measurement.take(), self.fields.drain(..), false)
+            .context(ValidatingSchemaSnafu)
     }
 
     /// Internal helper method to add a column definition

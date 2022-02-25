@@ -490,6 +490,7 @@ File {
                             chunk_order: ChunkOrder(
                                 1,
                             ),
+                            sort_key: None,
                         },
                     ),
                     schema: Ok(

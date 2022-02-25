@@ -13,10 +13,9 @@ use arrow::datatypes::{
 };
 use hashbrown::HashSet;
 
+use crate::sort::SortKey;
 use selection::Selection;
 use snafu::{OptionExt, Snafu};
-
-use crate::sort::{ColumnSort, SortKey};
 
 /// The name of the timestamp column in the InfluxDB datamodel
 pub const TIME_COLUMN_NAME: &str = "time";
@@ -111,7 +110,6 @@ impl TryFrom<ArrowSchemaRef> for Schema {
 
 const MEASUREMENT_METADATA_KEY: &str = "iox::measurement::name";
 const COLUMN_METADATA_KEY: &str = "iox::column::type";
-const COLUMN_SORT_METADATA_KEY: &str = "iox::column::sort";
 
 impl Schema {
     /// Create a new Schema wrapper over the schema
@@ -161,7 +159,6 @@ impl Schema {
     pub(crate) fn new_from_parts(
         measurement: Option<String>,
         fields: impl Iterator<Item = (ArrowField, Option<InfluxColumnType>)>,
-        sort_key: &SortKey<'_>,
         sort_columns: bool,
     ) -> Result<Self> {
         let mut metadata = HashMap::new();
@@ -170,17 +167,9 @@ impl Schema {
             metadata.insert(MEASUREMENT_METADATA_KEY.to_string(), measurement);
         }
 
-        let mut sort_ordinals = Vec::with_capacity(sort_key.len());
-
         let mut fields: Vec<ArrowField> = fields
             .map(|(mut field, column_type)| {
-                match sort_key.get(field.name()) {
-                    Some(sort) => {
-                        sort_ordinals.push(sort.sort_ordinal);
-                        set_field_metadata(&mut field, column_type, Some(sort))
-                    }
-                    None => set_field_metadata(&mut field, column_type, None),
-                }
+                set_field_metadata(&mut field, column_type);
                 field
             })
             .collect();
@@ -194,77 +183,14 @@ impl Schema {
         let record =
             ArrowSchemaRef::new(ArrowSchema::new_with_metadata(fields, metadata)).try_into()?;
 
-        // This must be after validation in case of duplicate columns
-        sort_ordinals.sort_unstable();
-
-        for (idx, ordinal) in sort_ordinals.iter().enumerate() {
-            if idx != *ordinal {
-                return Err(Error::SortColumnNotFound {
-                    column_name: sort_key.get_index(idx).unwrap().0.to_string(),
-                });
-            }
-        }
-
-        if sort_ordinals.len() != sort_key.len() {
-            return Err(Error::SortColumnNotFound {
-                column_name: sort_key
-                    .get_index(sort_ordinals.len())
-                    .unwrap()
-                    .0
-                    .to_string(),
-            });
-        }
-
         Ok(record)
     }
 
-    /// Set the order of sort columns to the specified `sort_key`
-    pub fn set_sort_key(&mut self, sort_key: &SortKey<'_>) {
-        let fields = self.inner.fields();
-
-        // create a new_fields that are the fields with their sort keys set
-        let new_fields = fields
+    /// Returns true if the sort_key includes all primary key cols
+    pub fn is_sorted_on_pk(&self, sort_key: &SortKey) -> bool {
+        self.primary_key()
             .iter()
-            .map(|field| {
-                let mut new_field = field.clone();
-                let mut meta = std::collections::BTreeMap::new();
-                if let Some(sort) = sort_key.get(field.name()) {
-                    // New sort key
-                    meta.insert(COLUMN_SORT_METADATA_KEY.to_string(), sort.to_string());
-                }
-                // Keep other meta data
-                if let Some(metadata) = field.metadata() {
-                    for (key, value) in metadata {
-                        if key.ne(&COLUMN_SORT_METADATA_KEY.to_string()) {
-                            meta.insert(key.clone(), value.clone());
-                        }
-                    }
-                }
-                new_field.set_metadata(Some(meta));
-
-                new_field
-            })
-            .collect();
-
-        let new_meta = self.inner.metadata().clone();
-        let new_schema = ArrowSchema::new_with_metadata(new_fields, new_meta);
-        self.inner = Arc::new(new_schema);
-    }
-
-    /// Returns true of the sort_key include all primary key cols
-    pub fn is_sorted_on_pk(&self) -> bool {
-        if let Some(sort_key) = self.sort_key() {
-            let key_columns = self.primary_key();
-            for key_col in key_columns {
-                if sort_key.get(key_col).is_none() {
-                    return false; // pk col is not part of the sort key
-                }
-            }
-            true
-        } else {
-            // not sorted yet
-            false
-        }
+            .all(|col| sort_key.get(*col).is_some())
     }
 
     /// Provide a reference to the underlying Arrow Schema object
@@ -425,36 +351,6 @@ impl Schema {
         self.select(Selection::Some(selection))
     }
 
-    /// Returns the sort key if any
-    pub fn sort_key(&self) -> Option<SortKey<'_>> {
-        // Find all the sorted columns
-        let mut columns: Vec<_> = self
-            .inner
-            .fields()
-            .iter()
-            .enumerate()
-            .flat_map(|(idx, field)| Some((idx, get_sort(field)?)))
-            .collect();
-
-        columns.sort_unstable_by_key(|(_, sort)| sort.sort_ordinal);
-
-        let mut sort_key = SortKey::with_capacity(columns.len());
-        for (idx, (column_idx, sort)) in columns.into_iter().enumerate() {
-            // If the schema has been projected with only some of the columns
-            // the sort key may be truncated
-            if sort.sort_ordinal != idx {
-                break;
-            }
-
-            sort_key.push(self.inner.field(column_idx).name().as_str(), sort.options)
-        }
-
-        if !sort_key.is_empty() {
-            return Some(sort_key);
-        }
-        None
-    }
-
     /// Return columns used for the "primary key" in this table.
     ///
     /// Currently this relies on the InfluxDB data model annotations
@@ -501,30 +397,12 @@ pub(crate) fn get_influx_type(field: &ArrowField) -> Option<InfluxColumnType> {
         .ok()
 }
 
-/// Gets the column sort for a field
-pub(crate) fn get_sort(field: &ArrowField) -> Option<ColumnSort> {
-    field
-        .metadata()
-        .as_ref()?
-        .get(COLUMN_SORT_METADATA_KEY)?
-        .parse()
-        .ok()
-}
-
 /// Sets the metadata for a field - replacing any existing metadata
-pub(crate) fn set_field_metadata(
-    field: &mut ArrowField,
-    column_type: Option<InfluxColumnType>,
-    sort: Option<ColumnSort>,
-) {
+pub(crate) fn set_field_metadata(field: &mut ArrowField, column_type: Option<InfluxColumnType>) {
     let mut metadata = std::collections::BTreeMap::new();
 
     if let Some(column_type) = column_type {
         metadata.insert(COLUMN_METADATA_KEY.to_string(), column_type.to_string());
-    }
-
-    if let Some(sort) = sort {
-        metadata.insert(COLUMN_SORT_METADATA_KEY.to_string(), sort.to_string());
     }
 
     field.set_metadata(Some(metadata))
@@ -732,12 +610,8 @@ macro_rules! assert_column_eq {
 
 #[cfg(test)]
 mod test {
-    use arrow::compute::SortOptions;
-
     use InfluxColumnType::*;
     use InfluxFieldType::*;
-
-    use crate::merge::SchemaMerger;
 
     use super::{builder::SchemaBuilder, *};
 
@@ -1159,114 +1033,10 @@ mod test {
     }
 
     #[test]
-    fn test_sort() {
-        let mut sort_key = SortKey::with_capacity(3);
-        sort_key.push("tag4", Default::default());
-        sort_key.push("tag3", Default::default());
-        sort_key.push("tag2", Default::default());
-        sort_key.push("tag1", Default::default());
-        sort_key.push(TIME_COLUMN_NAME, Default::default());
-
-        let schema1 = SchemaBuilder::new()
-            .influx_field("the_field", String)
-            .tag("tag1")
-            .tag("tag2")
-            .tag("tag3")
-            .tag("tag4")
-            .timestamp()
-            .measurement("the_measurement")
-            .build_with_sort_key(&sort_key)
-            .unwrap();
-
-        let projected = schema1
-            .select_by_names(&["tag4", "tag2", "tag3", "time"])
-            .unwrap();
-
-        let projected_key: Vec<_> = projected.sort_key().unwrap().iter().map(|x| *x.0).collect();
-
-        let m1 = SchemaMerger::new().merge(&schema1).unwrap().build();
-
-        let m2 = SchemaMerger::new()
-            .merge(&schema1)
-            .unwrap()
-            .build_with_sort_key(&sort_key);
-
-        assert_eq!(schema1.sort_key().unwrap(), sort_key);
-        assert_eq!(m1.sort_key(), None);
-        assert_eq!(m2.sort_key().unwrap(), sort_key);
-        assert_eq!(projected_key, vec!["tag4", "tag3", "tag2"])
-    }
-
-    #[test]
-    fn test_sort_missing_column() {
-        let mut sort_key = SortKey::with_capacity(3);
-        sort_key.push(
-            "the_field",
-            SortOptions {
-                descending: true,
-                nulls_first: false,
-            },
-        );
-        sort_key.push("a", Default::default());
-        sort_key.push(TIME_COLUMN_NAME, Default::default());
-
-        // Verify missing columns are detected
-        let err = SchemaBuilder::new()
-            .influx_field("the_field", String)
-            .measurement("the_measurement")
-            .build_with_sort_key(&sort_key)
-            .unwrap_err();
-
-        assert!(matches!(
-            err,
-            builder::Error::ValidatingSchema {
-                source: Error::SortColumnNotFound {
-                    column_name
-                }
-            } if &column_name == "a"
-        ));
-
-        // Verify duplicate columns don't break truncation
-        let err = SchemaBuilder::new()
-            .influx_field("the_field", String)
-            .influx_field("a", String)
-            .timestamp()
-            .timestamp()
-            .measurement("the_measurement")
-            .build_with_sort_key(&sort_key)
-            .unwrap_err();
-
-        assert!(matches!(
-            err,
-            builder::Error::ValidatingSchema {
-                source: Error::DuplicateColumnName { .. }
-            }
-        ));
-
-        // Verify sort key gaps are detected
-        let err = SchemaBuilder::new()
-            .influx_field("a", String)
-            .influx_field("the_field", String)
-            .measurement("the_measurement")
-            .build_with_sort_key(&sort_key)
-            .unwrap_err();
-
-        assert!(matches!(err, builder::Error::ValidatingSchema {
-            source: Error::SortColumnNotFound {
-                column_name
-            }
-        } if &column_name == "time" ));
-    }
-
-    #[test]
     fn test_is_sort_on_pk() {
         // Sort key the same as pk
-        let mut sort_key = SortKey::with_capacity(3);
-        sort_key.with_col("tag4");
-        sort_key.with_col("tag3");
-        sort_key.with_col("tag2");
-        sort_key.with_col("tag1");
-        sort_key.with_col(TIME_COLUMN_NAME);
+        let sort_key =
+            SortKey::from_columns(vec!["tag4", "tag3", "tag2", "tag1", TIME_COLUMN_NAME]);
 
         let schema = SchemaBuilder::new()
             .influx_field("the_field", String)
@@ -1276,29 +1046,13 @@ mod test {
             .tag("tag4")
             .timestamp()
             .measurement("the_measurement")
-            .build_with_sort_key(&sort_key)
+            .build()
             .unwrap();
-        assert!(schema.is_sorted_on_pk());
+        assert!(schema.is_sorted_on_pk(&sort_key));
 
         // Sort key does not include all pk cols
-        let mut sort_key = SortKey::with_capacity(3);
-        sort_key.with_col("tag3");
-        sort_key.with_col("tag1");
-        sort_key.with_col(TIME_COLUMN_NAME);
+        let sort_key = SortKey::from_columns(vec!["tag3", "tag1", TIME_COLUMN_NAME]);
 
-        let schema = SchemaBuilder::new()
-            .influx_field("the_field", String)
-            .tag("tag1")
-            .tag("tag2")
-            .tag("tag3")
-            .tag("tag4")
-            .timestamp()
-            .measurement("the_measurement")
-            .build_with_sort_key(&sort_key)
-            .unwrap();
-        assert!(!schema.is_sorted_on_pk());
-
-        // No sort key
         let schema = SchemaBuilder::new()
             .influx_field("the_field", String)
             .tag("tag1")
@@ -1309,19 +1063,10 @@ mod test {
             .measurement("the_measurement")
             .build()
             .unwrap();
-        assert!(!schema.is_sorted_on_pk());
-
-        // No PK, no sort key
-        let schema = SchemaBuilder::new()
-            .influx_field("the_field", String)
-            .measurement("the_measurement")
-            .build()
-            .unwrap();
-        assert!(!schema.is_sorted_on_pk());
+        assert!(!schema.is_sorted_on_pk(&sort_key));
 
         // No PK, sort key on non pk
-        let mut sort_key = SortKey::with_capacity(3);
-        sort_key.with_col("the_field");
+        let sort_key = SortKey::from_columns(vec!["the_field"]);
 
         let schema = SchemaBuilder::new()
             .influx_field("the_field", String)
@@ -1331,8 +1076,8 @@ mod test {
             .tag("tag4")
             .timestamp()
             .measurement("the_measurement")
-            .build_with_sort_key(&sort_key)
+            .build()
             .unwrap();
-        assert!(!schema.is_sorted_on_pk());
+        assert!(!schema.is_sorted_on_pk(&sort_key));
     }
 }

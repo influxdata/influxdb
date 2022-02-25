@@ -8,8 +8,6 @@ use hashbrown::hash_map::RawEntryMut;
 use hashbrown::HashMap;
 use snafu::Snafu;
 
-use crate::sort::SortKey;
-
 use super::{InfluxColumnType, Schema};
 
 /// Database schema creation / validation errors.
@@ -137,7 +135,7 @@ impl SchemaMerger {
         Ok(self)
     }
 
-    fn merge_field(
+    pub fn merge_field(
         &mut self,
         field: &Field,
         column_type: Option<InfluxColumnType>,
@@ -187,18 +185,10 @@ impl SchemaMerger {
     }
 
     /// Returns the schema that was built, the columns are always sorted in lexicographic order
-    pub fn build(self) -> Schema {
-        self.build_with_sort_key(&Default::default())
-    }
-
-    /// Returns the schema that was built, the columns are always sorted in lexicographic order
-    ///
-    /// Additionally specifies a sort key for the data
-    pub fn build_with_sort_key(mut self, sort_key: &SortKey<'_>) -> Schema {
+    pub fn build(mut self) -> Schema {
         Schema::new_from_parts(
             self.measurement.take(),
             self.fields.drain().map(|x| x.1),
-            sort_key,
             true,
         )
         .expect("failed to build merged schema")

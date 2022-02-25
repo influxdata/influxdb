@@ -60,6 +60,7 @@ pub(super) fn write_chunk_to_object_store(
     let table_name = Arc::clone(&addr.table_name);
     let partition_key = Arc::clone(&addr.partition_key);
     let chunk_order = chunk.order();
+    let sort_key = chunk.sort_key().cloned();
     let delete_predicates = chunk.delete_predicates().to_vec();
 
     let (tracker, registration) = db.jobs.register(Job::WriteChunk {
@@ -134,6 +135,7 @@ pub(super) fn write_chunk_to_object_store(
                 time_of_first_write,
                 time_of_last_write,
                 chunk_order,
+                sort_key,
             };
 
             let written_result = timeout(

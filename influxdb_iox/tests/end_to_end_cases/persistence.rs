@@ -259,7 +259,11 @@ async fn create_readbuffer_chunk(fixture: &ServerFixture, db_name: &str) -> Chun
 
     let partition_key = "cpu";
     let table_name = "cpu";
-    let lp_lines = vec!["cpu,region=west user=23.2 100"];
+    let lp_lines = vec![
+        "cpu,region=west,host=a user=23.2 100",
+        "cpu,region=west,host=b user=34.2 100",
+        "cpu,region=east,host=c user=54.2 100",
+    ];
 
     write_client
         .write_lp(db_name, lp_lines.join("\n"), 0)
@@ -310,7 +314,7 @@ async fn create_readbuffer_chunk(fixture: &ServerFixture, db_name: &str) -> Chun
 
 async fn assert_chunk_query_works(fixture: &ServerFixture, db_name: &str) {
     let mut client = fixture.flight_client();
-    let sql_query = "select region, user, time from cpu";
+    let sql_query = "select region, host, user, time from cpu";
 
     let batches = client
         .perform_query(db_name, sql_query)
@@ -321,12 +325,35 @@ async fn assert_chunk_query_works(fixture: &ServerFixture, db_name: &str) {
         .unwrap();
 
     let expected_read_data = vec![
-        "+--------+------+--------------------------------+",
-        "| region | user | time                           |",
-        "+--------+------+--------------------------------+",
-        "| west   | 23.2 | 1970-01-01T00:00:00.000000100Z |",
-        "+--------+------+--------------------------------+",
+        "+--------+------+------+--------------------------------+",
+        "| region | host | user | time                           |",
+        "+--------+------+------+--------------------------------+",
+        "| east   | c    | 54.2 | 1970-01-01T00:00:00.000000100Z |",
+        "| west   | a    | 23.2 | 1970-01-01T00:00:00.000000100Z |",
+        "| west   | b    | 34.2 | 1970-01-01T00:00:00.000000100Z |",
+        "+--------+------+------+--------------------------------+",
     ];
 
     assert_batches_eq!(expected_read_data, &batches);
+
+    let batches = client
+        .perform_query(db_name, "select column_name, row_count, null_count, min_value, max_value, sort_ordinal from system.chunk_columns")
+        .await
+        .unwrap()
+        .collect()
+        .await
+        .unwrap();
+
+    let expected_columns = vec![
+        "+-------------+-----------+------------+-----------+-----------+--------------+",
+        "| column_name | row_count | null_count | min_value | max_value | sort_ordinal |",
+        "+-------------+-----------+------------+-----------+-----------+--------------+",
+        "| host        | 3         | 0          | a         | c         | 1            |",
+        "| region      | 3         | 0          | east      | west      | 0            |",
+        "| time        | 3         | 0          | 100       | 100       | 2            |",
+        "| user        | 3         | 0          | 23.2      | 54.2      |              |",
+        "+-------------+-----------+------------+-----------+-----------+--------------+",
+    ];
+
+    assert_batches_eq!(expected_columns, &batches);
 }

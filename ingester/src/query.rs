@@ -129,6 +129,10 @@ impl QueryChunkMeta for QueryableBatch {
         merge_record_batch_schemas(&batches)
     }
 
+    fn sort_key(&self) -> Option<&SortKey> {
+        None
+    }
+
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         self.delete_predicates.as_ref()
     }
@@ -268,16 +272,6 @@ impl QueryChunk for QueryableBatch {
         let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
         let stream = SizedRecordBatchStream::new(schema.as_arrow(), stream_batches, mem_metrics);
         Ok(Box::pin(stream))
-    }
-
-    /// Returns true if data of this chunk is sorted
-    fn is_sorted_on_pk(&self) -> bool {
-        false
-    }
-
-    /// Returns the sort key of the chunk if any
-    fn sort_key(&self) -> Option<SortKey<'_>> {
-        None
     }
 
     /// Returns chunk type

@@ -380,6 +380,7 @@ mod tests {
             time_of_first_write: Time::from_timestamp_nanos(0),
             time_of_last_write: Time::from_timestamp_nanos(0),
             chunk_order: ChunkOrder::new(5).unwrap(),
+            sort_key: None,
         };
         let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new(record_batches));
         let (path, file_size_bytes, metadata) = storage

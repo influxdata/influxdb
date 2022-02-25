@@ -113,6 +113,7 @@ use persistence_windows::{
     min_max_sequence::OptionalMinMaxSequence,
 };
 use prost::Message;
+use schema::sort::{SortKey, SortKeyBuilder};
 use schema::{InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
@@ -293,6 +294,9 @@ pub struct IoxMetadataOld {
 
     /// Order of this chunk relative to other overlapping chunks.
     pub chunk_order: ChunkOrder,
+
+    /// Sort key of this chunk
+    pub sort_key: Option<SortKey>,
 }
 
 impl IoxMetadataOld {
@@ -332,6 +336,7 @@ impl IoxMetadataOld {
                 .context(IoxMetadataFieldMissingSnafu {
                     field: "partition_checkpoint",
                 })?;
+
         let sequencer_numbers = proto_partition_checkpoint
             .sequencer_numbers
             .into_iter()
@@ -345,6 +350,7 @@ impl IoxMetadataOld {
                 }
             })
             .collect::<Result<BTreeMap<u32, OptionalMinMaxSequence>>>()?;
+
         let flush_timestamp = decode_timestamp_from_field(
             proto_partition_checkpoint.flush_timestamp,
             "partition_checkpoint.flush_timestamp",
@@ -363,6 +369,7 @@ impl IoxMetadataOld {
                 .context(IoxMetadataFieldMissingSnafu {
                     field: "database_checkpoint",
                 })?;
+
         let sequencer_numbers = proto_database_checkpoint
             .sequencer_numbers
             .into_iter()
@@ -376,7 +383,16 @@ impl IoxMetadataOld {
                 }
             })
             .collect::<Result<BTreeMap<u32, OptionalMinMaxSequence>>>()?;
+
         let database_checkpoint = DatabaseCheckpoint::new(sequencer_numbers);
+
+        let sort_key = proto_msg.sort_key.map(|proto_key| {
+            let mut builder = SortKeyBuilder::with_capacity(proto_key.expressions.len());
+            for expr in proto_key.expressions {
+                builder = builder.with_col_opts(expr.column, expr.descending, expr.nulls_first)
+            }
+            builder.build()
+        });
 
         Ok(Self {
             creation_timestamp,
@@ -395,6 +411,7 @@ impl IoxMetadataOld {
                     field: "chunk_order".to_string(),
                 }
             })?,
+            sort_key,
         })
     }
 
@@ -442,6 +459,20 @@ impl IoxMetadataOld {
                 .collect(),
         };
 
+        let sort_key = self
+            .sort_key
+            .as_ref()
+            .map(|key| preserved_catalog::SortKey {
+                expressions: key
+                    .iter()
+                    .map(|(name, options)| preserved_catalog::sort_key::Expr {
+                        column: name.to_string(),
+                        descending: options.descending,
+                        nulls_first: options.nulls_first,
+                    })
+                    .collect(),
+            });
+
         let proto_msg = preserved_catalog::IoxMetadata {
             version: METADATA_VERSION,
             creation_timestamp: Some(self.creation_timestamp.date_time().into()),
@@ -453,6 +484,7 @@ impl IoxMetadataOld {
             partition_checkpoint: Some(proto_partition_checkpoint),
             database_checkpoint: Some(proto_database_checkpoint),
             chunk_order: self.chunk_order.get(),
+            sort_key,
         };
 
         let mut buf = Vec::new();
@@ -1203,6 +1235,7 @@ mod tests {
             time_of_first_write: Time::from_timestamp(3234, 0),
             time_of_last_write: Time::from_timestamp(3234, 3456),
             chunk_order: ChunkOrder::new(5).unwrap(),
+            sort_key: None,
         };
 
         let proto_bytes = metadata.to_protobuf().unwrap();

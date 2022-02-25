@@ -12,6 +12,7 @@ use data_types::{
     error::ErrorLogger,
     partition_metadata::{ColumnSummary, PartitionSummary, TableSummary},
 };
+use schema::sort::SortKey;
 
 use crate::{
     catalog::Catalog,
@@ -130,7 +131,7 @@ impl IoxSystemTable for ChunkColumnsTable {
                 (
                     chunk.table_summary(),
                     chunk.detailed_summary(),
-                    chunk.schema(),
+                    chunk.sort_key().cloned(),
                 )
             });
 
@@ -159,7 +160,7 @@ fn chunk_columns_schema() -> SchemaRef {
 
 fn assemble_chunk_columns(
     schema: SchemaRef,
-    chunk_summaries: Vec<(Arc<TableSummary>, DetailedChunkSummary, Arc<schema::Schema>)>,
+    chunk_summaries: Vec<(Arc<TableSummary>, DetailedChunkSummary, Option<SortKey>)>,
 ) -> Result<RecordBatch> {
     // Create an iterator over each column in each table in each chunk
     // so we can build  `chunk_columns` column by column
@@ -171,16 +172,14 @@ fn assemble_chunk_columns(
 
     let rows = chunk_summaries
         .iter()
-        .map(|(table_summary, chunk_summary, schema)| {
-            let sort_key = schema.sort_key().unwrap_or_default();
-
+        .map(|(table_summary, chunk_summary, sort_key)| {
             table_summary
                 .columns
                 .iter()
                 .map(move |column_summary| EachColumn {
                     chunk_summary,
                     column_summary,
-                    column_sort: sort_key.get(&column_summary.name),
+                    column_sort: sort_key.as_ref().and_then(|x| x.get(&column_summary.name)),
                 })
         })
         .flatten()
@@ -300,7 +299,6 @@ mod tests {
         chunk_metadata::{ChunkColumnSummary, ChunkId, ChunkOrder, ChunkStorage, ChunkSummary},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
     };
-    use schema::builder::SchemaBuilder;
     use schema::sort::SortKey;
     use time::Time;
 
@@ -367,25 +365,7 @@ mod tests {
     fn test_assemble_chunk_columns() {
         let lifecycle_action = None;
 
-        let mut sort1 = SortKey::default();
-        sort1.push("c2", Default::default());
-        sort1.push("c1", Default::default());
-
-        let schema1 = SchemaBuilder::new()
-            .field("c1", DataType::Utf8)
-            .field("c2", DataType::Float64)
-            .build_with_sort_key(&sort1)
-            .unwrap();
-
-        let schema2 = SchemaBuilder::new()
-            .field("c1", DataType::Float64)
-            .build()
-            .unwrap();
-
-        let schema3 = SchemaBuilder::new()
-            .field("c3", DataType::Float64)
-            .build()
-            .unwrap();
+        let sort = SortKey::from_columns(vec!["c2", "c1"]);
 
         let summaries = vec![
             (
@@ -435,7 +415,7 @@ mod tests {
                         },
                     ],
                 },
-                Arc::new(schema1),
+                Some(sort),
             ),
             (
                 Arc::new(TableSummary {
@@ -466,7 +446,7 @@ mod tests {
                         memory_bytes: 100,
                     }],
                 },
-                Arc::new(schema2),
+                None,
             ),
             (
                 Arc::new(TableSummary {
@@ -497,7 +477,7 @@ mod tests {
                         memory_bytes: 200,
                     }],
                 },
-                Arc::new(schema3),
+                None,
             ),
         ];
 

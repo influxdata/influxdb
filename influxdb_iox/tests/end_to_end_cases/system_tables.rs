@@ -27,7 +27,7 @@ async fn test_operations() {
     write_client
         .write_lp(&db_name1, lp_lines.join("\n"), 0)
         .await
-        .expect("write succeded");
+        .expect("write succeeded");
 
     let chunks = list_chunks(&fixture, &db_name1).await;
     let chunk_id = chunks[0].id;

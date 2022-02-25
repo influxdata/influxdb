@@ -121,6 +121,7 @@ impl DbChunk {
                     delete_predicates: vec![], // open chunk does not have delete predicate
                     time_of_first_write: *time_of_first_write,
                     time_of_last_write: *time_of_last_write,
+                    sort_key: None,
                 };
                 (state, Arc::new(meta))
             }
@@ -535,20 +536,6 @@ impl QueryChunk for DbChunk {
         }
     }
 
-    /// Returns true if the chunk is sorted on its pk
-    /// Since data is compacted prior being moved to RUBs, data in RUBs and OBs
-    /// should be sorted on their PK as the results of compacting.
-    /// However, since we current sorted data based on their cardinality (see compute_sort_key),
-    /// 2 different chunks may be sorted on different order of key columns.
-    fn is_sorted_on_pk(&self) -> bool {
-        self.schema().is_sorted_on_pk()
-    }
-
-    /// Returns the sort key of the chunk if any
-    fn sort_key(&self) -> Option<SortKey<'_>> {
-        self.meta.schema.sort_key()
-    }
-
     fn chunk_type(&self) -> &str {
         match &self.state {
             State::MutableBuffer { .. } => "MUB",
@@ -569,6 +556,10 @@ impl QueryChunkMeta for DbChunk {
 
     fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.meta.schema)
+    }
+
+    fn sort_key(&self) -> Option<&SortKey> {
+        self.meta.sort_key.as_ref()
     }
 
     // return a reference to delete predicates of the chunk

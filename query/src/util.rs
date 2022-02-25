@@ -55,22 +55,23 @@ pub fn arrow_pk_sort_exprs(
 }
 
 pub fn arrow_sort_key_exprs(
-    sort_key: &SortKey<'_>,
+    sort_key: &SortKey,
     input_schema: &ArrowSchema,
 ) -> Vec<PhysicalSortExpr> {
-    let mut sort_exprs = vec![];
-    for (key, options) in sort_key.iter() {
-        let expr = physical_col(key, input_schema).expect("sort key column in schema");
-        sort_exprs.push(PhysicalSortExpr {
-            expr,
-            options: SortOptions {
-                descending: options.descending,
-                nulls_first: options.nulls_first,
-            },
-        });
-    }
-
-    sort_exprs
+    sort_key
+        .iter()
+        .flat_map(|(key, options)| {
+            // Skip over missing columns
+            let expr = physical_col(key, input_schema).ok()?;
+            Some(PhysicalSortExpr {
+                expr,
+                options: SortOptions {
+                    descending: options.descending,
+                    nulls_first: options.nulls_first,
+                },
+            })
+        })
+        .collect()
 }
 
 /// Build a datafusion physical expression from its logical one

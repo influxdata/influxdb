@@ -95,6 +95,8 @@ pub fn persist_chunks(
             return Ok(None);
         }
 
+        let query_chunk_len = query_chunks.len();
+
         let time_of_first_write =
             time_of_first_write.expect("Should have had a first write somewhere");
 
@@ -104,17 +106,16 @@ pub fn persist_chunks(
         let summaries = query_chunks
             .iter()
             .map(|x| x.summary().expect("Chunk should have summary"));
-        let key = compute_sort_key(summaries);
-        let key_str = format!("\"{}\"", key); // for logging
+
+        let sort_key = compute_sort_key(summaries);
 
         // build schema
         let schema = merge_schemas(&query_chunks);
 
-        // Cannot move query_chunks as the sort key borrows the column names
-        let (schema, plan) = ReorgPlanner::new().split_plan(
-            schema,
-            query_chunks.iter().map(Arc::clone),
-            key,
+        let plan = ReorgPlanner::new().split_plan(
+            Arc::clone(&schema),
+            query_chunks,
+            sort_key.clone(),
             flush_timestamp,
         )?;
 
@@ -170,6 +171,7 @@ pub fn persist_chunks(
                     delete_predicates: delete_predicates.clone(),
                     time_of_first_write,
                     time_of_last_write,
+                    sort_key: Some(sort_key.clone()),
                 };
 
                 partition_write.create_rub_chunk(None, max_order, metadata, remainder);
@@ -193,6 +195,7 @@ pub fn persist_chunks(
                 delete_predicates,
                 time_of_first_write,
                 time_of_last_write,
+                sort_key: Some(sort_key.clone()),
             };
 
             let (new_chunk_id, new_chunk) = partition_write.create_rub_chunk(
@@ -220,9 +223,9 @@ pub fn persist_chunks(
         // input rows per second
         let throughput = (input_rows as u128 * 1_000_000_000) / elapsed.as_nanos();
 
-        info!(input_chunks=query_chunks.len(),
+        info!(input_chunks=query_chunk_len,
               input_rows, persisted_rows, remainder_rows,
-              sort_key=%key_str, compaction_took = ?elapsed,
+              sort_key=%sort_key, compaction_took = ?elapsed,
               ?max_persistable_timestamp,
               rows_per_sec=?throughput,  "chunk(s) persisted");
 

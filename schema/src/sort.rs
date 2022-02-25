@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{fmt::Display, str::FromStr};
 
 use arrow::compute::SortOptions;
@@ -68,22 +69,79 @@ impl std::fmt::Display for ColumnSort {
     }
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Clone)]
-pub struct SortKey<'a> {
-    columns: IndexMap<&'a str, SortOptions>,
+#[derive(Debug, Default)]
+pub struct SortKeyBuilder {
+    columns: IndexMap<Arc<str>, SortOptions>,
 }
 
-impl<'a> SortKey<'a> {
-    /// Create a new empty sort key that can store `capacity` columns without allocating
+impl SortKeyBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             columns: IndexMap::with_capacity(capacity),
         }
     }
 
-    /// Adds a new column to the end of this sort key
-    pub fn push(&mut self, column: &'a str, options: SortOptions) {
-        self.columns.insert(column, options);
+    pub fn with_col(self, column: impl Into<Arc<str>>) -> Self {
+        self.with_col_sort_opts(column, Default::default())
+    }
+
+    /// Helper to insert col with specified sort options into sort key
+    pub fn with_col_opts(
+        self,
+        col: impl Into<Arc<str>>,
+        descending: bool,
+        nulls_first: bool,
+    ) -> Self {
+        self.with_col_sort_opts(
+            col,
+            SortOptions {
+                descending,
+                nulls_first,
+            },
+        )
+    }
+
+    pub fn with_col_sort_opts(mut self, col: impl Into<Arc<str>>, options: SortOptions) -> Self {
+        self.columns.insert(col.into(), options);
+        self
+    }
+
+    pub fn build(self) -> SortKey {
+        SortKey {
+            columns: Arc::new(self.columns),
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct SortKey {
+    columns: Arc<IndexMap<Arc<str>, SortOptions>>,
+}
+
+impl SortKey {
+    /// Create a new empty sort key
+    pub fn empty() -> Self {
+        SortKey {
+            columns: Default::default(),
+        }
+    }
+
+    /// Create a new sort key from the provided columns
+    pub fn from_columns<C, I>(columns: C) -> Self
+    where
+        C: IntoIterator<Item = I>,
+        I: Into<Arc<str>>,
+    {
+        let iter = columns.into_iter();
+        let mut builder = SortKeyBuilder::with_capacity(iter.size_hint().0);
+        for c in iter {
+            builder = builder.with_col(c);
+        }
+        builder.build()
     }
 
     /// Gets the ColumnSort for a given column name
@@ -96,10 +154,8 @@ impl<'a> SortKey<'a> {
     }
 
     /// Gets the column for a given index
-    pub fn get_index(&self, idx: usize) -> Option<(&'a str, SortOptions)> {
-        self.columns
-            .get_index(idx)
-            .map(|(col, options)| (*col, *options))
+    pub fn get_index(&self, idx: usize) -> Option<(&Arc<str>, &SortOptions)> {
+        self.columns.get_index(idx)
     }
 
     /// Return the index of the given column and its sort option. Return None otherwise.
@@ -116,7 +172,7 @@ impl<'a> SortKey<'a> {
     }
 
     /// Returns an iterator over the columns in this key
-    pub fn iter(&self) -> Iter<'_, &'a str, SortOptions> {
+    pub fn iter(&self) -> Iter<'_, Arc<str>, SortOptions> {
         self.columns.iter()
     }
 
@@ -128,23 +184,6 @@ impl<'a> SortKey<'a> {
     /// Returns if this sort key is empty
     pub fn is_empty(&self) -> bool {
         self.columns.is_empty()
-    }
-
-    /// Returns a subset of the sort key that includes only the given columns
-    pub fn selected_sort_key(&self, select_keys: Vec<&str>) -> SortKey<'a> {
-        let keys: IndexMap<&'a str, SortOptions> = self
-            .columns
-            .iter()
-            .filter_map(|(col, options)| {
-                if select_keys.iter().any(|key| key == col) {
-                    Some((*col, *options))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        SortKey { columns: keys }
     }
 
     /// Returns merge key of the 2 given keys if one covers the other. Returns None otherwise.
@@ -165,28 +204,19 @@ impl<'a> SortKey<'a> {
     ///        super key of (a, b, c) and any of { b, a), (c, a), (c, b), (b, a, c), (b, c, a), (c, a, b), (c, b, a) } is None
     ///
     ///  Note that the last column in the sort key must be time
-    pub fn try_merge_key(key1: &SortKey<'a>, key2: &SortKey<'a>) -> Option<SortKey<'a>> {
+    pub fn try_merge_key<'a>(key1: &'a SortKey, key2: &'a SortKey) -> Option<&'a SortKey> {
         if key1.is_empty() || key2.is_empty() {
             panic!("Sort key cannot be empty");
         }
 
-        let key1 = key1.clone();
-        let key2 = key2.clone();
-
         // Verify if time column in the sort key
-        match key1.columns.get_index_of(TIME_COLUMN_NAME) {
-            None => panic!("Time column is not included in the sort key {:#?}", key1),
-            Some(idx) => {
-                if idx < key1.len() - 1 {
-                    panic!("Time column is not last in the sort key {:#?}", key1)
-                }
-            }
-        }
-        match key2.columns.get_index_of(TIME_COLUMN_NAME) {
-            None => panic!("Time column is not included in the sort key {:#?}", key2),
-            Some(idx) => {
-                if idx < key2.len() - 1 {
-                    panic!("Time column is not last in the sort key {:#?}", key2)
+        for key in [&key1, &key2] {
+            match key.columns.get_index_of(TIME_COLUMN_NAME) {
+                None => panic!("Time column is not included in the sort key {:#?}", key),
+                Some(idx) => {
+                    if idx < key.len() - 1 {
+                        panic!("Time column is not last in the sort key {:#?}", key)
+                    }
                 }
             }
         }
@@ -199,7 +229,7 @@ impl<'a> SortKey<'a> {
 
         // Go over short key and check its right-order availability in the long key
         let mut prev_long_idx: Option<usize> = None;
-        for (col, sort_options) in &short_key.columns {
+        for (col, sort_options) in short_key.columns.iter() {
             if let Some(long_idx) = long_key.find_index(col, sort_options) {
                 match prev_long_idx {
                     None => prev_long_idx = Some(long_idx),
@@ -222,29 +252,13 @@ impl<'a> SortKey<'a> {
         // Reach here means the long key is the super key of the sort one
         Some(long_key)
     }
-
-    /// Helper to insert col with default sort options into sort key
-    pub fn with_col(&mut self, col: &'a str) {
-        self.push(col, Default::default());
-    }
-
-    /// Helper to insert col with specified sort options into sort key
-    pub fn with_col_opts(&mut self, col: &'a str, descending: bool, nulls_first: bool) {
-        self.push(
-            col,
-            SortOptions {
-                descending,
-                nulls_first,
-            },
-        );
-    }
 }
 
 // Produces a human-readable representation of a sort key that looks like:
 //
 //  "host, region DESC, env NULLS FIRST, time"
 //
-impl<'a> Display for SortKey<'a> {
+impl Display for SortKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         for (i, (name, options)) in self.columns.iter().enumerate() {
             write!(f, "{}", name)?;
@@ -305,10 +319,7 @@ mod tests {
 
     #[test]
     fn test_basic() {
-        let mut key = SortKey::with_capacity(3);
-        key.push("a", Default::default());
-        key.push("c", Default::default());
-        key.push("b", Default::default());
+        let key = SortKey::from_columns(vec!["a", "c", "b"]);
 
         assert_eq!(key.len(), 3);
         assert!(!key.is_empty());
@@ -339,48 +350,50 @@ mod tests {
 
     #[test]
     fn test_sort_key_eq() {
-        let mut key1 = SortKey::with_capacity(1);
-        key1.with_col("a");
+        let key1 = SortKey::from_columns(vec!["a"]);
 
-        let mut key1_2 = SortKey::with_capacity(2);
-        key1_2.with_col("a");
-        key1_2.with_col_opts("b", true, false);
+        let key1_2 = SortKeyBuilder::with_capacity(2)
+            .with_col("a")
+            .with_col_opts("b", true, false)
+            .build();
 
-        let key2 = SortKey::with_capacity(2);
+        let key2 = SortKey::empty();
 
         // different keys
         assert_ne!(key1, key2);
         assert_ne!(key1_2, key2);
         assert_ne!(key1, key1_2);
 
-        let mut key3 = SortKey::with_capacity(1);
-        key3.with_col("a");
+        let key3 = SortKey::from_columns(vec!["a"]);
 
-        let mut key3_2 = SortKey::with_capacity(2);
-        key3_2.with_col("a");
-        key3_2.with_col_opts("b", true, false);
+        let key3_2 = SortKeyBuilder::with_capacity(2)
+            .with_col("a")
+            .with_col_opts("b", true, false)
+            .build();
 
         // same
         assert_eq!(key1, key3);
         assert_eq!(key1_2, key3_2);
 
-        let mut key4 = SortKey::with_capacity(1);
-        key4.with_col("aa");
+        let key4 = SortKey::from_columns(vec!["aa"]);
 
-        let mut key4_2 = SortKey::with_capacity(2);
-        key4_2.with_col("aa");
-        key4_2.with_col_opts("bb", true, false);
+        let key4_2 = SortKeyBuilder::with_capacity(2)
+            .with_col("aa")
+            .with_col_opts("bb", true, false)
+            .build();
 
         // different key, same value
         assert_ne!(key1, key4);
         assert_ne!(key1_2, key4_2);
 
-        let mut key5 = SortKey::with_capacity(1);
-        key5.with_col_opts("a", true, true);
+        let key5 = SortKeyBuilder::with_capacity(1)
+            .with_col_opts("a", true, true)
+            .build();
 
-        let mut key5_2 = SortKey::with_capacity(2);
-        key5_2.with_col_opts("a", true, true);
-        key5_2.with_col_opts("b", false, true);
+        let key5_2 = SortKeyBuilder::with_capacity(2)
+            .with_col_opts("a", true, true)
+            .with_col_opts("b", false, true)
+            .build();
 
         // same key, different value
         assert_ne!(key1, key5);
@@ -390,39 +403,41 @@ mod tests {
     // Note that the last column must be TIME_COLUMN_NAME to avoid panicking
     #[test]
     fn test_super_sort_key() {
-        // key (a) with default sort options (false, true)
-        let mut key_a = SortKey::with_capacity(1);
         let a = TIME_COLUMN_NAME;
-        key_a.with_col(a);
+        // key (a) with default sort options (false, true)
+        let key_a = SortKey::from_columns(vec![a]);
+
         // key (a) with explicitly defined sort options
-        let mut key_a_2 = SortKey::with_capacity(1);
-        key_a_2.with_col_opts(a, true, false);
+        let key_a_2 = SortKeyBuilder::with_capacity(1)
+            .with_col_opts(TIME_COLUMN_NAME, true, false)
+            .build();
 
         // super key of (a) and (a) is (a)
         let merge_key = SortKey::try_merge_key(&key_a, &key_a).unwrap();
-        assert_eq!(merge_key, key_a);
+        assert_eq!(merge_key, &key_a);
         let merge_key = SortKey::try_merge_key(&key_a_2, &key_a_2).unwrap();
-        assert_eq!(merge_key, key_a_2);
+        assert_eq!(merge_key, &key_a_2);
 
         // (a,b)
         let b = TIME_COLUMN_NAME;
-        let mut key_ab = SortKey::with_capacity(2);
-        key_ab.with_col("a");
-        key_ab.with_col(b);
-        let mut key_ab_2 = SortKey::with_capacity(2);
-        key_ab_2.with_col_opts("a", true, false);
-        key_ab_2.with_col_opts(b, false, false);
+        let key_ab = SortKey::from_columns(vec!["a", TIME_COLUMN_NAME]);
+        let key_ab_2 = SortKeyBuilder::with_capacity(2)
+            .with_col_opts("a", true, false)
+            .with_col_opts(b, false, false)
+            .build();
+
         //(b)
-        let mut key_b = SortKey::with_capacity(1);
-        key_b.with_col(b);
-        let mut key_b_2 = SortKey::with_capacity(1);
-        key_b_2.with_col_opts(b, false, false);
+        let key_b = SortKey::from_columns(vec![b]);
+
+        let key_b_2 = SortKeyBuilder::with_capacity(1)
+            .with_col_opts(b, false, false)
+            .build();
 
         // super key of (a, b) and (b) is (a, b)
         let merge_key = SortKey::try_merge_key(&key_ab, &key_b).unwrap();
-        assert_eq!(merge_key, key_ab);
+        assert_eq!(merge_key, &key_ab);
         let merge_key = SortKey::try_merge_key(&key_ab_2, &key_b_2).unwrap();
-        assert_eq!(merge_key, key_ab_2);
+        assert_eq!(merge_key, &key_ab_2);
         // super key of (a, b) and (b') is None
         let merge_key = SortKey::try_merge_key(&key_ab, &key_b_2);
         assert_eq!(merge_key, None);
@@ -431,9 +446,9 @@ mod tests {
 
         // super key of (a, b) and (a, b) is (a, b)
         let merge_key = SortKey::try_merge_key(&key_ab, &key_ab).unwrap();
-        assert_eq!(merge_key, key_ab);
+        assert_eq!(merge_key, &key_ab);
         let merge_key = SortKey::try_merge_key(&key_ab_2, &key_ab_2).unwrap();
-        assert_eq!(merge_key, key_ab_2);
+        assert_eq!(merge_key, &key_ab_2);
         // super key of (a, b) and (a',b') is None
         let merge_key = SortKey::try_merge_key(&key_ab, &key_ab_2);
         assert_eq!(merge_key, None);
@@ -442,103 +457,46 @@ mod tests {
 
         // (a, b, c)
         let c = TIME_COLUMN_NAME;
-        let mut key_abc_2 = SortKey::with_capacity(3);
-        key_abc_2.with_col_opts("a", true, false);
-        key_abc_2.with_col_opts("b", false, false);
-        key_abc_2.with_col_opts(c, true, true);
+        let key_abc_2 = SortKeyBuilder::with_capacity(3)
+            .with_col_opts("a", true, false)
+            .with_col_opts("b", false, false)
+            .with_col_opts(c, true, true)
+            .build();
 
         //  (c)
-        let mut key_c_2 = SortKey::with_capacity(1);
-        key_c_2.with_col_opts(c, true, true);
+        let key_c_2 = SortKeyBuilder::with_capacity(1)
+            .with_col_opts(c, true, true)
+            .build();
 
         // (a, c)
-        let mut key_ac_2 = SortKey::with_capacity(2);
-        key_ac_2.with_col_opts("a", true, false);
-        key_ac_2.with_col_opts(c, true, true);
+        let key_ac_2 = SortKeyBuilder::with_capacity(2)
+            .with_col_opts("a", true, false)
+            .with_col_opts(c, true, true)
+            .build();
 
         // (b,c)
-        let mut key_bc_2 = SortKey::with_capacity(2);
-        key_bc_2.with_col_opts("b", false, false);
-        key_bc_2.with_col_opts(c, true, true);
+        let key_bc_2 = SortKeyBuilder::with_capacity(2)
+            .with_col_opts("b", false, false)
+            .with_col_opts(c, true, true)
+            .build();
 
         // (b,a,c)
-        let mut key_bac_2 = SortKey::with_capacity(3);
-        key_bac_2.with_col_opts("b", false, false);
-        key_bac_2.with_col_opts("a", true, false);
-        key_bac_2.with_col_opts(c, true, true);
+        let key_bac_2 = SortKeyBuilder::with_capacity(3)
+            .with_col_opts("b", false, false)
+            .with_col_opts("a", true, false)
+            .with_col_opts(c, true, true)
+            .build();
 
         // super key of (a, b, c) and any of {  (a, c), (b, c), (a), (b), (c)  } is (a, b, c)
         let merge_key = SortKey::try_merge_key(&key_abc_2, &key_c_2).unwrap();
-        assert_eq!(merge_key, key_abc_2);
+        assert_eq!(merge_key, &key_abc_2);
         let merge_key = SortKey::try_merge_key(&key_abc_2, &key_ac_2).unwrap();
-        assert_eq!(merge_key, key_abc_2);
+        assert_eq!(merge_key, &key_abc_2);
         let merge_key = SortKey::try_merge_key(&key_abc_2, &key_bc_2).unwrap();
-        assert_eq!(merge_key, key_abc_2);
+        assert_eq!(merge_key, &key_abc_2);
 
         // super key of (a, b, c) and any of (b, a, c) } is None
         let merge_key = SortKey::try_merge_key(&key_abc_2, &key_bac_2);
         assert_eq!(merge_key, None);
-    }
-
-    #[test]
-    fn test_selected_sort_key() {
-        let mut sort_key = SortKey::with_capacity(4);
-        sort_key.with_col("a"); // default sort option
-        sort_key.with_col_opts("b", true, false);
-        sort_key.with_col_opts("c", false, false);
-        sort_key.with_col(TIME_COLUMN_NAME);
-
-        // input cols is empty -> nothing selected
-        let cols = vec![];
-        let selected_key = sort_key.selected_sort_key(cols);
-        assert!(selected_key.is_empty());
-
-        // input cols is not part of the key -> nothing selected
-        let cols = vec!["d", "e"];
-        let selected_key = sort_key.selected_sort_key(cols);
-        assert!(selected_key.is_empty());
-
-        // input cols exactly the same and in the same order -> exact sort_key selected
-        let cols = vec!["a", "b", "c", TIME_COLUMN_NAME];
-        let selected_key = sort_key.selected_sort_key(cols);
-        assert_eq!(selected_key, sort_key);
-
-        // input cols exactly the same but in different order -> exact sort_key selected
-        let cols = vec!["c", TIME_COLUMN_NAME, "b", "a"];
-        let selected_key = sort_key.selected_sort_key(cols);
-        assert_eq!(selected_key, sort_key);
-
-        // input cols is subset but in the same order -> subset selected
-        let cols = vec!["a", "b"];
-        let selected_key = sort_key.selected_sort_key(cols);
-        let mut expected_key = SortKey::with_capacity(2);
-        expected_key.with_col("a"); // default sort option
-        expected_key.with_col_opts("b", true, false);
-        assert_eq!(selected_key, expected_key);
-
-        // input cols is subset but in the same order -> subset selected
-        let cols = vec![TIME_COLUMN_NAME];
-        let selected_key = sort_key.selected_sort_key(cols);
-        let mut expected_key = SortKey::with_capacity(1);
-        expected_key.with_col(TIME_COLUMN_NAME);
-        assert_eq!(selected_key, expected_key);
-
-        // input cols is subset but in the same order with gap -> subset selected
-        let cols = vec!["a", "c", TIME_COLUMN_NAME];
-        let selected_key = sort_key.selected_sort_key(cols);
-        let mut expected_key = SortKey::with_capacity(3);
-        expected_key.with_col("a"); // default sort option
-        expected_key.with_col_opts("c", false, false);
-        expected_key.with_col(TIME_COLUMN_NAME);
-        assert_eq!(selected_key, expected_key);
-
-        // input cols is subset but in different order -> subset in the order with sort_key selected
-        let cols = vec![TIME_COLUMN_NAME, "b", "c"];
-        let selected_key = sort_key.selected_sort_key(cols);
-        let mut expected_key = SortKey::with_capacity(3);
-        expected_key.with_col_opts("b", true, false);
-        expected_key.with_col_opts("c", false, false);
-        expected_key.with_col(TIME_COLUMN_NAME);
-        assert_eq!(selected_key, expected_key);
     }
 }

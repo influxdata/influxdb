@@ -33,6 +33,7 @@ use parquet_file::{
 };
 use persistence_windows::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint};
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use schema::sort::SortKey;
 use schema::Schema;
 use snafu::{OptionExt, ResultExt};
 use std::{
@@ -85,6 +86,7 @@ pub(crate) fn compact_object_store_chunks(
     // The partition will be unlock after the chunks are marked and snaphot
     let compacting_os_chunks =
         mark_chunks_to_compact(partition, chunks, &registration, compacted_chunk_id)?;
+
     let delete_predicates_before = compacting_os_chunks.delete_predicates;
 
     let fut = async move {
@@ -116,7 +118,9 @@ pub(crate) fn compact_object_store_chunks(
                 time_of_first_write: compacting_os_chunks.time_of_first_write,
                 time_of_last_write: compacting_os_chunks.time_of_last_write,
                 chunk_order: compacting_os_chunks.max_order,
+                sort_key: Some(sort_key.clone()),
             };
+
             let compacted_and_persisted_chunk = persist_stream_to_chunk(
                 &db,
                 &partition_addr,
@@ -145,6 +149,7 @@ pub(crate) fn compact_object_store_chunks(
             compacted_and_persisted_chunk.clone(),
             compacting_os_chunks.partition,
             delete_predicates_before,
+            sort_key.clone(),
         )
         .await;
 
@@ -339,16 +344,15 @@ async fn compact_chunks(db: &Db, query_chunks: &[Arc<DbChunk>]) -> Result<Compac
         .iter()
         .map(|x| x.summary().expect("Chunk should have summary"));
     let sort_key = compute_sort_key(summaries);
-    let sort_key_str = format!("\"{}\"", sort_key); // for logging
 
     // Merge schema of the compacting chunks
     let merged_schema = merge_schemas(query_chunks);
 
     // Build compact query plan
-    let (plan_schema, plan) = ReorgPlanner::new().compact_plan(
+    let plan = ReorgPlanner::new().compact_plan(
         Arc::clone(&merged_schema),
         query_chunks.iter().map(Arc::clone),
-        sort_key,
+        sort_key.clone(),
     )?;
     let physical_plan = ctx.prepare_plan(&plan).await?;
 
@@ -357,8 +361,8 @@ async fn compact_chunks(db: &Db, query_chunks: &[Arc<DbChunk>]) -> Result<Compac
 
     Ok(CompactedStream {
         stream,
-        schema: plan_schema,
-        sort_key: sort_key_str,
+        schema: merged_schema,
+        sort_key,
     })
 }
 
@@ -366,7 +370,7 @@ async fn compact_chunks(db: &Db, query_chunks: &[Arc<DbChunk>]) -> Result<Compac
 struct CompactedStream {
     stream: SendableRecordBatchStream,
     schema: Arc<Schema>,
-    sort_key: String,
+    sort_key: SortKey,
 }
 
 /// Persist a provided stream to a new OS chunk
@@ -443,6 +447,7 @@ async fn update_in_memory_catalog(
     parquet_chunk: Option<Arc<ParquetChunk>>,
     partition: Arc<RwLock<Partition>>,
     delete_predicates_before: HashSet<Arc<DeletePredicate>>,
+    sort_key: SortKey,
 ) -> Option<Arc<DbChunk>> {
     // Acquire write lock to drop the old chunks while also getting delete predicates added during compaction
     let mut partition = partition.write();
@@ -474,6 +479,7 @@ async fn update_in_memory_catalog(
                 table_summary: Arc::clone(parquet_chunk.table_summary()),
                 schema: parquet_chunk.schema(),
                 delete_predicates,
+                sort_key: Some(sort_key),
                 time_of_first_write: iox_metadata.time_of_first_write,
                 time_of_last_write: iox_metadata.time_of_last_write,
             };

@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use datafusion::logical_plan::{col, lit_timestamp_nano, Expr, LogicalPlan, LogicalPlanBuilder};
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::debug;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
 use crate::{
@@ -112,8 +112,8 @@ impl ReorgPlanner {
         &self,
         schema: Arc<Schema>,
         chunks: I,
-        output_sort: SortKey<'_>,
-    ) -> Result<(Arc<Schema>, LogicalPlan)>
+        sort_key: SortKey,
+    ) -> Result<LogicalPlan>
     where
         C: QueryChunk + 'static,
         I: IntoIterator<Item = Arc<C>>,
@@ -121,29 +121,13 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.sorted_scan_plan(schema, chunks)?;
-
-        let mut schema = provider.iox_schema();
-
-        // Set the sort_key of the schema to the compacted chunk's sort key
-        // Try to do this only if the sort key changes so we avoid unnecessary schema copies.
-        trace!(input_schema=?schema, "Setting sort key on schema for compact plan");
-        if schema
-            .sort_key()
-            .map_or(true, |existing_key| existing_key != output_sort)
-        {
-            let mut schema_cloned = schema.as_ref().clone();
-            schema_cloned.set_sort_key(&output_sort);
-            schema = Arc::new(schema_cloned);
-        }
-        trace!(output_schema=?schema, "Setting sort key on schema for compact plan");
-
+        } = self.sorted_scan_plan(schema, chunks, sort_key)?;
         let plan = plan_builder.build().context(BuildingPlanSnafu)?;
 
         debug!(table_name=provider.table_name(), plan=%plan.display_indent_schema(),
                "created compact plan for table");
 
-        Ok((schema, plan))
+        Ok(plan)
     }
 
     /// Creates an execution plan for the SPLIT operations which does the following:
@@ -194,9 +178,9 @@ impl ReorgPlanner {
         &self,
         schema: Arc<Schema>,
         chunks: I,
-        output_sort: SortKey<'_>,
+        sort_key: SortKey,
         split_time: i64,
-    ) -> Result<(Arc<Schema>, LogicalPlan)>
+    ) -> Result<LogicalPlan>
     where
         C: QueryChunk + 'static,
         I: IntoIterator<Item = Arc<C>>,
@@ -204,46 +188,33 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.sorted_scan_plan(schema, chunks)?;
-
-        let mut schema = provider.iox_schema();
-
-        // Set output_sort as the sort_key of the schema
-        // Try to do this only if the sort key changes so we avoid unnecessary schema copies.
-        trace!(input_schema=?schema, "Setting sort key on schema for split plan");
-        if schema
-            .sort_key()
-            .map_or(true, |existing_key| existing_key != output_sort)
-        {
-            let mut schema_cloned = schema.as_ref().clone();
-            schema_cloned.set_sort_key(&output_sort);
-            schema = Arc::new(schema_cloned);
-        }
-        trace!(output_schema=?schema, "Setting sort key on schema for split plan");
+        } = self.sorted_scan_plan(schema, chunks, sort_key)?;
 
         // time <= split_time
         let split_expr = col(TIME_COLUMN_NAME).lt_eq(lit_timestamp_nano(split_time));
 
         let plan = plan_builder.build().context(BuildingPlanSnafu)?;
-
         let plan = make_stream_split(plan, split_expr);
 
         debug!(table_name=provider.table_name(), plan=%plan.display_indent_schema(),
                "created split plan for table");
 
-        Ok((schema, plan))
+        Ok(plan)
     }
 
     /// Creates a scan plan for the given set of chunks.
+    ///
     /// Output data of the scan will be deduplicated sorted if `sort=true` on
     /// the optimal sort order of the chunks' PK columns (tags and time).
     ///
-    /// The optimal sort order is computed based on the PK columns cardinality
-    /// that will be best for RLE encoding.
-    ///
     /// Refer to query::provider::build_scan_plan for the detail of the plan
     ///
-    fn sorted_scan_plan<C, I>(&self, schema: Arc<Schema>, chunks: I) -> Result<ScanPlan<C>>
+    fn sorted_scan_plan<C, I>(
+        &self,
+        schema: Arc<Schema>,
+        chunks: I,
+        sort_key: SortKey,
+    ) -> Result<ScanPlan<C>>
     where
         C: QueryChunk + 'static,
         I: IntoIterator<Item = Arc<C>>,
@@ -256,12 +227,11 @@ impl ReorgPlanner {
         let table_name = &table_name;
 
         // Prepare the plan for the table
-        let mut builder = ProviderBuilder::new(table_name, schema);
-        // Tell the scan of this provider to sort its output on the chunks' PK
-        builder.ensure_pk_sort();
-
-        // There are no predicates in these plans, so no need to prune them
-        builder = builder.add_no_op_pruner();
+        let mut builder = ProviderBuilder::new(table_name, schema)
+            // There are no predicates in these plans, so no need to prune them
+            .add_no_op_pruner()
+            // Tell the scan of this provider to sort its output on the chunks' PK
+            .with_sort_key(sort_key);
 
         for chunk in chunks {
             // check that it is consistent with this table_name
@@ -278,6 +248,7 @@ impl ReorgPlanner {
         let provider = builder
             .build()
             .context(CreatingProviderSnafu { table_name })?;
+
         let provider = Arc::new(provider);
 
         // Scan all columns
@@ -301,10 +272,10 @@ struct ScanPlan<C: QueryChunk + 'static> {
 
 #[cfg(test)]
 mod test {
-    use arrow::compute::SortOptions;
     use arrow_util::assert_batches_eq;
     use datafusion_util::{test_collect, test_collect_partition};
     use schema::merge::SchemaMerger;
+    use schema::sort::SortKeyBuilder;
 
     use crate::{
         exec::{Executor, ExecutorType},
@@ -413,23 +384,12 @@ mod test {
 
         let (schema, chunks) = get_test_chunks().await;
 
-        let mut sort_key = SortKey::with_capacity(2);
-        sort_key.push(
-            "tag1",
-            SortOptions {
-                descending: true,
-                nulls_first: true,
-            },
-        );
-        sort_key.push(
-            "time",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
+        let sort_key = SortKeyBuilder::with_capacity(2)
+            .with_col_opts("tag1", true, true)
+            .with_col_opts(TIME_COLUMN_NAME, false, false)
+            .build();
 
-        let (_, compact_plan) = ReorgPlanner::new()
+        let compact_plan = ReorgPlanner::new()
             .compact_plan(schema, chunks, sort_key)
             .expect("created compact plan");
 
@@ -453,14 +413,14 @@ mod test {
             "+-----------+------------+------+--------------------------------+",
             "| field_int | field_int2 | tag1 | time                           |",
             "+-----------+------------+------+--------------------------------+",
-            "| 100       |            | AL   | 1970-01-01T00:00:00.000000050Z |",
-            "| 70        |            | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 1000      | 1000       | WA   | 1970-01-01T00:00:00.000028Z    |",
+            "| 50        | 50         | VT   | 1970-01-01T00:00:00.000210Z    |",
+            "| 70        | 70         | UT   | 1970-01-01T00:00:00.000220Z    |",
             "| 1000      |            | MT   | 1970-01-01T00:00:00.000001Z    |",
             "| 5         |            | MT   | 1970-01-01T00:00:00.000005Z    |",
             "| 10        |            | MT   | 1970-01-01T00:00:00.000007Z    |",
-            "| 70        | 70         | UT   | 1970-01-01T00:00:00.000220Z    |",
-            "| 50        | 50         | VT   | 1970-01-01T00:00:00.000210Z    |",
-            "| 1000      | 1000       | WA   | 1970-01-01T00:00:00.000028Z    |",
+            "| 70        |            | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 100       |            | AL   | 1970-01-01T00:00:00.000000050Z |",
             "+-----------+------------+------+--------------------------------+",
         ];
 
@@ -474,17 +434,13 @@ mod test {
         // the operator is tested in its own module.
         let (schema, chunks) = get_test_chunks().await;
 
-        let mut sort_key = SortKey::with_capacity(1);
-        sort_key.push(
-            "time",
-            SortOptions {
-                descending: false,
-                nulls_first: false,
-            },
-        );
+        let sort_key = SortKeyBuilder::with_capacity(2)
+            .with_col_opts("time", false, false)
+            .with_col_opts("tag1", false, true)
+            .build();
 
         // split on 1000 should have timestamps 1000, 5000, and 7000
-        let (_, split_plan) = ReorgPlanner::new()
+        let split_plan = ReorgPlanner::new()
             .split_plan(schema, chunks, sort_key, 1000)
             .expect("created compact plan");
 
@@ -519,16 +475,16 @@ mod test {
 
         let batches1 = test_collect_partition(physical_plan, 1).await;
 
-        // Sorted on state (tag1) ASC and time
+        // Sorted on time
         let expected = vec![
             "+-----------+------------+------+-----------------------------+",
             "| field_int | field_int2 | tag1 | time                        |",
             "+-----------+------------+------+-----------------------------+",
             "| 5         |            | MT   | 1970-01-01T00:00:00.000005Z |",
             "| 10        |            | MT   | 1970-01-01T00:00:00.000007Z |",
-            "| 70        | 70         | UT   | 1970-01-01T00:00:00.000220Z |",
-            "| 50        | 50         | VT   | 1970-01-01T00:00:00.000210Z |",
             "| 1000      | 1000       | WA   | 1970-01-01T00:00:00.000028Z |",
+            "| 50        | 50         | VT   | 1970-01-01T00:00:00.000210Z |",
+            "| 70        | 70         | UT   | 1970-01-01T00:00:00.000220Z |",
             "+-----------+------------+------+-----------------------------+",
         ];
 

@@ -14,7 +14,7 @@ use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use parquet_file::chunk::ParquetChunk;
 use read_buffer::RBChunk;
-use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
+use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 use snafu::Snafu;
 use std::sync::Arc;
 use time::{Time, TimeProvider};
@@ -88,6 +88,9 @@ pub struct ChunkMetadata {
     /// into IOx. Note due to the compaction, etc... this may not be the chunk
     /// that data was originally written into
     pub time_of_last_write: Time,
+
+    /// Sort key for this chunk
+    pub sort_key: Option<SortKey>,
 }
 
 /// Different memory representations of a frozen chunk.
@@ -458,11 +461,11 @@ impl CatalogChunk {
         self.order
     }
 
-    pub fn schema(&self) -> Arc<Schema> {
+    pub fn sort_key(&self) -> Option<&SortKey> {
         match &self.stage {
-            ChunkStage::Open { mb_chunk, .. } => Arc::new(mb_chunk.schema(Selection::All).unwrap()),
+            ChunkStage::Open { .. } => None,
             ChunkStage::Frozen { meta, .. } | ChunkStage::Persisted { meta, .. } => {
-                Arc::clone(&meta.schema)
+                meta.sort_key.as_ref()
             }
         }
     }
@@ -532,6 +535,7 @@ impl CatalogChunk {
                     delete_predicates: del_preds,
                     time_of_first_write: meta.time_of_first_write,
                     time_of_last_write: meta.time_of_last_write,
+                    sort_key: meta.sort_key.clone(),
                 });
             }
         }
@@ -762,6 +766,7 @@ impl CatalogChunk {
                     delete_predicates,
                     time_of_first_write: *time_of_first_write,
                     time_of_last_write: *time_of_last_write,
+                    sort_key: None,
                 };
 
                 self.stage = ChunkStage::Frozen {
@@ -1293,6 +1298,7 @@ mod tests {
             delete_predicates: vec![],
             time_of_first_write: now,
             time_of_last_write: now,
+            sort_key: metadata.sort_key,
         };
 
         CatalogChunk::new_object_store_only(

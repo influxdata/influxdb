@@ -235,6 +235,9 @@ pub struct TestChunk {
 
     /// Order of this chunk relative to other overlapping chunks.
     order: ChunkOrder,
+
+    /// The sort key of this chunk
+    sort_key: Option<SortKey>,
 }
 
 /// Implements a method for adding a column with default stats
@@ -310,6 +313,7 @@ impl TestChunk {
             predicate_match: Default::default(),
             delete_predicates: Default::default(),
             order: ChunkOrder::MIN,
+            sort_key: None,
         }
     }
 
@@ -858,13 +862,11 @@ impl TestChunk {
     }
 
     /// Set the sort key for this chunk
-    pub fn with_sort_key(mut self, sort_key: &SortKey<'_>) -> Self {
-        let mut merger = SchemaMerger::new();
-        merger = merger
-            .merge(self.schema.as_ref())
-            .expect("merging was successful");
-        self.schema = Arc::new(merger.build_with_sort_key(sort_key));
-        self
+    pub fn with_sort_key(self, sort_key: SortKey) -> Self {
+        Self {
+            sort_key: Some(sort_key),
+            ..self
+        }
     }
 
     /// Returns all columns of the table
@@ -929,16 +931,6 @@ impl QueryChunk for TestChunk {
         Ok(stream_from_batches(batches))
     }
 
-    /// Returns true if data of this chunk is sorted
-    fn is_sorted_on_pk(&self) -> bool {
-        false
-    }
-
-    /// Returns the sort key of the chunk if any
-    fn sort_key(&self) -> Option<SortKey<'_>> {
-        None
-    }
-
     fn chunk_type(&self) -> &str {
         "Test Chunk"
     }
@@ -997,6 +989,10 @@ impl QueryChunkMeta for TestChunk {
 
     fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.schema)
+    }
+
+    fn sort_key(&self) -> Option<&SortKey> {
+        self.sort_key.as_ref()
     }
 
     // return a reference to delete predicates of the chunk

@@ -420,6 +420,7 @@ mod tests {
             time_of_first_write: Time::from_timestamp_nanos(456),
             time_of_last_write: Time::from_timestamp_nanos(43069346),
             chunk_order: ChunkOrder::new(5).unwrap(),
+            sort_key: None,
         };
 
         // create parquet file
@@ -495,6 +496,7 @@ mod tests {
             time_of_first_write: Time::from_timestamp_nanos(234),
             time_of_last_write: Time::from_timestamp_nanos(4784),
             chunk_order: ChunkOrder::new(5).unwrap(),
+            sort_key: None,
         };
 
         let (path, _file_size_bytes, _metadata) = storage

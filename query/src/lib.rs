@@ -34,6 +34,7 @@ pub mod statistics;
 pub mod util;
 
 pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
+use schema::sort::SortKeyBuilder;
 
 /// Trait for an object (designed to be a Chunk) which can provide
 /// metadata
@@ -43,6 +44,9 @@ pub trait QueryChunkMeta: Sized {
 
     /// return a reference to the summary of the data held in this chunk
     fn schema(&self) -> Arc<Schema>;
+
+    /// return a reference to the sort key if any
+    fn sort_key(&self) -> Option<&SortKey>;
 
     /// return a reference to delete predicates of the chunk
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>];
@@ -207,12 +211,6 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error>;
 
-    /// Returns true if data of this chunk is sorted
-    fn is_sorted_on_pk(&self) -> bool;
-
-    /// Returns the sort key of the chunk if any
-    fn sort_key(&self) -> Option<SortKey<'_>>;
-
     /// Returns chunk type which is either MUB, RUB, OS
     fn chunk_type(&self) -> &str;
 
@@ -233,6 +231,10 @@ where
         self.as_ref().schema()
     }
 
+    fn sort_key(&self) -> Option<&SortKey> {
+        self.as_ref().sort_key()
+    }
+
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         let pred = self.as_ref().delete_predicates();
         debug!(?pred, "Delete predicate in QueryChunkMeta");
@@ -251,19 +253,14 @@ where
     chunks.iter().all(|c| c.summary().is_some())
 }
 
-pub fn compute_sort_key_for_chunks<'a, C>(schema: &'a Schema, chunks: &'a [C]) -> SortKey<'a>
+pub fn compute_sort_key_for_chunks<C>(schema: &Schema, chunks: &[C]) -> SortKey
 where
     C: QueryChunkMeta,
 {
     if !chunks_have_stats(chunks) {
         // chunks have not enough stats, return its  pk that is
         // sorted lexicographically but time column always last
-        let pk = schema.primary_key();
-        let mut sort_key = SortKey::with_capacity(pk.len());
-        for col in pk {
-            sort_key.push(col, Default::default())
-        }
-        sort_key
+        SortKey::from_columns(schema.primary_key())
     } else {
         let summaries = chunks
             .iter()
@@ -276,7 +273,7 @@ where
 ///
 /// In the absence of more precise information, this should yield a
 /// good ordering for RLE compression
-pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -> SortKey<'a> {
+pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -> SortKey {
     let mut cardinalities: HashMap<&str, u64> = Default::default();
     for summary in summaries {
         for column in &summary.columns {
@@ -298,11 +295,13 @@ pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -
     // Sort by (cardinality, column_name) to have deterministic order if same cardinality
     cardinalities.sort_by_key(|x| (x.1, x.0));
 
-    let mut key = SortKey::with_capacity(cardinalities.len() + 1);
+    let mut builder = SortKeyBuilder::with_capacity(cardinalities.len() + 1);
     for (col, _) in cardinalities {
-        key.push(col, Default::default())
+        builder = builder.with_col(col)
     }
-    key.push(TIME_COLUMN_NAME, Default::default());
+    builder = builder.with_col(TIME_COLUMN_NAME);
+
+    let key = builder.build();
 
     trace!(computed_sort_key=?key, "Value of sort key from compute_sort_key");
 

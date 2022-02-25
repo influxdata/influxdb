@@ -39,6 +39,9 @@ message IoxMetadata {
 
   // Order of this chunk relative to other overlapping chunks.
   uint32 chunk_order = 10;
+
+  // The sort key of this chunk
+  SortKey sort_key = 12;
 }
 
 // Partition checkpoint.
@@ -81,3 +84,21 @@ message OptionalMinMaxSequence {
   OptionalUint64 min = 1;
   uint64 max = 2;
 }
+
+message SortKey {
+  // A sort expression
+  message Expr {
+    // The name of the column
+    string column = 1;
+
+    /// Whether the data is sorted in descending order
+    bool descending = 2;
+
+    /// Whether the data is sorted with nulls first
+    bool nulls_first = 3;
+  }
+
+  repeated Expr expressions = 1;
+}
+
+

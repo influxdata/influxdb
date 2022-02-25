@@ -255,6 +255,7 @@ impl CatalogState for Loader {
             delete_predicates,
             time_of_first_write: iox_md.time_of_first_write,
             time_of_last_write: iox_md.time_of_last_write,
+            sort_key: iox_md.sort_key,
         };
 
         partition.insert_object_store_only_chunk(

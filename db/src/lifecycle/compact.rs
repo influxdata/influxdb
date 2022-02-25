@@ -91,8 +91,8 @@ pub(crate) fn compact_chunks(
         let summaries = query_chunks
             .iter()
             .map(|x| x.summary().expect("Chunk should have summary"));
-        let key = compute_sort_key(summaries);
-        let key_str = format!("\"{}\"", key); // for logging
+
+        let sort_key = compute_sort_key(summaries);
 
         // build schema
         //
@@ -102,9 +102,11 @@ pub(crate) fn compact_chunks(
         // partitions).
         let schema = merge_schemas(&query_chunks);
 
-        // Cannot move query_chunks as the sort key borrows the column names
-        let (schema, plan) =
-            ReorgPlanner::new().compact_plan(schema, query_chunks.iter().map(Arc::clone), key)?;
+        let plan = ReorgPlanner::new().compact_plan(
+            Arc::clone(&schema),
+            query_chunks,
+            sort_key.clone(),
+        )?;
 
         let physical_plan = ctx.prepare_plan(&plan).await?;
         let stream = ctx.execute_stream(physical_plan).await?;
@@ -148,6 +150,7 @@ pub(crate) fn compact_chunks(
             delete_predicates,
             time_of_first_write,
             time_of_last_write,
+            sort_key: Some(sort_key.clone()),
         };
 
         let (_, chunk) = partition.create_rub_chunk(None, max_order, metadata, rb_chunk);
@@ -158,7 +161,7 @@ pub(crate) fn compact_chunks(
 
         info!(input_chunks=chunk_ids.len(), %rub_row_groups,
                         %input_rows, %output_rows,
-                        sort_key=%key_str, compaction_took = ?elapsed, fut_execution_duration= ?fut_now.elapsed(),
+                        %sort_key, compaction_took = ?elapsed, fut_execution_duration= ?fut_now.elapsed(),
                         rows_per_sec=?throughput,  "chunk(s) compacted");
 
         let snapshot = DbChunk::snapshot(&chunk.read());
