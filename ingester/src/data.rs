@@ -412,7 +412,7 @@ impl NamespaceData {
                 for (t, b) in write.into_tables() {
                     let table_data = match self.table_data(&t) {
                         Some(t) => t,
-                        None => self.insert_table(&t, catalog).await?,
+                        None => self.insert_table(sequencer_id, &t, catalog).await?,
                     };
                     let should_pause = table_data
                         .buffer_table_write(
@@ -433,7 +433,7 @@ impl NamespaceData {
                 let table_name = delete.table_name().context(TableNotPresentSnafu)?;
                 let table_data = match self.table_data(table_name) {
                     Some(t) => t,
-                    None => self.insert_table(table_name, catalog).await?,
+                    None => self.insert_table(sequencer_id, table_name, catalog).await?,
                 };
 
                 table_data
@@ -462,21 +462,26 @@ impl NamespaceData {
     /// Inserts the table or returns it if it happens to be inserted by some other thread
     async fn insert_table(
         &self,
+        sequencer_id: SequencerId,
         table_name: &str,
         catalog: &dyn Catalog,
     ) -> Result<Arc<TableData>> {
         let mut repos = catalog.repositories().await;
-        let table = repos
+        let info = repos
             .tables()
-            .create_or_get(table_name, self.namespace_id)
+            .get_table_persist_info(sequencer_id, self.namespace_id, table_name)
             .await
-            .context(CatalogSnafu)?;
+            .context(CatalogSnafu)?
+            .context(TableNotFoundSnafu { table_name })?;
 
         let mut t = self.tables.write();
-        let data = Arc::clone(
-            t.entry(table.name)
-                .or_insert_with(|| Arc::new(TableData::new(table.id))),
-        );
+        let data = Arc::clone(t.entry(table_name.to_string()).or_insert_with(|| {
+            Arc::new(TableData::new(
+                info.table_id,
+                info.parquet_max_sequence_number,
+                info.tombstone_max_sequence_number,
+            ))
+        }));
 
         Ok(data)
     }
@@ -512,15 +517,25 @@ impl NamespaceData {
 /// Data of a Table in a given Namesapce that belongs to a given Shard
 pub struct TableData {
     table_id: TableId,
+    // the max sequence number persisted for this table
+    parquet_max_sequence_number: Option<SequenceNumber>,
+    // the max sequence number for a tombstone associated with this table
+    tombstone_max_sequence_number: Option<SequenceNumber>,
     // Map pf partition key to its data
     partition_data: RwLock<BTreeMap<String, Arc<PartitionData>>>,
 }
 
 impl TableData {
     /// Initialize new table buffer
-    pub fn new(table_id: TableId) -> Self {
+    pub fn new(
+        table_id: TableId,
+        parquet_max_sequence_number: Option<SequenceNumber>,
+        tombstone_max_sequence_number: Option<SequenceNumber>,
+    ) -> Self {
         Self {
             table_id,
+            parquet_max_sequence_number,
+            tombstone_max_sequence_number,
             partition_data: Default::default(),
         }
     }
@@ -535,6 +550,12 @@ impl TableData {
         catalog: &dyn Catalog,
         lifecycle_manager: &LifecycleManager,
     ) -> Result<bool> {
+        if let Some(max) = self.parquet_max_sequence_number {
+            if sequence_number <= max {
+                return Ok(false);
+            }
+        }
+
         let (_, col) = batch
             .columns()
             .find(|(name, _)| *name == TIME_COLUMN_NAME)
@@ -1745,5 +1766,126 @@ mod tests {
         assert_batches_sorted_eq!(&expected, &[data]);
         assert_eq!(p.inner.read().snapshots[0].min_sequencer_number.get(), 8);
         assert_eq!(p.inner.read().snapshots[0].max_sequencer_number.get(), 9);
+    }
+
+    #[tokio::test]
+    async fn buffer_operation_ignores_already_persisted_data() {
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
+        let mut repos = catalog.repositories().await;
+        let kafka_topic = repos.kafka_topics().create_or_get("whatevs").await.unwrap();
+        let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
+        let kafka_partition = KafkaPartition::new(0);
+        let namespace = repos
+            .namespaces()
+            .create("foo", "inf", kafka_topic.id, query_pool.id)
+            .await
+            .unwrap();
+        let sequencer = repos
+            .sequencers()
+            .create_or_get(&kafka_topic, kafka_partition)
+            .await
+            .unwrap();
+
+        let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
+
+        let ignored_ts = Time::from_timestamp_millis(42);
+
+        let w1 = DmlWrite::new(
+            "foo",
+            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            DmlMeta::sequenced(Sequence::new(1, 1), ignored_ts, None, 50),
+        );
+        let w2 = DmlWrite::new(
+            "foo",
+            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            DmlMeta::sequenced(Sequence::new(1, 2), ignored_ts, None, 50),
+        );
+        std::mem::drop(repos);
+
+        let _ = validate_or_insert_schema(w1.tables(), &schema, &*catalog)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // create some persisted state
+        let mut repos = catalog.repositories().await;
+        let table = repos
+            .tables()
+            .create_or_get("mem", namespace.id)
+            .await
+            .unwrap();
+        let partition = repos
+            .partitions()
+            .create_or_get("1970-01-01", sequencer.id, table.id)
+            .await
+            .unwrap();
+        repos
+            .parquet_files()
+            .create(
+                sequencer.id,
+                table.id,
+                partition.id,
+                Uuid::new_v4(),
+                SequenceNumber::new(0),
+                SequenceNumber::new(1),
+                Timestamp::new(1),
+                Timestamp::new(1),
+                0,
+                vec![],
+                0,
+            )
+            .await
+            .unwrap();
+        std::mem::drop(repos);
+
+        let manager = LifecycleManager::new(
+            LifecycleConfig::new(1, 0, 0, Duration::from_secs(1)),
+            Arc::new(metric::Registry::new()),
+            Arc::new(SystemProvider::new()),
+        );
+        let exec = Executor::new(1);
+
+        let data = NamespaceData::new(namespace.id);
+
+        // w1 should be ignored so it shouldn't be present in the buffer
+        let should_pause = data
+            .buffer_operation(
+                DmlOperation::Write(w1),
+                sequencer.id,
+                catalog.as_ref(),
+                &manager,
+                &exec,
+            )
+            .await
+            .unwrap();
+        {
+            let tables = data.tables.read();
+            let table = tables.get("mem").unwrap();
+            assert_eq!(
+                table.parquet_max_sequence_number,
+                Some(SequenceNumber::new(1))
+            );
+            let partitions = table.partition_data.read();
+            assert!(partitions.is_empty());
+        }
+        assert!(!should_pause);
+
+        // w2 should be in the buffer
+        data.buffer_operation(
+            DmlOperation::Write(w2),
+            sequencer.id,
+            catalog.as_ref(),
+            &manager,
+            &exec,
+        )
+        .await
+        .unwrap();
+
+        let tables = data.tables.read();
+        let table = tables.get("mem").unwrap();
+        let partitions = table.partition_data.read();
+        let partition = partitions.get("1970-01-01").unwrap();
+        let d = partition.inner.read();
+        assert_eq!(d.buffer.len(), 1);
     }
 }
