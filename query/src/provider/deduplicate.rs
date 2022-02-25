@@ -299,9 +299,11 @@ async fn deduplicate(
         {
             timer.done();
             // No, different sort key, so send the last batch downstream first
-            tx.send(Ok(last_batch))
-                .await
-                .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+            if last_batch.num_rows() > 0 {
+                tx.send(Ok(last_batch))
+                    .await
+                    .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+            }
         } else {
             timer.done()
         }
@@ -310,18 +312,22 @@ async fn deduplicate(
         let timer = elapsed_compute.timer();
         let output_batch = deduplicator.push(batch).record_output(&baseline_metrics)?;
         timer.done();
-        tx.send(Ok(output_batch))
-            .await
-            .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+        if output_batch.num_rows() > 0 {
+            tx.send(Ok(output_batch))
+                .await
+                .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+        }
     }
 
     // send any left over batch
     let timer = elapsed_compute.timer();
     if let Some(output_batch) = deduplicator.finish()?.record_output(&baseline_metrics) {
         timer.done();
-        tx.send(Ok(output_batch))
-            .await
-            .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+        if output_batch.num_rows() > 0 {
+            tx.send(Ok(output_batch))
+                .await
+                .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+        }
     } else {
         timer.done()
     }

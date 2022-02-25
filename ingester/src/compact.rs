@@ -197,7 +197,8 @@ mod tests {
         create_batches_with_influxtype_different_columns_different_order,
         create_batches_with_influxtype_same_columns_different_type,
         create_one_record_batch_with_influxtype_duplicates,
-        create_one_record_batch_with_influxtype_no_duplicates, create_tombstone, make_meta,
+        create_one_record_batch_with_influxtype_no_duplicates,
+        create_one_row_record_batch_with_influxtype, create_tombstone, make_meta,
         make_persisting_batch, make_queryable_batch, make_queryable_batch_with_deletes,
     };
     use arrow_util::assert_batches_eq;
@@ -355,6 +356,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_compact_one_row_batch() {
+        test_helpers::maybe_start_logging();
+
+        // create input data
+        let batches = create_one_row_record_batch_with_influxtype().await;
+
+        // build queryable batch from the input batches
+        let compact_batch = make_queryable_batch("test_table", 1, batches);
+
+        // verify PK
+        let schema = compact_batch.schema();
+        let pk = schema.primary_key();
+        let expected_pk = vec!["tag1", "time"];
+        assert_eq!(expected_pk, pk);
+
+        // compact
+        let exc = Executor::new(1);
+        let stream = compact(&exc, compact_batch).await.unwrap();
+        let output_batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+
+        // verify no empty record batches - bug #3782
+        assert_eq!(output_batches.len(), 1);
+
+        // verify compacted data
+        let expected = vec![
+            "+-----------+------+-----------------------------+",
+            "| field_int | tag1 | time                        |",
+            "+-----------+------+-----------------------------+",
+            "| 1000      | MA   | 1970-01-01T00:00:00.000001Z |",
+            "+-----------+------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected, &output_batches);
+    }
+
+    #[tokio::test]
     async fn test_compact_one_batch_no_dupilcates_with_deletes() {
         test_helpers::maybe_start_logging();
 
@@ -377,6 +415,10 @@ mod tests {
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
+        // verify no empty record bacthes - bug #3782
+        assert_eq!(output_batches.len(), 2);
+        assert_eq!(output_batches[0].num_rows(), 1);
+        assert_eq!(output_batches[1].num_rows(), 1);
 
         // verify compacted data
         // row with "tag1=UT" no longer avaialble
@@ -411,6 +453,10 @@ mod tests {
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
+        // verify no empty record bacthes - bug #3782
+        assert_eq!(output_batches.len(), 2);
+        assert_eq!(output_batches[0].num_rows(), 6);
+        assert_eq!(output_batches[1].num_rows(), 1);
 
         // verify compacted data
         //  data is sorted and all duplicates are removed

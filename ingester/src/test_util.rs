@@ -207,12 +207,42 @@ pub fn make_snapshot_batch(
         data: batch,
     }
 }
+
+///
+pub async fn create_one_row_record_batch_with_influxtype() -> Vec<Arc<RecordBatch>> {
+    let chunk1 = Arc::new(
+        TestChunk::new("t")
+            .with_id(1)
+            .with_time_column()
+            .with_tag_column("tag1")
+            .with_i64_field_column("field_int")
+            .with_one_row_of_data(),
+    );
+    let batches = raw_data(&[chunk1]).await;
+
+    // Make sure all dat ain one record batch
+    assert_eq!(batches.len(), 1);
+
+    // verify data
+    let expected = vec![
+        "+-----------+------+-----------------------------+",
+        "| field_int | tag1 | time                        |",
+        "+-----------+------+-----------------------------+",
+        "| 1000      | MA   | 1970-01-01T00:00:00.000001Z |",
+        "+-----------+------+-----------------------------+",
+    ];
+    assert_batches_eq!(&expected, &batches);
+
+    let batches: Vec<_> = batches.iter().map(|r| Arc::new(r.clone())).collect();
+    batches
+}
+
 ///
 pub async fn create_one_record_batch_with_influxtype_no_duplicates() -> Vec<Arc<RecordBatch>> {
     let chunk1 = Arc::new(
         TestChunk::new("t")
             .with_id(1)
-            .with_time_column() //_with_full_stats(
+            .with_time_column()
             .with_tag_column("tag1")
             .with_i64_field_column("field_int")
             .with_three_rows_of_data(),
