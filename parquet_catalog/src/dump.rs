@@ -203,7 +203,7 @@ impl Debug for Metadata {
         }
 
         if self.options.show_iox_metadata {
-            dbg.field("iox_metadata", &self.md.read_iox_metadata());
+            dbg.field("iox_metadata", &self.md.read_iox_metadata_old());
         }
 
         if self.options.show_schema {

@@ -120,7 +120,7 @@ impl TestCatalogState {
             .context(MetadataExtractFailedSnafu {
                 path: info.path.clone(),
             })?
-            .read_iox_metadata()
+            .read_iox_metadata_old()
             .context(MetadataExtractFailedSnafu {
                 path: info.path.clone(),
             })?;
@@ -517,8 +517,8 @@ fn assert_checkpoint<S, F>(
         let md_actual = md_actual.decode().unwrap();
         let md_expected = chunk.parquet_metadata().decode().unwrap();
 
-        let iox_md_actual = md_actual.read_iox_metadata().unwrap();
-        let iox_md_expected = md_expected.read_iox_metadata().unwrap();
+        let iox_md_actual = md_actual.read_iox_metadata_old().unwrap();
+        let iox_md_expected = md_expected.read_iox_metadata_old().unwrap();
         assert_eq!(iox_md_actual, iox_md_expected);
 
         let schema_actual = md_actual.read_schema().unwrap();

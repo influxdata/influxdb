@@ -542,7 +542,6 @@ impl IoxMetadata {
     }
 
     /// Read from protobuf message
-    #[allow(dead_code)]
     fn from_protobuf(data: &[u8]) -> Result<Self> {
         // extract protobuf message from bytes
         let proto_msg = proto::IoxMetadata::decode(data)
@@ -818,7 +817,7 @@ impl DecodedIoxParquetMetaData {
     }
 
     /// Read IOx metadata from file-level key-value parquet metadata.
-    pub fn read_iox_metadata(&self) -> Result<IoxMetadataOld> {
+    pub fn read_iox_metadata_old(&self) -> Result<IoxMetadataOld> {
         // find file-level key-value metadata entry
         let kv = self
             .md
@@ -838,6 +837,29 @@ impl DecodedIoxParquetMetaData {
 
         // convert to Rust object
         IoxMetadataOld::from_protobuf(proto_bytes.as_slice())
+    }
+
+    /// Read IOx metadata from file-level key-value parquet metadata.
+    pub fn read_iox_metadata_new(&self) -> Result<IoxMetadata> {
+        // find file-level key-value metadata entry
+        let kv = self
+            .md
+            .file_metadata()
+            .key_value_metadata()
+            .as_ref()
+            .context(IoxMetadataMissingSnafu)?
+            .iter()
+            .find(|kv| kv.key == METADATA_KEY)
+            .context(IoxMetadataMissingSnafu)?;
+
+        // extract protobuf message from key-value entry
+        let proto_base64 = kv.value.as_ref().context(IoxMetadataMissingSnafu)?;
+        let proto_bytes = base64::decode(proto_base64)
+            .map_err(|err| Box::new(err) as _)
+            .context(IoxMetadataBrokenSnafu)?;
+
+        // convert to Rust object
+        IoxMetadata::from_protobuf(proto_bytes.as_slice())
     }
 
     /// Read IOx schema from parquet metadata.

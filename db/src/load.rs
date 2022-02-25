@@ -198,7 +198,7 @@ impl CatalogState for Loader {
             .context(MetadataExtractFailedSnafu {
                 path: info.path.clone(),
             })?
-            .read_iox_metadata()
+            .read_iox_metadata_old()
             .context(MetadataExtractFailedSnafu {
                 path: info.path.clone(),
             })?;

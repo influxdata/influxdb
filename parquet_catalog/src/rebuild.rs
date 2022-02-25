@@ -157,7 +157,7 @@ async fn read_parquet(
     parquet_metadata
         .decode()
         .context(MetadataReadFailureSnafu { path: path.clone() })?
-        .read_iox_metadata()
+        .read_iox_metadata_old()
         .context(MetadataReadFailureSnafu { path: path.clone() })?;
 
     Ok((file_size_bytes, Arc::new(parquet_metadata)))

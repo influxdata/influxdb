@@ -248,7 +248,7 @@ fn mark_chunks_to_compact(
                 let iox_metadata = iox_parquet_metadata
                     .decode()
                     .context(ParquetMetaReadSnafu)?
-                    .read_iox_metadata()
+                    .read_iox_metadata_old()
                     .context(ParquetMetaReadSnafu)?;
 
                 // fold all database_checkpoints into one for the compacting chunk
@@ -809,7 +809,7 @@ mod tests {
             let iox_metadata = iox_parquet_metadata
                 .decode()
                 .unwrap()
-                .read_iox_metadata()
+                .read_iox_metadata_old()
                 .unwrap();
             iox_metadata.partition_checkpoint
         };
@@ -961,7 +961,7 @@ mod tests {
         let iox_metadata = iox_parquet_metadata
             .decode()
             .unwrap()
-            .read_iox_metadata()
+            .read_iox_metadata_old()
             .unwrap();
         let compacted_partition_checkpoint = iox_metadata.partition_checkpoint;
         assert_eq!(min_partition_checkpoint, compacted_partition_checkpoint);
