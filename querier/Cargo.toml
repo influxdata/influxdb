@@ -17,7 +17,6 @@ db = { path = "../db" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 hyper = "0.14"
-ingester = { path = "../ingester" }
 iox_catalog = { path = "../iox_catalog" }
 iox_object_store = { path = "../iox_object_store" }
 job_registry = { path = "../job_registry" }

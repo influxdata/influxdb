@@ -1,7 +1,9 @@
-//! Convert from the protobuf predicate used by the ingester's query API.
-
-use crate::{BinaryExpr, Predicate};
+use crate::{
+    google::{FieldViolation, FieldViolationExt, OptionalField},
+    influxdata::iox::ingester::v1 as proto,
+};
 use data_types::timestamp::TimestampRange;
+use data_types2::{IngesterQueryRequest, SequencerId};
 use datafusion::{
     logical_plan::{
         abs, acos, asin, atan, ceil, concat, cos, digest, exp, floor, ln, log10, log2, round,
@@ -15,10 +17,54 @@ use datafusion::{
         sha384, sha512, trim, upper,
     },
 };
-use generated_types::{
-    google::{FieldViolation, OptionalField},
-    influxdata::iox::ingester::v1 as proto,
-};
+use predicate::{BinaryExpr, Predicate};
+
+impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
+    type Error = FieldViolation;
+
+    fn try_from(proto: proto::IngesterQueryRequest) -> Result<Self, Self::Error> {
+        let proto::IngesterQueryRequest {
+            namespace,
+            sequencer_id,
+            table,
+            columns,
+            predicate,
+        } = proto;
+
+        let predicate = predicate.map(TryInto::try_into).transpose()?;
+        let sequencer_id: i16 = sequencer_id.try_into().scope("sequencer_id")?;
+
+        Ok(Self::new(
+            namespace,
+            SequencerId::new(sequencer_id),
+            table,
+            columns,
+            predicate,
+        ))
+    }
+}
+
+impl TryFrom<IngesterQueryRequest> for proto::IngesterQueryRequest {
+    type Error = FieldViolation;
+
+    fn try_from(query: IngesterQueryRequest) -> Result<Self, Self::Error> {
+        let IngesterQueryRequest {
+            namespace,
+            sequencer_id,
+            table,
+            columns,
+            predicate,
+        } = query;
+
+        Ok(Self {
+            namespace,
+            sequencer_id: sequencer_id.get().into(),
+            table,
+            columns,
+            predicate: predicate.map(TryInto::try_into).transpose()?,
+        })
+    }
+}
 
 impl TryFrom<Predicate> for proto::Predicate {
     type Error = FieldViolation;
@@ -752,7 +798,7 @@ fn create_proto_scalar<I, T: FnOnce(&I) -> proto::scalar_value::Value>(
 }
 
 fn from_scalar_type(
-    value: &arrow::datatypes::DataType,
+    value: &datafusion::arrow::datatypes::DataType,
 ) -> Result<proto::ScalarType, FieldViolation> {
     let datatype = from_data_type(value)?;
     Ok(proto::ScalarType {
@@ -761,10 +807,11 @@ fn from_scalar_type(
 }
 
 fn from_data_type(
-    val: &arrow::datatypes::DataType,
+    val: &datafusion::arrow::datatypes::DataType,
 ) -> Result<proto::scalar_type::Datatype, FieldViolation> {
-    use arrow::datatypes::{DataType, TimeUnit};
+    use datafusion::arrow::datatypes::{DataType, TimeUnit};
     use proto::{scalar_type, PrimitiveScalarType};
+
     let scalar_value = match val {
         DataType::Boolean => scalar_type::Datatype::Scalar(PrimitiveScalarType::Bool as i32),
         DataType::Int8 => scalar_type::Datatype::Scalar(PrimitiveScalarType::Int8 as i32),
@@ -876,8 +923,7 @@ fn from_data_type(
 fn from_scalar_value(
     val: &datafusion::scalar::ScalarValue,
 ) -> Result<proto::ScalarValue, FieldViolation> {
-    use arrow::datatypes::DataType;
-    use datafusion::scalar;
+    use datafusion::{arrow::datatypes::DataType, scalar};
     use proto::{scalar_value::Value, PrimitiveScalarType};
 
     let scalar_val = match val {
@@ -1307,8 +1353,9 @@ fn from_proto_window_frame_bound(
 
 fn from_proto_interval_unit(
     proto: proto::IntervalUnit,
-) -> Result<arrow::datatypes::IntervalUnit, FieldViolation> {
-    use arrow::datatypes::IntervalUnit;
+) -> Result<datafusion::arrow::datatypes::IntervalUnit, FieldViolation> {
+    use datafusion::arrow::datatypes::IntervalUnit;
+
     let iu = match proto {
         proto::IntervalUnit::Unspecified => {
             return Err(proto_error("interval_unit", "not specified"))
@@ -1323,8 +1370,9 @@ fn from_proto_interval_unit(
 
 fn from_proto_time_unit(
     proto: proto::TimeUnit,
-) -> Result<arrow::datatypes::TimeUnit, FieldViolation> {
-    use arrow::datatypes::TimeUnit;
+) -> Result<datafusion::arrow::datatypes::TimeUnit, FieldViolation> {
+    use datafusion::arrow::datatypes::TimeUnit;
+
     let unit = match proto {
         proto::TimeUnit::Unspecified => return Err(proto_error("time_unit", "not specified")),
         proto::TimeUnit::Second => TimeUnit::Second,
@@ -1336,14 +1384,16 @@ fn from_proto_time_unit(
     Ok(unit)
 }
 
-fn from_arrow_type(arrow: &arrow::datatypes::DataType) -> proto::ArrowType {
+fn from_arrow_type(arrow: &datafusion::arrow::datatypes::DataType) -> proto::ArrowType {
     proto::ArrowType {
         arrow_type_enum: Some(from_inner_arrow_type(arrow)),
     }
 }
 
-fn from_inner_arrow_type(val: &arrow::datatypes::DataType) -> proto::arrow_type::ArrowTypeEnum {
-    use arrow::datatypes::{DataType, UnionMode};
+fn from_inner_arrow_type(
+    val: &datafusion::arrow::datatypes::DataType,
+) -> proto::arrow_type::ArrowTypeEnum {
+    use datafusion::arrow::datatypes::{DataType, UnionMode};
     use proto::{arrow_type::ArrowTypeEnum, EmptyMessage};
 
     match val {
@@ -1362,7 +1412,7 @@ fn from_inner_arrow_type(val: &arrow::datatypes::DataType) -> proto::arrow_type:
         DataType::Float64 => ArrowTypeEnum::Float64(EmptyMessage {}),
         DataType::Timestamp(time_unit, timezone) => ArrowTypeEnum::Timestamp(proto::Timestamp {
             time_unit: from_arrow_time_unit(time_unit).into(),
-            timezone: timezone.to_owned().unwrap_or_else(String::new),
+            timezone: timezone.to_owned().unwrap_or_default(),
         }),
         DataType::Date32 => ArrowTypeEnum::Date32(EmptyMessage {}),
         DataType::Date64 => ArrowTypeEnum::Date64(EmptyMessage {}),
@@ -1424,7 +1474,7 @@ fn from_inner_arrow_type(val: &arrow::datatypes::DataType) -> proto::arrow_type:
     }
 }
 
-fn from_field(field: &arrow::datatypes::Field) -> proto::Field {
+fn from_field(field: &datafusion::arrow::datatypes::Field) -> proto::Field {
     proto::Field {
         name: field.name().to_owned(),
         arrow_type: Some(Box::new(from_arrow_type(field.data_type()))),
@@ -1433,8 +1483,8 @@ fn from_field(field: &arrow::datatypes::Field) -> proto::Field {
     }
 }
 
-fn from_arrow_time_unit(val: &arrow::datatypes::TimeUnit) -> proto::TimeUnit {
-    use arrow::datatypes::TimeUnit;
+fn from_arrow_time_unit(val: &datafusion::arrow::datatypes::TimeUnit) -> proto::TimeUnit {
+    use datafusion::arrow::datatypes::TimeUnit;
     match val {
         TimeUnit::Second => proto::TimeUnit::Second,
         TimeUnit::Millisecond => proto::TimeUnit::TimeMillisecond,
@@ -1443,8 +1493,10 @@ fn from_arrow_time_unit(val: &arrow::datatypes::TimeUnit) -> proto::TimeUnit {
     }
 }
 
-fn from_arrow_interval_unit(interval_unit: &arrow::datatypes::IntervalUnit) -> proto::IntervalUnit {
-    use arrow::datatypes::IntervalUnit;
+fn from_arrow_interval_unit(
+    interval_unit: &datafusion::arrow::datatypes::IntervalUnit,
+) -> proto::IntervalUnit {
+    use datafusion::arrow::datatypes::IntervalUnit;
 
     match interval_unit {
         IntervalUnit::YearMonth => proto::IntervalUnit::YearMonth,
@@ -1454,8 +1506,9 @@ fn from_arrow_interval_unit(interval_unit: &arrow::datatypes::IntervalUnit) -> p
 }
 
 //Does not check if list subtypes are valid
-fn is_valid_scalar_type_no_list_check(datatype: &arrow::datatypes::DataType) -> bool {
-    use arrow::datatypes::{DataType, TimeUnit};
+fn is_valid_scalar_type_no_list_check(datatype: &datafusion::arrow::datatypes::DataType) -> bool {
+    use datafusion::arrow::datatypes::{DataType, TimeUnit};
+
     match datatype {
         DataType::Boolean
         | DataType::Int8
@@ -1482,8 +1535,8 @@ fn is_valid_scalar_type_no_list_check(datatype: &arrow::datatypes::DataType) -> 
 
 fn from_proto_arrow_type(
     proto: proto::arrow_type::ArrowTypeEnum,
-) -> Result<arrow::datatypes::DataType, FieldViolation> {
-    use arrow::datatypes::{DataType, UnionMode};
+) -> Result<datafusion::arrow::datatypes::DataType, FieldViolation> {
+    use datafusion::arrow::datatypes::{DataType, UnionMode};
     use proto::arrow_type::ArrowTypeEnum;
 
     let ty = match proto {
@@ -1594,14 +1647,16 @@ fn from_proto_arrow_type(
     Ok(ty)
 }
 
-fn from_proto_field(proto: proto::Field) -> Result<arrow::datatypes::Field, FieldViolation> {
+fn from_proto_field(
+    proto: proto::Field,
+) -> Result<datafusion::arrow::datatypes::Field, FieldViolation> {
     let data_type = proto
         .arrow_type
         .unwrap_field("arrow_type")?
         .arrow_type_enum
         .unwrap_field("arrow_type_enum")?;
     let data_type = from_proto_arrow_type(data_type)?;
-    Ok(arrow::datatypes::Field::new(
+    Ok(datafusion::arrow::datatypes::Field::new(
         &proto.name,
         data_type,
         proto.nullable,
@@ -1612,5 +1667,52 @@ fn proto_error(field: impl Into<String>, description: impl Into<String>) -> Fiel
     FieldViolation {
         field: field.into(),
         description: description.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use datafusion::logical_plan::col;
+
+    #[test]
+    fn query_from_protobuf() {
+        let rust_predicate = predicate::PredicateBuilder::new()
+            .timestamp_range(1, 100)
+            .add_expr(col("foo"))
+            .build();
+
+        let proto_predicate = proto::Predicate {
+            exprs: vec![proto::LogicalExprNode {
+                expr_type: Some(proto::logical_expr_node::ExprType::Column(proto::Column {
+                    name: "foo".into(),
+                    relation: None,
+                })),
+            }],
+            field_columns: vec![],
+            partition_key: None,
+            range: Some(proto::TimestampRange { start: 1, end: 100 }),
+            value_expr: vec![],
+        };
+
+        let rust_query = IngesterQueryRequest::new(
+            "mydb".into(),
+            SequencerId::new(5),
+            "cpu".into(),
+            vec!["usage".into(), "time".into()],
+            Some(rust_predicate),
+        );
+
+        let proto_query = proto::IngesterQueryRequest {
+            namespace: "mydb".into(),
+            sequencer_id: 5,
+            table: "cpu".into(),
+            columns: vec!["usage".into(), "time".into()],
+            predicate: Some(proto_predicate),
+        };
+
+        let rust_query_converted = IngesterQueryRequest::try_from(proto_query).unwrap();
+
+        assert_eq!(rust_query, rust_query_converted);
     }
 }

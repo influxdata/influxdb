@@ -9,10 +9,9 @@ use arrow_flight::{
     flight_service_client::FlightServiceClient, utils::flight_data_to_arrow_batch, FlightData,
     HandshakeRequest, Ticket,
 };
-use data_types2::SequenceNumber;
+use data_types2::{IngesterQueryRequest, SequenceNumber};
 use futures::{stream, StreamExt};
 use generated_types::influxdata::iox::ingester::v1 as proto;
-use ingester::data::IngesterQueryRequest;
 use rand::Rng;
 use std::{convert::TryFrom, sync::Arc};
 use thiserror::Error;

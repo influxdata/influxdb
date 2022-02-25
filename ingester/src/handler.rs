@@ -1,14 +1,14 @@
 //! Ingest handler
 
 use crate::{
-    data::{IngesterData, IngesterQueryRequest, IngesterQueryResponse, SequencerData},
+    data::{IngesterData, IngesterQueryResponse, SequencerData},
     lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
     poison::{PoisonCabinet, PoisonPill},
     querier_handler::prepare_data_to_querier,
 };
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types2::{KafkaPartition, KafkaTopic, Sequencer, SequencerId};
+use data_types2::{IngesterQueryRequest, KafkaPartition, KafkaTopic, Sequencer, SequencerId};
 use db::write_buffer::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
 use futures::{
     future::{BoxFuture, Shared},

@@ -7,6 +7,7 @@ description = "Shared data types in the Iox NG architecture"
 [dependencies]
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 mutable_batch = { path = "../mutable_batch" }
+predicate = { path = "../predicate" }
 schema = { path = "../schema" }
 sqlx = { version = "0.5", features = [ "runtime-tokio-native-tls" , "postgres", "uuid" ] }
 uuid = { version = "0.8", features = ["v4"] }

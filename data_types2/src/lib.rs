@@ -11,6 +11,7 @@
 )]
 
 use influxdb_line_protocol::FieldValue;
+use predicate::Predicate;
 use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema};
 use std::{
     collections::BTreeMap,
@@ -635,4 +636,39 @@ pub struct ProcessedTombstone {
     pub tombstone_id: TombstoneId,
     /// the id of the parquet file the tombstone was applied
     pub parquet_file_id: ParquetFileId,
+}
+
+/// Request received from the query service for data the ingester has
+#[derive(Debug, PartialEq)]
+pub struct IngesterQueryRequest {
+    /// namespace to search
+    pub namespace: String,
+    /// sequencer to search
+    pub sequencer_id: SequencerId,
+    /// Table to search
+    pub table: String,
+    /// Columns the query service is interested in
+    pub columns: Vec<String>,
+    /// Predicate for filtering
+    pub predicate: Option<Predicate>,
+}
+
+impl IngesterQueryRequest {
+    /// Make a request
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        namespace: String,
+        sequencer_id: SequencerId,
+        table: String,
+        columns: Vec<String>,
+        predicate: Option<Predicate>,
+    ) -> Self {
+        Self {
+            namespace,
+            sequencer_id,
+            table,
+            columns,
+            predicate,
+        }
+    }
 }
