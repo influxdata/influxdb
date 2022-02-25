@@ -19,7 +19,6 @@ use sqlx_hotswap_pool::HotSwapPool;
 use std::{sync::Arc, time::Duration};
 use uuid::Uuid;
 
-const MAX_CONNECTIONS: u32 = 10;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(500);
 /// the default schema name to use in Postgres
@@ -49,9 +48,10 @@ impl PostgresCatalog {
         app_name: &str,
         schema_name: &str,
         dsn: &str,
+        max_conns: u32,
         metrics: Arc<metric::Registry>,
     ) -> Result<Self> {
-        let pool = new_pool(app_name, schema_name, dsn, HOTSWAP_POLL_INTERVAL)
+        let pool = new_pool(app_name, schema_name, dsn, max_conns, HOTSWAP_POLL_INTERVAL)
             .await
             .map_err(|e| Error::SqlxError { source: e })?;
 
@@ -240,13 +240,14 @@ async fn new_raw_pool(
     app_name: &str,
     schema_name: &str,
     dsn: &str,
+    max_conns: u32,
 ) -> Result<sqlx::Pool<Postgres>, sqlx::Error> {
     let app_name = app_name.to_owned();
     let app_name2 = app_name.clone(); // just to log below
     let schema_name = schema_name.to_owned();
     let pool = PgPoolOptions::new()
         .min_connections(1)
-        .max_connections(MAX_CONNECTIONS)
+        .max_connections(max_conns)
         .connect_timeout(CONNECT_TIMEOUT)
         .idle_timeout(IDLE_TIMEOUT)
         .test_before_acquire(true)
@@ -300,6 +301,7 @@ async fn new_pool(
     app_name: &str,
     schema_name: &str,
     dsn: &str,
+    max_conns: u32,
     polling_interval: Duration,
 ) -> Result<HotSwapPool<Postgres>, sqlx::Error> {
     let app_name: Arc<str> = Arc::from(app_name);
@@ -308,7 +310,8 @@ async fn new_pool(
         Some(filename) => std::fs::read_to_string(&filename)?,
         None => dsn.to_owned(),
     };
-    let pool = HotSwapPool::new(new_raw_pool(&app_name, &schema_name, &parsed_dsn).await?);
+    let pool =
+        HotSwapPool::new(new_raw_pool(&app_name, &schema_name, &parsed_dsn, max_conns).await?);
 
     if let Some(dsn_file) = get_dsn_file_path(dsn) {
         let pool = pool.clone();
@@ -330,19 +333,30 @@ async fn new_pool(
                     schema_name: &str,
                     current_dsn: &str,
                     dsn_file: &str,
+                    max_conns: u32,
                     pool: &HotSwapPool<Postgres>,
                 ) -> Result<Option<String>, sqlx::Error> {
                     let new_dsn = std::fs::read_to_string(&dsn_file)?;
                     if new_dsn == current_dsn {
                         Ok(None)
                     } else {
-                        let new_pool = new_raw_pool(app_name, schema_name, &new_dsn).await?;
+                        let new_pool =
+                            new_raw_pool(app_name, schema_name, &new_dsn, max_conns).await?;
                         pool.replace(new_pool);
                         Ok(Some(new_dsn))
                     }
                 }
 
-                match try_update(&app_name, &schema_name, &current_dsn, &dsn_file, &pool).await {
+                match try_update(
+                    &app_name,
+                    &schema_name,
+                    &current_dsn,
+                    &dsn_file,
+                    max_conns,
+                    &pool,
+                )
+                .await
+                {
                     Ok(None) => {}
                     Ok(Some(new_dsn)) => {
                         info!("replaced hotswap pool");
@@ -1266,7 +1280,7 @@ mod tests {
 
         let metrics = Arc::new(metric::Registry::default());
         let dsn = std::env::var("DATABASE_URL").unwrap();
-        let pg = PostgresCatalog::connect("test", &schema_name, &dsn, metrics)
+        let pg = PostgresCatalog::connect("test", &schema_name, &dsn, 3, metrics)
             .await
             .expect("failed to connect catalog");
 
@@ -1633,6 +1647,7 @@ mod tests {
             TEST_APPLICATION_NAME,
             "test",
             dsn_good.as_str(),
+            3,
             POLLING_INTERVAL,
         )
         .await

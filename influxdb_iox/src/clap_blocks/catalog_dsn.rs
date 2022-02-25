@@ -30,6 +30,14 @@ pub struct CatalogDsnConfig {
     /// Postgres connection string. Required if catalog is set to postgres.
     #[clap(long = "--catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DSN")]
     pub dsn: Option<String>,
+
+    /// Maximum number of connections allowed to the catalog at any one time.
+    #[clap(
+        long = "--catalog-max-connections",
+        env = "INFLUXDB_IOX_CATALOG_MAX_CONNECTIONS",
+        default_value = "10"
+    )]
+    pub max_catalog_connections: u32,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ArgEnum)]
@@ -50,6 +58,7 @@ impl CatalogDsnConfig {
                     app_name,
                     iox_catalog::postgres::SCHEMA_NAME,
                     self.dsn.as_ref().context(ConnectionStringRequiredSnafu)?,
+                    self.max_catalog_connections,
                     metrics.unwrap_or_default(),
                 )
                 .await
