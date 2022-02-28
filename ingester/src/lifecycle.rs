@@ -253,7 +253,10 @@ impl LifecycleManager {
 
         if !persist_tasks.is_empty() {
             let persists = futures::future::join_all(persist_tasks.into_iter());
-            persists.await;
+            let results = persists.await;
+            for res in results {
+                res.expect("not aborted").expect("task finished");
+            }
 
             // for the sequencers that had data persisted, update their min_unpersisted_sequence_number to
             // either the minimum remaining in everything that didn't get persisted, or the highest
