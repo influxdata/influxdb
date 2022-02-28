@@ -274,6 +274,12 @@ impl NamespaceRepo for MemTxn {
         Ok(stage.namespaces.last().unwrap().clone())
     }
 
+    async fn list(&mut self) -> Result<Vec<Namespace>> {
+        let stage = self.stage();
+
+        Ok(stage.namespaces.clone())
+    }
+
     async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>> {
         let stage = self.stage();
 

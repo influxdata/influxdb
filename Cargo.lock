@@ -3834,6 +3834,7 @@ dependencies = [
  "async-trait",
  "backoff 0.1.0",
  "client_util",
+ "db",
  "futures",
  "generated_types",
  "hyper",

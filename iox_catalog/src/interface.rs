@@ -446,6 +446,9 @@ pub trait NamespaceRepo: Send + Sync {
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace>;
 
+    /// List all namespaces.
+    async fn list(&mut self) -> Result<Vec<Namespace>>;
+
     /// Gets the namespace by its unique name.
     async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>>;
 
@@ -1162,6 +1165,16 @@ pub(crate) mod test_helpers {
             .unwrap()
             .expect("namespace should be there");
         assert_eq!(namespace, found);
+
+        let namespace2_name = "test_namespace2";
+        let namespace2 = repos
+            .namespaces()
+            .create(namespace2_name, "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        let mut namespaces = repos.namespaces().list().await.unwrap();
+        namespaces.sort_by_key(|ns| ns.name.clone());
+        assert_eq!(namespaces, vec![namespace, namespace2]);
 
         const NEW_TABLE_LIMIT: i32 = 15000;
         let modified = repos

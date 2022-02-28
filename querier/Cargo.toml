@@ -8,6 +8,7 @@ arrow-flight = "9.1"
 async-trait = "0.1.42"
 backoff = { path = "../backoff" }
 client_util = { path = "../client_util" }
+db = { path = "../db" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 hyper = "0.14"

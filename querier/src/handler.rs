@@ -7,11 +7,15 @@ use futures::{
     FutureExt, StreamExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
+use object_store::ObjectStore;
 use observability_deps::tracing::warn;
 use std::sync::Arc;
 use thiserror::Error;
+use time::TimeProvider;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
+
+use crate::database::{database_sync_loop, QuerierDatabase};
 
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -40,8 +44,8 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
 /// Implementation of the `QuerierHandler` trait (that currently does nothing)
 #[derive(Debug)]
 pub struct QuerierHandlerImpl {
-    /// The global catalog for schema, parquet files and tombstones
-    catalog: Arc<dyn Catalog>,
+    /// Database.
+    database: Arc<QuerierDatabase>,
 
     /// Future that resolves when the background worker exits
     join_handles: Vec<(String, SharedJoinHandle)>,
@@ -52,12 +56,29 @@ pub struct QuerierHandlerImpl {
 
 impl QuerierHandlerImpl {
     /// Initialize the Querier
-    pub fn new(catalog: Arc<dyn Catalog>, _registry: &metric::Registry) -> Self {
+    pub fn new(
+        catalog: Arc<dyn Catalog>,
+        metric_registry: Arc<metric::Registry>,
+        object_store: Arc<ObjectStore>,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
+        let database = Arc::new(QuerierDatabase::new(
+            catalog,
+            metric_registry,
+            object_store,
+            time_provider,
+        ));
         let shutdown = CancellationToken::new();
 
-        let join_handles = vec![];
+        let join_handles = vec![(
+            String::from("database sync"),
+            shared_handle(tokio::spawn(database_sync_loop(
+                Arc::clone(&database),
+                shutdown.clone(),
+            ))),
+        )];
         Self {
-            catalog,
+            database,
             join_handles,
             shutdown,
         }

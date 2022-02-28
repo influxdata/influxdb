@@ -523,6 +523,19 @@ RETURNING *
         Ok(rec)
     }
 
+    async fn list(&mut self) -> Result<Vec<Namespace>> {
+        let rec = sqlx::query_as::<_, Namespace>(
+            r#"
+SELECT * FROM namespace;
+            "#,
+        )
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(rec)
+    }
+
     async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
