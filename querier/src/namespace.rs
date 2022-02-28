@@ -39,9 +39,14 @@ impl QuerierNamespace {
             catalog: DbCatalog::new(
                 Arc::clone(&name),
                 Arc::clone(&metric_registry),
+                Arc::clone(&time_provider),
+            ),
+            chunk_adapter: ParquetChunkAdapter::new(
+                catalog,
+                object_store,
+                metric_registry,
                 time_provider,
             ),
-            chunk_adapter: ParquetChunkAdapter::new(catalog, object_store, metric_registry),
             id,
             name,
         }

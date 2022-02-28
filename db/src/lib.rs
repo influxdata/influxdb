@@ -67,7 +67,7 @@ use tracker::TaskTracker;
 
 pub mod access;
 pub mod catalog;
-mod chunk;
+pub mod chunk;
 mod lifecycle;
 pub mod load;
 pub mod pred;

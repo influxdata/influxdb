@@ -3830,10 +3830,14 @@ dependencies = [
 name = "querier"
 version = "0.1.0"
 dependencies = [
+ "arrow",
  "arrow-flight",
+ "arrow_util",
  "async-trait",
  "backoff 0.1.0",
+ "bytes",
  "client_util",
+ "data_types",
  "db",
  "futures",
  "generated_types",
@@ -3847,6 +3851,7 @@ dependencies = [
  "parquet_file",
  "query",
  "rand",
+ "schema",
  "thiserror",
  "time 0.1.0",
  "tokio",

@@ -536,6 +536,25 @@ SELECT * FROM namespace;
         Ok(rec)
     }
 
+    async fn get_by_id(&mut self, id: NamespaceId) -> Result<Option<Namespace>> {
+        let rec = sqlx::query_as::<_, Namespace>(
+            r#"
+SELECT * FROM namespace WHERE id = $1;
+        "#,
+        )
+        .bind(&id) // $1
+        .fetch_one(&mut self.inner)
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let namespace = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(namespace))
+    }
+
     async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"

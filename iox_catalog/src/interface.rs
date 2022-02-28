@@ -449,6 +449,9 @@ pub trait NamespaceRepo: Send + Sync {
     /// List all namespaces.
     async fn list(&mut self) -> Result<Vec<Namespace>>;
 
+    /// Gets the namespace by its ID.
+    async fn get_by_id(&mut self, id: NamespaceId) -> Result<Option<Namespace>>;
+
     /// Gets the namespace by its unique name.
     async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>>;
 
@@ -1160,11 +1163,33 @@ pub(crate) mod test_helpers {
 
         let found = repos
             .namespaces()
+            .get_by_id(namespace.id)
+            .await
+            .unwrap()
+            .expect("namespace should be there");
+        assert_eq!(namespace, found);
+
+        let not_found = repos
+            .namespaces()
+            .get_by_id(NamespaceId::new(i32::MAX))
+            .await
+            .unwrap();
+        assert!(not_found.is_none());
+
+        let found = repos
+            .namespaces()
             .get_by_name(namespace_name)
             .await
             .unwrap()
             .expect("namespace should be there");
         assert_eq!(namespace, found);
+
+        let not_found = repos
+            .namespaces()
+            .get_by_name("does_not_exist")
+            .await
+            .unwrap();
+        assert!(not_found.is_none());
 
         let namespace2_name = "test_namespace2";
         let namespace2 = repos

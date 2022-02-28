@@ -8,6 +8,7 @@ arrow-flight = "9.1"
 async-trait = "0.1.42"
 backoff = { path = "../backoff" }
 client_util = { path = "../client_util" }
+data_types = { path = "../data_types" }
 db = { path = "../db" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
@@ -30,4 +31,8 @@ uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
+arrow = { version = "9.1", features = ["prettyprint"] }
+arrow_util = { path = "../arrow_util" }
+bytes = "1.0"
 query = { path = "../query" }
+schema = { path = "../schema" }

@@ -280,6 +280,12 @@ impl NamespaceRepo for MemTxn {
         Ok(stage.namespaces.clone())
     }
 
+    async fn get_by_id(&mut self, id: NamespaceId) -> Result<Option<Namespace>> {
+        let stage = self.stage();
+
+        Ok(stage.namespaces.iter().find(|n| n.id == id).cloned())
+    }
+
     async fn get_by_name(&mut self, name: &str) -> Result<Option<Namespace>> {
         let stage = self.stage();
 

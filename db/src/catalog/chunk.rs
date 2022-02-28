@@ -356,7 +356,7 @@ impl CatalogChunk {
 
     /// Creates a new chunk that is only registered via an object store reference (= only exists in
     /// parquet).
-    pub(super) fn new_object_store_only(
+    pub fn new_object_store_only(
         addr: ChunkAddr,
         order: ChunkOrder,
         metadata: ChunkMetadata,
