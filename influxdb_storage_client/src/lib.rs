@@ -308,8 +308,7 @@ impl Client {
     fn collect_strings(responses: Vec<StringValuesResponse>) -> Vec<String> {
         let mut strings = responses
             .into_iter()
-            .map(|r| r.values.into_iter())
-            .flatten()
+            .flat_map(|r| r.values.into_iter())
             .map(tag_key_bytes_to_strings)
             .collect::<Vec<_>>();
 

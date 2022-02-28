@@ -123,7 +123,7 @@ async fn load_remote_system_tables(
 
     let tasks = db_names
         .into_iter()
-        .map(|db_name| {
+        .flat_map(|db_name| {
             let table_names = table_names.clone();
             let connection = connection.clone();
             table_names.into_iter().map(move |table_name| {
@@ -160,7 +160,6 @@ async fn load_remote_system_tables(
                 })
             })
         })
-        .flatten()
         .collect::<Vec<_>>();
 
     // now, get the results and combine them

@@ -592,8 +592,7 @@ impl Table {
         table_data
             .data
             .iter()
-            .map(|rg| rg.column_storage_statistics())
-            .flatten()
+            .flat_map(|rg| rg.column_storage_statistics())
             .collect()
     }
 }
@@ -670,7 +669,7 @@ impl MetaData {
         // Update the table schema using the incoming row group schema
         for (column_name, column_meta) in &other_meta.columns {
             let (column_range_min, column_range_max) = &column_meta.range;
-            let mut curr_meta = this.columns.get_mut(&column_name.to_string()).unwrap();
+            let mut curr_meta = this.columns.get_mut(column_name).unwrap();
 
             // No way to accurately aggregate counts across RowGroups
             curr_meta.distinct_count = None;

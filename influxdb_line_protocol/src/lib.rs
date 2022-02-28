@@ -764,11 +764,11 @@ fn trim_leading(mut i: &str) -> &str {
     loop {
         let offset = i
             .find(|c| !is_whitespace_boundary_char(c))
-            .unwrap_or_else(|| i.len());
+            .unwrap_or(i.len());
         i = &i[offset..];
 
         if i.starts_with('#') {
-            let offset = i.find('\n').unwrap_or_else(|| i.len());
+            let offset = i.find('\n').unwrap_or(i.len());
             i = &i[offset..];
         } else {
             break i;

@@ -785,11 +785,10 @@ impl Db {
             // get flush handle
             let flush_handle = partition
                 .persistence_windows_mut()
-                .map(|window| match force {
+                .and_then(|window| match force {
                     true => window.flush_all_handle(),
                     false => window.flush_handle(),
                 })
-                .flatten()
                 .context(CannotFlushPartitionSnafu {
                     table_name,
                     partition_key,
@@ -3023,7 +3022,7 @@ mod tests {
 
         let task = tokio::spawn(async move {
             sender.send(()).unwrap();
-            let _ = chunk_a.read();
+            let _read = chunk_a.read();
         });
 
         // Wait for background task to reach lock

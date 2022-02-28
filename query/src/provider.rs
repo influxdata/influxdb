@@ -428,7 +428,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             };
 
             // Go over overlapped set, build deduplicate plan for each vector of overlapped chunks
-            for overlapped_chunks in self.overlapped_chunks_set.to_vec() {
+            for overlapped_chunks in self.overlapped_chunks_set.iter().cloned() {
                 plans.push(Self::build_deduplicate_plan_for_overlapped_chunks(
                     Arc::clone(&table_name),
                     Arc::clone(&output_schema),
@@ -439,7 +439,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             }
 
             // Go over each in_chunk_duplicates_chunks, build deduplicate plan for each
-            for chunk_with_duplicates in self.in_chunk_duplicates_chunks.to_vec() {
+            for chunk_with_duplicates in self.in_chunk_duplicates_chunks.iter().cloned() {
                 plans.push(Self::build_deduplicate_plan_for_chunk_with_duplicates(
                     Arc::clone(&table_name),
                     Arc::clone(&output_schema),

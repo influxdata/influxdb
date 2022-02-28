@@ -350,12 +350,11 @@ impl<'a> WriteFilter for ReplayFilter<'a> {
         let max_persisted_ts_and_sequence_range = self
             .replay_plan
             .last_partition_checkpoint(table_name, partition_key)
-            .map(|partition_checkpoint| {
+            .and_then(|partition_checkpoint| {
                 partition_checkpoint
                     .sequencer_numbers(self.sequence.id)
                     .map(|min_max| (partition_checkpoint.flush_timestamp(), min_max))
-            })
-            .flatten();
+            });
 
         match max_persisted_ts_and_sequence_range {
             Some((max_persisted_ts, min_max)) => {

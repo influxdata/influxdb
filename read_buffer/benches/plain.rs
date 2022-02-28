@@ -69,14 +69,12 @@ fn benchmark_plain_sum(
         for chunk in chunks {
             for pt in physical_type {
                 // Encoded incrementing values.
-
-                let input: Vec<u32>;
-                match chunk {
-                    Chunks::All => input = (0..num_rows as u32).collect(),
-                    Chunks::Even => input = gen_even_chunk(num_rows),
-                    Chunks::ManySmall => input = gen_many_small_chunk(num_rows),
-                    Chunks::RandomTenPercent => input = gen_random_10_percent(num_rows),
-                }
+                let input: Vec<u32> = match chunk {
+                    Chunks::All => (0..num_rows as u32).collect(),
+                    Chunks::Even => gen_even_chunk(num_rows),
+                    Chunks::ManySmall => gen_many_small_chunk(num_rows),
+                    Chunks::RandomTenPercent => gen_random_10_percent(num_rows),
+                };
 
                 match pt {
                     PhysicalType::I64 => {

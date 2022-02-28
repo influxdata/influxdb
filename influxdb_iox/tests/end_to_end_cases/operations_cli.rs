@@ -71,7 +71,7 @@ async fn test_start_stop() {
         .unwrap()
         .arg("operation")
         .arg("wait")
-        .arg(name.to_string())
+        .arg(name)
         .arg("--host")
         .arg(addr)
         .assert()

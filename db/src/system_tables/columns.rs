@@ -172,7 +172,7 @@ fn assemble_chunk_columns(
 
     let rows = chunk_summaries
         .iter()
-        .map(|(table_summary, chunk_summary, sort_key)| {
+        .flat_map(|(table_summary, chunk_summary, sort_key)| {
             table_summary
                 .columns
                 .iter()
@@ -182,7 +182,6 @@ fn assemble_chunk_columns(
                     column_sort: sort_key.as_ref().and_then(|x| x.get(&column_summary.name)),
                 })
         })
-        .flatten()
         .collect::<Vec<_>>();
 
     let partition_key = rows
@@ -251,7 +250,7 @@ fn assemble_chunk_columns(
     // each column in ColumnSummary
     let memory_bytes = chunk_summaries
         .iter()
-        .map(|(table_summary, chunk_summary, _)| {
+        .flat_map(|(table_summary, chunk_summary, _)| {
             // Don't assume column order in DetailedColumnSummary are
             // consistent with ColumnSummary
             let mut column_sizes = chunk_summary
@@ -270,7 +269,6 @@ fn assemble_chunk_columns(
                 .iter()
                 .map(move |column_summary| column_sizes.remove(column_summary.name.as_str()))
         })
-        .flatten()
         .collect::<UInt64Array>();
 
     RecordBatch::try_new(

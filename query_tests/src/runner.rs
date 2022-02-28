@@ -222,9 +222,7 @@ impl<W: Write> Runner<W> {
         std::mem::drop(output_file);
 
         // Now, compare to expected results
-        let expected_data = std::fs::read(&expected_path)
-            .ok() // no output is fine
-            .unwrap_or_else(Vec::new);
+        let expected_data = std::fs::read(&expected_path).ok().unwrap_or_default();
 
         let expected_contents: Vec<_> = String::from_utf8(expected_data)
             .context(ExpectedFileNotUtf8Snafu {

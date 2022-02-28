@@ -277,15 +277,12 @@ impl ParquetChunk {
 
 /// Extracts min/max values of the timestamp column, from the TableSummary, if possible
 fn extract_range(table_summary: &TableSummary) -> Option<TimestampMinMax> {
-    table_summary
-        .column(TIME_COLUMN_NAME)
-        .map(|c| {
-            if let Statistics::I64(s) = &c.stats {
-                if let (Some(min), Some(max)) = (s.min, s.max) {
-                    return Some(TimestampMinMax::new(min, max));
-                }
+    table_summary.column(TIME_COLUMN_NAME).and_then(|c| {
+        if let Statistics::I64(s) = &c.stats {
+            if let (Some(min), Some(max)) = (s.min, s.max) {
+                return Some(TimestampMinMax::new(min, max));
             }
-            None
-        })
-        .flatten()
+        }
+        None
+    })
 }

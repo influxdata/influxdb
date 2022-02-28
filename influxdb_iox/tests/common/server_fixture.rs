@@ -116,11 +116,7 @@ impl ServerFixture {
         let mut shared_servers = shared_servers.lock();
 
         // is a shared server already present?
-        let server = match shared_servers
-            .get(&server_type)
-            .map(|x| x.upgrade())
-            .flatten()
-        {
+        let server = match shared_servers.get(&server_type).and_then(|x| x.upgrade()) {
             Some(server) => server,
             None => {
                 // if not, create one

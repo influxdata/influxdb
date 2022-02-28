@@ -87,9 +87,7 @@ impl std::fmt::Display for DeleteExpr {
         write!(
             f,
             r#""{}"{}{}"#,
-            self.column()
-                .replace(r#"\"#, r#"\\"#)
-                .replace(r#"""#, r#"\""#),
+            self.column().replace('\\', r#"\\"#).replace('"', r#"\""#),
             self.op(),
             self.scalar(),
         )
@@ -153,7 +151,7 @@ impl std::fmt::Display for Scalar {
                 write!(
                     f,
                     "'{}'",
-                    value.replace(r#"\"#, r#"\\"#).replace(r#"'"#, r#"\'"#),
+                    value.replace('\\', r#"\\"#).replace('\'', r#"\'"#),
                 )
             }
         }

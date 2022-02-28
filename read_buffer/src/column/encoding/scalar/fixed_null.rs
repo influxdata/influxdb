@@ -91,12 +91,7 @@ where
     fn row_ids_equal(&self, value: P::Native, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
 
-        let desired;
-        if let cmp::Operator::Equal = op {
-            desired = true; // == operator
-        } else {
-            desired = false; // != operator
-        }
+        let desired = matches!(op, cmp::Operator::Equal);
 
         let mut found = false;
         let mut count = 0;

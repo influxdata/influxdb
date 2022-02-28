@@ -1022,7 +1022,7 @@ pub mod test_utils {
     where
         T: Clone + Ord,
     {
-        set.iter().next().cloned().map(|k| set.take(&k)).flatten()
+        set.iter().next().cloned().and_then(|k| set.take(&k))
     }
 
     /// Get the testing Kafka connection string or return current scope.

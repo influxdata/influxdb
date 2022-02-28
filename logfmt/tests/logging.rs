@@ -266,8 +266,7 @@ fn normalize_spans(lines: Vec<String>) -> Vec<String> {
     #[allow(clippy::needless_collect)]
     let span_ids: Vec<String> = lines
         .iter()
-        .map(|line| re.find_iter(line))
-        .flatten()
+        .flat_map(|line| re.find_iter(line))
         .map(|m| m.as_str().to_string())
         .collect();
 

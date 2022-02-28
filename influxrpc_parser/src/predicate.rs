@@ -68,7 +68,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///   * Numbers are parsed into integers where possible, but fall back to floats
 ///   * Use parentheses to denote precedence.
 ///   * _measurement and _field will be correctly converted into the binary format.
-///  
+///
 /// Unsupported:
 ///   * Regex operators are not yet supported.
 ///   * Unsigned integers cannot yet be supported because there is no current
@@ -277,7 +277,7 @@ mod test {
         // remove quoting from literal - whilst we need the quoting to parse
         // the sql statement correctly, the RPCNode for the literal would not
         // have the quoting present.
-        let literal = parts[2].replace("'", "").replace("\"", "");
+        let literal = parts[2].replace('\'', "").replace('"', "");
         RPCNode {
             node_type: RPCType::ComparisonExpression as i32,
             children: vec![

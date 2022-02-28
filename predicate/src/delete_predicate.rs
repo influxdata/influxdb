@@ -353,7 +353,7 @@ pub fn parse_http_delete_request(input: &str) -> Result<HttpDeleteRequest> {
                 // only <keep your_table_name> by replacing the rest with ""
                 let table_name = s
                     .replace(FLUX_TABLE, "")
-                    .replace("=", "")
+                    .replace('=', "")
                     .trim()
                     .to_string();
                 // Do not support white spaces in table name

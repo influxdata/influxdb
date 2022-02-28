@@ -655,10 +655,8 @@ where
 
         if let Some(sequencer_id) = path
             .file_name()
-            .map(|p| p.to_str())
-            .flatten()
-            .map(|p| p.parse::<T>().ok())
-            .flatten()
+            .and_then(|p| p.to_str())
+            .and_then(|p| p.parse::<T>().ok())
         {
             results.insert(sequencer_id, path);
         } else {

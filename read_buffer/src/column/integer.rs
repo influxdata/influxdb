@@ -382,10 +382,7 @@ impl From<&[i64]> for IntegerEncoding {
             // otherwise, encode with the same physical type (i64)
             (_, _) => {
                 let enc: Box<dyn ScalarEncoding<i64>> = if rle {
-                    Box::new(RLE::new_from_iter(
-                        arr.to_vec().into_iter(),
-                        NoOpTranscoder {},
-                    ))
+                    Box::new(RLE::new_from_iter(arr.iter().copied(), NoOpTranscoder {}))
                 } else {
                     Box::new(Fixed::new(arr.to_vec(), NoOpTranscoder {}))
                 };
@@ -602,7 +599,7 @@ impl From<&[u64]> for IntegerEncoding {
             // otherwise, encode with the same physical type (i64)
             _ => {
                 let enc: Box<dyn ScalarEncoding<u64>> = if rle {
-                    Box::new(RLE::new_from_iter(arr.to_vec().into_iter(), transcoder))
+                    Box::new(RLE::new_from_iter(arr.iter().copied(), transcoder))
                 } else {
                     Box::new(Fixed::new(arr.to_vec(), transcoder))
                 };

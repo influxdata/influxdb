@@ -302,9 +302,15 @@ mod tests {
     fn test_counts() {
         let metrics = Arc::new(LockMetrics::new_unregistered());
         let lock = metrics.new_lock(32);
-        let _ = lock.read();
-        let _ = lock.write();
-        let _ = lock.read();
+
+        let r = lock.read();
+        drop(r);
+
+        let w = lock.write();
+        drop(w);
+
+        let r = lock.read();
+        drop(r);
 
         assert_eq!(metrics.exclusive_count.fetch(), 1);
         assert_eq!(metrics.shared_count.fetch(), 2);
@@ -319,7 +325,7 @@ mod tests {
 
         let write = l1.write();
         let join = tokio::spawn(async move {
-            let _ = l2.read();
+            let _w2 = l2.read();
         });
 
         std::thread::sleep(Duration::from_millis(100));
@@ -342,7 +348,7 @@ mod tests {
 
         let read = l1.read();
         let join = tokio::spawn(async move {
-            let _ = l2.write();
+            let _w2 = l2.write();
         });
 
         std::thread::sleep(Duration::from_millis(100));
@@ -368,8 +374,8 @@ mod tests {
         let r1 = l1.read();
         let w2 = l2.write();
         let join = tokio::spawn(async move {
-            let _ = l1_captured.write();
-            let _ = l2_captured.read();
+            let _w1 = l1_captured.write();
+            let _r2 = l2_captured.read();
         });
 
         std::thread::sleep(Duration::from_millis(100));
@@ -393,7 +399,7 @@ mod tests {
 
         let r1 = l1.upgradable_read();
         let join = tokio::spawn(async move {
-            let _ = l1_captured.write();
+            let _w1 = l1_captured.write();
         });
 
         std::thread::sleep(Duration::from_millis(100));
@@ -422,7 +428,7 @@ mod tests {
         let r1 = l1.read();
         let join = tokio::spawn(async move {
             let ur1 = l1_captured.upgradable_read();
-            let _ = RwLockUpgradableReadGuard::upgrade(ur1);
+            let _w1 = RwLockUpgradableReadGuard::upgrade(ur1);
         });
 
         std::thread::sleep(Duration::from_millis(100));

@@ -538,7 +538,7 @@ mod tests {
                 .input_batches
                 .iter()
                 .map(|test_batch| {
-                    let a_vec = test_batch.a.iter().copied().collect::<Vec<_>>();
+                    let a_vec = test_batch.a.to_vec();
                     RecordBatch::try_new(
                         Arc::clone(&schema),
                         vec![

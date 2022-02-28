@@ -382,18 +382,15 @@ impl DmlDelete {
                 BTreeMap::default()
             }
         } else {
-            let shards: HashSet<ShardId> = config
-                .specific_targets
-                .iter()
-                .map(|matcher2shard| matcher2shard.shard)
-                .chain(
-                    config
-                        .hash_ring
-                        .iter()
-                        .map(|hashring| Vec::<ShardId>::from(hashring.shards.clone()).into_iter())
-                        .flatten(),
-                )
-                .collect();
+            let shards: HashSet<ShardId> =
+                config
+                    .specific_targets
+                    .iter()
+                    .map(|matcher2shard| matcher2shard.shard)
+                    .chain(config.hash_ring.iter().flat_map(|hashring| {
+                        Vec::<ShardId>::from(hashring.shards.clone()).into_iter()
+                    }))
+                    .collect();
 
             shards
                 .into_iter()

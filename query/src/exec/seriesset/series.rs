@@ -432,8 +432,7 @@ mod tests {
 
         series
             .iter()
-            .map(|s| s.split('\n'))
-            .flatten()
+            .flat_map(|s| s.split('\n'))
             .map(|s| s.to_string())
             .collect()
     }

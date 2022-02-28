@@ -193,10 +193,8 @@ impl CatalogState for TestCatalogState {
             if let Some(chunk) = self
                 .tables
                 .get_mut(&addr.table_name)
-                .map(|table| table.partitions.get_mut(&addr.partition_key))
-                .flatten()
-                .map(|partition| partition.chunks.get_mut(&addr.chunk_id))
-                .flatten()
+                .and_then(|table| table.partitions.get_mut(&addr.partition_key))
+                .and_then(|partition| partition.chunks.get_mut(&addr.chunk_id))
             {
                 chunk.delete_predicates.push(Arc::clone(&predicate));
             }
