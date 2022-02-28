@@ -4,7 +4,7 @@ use data_types::sequence::Sequence;
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use hashbrown::{hash_map::Entry, HashMap};
 use mutable_batch::MutableBatch;
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{info, warn};
 use rskafka::{
     client::producer::aggregator::{self, Aggregator, StatusDeaggregator, TryPush},
     record::Record,
@@ -197,6 +197,13 @@ impl DmlAggregatorState {
 
     /// Push given encoded DML operation to completed operations.
     fn push_op(&mut self, record: Record, md: Metadata, tag: Tag) {
+        assert_eq!(
+            self.tag_to_record[tag.0],
+            usize::MAX,
+            "already pushed record for tag {}",
+            tag.0
+        );
+
         let offset = self.completed_ops.len();
         self.tag_to_record[tag.0] = offset;
         self.completed_ops.push((record, md));
@@ -322,20 +329,18 @@ impl Aggregator for DmlAggregator {
                             // side though).
                             let new_tag =
                                 DmlAggregatorState::reserve_tag(&mut self.state.tag_to_record);
-                            let mut agg2 = WriteAggregator::new(
+
+                            let new_agg = WriteAggregator::new(
                                 write,
                                 self.collector.as_ref().map(Arc::clone),
                                 new_tag,
                             );
-                            let mut record2 = op_record;
-                            let mut md2 = op_md;
-                            std::mem::swap(agg, &mut agg2);
-                            std::mem::swap(record, &mut record2);
-                            std::mem::swap(md, &mut md2);
 
-                            let flushed_tag = agg2.tag;
-                            agg2.finalize_span();
-                            self.state.push_op(record2, md2, flushed_tag);
+                            // Replace current aggregator
+                            let (agg, record, md) = o.insert((new_agg, op_record, op_md));
+                            let flushed_tag = agg.tag;
+                            agg.finalize_span();
+                            self.state.push_op(record, md, flushed_tag);
 
                             new_tag
                         }
@@ -370,8 +375,42 @@ impl Aggregator for DmlAggregator {
     }
 
     fn flush(&mut self) -> Result<(Vec<Record>, Self::StatusDeaggregator), aggregator::Error> {
+        let remaining_tags = self
+            .state
+            .tag_to_record
+            .iter()
+            .filter(|x| **x == usize::MAX)
+            .count();
+
+        let completed_tags = self.state.tag_to_record.len() - remaining_tags;
+        let completed_ops = self.state.completed_ops.len();
+
+        let remaining_aggregators = self.state.current_writes.len();
+        assert_eq!(remaining_tags, remaining_aggregators, "missing aggregators");
+        assert_eq!(
+            completed_ops, completed_tags,
+            "missing completed operations"
+        );
+
         let mut state = std::mem::take(&mut self.state);
         state.flush_writes();
+
+        assert_eq!(self.state.current_writes.len(), 0, "incomplete flush");
+        assert_eq!(
+            self.state.completed_ops.len(),
+            self.state.tag_to_record.len(),
+            "missing records following flush"
+        );
+
+        info!(
+            db_name = %self.database_name,
+            sequencer_id = self.sequencer_id,
+            records = state.tag_to_record.len(),
+            already_flushed = completed_ops,
+            size = state.size(),
+            max_size = self.max_size,
+            "flushing records from aggregator"
+        );
 
         let (records, metadata) = state.completed_ops.into_iter().unzip();
 
@@ -464,6 +503,15 @@ impl StatusDeaggregator for Deaggregator {
         input: &[i64],
         tag: Self::Tag,
     ) -> Result<Self::Status, aggregator::Error> {
+        assert_eq!(input.len(), self.tag_to_record.len(), "invalid offsets");
+        assert!(
+            self.tag_to_record.len() > tag.0,
+            "tag {} out of range (tag_to_record: {:?}, offsets: {:?})",
+            tag.0,
+            self.tag_to_record,
+            input
+        );
+
         let record = self.tag_to_record[tag.0];
 
         let offset = input[record];
