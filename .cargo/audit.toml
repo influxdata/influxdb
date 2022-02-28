@@ -10,11 +10,6 @@ ignore = [
     # upstream issue: https://github.com/chronotope/chrono/issues/499
     "RUSTSEC-2020-0159",
 
-    # title: memmap is unmaintained
-    # why needed: used by `symbolic` which is used by `pprof`
-    # upstream issue: https://github.com/getsentry/symbolic/issues/304
-    "RUSTSEC-2020-0077",
-
     # title: Generated code can read and write out of bounds in safe code
     # why needed: part of `arrow`
     # upstream issue: https://github.com/google/flatbuffers/issues/6627
