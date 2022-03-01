@@ -160,7 +160,8 @@ mod tests {
             },
         );
 
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::default());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
         let creator = NamespaceAutocreation::new(
             Arc::clone(&catalog),
@@ -195,7 +196,8 @@ mod tests {
         let ns = DatabaseName::try_from("bananas").unwrap();
 
         let cache = Arc::new(MemoryNamespaceCache::default());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::default());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
         let creator = NamespaceAutocreation::new(
             Arc::clone(&catalog),

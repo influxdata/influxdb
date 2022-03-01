@@ -1,5 +1,7 @@
 //! This module implements the `catalog topic` CLI subcommand
 
+use std::sync::Arc;
+
 use thiserror::Error;
 
 use crate::clap_blocks::catalog_dsn::CatalogDsnConfig;
@@ -46,7 +48,8 @@ enum Command {
 pub async fn command(config: Config) -> Result<(), Error> {
     match config.command {
         Command::Update(update) => {
-            let catalog = update.catalog_dsn.get_catalog("cli", None).await?;
+            let metrics = Arc::new(metric::Registry::new());
+            let catalog = update.catalog_dsn.get_catalog("cli", metrics).await?;
             let mut repos = catalog.repositories().await;
             let topic = repos.kafka_topics().create_or_get(&update.db_name).await?;
             println!("{}", topic.id);

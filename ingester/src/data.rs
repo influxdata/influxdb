@@ -1475,7 +1475,8 @@ mod tests {
 
     #[tokio::test]
     async fn buffer_write_updates_lifecycle_manager_indicates_pause() {
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let mut repos = catalog.repositories().await;
         let kafka_topic = repos.kafka_topics().create_or_get("whatevs").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
@@ -1523,7 +1524,7 @@ mod tests {
         let pause_size = w1.size() + 1;
         let manager = LifecycleManager::new(
             LifecycleConfig::new(pause_size, 0, 0, Duration::from_secs(1)),
-            Arc::new(metric::Registry::new()),
+            metrics,
             Arc::new(SystemProvider::new()),
         );
         let should_pause = data
@@ -1540,7 +1541,8 @@ mod tests {
 
     #[tokio::test]
     async fn persist() {
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let mut repos = catalog.repositories().await;
         let kafka_topic = repos.kafka_topics().create_or_get("whatevs").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
@@ -1608,7 +1610,7 @@ mod tests {
 
         let manager = LifecycleManager::new(
             LifecycleConfig::new(1, 0, 0, Duration::from_secs(1)),
-            Arc::new(metric::Registry::new()),
+            metrics,
             Arc::new(SystemProvider::new()),
         );
 
@@ -1895,7 +1897,8 @@ mod tests {
 
     #[tokio::test]
     async fn buffer_operation_ignores_already_persisted_data() {
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let mut repos = catalog.repositories().await;
         let kafka_topic = repos.kafka_topics().create_or_get("whatevs").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
@@ -1965,7 +1968,7 @@ mod tests {
 
         let manager = LifecycleManager::new(
             LifecycleConfig::new(1, 0, 0, Duration::from_secs(1)),
-            Arc::new(metric::Registry::new()),
+            metrics,
             Arc::new(SystemProvider::new()),
         );
         let exec = Executor::new(1);

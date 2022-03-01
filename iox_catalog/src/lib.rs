@@ -273,11 +273,15 @@ mod tests {
                 #[tokio::test]
                 async fn [<test_validate_schema_ $name>]() {
                     use crate::interface::Catalog;
-                    use std::ops::DerefMut;
+                    use std::{
+                        ops::DerefMut,
+                        sync::Arc,
+                    };
                     use pretty_assertions::assert_eq;
                     const NAMESPACE_NAME: &str = "bananas";
 
-                    let catalog = MemCatalog::new();
+                    let metrics = Arc::new(metric::Registry::default());
+                    let catalog = MemCatalog::new(metrics);
 
                     let mut txn = catalog.start_transaction().await.unwrap();
                     let (kafka_topic, query_pool, _) = create_or_get_default_records(2, txn.deref_mut()).await.unwrap();

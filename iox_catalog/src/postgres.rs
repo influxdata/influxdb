@@ -231,6 +231,10 @@ impl Catalog for PostgresCatalog {
             Arc::clone(&self.metrics),
         ))
     }
+
+    fn metrics(&self) -> Arc<metric::Registry> {
+        Arc::clone(&self.metrics)
+    }
 }
 
 /// Creates a new [`sqlx::Pool`] from a database config and an explicit DSN.
@@ -1231,7 +1235,6 @@ mod tests {
 
     use super::*;
 
-    use metric::{Attributes, Metric, U64Histogram};
     use rand::Rng;
     use std::{env, ops::DerefMut, sync::Arc};
     use std::{io::Write, time::Instant};
@@ -1282,18 +1285,6 @@ mod tests {
         () => {
             maybe_skip_integration!("")
         };
-    }
-
-    fn assert_metric_hit(metrics: &metric::Registry, name: &'static str) {
-        let histogram = metrics
-            .get_instrument::<Metric<U64Histogram>>("catalog_op_duration_ms")
-            .expect("failed to read metric")
-            .get_observer(&Attributes::from(&[("op", name), ("result", "success")]))
-            .expect("failed to get observer")
-            .fetch();
-
-        let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
-        assert!(hit_count > 1, "metric did not record any calls");
     }
 
     async fn setup_db() -> PostgresCatalog {
@@ -1347,20 +1338,9 @@ mod tests {
         maybe_skip_integration!();
 
         let postgres = setup_db().await;
-        let metrics = Arc::clone(&postgres.metrics);
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
 
         crate::interface::test_helpers::test_catalog(postgres).await;
-
-        assert_metric_hit(&*metrics, "kafka_create_or_get");
-        assert_metric_hit(&*metrics, "query_create_or_get");
-        assert_metric_hit(&*metrics, "namespace_create");
-        assert_metric_hit(&*metrics, "table_create_or_get");
-        assert_metric_hit(&*metrics, "column_create_or_get");
-        assert_metric_hit(&*metrics, "sequencer_create_or_get");
-        assert_metric_hit(&*metrics, "partition_create_or_get");
-        assert_metric_hit(&*metrics, "tombstone_create_or_get");
-        assert_metric_hit(&*metrics, "parquet_create");
     }
 
     #[tokio::test]

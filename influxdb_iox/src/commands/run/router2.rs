@@ -90,7 +90,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let catalog = config
         .catalog_dsn
-        .get_catalog("router2", Some(Arc::clone(&metrics)))
+        .get_catalog("router2", Arc::clone(&metrics))
         .await?;
 
     // Initialise the sharded write buffer and instrument it with DML handler

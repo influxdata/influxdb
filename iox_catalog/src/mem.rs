@@ -1,14 +1,17 @@
 //! This module implements an in-memory implementation of the iox_catalog interface. It can be
 //! used for testing or for an IOx designed to run without catalog persistence.
 
-use crate::interface::{
-    sealed::TransactionFinalize, Catalog, Column, ColumnId, ColumnRepo, ColumnType, Error,
-    KafkaPartition, KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace, NamespaceId,
-    NamespaceRepo, ParquetFile, ParquetFileId, ParquetFileRepo, Partition, PartitionId,
-    PartitionInfo, PartitionRepo, ProcessedTombstone, ProcessedTombstoneRepo, QueryPool,
-    QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer, SequencerId,
-    SequencerRepo, Table, TableId, TablePersistInfo, TableRepo, Timestamp, Tombstone, TombstoneId,
-    TombstoneRepo, Transaction,
+use crate::{
+    interface::{
+        sealed::TransactionFinalize, Catalog, Column, ColumnId, ColumnRepo, ColumnType, Error,
+        KafkaPartition, KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace, NamespaceId,
+        NamespaceRepo, ParquetFile, ParquetFileId, ParquetFileRepo, Partition, PartitionId,
+        PartitionInfo, PartitionRepo, ProcessedTombstone, ProcessedTombstoneRepo, QueryPool,
+        QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer, SequencerId,
+        SequencerRepo, Table, TableId, TablePersistInfo, TableRepo, Timestamp, Tombstone,
+        TombstoneId, TombstoneRepo, Transaction,
+    },
+    metrics::MetricDecorator,
 };
 use async_trait::async_trait;
 use observability_deps::tracing::warn;
@@ -20,15 +23,18 @@ use uuid::Uuid;
 
 /// In-memory catalog that implements the `RepoCollection` and individual repo traits from
 /// the catalog interface.
-#[derive(Default)]
 pub struct MemCatalog {
+    metrics: Arc<metric::Registry>,
     collections: Arc<Mutex<MemCollections>>,
 }
 
 impl MemCatalog {
     /// return new initialized `MemCatalog`
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(metrics: Arc<metric::Registry>) -> Self {
+        Self {
+            metrics,
+            collections: Default::default(),
+        }
     }
 }
 
@@ -101,20 +107,30 @@ impl Catalog for MemCatalog {
     async fn start_transaction(&self) -> Result<Box<dyn Transaction>, Error> {
         let guard = Arc::clone(&self.collections).lock_owned().await;
         let stage = guard.clone();
-        Ok(Box::new(MemTxn {
-            inner: MemTxnInner::Txn {
-                guard,
-                stage,
-                finalized: false,
+        Ok(Box::new(MetricDecorator::new(
+            MemTxn {
+                inner: MemTxnInner::Txn {
+                    guard,
+                    stage,
+                    finalized: false,
+                },
             },
-        }))
+            Arc::clone(&self.metrics),
+        )))
     }
 
     async fn repositories(&self) -> Box<dyn RepoCollection> {
         let collections = Arc::clone(&self.collections).lock_owned().await;
-        Box::new(MemTxn {
-            inner: MemTxnInner::NoTxn { collections },
-        })
+        Box::new(MetricDecorator::new(
+            MemTxn {
+                inner: MemTxnInner::NoTxn { collections },
+            },
+            Arc::clone(&self.metrics),
+        ))
+    }
+
+    fn metrics(&self) -> Arc<metric::Registry> {
+        Arc::clone(&self.metrics)
     }
 }
 
@@ -850,6 +866,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_catalog() {
-        crate::interface::test_helpers::test_catalog(Arc::new(MemCatalog::new())).await;
+        let metrics = Arc::new(metric::Registry::default());
+        crate::interface::test_helpers::test_catalog(Arc::new(MemCatalog::new(metrics))).await;
     }
 }

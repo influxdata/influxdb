@@ -53,7 +53,8 @@ fn e2e_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("e2e");
 
     let delegate = {
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::default());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
         let ns_cache = Arc::new(ShardedCache::new(
             iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
         ));

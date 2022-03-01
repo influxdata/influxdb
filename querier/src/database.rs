@@ -159,9 +159,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync() {
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
-        let object_store = Arc::new(ObjectStore::new_in_memory());
         let metric_registry = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
+        let object_store = Arc::new(ObjectStore::new_in_memory());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0)));
 
         let db = QuerierDatabase::new(

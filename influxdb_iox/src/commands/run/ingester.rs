@@ -151,7 +151,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let catalog = config
         .catalog_dsn
-        .get_catalog("ingester", Some(Arc::clone(&metric_registry)))
+        .get_catalog("ingester", Arc::clone(&metric_registry))
         .await?;
 
     let mut txn = catalog.start_transaction().await?;

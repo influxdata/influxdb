@@ -351,9 +351,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_record() {
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
-        let object_store = Arc::new(ObjectStore::new_in_memory());
         let metric_registry = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
+        let object_store = Arc::new(ObjectStore::new_in_memory());
         let time_provider = Arc::new(MockProvider::new(now()));
 
         let adapter = ParquetChunkAdapter::new(

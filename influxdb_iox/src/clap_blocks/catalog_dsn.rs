@@ -50,7 +50,7 @@ impl CatalogDsnConfig {
     pub async fn get_catalog(
         &self,
         app_name: &'static str,
-        metrics: Option<Arc<metric::Registry>>,
+        metrics: Arc<metric::Registry>,
     ) -> Result<Arc<dyn Catalog>, Error> {
         let catalog = match self.catalog_type_ {
             CatalogType::Postgres => Arc::new(
@@ -59,13 +59,13 @@ impl CatalogDsnConfig {
                     iox_catalog::postgres::SCHEMA_NAME,
                     self.dsn.as_ref().context(ConnectionStringRequiredSnafu)?,
                     self.max_catalog_connections,
-                    metrics.unwrap_or_default(),
+                    metrics,
                 )
                 .await
                 .context(CatalogSnafu)?,
             ) as Arc<dyn Catalog>,
             CatalogType::Memory => {
-                let mem = MemCatalog::new();
+                let mem = MemCatalog::new(metrics);
 
                 let mut txn = mem.start_transaction().await.context(CatalogSnafu)?;
                 create_or_get_default_records(2, txn.deref_mut())

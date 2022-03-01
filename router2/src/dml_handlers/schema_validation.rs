@@ -226,7 +226,8 @@ mod tests {
     /// Initialise an in-memory [`MemCatalog`] and create a single namespace
     /// named [`NAMESPACE`].
     async fn create_catalog() -> Arc<dyn Catalog> {
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
         let mut repos = catalog.repositories().await;
         repos

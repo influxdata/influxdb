@@ -1,5 +1,7 @@
 //! This module implements the `catalog` CLI command
 
+use std::sync::Arc;
+
 use crate::clap_blocks::catalog_dsn::CatalogDsnConfig;
 use thiserror::Error;
 
@@ -51,7 +53,8 @@ enum Command {
 pub async fn command(config: Config) -> Result<(), Error> {
     match config.command {
         Command::Setup(command) => {
-            let catalog = command.catalog_dsn.get_catalog("cli", None).await?;
+            let metrics = Arc::new(metric::Registry::new());
+            let catalog = command.catalog_dsn.get_catalog("cli", metrics).await?;
             catalog.setup().await?;
             println!("OK");
         }

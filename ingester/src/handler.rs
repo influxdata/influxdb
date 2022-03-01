@@ -673,7 +673,8 @@ mod tests {
 
     impl TestIngester {
         async fn new() -> Self {
-            let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
+            let metrics: Arc<metric::Registry> = Default::default();
+            let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
             let mut txn = catalog.start_transaction().await.unwrap();
             let kafka_topic = txn.kafka_topics().create_or_get("whatevs").await.unwrap();
@@ -699,7 +700,6 @@ mod tests {
             let reading: Arc<dyn WriteBufferReading> =
                 Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
             let object_store = Arc::new(ObjectStore::new_in_memory());
-            let metrics: Arc<metric::Registry> = Default::default();
 
             let lifecycle_config =
                 LifecycleConfig::new(1000000, 1000, 1000, Duration::from_secs(10));

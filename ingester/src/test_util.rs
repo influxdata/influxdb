@@ -607,7 +607,8 @@ bitflags! {
 /// you will be able to produce 14 scenarios by calling it in 2 loops
 pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterData {
     // Whatever data because they won't be used in the tests
-    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
+    let metrics: Arc<metric::Registry> = Default::default();
+    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
     let object_store = Arc::new(object_store::ObjectStore::new_in_memory());
     let exec = query::exec::Executor::new(1);
 
@@ -655,7 +656,8 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
 
 pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterData {
     // Whatever data because they won't be used in the tests
-    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
+    let metrics: Arc<metric::Registry> = Default::default();
+    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
     let object_store = Arc::new(object_store::ObjectStore::new_in_memory());
     let exec = query::exec::Executor::new(1);
 

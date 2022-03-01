@@ -62,7 +62,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let metric_registry: Arc<metric::Registry> = Default::default();
     let catalog = config
         .catalog_dsn
-        .get_catalog("compactor", Some(Arc::clone(&metric_registry)))
+        .get_catalog("compactor", Arc::clone(&metric_registry))
         .await?;
 
     let object_store = Arc::new(

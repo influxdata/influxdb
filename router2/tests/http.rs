@@ -89,7 +89,7 @@ impl TestContext {
                 .collect::<JumpHash<_>>(),
         );
 
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::default());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let ns_cache = Arc::new(ShardedCache::new(
             iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
         ));

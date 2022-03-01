@@ -6,6 +6,7 @@ use schema::{InfluxColumnType, InfluxFieldType};
 use snafu::{OptionExt, Snafu};
 use std::convert::TryFrom;
 use std::fmt::Formatter;
+use std::sync::Arc;
 use std::{collections::BTreeMap, fmt::Debug};
 use uuid::Uuid;
 
@@ -317,6 +318,9 @@ pub trait Catalog: Send + Sync + Debug {
 
     /// Access the repositories w/o a transaction scope.
     async fn repositories(&self) -> Box<dyn RepoCollection>;
+
+    /// Get metric registry associated w/ this catalog.
+    fn metrics(&self) -> Arc<metric::Registry>;
 }
 
 /// Secret module for [sealed traits].
@@ -1085,6 +1089,7 @@ pub struct ProcessedTombstone {
 #[cfg(test)]
 pub(crate) mod test_helpers {
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
+    use metric::{Attributes, Metric, U64Histogram};
 
     use crate::add_parquet_file_with_tombstones;
 
@@ -1105,6 +1110,17 @@ pub(crate) mod test_helpers {
         test_add_parquet_file_with_tombstones(Arc::clone(&catalog)).await;
         test_txn_isolation(Arc::clone(&catalog)).await;
         test_txn_drop(Arc::clone(&catalog)).await;
+
+        let metrics = catalog.metrics();
+        assert_metric_hit(&*metrics, "kafka_create_or_get");
+        assert_metric_hit(&*metrics, "query_create_or_get");
+        assert_metric_hit(&*metrics, "namespace_create");
+        assert_metric_hit(&*metrics, "table_create_or_get");
+        assert_metric_hit(&*metrics, "column_create_or_get");
+        assert_metric_hit(&*metrics, "sequencer_create_or_get");
+        assert_metric_hit(&*metrics, "partition_create_or_get");
+        assert_metric_hit(&*metrics, "tombstone_create_or_get");
+        assert_metric_hit(&*metrics, "parquet_create");
     }
 
     async fn test_setup(catalog: Arc<dyn Catalog>) {
@@ -2090,5 +2106,17 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(topic.is_none());
         txn.abort().await.unwrap();
+    }
+
+    fn assert_metric_hit(metrics: &metric::Registry, name: &'static str) {
+        let histogram = metrics
+            .get_instrument::<Metric<U64Histogram>>("catalog_op_duration_ms")
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[("op", name), ("result", "success")]))
+            .expect("failed to get observer")
+            .fetch();
+
+        let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+        assert!(hit_count > 1, "metric did not record any calls");
     }
 }
