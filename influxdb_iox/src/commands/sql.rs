@@ -59,7 +59,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
 async fn check_health(connection: Connection) -> Result<()> {
     let response = health::Client::new(connection)
-        .check_storage()
+        .check_arrow()
         .await
         .context(ClientSnafu)?;
 
