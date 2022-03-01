@@ -14,10 +14,13 @@
 use parking_lot::Mutex;
 use pin_project::{pin_project, pinned_drop};
 use std::{pin::Pin, sync::Arc};
-use tokio::sync::oneshot::Receiver;
+use tokio::sync::oneshot::{error::RecvError, Receiver};
 use tokio_util::sync::CancellationToken;
 
-use futures::Future;
+use futures::{
+    future::{BoxFuture, Shared},
+    Future, FutureExt, TryFutureExt,
+};
 
 use observability_deps::tracing::warn;
 
@@ -55,8 +58,19 @@ pub type Error = tokio::sync::oneshot::error::RecvError;
 #[derive(Debug)]
 pub struct Job<T> {
     cancel: CancellationToken,
+    detached: bool,
     #[pin]
     rx: Receiver<T>,
+}
+
+impl<T> Job<T> {
+    /// Detached job so dropping it does not cancel it.
+    ///
+    /// You must ensure that this task eventually finishes, otherwise [`DedicatedExecutor::join`] may never return!
+    pub fn detach(mut self) {
+        // cannot destructure `Self` because we implement `Drop`, so we use a flag instead to prevent cancelation.
+        self.detached = true;
+    }
 }
 
 impl<T> Future for Job<T> {
@@ -74,7 +88,9 @@ impl<T> Future for Job<T> {
 #[pinned_drop]
 impl<T> PinnedDrop for Job<T> {
     fn drop(self: Pin<&mut Self>) {
-        self.cancel.cancel();
+        if !self.detached {
+            self.cancel.cancel();
+        }
     }
 }
 
@@ -90,13 +106,37 @@ pub struct DedicatedExecutor {
 struct State {
     /// Channel for requests -- the dedicated executor takes requests
     /// from here and runs them.
+    ///
+    /// This is `None` if we triggered shutdown.
     requests: Option<std::sync::mpsc::Sender<Task>>,
 
-    /// The thread that is doing the work
-    thread: Option<std::thread::JoinHandle<()>>,
+    /// Receiver side indicating that shutdown is complete.
+    completed_shutdown: Shared<BoxFuture<'static, Result<(), Arc<RecvError>>>>,
 
     /// Task counter (uses Arc strong count).
     task_refs: Arc<()>,
+
+    /// The inner thread that can be used to join during drop.
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+// IMPORTANT: Implement `Drop` for `State`, NOT for `DedicatedExecutor`, because the executor can be cloned and clones
+// share their inner state.
+impl Drop for State {
+    fn drop(&mut self) {
+        if self.requests.is_some() {
+            warn!("DedicatedExecutor dropped without calling shutdown()");
+            self.requests = None;
+        }
+
+        // do NOT poll the shared future if we are panicking due to https://github.com/rust-lang/futures-rs/issues/2575
+        if !std::thread::panicking() && self.completed_shutdown.clone().now_or_never().is_none() {
+            warn!("DedicatedExecutor dropped without waiting for worker termination",);
+        }
+
+        // join thread but don't care about the results
+        self.thread.take().expect("not dropped yet").join().ok();
+    }
 }
 
 /// The default worker priority (value passed to `libc::setpriority`);
@@ -129,7 +169,8 @@ impl DedicatedExecutor {
     pub fn new(thread_name: &str, num_threads: usize) -> Self {
         let thread_name = thread_name.to_string();
 
-        let (tx, rx) = std::sync::mpsc::channel::<Task>();
+        let (tx_tasks, rx_tasks) = std::sync::mpsc::channel::<Task>();
+        let (tx_shutdown, rx_shutdown) = tokio::sync::oneshot::channel();
 
         let thread = std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -146,7 +187,7 @@ impl DedicatedExecutor {
                 // We therefore use a RwLock to wait for tasks to complete
                 let join = Arc::new(tokio::sync::RwLock::new(()));
 
-                while let Ok(task) = rx.recv() {
+                while let Ok(task) = rx_tasks.recv() {
                     let join = Arc::clone(&join);
                     let handle = join.read_owned().await;
 
@@ -158,13 +199,17 @@ impl DedicatedExecutor {
 
                 // Wait for all tasks to finish
                 join.write().await;
+
+                // signal shutdown, but it's OK if the other side is gone
+                tx_shutdown.send(()).ok();
             })
         });
 
         let state = State {
-            requests: Some(tx),
-            thread: Some(thread),
+            requests: Some(tx_tasks),
             task_refs: Arc::new(()),
+            completed_shutdown: rx_shutdown.map_err(Arc::new).boxed().shared(),
+            thread: Some(thread),
         };
 
         Self {
@@ -205,7 +250,11 @@ impl DedicatedExecutor {
             warn!("tried to schedule task on an executor that was shutdown");
         }
 
-        Job { rx, cancel }
+        Job {
+            rx,
+            cancel,
+            detached: false,
+        }
     }
 
     /// Number of currently active tasks.
@@ -231,20 +280,23 @@ impl DedicatedExecutor {
     /// Only the first all to `join` will actually wait for the
     /// executing thread to complete. All other calls to join will
     /// complete immediately.
-    pub fn join(&self) {
+    ///
+    /// # Panic / Drop
+    /// [`DedicatedExecutor`] implements shutdown on [`Drop`]. You should just use this behavior and NOT call
+    /// [`join`](Self::join) manually during [`Drop`] or panics because this might lead to another panic, see
+    /// <https://github.com/rust-lang/futures-rs/issues/2575>.
+    pub async fn join(&self) {
         self.shutdown();
 
-        // take the thread out when mutex is held
-        let thread = {
-            let mut state = self.state.lock();
-            state.thread.take()
+        // get handle mutex is held
+        let handle = {
+            let state = self.state.lock();
+            state.completed_shutdown.clone()
         };
 
         // wait for completion while not holding the mutex to avoid
         // deadlocks
-        if let Some(thread) = thread {
-            thread.join().ok();
-        }
+        handle.await.expect("Thread died?")
     }
 }
 
@@ -296,6 +348,8 @@ mod tests {
 
         // should be able to get the result
         assert_eq!(dedicated_task.await.unwrap(), 42);
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -306,6 +360,40 @@ mod tests {
         let dedicated_task = exec.clone().spawn(do_work(42, Arc::clone(&barrier)));
         barrier.wait();
         assert_eq!(dedicated_task.await.unwrap(), 42);
+
+        exec.join().await;
+    }
+
+    #[tokio::test]
+    async fn drop_clone() {
+        let barrier = Arc::new(Barrier::new(2));
+        let exec = DedicatedExecutor::new("Test DedicatedExecutor", 1);
+
+        drop(exec.clone());
+
+        let task = exec.spawn(do_work(42, Arc::clone(&barrier)));
+        barrier.wait();
+        assert_eq!(task.await.unwrap(), 42);
+
+        exec.join().await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "foo")]
+    async fn just_panic() {
+        struct S(DedicatedExecutor);
+
+        impl Drop for S {
+            fn drop(&mut self) {
+                self.0.join().now_or_never();
+            }
+        }
+
+        let exec = DedicatedExecutor::new("Test DedicatedExecutor", 1);
+        let _s = S(exec);
+
+        // this must not lead to a double-panic and SIGILL
+        panic!("foo")
     }
 
     #[tokio::test]
@@ -324,7 +412,7 @@ mod tests {
         assert_eq!(dedicated_task1.await.unwrap(), 11);
         assert_eq!(dedicated_task2.await.unwrap(), 42);
 
-        exec.join();
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -334,6 +422,8 @@ mod tests {
         let dedicated_task = exec.spawn(async move { get_current_thread_priority() });
 
         assert_eq!(dedicated_task.await.unwrap(), WORKER_PRIORITY);
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -356,6 +446,8 @@ mod tests {
 
         // Validate the inner task ran to completion (aka it did not panic)
         assert_eq!(dedicated_task.await.unwrap(), 25);
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -371,6 +463,8 @@ mod tests {
 
         // should not be able to get the result
         dedicated_task.await.unwrap_err();
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -390,6 +484,8 @@ mod tests {
 
         // task should complete successfully
         assert_eq!(dedicated_task.await.unwrap(), 42);
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -402,6 +498,8 @@ mod tests {
 
         // task should complete, but return an error
         dedicated_task.await.unwrap_err();
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -409,20 +507,30 @@ mod tests {
         let exec = DedicatedExecutor::new("Test DedicatedExecutor", 1);
 
         // shutdown the clone (but not the exec)
-        exec.clone().join();
+        exec.clone().join().await;
 
         // Simulate trying to submit tasks once executor has shutdown
         let dedicated_task = exec.spawn(async { 11 });
 
         // task should complete, but return an error
         dedicated_task.await.unwrap_err();
+
+        exec.join().await;
     }
 
     #[tokio::test]
     async fn executor_join() {
         let exec = DedicatedExecutor::new("Test DedicatedExecutor", 1);
         // test it doesn't hang
-        exec.join()
+        exec.join().await;
+    }
+
+    #[tokio::test]
+    async fn executor_join2() {
+        let exec = DedicatedExecutor::new("Test DedicatedExecutor", 1);
+        // test it doesn't hang
+        exec.join().await;
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -430,9 +538,9 @@ mod tests {
     async fn executor_clone_join() {
         let exec = DedicatedExecutor::new("Test DedicatedExecutor", 1);
         // test it doesn't hang
-        exec.clone().join();
-        exec.clone().join();
-        exec.join();
+        exec.clone().join().await;
+        exec.clone().join().await;
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -463,7 +571,39 @@ mod tests {
         wait_for_tasks(&exec, 0).await;
         assert_eq!(exec.tasks(), 0);
 
-        exec.join()
+        exec.join().await;
+    }
+
+    #[tokio::test]
+    async fn detach_receiver() {
+        // create empty executor
+        let exec = DedicatedExecutor::new("Test DedicatedExecutor", 1);
+        assert_eq!(exec.tasks(), 0);
+
+        // create first task
+        // `detach()` consumes the task but doesn't abort the task (in contrast to `drop`). We'll proof the that the
+        // task is still running by linking it to a 2nd task using a barrier with size 3 (two tasks plus the main thread).
+        let barrier = Arc::new(AsyncBarrier::new(3));
+        let dedicated_task = exec.spawn(do_work_async(11, Arc::clone(&barrier)));
+        dedicated_task.detach();
+        assert_eq!(exec.tasks(), 1);
+
+        // create second task
+        let dedicated_task = exec.spawn(do_work_async(22, Arc::clone(&barrier)));
+        assert_eq!(exec.tasks(), 2);
+
+        // wait a bit just to make sure that our tasks doesn't get dropped
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        assert_eq!(exec.tasks(), 2);
+
+        // tasks should be unblocked because they both wait on the same barrier
+        // unblock tasks
+        barrier.wait().await;
+        wait_for_tasks(&exec, 0).await;
+        let result = dedicated_task.await.unwrap();
+        assert_eq!(result, 22);
+
+        exec.join().await;
     }
 
     /// Wait for the barrier and then return `result`

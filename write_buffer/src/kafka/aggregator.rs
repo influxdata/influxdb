@@ -4,7 +4,7 @@ use data_types::sequence::Sequence;
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use hashbrown::{hash_map::Entry, HashMap};
 use mutable_batch::MutableBatch;
-use observability_deps::tracing::{info, warn};
+use observability_deps::tracing::{error, info, warn};
 use rskafka::{
     client::producer::aggregator::{self, Aggregator, StatusDeaggregator, TryPush},
     record::Record,
@@ -240,7 +240,7 @@ pub struct DmlAggregator {
     collector: Option<Arc<dyn TraceCollector>>,
 
     /// Database name.
-    database_name: String,
+    database_name: Arc<str>,
 
     /// Maximum batch size in bytes.
     max_size: usize,
@@ -258,14 +258,14 @@ pub struct DmlAggregator {
 impl DmlAggregator {
     pub fn new(
         collector: Option<Arc<dyn TraceCollector>>,
-        database_name: String,
+        database_name: impl Into<Arc<str>>,
         max_size: usize,
         sequencer_id: u32,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         Self {
             collector,
-            database_name,
+            database_name: database_name.into(),
             max_size,
             sequencer_id,
             state: DmlAggregatorState::default(),
@@ -418,6 +418,7 @@ impl Aggregator for DmlAggregator {
             records,
             Deaggregator {
                 sequencer_id: self.sequencer_id,
+                database_name: Arc::clone(&self.database_name),
                 metadata,
                 tag_to_record: state.tag_to_record,
             },
@@ -484,6 +485,9 @@ pub struct Deaggregator {
     /// Sequencer ID.
     sequencer_id: u32,
 
+    /// Database name
+    database_name: Arc<str>,
+
     /// Metadata for every record.
     ///
     /// This is NOT per-tag, use `tag_to_record` to map tags to records first.
@@ -504,13 +508,15 @@ impl StatusDeaggregator for Deaggregator {
         tag: Self::Tag,
     ) -> Result<Self::Status, aggregator::Error> {
         assert_eq!(input.len(), self.tag_to_record.len(), "invalid offsets");
-        assert!(
-            self.tag_to_record.len() > tag.0,
-            "tag {} out of range (tag_to_record: {:?}, offsets: {:?})",
-            tag.0,
-            self.tag_to_record,
-            input
-        );
+
+        if self.tag_to_record.len() <= tag.0 {
+            error!(
+                "tag {} out of range (database_name: {}, tag_to_record: {:?}, offsets: {:?})",
+                tag.0, self.database_name, self.tag_to_record, input
+            );
+            // TODO: Temporary non-fatal assertion to reduce log spam (#3805)
+            return Err("internal aggregator error: invalid tag".into());
+        }
 
         let record = self.tag_to_record[tag.0];
 

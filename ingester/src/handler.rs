@@ -229,10 +229,13 @@ impl IngestHandler for IngestHandlerImpl {
                 panic!("Background worker '{name}' exited early!");
             }
         }
+
+        self.data.exec.join().await;
     }
 
     fn shutdown(&self) {
         self.shutdown.cancel();
+        self.data.exec.shutdown();
     }
 }
 
@@ -251,6 +254,8 @@ impl Drop for IngestHandlerImpl {
                 );
             }
         }
+
+        // `self.data.exec` implements `Drop`, so we don't need to do anything
     }
 }
 

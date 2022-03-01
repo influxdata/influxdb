@@ -1948,5 +1948,7 @@ mod tests {
             "\nActual: {:?}\nExpected: {:?}",
             actual_predicate, expected_predicate
         );
+
+        executor.join().await;
     }
 }

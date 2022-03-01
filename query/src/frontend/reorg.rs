@@ -376,6 +376,8 @@ mod test {
         ];
 
         assert_batches_eq!(&expected, &batches);
+
+        executor.join().await;
     }
 
     #[tokio::test]
@@ -425,6 +427,8 @@ mod test {
         ];
 
         assert_batches_eq!(&expected, &batches);
+
+        executor.join().await;
     }
 
     #[tokio::test]
@@ -489,5 +493,7 @@ mod test {
         ];
 
         assert_batches_eq!(&expected, &batches1);
+
+        executor.join().await;
     }
 }

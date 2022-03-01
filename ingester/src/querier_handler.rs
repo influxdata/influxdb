@@ -299,6 +299,8 @@ mod tests {
             "+-----------+------+-----------------------------+",
         ];
         assert_batches_eq!(&expected, &output_batches);
+
+        exc.join().await;
     }
 
     #[tokio::test]
@@ -334,6 +336,8 @@ mod tests {
             "+------+-----------------------------+",
         ];
         assert_batches_eq!(&expected, &output_batches);
+
+        exc.join().await;
     }
 
     #[tokio::test]
@@ -364,6 +368,8 @@ mod tests {
         // verify data: return nothing because the selected row already deleted
         let expected = vec!["++", "++"];
         assert_batches_eq!(&expected, &output_batches);
+
+        exc.join().await;
     }
 
     #[tokio::test]

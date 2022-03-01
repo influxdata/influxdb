@@ -195,7 +195,7 @@ jobs:
       - image: postgres
         environment:
           POSTGRES_HOST_AUTH_METHOD: trust
-    resource_class: xlarge  # use of a smaller executor tends crashes on link
+    resource_class: 2xlarge # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
@@ -247,7 +247,7 @@ jobs:
   test_heappy:
     docker:
       - image: quay.io/influxdb/rust:ci
-    resource_class: xlarge  # use of a smaller executor tends crashes on link
+    resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
@@ -326,7 +326,7 @@ jobs:
   build_dev:
     docker:
       - image: quay.io/influxdb/rust:ci
-    resource_class: xlarge  # use of a smaller executor tends crashes on link
+    resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
@@ -403,7 +403,7 @@ jobs:
     # kinda small node)
     machine:
       image: ubuntu-2004:202111-01
-    resource_class: xlarge  # use of a smaller executor tends crashes on link
+    resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
@@ -425,14 +425,12 @@ jobs:
             COMMIT_SHA="$(git rev-parse --short HEAD)"
 
             RUST_VERSION="$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)"
-            BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
 
             docker buildx build \
               --build-arg RUST_VERSION="$RUST_VERSION" \
               --build-arg RUSTFLAGS="-C target-feature=+avx2 -C link-arg=-fuse-ld=lld" \
               --progress plain \
               --tag quay.io/influxdb/iox:"$COMMIT_SHA" \
-              --tag quay.io/influxdb/iox:"$BRANCH" \
               .
             docker buildx build \
               --build-arg FEATURES="" \
@@ -441,7 +439,6 @@ jobs:
               --build-arg RUSTFLAGS="-C target-feature=+avx2 -C link-arg=-fuse-ld=lld" \
               --progress plain \
               --tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" \
-              --tag quay.io/influxdb/iox_data_generator:"$BRANCH" \
               .
             docker buildx build \
               --build-arg FEATURES="" \
@@ -450,24 +447,52 @@ jobs:
               --build-arg RUSTFLAGS="-C target-feature=+avx2 -C link-arg=-fuse-ld=lld" \
               --progress plain \
               --tag quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA" \
-              --tag quay.io/influxdb/iox_gitops_adapter:"$BRANCH" \
               .
 
             docker run -it --rm quay.io/influxdb/iox:$COMMIT_SHA debug print-cpu
 
-            docker push --all-tags quay.io/influxdb/iox
-            docker push --all-tags quay.io/influxdb/iox_data_generator
-            docker push --all-tags quay.io/influxdb/iox_gitops_adapter
-
-            echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
+            docker push quay.io/influxdb/iox:"$COMMIT_SHA"
+            docker push quay.io/influxdb/iox_data_generator:"$COMMIT_SHA"
+            docker push quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA"
           # linking might take a while and doesn't produce CLI output
-          no_output_timeout: 20m
+          no_output_timeout: 30m
+      - cache_save
+
+  deploy_release:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - setup_remote_docker:
+          version: 19.03.13
+          docker_layer_caching: true
+      - checkout
+      - run: |
+          echo "$QUAY_INFLUXDB_IOX_PASS" | docker login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
+      - run:
+          name: Update docker branch tags
+          command: |
+            COMMIT_SHA="$(git rev-parse --short HEAD)"
+            BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
+            
+            docker pull quay.io/influxdb/iox:"$COMMIT_SHA"
+            docker pull quay.io/influxdb/iox_data_generator:"$COMMIT_SHA"
+            docker pull quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA"
+            
+            docker tag quay.io/influxdb/iox:"$COMMIT_SHA" quay.io/influxdb/iox:"$BRANCH"
+            docker tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" quay.io/influxdb/iox_data_generator:"$BRANCH"
+            docker tag quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA" quay.io/influxdb/iox_gitops_adapter:"$BRANCH"
+            
+            docker push quay.io/influxdb/iox:"$BRANCH"
+            docker push quay.io/influxdb/iox_data_generator:"$BRANCH"
+            docker push quay.io/influxdb/iox_gitops_adapter:"$BRANCH"
+            
+            echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
       - run:
           name: Deploy tags
           command: |
             echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
             ./.circleci/get-deploy-tags.sh "${COMMIT_SHA}"
-      - cache_save
+
 
   # Prepare the CI image used for other tasks.
   #
@@ -495,7 +520,6 @@ jobs:
           docker build -t quay.io/influxdb/rust:$COMMIT_SHA -t quay.io/influxdb/rust:ci -f docker/Dockerfile.ci --build-arg RUST_VERSION=$RUST_VERSION .
           docker push --all-tags quay.io/influxdb/rust
 
-
 parameters:
   ci_image:
     description: "Trigger build of CI image"
@@ -513,7 +537,9 @@ workflows:
   # CI for all pull requests.
   ci:
     when:
-      not: << pipeline.parameters.ci_image >>
+      and:
+        - not: << pipeline.parameters.ci_image >>
+        - not: << pipeline.parameters.build_perf >>
     jobs:
       - fmt
       - lint
@@ -530,7 +556,11 @@ workflows:
           filters:
             branches:
               only: main
-          requires:  # Only do a release build if all tests have passed
+      - deploy_release:
+          filters:
+            branches:
+              only: main
+          requires: # Only deploy if all tests have passed
             - fmt
             - lint
             - cargo_audit
@@ -540,6 +570,7 @@ workflows:
             - test_heappy
             - test_perf
             - build_dev
+            - build_release
             - doc
 
   # Manual build of CI image
@@ -564,6 +595,9 @@ workflows:
     when: << pipeline.parameters.build_perf >>
     jobs:
       - build_release
+      - deploy_release:
+          requires:
+            - build_release
 
   # Nightly rebuild of the build container
   ci_image_nightly:

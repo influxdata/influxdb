@@ -121,23 +121,25 @@ impl Executor {
         }
     }
 
+    /// Initializes shutdown.
+    pub fn shutdown(&self) {
+        self.query_exec.shutdown();
+        self.reorg_exec.shutdown();
+    }
+
     /// Stops all subsequent task executions, and waits for the worker
     /// thread to complete. Note this will shutdown all created contexts.
     ///
     /// Only the first all to `join` will actually wait for the
     /// executing thread to complete. All other calls to join will
     /// complete immediately.
-    pub fn join(&self) {
-        self.query_exec.join();
-        self.reorg_exec.join();
+    pub async fn join(&self) {
+        self.query_exec.join().await;
+        self.reorg_exec.join().await;
     }
 }
 
-impl Drop for Executor {
-    fn drop(&mut self) {
-        self.join();
-    }
-}
+// No need to implement `Drop` because this is done by DedicatedExecutor already
 
 /// Create a SchemaPivot node which  an arbitrary input like
 ///  ColA | ColB | ColC
@@ -265,6 +267,8 @@ mod tests {
         let ctx = exec.new_context(ExecutorType::Query);
         let result_strings = ctx.to_string_set(plan).await.unwrap();
         assert_eq!(result_strings, expected_strings);
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -279,6 +283,8 @@ mod tests {
         let results = ctx.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, StringSetRef::new(StringSet::new()));
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -295,6 +301,8 @@ mod tests {
         let results = ctx.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -315,6 +323,8 @@ mod tests {
         let results = ctx.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -339,6 +349,8 @@ mod tests {
         let results = ctx.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -370,6 +382,8 @@ mod tests {
             expected_error,
             actual_error,
         );
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -397,6 +411,8 @@ mod tests {
             expected_error,
             actual_error
         );
+
+        exec.join().await;
     }
 
     #[tokio::test]
@@ -418,6 +434,8 @@ mod tests {
         let results = ctx.to_string_set(plan).await.expect("Executed plan");
 
         assert_eq!(results, to_set(&["f1", "f2"]));
+
+        exec.join().await;
     }
 
     /// return a set for testing

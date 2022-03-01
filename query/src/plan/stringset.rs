@@ -225,6 +225,8 @@ mod tests {
         let ctx = exec.new_context(ExecutorType::Query);
         let ss = ctx.to_string_set(plan).await.unwrap();
         assert_eq!(ss, expected_ss);
+
+        exec.join().await;
     }
 
     fn to_string_set(v: &[&str]) -> StringSet {
