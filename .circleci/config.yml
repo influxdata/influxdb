@@ -195,7 +195,7 @@ jobs:
       - image: postgres
         environment:
           POSTGRES_HOST_AUTH_METHOD: trust
-    resource_class: xlarge  # use of a smaller executor tends crashes on link
+    resource_class: 2xlarge # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
@@ -247,7 +247,7 @@ jobs:
   test_heappy:
     docker:
       - image: quay.io/influxdb/rust:ci
-    resource_class: xlarge  # use of a smaller executor tends crashes on link
+    resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
@@ -326,7 +326,7 @@ jobs:
   build_dev:
     docker:
       - image: quay.io/influxdb/rust:ci
-    resource_class: xlarge  # use of a smaller executor tends crashes on link
+    resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
@@ -403,7 +403,7 @@ jobs:
     # kinda small node)
     machine:
       image: ubuntu-2004:202111-01
-    resource_class: xlarge  # use of a smaller executor tends crashes on link
+    resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
@@ -495,7 +495,6 @@ jobs:
           docker build -t quay.io/influxdb/rust:$COMMIT_SHA -t quay.io/influxdb/rust:ci -f docker/Dockerfile.ci --build-arg RUST_VERSION=$RUST_VERSION .
           docker push --all-tags quay.io/influxdb/rust
 
-
 parameters:
   ci_image:
     description: "Trigger build of CI image"
@@ -530,7 +529,7 @@ workflows:
           filters:
             branches:
               only: main
-          requires:  # Only do a release build if all tests have passed
+          requires: # Only do a release build if all tests have passed
             - fmt
             - lint
             - cargo_audit
