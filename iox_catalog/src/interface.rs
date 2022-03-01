@@ -281,6 +281,18 @@ pub struct TablePersistInfo {
     pub tombstone_max_sequence_number: Option<SequenceNumber>,
 }
 
+/// Parameters necessary to perform a batch insert of
+/// [`ColumnRepo::create_or_get()`].
+#[derive(Debug)]
+pub struct ColumnUpsertRequest<'a> {
+    /// The name of the column.
+    pub name: &'a str,
+    /// The table ID to which it belongs.
+    pub table_id: TableId,
+    /// The data type of the column.
+    pub column_type: ColumnType,
+}
+
 /// Functions for working with columns in the catalog
 #[async_trait]
 pub trait ColumnRepo: Send + Sync {
@@ -293,6 +305,16 @@ pub trait ColumnRepo: Send + Sync {
         table_id: TableId,
         column_type: ColumnType,
     ) -> Result<Column>;
+
+    /// Perform a bulk upsert of columns.
+    ///
+    /// Implementations make no guarantees as to the ordering or atomicity of
+    /// the batch of column upsert operations - a batch upsert may partially
+    /// commit, in which case an error MUST be returned by the implementation.
+    async fn create_or_get_many(
+        &mut self,
+        columns: &[ColumnUpsertRequest<'_>],
+    ) -> Result<Vec<Column>>;
 
     /// Lists all columns in the passed in namespace id.
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Column>>;
@@ -890,12 +912,32 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_ne!(c, ccc);
 
+        let cols3 = repos
+            .columns()
+            .create_or_get_many(&[
+                ColumnUpsertRequest {
+                    name: "a",
+                    table_id: table2.id,
+                    column_type: ColumnType::U64,
+                },
+                ColumnUpsertRequest {
+                    name: "a",
+                    table_id: table.id,
+                    column_type: ColumnType::U64,
+                },
+            ])
+            .await
+            .unwrap();
+
         let columns = repos
             .columns()
             .list_by_namespace_id(namespace.id)
             .await
             .unwrap();
-        assert_eq!(vec![c, ccc], columns);
+
+        let mut want = vec![c, ccc];
+        want.extend(cols3);
+        assert_eq!(want, columns);
     }
 
     async fn test_sequencer(catalog: Arc<dyn Catalog>) {

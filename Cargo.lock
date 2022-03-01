@@ -2173,6 +2173,7 @@ checksum = "ec58677acfea8a15352d42fc87d11d63596ade9239e0a7c9352914417515dbe6"
 name = "iox_catalog"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "async-trait",
  "data_types2",
  "dotenv",
