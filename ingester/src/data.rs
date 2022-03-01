@@ -1893,6 +1893,8 @@ mod tests {
         assert_batches_sorted_eq!(&expected, &[data]);
         assert_eq!(p.inner.read().snapshots[0].min_sequencer_number.get(), 8);
         assert_eq!(p.inner.read().snapshots[0].max_sequencer_number.get(), 9);
+
+        exec.join().await;
     }
 
     #[tokio::test]

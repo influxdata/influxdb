@@ -111,6 +111,8 @@ mod test {
         .unwrap();
 
         assert_extracted_metrics!(extracted, 8);
+
+        executor.join().await;
     }
 
     // Extracted baseline metrics for the specified operator

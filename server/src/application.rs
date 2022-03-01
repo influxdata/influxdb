@@ -98,7 +98,7 @@ impl ApplicationState {
         &self.executor
     }
 
-    pub fn join(&self) {
-        self.executor.join()
+    pub async fn join(&self) {
+        self.executor.join().await;
     }
 }

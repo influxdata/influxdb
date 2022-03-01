@@ -99,7 +99,7 @@ impl ServerType for DatabaseServerType {
 
         info!("server completed shutting down");
 
-        self.application.join();
+        self.application.join().await;
         info!("shared application state completed shutting down");
     }
 
