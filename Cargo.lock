@@ -4240,7 +4240,7 @@ dependencies = [
 [[package]]
 name = "rskafka"
 version = "0.2.0"
-source = "git+https://github.com/influxdata/rskafka.git?rev=3af1939fd47f8680d40074dc3fd2e2a4a0da6b8c#3af1939fd47f8680d40074dc3fd2e2a4a0da6b8c"
+source = "git+https://github.com/influxdata/rskafka.git?rev=f7eef8560ac871e056887a62b7014582835cba78#f7eef8560ac871e056887a62b7014582835cba78"
 dependencies = [
  "async-trait",
  "bytes",
