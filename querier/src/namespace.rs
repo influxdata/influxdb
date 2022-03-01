@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use db::catalog::Catalog as DbCatalog;
-use iox_catalog::interface::{Catalog, NamespaceId};
+use iox_catalog::interface::NamespaceId;
 use object_store::ObjectStore;
 use time::TimeProvider;
 
-use crate::chunk::ParquetChunkAdapter;
+use crate::{cache::CatalogCache, chunk::ParquetChunkAdapter};
 
 /// Maps a catalog namespace to all the in-memory resources and sync-state that the querier needs.
 #[derive(Debug)]
@@ -28,7 +28,7 @@ impl QuerierNamespace {
     ///
     /// You may call [`sync`](Self::sync) to fill the namespace with chunks.
     pub fn new(
-        catalog: Arc<dyn Catalog>,
+        catalog_cache: Arc<CatalogCache>,
         name: Arc<str>,
         id: NamespaceId,
         metric_registry: Arc<metric::Registry>,
@@ -42,7 +42,7 @@ impl QuerierNamespace {
                 Arc::clone(&time_provider),
             ),
             chunk_adapter: ParquetChunkAdapter::new(
-                catalog,
+                catalog_cache,
                 object_store,
                 metric_registry,
                 time_provider,
