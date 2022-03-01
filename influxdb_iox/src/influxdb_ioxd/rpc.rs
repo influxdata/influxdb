@@ -11,6 +11,7 @@ use crate::influxdb_ioxd::{
     serving_readiness::ServingReadiness,
 };
 
+pub(crate) mod flight;
 pub(crate) mod testing;
 
 /// Returns the name of the gRPC service S.
