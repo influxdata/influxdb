@@ -11,7 +11,7 @@ use write_buffer::{
 pub struct WriteBufferConfig {
     /// The type of write buffer to use.
     ///
-    /// Valid options are: file, kafka, rskafka
+    /// Valid options are: file, kafka
     #[clap(long = "--write-buffer", env = "INFLUXDB_IOX_WRITE_BUFFER_TYPE")]
     pub(crate) type_: String,
 
