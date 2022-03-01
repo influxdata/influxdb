@@ -67,26 +67,38 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 impl QueryableBatch {
     /// Initilaize a QueryableBatch
     pub fn new(table_name: &str, data: Vec<Arc<SnapshotBatch>>, deletes: Vec<Tombstone>) -> Self {
-        let mut delete_predicates = vec![];
-        for delete in &deletes {
-            let delete_predicate = Arc::new(
-                parse_delete_predicate(
-                    &delete.min_time.get().to_string(),
-                    &delete.max_time.get().to_string(),
-                    &delete.serialized_predicate,
-                )
-                .expect("Error building delete predicate"),
-            );
-
-            delete_predicates.push(delete_predicate);
-        }
-
+        let delete_predicates = Self::tombstones_to_delete_predicates(&deletes);
         Self {
             data,
-            deletes,
             delete_predicates,
             table_name: table_name.to_string(),
         }
+    }
+
+    /// Add more tombstones
+    pub fn add_tombstones(&mut self, deletes: &[Tombstone]) {
+        let delete_predicates = Self::tombstones_to_delete_predicates_iter(deletes);
+        self.delete_predicates.extend(delete_predicates);
+    }
+
+    /// Convert tombstones to delete predicates
+    pub fn tombstones_to_delete_predicates(tombstones: &[Tombstone]) -> Vec<Arc<DeletePredicate>> {
+        Self::tombstones_to_delete_predicates_iter(tombstones).collect()
+    }
+
+    fn tombstones_to_delete_predicates_iter(
+        tombstones: &[Tombstone],
+    ) -> impl Iterator<Item = Arc<DeletePredicate>> + '_ {
+        tombstones.iter().map(|tombstone| {
+            Arc::new(
+                parse_delete_predicate(
+                    &tombstone.min_time.get().to_string(),
+                    &tombstone.max_time.get().to_string(),
+                    &tombstone.serialized_predicate,
+                )
+                .expect("Error building delete predicate"),
+            )
+        })
     }
 
     /// return min and max of all the snapshots
@@ -120,7 +132,7 @@ impl QueryChunkMeta for QueryableBatch {
     }
 
     fn schema(&self) -> Arc<Schema> {
-        // todo: may want store this schema as a field of QueryableBatch and
+        // TODO: may want store this schema as a field of QueryableBatch and
         // only do this schema merge the first time it is call
 
         // Merge schema of all RecordBatches of the PerstingBatch
@@ -144,7 +156,7 @@ impl QueryChunk for QueryableBatch {
     // This function should not be used in QueryBatch context
     fn id(&self) -> ChunkId {
         // always return id 0 for debugging mode
-        // todo: need to see if the same id for all chunks will cause any panics
+        // TODO: need to see if the same id for all chunks will cause any panics
         ChunkId::new_test(0)
     }
 

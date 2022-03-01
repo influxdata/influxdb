@@ -23,4 +23,6 @@ mod poison;
 pub mod querier_handler;
 pub mod query;
 pub mod server;
+
+#[cfg(test)]
 pub mod test_util;

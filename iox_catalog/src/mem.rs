@@ -790,7 +790,7 @@ impl ProcessedTombstoneRepo for MemTxn {
             });
         }
 
-        // check if tomstone exists
+        // check if tombstone exists
         if !stage.tombstones.iter().any(|f| f.id == tombstone_id) {
             return Err(Error::TombstoneNotFound {
                 id: tombstone_id.get(),

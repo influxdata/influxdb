@@ -2074,6 +2074,7 @@ dependencies = [
  "async-trait",
  "backoff 0.1.0",
  "base64 0.13.0",
+ "bitflags",
  "bytes",
  "chrono",
  "data_types",

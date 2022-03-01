@@ -210,7 +210,7 @@ impl IngestHandler for IngestHandlerImpl {
         &self,
         request: IngesterQueryRequest,
     ) -> Result<IngesterQueryResponse, crate::querier_handler::Error> {
-        prepare_data_to_querier(&request).await
+        prepare_data_to_querier(&self.data, &request).await
     }
 
     async fn join(&self) {

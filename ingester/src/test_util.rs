@@ -1,15 +1,23 @@
-//! Test setups and data for ingetser crate
+//! Test setups and data for ingester crate
+#![allow(missing_docs)]
 
-use crate::data::{PersistingBatch, QueryableBatch, SnapshotBatch};
+use crate::data::{
+    IngesterData, NamespaceData, PartitionData, PersistingBatch, QueryableBatch, SequencerData,
+    SnapshotBatch, TableData,
+};
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
-use iox_catalog::interface::{
-    NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp, Tombstone,
-    TombstoneId,
+use bitflags::bitflags;
+use iox_catalog::{
+    interface::{
+        Catalog, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
+        Tombstone, TombstoneId,
+    },
+    mem::MemCatalog,
 };
 use parquet_file::metadata::IoxMetadata;
 use query::test::{raw_data, TestChunk};
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 use time::{SystemProvider, Time, TimeProvider};
 use uuid::Uuid;
 
@@ -107,7 +115,6 @@ pub fn create_tombstone(
     }
 }
 
-///
 #[allow(clippy::too_many_arguments)]
 pub fn make_meta(
     object_store_id: Uuid,
@@ -143,7 +150,6 @@ pub fn make_meta(
     }
 }
 
-///
 #[allow(clippy::too_many_arguments)]
 pub fn make_persisting_batch(
     seq_id: i16,
@@ -167,7 +173,6 @@ pub fn make_persisting_batch(
     })
 }
 
-///
 pub fn make_queryable_batch(
     table_name: &str,
     seq_num_start: i64,
@@ -176,14 +181,13 @@ pub fn make_queryable_batch(
     make_queryable_batch_with_deletes(table_name, seq_num_start, batches, vec![])
 }
 
-///
 pub fn make_queryable_batch_with_deletes(
     table_name: &str,
     seq_num_start: i64,
     batches: Vec<Arc<RecordBatch>>,
     tombstones: Vec<Tombstone>,
 ) -> Arc<QueryableBatch> {
-    // make snapshots for the bacthes
+    // make snapshots for the batches
     let mut snapshots = vec![];
     let mut seq_num = seq_num_start;
     for batch in batches {
@@ -195,7 +199,6 @@ pub fn make_queryable_batch_with_deletes(
     Arc::new(QueryableBatch::new(table_name, snapshots, tombstones))
 }
 
-///
 pub fn make_snapshot_batch(
     batch: Arc<RecordBatch>,
     min: SequenceNumber,
@@ -208,7 +211,6 @@ pub fn make_snapshot_batch(
     }
 }
 
-///
 pub async fn create_one_row_record_batch_with_influxtype() -> Vec<Arc<RecordBatch>> {
     let chunk1 = Arc::new(
         TestChunk::new("t")
@@ -220,7 +222,7 @@ pub async fn create_one_row_record_batch_with_influxtype() -> Vec<Arc<RecordBatc
     );
     let batches = raw_data(&[chunk1]).await;
 
-    // Make sure all dat ain one record batch
+    // Make sure all data in one record batch
     assert_eq!(batches.len(), 1);
 
     // verify data
@@ -237,7 +239,6 @@ pub async fn create_one_row_record_batch_with_influxtype() -> Vec<Arc<RecordBatc
     batches
 }
 
-///
 pub async fn create_one_record_batch_with_influxtype_no_duplicates() -> Vec<Arc<RecordBatch>> {
     let chunk1 = Arc::new(
         TestChunk::new("t")
@@ -249,7 +250,7 @@ pub async fn create_one_record_batch_with_influxtype_no_duplicates() -> Vec<Arc<
     );
     let batches = raw_data(&[chunk1]).await;
 
-    // Make sure all dat ain one record batch
+    // Make sure all data in one record batch
     assert_eq!(batches.len(), 1);
 
     // verify data
@@ -268,7 +269,6 @@ pub async fn create_one_record_batch_with_influxtype_no_duplicates() -> Vec<Arc<
     batches
 }
 
-///
 pub async fn create_one_record_batch_with_influxtype_duplicates() -> Vec<Arc<RecordBatch>> {
     let chunk1 = Arc::new(
         TestChunk::new("t")
@@ -280,7 +280,7 @@ pub async fn create_one_record_batch_with_influxtype_duplicates() -> Vec<Arc<Rec
     );
     let batches = raw_data(&[chunk1]).await;
 
-    // Make sure all dat ain one record batch
+    // Make sure all data in one record batch
     assert_eq!(batches.len(), 1);
 
     // verify data
@@ -571,4 +571,354 @@ pub async fn create_batches_with_influxtype_same_columns_different_type() -> Vec
     batches.push(Arc::new(batch2));
 
     batches
+}
+
+pub const TEST_NAMESPACE: &str = "test_namespace";
+pub const TEST_NAMESPACE_EMPTY: &str = "test_namespace_empty";
+pub const TEST_TABLE: &str = "test_table";
+pub const TEST_TABLE_EMPTY: &str = "test_table_empty";
+pub const TEST_PARTITION_1: &str = "test+partition_1";
+pub const TEST_PARTITION_2: &str = "test+partition_2";
+
+bitflags! {
+    /// Make the same in-memory data but data are split between:
+    ///    . one or two partition
+    ///    . The first partition will have a choice to have data in either
+    ///       . buffer only
+    ///       . snapshot only
+    ///       . persisting only
+    ///       . buffer + snapshot
+    ///       . buffer + persisting
+    ///       . snapshot + persisting
+    ///       . buffer + snapshot + persisting
+    ///    . If the second partittion exists, it only has data in its buffer
+    pub struct DataLocation: u8 {
+        const BUFFER = 0b001;
+        const SNAPSHOT = 0b010;
+        const PERSISTING = 0b100;
+        const BUFFER_SNAPSHOT = Self::BUFFER.bits | Self::SNAPSHOT.bits;
+        const BUFFER_PERSISTING = Self::BUFFER.bits | Self::PERSISTING.bits;
+        const SNAPSHOT_PERSISTING = Self::SNAPSHOT.bits | Self::PERSISTING.bits;
+        const BUFFER_SNAPSHOT_PERSISTING = Self::BUFFER.bits | Self::SNAPSHOT.bits | Self::PERSISTING.bits;
+    }
+}
+
+/// This function produces one scenario but with the parameter combination (2*7),
+/// you will be able to produce 14 scenarios by calling it in 2 loops
+pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterData {
+    // Whatever data because they won't be used in the tests
+    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
+    let object_store = Arc::new(object_store::ObjectStore::new_in_memory());
+    let exec = query::exec::Executor::new(1);
+
+    // Make data for one sequencer/shard and two tables
+    let seq_id = SequencerId::new(1);
+    let empty_table_id = TableId::new(1);
+    let data_table_id = TableId::new(2);
+
+    // Make partitions per requested
+    let partitions = make_partitions(two_partitions, loc, seq_id, data_table_id, TEST_TABLE);
+
+    // Two tables: one empty and one with data of one or two partitions
+    let mut tables = BTreeMap::new();
+    let empty_tbl = Arc::new(TableData::new(empty_table_id, None, None));
+    let data_tbl = Arc::new(TableData::new_for_test(
+        data_table_id,
+        None,
+        None,
+        partitions,
+    ));
+    tables.insert(TEST_TABLE_EMPTY.to_string(), empty_tbl);
+    tables.insert(TEST_TABLE.to_string(), data_tbl);
+
+    // Two namespaces: one empty and one with data of 2 tables
+    let mut namespaces = BTreeMap::new();
+    let empty_ns = Arc::new(NamespaceData::new(NamespaceId::new(1)));
+    let data_ns = Arc::new(NamespaceData::new_for_test(NamespaceId::new(2), tables));
+    namespaces.insert(TEST_NAMESPACE_EMPTY.to_string(), empty_ns);
+    namespaces.insert(TEST_NAMESPACE.to_string(), data_ns);
+
+    // One sequencer/shard that contains 2 namespaces
+    let seq_data = SequencerData::new_for_test(namespaces);
+    let mut sequencers = BTreeMap::new();
+    sequencers.insert(seq_id, seq_data);
+
+    // Ingester data that inlcudes one sequencer/shard
+    IngesterData {
+        object_store,
+        catalog,
+        sequencers,
+        exec,
+        backoff_config: backoff::BackoffConfig::default(),
+    }
+}
+
+pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterData {
+    // Whatever data because they won't be used in the tests
+    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new());
+    let object_store = Arc::new(object_store::ObjectStore::new_in_memory());
+    let exec = query::exec::Executor::new(1);
+
+    // Make data for one sequencer/shard and two tables
+    let seq_id = SequencerId::new(1);
+    let data_table_id = TableId::new(2);
+
+    // Make partitions per requested
+    let partitions =
+        make_one_partition_with_tombstones(&exec, loc, seq_id, data_table_id, TEST_TABLE).await;
+
+    // Two tables: one empty and one with data of one or two partitions
+    let mut tables = BTreeMap::new();
+    let data_tbl = Arc::new(TableData::new_for_test(
+        data_table_id,
+        None,
+        None,
+        partitions,
+    ));
+    tables.insert(TEST_TABLE.to_string(), data_tbl);
+
+    // Two namespaces: one empty and one with data of 2 tables
+    let mut namespaces = BTreeMap::new();
+    let data_ns = Arc::new(NamespaceData::new_for_test(NamespaceId::new(2), tables));
+    namespaces.insert(TEST_NAMESPACE.to_string(), data_ns);
+
+    // One sequencer/shard that contains 1 namespace
+    let seq_data = SequencerData::new_for_test(namespaces);
+    let mut sequencers = BTreeMap::new();
+    sequencers.insert(seq_id, seq_data);
+
+    // Ingester data that inlcudes one sequencer/shard
+    IngesterData {
+        object_store,
+        catalog,
+        sequencers,
+        exec,
+        backoff_config: backoff::BackoffConfig::default(),
+    }
+}
+
+/// Make data for one or two partitions per requested
+pub fn make_partitions(
+    two_partitions: bool,
+    loc: DataLocation,
+    sequencer_id: SequencerId,
+    table_id: TableId,
+    table_name: &str,
+) -> BTreeMap<String, Arc<PartitionData>> {
+    // In-memory data includes these rows but split between 4 groups go into
+    // different batches of parittion 1 or partittion 2  as requeted
+    // let expected = vec![
+    //         "+------------+-----+------+--------------------------------+",
+    //         "| city       | day | temp | time                           |",
+    //         "+------------+-----+------+--------------------------------+",
+    //         "| Andover    | tue | 56   | 1970-01-01T00:00:00.000000030Z |", // in group 1 - seq_num: 2
+    //         "| Andover    | mon |      | 1970-01-01T00:00:00.000000046Z |", // in group 2 - seq_num: 3
+    //         "| Boston     | sun | 60   | 1970-01-01T00:00:00.000000036Z |", // in group 1 - seq_num: 1
+    //         "| Boston     | mon |      | 1970-01-01T00:00:00.000000038Z |", // in group 3 - seq_num: 5
+    //         "| Medford    | sun | 55   | 1970-01-01T00:00:00.000000022Z |", // in group 4 - seq_num: 7
+    //         "| Medford    | wed |      | 1970-01-01T00:00:00.000000026Z |", // in group 2 - seq_num: 4
+    //         "| Reading    | mon | 58   | 1970-01-01T00:00:00.000000040Z |", // in group 4 - seq_num: 8
+    //         "| Wilmington | mon |      | 1970-01-01T00:00:00.000000035Z |", // in group 3 - seq_num: 6
+    //         "+------------+-----+------+--------------------------------+",
+    //     ];
+
+    let mut partitions = BTreeMap::new();
+
+    // ------------------------------------------
+    // Build the first partition
+    let partition_id = PartitionId::new(1);
+    let (p1, seq_num) =
+        make_first_partition_data(partition_id, loc, sequencer_id, table_id, table_name);
+
+    // ------------------------------------------
+    // Build the second partition if asked
+
+    let mut seq_num = seq_num.get();
+    if two_partitions {
+        let partition_id = PartitionId::new(2);
+        let p2 = PartitionData::new(partition_id);
+        // Group 4: in buffer of p2
+        // Fill `buffer`
+        seq_num += 1;
+        let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+            r#"test_table,city=Medford day="sun",temp=55 22"#,
+        );
+        p2.buffer_write(SequenceNumber::new(seq_num), mb);
+        seq_num += 1;
+        let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+            r#"test_table,city=Reading day="mon",temp=58 40"#,
+        );
+        p2.buffer_write(SequenceNumber::new(seq_num), mb);
+
+        partitions.insert(TEST_PARTITION_2.to_string(), Arc::new(p2));
+    } else {
+        // Group 4: in buffer of p1
+        // Fill `buffer`
+        seq_num += 1;
+        let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+            r#"test_table,city=Medford day="sun",temp=55 22"#,
+        );
+        p1.buffer_write(SequenceNumber::new(seq_num), mb);
+        seq_num += 1;
+        let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+            r#"test_table,city=Reading day="mon",temp=58 40"#,
+        );
+        p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    }
+
+    partitions.insert(TEST_PARTITION_1.to_string(), Arc::new(p1));
+    partitions
+}
+
+/// Make data for one partition with tombstones
+pub async fn make_one_partition_with_tombstones(
+    exec: &query::exec::Executor,
+    loc: DataLocation,
+    sequencer_id: SequencerId,
+    table_id: TableId,
+    table_name: &str,
+) -> BTreeMap<String, Arc<PartitionData>> {
+    // In-memory data includes these rows but split between 4 groups go into
+    // different batches of parittion 1 or partittion 2  as requeted
+    // let expected = vec![
+    //         "+------------+-----+------+--------------------------------+",
+    //         "| city       | day | temp | time                           |",
+    //         "+------------+-----+------+--------------------------------+",
+    //         "| Andover    | tue | 56   | 1970-01-01T00:00:00.000000030Z |", // in group 1 - seq_num: 2
+    //         "| Andover    | mon |      | 1970-01-01T00:00:00.000000046Z |", // in group 2 - seq_num: 3
+    //         "| Boston     | sun | 60   | 1970-01-01T00:00:00.000000036Z |", // in group 1 - seq_num: 1  --> will get deleted
+    //         "| Boston     | mon |      | 1970-01-01T00:00:00.000000038Z |", // in group 3 - seq_num: 5  --> will get deleted
+    //         "| Medford    | sun | 55   | 1970-01-01T00:00:00.000000022Z |", // in group 4 - seq_num: 8  (after the tombstone's seq num)
+    //         "| Medford    | wed |      | 1970-01-01T00:00:00.000000026Z |", // in group 2 - seq_num: 4
+    //         "| Reading    | mon | 58   | 1970-01-01T00:00:00.000000040Z |", // in group 4 - seq_num: 9
+    //         "| Wilmington | mon |      | 1970-01-01T00:00:00.000000035Z |", // in group 3 - seq_num: 6
+    //         "+------------+-----+------+--------------------------------+",
+    //     ];
+
+    let partition_id = PartitionId::new(1);
+    let (p1, seq_num) =
+        make_first_partition_data(partition_id, loc, sequencer_id, table_id, table_name);
+
+    // Add tombtones
+    // Depending on where the existing data is, they (buffer & snapshot) will be either moved to a new sanpshot after
+    // appying the tombstone or (persisting) stay where they are and the tomstobes is kept to get applied later
+    // ------------------------------------------
+    // Delete
+    let mut seq_num = seq_num.get();
+    seq_num += 1;
+    let ts = create_tombstone(
+        2,                  // tombstone id
+        table_id.get(),     // table id
+        sequencer_id.get(), // sequencer id
+        seq_num,            // delete's seq_number
+        10,                 // min time of data to get deleted
+        50,                 // max time of data to get deleted
+        "city=Boston",      // delete predicate
+    );
+    p1.buffer_tombstone(exec, table_name, ts).await;
+
+    // Group 4: in buffer of p1 after the tombstone
+    // Fill `buffer`
+    seq_num += 1;
+    let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+        r#"test_table,city=Medford day="sun",temp=55 22"#,
+    );
+    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    seq_num += 1;
+    let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+        r#"test_table,city=Reading day="mon",temp=58 40"#,
+    );
+    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+
+    let mut partitions = BTreeMap::new();
+    partitions.insert(TEST_PARTITION_1.to_string(), Arc::new(p1));
+
+    partitions
+}
+
+fn make_first_partition_data(
+    partition_id: PartitionId,
+    loc: DataLocation,
+    sequencer_id: SequencerId,
+    table_id: TableId,
+    table_name: &str,
+) -> (PartitionData, SequenceNumber) {
+    // In-memory data inlcudes these rows but split between 3 groups go into
+    // different batches of parittion p1
+    // let expected = vec![
+    //         "+------------+-----+------+--------------------------------+",
+    //         "| city       | day | temp | time                           |",
+    //         "+------------+-----+------+--------------------------------+",
+    //         "| Andover    | tue | 56   | 1970-01-01T00:00:00.000000030Z |", // in group 1 - seq_num: 2
+    //         "| Andover    | mon |      | 1970-01-01T00:00:00.000000046Z |", // in group 2 - seq_num: 3
+    //         "| Boston     | sun | 60   | 1970-01-01T00:00:00.000000036Z |", // in group 1 - seq_num: 1
+    //         "| Boston     | mon |      | 1970-01-01T00:00:00.000000038Z |", // in group 3 - seq_num: 5
+    //         "| Medford    | wed |      | 1970-01-01T00:00:00.000000026Z |", // in group 2 - seq_num: 4
+    //         "| Wilmington | mon |      | 1970-01-01T00:00:00.000000035Z |", // in group 3 - seq_num: 6
+    //         "+------------+-----+------+--------------------------------+",
+    //     ];
+
+    // ------------------------------------------
+    // Build the first partition
+    let p1 = PartitionData::new(partition_id);
+    let mut seq_num = 0;
+
+    // --------------------
+    // Group 1
+    // Fill `buffer`
+    let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+        r#"test_table,city=Boston day="sun",temp=60 36"#,
+    );
+    seq_num += 1;
+    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    seq_num += 1;
+    let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+        r#"test_table,city=Andover day="tue",temp=56 30"#,
+    );
+    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+
+    if loc.contains(DataLocation::PERSISTING) {
+        // Move group 1 data to persisting
+        p1.snapshot_to_persisting_batch(sequencer_id, table_id, partition_id, table_name);
+    } else if loc.contains(DataLocation::SNAPSHOT) {
+        // move group 1 data to snapshot
+        p1.snapshot().unwrap();
+    } else {
+    } // keep it in buffer
+
+    // --------------------
+    // Group 2
+    // Fill `buffer`
+    seq_num += 1;
+    let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+        r#"test_table,city=Andover day="mon" 46"#,
+    );
+    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    seq_num += 1;
+    let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+        r#"test_table,city=Medford day="wed" 26"#,
+    );
+    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+
+    if loc.contains(DataLocation::SNAPSHOT) {
+        // move group 2 data to snapshot
+        p1.snapshot().unwrap();
+    } else {
+    } // keep it in buffer
+
+    // --------------------
+    // Group 3: always in buffer
+    // Fill `buffer`
+    seq_num += 1;
+    let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+        r#"test_table,city=Boston day="mon" 38"#,
+    );
+    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    seq_num += 1;
+    let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
+        r#"test_table,city=Wilmington day="mon" 35"#,
+    );
+    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+
+    (p1, SequenceNumber::new(seq_num))
 }

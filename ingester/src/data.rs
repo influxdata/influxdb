@@ -79,11 +79,14 @@ pub enum Error {
     #[snafu(display("Snapshot error: {}", source))]
     Snapshot { source: mutable_batch::Error },
 
-    #[snafu(display("Error while filter columns from snapshot: {}", source))]
+    #[snafu(display("Error while filtering columns from snapshot: {}", source))]
     FilterColumn { source: arrow::error::ArrowError },
 
     #[snafu(display("Partition not found: {}", partition_id))]
     PartitionNotFound { partition_id: PartitionId },
+
+    #[snafu(display("Error while copying buffer to snapshot: {}", source))]
+    BufferToSnapshot { source: mutable_batch::Error },
 }
 
 /// A specialized `Error` for Ingester Data errors
@@ -132,6 +135,21 @@ impl IngesterData {
                 &self.exec,
             )
             .await
+    }
+
+    /// Return table data of a given (sequencer id, namespace name, and table name)
+    pub fn table_data(
+        &self,
+        sequencer_id: SequencerId,
+        namespace_name: &str,
+        table_name: &str,
+    ) -> Option<Arc<TableData>> {
+        let sequencer_data = self.sequencers.get(&sequencer_id)?;
+        let namespaces = sequencer_data.namespaces.read();
+        let namespace_data = namespaces.get(namespace_name)?;
+        let tables = namespace_data.tables.read();
+        let table_data = tables.get(table_name)?;
+        Some(Arc::clone(table_data))
     }
 }
 
@@ -310,6 +328,14 @@ pub struct SequencerData {
 }
 
 impl SequencerData {
+    /// Initialize new SequncerData with namespace for testing purpose only
+    #[cfg(test)]
+    pub fn new_for_test(namespaces: BTreeMap<String, Arc<NamespaceData>>) -> Self {
+        Self {
+            namespaces: RwLock::new(namespaces),
+        }
+    }
+
     /// Store the write or delete in the sequencer. Deletes will
     /// be written into the catalog before getting stored in the buffer.
     /// Any writes that create new IOx partitions will have those records
@@ -384,6 +410,18 @@ impl NamespaceData {
         Self {
             namespace_id,
             tables: Default::default(),
+        }
+    }
+
+    /// Initialize new tables with data for testing purpose only
+    #[cfg(test)]
+    pub fn new_for_test(
+        namespace_id: NamespaceId,
+        tables: BTreeMap<String, Arc<TableData>>,
+    ) -> Self {
+        Self {
+            namespace_id,
+            tables: RwLock::new(tables),
         }
     }
 
@@ -540,6 +578,32 @@ impl TableData {
         }
     }
 
+    /// Initialize new table buffer for testing purpose only
+    #[cfg(test)]
+    pub fn new_for_test(
+        table_id: TableId,
+        parquet_max_sequence_number: Option<SequenceNumber>,
+        tombstone_max_sequence_number: Option<SequenceNumber>,
+        partitions: BTreeMap<String, Arc<PartitionData>>,
+    ) -> Self {
+        Self {
+            table_id,
+            parquet_max_sequence_number,
+            tombstone_max_sequence_number,
+            partition_data: RwLock::new(partitions),
+        }
+    }
+
+    /// Return parquet_max_sequence_number
+    pub fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
+        self.parquet_max_sequence_number
+    }
+
+    /// Return tombstone_max_sequence_number
+    pub fn tombstone_max_sequence_number(&self) -> Option<SequenceNumber> {
+        self.tombstone_max_sequence_number
+    }
+
     // buffers the table write and returns true if the lifecycle manager indicates that
     // ingest should be paused.
     async fn buffer_table_write(
@@ -633,6 +697,11 @@ impl TableData {
         p.get(partition_key).cloned()
     }
 
+    /// Returns all partition keys
+    pub fn partition_keys(&self) -> Vec<String> {
+        self.partition_data.read().keys().cloned().collect()
+    }
+
     async fn insert_partition(
         &self,
         partition_key: &str,
@@ -696,7 +765,20 @@ impl PartitionData {
         Ok(data.snapshots.to_vec())
     }
 
-    fn buffer_write(&self, sequencer_number: SequenceNumber, mb: MutableBatch) {
+    /// Return non persisting data
+    pub fn get_non_persisting_data(&self) -> Result<Vec<Arc<SnapshotBatch>>> {
+        let data = self.inner.read();
+        data.buffer_and_snapshots()
+    }
+
+    /// Return persisting data
+    pub fn get_persisting_data(&self) -> Option<QueryableBatch> {
+        let data = self.inner.read();
+        data.get_persisting_data()
+    }
+
+    /// Write the given mb in the bufer
+    pub fn buffer_write(&self, sequencer_number: SequenceNumber, mb: MutableBatch) {
         let mut data = self.inner.write();
         data.buffer.push(BufferBatch {
             sequencer_number,
@@ -707,7 +789,12 @@ impl PartitionData {
     /// Buffers a new tombstone:
     ///   . All the data in the `buffer` and `snapshots` will be replaced with one tombstone-applied snapshot
     ///   . The tombstone is only added in the `deletes_during_persisting` if the `persisting` exists
-    async fn buffer_tombstone(&self, executor: &Executor, table_name: &str, tombstone: Tombstone) {
+    pub async fn buffer_tombstone(
+        &self,
+        executor: &Executor,
+        table_name: &str,
+        tombstone: Tombstone,
+    ) {
         // ----------------------------------------------------------
         // keep the tombstone if needed
         // acquire and release lock
@@ -813,7 +900,7 @@ impl PartitionData {
 #[derive(Default)]
 pub struct DataBuffer {
     /// Buffer of incoming writes
-    pub buffer: Vec<BufferBatch>,
+    pub(crate) buffer: Vec<BufferBatch>,
 
     /// Buffer of tombstones whose time range may overlap with this partition.
     /// All tombstones were already applied to corresponding snapshots. This list
@@ -821,19 +908,19 @@ pub struct DataBuffer {
     /// we keep them becasue if a query comes, we need to apply these tombstones
     /// on the persiting data before sending it to the Querier
     /// When the `persiting` is done and removed, this list will get empty, too
-    pub deletes_during_persisting: Vec<Tombstone>,
+    pub(crate) deletes_during_persisting: Vec<Tombstone>,
 
     /// Data in `buffer` will be moved to a `snapshot` when one of these happens:
     ///  . A background persist is called
     ///  . A read request from Querier
     /// The `buffer` will be empty when this happens.
-    pub snapshots: Vec<Arc<SnapshotBatch>>,
+    pub(crate) snapshots: Vec<Arc<SnapshotBatch>>,
     /// When a persist is called, data in `buffer` will be moved to a `snapshot`
     /// and then all `snapshots` will be moved to a `persisting`.
     /// Both `buffer` and 'snaphots` will be empty when this happens.
-    pub persisting: Option<Arc<PersistingBatch>>,
+    pub(crate) persisting: Option<Arc<PersistingBatch>>,
     // Extra Notes:
-    //  . In MVP, we will only persist a set of sanpshots at a time.
+    //  . In MVP, we will only persist a set of snapshots at a time.
     //    In later version, multiple perssiting operations may be happenning concurrently but
     //    their persisted info must be added into the Catalog in thier data
     //    ingesting order.
@@ -857,6 +944,19 @@ impl DataBuffer {
 
     /// Move `BufferBatch`es to a `SnapshotBatch`.
     pub fn snapshot(&mut self) -> Result<(), mutable_batch::Error> {
+        let snapshot = self.copy_buffer_to_snapshot()?;
+        if let Some(snapshot) = snapshot {
+            self.snapshots.push(snapshot);
+            self.buffer.clear();
+        }
+
+        Ok(())
+    }
+
+    /// Returns snapshot of the buffer but keep data in the buffer
+    pub fn copy_buffer_to_snapshot(
+        &self,
+    ) -> Result<Option<Arc<SnapshotBatch>>, mutable_batch::Error> {
         if !self.buffer.is_empty() {
             let min_sequencer_number = self
                 .buffer
@@ -878,16 +978,14 @@ impl DataBuffer {
                 mutable_batch.extend_from(&batch.data)?;
             }
 
-            self.snapshots.push(Arc::new(SnapshotBatch {
+            return Ok(Some(Arc::new(SnapshotBatch {
                 min_sequencer_number,
                 max_sequencer_number,
                 data: Arc::new(mutable_batch.to_arrow(Selection::All)?),
-            }));
-
-            self.buffer.clear();
+            })));
         }
 
-        Ok(())
+        Ok(None)
     }
 
     /// Returns true if there are no batches in the buffer or snapshots or persisting data
@@ -913,6 +1011,21 @@ impl DataBuffer {
             tombstones.push(tombstone);
         }
         QueryableBatch::new(table_name, data, tombstones)
+    }
+
+    /// Returns all existing snapshots plus data in the buffer
+    /// This only read data. Data in the buffer will be kept in the buffer
+    pub fn buffer_and_snapshots(&self) -> Result<Vec<Arc<SnapshotBatch>>> {
+        // Existing snapshots
+        let mut snapshots = self.snapshots.clone();
+
+        // copy the buffer to a snapshot
+        let buffer_snapshot = self
+            .copy_buffer_to_snapshot()
+            .context(BufferToSnapshotSnafu)?;
+        snapshots.extend(buffer_snapshot);
+
+        Ok(snapshots)
     }
 
     /// Snapshots the buffer and moves snapshots over to the `PersistingBatch`. Returns error
@@ -956,6 +1069,22 @@ impl DataBuffer {
         Ok(())
     }
 
+    /// Return a QueryableBatch of the persisting batch after applying new tombstones
+    pub fn get_persisting_data(&self) -> Option<QueryableBatch> {
+        let persisting = match &self.persisting {
+            Some(p) => p,
+            None => return None,
+        };
+
+        // persisting data
+        let mut queryable_batch = (*persisting.data).clone();
+
+        // Add new tombstones if any
+        queryable_batch.add_tombstones(&self.deletes_during_persisting);
+
+        Some(queryable_batch)
+    }
+
     /// Remove the given PersistingBatch that was persisted
     pub fn remove_persisting_batch(&mut self, batch: &Arc<PersistingBatch>) -> Result<()> {
         if let Some(persisting_batch) = &self.persisting {
@@ -977,20 +1106,20 @@ impl DataBuffer {
 /// helps the ingester keep the batches of data in thier ingesting order
 pub struct BufferBatch {
     /// Sequencer number of the ingesting data
-    pub sequencer_number: SequenceNumber,
+    pub(crate) sequencer_number: SequenceNumber,
     /// Ingesting data
-    pub data: MutableBatch,
+    pub(crate) data: MutableBatch,
 }
 
 /// SnapshotBatch contains data of many contiguous BufferBatches
 #[derive(Debug, PartialEq)]
 pub struct SnapshotBatch {
     /// Min sequencer number of its combined BufferBatches
-    pub min_sequencer_number: SequenceNumber,
+    pub(crate) min_sequencer_number: SequenceNumber,
     /// Max sequencer number of its combined BufferBatches
-    pub max_sequencer_number: SequenceNumber,
+    pub(crate) max_sequencer_number: SequenceNumber,
     /// Data of its comebined BufferBatches kept in one RecordBatch
-    pub data: Arc<RecordBatch>,
+    pub(crate) data: Arc<RecordBatch>,
 }
 
 impl SnapshotBatch {
@@ -1024,54 +1153,50 @@ impl SnapshotBatch {
 
 /// PersistingBatch contains all needed info and data for creating
 /// a parquet file for given set of SnapshotBatches
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct PersistingBatch {
     /// Sesquencer id of the data
-    pub sequencer_id: SequencerId,
+    pub(crate) sequencer_id: SequencerId,
 
     /// Table id of the data
-    pub table_id: TableId,
+    pub(crate) table_id: TableId,
 
     /// Parittion Id of the data
-    pub partition_id: PartitionId,
+    pub(crate) partition_id: PartitionId,
 
     /// Id of to-be-created parquet file of this data
-    pub object_store_id: Uuid,
+    pub(crate) object_store_id: Uuid,
 
     /// data
-    pub data: Arc<QueryableBatch>,
+    pub(crate) data: Arc<QueryableBatch>,
 }
 
 /// Queryable data used for both query and persistence
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct QueryableBatch {
     /// data
-    pub data: Vec<Arc<SnapshotBatch>>,
-
-    /// Tomstones to be applied on data
-    pub deletes: Vec<Tombstone>,
+    pub(crate) data: Vec<Arc<SnapshotBatch>>,
 
     /// Delete predicates of the tombstones
-    /// Note: this is needed here to return its reference for a trait function
-    pub delete_predicates: Vec<Arc<DeletePredicate>>,
+    pub(crate) delete_predicates: Vec<Arc<DeletePredicate>>,
 
     /// This is needed to return a reference for a trait function
-    pub table_name: String,
+    pub(crate) table_name: String,
 }
 
 /// Request received from the query service for data the ingester has
 #[derive(Debug, PartialEq)]
 pub struct IngesterQueryRequest {
     /// namespace to search
-    namespace: String,
+    pub(crate) namespace: String,
     /// sequencer to search
-    sequencer_id: SequencerId,
+    pub(crate) sequencer_id: SequencerId,
     /// Table to search
-    table: String,
+    pub(crate) table: String,
     /// Columns the query service is interested in
-    columns: Vec<String>,
+    pub(crate) columns: Vec<String>,
     /// Predicate for filtering
-    predicate: Option<Predicate>,
+    pub(crate) predicate: Option<Predicate>,
 }
 
 impl IngesterQueryRequest {
@@ -1632,7 +1757,7 @@ mod tests {
             50,            // max time of data to get deleted
             "city=Boston", // delete predicate
         );
-        // two rows will get deleted, one from exisitng sanpshot, one from the buffer being moved to snpashot
+        // two rows will get deleted, one from existing snapshot, one from the buffer being moved to snpashot
         p.buffer_tombstone(&exec, "restaurant", ts).await;
 
         // verify data
