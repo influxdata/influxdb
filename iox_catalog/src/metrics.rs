@@ -112,6 +112,23 @@ where
 
 /// Emit a trait impl for `impl_trait` that delegates calls to the inner
 /// implementation, recording the duration and result to the metrics registry.
+///
+/// Format:
+///
+/// ```ignore
+///     decorate!(
+///         impl_trait = <trait name>,
+///         methods = [
+///             "<metric name>" = <method signature>;
+///             "<metric name>" = <method signature>;
+///             // ... and so on
+///         ]
+///     );
+/// ```
+///
+/// All methods of a given trait MUST be defined in the `decorate!()` call so
+/// they are all instrumented or the decorator will not compile as it won't
+/// fully implement the trait.
 macro_rules! decorate {
     (
         impl_trait = $trait:ident,
@@ -124,6 +141,11 @@ macro_rules! decorate {
     ) => {
         #[async_trait]
         impl<P: TimeProvider, T:$trait> $trait for MetricDecorator<T, P> {
+            /// NOTE: if you're seeing an error here about "not all trait items
+            /// implemented" or something similar, one or more methods are
+            /// missing from / incorrectly defined in the decorate!() blocks
+            /// below.
+
             $(
                 async fn $method(&mut self, $($arg : $t),*) -> Result<$out> {
                     let buckets = || {
