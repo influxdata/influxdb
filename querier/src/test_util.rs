@@ -12,7 +12,10 @@ use iox_catalog::{
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::ObjectStore;
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
-use query::test::{raw_data, TestChunk};
+use query::{
+    exec::Executor,
+    test::{raw_data, TestChunk},
+};
 use time::{MockProvider, Time, TimeProvider};
 use uuid::Uuid;
 
@@ -21,6 +24,7 @@ pub struct TestCatalog {
     pub metric_registry: Arc<metric::Registry>,
     pub object_store: Arc<ObjectStore>,
     pub time_provider: Arc<dyn TimeProvider>,
+    pub exec: Arc<Executor>,
 }
 
 impl TestCatalog {
@@ -29,12 +33,14 @@ impl TestCatalog {
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
         let object_store = Arc::new(ObjectStore::new_in_memory());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0)));
+        let exec = Arc::new(Executor::new(1));
 
         Arc::new(Self {
             metric_registry,
             catalog,
             object_store,
             time_provider,
+            exec,
         })
     }
 
@@ -52,6 +58,10 @@ impl TestCatalog {
 
     pub fn time_provider(&self) -> Arc<dyn TimeProvider> {
         Arc::clone(&self.time_provider)
+    }
+
+    pub fn exec(&self) -> Arc<Executor> {
+        Arc::clone(&self.exec)
     }
 
     pub async fn create_namespace(self: &Arc<Self>, name: &str) -> Arc<TestNamespace> {

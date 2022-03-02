@@ -2,7 +2,8 @@
 
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
-use querier::{handler::QuerierHandlerImpl, server::QuerierServer};
+use querier::{database::QuerierDatabase, handler::QuerierHandlerImpl, server::QuerierServer};
+use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
 use time::SystemProvider;
@@ -55,6 +56,12 @@ pub struct Config {
 
     #[clap(flatten)]
     pub(crate) catalog_dsn: CatalogDsnConfig,
+
+    /// The number of threads to use for queries.
+    ///
+    /// If not specified, defaults to the number of cores on the system
+    #[clap(long = "--num-query-threads", env = "INFLUXDB_IOX_NUM_QUERY_THREADS")]
+    pub num_query_threads: Option<usize>,
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
@@ -73,15 +80,21 @@ pub async fn command(config: Config) -> Result<(), Error> {
 
     let time_provider = Arc::new(SystemProvider::new());
 
-    let querier_handler = Arc::new(QuerierHandlerImpl::new(
+    let num_threads = config.num_query_threads.unwrap_or_else(num_cpus::get);
+    info!(%num_threads, "using specified number of threads per thread pool");
+
+    let exec = Arc::new(Executor::new(num_threads));
+    let database = Arc::new(QuerierDatabase::new(
         catalog,
         Arc::clone(&metric_registry),
         object_store,
         time_provider,
+        exec,
     ));
+    let querier_handler = Arc::new(QuerierHandlerImpl::new(Arc::clone(&database)));
 
     let querier = QuerierServer::new(metric_registry, querier_handler);
-    let server_type = Arc::new(QuerierServerType::new(querier, &common_state));
+    let server_type = Arc::new(QuerierServerType::new(querier, database, &common_state));
 
     info!("starting querier");
 

@@ -6,7 +6,7 @@ use std::{
 use async_trait::async_trait;
 use hyper::{Body, Request, Response};
 use metric::Registry;
-use querier::{handler::QuerierHandler, server::QuerierServer};
+use querier::{database::QuerierDatabase, handler::QuerierHandler, server::QuerierServer};
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
@@ -16,17 +16,25 @@ use crate::influxdb_ioxd::{
     server_type::{common_state::CommonServerState, RpcError, ServerType},
 };
 
+mod rpc;
+
 #[derive(Debug)]
 pub struct QuerierServerType<C: QuerierHandler> {
+    database: Arc<QuerierDatabase>,
     server: QuerierServer<C>,
     shutdown: CancellationToken,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
 impl<C: QuerierHandler> QuerierServerType<C> {
-    pub fn new(server: QuerierServer<C>, common_state: &CommonServerState) -> Self {
+    pub fn new(
+        server: QuerierServer<C>,
+        database: Arc<QuerierDatabase>,
+        common_state: &CommonServerState,
+    ) -> Self {
         Self {
             server,
+            database,
             shutdown: CancellationToken::new(),
             trace_collector: common_state.trace_collector(),
         }
@@ -58,7 +66,10 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
     /// Provide a placeholder gRPC service.
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
-        // TODO add a service here
+        add_service!(
+            builder,
+            rpc::flight::make_server(Arc::clone(&self.database),)
+        );
         serve_builder!(builder);
 
         Ok(())

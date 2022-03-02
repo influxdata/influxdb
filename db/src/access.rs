@@ -135,7 +135,7 @@ struct TableAccessMetrics {
 /// `QueryCatalogAccess` implements traits that allow the query engine
 /// (and DataFusion) to access the contents of the IOx catalog.
 #[derive(Debug)]
-pub(crate) struct QueryCatalogAccess {
+pub struct QueryCatalogAccess {
     /// The catalog to have access to
     catalog: Arc<Catalog>,
 

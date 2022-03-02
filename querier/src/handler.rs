@@ -6,12 +6,9 @@ use futures::{
     stream::FuturesUnordered,
     FutureExt, StreamExt, TryFutureExt,
 };
-use iox_catalog::interface::Catalog;
-use object_store::ObjectStore;
 use observability_deps::tracing::warn;
 use std::sync::Arc;
 use thiserror::Error;
-use time::TimeProvider;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
@@ -62,18 +59,7 @@ pub struct QuerierHandlerImpl {
 
 impl QuerierHandlerImpl {
     /// Initialize the Querier
-    pub fn new(
-        catalog: Arc<dyn Catalog>,
-        metric_registry: Arc<metric::Registry>,
-        object_store: Arc<ObjectStore>,
-        time_provider: Arc<dyn TimeProvider>,
-    ) -> Self {
-        let database = Arc::new(QuerierDatabase::new(
-            catalog,
-            metric_registry,
-            object_store,
-            time_provider,
-        ));
+    pub fn new(database: Arc<QuerierDatabase>) -> Self {
         let shutdown = CancellationToken::new();
         let poison_cabinet = Arc::new(PoisonCabinet::new());
 
@@ -133,6 +119,8 @@ mod tests {
     use std::time::Duration;
 
     use iox_catalog::mem::MemCatalog;
+    use object_store::ObjectStore;
+    use query::exec::Executor;
     use time::{MockProvider, Time};
 
     use crate::poison::PoisonPill;
@@ -186,8 +174,15 @@ mod tests {
             let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
             let object_store = Arc::new(ObjectStore::new_in_memory());
             let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-            let querier =
-                QuerierHandlerImpl::new(catalog, metric_registry, object_store, time_provider);
+            let exec = Arc::new(Executor::new(1));
+            let database = Arc::new(QuerierDatabase::new(
+                catalog,
+                metric_registry,
+                object_store,
+                time_provider,
+                exec,
+            ));
+            let querier = QuerierHandlerImpl::new(database);
 
             Self { querier }
         }

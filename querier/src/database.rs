@@ -1,3 +1,4 @@
+//! Database for the querier that contains all namespaces.
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
@@ -9,6 +10,7 @@ use iox_catalog::interface::{Catalog, NamespaceId};
 use object_store::ObjectStore;
 use observability_deps::tracing::{error, info};
 use parking_lot::RwLock;
+use query::exec::Executor;
 use time::TimeProvider;
 use tokio_util::sync::CancellationToken;
 
@@ -45,6 +47,9 @@ pub struct QuerierDatabase {
 
     /// Time provider.
     time_provider: Arc<dyn TimeProvider>,
+
+    /// Executor for queries.
+    exec: Arc<Executor>,
 }
 
 impl QuerierDatabase {
@@ -56,6 +61,7 @@ impl QuerierDatabase {
         metric_registry: Arc<metric::Registry>,
         object_store: Arc<ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
+        exec: Arc<Executor>,
     ) -> Self {
         let catalog_cache = Arc::new(CatalogCache::new(Arc::clone(&catalog)));
 
@@ -67,12 +73,18 @@ impl QuerierDatabase {
             namespaces: RwLock::new(HashMap::new()),
             object_store,
             time_provider,
+            exec,
         }
     }
 
     /// List of namespaces.
     pub fn namespaces(&self) -> Vec<Arc<QuerierNamespace>> {
         self.namespaces.read().values().cloned().collect()
+    }
+
+    /// Get namespace if it exists
+    pub fn namespace(&self, name: &str) -> Option<Arc<QuerierNamespace>> {
+        self.namespaces.read().get(name).cloned()
     }
 
     /// Sync set of namespaces and the data of the namespaces themselves.
@@ -126,6 +138,7 @@ impl QuerierDatabase {
                         Arc::clone(&self.metric_registry),
                         Arc::clone(&self.object_store),
                         Arc::clone(&self.time_provider),
+                        Arc::clone(&self.exec),
                     )),
                 );
             }
@@ -184,6 +197,7 @@ mod tests {
             catalog.metric_registry(),
             catalog.object_store(),
             catalog.time_provider(),
+            catalog.exec(),
         );
         assert_eq!(ns_names(&db), vec![]);
 
@@ -194,6 +208,9 @@ mod tests {
         catalog.create_namespace("ns2").await;
         db.sync().await;
         assert_eq!(ns_names(&db), vec![Arc::from("ns1"), Arc::from("ns2")]);
+        assert_eq!(db.namespace("ns1").unwrap().name().as_ref(), "ns1");
+        assert_eq!(db.namespace("ns2").unwrap().name().as_ref(), "ns2");
+        assert!(db.namespace("ns3").is_none());
 
         catalog.create_namespace("ns3").await;
         db.sync().await;

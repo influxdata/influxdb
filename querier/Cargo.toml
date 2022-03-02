@@ -9,19 +9,24 @@ async-trait = "0.1.42"
 backoff = { path = "../backoff" }
 client_util = { path = "../client_util" }
 data_types = { path = "../data_types" }
+datafusion = { path = "../datafusion" }
 db = { path = "../db" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 iox_object_store = { path = "../iox_object_store" }
+job_registry = { path = "../job_registry" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.0"
+predicate = { path = "../predicate" }
+query = { path = "../query" }
 rand = "0.8.3"
+schema = { path = "../schema" }
 thiserror = "1.0"
 time = { path = "../time" }
 tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
@@ -35,5 +40,3 @@ workspace-hack = { path = "../workspace-hack"}
 arrow = { version = "9.1", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 bytes = "1.0"
-query = { path = "../query" }
-schema = { path = "../schema" }
