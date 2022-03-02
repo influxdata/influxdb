@@ -231,6 +231,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        let _ctx = self.ctx.child_ctx("table_names planning");
         debug!(?rpc_predicate, "planning table_names");
 
         // Special case predicates that span the entire valid timestamp range
