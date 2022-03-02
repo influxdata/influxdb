@@ -8,6 +8,7 @@ use data_types::names::{org_and_bucket_to_database, OrgBucketMappingError};
 use futures::StreamExt;
 use hashbrown::HashMap;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
+use metric::U64Counter;
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
@@ -154,6 +155,11 @@ pub struct HttpDelegate<D, T = SystemProvider> {
     max_request_bytes: usize,
     time_provider: T,
     dml_handler: D,
+
+    write_metric_lines: U64Counter,
+    write_metric_fields: U64Counter,
+    write_metric_body_size: U64Counter,
+    delete_metric_body_size: U64Counter,
 }
 
 impl<D> HttpDelegate<D, SystemProvider> {
@@ -162,11 +168,40 @@ impl<D> HttpDelegate<D, SystemProvider> {
     ///
     /// HTTP request bodies are limited to `max_request_bytes` in size,
     /// returning an error if exceeded.
-    pub fn new(max_request_bytes: usize, dml_handler: D) -> Self {
+    pub fn new(max_request_bytes: usize, dml_handler: D, metrics: &metric::Registry) -> Self {
+        let write_metric_lines = metrics
+            .register_metric::<U64Counter>(
+                "http_write_lines_total",
+                "cumulative number of line protocol lines successfully routed",
+            )
+            .recorder(&[]);
+        let write_metric_fields = metrics
+            .register_metric::<U64Counter>(
+                "http_write_fields_total",
+                "cumulative number of line protocol fields successfully routed",
+            )
+            .recorder(&[]);
+        let write_metric_body_size = metrics
+            .register_metric::<U64Counter>(
+                "http_write_body_bytes_total",
+                "cumulative byte size of successfully routed (decompressed) line protocol write requests",
+            )
+            .recorder(&[]);
+        let delete_metric_body_size = metrics
+            .register_metric::<U64Counter>(
+                "http_delete_body_bytes_total",
+                "cumulative byte size of successfully routed (decompressed) delete requests",
+            )
+            .recorder(&[]);
+
         Self {
             max_request_bytes,
             time_provider: SystemProvider::default(),
             dml_handler,
+            write_metric_lines,
+            write_metric_fields,
+            write_metric_body_size,
+            delete_metric_body_size,
         }
     }
 }
@@ -228,6 +263,10 @@ where
             .await
             .map_err(Into::into)?;
 
+        self.write_metric_lines.inc(stats.num_lines as _);
+        self.write_metric_fields.inc(stats.num_fields as _);
+        self.write_metric_body_size.inc(body.len() as _);
+
         Ok(())
     }
 
@@ -273,6 +312,8 @@ where
             )
             .await
             .map_err(Into::into)?;
+
+        self.delete_metric_body_size.inc(body.len() as _);
 
         Ok(())
     }
@@ -350,12 +391,27 @@ mod tests {
 
     use flate2::{write::GzEncoder, Compression};
     use hyper::header::HeaderValue;
+    use metric::{Attributes, Metric};
 
     use crate::dml_handlers::mock::{MockDmlHandler, MockDmlHandlerCall};
 
     use super::*;
 
     const MAX_BYTES: usize = 1024;
+
+    fn assert_metric_hit(metrics: &metric::Registry, name: &'static str, value: Option<u64>) {
+        let counter = metrics
+            .get_instrument::<Metric<U64Counter>>(name)
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[]))
+            .expect("failed to get observer")
+            .fetch();
+
+        assert!(counter > 0, "metric {} did not record any values", name);
+        if let Some(want) = value {
+            assert_eq!(want, counter, "metric does not have expected value");
+        }
+    }
 
     // Generate two HTTP handler tests - one for a plain request and one with a
     // gzip-encoded body (and appropriate header), asserting the handler return
@@ -427,14 +483,23 @@ mod tests {
                         .with_write_return($dml_write_handler)
                         .with_delete_return($dml_delete_handler)
                     );
-                    let delegate = HttpDelegate::new(MAX_BYTES, Arc::clone(&dml_handler));
+                    let metrics = Arc::new(metric::Registry::default());
+                    let delegate = HttpDelegate::new(MAX_BYTES, Arc::clone(&dml_handler), &metrics);
 
                     let got = delegate.route(request).await;
                     assert_matches!(got, $want_result);
 
                     // All successful responses should have a NO_CONTENT code
+                    // and metrics should be recorded.
                     if let Ok(v) = got {
                         assert_eq!(v.status(), StatusCode::NO_CONTENT);
+                        if $uri.contains("/api/v2/write") {
+                            assert_metric_hit(&metrics, "http_write_lines_total", None);
+                            assert_metric_hit(&metrics, "http_write_fields_total", None);
+                            assert_metric_hit(&metrics, "http_write_body_bytes_total", Some($body.len() as _));
+                        } else {
+                            assert_metric_hit(&metrics, "http_delete_body_bytes_total", Some($body.len() as _));
+                        }
                     }
 
                     let calls = dml_handler.calls();

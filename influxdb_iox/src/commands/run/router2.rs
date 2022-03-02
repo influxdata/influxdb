@@ -199,7 +199,11 @@ pub async fn command(config: Config) -> Result<()> {
     let handler_stack =
         InstrumentationDecorator::new("request", Arc::clone(&metrics), handler_stack);
 
-    let http = HttpDelegate::new(config.run_config.max_http_request_size, handler_stack);
+    let http = HttpDelegate::new(
+        config.run_config.max_http_request_size,
+        handler_stack,
+        &metrics,
+    );
     let router_server = RouterServer::new(
         http,
         Default::default(),
