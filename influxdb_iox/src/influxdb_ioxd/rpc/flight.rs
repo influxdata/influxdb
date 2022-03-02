@@ -17,7 +17,7 @@ use arrow_flight::{
 use datafusion::physical_plan::ExecutionPlan;
 use futures::{SinkExt, Stream, StreamExt};
 use pin_project::{pin_project, pinned_drop};
-use query::QueryDatabase;
+use query::{QueryCompletedToken, QueryDatabase};
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
 use tokio::task::JoinHandle;
@@ -182,7 +182,7 @@ where
 
         let db = self.server.db(&database)?;
 
-        let _query_completed_token = db.record_query("sql", Box::new(read_info.sql_query.clone()));
+        let query_completed_token = db.record_query("sql", Box::new(read_info.sql_query.clone()));
 
         let ctx = db.new_query_context(span_ctx);
 
@@ -191,7 +191,13 @@ where
             .await
             .context(PlanningSnafu)?;
 
-        let output = GetStream::new(ctx, physical_plan, read_info.database_name).await?;
+        let output = GetStream::new(
+            ctx,
+            physical_plan,
+            read_info.database_name,
+            query_completed_token,
+        )
+        .await?;
 
         Ok(Response::new(Box::pin(output) as Self::DoGetStream))
     }
@@ -265,6 +271,7 @@ impl GetStream {
         ctx: IOxExecutionContext,
         physical_plan: Arc<dyn ExecutionPlan>,
         database_name: String,
+        mut query_completed_token: QueryCompletedToken,
     ) -> Result<Self, tonic::Status> {
         // setup channel
         let (mut tx, rx) = futures::channel::mpsc::channel::<Result<FlightData, tonic::Status>>(1);
@@ -335,6 +342,9 @@ impl GetStream {
                     }
                 }
             }
+
+            // if we get here, all is good
+            query_completed_token.set_success()
         });
 
         Ok(Self {

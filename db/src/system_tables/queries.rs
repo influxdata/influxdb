@@ -3,6 +3,7 @@ use crate::{
     query_log::{QueryLog, QueryLogEntry},
     system_tables::IoxSystemTable,
 };
+use arrow::array::BooleanArray;
 use arrow::{
     array::{DurationNanosecondArray, StringArray, TimestampNanosecondArray},
     datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
@@ -71,6 +72,7 @@ fn queries_schema() -> SchemaRef {
             DataType::Duration(TimeUnit::Nanosecond),
             false,
         ),
+        Field::new("success", DataType::Boolean, false),
     ]))
 }
 
@@ -109,6 +111,13 @@ fn from_query_log_entries(
         .map(|e| e.query_completed_duration().map(|d| d.as_nanos() as i64))
         .collect::<DurationNanosecondArray>();
 
+    let success = entries
+        .iter()
+        .skip(offset)
+        .take(len)
+        .map(|e| Some(e.success()))
+        .collect::<BooleanArray>();
+
     RecordBatch::try_new(
         schema,
         vec![
@@ -116,6 +125,7 @@ fn from_query_log_entries(
             Arc::new(query_type),
             Arc::new(query_text),
             Arc::new(query_runtime),
+            Arc::new(success),
         ],
     )
 }
@@ -134,37 +144,40 @@ mod tests {
         let query_log = QueryLog::new(10, Arc::clone(&time_provider) as Arc<dyn TimeProvider>);
         query_log.push("sql", Box::new("select * from foo"));
         time_provider.inc(std::time::Duration::from_secs(24 * 60 * 60));
-        query_log.push("sql", Box::new("select * from bar"));
+        let sql2_entry = query_log.push("sql", Box::new("select * from bar"));
         let read_filter_entry = query_log.push("read_filter", Box::new("json goop"));
 
         let table = QueriesTable::new(Arc::new(query_log));
 
         let expected = vec![
-            "+----------------------+-------------+-------------------+--------------------+",
-            "| issue_time           | query_type  | query_text        | completed_duration |",
-            "+----------------------+-------------+-------------------+--------------------+",
-            "| 1996-12-19T16:39:57Z | sql         | select * from foo |                    |",
-            "| 1996-12-20T16:39:57Z | sql         | select * from bar |                    |",
-            "| 1996-12-20T16:39:57Z | read_filter | json goop         |                    |",
-            "+----------------------+-------------+-------------------+--------------------+",
+            "+----------------------+-------------+-------------------+--------------------+---------+",
+            "| issue_time           | query_type  | query_text        | completed_duration | success |",
+            "+----------------------+-------------+-------------------+--------------------+---------+",
+            "| 1996-12-19T16:39:57Z | sql         | select * from foo |                    | false   |",
+            "| 1996-12-20T16:39:57Z | sql         | select * from bar |                    | false   |",
+            "| 1996-12-20T16:39:57Z | read_filter | json goop         |                    | false   |",
+            "+----------------------+-------------+-------------------+--------------------+---------+",
         ];
 
         let entries = table.scan(3).unwrap().collect::<Result<Vec<_>>>().unwrap();
         assert_eq!(entries.len(), 1);
         assert_batches_eq!(&expected, &entries);
 
-        // mark one of the queries completed after 4s
+        // mark the sql query completed after 4s unsuccessfully
         let now = Time::from_rfc3339("1996-12-20T16:40:01+00:00").unwrap();
-        read_filter_entry.set_completed(now);
+        sql2_entry.set_completed(now, false);
+
+        // mark the read_filter query completed after 4s successfuly
+        read_filter_entry.set_completed(now, true);
 
         let expected = vec![
-            "+----------------------+-------------+-------------------+--------------------+",
-            "| issue_time           | query_type  | query_text        | completed_duration |",
-            "+----------------------+-------------+-------------------+--------------------+",
-            "| 1996-12-19T16:39:57Z | sql         | select * from foo |                    |",
-            "| 1996-12-20T16:39:57Z | sql         | select * from bar |                    |",
-            "| 1996-12-20T16:39:57Z | read_filter | json goop         | 4s                 |",
-            "+----------------------+-------------+-------------------+--------------------+",
+            "+----------------------+-------------+-------------------+--------------------+---------+",
+            "| issue_time           | query_type  | query_text        | completed_duration | success |",
+            "+----------------------+-------------+-------------------+--------------------+---------+",
+            "| 1996-12-19T16:39:57Z | sql         | select * from foo |                    | false   |",
+            "| 1996-12-20T16:39:57Z | sql         | select * from bar | 4s                 | false   |",
+            "| 1996-12-20T16:39:57Z | read_filter | json goop         | 4s                 | true    |",
+            "+----------------------+-------------+-------------------+--------------------+---------+",
         ];
 
         let entries = table.scan(2).unwrap().collect::<Result<Vec<_>>>().unwrap();

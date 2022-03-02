@@ -131,7 +131,7 @@ impl QueryDatabase for QuerierNamespace {
         &self,
         query_type: impl Into<String>,
         query_text: QueryText,
-    ) -> QueryCompletedToken<'_> {
+    ) -> QueryCompletedToken {
         self.catalog_access.record_query(query_type, query_text)
     }
 }

@@ -103,6 +103,7 @@ async fn test_queries() {
         end: 222222,
     });
 
+    // run a valid query (success = true)
     let read_filter_request = tonic::Request::new(generated_types::ReadFilterRequest {
         read_source,
         range,
@@ -114,6 +115,24 @@ async fn test_queries() {
         .await
         .unwrap();
 
+    // run an invalid query (success = false)
+    let read_source = scenario.read_source();
+    let range = Some(generated_types::TimestampRange {
+        // start is after end, so error
+        start: 22222,
+        end: 11111,
+    });
+    let read_filter_request = tonic::Request::new(generated_types::ReadFilterRequest {
+        read_source,
+        range,
+        ..Default::default()
+    });
+    fixture
+        .storage_client()
+        .read_filter(read_filter_request)
+        .await
+        .unwrap_err();
+
     // Note: don't select issue_time as that changes from run to run
     //
     // Note 2: it is possible for another test to issue queries
@@ -123,7 +142,7 @@ async fn test_queries() {
     //
     // See https://github.com/influxdata/influxdb_iox/issues/3396
     let query =
-        "select query_type, query_text from system.queries where query_type = 'read_filter'";
+        "select query_type, query_text, success from system.queries where query_type = 'read_filter'";
 
     // Query system.queries and should have an entry for the storage rpc
     let batches = fixture
@@ -137,26 +156,46 @@ async fn test_queries() {
     let batches = normalize_batches(batches, scenario.normalizer());
 
     let expected_read_data = vec![
-        "+-------------+---------------------------------+",
-        "| query_type  | query_text                      |",
-        "+-------------+---------------------------------+",
-        "| read_filter | {                               |",
-        "|             |   \"ReadSource\": {               |",
-        "|             |     \"typeUrl\": \"/TODO\",         |",
-        "|             |     \"value\": \"ZZZZZZZZZZZZZZZZ\" |",
-        "|             |   },                            |",
-        "|             |   \"range\": {                    |",
-        "|             |     \"start\": \"111111\",          |",
-        "|             |     \"end\": \"222222\"             |",
-        "|             |   }                             |",
-        "|             | }                               |",
-        "+-------------+---------------------------------+",
+        "+-------------+---------------------------------+---------+",
+        "| query_type  | query_text                      | success |",
+        "+-------------+---------------------------------+---------+",
+        "| read_filter | {                               | true    |",
+        "|             |   \"ReadSource\": {               |         |",
+        "|             |     \"typeUrl\": \"/TODO\",         |         |",
+        "|             |     \"value\": \"ZZZZZZZZZZZZZZZZ\" |         |",
+        "|             |   },                            |         |",
+        "|             |   \"range\": {                    |         |",
+        "|             |     \"start\": \"111111\",          |         |",
+        "|             |     \"end\": \"222222\"             |         |",
+        "|             |   }                             |         |",
+        "|             | }                               |         |",
+        "| read_filter | {                               | false   |",
+        "|             |   \"ReadSource\": {               |         |",
+        "|             |     \"typeUrl\": \"/TODO\",         |         |",
+        "|             |     \"value\": \"ZZZZZZZZZZZZZZZZ\" |         |",
+        "|             |   },                            |         |",
+        "|             |   \"range\": {                    |         |",
+        "|             |     \"start\": \"22222\",           |         |",
+        "|             |     \"end\": \"11111\"              |         |",
+        "|             |   }                             |         |",
+        "|             | }                               |         |",
+        "+-------------+---------------------------------+---------+",
     ];
     assert_batches_eq!(expected_read_data, &batches);
 
+    // send in an invalid SQL query (fails during planning). It would
+    // be nice to also test failing during execution but I am not
+    // quite sure how to trigger that
+    let query = "select foo from blarg read_filter";
+    fixture
+        .flight_client()
+        .perform_query(&db_name, query)
+        .await
+        .unwrap_err();
+
     // Query system.queries and should also have an entry for the sql
     // we just wrote (and what we are about to write)
-    let query = "select query_type, query_text from system.queries where query_type = 'sql' and query_text like '%read_filter%'";
+    let query = "select query_type, query_text, completed_duration IS NOT NULL as is_complete, success from system.queries where query_type = 'sql' and query_text like '%read_filter%'";
     let batches = fixture
         .flight_client()
         .perform_query(&db_name, query)
@@ -168,12 +207,13 @@ async fn test_queries() {
     let batches = normalize_batches(batches, scenario.normalizer());
 
     let expected_read_data = vec![
-        "+------------+----------------------------------------------------------------------------------------------------------------+",
-        "| query_type | query_text                                                                                                     |",
-        "+------------+----------------------------------------------------------------------------------------------------------------+",
-        "| sql        | select query_type, query_text from system.queries where query_type = 'read_filter'                             |",
-        "| sql        | select query_type, query_text from system.queries where query_type = 'sql' and query_text like '%read_filter%' |",
-        "+------------+----------------------------------------------------------------------------------------------------------------+",
+        "+------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+---------+",
+        "| query_type | query_text                                                                                                                                                             | is_complete | success |",
+        "+------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+---------+",
+        "| sql        | select query_type, query_text, success from system.queries where query_type = 'read_filter'                                                                            | true        | true    |",
+        "| sql        | select foo from blarg read_filter                                                                                                                                      | true        | false   |",
+        "| sql        | select query_type, query_text, completed_duration IS NOT NULL as is_complete, success from system.queries where query_type = 'sql' and query_text like '%read_filter%' | false       | false   |",
+        "+------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+---------+",
     ];
     assert_batches_eq!(expected_read_data, &batches);
 }

@@ -288,11 +288,12 @@ impl QueryDatabase for QueryCatalogAccess {
         &self,
         query_type: impl Into<String>,
         query_text: QueryText,
-    ) -> QueryCompletedToken<'_> {
+    ) -> QueryCompletedToken {
         // When the query token is dropped the query entry's completion time
         // will be set.
-        let entry = self.query_log.push(query_type, query_text);
-        QueryCompletedToken::new(move || self.query_log.set_completed(entry))
+        let query_log = Arc::clone(&self.query_log);
+        let entry = query_log.push(query_type, query_text);
+        QueryCompletedToken::new(move |success| query_log.set_completed(entry, success))
     }
 }
 

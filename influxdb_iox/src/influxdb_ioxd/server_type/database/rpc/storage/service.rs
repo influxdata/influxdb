@@ -244,13 +244,18 @@ where
             .db_store
             .db(&db_name)
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
-        let _query_completed_token = db.record_query("read_filter", defer_json(&req));
+
+        let mut query_completed_token = db.record_query("read_filter", defer_json(&req));
 
         let results = read_filter_impl(Arc::clone(&db), db_name, req, span_ctx)
             .await?
             .into_iter()
             .map(Ok)
             .collect::<Vec<_>>();
+
+        if results.iter().all(|r| r.is_ok()) {
+            query_completed_token.set_success();
+        }
 
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
@@ -269,7 +274,7 @@ where
             .db_store
             .db(&db_name)
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
-        let _query_completed_token = db.record_query("read_group", defer_json(&req));
+        let mut query_completed_token = db.record_query("read_group", defer_json(&req));
 
         let ReadGroupRequest {
             read_source: _read_source,
@@ -308,6 +313,10 @@ where
         .map(Ok)
         .collect::<Vec<_>>();
 
+        if results.iter().all(|r| r.is_ok()) {
+            query_completed_token.set_success();
+        }
+
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
@@ -326,7 +335,7 @@ where
             .db_store
             .db(&db_name)
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
-        let _query_completed_token = db.record_query("read_window_aggregate", defer_json(&req));
+        let mut query_completed_token = db.record_query("read_window_aggregate", defer_json(&req));
 
         let ReadWindowAggregateRequest {
             read_source: _read_source,
@@ -362,6 +371,10 @@ where
         .map(Ok)
         .collect::<Vec<_>>();
 
+        if results.iter().all(|r| r.is_ok()) {
+            query_completed_token.set_success();
+        }
+
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
@@ -381,7 +394,7 @@ where
             .db_store
             .db(&db_name)
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
-        let _query_completed_token = db.record_query("tag_keys", defer_json(&req));
+        let mut query_completed_token = db.record_query("tag_keys", defer_json(&req));
 
         let TagKeysRequest {
             tags_source: _tag_source,
@@ -403,6 +416,10 @@ where
         )
         .await
         .map_err(|e| e.to_status());
+
+        if response.is_ok() {
+            query_completed_token.set_success();
+        }
 
         tx.send(response)
             .await
@@ -427,7 +444,7 @@ where
             .db_store
             .db(&db_name)
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
-        let _query_completed_token = db.record_query("tag_values", defer_json(&req));
+        let mut query_completed_token = db.record_query("tag_values", defer_json(&req));
 
         let TagValuesRequest {
             tags_source: _tag_source,
@@ -484,6 +501,10 @@ where
 
         let response = response.map_err(|e| e.to_status());
 
+        if response.is_ok() {
+            query_completed_token.set_success();
+        }
+
         tx.send(response)
             .await
             .expect("sending tag_values response to server");
@@ -507,7 +528,8 @@ where
             .db_store
             .db(&db_name)
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
-        let _query_completed_token = db.record_query(
+
+        let mut query_completed_token = db.record_query(
             "tag_values_grouped_by_measurement_and_tag_key",
             defer_json(&req),
         );
@@ -525,6 +547,10 @@ where
         .into_iter()
         .map(Ok)
         .collect::<Vec<_>>();
+
+        if results.iter().all(|r| r.is_ok()) {
+            query_completed_token.set_success();
+        }
 
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
@@ -591,7 +617,7 @@ where
             .db_store
             .db(&db_name)
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
-        let _query_completed_token = db.record_query("measurement_names", defer_json(&req));
+        let mut query_completed_token = db.record_query("measurement_names", defer_json(&req));
 
         let MeasurementNamesRequest {
             source: _source,
@@ -604,6 +630,10 @@ where
         let response = measurement_name_impl(Arc::clone(&db), db_name, range, predicate, span_ctx)
             .await
             .map_err(|e| e.to_status());
+
+        if response.is_ok() {
+            query_completed_token.set_success();
+        }
 
         tx.send(response)
             .await
@@ -628,7 +658,7 @@ where
             .db_store
             .db(&db_name)
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
-        let _query_completed_token = db.record_query("measurement_tag_keys", defer_json(&req));
+        let mut query_completed_token = db.record_query("measurement_tag_keys", defer_json(&req));
 
         let MeasurementTagKeysRequest {
             source: _source,
@@ -651,6 +681,10 @@ where
         )
         .await
         .map_err(|e| e.to_status());
+
+        if response.is_ok() {
+            query_completed_token.set_success();
+        }
 
         tx.send(response)
             .await
@@ -675,7 +709,7 @@ where
             .db_store
             .db(&db_name)
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
-        let _query_completed_token = db.record_query("measurement_tag_values", defer_json(&req));
+        let mut query_completed_token = db.record_query("measurement_tag_values", defer_json(&req));
 
         let MeasurementTagValuesRequest {
             source: _source,
@@ -701,6 +735,10 @@ where
         .await
         .map_err(|e| e.to_status());
 
+        if response.is_ok() {
+            query_completed_token.set_success();
+        }
+
         tx.send(response)
             .await
             .expect("sending measurement_tag_values response to server");
@@ -724,7 +762,7 @@ where
             .db_store
             .db(&db_name)
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
-        let _query_completed_token = db.record_query("measurement_fields", defer_json(&req));
+        let mut query_completed_token = db.record_query("measurement_fields", defer_json(&req));
 
         let MeasurementFieldsRequest {
             source: _source,
@@ -752,6 +790,10 @@ where
                 .map_err(|e| e.to_status())
         })
         .map_err(|e| e.to_status())?;
+
+        if response.is_ok() {
+            query_completed_token.set_success();
+        }
 
         tx.send(response)
             .await

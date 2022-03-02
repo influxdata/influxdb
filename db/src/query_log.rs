@@ -27,6 +27,9 @@ pub struct QueryLogEntry {
     /// Duration in nanoseconds query took to complete (-1 is a sentinel value
     /// indicating query not completed).
     query_completed_duration: atomic::AtomicI64,
+
+    /// If the query completed successfully
+    pub success: atomic::AtomicBool,
 }
 
 impl std::fmt::Debug for QueryLogEntry {
@@ -36,6 +39,7 @@ impl std::fmt::Debug for QueryLogEntry {
             .field("query_text", &self.query_text.to_string())
             .field("issue_time", &self.issue_time)
             .field("query_completed_duration", &self.query_completed_duration)
+            .field("success", &self.success)
             .finish()
     }
 }
@@ -48,9 +52,12 @@ impl QueryLogEntry {
             query_text,
             issue_time,
             query_completed_duration: UNCOMPLETED_DURATION.into(),
+            success: atomic::AtomicBool::new(false),
         }
     }
 
+    /// If this query is completed, returns `Some(duration)` of how
+    /// long it took
     pub fn query_completed_duration(&self) -> Option<Duration> {
         match self
             .query_completed_duration
@@ -61,10 +68,18 @@ impl QueryLogEntry {
         }
     }
 
-    pub fn set_completed(&self, now: Time) {
+    /// Returns true if `set_completed` was called with `success=true`
+    pub fn success(&self) -> bool {
+        self.success.load(atomic::Ordering::SeqCst)
+    }
+
+    /// Mark this entry complete as of `now`. `success` records if the
+    /// entry is successful or not.
+    pub fn set_completed(&self, now: Time, success: bool) {
         let dur = now - self.issue_time;
         self.query_completed_duration
             .store(dur.as_nanos() as i64, atomic::Ordering::Relaxed);
+        self.success.store(success, atomic::Ordering::SeqCst);
     }
 }
 
@@ -116,8 +131,9 @@ impl QueryLog {
     }
 
     /// Marks the provided query entry as completed using the current time.
-    pub fn set_completed(&self, entry: Arc<QueryLogEntry>) {
-        entry.set_completed(self.time_provider.now())
+    /// `success` specifies the query ran successfully
+    pub fn set_completed(&self, entry: Arc<QueryLogEntry>, success: bool) {
+        entry.set_completed(self.time_provider.now(), success)
     }
 }
 
@@ -138,20 +154,23 @@ mod test_super {
         ));
         // query has not completed
         assert_eq!(entry.query_completed_duration(), None);
+        assert!(!entry.success());
 
         // when the query completes at the same time it's issued
-        entry.set_completed(time_provider.now());
+        entry.set_completed(time_provider.now(), true);
         assert_eq!(
             entry.query_completed_duration(),
             Some(Duration::from_millis(0))
         );
+        assert!(entry.success());
 
         // when the query completes some time in the future.
         time_provider.set(Time::from_timestamp_millis(300));
-        entry.set_completed(time_provider.now());
+        entry.set_completed(time_provider.now(), false);
         assert_eq!(
             entry.query_completed_duration(),
             Some(Duration::from_millis(200))
         );
+        assert!(!entry.success());
     }
 }

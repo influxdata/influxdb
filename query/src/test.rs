@@ -156,8 +156,8 @@ impl QueryDatabase for TestDatabase {
         &self,
         _query_type: impl Into<String>,
         _query_text: QueryText,
-    ) -> QueryCompletedToken<'_> {
-        QueryCompletedToken::new(|| {})
+    ) -> QueryCompletedToken {
+        QueryCompletedToken::new(|_| {})
     }
 }
 

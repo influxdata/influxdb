@@ -84,28 +84,42 @@ pub trait QueryChunkMeta: Sized {
 /// A `QueryCompletedToken` is returned by `record_query` implementations of
 /// a `QueryDatabase`. It is used to trigger side-effects (such as query timing)
 /// on query completion.
-pub struct QueryCompletedToken<'a> {
-    f: Option<Box<dyn FnOnce() + Send + 'a>>,
+///
+pub struct QueryCompletedToken {
+    /// If this query completed successfully
+    success: bool,
+
+    /// Function invoked when the token is dropped. It is passed the
+    /// vaue of `self.success`
+    f: Option<Box<dyn FnOnce(bool) + Send>>,
 }
 
-impl<'a> Debug for QueryCompletedToken<'a> {
+impl Debug for QueryCompletedToken {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("QueryCompletedToken").finish()
+        f.debug_struct("QueryCompletedToken")
+            .field("success", &self.success)
+            .finish()
     }
 }
 
-impl<'a> QueryCompletedToken<'a> {
-    pub fn new(f: impl FnOnce() + Send + 'a) -> Self {
+impl QueryCompletedToken {
+    pub fn new(f: impl FnOnce(bool) + Send + 'static) -> Self {
         Self {
+            success: false,
             f: Some(Box::new(f)),
         }
     }
+
+    /// Record that this query completed successfully
+    pub fn set_success(&mut self) {
+        self.success = true;
+    }
 }
 
-impl<'a> Drop for QueryCompletedToken<'a> {
+impl Drop for QueryCompletedToken {
     fn drop(&mut self) {
         if let Some(f) = self.f.take() {
-            (f)()
+            (f)(self.success)
         }
     }
 }
@@ -139,7 +153,7 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
         &self,
         query_type: impl Into<String>,
         query_text: QueryText,
-    ) -> QueryCompletedToken<'_>;
+    ) -> QueryCompletedToken;
 }
 
 /// Collection of data that shares the same partition key
