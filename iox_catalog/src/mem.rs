@@ -15,9 +15,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use observability_deps::tracing::warn;
-use std::convert::TryFrom;
 use std::fmt::Formatter;
 use std::sync::Arc;
+use std::{collections::HashSet, convert::TryFrom};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 use uuid::Uuid;
 
@@ -466,8 +466,6 @@ impl ColumnRepo for MemTxn {
             .filter(|t| t.namespace_id == namespace_id)
             .map(|t| t.id)
             .collect();
-        println!("tables: {:?}", stage.tables);
-        println!("table_ids: {:?}", table_ids);
         let columns: Vec<_> = stage
             .columns
             .iter()
@@ -603,6 +601,23 @@ impl PartitionRepo for MemTxn {
             .partitions
             .iter()
             .filter(|p| p.sequencer_id == sequencer_id)
+            .cloned()
+            .collect();
+        Ok(partitions)
+    }
+
+    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>> {
+        let stage = self.stage();
+
+        let table_ids: HashSet<_> = stage
+            .tables
+            .iter()
+            .filter_map(|table| (table.namespace_id == namespace_id).then(|| table.id))
+            .collect();
+        let partitions: Vec<_> = stage
+            .partitions
+            .iter()
+            .filter(|p| table_ids.contains(&p.table_id))
             .cloned()
             .collect();
         Ok(partitions)

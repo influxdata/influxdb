@@ -39,6 +39,11 @@ impl CatalogCache {
         }
     }
 
+    /// Get underlying catalog
+    pub fn catalog(&self) -> Arc<dyn Catalog> {
+        Arc::clone(&self.catalog)
+    }
+
     /// Get partition key for old gen.
     ///
     /// This either uses a cached value or -- if required -- creates a fresh string.

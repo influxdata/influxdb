@@ -120,6 +120,8 @@ impl QuerierDatabase {
             info!(
                 add = to_add.len(),
                 delete = to_delete.len(),
+                actual = namespaces_guard.len(),
+                desired = namespaces.len(),
                 "Syncing namespaces",
             );
 
@@ -208,8 +210,10 @@ mod tests {
         catalog.create_namespace("ns2").await;
         db.sync().await;
         assert_eq!(ns_names(&db), vec![Arc::from("ns1"), Arc::from("ns2")]);
-        assert_eq!(db.namespace("ns1").unwrap().name().as_ref(), "ns1");
-        assert_eq!(db.namespace("ns2").unwrap().name().as_ref(), "ns2");
+        let ns1_a = db.namespace("ns1").unwrap();
+        let ns2_a = db.namespace("ns2").unwrap();
+        assert_eq!(ns1_a.name().as_ref(), "ns1");
+        assert_eq!(ns2_a.name().as_ref(), "ns2");
         assert!(db.namespace("ns3").is_none());
 
         catalog.create_namespace("ns3").await;
@@ -218,6 +222,10 @@ mod tests {
             ns_names(&db),
             vec![Arc::from("ns1"), Arc::from("ns2"), Arc::from("ns3")]
         );
+        let ns1_b = db.namespace("ns1").unwrap();
+        let ns2_b = db.namespace("ns2").unwrap();
+        assert!(Arc::ptr_eq(&ns1_a, &ns1_b));
+        assert!(Arc::ptr_eq(&ns2_a, &ns2_b));
     }
 
     fn ns_names(db: &QuerierDatabase) -> Vec<Arc<str>> {

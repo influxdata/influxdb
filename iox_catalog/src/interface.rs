@@ -2,7 +2,8 @@
 
 use async_trait::async_trait;
 use influxdb_line_protocol::FieldValue;
-use schema::{InfluxColumnType, InfluxFieldType};
+use schema::builder::SchemaBuilder;
+use schema::{InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{OptionExt, Snafu};
 use std::convert::TryFrom;
 use std::fmt::Formatter;
@@ -569,6 +570,9 @@ pub trait PartitionRepo: Send + Sync {
     /// return partitions for a given sequencer
     async fn list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>>;
 
+    /// return partitions for a given namespace
+    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>>;
+
     /// return the partition record, the namespace name it belongs to, and the table name it is under
     async fn partition_info_by_id(
         &mut self,
@@ -972,6 +976,35 @@ impl From<InfluxColumnType> for ColumnType {
             InfluxColumnType::Field(InfluxFieldType::Boolean) => Self::Bool,
             InfluxColumnType::Timestamp => Self::Time,
         }
+    }
+}
+
+impl From<ColumnType> for InfluxColumnType {
+    fn from(value: ColumnType) -> Self {
+        match value {
+            ColumnType::I64 => Self::Field(InfluxFieldType::Integer),
+            ColumnType::U64 => Self::Field(InfluxFieldType::UInteger),
+            ColumnType::F64 => Self::Field(InfluxFieldType::Float),
+            ColumnType::Bool => Self::Field(InfluxFieldType::Boolean),
+            ColumnType::String => Self::Field(InfluxFieldType::String),
+            ColumnType::Time => Self::Timestamp,
+            ColumnType::Tag => Self::Tag,
+        }
+    }
+}
+
+impl TryFrom<TableSchema> for Schema {
+    type Error = schema::builder::Error;
+
+    fn try_from(value: TableSchema) -> Result<Self, Self::Error> {
+        let mut builder = SchemaBuilder::new();
+
+        for (column_name, column_schema) in &value.columns {
+            let t = InfluxColumnType::from(column_schema.column_type);
+            builder.influx_column(column_name, t);
+        }
+
+        builder.build()
     }
 }
 
@@ -1626,6 +1659,37 @@ pub(crate) mod test_helpers {
         assert_eq!(info.partition, other_partition);
         assert_eq!(info.table_name, "test_table");
         assert_eq!(info.namespace_name, "namespace_partition_test");
+
+        // test list_by_namespace
+        let namespace2 = repos
+            .namespaces()
+            .create("namespace_partition_test2", "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        let table2 = repos
+            .tables()
+            .create_or_get("test_table2", namespace2.id)
+            .await
+            .unwrap();
+        repos
+            .partitions()
+            .create_or_get("some_key", sequencer.id, table2.id)
+            .await
+            .expect("failed to create partition");
+        let listed = repos
+            .partitions()
+            .list_by_namespace(namespace.id)
+            .await
+            .expect("failed to list partitions")
+            .into_iter()
+            .map(|v| (v.id, v))
+            .collect::<BTreeMap<_, _>>();
+        let expected: BTreeMap<_, _> = created
+            .iter()
+            .map(|(k, v)| (*k, v.clone()))
+            .chain(std::iter::once((other_partition.id, other_partition)))
+            .collect();
+        assert_eq!(expected, listed);
     }
 
     async fn test_tombstone(catalog: Arc<dyn Catalog>) {

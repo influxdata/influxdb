@@ -958,6 +958,19 @@ impl PartitionRepo for PostgresTxn {
             .map_err(|e| Error::SqlxError { source: e })
     }
 
+    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>> {
+        sqlx::query_as::<_, Partition>(r#"
+SELECT partition.id as id, partition.sequencer_id as sequencer_id, partition.table_id as table_id, partition.partition_key as partition_key
+FROM table_name
+INNER JOIN partition on partition.table_id = table_name.id
+WHERE table_name.namespace_id = $1;
+            "#)
+            .bind(&namespace_id) // $1
+            .fetch_all(&mut self.inner)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+
     async fn partition_info_by_id(
         &mut self,
         partition_id: PartitionId,

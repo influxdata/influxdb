@@ -4,8 +4,8 @@ use bytes::Bytes;
 use data_types::partition_metadata::InfluxDbType;
 use iox_catalog::{
     interface::{
-        Catalog, KafkaPartition, KafkaTopic, Namespace, ParquetFile, Partition, QueryPool,
-        SequenceNumber, Sequencer, Table, Timestamp,
+        Catalog, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, Partition,
+        QueryPool, SequenceNumber, Sequencer, Table, Timestamp,
     },
     mem::MemCatalog,
 };
@@ -145,6 +145,16 @@ impl TestTable {
             sequencer,
             partition,
         })
+    }
+
+    pub async fn create_column(self: &Arc<Self>, name: &str, column_type: ColumnType) {
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        repos
+            .columns()
+            .create_or_get(name, self.table.id, column_type)
+            .await
+            .unwrap();
     }
 }
 
