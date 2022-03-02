@@ -348,6 +348,7 @@ pub enum ServerType {
     Database,
     Ingester,
     Router,
+    Router2,
 }
 
 impl Default for ServerType {
@@ -487,6 +488,7 @@ impl TestServer {
             ServerType::Database => "database",
             ServerType::Ingester => "ingester",
             ServerType::Router => "router",
+            ServerType::Router2 => "router2",
         };
 
         // This will inherit environment from the test runner
@@ -631,11 +633,23 @@ impl TestServer {
 
         loop {
             match (self.grpc_channel().await, self.test_config.server_type) {
-                (Ok(channel), ServerType::Ingester) => {
-                    // TODO: What should be checked to ensure the ingester is up? Should
-                    // ingester implement the deployment service?
-                    println!("ingester grpc connected");
+                (Ok(channel), ServerType::Router2) => {
+                    let mut health = influxdb_iox_client::health::Client::new(channel);
 
+                    match health.check("influxdata.pbdata.v1.WriteService").await {
+                        Ok(true) => {
+                            println!("Write service is running");
+                            return;
+                        }
+                        Ok(false) => {
+                            println!("Write service is not running");
+                        }
+                        Err(e) => {
+                            println!("Waiting for gRPC API to be healthy: {:?}", e);
+                        }
+                    }
+                }
+                (Ok(channel), ServerType::Ingester) => {
                     let mut health = influxdb_iox_client::health::Client::new(channel);
 
                     match health.check_arrow().await {
@@ -701,7 +715,8 @@ impl std::fmt::Display for TestServer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(
             f,
-            "TestServer (grpc {}, http {})",
+            "TestServer {:?} (grpc {}, http {})",
+            self.test_config.server_type,
             self.addrs().grpc_base,
             self.addrs().http_base
         )
