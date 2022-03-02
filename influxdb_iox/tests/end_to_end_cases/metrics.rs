@@ -2,7 +2,6 @@ use std::num::NonZeroU32;
 
 use crate::common::server_fixture::{ServerFixture, ServerType, TestConfig};
 use crate::end_to_end_cases::scenario::Scenario;
-use test_helpers::assert_contains;
 
 #[tokio::test]
 pub async fn test_row_timestamp() {
@@ -44,8 +43,11 @@ pub async fn test_row_timestamp() {
         .all(|x| x.contains("table=\"system\"") && x.contains(&db_name_attribute)));
 }
 
+#[cfg(jemalloc_replacing_malloc)]
 #[tokio::test]
 pub async fn test_jemalloc_metrics() {
+    use test_helpers::assert_contains;
+
     let server_fixture = ServerFixture::create_shared(ServerType::Database).await;
 
     let client = reqwest::Client::new();
