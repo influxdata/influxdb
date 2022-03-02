@@ -368,6 +368,7 @@ impl SchemaProvider for DbSchemaProvider {
             schema
         };
 
+        // TODO(edd): wire up execution provider
         let mut builder = ProviderBuilder::new(table_name, schema);
         builder =
             builder.add_pruner(Arc::clone(&self.chunk_access) as Arc<dyn ChunkPruner<DbChunk>>);
