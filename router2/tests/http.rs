@@ -9,7 +9,7 @@ use iox_catalog::{
     interface::{Catalog, KafkaTopicId, QueryPoolId},
     mem::MemCatalog,
 };
-use metric::{Attributes, Metric, Registry, U64Histogram};
+use metric::{Attributes, Metric, Registry, U64Counter, U64Histogram};
 use mutable_batch::MutableBatch;
 use router2::{
     dml_handlers::{
@@ -115,7 +115,7 @@ impl TestContext {
         let handler_stack =
             InstrumentationDecorator::new("request", Arc::clone(&metrics), handler_stack);
 
-        let delegate = HttpDelegate::new(1024, handler_stack);
+        let delegate = HttpDelegate::new(1024, handler_stack, &metrics);
 
         Self {
             delegate,
@@ -209,4 +209,14 @@ async fn test_write_ok() {
         .fetch();
     let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
     assert_eq!(hit_count, 1);
+
+    assert_eq!(
+        ctx.metrics()
+            .get_instrument::<Metric<U64Counter>>("http_write_lines_total")
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[]))
+            .expect("failed to get observer")
+            .fetch(),
+        1
+    );
 }

@@ -54,7 +54,7 @@ fn e2e_benchmarks(c: &mut Criterion) {
 
     let delegate = {
         let metrics = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let ns_cache = Arc::new(ShardedCache::new(
             iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
         ));
@@ -68,7 +68,7 @@ fn e2e_benchmarks(c: &mut Criterion) {
         let handler_stack =
             schema_validator.and_then(partitioner.and_then(FanOutAdaptor::new(write_buffer)));
 
-        HttpDelegate::new(1024, handler_stack)
+        HttpDelegate::new(1024, handler_stack, &metrics)
     };
 
     let body_str = "platanos,tag1=A,tag2=B val=42i 123456";
