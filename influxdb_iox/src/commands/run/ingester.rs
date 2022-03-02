@@ -12,12 +12,12 @@ use crate::{
         },
     },
 };
+use data_types2::KafkaPartition;
 use ingester::{
     handler::IngestHandlerImpl,
     lifecycle::LifecycleConfig,
     server::{grpc::GrpcDelegate, http::HttpDelegate, IngesterServer},
 };
-use iox_catalog::interface::KafkaPartition;
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use query::exec::Executor;

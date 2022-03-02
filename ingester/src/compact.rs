@@ -2,8 +2,8 @@
 
 use crate::data::{PersistingBatch, QueryableBatch};
 use arrow::{array::TimestampNanosecondArray, record_batch::RecordBatch};
+use data_types2::NamespaceId;
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
-use iox_catalog::interface::NamespaceId;
 use parquet_file::metadata::IoxMetadata;
 use query::{
     exec::{Executor, ExecutorType},

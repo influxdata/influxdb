@@ -1,8 +1,6 @@
-use std::{error::Error, fmt::Debug};
-
 use async_trait::async_trait;
-use data_types::{delete_predicate::DeletePredicate, DatabaseName};
-
+use data_types2::{DatabaseName, DeletePredicate};
+use std::{error::Error, fmt::Debug};
 use thiserror::Error;
 use trace::ctx::SpanContext;
 

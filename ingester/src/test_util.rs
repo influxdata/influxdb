@@ -8,13 +8,11 @@ use crate::data::{
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
 use bitflags::bitflags;
-use iox_catalog::{
-    interface::{
-        Catalog, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
-        Tombstone, TombstoneId,
-    },
-    mem::MemCatalog,
+use data_types2::{
+    NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp, Tombstone,
+    TombstoneId,
 };
+use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use parquet_file::metadata::IoxMetadata;
 use query::test::{raw_data, TestChunk};
 use std::{collections::BTreeMap, sync::Arc};

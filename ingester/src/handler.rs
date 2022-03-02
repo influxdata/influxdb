@@ -1,13 +1,14 @@
 //! Ingest handler
 
 use crate::{
-    data::{IngesterData, IngesterQueryRequest, IngesterQueryResponse, SequencerData},
+    data::{IngesterData, IngesterQueryResponse, SequencerData},
     lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
     poison::{PoisonCabinet, PoisonPill},
     querier_handler::prepare_data_to_querier,
 };
 use async_trait::async_trait;
 use backoff::BackoffConfig;
+use data_types2::{IngesterQueryRequest, KafkaPartition, KafkaTopic, Sequencer, SequencerId};
 use db::write_buffer::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
 use futures::{
     future::{BoxFuture, Shared},
@@ -15,13 +16,13 @@ use futures::{
     stream::FuturesUnordered,
     FutureExt, StreamExt, TryFutureExt,
 };
-use iox_catalog::interface::{Catalog, KafkaPartition, KafkaTopic, Sequencer, SequencerId};
+use iox_catalog::interface::Catalog;
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, error, info, warn};
 use query::exec::Executor;
 use snafu::{ResultExt, Snafu};
-use std::collections::BTreeMap;
 use std::{
+    collections::BTreeMap,
     fmt::Formatter,
     sync::Arc,
     time::{Duration, Instant},
@@ -412,14 +413,11 @@ async fn stream_in_sequenced_entries(
 
 #[cfg(test)]
 mod tests {
-    use crate::poison::PoisonPill;
-
     use super::*;
-    use data_types::sequence::Sequence;
+    use crate::poison::PoisonPill;
+    use data_types2::{Namespace, NamespaceSchema, QueryPool, Sequence};
     use dml::{DmlMeta, DmlWrite};
-    use iox_catalog::interface::{Namespace, NamespaceSchema, QueryPool};
-    use iox_catalog::mem::MemCatalog;
-    use iox_catalog::validate_or_insert_schema;
+    use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
     use mutable_batch_lp::lines_to_batches;
     use std::num::NonZeroU32;

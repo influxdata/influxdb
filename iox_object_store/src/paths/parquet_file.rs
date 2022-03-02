@@ -1,5 +1,5 @@
 use data_types::chunk_metadata::{ChunkAddr, ChunkId};
-use iox_catalog::interface::{NamespaceId, PartitionId, SequencerId, TableId};
+use data_types2::{NamespaceId, PartitionId, SequencerId, TableId};
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path as ObjStoPath},
     Result,

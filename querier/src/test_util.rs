@@ -1,14 +1,9 @@
-use std::sync::Arc;
-
 use bytes::Bytes;
-use data_types::partition_metadata::InfluxDbType;
-use iox_catalog::{
-    interface::{
-        Catalog, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, Partition,
-        QueryPool, SequenceNumber, Sequencer, Table, Timestamp,
-    },
-    mem::MemCatalog,
+use data_types2::{
+    ColumnType, InfluxDbType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, Partition,
+    QueryPool, SequenceNumber, Sequencer, Table, Timestamp,
 };
+use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::ObjectStore;
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
@@ -16,6 +11,7 @@ use query::{
     exec::Executor,
     test::{raw_data, TestChunk},
 };
+use std::sync::Arc;
 use time::{MockProvider, Time, TimeProvider};
 use uuid::Uuid;
 

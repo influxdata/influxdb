@@ -1,12 +1,10 @@
+use super::Sharder;
+use data_types2::DatabaseName;
+use siphasher::sip::SipHasher13;
 use std::{
     fmt::Debug,
     hash::{Hash, Hasher},
 };
-
-use data_types::DatabaseName;
-use siphasher::sip::SipHasher13;
-
-use super::Sharder;
 
 /// A [`JumpHash`] maps operations for a given table in a given namespace
 /// consistently to the same shard, irrespective of the operation itself with

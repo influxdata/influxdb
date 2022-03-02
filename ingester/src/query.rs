@@ -1,16 +1,13 @@
 //! Module to handle query on Ingester's data
 
-use std::sync::Arc;
-
+use crate::data::{QueryableBatch, SnapshotBatch};
 use arrow::{
     array::BooleanArray, compute::filter_record_batch, error::Result as ArrowResult,
     record_batch::RecordBatch,
 };
 use arrow_util::util::merge_record_batches;
-use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
-    delete_predicate::DeletePredicate,
-    partition_metadata::TableSummary,
+use data_types2::{
+    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, SequenceNumber, TableSummary, Tombstone,
 };
 use datafusion::{
     error::DataFusionError,
@@ -21,7 +18,6 @@ use datafusion::{
         PhysicalExpr, SendableRecordBatchStream,
     },
 };
-use iox_catalog::interface::{SequenceNumber, Tombstone};
 use observability_deps::tracing::{debug, trace};
 use predicate::{delete_predicate::parse_delete_predicate, Predicate, PredicateMatch};
 use query::{
@@ -31,8 +27,7 @@ use query::{
 };
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
-
-use crate::data::{QueryableBatch, SnapshotBatch};
+use std::sync::Arc;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -328,14 +323,12 @@ fn batch_filter(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::test_util::{
         create_batches_with_influxtype_different_columns_different_order,
         create_one_record_batch_with_influxtype_no_duplicates, create_tombstone,
         make_queryable_batch,
     };
-
-    use super::*;
-
     use arrow::{
         array::{
             ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray,
@@ -344,10 +337,7 @@ mod tests {
         datatypes::{DataType, Int32Type, TimeUnit},
     };
     use arrow_util::assert_batches_eq;
-    use data_types::{
-        delete_predicate::{DeleteExpr, Op, Scalar},
-        timestamp::TimestampRange,
-    };
+    use data_types2::{DeleteExpr, Op, Scalar, TimestampRange};
     use datafusion::logical_plan::{col, lit};
     use predicate::PredicateBuilder;
 

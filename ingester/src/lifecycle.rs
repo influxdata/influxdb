@@ -10,12 +10,10 @@ use crate::{
     job::{Job, JobRegistry},
     poison::{PoisonCabinet, PoisonPill},
 };
-use iox_catalog::interface::{PartitionId, SequenceNumber, SequencerId};
+use data_types2::{PartitionId, SequenceNumber, SequencerId};
 use observability_deps::tracing::{error, info};
 use parking_lot::Mutex;
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use time::{Time, TimeProvider};
 use tokio_util::sync::CancellationToken;
 use tracker::TrackedFutureExt;

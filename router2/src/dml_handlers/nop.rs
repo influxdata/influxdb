@@ -1,14 +1,11 @@
 //! A NOP implementation of [`DmlHandler`].
 
-use std::{fmt::Debug, marker::PhantomData};
-
-use async_trait::async_trait;
-use data_types::{delete_predicate::DeletePredicate, DatabaseName};
-
-use observability_deps::tracing::*;
-use trace::ctx::SpanContext;
-
 use super::{DmlError, DmlHandler};
+use async_trait::async_trait;
+use data_types2::{DatabaseName, DeletePredicate};
+use observability_deps::tracing::*;
+use std::{fmt::Debug, marker::PhantomData};
+use trace::ctx::SpanContext;
 
 /// A [`DmlHandler`] implementation that does nothing.
 #[derive(Debug)]

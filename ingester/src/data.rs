@@ -1,26 +1,21 @@
 //! Data for the lifecycle of the Ingester
 
-use crate::compact::compact_persisting_batch;
-use crate::lifecycle::LifecycleManager;
-use crate::persist::persist;
-use crate::querier_handler::query;
+use crate::{
+    compact::compact_persisting_batch, lifecycle::LifecycleManager, persist::persist,
+    querier_handler::query,
+};
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use chrono::{format::StrftimeItems, TimeZone, Utc};
-use data_types::delete_predicate::DeletePredicate;
+use data_types2::{
+    DeletePredicate, KafkaPartition, NamespaceId, PartitionId, SequenceNumber, SequencerId,
+    TableId, Timestamp, Tombstone,
+};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
-use generated_types::{
-    google::{FieldViolation, FieldViolationExt},
-    influxdata::iox::ingester::v1 as proto,
-};
-use iox_catalog::interface::{
-    Catalog, KafkaPartition, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
-    Timestamp, Tombstone,
-};
-use mutable_batch::column::ColumnData;
-use mutable_batch::MutableBatch;
+use iox_catalog::interface::Catalog;
+use mutable_batch::{column::ColumnData, MutableBatch};
 use object_store::ObjectStore;
 use observability_deps::tracing::warn;
 use parking_lot::RwLock;
@@ -1184,66 +1179,6 @@ pub struct QueryableBatch {
     pub(crate) table_name: String,
 }
 
-/// Request received from the query service for data the ingester has
-#[derive(Debug, PartialEq)]
-pub struct IngesterQueryRequest {
-    /// namespace to search
-    pub(crate) namespace: String,
-    /// sequencer to search
-    pub(crate) sequencer_id: SequencerId,
-    /// Table to search
-    pub(crate) table: String,
-    /// Columns the query service is interested in
-    pub(crate) columns: Vec<String>,
-    /// Predicate for filtering
-    pub(crate) predicate: Option<Predicate>,
-}
-
-impl IngesterQueryRequest {
-    /// Make a request
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        namespace: String,
-        sequencer_id: SequencerId,
-        table: String,
-        columns: Vec<String>,
-        predicate: Option<Predicate>,
-    ) -> Self {
-        Self {
-            namespace,
-            sequencer_id,
-            table,
-            columns,
-            predicate,
-        }
-    }
-}
-
-impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
-    type Error = FieldViolation;
-
-    fn try_from(proto: proto::IngesterQueryRequest) -> Result<Self, Self::Error> {
-        let proto::IngesterQueryRequest {
-            namespace,
-            sequencer_id,
-            table,
-            columns,
-            predicate,
-        } = proto;
-
-        let predicate = predicate.map(TryInto::try_into).transpose()?;
-        let sequencer_id: i16 = sequencer_id.try_into().scope("sequencer_id")?;
-
-        Ok(Self::new(
-            namespace,
-            SequencerId::new(sequencer_id),
-            table,
-            columns,
-            predicate,
-        ))
-    }
-}
-
 /// Response sending to the query service per its request defined in IngesterQueryRequest
 pub struct IngesterQueryResponse {
     /// Stream of RecordBatch results that match the requested query
@@ -1274,63 +1209,17 @@ impl IngesterQueryResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::LifecycleConfig;
-    use crate::test_util::create_tombstone;
+    use crate::{lifecycle::LifecycleConfig, test_util::create_tombstone};
     use arrow_util::assert_batches_sorted_eq;
-    use data_types::sequence::Sequence;
-    use datafusion::logical_plan::col;
+    use data_types2::{NamespaceSchema, Sequence};
     use dml::{DmlMeta, DmlWrite};
     use futures::TryStreamExt;
-    use iox_catalog::interface::NamespaceSchema;
-    use iox_catalog::mem::MemCatalog;
-    use iox_catalog::validate_or_insert_schema;
-    use mutable_batch_lp::lines_to_batches;
-    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
+    use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
+    use mutable_batch_lp::{lines_to_batches, test_helpers::lp_to_mutable_batch};
     use object_store::ObjectStoreApi;
     use std::time::Duration;
     use test_helpers::assert_error;
     use time::Time;
-
-    #[test]
-    fn query_from_protobuf() {
-        let rust_predicate = predicate::PredicateBuilder::new()
-            .timestamp_range(1, 100)
-            .add_expr(col("foo"))
-            .build();
-
-        let proto_predicate = proto::Predicate {
-            exprs: vec![proto::LogicalExprNode {
-                expr_type: Some(proto::logical_expr_node::ExprType::Column(proto::Column {
-                    name: "foo".into(),
-                    relation: None,
-                })),
-            }],
-            field_columns: vec![],
-            partition_key: None,
-            range: Some(proto::TimestampRange { start: 1, end: 100 }),
-            value_expr: vec![],
-        };
-
-        let rust_query = IngesterQueryRequest::new(
-            "mydb".into(),
-            SequencerId::new(5),
-            "cpu".into(),
-            vec!["usage".into(), "time".into()],
-            Some(rust_predicate),
-        );
-
-        let proto_query = proto::IngesterQueryRequest {
-            namespace: "mydb".into(),
-            sequencer_id: 5,
-            table: "cpu".into(),
-            columns: vec!["usage".into(), "time".into()],
-            predicate: Some(proto_predicate),
-        };
-
-        let rust_query_converted = IngesterQueryRequest::try_from(proto_query).unwrap();
-
-        assert_eq!(rust_query, rust_query_converted);
-    }
 
     #[test]
     fn snapshot_empty_buffer_adds_no_snapshots() {

@@ -3,17 +3,19 @@
 
 use crate::{
     interface::{
-        sealed::TransactionFinalize, Catalog, Column, ColumnId, ColumnRepo, ColumnType, Error,
-        KafkaPartition, KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace, NamespaceId,
-        NamespaceRepo, ParquetFile, ParquetFileId, ParquetFileRepo, Partition, PartitionId,
-        PartitionInfo, PartitionRepo, ProcessedTombstone, ProcessedTombstoneRepo, QueryPool,
-        QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer, SequencerId,
-        SequencerRepo, Table, TableId, TablePersistInfo, TableRepo, Timestamp, Tombstone,
-        TombstoneId, TombstoneRepo, Transaction,
+        sealed::TransactionFinalize, Catalog, ColumnRepo, Error, KafkaTopicRepo, NamespaceRepo,
+        ParquetFileRepo, PartitionInfo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
+        RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo, TombstoneRepo,
+        Transaction,
     },
     metrics::MetricDecorator,
 };
 use async_trait::async_trait;
+use data_types2::{
+    Column, ColumnId, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
+    ParquetFile, ParquetFileId, Partition, PartitionId, ProcessedTombstone, QueryPool, QueryPoolId,
+    SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+};
 use observability_deps::tracing::warn;
 use std::fmt::Formatter;
 use std::sync::Arc;

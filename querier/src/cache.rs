@@ -1,8 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
-
 use backoff::{Backoff, BackoffConfig};
-use iox_catalog::interface::{Catalog, NamespaceId, PartitionId, SequencerId, TableId};
+use data_types2::{NamespaceId, PartitionId, SequencerId, TableId};
+use iox_catalog::interface::Catalog;
 use parking_lot::RwLock;
+use std::{collections::HashMap, sync::Arc};
 
 /// Caches request to the [`Catalog`].
 #[derive(Debug)]

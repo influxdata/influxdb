@@ -1,18 +1,15 @@
-use std::sync::Arc;
-
-use data_types::chunk_metadata::{ChunkAddr, ChunkOrder};
+use crate::cache::CatalogCache;
+use data_types2::{ChunkAddr, ChunkId, ChunkOrder, ParquetFile};
 use db::catalog::chunk::{CatalogChunk, ChunkMetadata, ChunkMetrics as CatalogChunkMetrics};
-use iox_catalog::interface::ParquetFile;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::ObjectStore;
 use parquet_file::{
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     metadata::{DecodedIoxParquetMetaData, IoxMetadata, IoxParquetMetaData},
 };
+use std::sync::Arc;
 use time::TimeProvider;
 use uuid::Uuid;
-
-use crate::cache::CatalogCache;
 
 /// Parquet file with decoded metadata.
 struct DecodedParquetFile {
@@ -173,25 +170,21 @@ impl ParquetChunkAdapter {
                 .catalog_cache
                 .old_gen_partition_key(parquet_file.partition_id)
                 .await,
-            chunk_id: data_types::chunk_metadata::ChunkId::from(Uuid::from_u128(
-                parquet_file.id.get() as _,
-            )),
+            chunk_id: ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _)),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::test_util::TestCatalog;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use db::chunk::DbChunk;
     use futures::StreamExt;
     use query::{exec::IOxExecutionContext, QueryChunk};
     use schema::selection::Selection;
-
-    use crate::test_util::TestCatalog;
-
-    use super::*;
 
     #[tokio::test]
     async fn test_create_record() {

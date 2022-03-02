@@ -90,10 +90,12 @@ use data_types::{
     chunk_metadata::{ChunkId, ChunkOrder},
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
 };
-use generated_types::influxdata::iox::ingester::v1 as proto;
-use generated_types::influxdata::iox::preserved_catalog::v1 as preserved_catalog;
-use iox_catalog::interface::{
+use data_types2::{
     NamespaceId, ParquetFile, ParquetFileId, PartitionId, SequenceNumber, SequencerId, TableId,
+    Timestamp,
+};
+use generated_types::influxdata::iox::{
+    ingester::v1 as proto, preserved_catalog::v1 as preserved_catalog,
 };
 use parquet::{
     arrow::parquet_to_arrow_schema,
@@ -642,12 +644,8 @@ impl IoxMetadata {
             object_store_id: self.object_store_id,
             min_sequence_number: self.min_sequence_number,
             max_sequence_number: self.max_sequence_number,
-            min_time: iox_catalog::interface::Timestamp::new(
-                self.time_of_first_write.timestamp_nanos(),
-            ),
-            max_time: iox_catalog::interface::Timestamp::new(
-                self.time_of_last_write.timestamp_nanos(),
-            ),
+            min_time: Timestamp::new(self.time_of_first_write.timestamp_nanos()),
+            max_time: Timestamp::new(self.time_of_last_write.timestamp_nanos()),
             to_delete: false,
             file_size_bytes: file_size_bytes as i64,
             parquet_metadata: metadata.thrift_bytes().to_vec(),

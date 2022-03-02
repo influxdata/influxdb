@@ -1,23 +1,20 @@
 //! Metric instrumentation for catalog implementations.
 
-use std::{fmt::Debug, sync::Arc};
-
+use crate::interface::{
+    sealed::TransactionFinalize, ColumnRepo, KafkaTopicRepo, NamespaceRepo, ParquetFileRepo,
+    PartitionInfo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result,
+    SequencerRepo, TablePersistInfo, TableRepo, TombstoneRepo,
+};
 use async_trait::async_trait;
+use data_types2::{
+    Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
+    ParquetFile, ParquetFileId, Partition, PartitionId, ProcessedTombstone, QueryPool, QueryPoolId,
+    SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+};
 use metric::{Metric, U64Histogram, U64HistogramOptions};
+use std::{fmt::Debug, sync::Arc};
 use time::{SystemProvider, TimeProvider};
 use uuid::Uuid;
-
-use crate::{
-    interface::{
-        sealed::TransactionFinalize, Column, ColumnRepo, ColumnType, KafkaPartition, KafkaTopic,
-        KafkaTopicId, KafkaTopicRepo, Namespace, NamespaceId, NamespaceRepo, ParquetFile,
-        ParquetFileId, ParquetFileRepo, Partition, PartitionId, PartitionInfo, PartitionRepo,
-        ProcessedTombstone, ProcessedTombstoneRepo, QueryPool, QueryPoolId, QueryPoolRepo,
-        RepoCollection, SequenceNumber, Sequencer, SequencerId, SequencerRepo, Table, TableId,
-        TablePersistInfo, TableRepo, Timestamp, Tombstone, TombstoneId, TombstoneRepo,
-    },
-    Result,
-};
 
 /// Decorates a implementation of the catalog's [`RepoCollection`] (and the
 /// transactional variant) with instrumentation that emits latency histograms

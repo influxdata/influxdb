@@ -1,11 +1,8 @@
-use std::sync::Arc;
-
-use data_types::DatabaseName;
-use hashbrown::HashMap;
-use iox_catalog::interface::NamespaceSchema;
-use parking_lot::RwLock;
-
 use super::NamespaceCache;
+use data_types2::{DatabaseName, NamespaceSchema};
+use hashbrown::HashMap;
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 /// An in-memory cache of [`NamespaceSchema`] backed by a hashmap protected with
 /// a read-write mutex.
@@ -30,9 +27,8 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
 
 #[cfg(test)]
 mod tests {
-    use iox_catalog::interface::{KafkaTopicId, NamespaceId, QueryPoolId};
-
     use super::*;
+    use data_types2::{KafkaTopicId, NamespaceId, QueryPoolId};
 
     #[test]
     fn test_put_get() {
