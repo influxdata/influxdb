@@ -191,6 +191,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     /// this Chunk. Returns `None` otherwise
     fn column_names(
         &self,
+        ctx: IOxExecutionContext,
         predicate: &Predicate,
         columns: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error>;

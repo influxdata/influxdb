@@ -961,6 +961,7 @@ impl QueryChunk for TestChunk {
 
     fn column_names(
         &self,
+        _ctx: IOxExecutionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error> {

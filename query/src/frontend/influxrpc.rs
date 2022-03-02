@@ -333,6 +333,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        let ctx = self.ctx.child_ctx("tag_keys planning");
         debug!(?rpc_predicate, "planning tag_keys");
 
         // Special case predicates that span the entire valid timestamp range
@@ -385,7 +386,11 @@ impl InfluxRpcPlanner {
                 if !do_full_plan {
                     // filter the columns further from the predicate
                     let maybe_names = chunk
-                        .column_names(predicate, selection)
+                        .column_names(
+                            ctx.child_ctx("column_names execution"),
+                            predicate,
+                            selection,
+                        )
                         .map_err(|e| Box::new(e) as _)
                         .context(FindingColumnNamesSnafu)?;
 

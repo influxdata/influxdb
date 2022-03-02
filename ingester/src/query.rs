@@ -191,6 +191,7 @@ impl QueryChunk for QueryableBatch {
     /// this Chunk. Returns `None` otherwise
     fn column_names(
         &self,
+        _ctx: IOxExecutionContext,
         _predicate: &Predicate,
         _columns: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error> {
