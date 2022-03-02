@@ -75,6 +75,9 @@ pub enum Error {
 
     #[snafu(display("Error while converting usize {} to i64", value))]
     InvalidValue { value: usize },
+
+    #[snafu(display("Datbase setup error: {}", source))]
+    Setup { source: sqlx::Error },
 }
 
 /// A specialized `Error` for Catalog errors

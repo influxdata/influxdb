@@ -34,9 +34,10 @@ static MIGRATOR: Migrator = sqlx::migrate!();
 pub struct PostgresCatalog {
     metrics: Arc<metric::Registry>,
     pool: HotSwapPool<Postgres>,
+    schema_name: String,
 }
 
-// struct to get return value from "select count(*) ..." wuery"
+// struct to get return value from "select count(*) ..." query
 #[derive(sqlx::FromRow)]
 struct Count {
     count: i64,
@@ -51,11 +52,22 @@ impl PostgresCatalog {
         max_conns: u32,
         metrics: Arc<metric::Registry>,
     ) -> Result<Self> {
-        let pool = new_pool(app_name, schema_name, dsn, max_conns, HOTSWAP_POLL_INTERVAL)
-            .await
-            .map_err(|e| Error::SqlxError { source: e })?;
+        let schema_name = schema_name.to_string();
+        let pool = new_pool(
+            app_name,
+            &schema_name,
+            dsn,
+            max_conns,
+            HOTSWAP_POLL_INTERVAL,
+        )
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
 
-        Ok(Self { pool, metrics })
+        Ok(Self {
+            pool,
+            metrics,
+            schema_name,
+        })
     }
 }
 
@@ -200,10 +212,24 @@ impl TransactionFinalize for PostgresTxn {
 #[async_trait]
 impl Catalog for PostgresCatalog {
     async fn setup(&self) -> Result<(), Error> {
+        // We need to create the schema if we're going to set it as the first item of the search_path
+        // otherwise when we run the sqlx migration scripts for the first time, sqlx will create the
+        // `_sqlx_migrations` table in the public namespace (the only namespace that exists), but the second
+        // time it will create it in the `<schema_name>` namespace and re-run all the migrations without
+        // skipping the ones already applied (see #3893).
+        //
+        // This makes the migrations/20210217134322_create_schema.sql step unnecessary; we need to keep that
+        // file because migration files are immutable.
+        let create_schema_query = format!("CREATE SCHEMA IF NOT EXISTS {}", &self.schema_name);
+        self.pool
+            .execute(sqlx::query(&create_schema_query))
+            .await
+            .map_err(|e| Error::Setup { source: e })?;
+
         MIGRATOR
             .run(&self.pool)
             .await
-            .map_err(|e| Error::SqlxError { source: e.into() })?;
+            .map_err(|e| Error::Setup { source: e.into() })?;
 
         Ok(())
     }

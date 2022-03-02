@@ -22,11 +22,15 @@ You'll then need to create the database. You can do this via the sqlx command li
 
 ```
 cargo install sqlx-cli
-sqlx database setup
+sqlx database create
+cargo run -q -- catalog setup --catalog-dsn "$DATABASE_URL"
 ```
 
 This will set up the database based on the files in `./migrations` in this crate. SQLx also creates a table
 to keep track of which migrations have been run.
+
+NOTE: **do not** use `sqlx database setup`, because that will create the migration table in the wrong schema (namespace).
+Our `catalog setup` code will do that part by using the same sqlx migration module but with the right namespace setup.
 
 ## Tests
 
