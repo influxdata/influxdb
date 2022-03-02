@@ -183,7 +183,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use db::chunk::DbChunk;
     use futures::StreamExt;
-    use query::QueryChunk;
+    use query::{exec::IOxExecutionContext, QueryChunk};
     use schema::selection::Selection;
 
     #[tokio::test]
@@ -233,7 +233,11 @@ mod tests {
 
     async fn collect_read_filter(chunk: &DbChunk) -> Vec<RecordBatch> {
         chunk
-            .read_filter(&Default::default(), Selection::All)
+            .read_filter(
+                IOxExecutionContext::default(),
+                &Default::default(),
+                Selection::All,
+            )
             .unwrap()
             .collect::<Vec<_>>()
             .await

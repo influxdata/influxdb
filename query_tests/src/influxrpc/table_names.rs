@@ -27,7 +27,7 @@ async fn run_table_names_test_case<D>(
         } = scenario;
         println!("Running scenario '{}'", scenario_name);
         println!("Predicate: '{:#?}'", predicate);
-        let planner = InfluxRpcPlanner::new();
+        let planner = InfluxRpcPlanner::default();
         let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
         let plan = planner

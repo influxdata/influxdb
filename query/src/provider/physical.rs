@@ -16,7 +16,7 @@ use datafusion::{
 use schema::selection::Selection;
 use schema::Schema;
 
-use crate::QueryChunk;
+use crate::{exec::IOxExecutionContext, QueryChunk};
 use predicate::Predicate;
 
 use async_trait::async_trait;
@@ -34,6 +34,9 @@ pub(crate) struct IOxReadFilterNode<C: QueryChunk + 'static> {
     predicate: Predicate,
     /// Execution metrics
     metrics: ExecutionPlanMetricsSet,
+
+    // execution context used for tracing
+    ctx: IOxExecutionContext,
 }
 
 impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
@@ -41,12 +44,14 @@ impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
     /// output according to schema, while applying `predicate` and
     /// returns
     pub fn new(
+        ctx: IOxExecutionContext,
         table_name: Arc<str>,
         iox_schema: Arc<Schema>,
         chunks: Vec<Arc<C>>,
         predicate: Predicate,
     ) -> Self {
         Self {
+            ctx,
             table_name,
             iox_schema,
             chunks,
@@ -91,6 +96,7 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         // For some reason when I used an automatically derived `Clone` implementation
         // the compiler didn't recognize the trait implementation
         let new_self = Self {
+            ctx: IOxExecutionContext::default(), // FIXME: we can't clone context because we shouldn't clone span recorder bits
             table_name: Arc::clone(&self.table_name),
             iox_schema: Arc::clone(&self.iox_schema),
             chunks,
@@ -126,14 +132,20 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         let selection_cols = restrict_selection(selection_cols, &chunk_table_schema);
         let selection = Selection::Some(&selection_cols);
 
-        let stream = chunk.read_filter(&self.predicate, selection).map_err(|e| {
-            DataFusionError::Execution(format!(
-                "Error creating scan for table {} chunk {}: {}",
-                self.table_name,
-                chunk.id(),
-                e
-            ))
-        })?;
+        let stream = chunk
+            .read_filter(
+                self.ctx.child_ctx("chunk read_filter"),
+                &self.predicate,
+                selection,
+            )
+            .map_err(|e| {
+                DataFusionError::Execution(format!(
+                    "Error creating scan for table {} chunk {}: {}",
+                    self.table_name,
+                    chunk.id(),
+                    e
+                ))
+            })?;
 
         // all CPU time is now done, pass in baseline metrics to adapter
         timer.done();

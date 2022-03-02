@@ -1985,7 +1985,11 @@ mod tests {
 
     async fn collect_read_filter(chunk: &DbChunk) -> Vec<RecordBatch> {
         chunk
-            .read_filter(&Default::default(), Selection::All)
+            .read_filter(
+                IOxExecutionContext::default(),
+                &Default::default(),
+                Selection::All,
+            )
             .unwrap()
             .collect::<Vec<_>>()
             .await

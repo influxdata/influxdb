@@ -24,7 +24,7 @@ use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use crate::{
-    exec::{field::FieldColumns, make_non_null_checker, make_schema_pivot},
+    exec::{field::FieldColumns, make_non_null_checker, make_schema_pivot, IOxExecutionContext},
     func::{
         selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
         window::make_window_bound_expr,
@@ -200,12 +200,21 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// categories with the same data type, columns of different
 /// categories are treated differently in the different query types.
 #[derive(Default, Debug)]
-pub struct InfluxRpcPlanner {}
+pub struct InfluxRpcPlanner {
+    /// Optional executor currently only used to provide span context for tracing.
+    ctx: IOxExecutionContext,
+}
 
 impl InfluxRpcPlanner {
     /// Create a new instance of the RPC planner
     pub fn new() -> Self {
-        Self {}
+        Self {
+            ctx: IOxExecutionContext::default(),
+        }
+    }
+
+    pub fn with_execution_context(self, ctx: IOxExecutionContext) -> Self {
+        Self { ctx }
     }
 
     /// Returns a builder that includes
@@ -691,6 +700,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        let _ctx = self.ctx.child_ctx("planning_read_filter");
         debug!(?rpc_predicate, "planning read_filter");
 
         let table_predicates = rpc_predicate
@@ -1338,12 +1348,15 @@ impl InfluxRpcPlanner {
     where
         C: QueryChunk + 'static,
     {
+        let ctx = self.ctx.child_ctx("scan_and_filter");
+
         // Scan all columns to begin with (DataFusion projection
         // push-down optimization will prune out unneeded columns later)
         let projection = None;
 
         // Prepare the scan of the table
-        let mut builder = ProviderBuilder::new(table_name, schema);
+        let mut builder =
+            ProviderBuilder::new(ctx.child_ctx("provider_builder"), table_name, schema);
 
         // Since the entire predicate is used in the call to
         // `database.chunks()` there will not be any additional

@@ -22,7 +22,10 @@ use datafusion::{
 };
 use futures::TryStreamExt;
 use observability_deps::tracing::{debug, trace};
-use trace::{ctx::SpanContext, span::SpanRecorder};
+use trace::{
+    ctx::SpanContext,
+    span::{MetaValue, SpanRecorder},
+};
 
 use crate::exec::{
     fieldlist::{FieldList, IntoFieldList},
@@ -228,7 +231,7 @@ impl IOxExecutionConfig {
 
         IOxExecutionContext {
             inner,
-            exec: self.exec,
+            exec: Some(self.exec),
             recorder: SpanRecorder::new(maybe_span),
         }
     }
@@ -246,16 +249,17 @@ impl IOxExecutionConfig {
 ///
 /// An IOxExecutionContext is created directly from an Executor, or from
 /// an IOxExecutionConfig created by an Executor
+#[derive(Default)]
 pub struct IOxExecutionContext {
     inner: ExecutionContext,
 
-    /// Dedicated executor for query execution.
+    /// Optional dedicated executor for query execution.
     ///
     /// DataFusion plans are "CPU" bound and thus can consume tokio
     /// executors threads for extended periods of time. We use a
     /// dedicated tokio runtime to run them so that other requests
     /// can be handled.
-    exec: DedicatedExecutor,
+    exec: Option<DedicatedExecutor>,
 
     /// Span context from which to create spans for this query
     recorder: SpanRecorder,
@@ -549,10 +553,13 @@ impl IOxExecutionContext {
         Fut: std::future::Future<Output = Result<T>> + Send + 'static,
         T: Send + 'static,
     {
-        self.exec
-            .spawn(fut)
-            .await
-            .unwrap_or_else(|e| Err(Error::Execution(format!("Join Error: {}", e))))
+        match &self.exec {
+            Some(exec) => exec
+                .spawn(fut)
+                .await
+                .unwrap_or_else(|e| Err(Error::Execution(format!("Join Error: {}", e)))),
+            None => unimplemented!("spawn onto current threadpool"),
+        }
     }
 
     /// Returns a IOxExecutionContext with a SpanRecorder that is a child of the current
@@ -564,8 +571,18 @@ impl IOxExecutionContext {
         }
     }
 
+    /// Record an event on the span recorder
+    pub fn record_event(&mut self, name: &'static str) {
+        self.recorder.event(name);
+    }
+
+    /// Record an event on the span recorder
+    pub fn set_metadata(&mut self, name: &'static str, value: impl Into<MetaValue>) {
+        self.recorder.set_metadata(name, value);
+    }
+
     /// Number of currently active tasks.
     pub fn tasks(&self) -> usize {
-        self.exec.tasks()
+        self.exec.as_ref().map(|e| e.tasks()).unwrap_or_default()
     }
 }
