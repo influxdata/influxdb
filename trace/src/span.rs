@@ -159,6 +159,13 @@ impl SpanRecorder {
         Self { span }
     }
 
+    /// Set meta data on the [`Span`], if any.
+    pub fn set_metadata(&mut self, key: impl Into<Cow<'static, str>>, value: impl Into<MetaValue>) {
+        if let Some(span) = self.span.as_mut() {
+            span.metadata.insert(key.into(), value.into());
+        }
+    }
+
     /// Record an event on the contained `Span` if any
     pub fn event(&mut self, meta: impl Into<Cow<'static, str>>) {
         if let Some(span) = self.span.as_mut() {

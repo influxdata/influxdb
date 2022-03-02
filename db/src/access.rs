@@ -16,6 +16,7 @@ use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use query::{
+    exec::IOxExecutionContext,
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
     QueryChunkMeta, QueryCompletedToken, QueryDatabase, QueryText, DEFAULT_SCHEMA,
@@ -368,7 +369,8 @@ impl SchemaProvider for DbSchemaProvider {
             schema
         };
 
-        let mut builder = ProviderBuilder::new(table_name, schema);
+        // TODO(edd): wire up execution provider
+        let mut builder = ProviderBuilder::new(IOxExecutionContext::default(), table_name, schema);
         builder =
             builder.add_pruner(Arc::clone(&self.chunk_access) as Arc<dyn ChunkPruner<DbChunk>>);
 

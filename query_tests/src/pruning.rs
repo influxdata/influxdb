@@ -120,7 +120,7 @@ async fn chunk_pruning_influxrpc() {
 
     let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
-    let plan = InfluxRpcPlanner::new()
+    let plan = InfluxRpcPlanner::default()
         .table_names(db.as_ref(), rpc_predicate)
         .unwrap();
 
