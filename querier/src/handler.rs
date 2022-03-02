@@ -15,7 +15,10 @@ use time::TimeProvider;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::database::{database_sync_loop, QuerierDatabase};
+use crate::{
+    database::{database_sync_loop, QuerierDatabase},
+    poison::PoisonCabinet,
+};
 
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -52,6 +55,9 @@ pub struct QuerierHandlerImpl {
 
     /// A token that is used to trigger shutdown of the background worker
     shutdown: CancellationToken,
+
+    /// Poison pills for testing.
+    poison_cabinet: Arc<PoisonCabinet>,
 }
 
 impl QuerierHandlerImpl {
@@ -69,18 +75,21 @@ impl QuerierHandlerImpl {
             time_provider,
         ));
         let shutdown = CancellationToken::new();
+        let poison_cabinet = Arc::new(PoisonCabinet::new());
 
         let join_handles = vec![(
             String::from("database sync"),
             shared_handle(tokio::spawn(database_sync_loop(
                 Arc::clone(&database),
                 shutdown.clone(),
+                Arc::clone(&poison_cabinet),
             ))),
         )];
         Self {
             database,
             join_handles,
             shutdown,
+            poison_cabinet,
         }
     }
 }
@@ -115,6 +124,72 @@ impl Drop for QuerierHandlerImpl {
         if !self.shutdown.is_cancelled() {
             warn!("QuerierHandlerImpl dropped without calling shutdown()");
             self.shutdown.cancel();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use iox_catalog::mem::MemCatalog;
+    use time::{MockProvider, Time};
+
+    use crate::poison::PoisonPill;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_shutdown() {
+        let querier = TestQuerier::new().querier;
+
+        // does not exit w/o shutdown
+        tokio::select! {
+            _ = querier.join() => panic!("querier finished w/o shutdown"),
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {},
+        };
+
+        querier.shutdown();
+
+        tokio::time::timeout(Duration::from_millis(1000), querier.join())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Background worker 'database sync' exited early!")]
+    async fn test_supervise_database_sync_early_exit() {
+        let querier = TestQuerier::new().querier;
+        querier.poison_cabinet.add(PoisonPill::DatabaseSyncExit);
+        tokio::time::timeout(Duration::from_millis(2000), querier.join())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "JoinError::Panic")]
+    async fn test_supervise_database_sync_panic() {
+        let querier = TestQuerier::new().querier;
+        querier.poison_cabinet.add(PoisonPill::DatabaseSyncPanic);
+        tokio::time::timeout(Duration::from_millis(2000), querier.join())
+            .await
+            .unwrap();
+    }
+
+    struct TestQuerier {
+        querier: QuerierHandlerImpl,
+    }
+
+    impl TestQuerier {
+        fn new() -> Self {
+            let metric_registry = Arc::new(metric::Registry::new());
+            let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
+            let object_store = Arc::new(ObjectStore::new_in_memory());
+            let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+            let querier =
+                QuerierHandlerImpl::new(catalog, metric_registry, object_store, time_provider);
+
+            Self { querier }
         }
     }
 }

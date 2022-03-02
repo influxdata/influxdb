@@ -7,12 +7,16 @@ use std::{
 use backoff::{Backoff, BackoffConfig};
 use iox_catalog::interface::{Catalog, NamespaceId};
 use object_store::ObjectStore;
-use observability_deps::tracing::info;
+use observability_deps::tracing::{error, info};
 use parking_lot::RwLock;
 use time::TimeProvider;
 use tokio_util::sync::CancellationToken;
 
-use crate::{cache::CatalogCache, namespace::QuerierNamespace};
+use crate::{
+    cache::CatalogCache,
+    namespace::QuerierNamespace,
+    poison::{PoisonCabinet, PoisonPill},
+};
 
 const SYNC_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -141,10 +145,18 @@ impl QuerierDatabase {
 pub(crate) async fn database_sync_loop(
     database: Arc<QuerierDatabase>,
     shutdown: CancellationToken,
+    poison_cabinet: Arc<PoisonCabinet>,
 ) {
     loop {
         if shutdown.is_cancelled() {
             info!("Database sync shutdown");
+            return;
+        }
+        if poison_cabinet.contains(&PoisonPill::DatabaseSyncPanic) {
+            panic!("Database sync poisened, panic");
+        }
+        if poison_cabinet.contains(&PoisonPill::DatabaseSyncExit) {
+            error!("Database sync poisened, exit early");
             return;
         }
 

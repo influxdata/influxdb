@@ -20,6 +20,7 @@ mod database;
 pub mod flight;
 pub mod handler;
 mod namespace;
+mod poison;
 pub mod server;
 
 #[cfg(test)]
