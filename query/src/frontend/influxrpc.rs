@@ -1355,8 +1355,8 @@ impl InfluxRpcPlanner {
         let projection = None;
 
         // Prepare the scan of the table
-        let mut builder =
-            ProviderBuilder::new(ctx.child_ctx("provider_builder"), table_name, schema);
+        let mut builder = ProviderBuilder::new(table_name, schema)
+            .with_execution_context(ctx.child_ctx("provider_builder"));
 
         // Since the entire predicate is used in the call to
         // `database.chunks()` there will not be any additional

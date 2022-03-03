@@ -480,11 +480,12 @@ pub async fn wait_for_exact_chunk_states(
     wait_time: std::time::Duration,
 ) -> Vec<ChunkSummary> {
     // ensure consistent order
-    desired_storages.sort();
+    desired_storages.sort_unstable();
 
     let fail_message = format!("persisted chunks in exactly {:?}", desired_storages);
     let pred = |chunks: &[ChunkSummary]| {
-        let actual_storages = chunks.iter().map(|chunk| chunk.storage).collect::<Vec<_>>();
+        let mut actual_storages = chunks.iter().map(|chunk| chunk.storage).collect::<Vec<_>>();
+        actual_storages.sort_unstable();
 
         desired_storages == actual_storages
     };
