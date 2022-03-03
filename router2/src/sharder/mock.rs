@@ -1,10 +1,8 @@
-use std::{collections::VecDeque, fmt::Debug, sync::Arc};
-
-use data_types::delete_predicate::DeletePredicate;
+use super::Sharder;
+use data_types2::{DatabaseName, DeletePredicate};
 use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
-
-use super::Sharder;
+use std::{collections::VecDeque, fmt::Debug, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub enum MockSharderPayload {
@@ -78,7 +76,7 @@ where
     fn shard(
         &self,
         table: &str,
-        namespace: &data_types::DatabaseName<'_>,
+        namespace: &DatabaseName<'_>,
         payload: &MutableBatch,
     ) -> &Self::Item {
         let mut guard = self.0.lock();
@@ -105,7 +103,7 @@ where
     fn shard(
         &self,
         table: &str,
-        namespace: &data_types::DatabaseName<'_>,
+        namespace: &DatabaseName<'_>,
         payload: &DeletePredicate,
     ) -> &Self::Item {
         let mut guard = self.0.lock();

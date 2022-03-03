@@ -56,7 +56,7 @@ async fn run_read_filter(
     predicate: InfluxRpcPredicate,
     db: Arc<Db>,
 ) -> Result<Vec<String>, String> {
-    let planner = InfluxRpcPlanner::new();
+    let planner = InfluxRpcPlanner::default();
 
     let plan = planner
         .read_filter(db.as_ref(), predicate)

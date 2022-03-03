@@ -1,14 +1,9 @@
-use std::{collections::BTreeSet, iter, string::String, sync::Arc};
-
 use assert_matches::assert_matches;
-use data_types::database_rules::{PartitionTemplate, TemplatePart};
+use data_types2::{KafkaTopicId, PartitionTemplate, QueryPoolId, TemplatePart};
 use dml::DmlOperation;
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};
-use iox_catalog::{
-    interface::{Catalog, KafkaTopicId, QueryPoolId},
-    mem::MemCatalog,
-};
+use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use metric::{Attributes, Metric, Registry, U64Counter, U64Histogram};
 use mutable_batch::MutableBatch;
 use router2::{
@@ -21,8 +16,11 @@ use router2::{
     server::http::HttpDelegate,
     sharder::JumpHash,
 };
-use write_buffer::core::WriteBufferWriting;
-use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
+use std::{collections::BTreeSet, iter, string::String, sync::Arc};
+use write_buffer::{
+    core::WriteBufferWriting,
+    mock::{MockBufferForWriting, MockBufferSharedState},
+};
 
 /// The kafka topic catalog ID assigned by the namespace auto-creator in the
 /// handler stack for namespaces it has not yet observed.

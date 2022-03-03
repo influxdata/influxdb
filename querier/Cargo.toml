@@ -4,11 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+arrow = "9.1"
 arrow-flight = "9.1"
 async-trait = "0.1.42"
 backoff = { path = "../backoff" }
+bytes = "1.0"
 client_util = { path = "../client_util" }
-data_types = { path = "../data_types" }
+data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
 db = { path = "../db" }
 futures = "0.3"
@@ -24,6 +26,7 @@ parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.0"
 predicate = { path = "../predicate" }
+prost = "0.9"
 query = { path = "../query" }
 rand = "0.8.3"
 schema = { path = "../schema" }

@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1"
 bytes = "1.1"
-data_types = { path = "../data_types" }
+data_types2 = { path = "../data_types2" }
 dml = { path = "../dml" }
 flate2 = "1.0"
 futures = "0.3.21"

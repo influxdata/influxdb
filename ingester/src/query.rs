@@ -1,16 +1,13 @@
 //! Module to handle query on Ingester's data
 
-use std::sync::Arc;
-
+use crate::data::{QueryableBatch, SnapshotBatch};
 use arrow::{
     array::BooleanArray, compute::filter_record_batch, error::Result as ArrowResult,
     record_batch::RecordBatch,
 };
 use arrow_util::util::merge_record_batches;
-use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
-    delete_predicate::DeletePredicate,
-    partition_metadata::TableSummary,
+use data_types2::{
+    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, SequenceNumber, TableSummary, Tombstone,
 };
 use datafusion::{
     error::DataFusionError,
@@ -21,18 +18,16 @@ use datafusion::{
         PhysicalExpr, SendableRecordBatchStream,
     },
 };
-use iox_catalog::interface::{SequenceNumber, Tombstone};
 use observability_deps::tracing::{debug, trace};
 use predicate::{delete_predicate::parse_delete_predicate, Predicate, PredicateMatch};
 use query::{
-    exec::stringset::StringSet,
+    exec::{stringset::StringSet, IOxExecutionContext},
     util::{df_physical_expr_from_schema_and_expr, MissingColumnsToNull},
     QueryChunk, QueryChunkMeta,
 };
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
-
-use crate::data::{QueryableBatch, SnapshotBatch};
+use std::sync::Arc;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -230,9 +225,12 @@ impl QueryChunk for QueryableBatch {
     /// streams from several different `QueryChunk`s.
     fn read_filter(
         &self,
+        mut ctx: IOxExecutionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
+        ctx.set_metadata("storage", "ingester");
+        ctx.set_metadata("projection", format!("{}", selection));
         trace!(?selection, "selection");
 
         // Get all record batches from their snapshots
@@ -325,14 +323,12 @@ fn batch_filter(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::test_util::{
         create_batches_with_influxtype_different_columns_different_order,
         create_one_record_batch_with_influxtype_no_duplicates, create_tombstone,
         make_queryable_batch,
     };
-
-    use super::*;
-
     use arrow::{
         array::{
             ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray,
@@ -341,10 +337,7 @@ mod tests {
         datatypes::{DataType, Int32Type, TimeUnit},
     };
     use arrow_util::assert_batches_eq;
-    use data_types::{
-        delete_predicate::{DeleteExpr, Op, Scalar},
-        timestamp::TimestampRange,
-    };
+    use data_types2::{DeleteExpr, Op, Scalar, TimestampRange};
     use datafusion::logical_plan::{col, lit};
     use predicate::PredicateBuilder;
 
@@ -429,7 +422,11 @@ mod tests {
         let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
         let batch = make_queryable_batch("test_table", 1, batches);
         let stream = batch
-            .read_filter(&Predicate::default(), Selection::All) // return all columns
+            .read_filter(
+                IOxExecutionContext::default(),
+                &Predicate::default(),
+                Selection::All,
+            ) // return all columns
             .unwrap();
         let batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -453,6 +450,7 @@ mod tests {
         let batch = make_queryable_batch("test_table", 1, batches);
         let stream = batch
             .read_filter(
+                IOxExecutionContext::default(),
                 &Predicate::default(),
                 Selection::Some(&["time", "field_int"]), // return 2 out of 3 columns
             )
@@ -481,7 +479,9 @@ mod tests {
         let expr = col("tag1").eq(lit("VT"));
         let pred = PredicateBuilder::default().add_expr(expr).build();
 
-        let stream = batch.read_filter(&pred, Selection::All).unwrap();
+        let stream = batch
+            .read_filter(IOxExecutionContext::default(), &pred, Selection::All)
+            .unwrap();
         let batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -504,7 +504,9 @@ mod tests {
         let expr = col("foo").eq(lit("VT")); // `foo` column not available
         let pred = PredicateBuilder::default().add_expr(expr).build();
 
-        let stream = batch.read_filter(&pred, Selection::All).unwrap();
+        let stream = batch
+            .read_filter(IOxExecutionContext::default(), &pred, Selection::All)
+            .unwrap();
         let batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -522,7 +524,9 @@ mod tests {
         let expr = col("foo").is_null();
         let pred = PredicateBuilder::default().add_expr(expr).build();
 
-        let stream = batch.read_filter(&pred, Selection::All).unwrap();
+        let stream = batch
+            .read_filter(IOxExecutionContext::default(), &pred, Selection::All)
+            .unwrap();
         let batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -546,6 +550,7 @@ mod tests {
         let batch = make_queryable_batch("test_table", 1, batches);
         let stream = batch
             .read_filter(
+                IOxExecutionContext::default(),
                 &Predicate::default(),
                 Selection::Some(&["foo"]), // column not exist
             )
@@ -563,7 +568,11 @@ mod tests {
         let batches = create_batches_with_influxtype_different_columns_different_order().await;
         let batch = make_queryable_batch("test_table", 1, batches);
         let stream = batch
-            .read_filter(&Predicate::default(), Selection::All) // return all columns
+            .read_filter(
+                IOxExecutionContext::default(),
+                &Predicate::default(),
+                Selection::All,
+            ) // return all columns
             .unwrap();
         let batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -605,7 +614,9 @@ mod tests {
         let expr = col("foo").is_null().and(col("tag1").eq(lit("CT")));
         let pred = PredicateBuilder::default().add_expr(expr).build();
 
-        let stream = batch.read_filter(&pred, selection).unwrap();
+        let stream = batch
+            .read_filter(IOxExecutionContext::default(), &pred, selection)
+            .unwrap();
         let batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -628,6 +639,7 @@ mod tests {
         let batch = make_queryable_batch("test_table", 1, batches);
         let stream = batch
             .read_filter(
+                IOxExecutionContext::default(),
                 &Predicate::default(),
                 Selection::Some(&["foo", "bar"]), // column not exist
             )

@@ -102,10 +102,20 @@ impl Catalog {
             .collect()
     }
 
-    /// Get a specific table by name, returning `None` if there is no such table
+    /// Get a specific table by name, returning `TableNotFound` if there is no such table
     pub fn table(&self, table_name: impl AsRef<str>) -> Result<MappedRwLockReadGuard<'_, Table>> {
         let table_name = table_name.as_ref();
         RwLockReadGuard::try_map(self.tables.read(), |tables| tables.get(table_name))
+            .map_err(|_| TableNotFoundSnafu { table: table_name }.build())
+    }
+
+    /// Get a specific table by name, returning `TableNotFound` if there is no such table
+    pub fn table_mut(
+        &self,
+        table_name: impl AsRef<str>,
+    ) -> Result<MappedRwLockWriteGuard<'_, Table>> {
+        let table_name = table_name.as_ref();
+        RwLockWriteGuard::try_map(self.tables.write(), |tables| tables.get_mut(table_name))
             .map_err(|_| TableNotFoundSnafu { table: table_name }.build())
     }
 

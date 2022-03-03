@@ -71,7 +71,7 @@
 //! operations into a fixed set of sequencers.
 //!
 //! [`NamespaceCache`]: crate::namespace_cache::NamespaceCache
-//! [`NamespaceSchema`]: iox_catalog::interface::NamespaceSchema
+//! [`NamespaceSchema`]: data_types2::NamespaceSchema
 
 mod r#trait;
 pub use r#trait::*;

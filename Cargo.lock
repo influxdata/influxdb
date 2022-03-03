@@ -943,6 +943,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "data_types2"
+version = "0.1.0"
+dependencies = [
+ "data_types",
+ "influxdb_line_protocol",
+ "mutable_batch",
+ "predicate",
+ "schema",
+ "sqlx",
+ "uuid",
+ "workspace-hack",
+]
+
+[[package]]
 name = "datafusion"
 version = "0.1.0"
 dependencies = [
@@ -1501,11 +1515,14 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "data_types",
+ "data_types2",
+ "datafusion 0.1.0",
  "num_cpus",
  "observability_deps",
  "pbjson",
  "pbjson-build",
  "pbjson-types",
+ "predicate",
  "prost",
  "prost-build",
  "regex",
@@ -1906,6 +1923,7 @@ dependencies = [
  "compactor",
  "csv",
  "data_types",
+ "data_types2",
  "datafusion 0.1.0",
  "db",
  "dml",
@@ -2077,7 +2095,7 @@ dependencies = [
  "bitflags",
  "bytes",
  "chrono",
- "data_types",
+ "data_types2",
  "datafusion 0.1.0",
  "db",
  "dml",
@@ -2155,10 +2173,11 @@ checksum = "ec58677acfea8a15352d42fc87d11d63596ade9239e0a7c9352914417515dbe6"
 name = "iox_catalog"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "async-trait",
+ "data_types2",
  "dotenv",
  "futures",
- "influxdb_line_protocol",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
@@ -2166,7 +2185,6 @@ dependencies = [
  "paste",
  "pretty_assertions",
  "rand",
- "schema",
  "snafu",
  "sqlx",
  "sqlx-hotswap-pool",
@@ -2242,8 +2260,8 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "data_types",
+ "data_types2",
  "futures",
- "iox_catalog",
  "object_store",
  "observability_deps",
  "snafu",
@@ -3389,11 +3407,11 @@ dependencies = [
  "base64 0.13.0",
  "bytes",
  "data_types",
+ "data_types2",
  "datafusion 0.1.0",
  "datafusion_util",
  "futures",
  "generated_types",
- "iox_catalog",
  "iox_object_store",
  "metric",
  "object_store",
@@ -3670,7 +3688,6 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
- "generated_types",
  "itertools",
  "observability_deps",
  "ordered-float 2.10.0",
@@ -3838,7 +3855,7 @@ dependencies = [
  "backoff 0.1.0",
  "bytes",
  "client_util",
- "data_types",
+ "data_types2",
  "datafusion 0.1.0",
  "db",
  "futures",
@@ -3854,6 +3871,7 @@ dependencies = [
  "parquet_file",
  "pin-project",
  "predicate",
+ "prost",
  "query",
  "rand",
  "schema",
@@ -4209,7 +4227,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "criterion",
- "data_types",
+ "data_types2",
  "dml",
  "flate2",
  "futures",
@@ -4244,7 +4262,7 @@ dependencies = [
 [[package]]
 name = "rskafka"
 version = "0.2.0"
-source = "git+https://github.com/influxdata/rskafka.git?rev=7c1ac78dc0024a92ba767c8375d3b300ac5602b1#7c1ac78dc0024a92ba767c8375d3b300ac5602b1"
+source = "git+https://github.com/influxdata/rskafka.git?rev=39cd7d809fe0b27c0bb5e70d8dda9964d82a5540#39cd7d809fe0b27c0bb5e70d8dda9964d82a5540"
 dependencies = [
  "async-trait",
  "bytes",

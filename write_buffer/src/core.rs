@@ -170,7 +170,7 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     ///
     /// This call is pending while outstanding data is being submitted and will return AFTER the flush completed.
     /// However you still need to poll the store operations to get the metadata for every write.
-    async fn flush(&self);
+    async fn flush(&self) -> Result<(), WriteBufferError>;
 
     /// Return type (like `"mock"` or `"kafka"`) of this writer.
     fn type_name(&self) -> &'static str;
@@ -918,7 +918,7 @@ pub mod test_utils {
 
         tokio::time::sleep(Duration::from_millis(1)).await;
 
-        writer.flush().await;
+        writer.flush().await.unwrap();
 
         tokio::time::timeout(Duration::from_millis(1_000), write_tasks)
             .await

@@ -26,7 +26,7 @@ async fn run_tag_values_test_case<D>(
         } = scenario;
         println!("Running scenario '{}'", scenario_name);
         println!("Predicate: '{:#?}'", predicate);
-        let planner = InfluxRpcPlanner::new();
+        let planner = InfluxRpcPlanner::default();
         let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
         let plan = planner
@@ -319,7 +319,7 @@ async fn list_tag_values_field_col() {
             scenario_name, db, ..
         } = scenario;
         println!("Running scenario '{}'", scenario_name);
-        let planner = InfluxRpcPlanner::new();
+        let planner = InfluxRpcPlanner::default();
 
         // Test: temp is a field, not a tag
         let tag_name = "temp";

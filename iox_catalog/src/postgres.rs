@@ -2,17 +2,19 @@
 
 use crate::{
     interface::{
-        sealed::TransactionFinalize, Catalog, Column, ColumnRepo, ColumnType, Error,
-        KafkaPartition, KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace, NamespaceId,
-        NamespaceRepo, ParquetFile, ParquetFileId, ParquetFileRepo, Partition, PartitionId,
-        PartitionInfo, PartitionRepo, ProcessedTombstone, ProcessedTombstoneRepo, QueryPool,
-        QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer, SequencerId,
-        SequencerRepo, Table, TableId, TablePersistInfo, TableRepo, Timestamp, Tombstone,
-        TombstoneId, TombstoneRepo, Transaction,
+        sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
+        KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionInfo, PartitionRepo,
+        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, SequencerRepo,
+        TablePersistInfo, TableRepo, TombstoneRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
 use async_trait::async_trait;
+use data_types2::{
+    Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
+    ParquetFile, ParquetFileId, Partition, PartitionId, ProcessedTombstone, QueryPool, QueryPoolId,
+    SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+};
 use observability_deps::tracing::{info, warn};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgres, Row};
 use sqlx_hotswap_pool::HotSwapPool;
@@ -803,6 +805,59 @@ WHERE table_name.namespace_id = $1;
 
         Ok(rec)
     }
+
+    async fn create_or_get_many(
+        &mut self,
+        columns: &[ColumnUpsertRequest<'_>],
+    ) -> Result<Vec<Column>> {
+        let mut v_name = Vec::new();
+        let mut v_table_id = Vec::new();
+        let mut v_column_type = Vec::new();
+        for c in columns {
+            v_name.push(c.name.to_string());
+            v_table_id.push(c.table_id.get());
+            v_column_type.push(c.column_type as i16);
+        }
+
+        let out = sqlx::query_as::<_, Column>(
+            r#"
+                INSERT INTO column_name ( name, table_id, column_type )
+                SELECT name, table_id, column_type FROM UNNEST($1, $2, $3) as a(name, table_id, column_type)
+                ON CONFLICT ON CONSTRAINT column_name_unique
+                DO UPDATE SET name = column_name.name
+                RETURNING *
+            "#,
+        )
+        .bind(&v_name)
+        .bind(&v_table_id)
+        .bind(&v_column_type)
+        .fetch_all(&mut self.inner)
+        .await.map_err(|e| {
+            if is_fk_violation(&e) {
+                Error::ForeignKeyViolation { source: e }
+            } else {
+                Error::SqlxError { source: e }
+            }
+        })?;
+
+        assert_eq!(columns.len(), out.len());
+
+        out.into_iter()
+            .zip(v_column_type)
+            .map(|(existing, want)| {
+                if existing.column_type != want {
+                    return Err(Error::ColumnTypeMismatch {
+                        name: existing.name,
+                        existing: ColumnType::try_from(existing.column_type)
+                            .unwrap()
+                            .to_string(),
+                        new: ColumnType::try_from(want).unwrap().to_string(),
+                    });
+                }
+                Ok(existing)
+            })
+            .collect()
+    }
 }
 
 #[async_trait]
@@ -1274,10 +1329,12 @@ mod tests {
 
     use super::*;
 
-    use rand::Rng;
     use std::{env, ops::DerefMut, sync::Arc};
     use std::{io::Write, time::Instant};
 
+    use assert_matches::assert_matches;
+    use metric::{Attributes, Metric, U64Histogram};
+    use rand::Rng;
     use tempfile::NamedTempFile;
 
     // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
@@ -1324,6 +1381,18 @@ mod tests {
         () => {
             maybe_skip_integration!("")
         };
+    }
+
+    fn assert_metric_hit(metrics: &metric::Registry, name: &'static str) {
+        let histogram = metrics
+            .get_instrument::<Metric<U64Histogram>>("catalog_op_duration_ms")
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[("op", name), ("result", "success")]))
+            .expect("failed to get observer")
+            .fetch();
+
+        let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+        assert!(hit_count > 0, "metric did not record any calls");
     }
 
     async fn setup_db() -> PostgresCatalog {
@@ -1744,4 +1813,195 @@ mod tests {
         }
         assert_eq!(application_name, TEST_APPLICATION_NAME_NEW);
     }
+
+    macro_rules! test_column_create_or_get_many {
+        (
+            $name:ident,
+            calls = {$([$($col_name:literal => $col_type:expr),+ $(,)?]),+},
+            want = $($want:tt)+
+        ) => {
+            paste::paste! {
+                #[tokio::test]
+                async fn [<test_column_create_or_get_many_ $name>]() {
+                    // If running an integration test on your laptop, this requires that you have Postgres
+                    // running and that you've done the sqlx migrations. See the README in this crate for
+                    // info to set it up.
+                    maybe_skip_integration!();
+
+                    let postgres = setup_db().await;
+                    let metrics = Arc::clone(&postgres.metrics);
+
+                    let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+                    let mut txn = postgres.start_transaction().await.expect("txn start");
+                    let (kafka, query, _sequencers) = create_or_get_default_records(1, txn.deref_mut())
+                        .await
+                        .expect("db init failed");
+                    txn.commit().await.expect("txn commit");
+
+                    let namespace_id = postgres
+                        .repositories()
+                        .await
+                        .namespaces()
+                        .create("ns4", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+                        .await
+                        .expect("namespace create failed")
+                        .id;
+                    let table_id = postgres
+                        .repositories()
+                        .await
+                        .tables()
+                        .create_or_get("table", namespace_id)
+                        .await
+                        .expect("create table failed")
+                        .id;
+
+                    $(
+                        let insert = [
+                            $(
+                                ColumnUpsertRequest {
+                                    name: $col_name,
+                                    table_id,
+                                    column_type: $col_type,
+                                },
+                            )+
+                        ];
+                        let got = postgres
+                            .repositories()
+                            .await
+                            .columns()
+                            .create_or_get_many(&insert)
+                            .await;
+
+                        // The returned columns MUST always match the requested
+                        // column values if successful.
+                        if let Ok(got) = &got {
+                            assert_eq!(insert.len(), got.len());
+                            insert.iter().zip(got).for_each(|(req, got)| {
+                                assert_eq!(req.name, got.name);
+                                assert_eq!(req.table_id, got.table_id);
+                                assert_eq!(
+                                    req.column_type,
+                                    ColumnType::try_from(got.column_type).expect("invalid column type")
+                                );
+                            });
+                            assert_metric_hit(&metrics, "column_create_or_get_many");
+                        }
+                    )+
+
+                    assert_matches!(got, $($want)+);
+                }
+            }
+        }
+    }
+
+    // Issue a few calls to create_or_get_many that contain distinct columns and
+    // covers the full set of column types.
+    test_column_create_or_get_many!(
+        insert,
+        calls = {
+            [
+                "test1" => ColumnType::I64,
+                "test2" => ColumnType::U64,
+                "test3" => ColumnType::F64,
+                "test4" => ColumnType::Bool,
+                "test5" => ColumnType::String,
+                "test6" => ColumnType::Time,
+                "test7" => ColumnType::Tag,
+            ],
+            [
+                "test8" => ColumnType::String,
+                "test9" => ColumnType::Bool,
+            ]
+        },
+        want = Ok(_)
+    );
+
+    // Issue two calls with overlapping columns - request should succeed (upsert
+    // semantics).
+    test_column_create_or_get_many!(
+        partial_upsert,
+        calls = {
+            [
+                "test1" => ColumnType::I64,
+                "test2" => ColumnType::U64,
+                "test3" => ColumnType::F64,
+                "test4" => ColumnType::Bool,
+            ],
+            [
+                "test1" => ColumnType::I64,
+                "test2" => ColumnType::U64,
+                "test3" => ColumnType::F64,
+                "test4" => ColumnType::Bool,
+                "test5" => ColumnType::String,
+                "test6" => ColumnType::Time,
+                "test7" => ColumnType::Tag,
+                "test8" => ColumnType::String,
+            ]
+        },
+        want = Ok(_)
+    );
+
+    // Issue two calls with the same columns and types.
+    test_column_create_or_get_many!(
+        full_upsert,
+        calls = {
+            [
+                "test1" => ColumnType::I64,
+                "test2" => ColumnType::U64,
+                "test3" => ColumnType::F64,
+                "test4" => ColumnType::Bool,
+            ],
+            [
+                "test1" => ColumnType::I64,
+                "test2" => ColumnType::U64,
+                "test3" => ColumnType::F64,
+                "test4" => ColumnType::Bool,
+            ]
+        },
+        want = Ok(_)
+    );
+
+    // Issue two calls with overlapping columns with conflicting types and
+    // observe a correctly populated ColumnTypeMismatch error.
+    test_column_create_or_get_many!(
+        partial_type_conflict,
+        calls = {
+            [
+                "test1" => ColumnType::String,
+                "test2" => ColumnType::String,
+                "test3" => ColumnType::String,
+                "test4" => ColumnType::String,
+            ],
+            [
+                "test1" => ColumnType::String,
+                "test2" => ColumnType::Bool, // This one differs
+                "test3" => ColumnType::String,
+                // 4 is missing.
+                "test5" => ColumnType::String,
+                "test6" => ColumnType::Time,
+                "test7" => ColumnType::Tag,
+                "test8" => ColumnType::String,
+            ]
+        },
+        want = Err(e) => {
+            assert_matches!(e, Error::ColumnTypeMismatch { name, existing, new } => {
+                assert_eq!(name, "test2");
+                assert_eq!(existing, "string");
+                assert_eq!(new, "bool");
+            })
+        }
+    );
+
+    // Issue one call containing a column specified twice, with differing types
+    // and observe an error different from the above test case.
+    test_column_create_or_get_many!(
+        intra_request_type_conflict,
+        calls = {
+            [
+                "test1" => ColumnType::String,
+                "test1" => ColumnType::Bool,
+            ]
+        },
+        want = Err(Error::SqlxError{ .. })
+    );
 }

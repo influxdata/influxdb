@@ -16,6 +16,7 @@ use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use partition_metadata::TableSummary;
 use predicate::{Predicate, PredicateMatch};
+use query::exec::IOxExecutionContext;
 use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
 use read_buffer::RBChunk;
 use schema::InfluxColumnType;
@@ -90,6 +91,16 @@ enum State {
     MutableBuffer { chunk: Arc<ChunkSnapshot> },
     ReadBuffer { chunk: Arc<RBChunk> },
     ParquetFile { chunk: Arc<ParquetChunk> },
+}
+
+impl State {
+    fn state_name(&self) -> &'static str {
+        match self {
+            State::MutableBuffer { .. } => "Mutable Buffer",
+            State::ReadBuffer { .. } => "Read Buffer",
+            State::ParquetFile { .. } => "Parquet",
+        }
+    }
 }
 
 impl DbChunk {
@@ -359,6 +370,7 @@ impl QueryChunk for DbChunk {
 
     fn read_filter(
         &self,
+        mut ctx: IOxExecutionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
@@ -374,11 +386,14 @@ impl QueryChunk for DbChunk {
             .iter()
             .map(|pred| Arc::new(pred.as_ref().clone().into()))
             .collect();
+        ctx.set_metadata("delete_predicates", delete_predicates.len() as i64);
 
         // merge the negated delete predicates into the select predicate
         let mut pred_with_deleted_exprs = predicate.clone();
         pred_with_deleted_exprs.merge_delete_predicates(&delete_predicates);
         debug!(?pred_with_deleted_exprs, "Merged negated predicate");
+        ctx.set_metadata("storage", self.state.state_name());
+        ctx.set_metadata("projection", format!("{}", selection));
 
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
@@ -397,6 +412,7 @@ impl QueryChunk for DbChunk {
                     .validate_predicate(to_read_buffer_predicate(predicate).unwrap_or_default())
                     .unwrap_or_default();
                 debug!(?rb_predicate, "RUB predicate");
+                ctx.set_metadata("predicate", format!("{}", &rb_predicate));
 
                 // combine all delete expressions to RUB's negated ones
                 let negated_delete_exprs = Self::to_rub_negated_predicates(&delete_predicates)?
@@ -423,15 +439,19 @@ impl QueryChunk for DbChunk {
                         })?;
 
                 Ok(Box::pin(ReadFilterResultsStream::new(
+                    ctx,
                     read_results,
                     schema.into(),
                 )))
             }
-            State::ParquetFile { chunk, .. } => chunk
-                .read_filter(&pred_with_deleted_exprs, selection)
-                .context(ParquetFileChunkSnafu {
-                    chunk_id: self.id(),
-                }),
+            State::ParquetFile { chunk, .. } => {
+                ctx.set_metadata("predicate", format!("{}", &pred_with_deleted_exprs));
+                chunk
+                    .read_filter(&pred_with_deleted_exprs, selection)
+                    .context(ParquetFileChunkSnafu {
+                        chunk_id: self.id(),
+                    })
+            }
         }
     }
 
@@ -589,7 +609,11 @@ mod tests {
 
         let t1 = time.inc(Duration::from_secs(1));
         snapshot
-            .read_filter(&Default::default(), Selection::All)
+            .read_filter(
+                IOxExecutionContext::default(),
+                &Default::default(),
+                Selection::All,
+            )
             .unwrap();
         let m3 = chunk.access_recorder().get_metrics();
 

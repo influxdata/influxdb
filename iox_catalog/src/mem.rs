@@ -3,17 +3,19 @@
 
 use crate::{
     interface::{
-        sealed::TransactionFinalize, Catalog, Column, ColumnId, ColumnRepo, ColumnType, Error,
-        KafkaPartition, KafkaTopic, KafkaTopicId, KafkaTopicRepo, Namespace, NamespaceId,
-        NamespaceRepo, ParquetFile, ParquetFileId, ParquetFileRepo, Partition, PartitionId,
-        PartitionInfo, PartitionRepo, ProcessedTombstone, ProcessedTombstoneRepo, QueryPool,
-        QueryPoolId, QueryPoolRepo, RepoCollection, Result, SequenceNumber, Sequencer, SequencerId,
-        SequencerRepo, Table, TableId, TablePersistInfo, TableRepo, Timestamp, Tombstone,
-        TombstoneId, TombstoneRepo, Transaction,
+        sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
+        KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionInfo, PartitionRepo,
+        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, SequencerRepo,
+        TablePersistInfo, TableRepo, TombstoneRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
 use async_trait::async_trait;
+use data_types2::{
+    Column, ColumnId, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
+    ParquetFile, ParquetFileId, Partition, PartitionId, ProcessedTombstone, QueryPool, QueryPoolId,
+    SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+};
 use observability_deps::tracing::warn;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -455,6 +457,19 @@ impl ColumnRepo for MemTxn {
         };
 
         Ok(column.clone())
+    }
+    async fn create_or_get_many(
+        &mut self,
+        columns: &[ColumnUpsertRequest<'_>],
+    ) -> Result<Vec<Column>> {
+        let mut out = Vec::new();
+        for column in columns {
+            out.push(
+                ColumnRepo::create_or_get(self, column.name, column.table_id, column.column_type)
+                    .await?,
+            );
+        }
+        Ok(out)
     }
 
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Column>> {

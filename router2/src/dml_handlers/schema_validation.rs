@@ -1,7 +1,7 @@
-use std::{ops::DerefMut, sync::Arc};
-
+use super::DmlHandler;
+use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
 use async_trait::async_trait;
-use data_types::{delete_predicate::DeletePredicate, DatabaseName};
+use data_types2::{DatabaseName, DeletePredicate};
 use hashbrown::HashMap;
 use iox_catalog::{
     interface::{get_schema_by_name, Catalog},
@@ -9,12 +9,9 @@ use iox_catalog::{
 };
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
+use std::{ops::DerefMut, sync::Arc};
 use thiserror::Error;
 use trace::ctx::SpanContext;
-
-use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
-
-use super::DmlHandler;
 
 /// Errors emitted during schema validation.
 #[derive(Debug, Error)]
@@ -127,6 +124,8 @@ where
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
+        let mut repos = self.catalog.repositories().await;
+
         // Load the namespace schema from the cache, falling back to pulling it
         // from the global catalog (if it exists).
         let schema = self.cache.get_schema(namespace);
@@ -135,7 +134,6 @@ where
             None => {
                 // Pull the schema from the global catalog or error if it does
                 // not exist.
-                let mut repos = self.catalog.repositories().await;
                 let schema = get_schema_by_name(namespace, repos.deref_mut())
                     .await
                     .map_err(|e| {
@@ -155,7 +153,7 @@ where
         let maybe_new_schema = validate_or_insert_schema(
             batches.iter().map(|(k, v)| (k.as_str(), v)),
             &schema,
-            &*self.catalog,
+            repos.deref_mut(),
         )
         .await
         .map_err(|e| {
@@ -201,16 +199,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use assert_matches::assert_matches;
-    use data_types::timestamp::TimestampRange;
-    use iox_catalog::{
-        interface::{ColumnType, KafkaTopicId, QueryPoolId},
-        mem::MemCatalog,
-    };
-
     use super::*;
+    use assert_matches::assert_matches;
+    use data_types2::{ColumnType, KafkaTopicId, QueryPoolId, TimestampRange};
+    use iox_catalog::mem::MemCatalog;
+    use std::sync::Arc;
 
     lazy_static::lazy_static! {
         static ref NAMESPACE: DatabaseName<'static> = "bananas".try_into().unwrap();

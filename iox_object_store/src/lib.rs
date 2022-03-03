@@ -395,7 +395,7 @@ mod tests {
     use super::*;
     use crate::paths::ALL_DATABASES_DIRECTORY;
     use data_types::chunk_metadata::{ChunkAddr, ChunkId};
-    use iox_catalog::interface::{NamespaceId, PartitionId, SequencerId, TableId};
+    use data_types2::{NamespaceId, PartitionId, SequencerId, TableId};
     use object_store::{parsed_path, path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use test_helpers::assert_error;
     use uuid::Uuid;

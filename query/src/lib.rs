@@ -14,7 +14,7 @@ use data_types::{
     partition_metadata::{InfluxDbType, PartitionAddr, TableSummary},
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
-use exec::stringset::StringSet;
+use exec::{stringset::StringSet, IOxExecutionContext};
 use observability_deps::tracing::{debug, trace};
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, PredicateMatch};
 use schema::selection::Selection;
@@ -221,6 +221,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     /// streams from several different `QueryChunk`s.
     fn read_filter(
         &self,
+        ctx: IOxExecutionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error>;

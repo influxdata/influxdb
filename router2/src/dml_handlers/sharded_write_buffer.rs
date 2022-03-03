@@ -1,25 +1,22 @@
 //! Logic to shard writes/deletes and push them into a write buffer sequencer.
 
-use std::{
-    fmt::{Debug, Display},
-    future,
-    sync::Arc,
-};
-
+use super::Partitioned;
+use crate::{dml_handlers::DmlHandler, sequencer::Sequencer, sharder::Sharder};
 use async_trait::async_trait;
-use data_types::{delete_predicate::DeletePredicate, non_empty::NonEmptyString, DatabaseName};
+use data_types2::{DatabaseName, DeletePredicate, NonEmptyString};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
+use std::{
+    fmt::{Debug, Display},
+    future,
+    sync::Arc,
+};
 use thiserror::Error;
 use trace::ctx::SpanContext;
 use write_buffer::core::WriteBufferError;
-
-use crate::{dml_handlers::DmlHandler, sequencer::Sequencer, sharder::Sharder};
-
-use super::Partitioned;
 
 /// Errors occurring while writing to one or more write buffer shards.
 #[derive(Debug, Error)]
@@ -194,18 +191,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use assert_matches::assert_matches;
-    use data_types::timestamp::TimestampRange;
-    use std::sync::Arc;
-
-    use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
-
+    use super::*;
     use crate::{
         dml_handlers::DmlHandler,
         sharder::mock::{MockSharder, MockSharderCall},
     };
-
-    use super::*;
+    use assert_matches::assert_matches;
+    use data_types2::TimestampRange;
+    use std::sync::Arc;
+    use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
 
     // Parse `lp` into a table-keyed MutableBatch map.
     fn lp_to_writes(lp: &str) -> Partitioned<HashMap<String, MutableBatch>> {

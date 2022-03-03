@@ -1,7 +1,9 @@
 //! Handle all requests from Querier
 
+use crate::data::{self, IngesterData, IngesterQueryResponse, QueryableBatch};
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::merge_record_batches;
+use data_types2::{IngesterQueryRequest, SequencerId};
 use datafusion::{
     error::DataFusionError,
     physical_plan::{
@@ -10,7 +12,6 @@ use datafusion::{
         SendableRecordBatchStream,
     },
 };
-use iox_catalog::interface::SequencerId;
 use predicate::Predicate;
 use query::{
     exec::{Executor, ExecutorType},
@@ -20,10 +21,6 @@ use query::{
 use schema::{merge::merge_record_batch_schemas, selection::Selection};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
-
-use crate::data::{
-    self, IngesterData, IngesterQueryRequest, IngesterQueryResponse, QueryableBatch,
-};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]

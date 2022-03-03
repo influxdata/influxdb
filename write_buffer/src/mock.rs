@@ -304,8 +304,9 @@ impl WriteBufferWriting for MockBufferForWriting {
         Ok(meta)
     }
 
-    async fn flush(&self) {
+    async fn flush(&self) -> Result<(), WriteBufferError> {
         // no buffer
+        Ok(())
     }
 
     fn type_name(&self) -> &'static str {
@@ -334,8 +335,9 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
         .into())
     }
 
-    async fn flush(&self) {
+    async fn flush(&self) -> Result<(), WriteBufferError> {
         // no buffer
+        Ok(())
     }
 
     fn type_name(&self) -> &'static str {

@@ -251,8 +251,9 @@ impl WriteBufferWriting for FileBufferProducer {
         ))
     }
 
-    async fn flush(&self) {
+    async fn flush(&self) -> Result<(), WriteBufferError> {
         // no buffer
+        Ok(())
     }
 
     fn type_name(&self) -> &'static str {

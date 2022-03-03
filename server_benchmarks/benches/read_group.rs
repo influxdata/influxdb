@@ -59,7 +59,7 @@ pub fn benchmark_read_group(c: &mut Criterion) {
 // Runs an async criterion benchmark against the provided scenarios and
 // predicate.
 fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
-    let planner = InfluxRpcPlanner::new();
+    let planner = InfluxRpcPlanner::default();
 
     let predicates = vec![
         (InfluxRpcPredicate::default(), "no_pred"),

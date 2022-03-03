@@ -1,13 +1,12 @@
 //! Persist compacted data to parquet files in object storage
 
-use std::sync::Arc;
-
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
 use iox_object_store::ParquetFilePath;
 use object_store::ObjectStore;
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use snafu::{ResultExt, Snafu};
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -87,8 +86,8 @@ pub async fn persist(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use data_types2::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
     use futures::{stream, StreamExt, TryStreamExt};
-    use iox_catalog::interface::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
     use object_store::{path::Path, ObjectStoreApi};
     use query::test::{raw_data, TestChunk};
     use std::sync::Arc;

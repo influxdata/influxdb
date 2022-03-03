@@ -1,11 +1,11 @@
 //! This module implements the `partition` CLI command
 use data_types::chunk_metadata::ChunkStorage;
 use generated_types::google::FieldViolation;
-use hashbrown::HashSet;
 use influxdb_iox_client::{
     connection::Connection,
     management::{self},
 };
+use std::collections::BTreeSet;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -21,8 +21,14 @@ pub enum Error {
     #[error("Received invalid response: {0}")]
     InvalidResponse(#[from] FieldViolation),
 
-    #[error("Must either specify a TABLE_NAME or --all-tables")]
+    #[error("Must either specify --table-name or --all-tables")]
     MissingTableName,
+
+    #[error("Must either specify a --partition-key or --all-partitions")]
+    MissingPartitionKey,
+
+    #[error("Some operations returned an error, but --continue-on-error passed")]
+    ContinuedOnError,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -61,9 +67,11 @@ struct Persist {
     db_name: String,
 
     /// The partition key
-    partition_key: String,
+    #[clap(long)]
+    partition_key: Option<String>,
 
     /// The table name
+    #[clap(long)]
     table_name: Option<String>,
 
     /// Persist all data irrespective of arrival time
@@ -73,6 +81,14 @@ struct Persist {
     /// Persist all tables that have data
     #[clap(long)]
     all_tables: bool,
+
+    /// Persist all partitions that have data
+    #[clap(long)]
+    all_partitions: bool,
+
+    /// Continue on error
+    #[clap(long)]
+    continue_on_error: bool,
 }
 
 /// Compact Object Store Chunks
@@ -255,38 +271,64 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 table_name,
                 force,
                 all_tables,
+                all_partitions,
+                continue_on_error,
             } = persist;
 
-            match (table_name, all_tables) {
-                (Some(table_name), false) => {
-                    client
-                        .persist_partition(db_name, table_name, partition_key, force)
-                        .await?;
-                }
-                (None, true) => {
-                    let tables: HashSet<_> = client
-                        .list_partition_chunks(&db_name, &partition_key)
-                        .await?
-                        .into_iter()
-                        .filter(|chunk| {
-                            ChunkStorage::try_from(chunk.storage())
-                                .map(|s| !s.has_object_store())
-                                .unwrap_or(false)
-                        })
-                        .map(|chunk| chunk.table_name)
-                        .collect();
+            let mut has_error = false;
 
-                    for table_name in tables {
-                        println!("Persisting table: {}", table_name);
-                        client
-                            .persist_partition(&db_name, table_name, &partition_key, force)
-                            .await?;
-                    }
-                }
+            let partition_filter = match (partition_key, all_partitions) {
+                (Some(partition_key), false) => Some(partition_key),
+                (None, true) => None,
+                _ => return Err(Error::MissingPartitionKey),
+            };
+
+            let table_filter = match (table_name, all_tables) {
+                (Some(table_name), false) => Some(table_name),
+                (None, true) => None,
                 _ => return Err(Error::MissingTableName),
+            };
+
+            let mut partition_tables = BTreeSet::new();
+            let chunks = client.list_chunks(&db_name).await?;
+            for chunk in chunks {
+                let partition_mismatch =
+                    matches!(&partition_filter, Some(x) if &chunk.partition_key != x);
+
+                let table_mismatch = matches!(&table_filter, Some(x) if &chunk.table_name != x);
+                let already_persisted = ChunkStorage::try_from(chunk.storage())?.has_object_store();
+                if !partition_mismatch && !table_mismatch && !already_persisted {
+                    partition_tables.insert((chunk.partition_key, chunk.table_name));
+                }
             }
 
-            println!("Ok");
+            for (partition, table_name) in partition_tables {
+                println!(
+                    "Persisting partition: \"{}\", table: \"{}\"",
+                    partition, table_name
+                );
+
+                let result = client
+                    .persist_partition(&db_name, &table_name, &partition, force)
+                    .await;
+
+                if let Err(e) = result {
+                    if !continue_on_error {
+                        return Err(e.into());
+                    }
+
+                    has_error = true;
+                    eprintln!(
+                        "Error persisting partition: \"{}\", table: \"{}\": {}",
+                        partition, table_name, e
+                    )
+                }
+            }
+
+            match has_error {
+                true => return Err(Error::ContinuedOnError),
+                false => println!("Ok"),
+            }
         }
         Command::CompactObjectStoreChunks(compact) => {
             let CompactObjectStoreChunks {

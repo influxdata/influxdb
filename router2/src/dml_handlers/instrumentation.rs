@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
+use super::DmlHandler;
 use async_trait::async_trait;
-use data_types::{delete_predicate::DeletePredicate, DatabaseName};
+use data_types2::{DatabaseName, DeletePredicate};
 use metric::{Metric, U64Histogram, U64HistogramOptions};
+use std::sync::Arc;
 use time::{SystemProvider, TimeProvider};
 use trace::{ctx::SpanContext, span::SpanRecorder};
-
-use super::DmlHandler;
 
 /// An instrumentation decorator recording call latencies for [`DmlHandler`]
 /// implementations.
@@ -146,16 +144,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use assert_matches::assert_matches;
-    use data_types::timestamp::TimestampRange;
-    use metric::Attributes;
-    use trace::{span::SpanStatus, RingBufferTraceCollector, TraceCollector};
-
-    use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
-
     use super::*;
+    use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
+    use assert_matches::assert_matches;
+    use data_types2::TimestampRange;
+    use metric::Attributes;
+    use std::sync::Arc;
+    use trace::{span::SpanStatus, RingBufferTraceCollector, TraceCollector};
 
     const HANDLER_NAME: &str = "bananas";
 
