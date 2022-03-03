@@ -54,14 +54,14 @@ sha2 = { version = "0.9", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 sqlx = { version = "0.5", features = ["_rt-tokio", "json", "macros", "migrate", "postgres", "runtime-tokio-rustls", "sqlx-macros", "tls", "uuid"] }
 sqlx-core = { version = "0.5", default-features = false, features = ["_rt-tokio", "_tls-rustls", "base64", "crc", "dirs", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-rustls", "rustls", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "webpki", "webpki-roots", "whoami"] }
-tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "socket2", "sync", "time", "tokio-macros", "winapi"] }
+tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "socket2", "sync", "time", "tokio-macros"] }
 tokio-rustls = { version = "0.23", default-features = false, features = ["logging", "tls12"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 tokio-util-3b31131e45eafb45 = { package = "tokio-util", version = "0.6", features = ["codec", "io", "slab", "time"] }
 tokio-util-ca01ad9e24f5d932 = { package = "tokio-util", version = "0.7", features = ["codec", "io"] }
 tower = { version = "0.4", features = ["__common", "balance", "buffer", "discover", "filter", "futures-core", "futures-util", "indexmap", "limit", "load", "log", "make", "pin-project", "pin-project-lite", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-util", "tracing", "util"] }
 tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace", "release_max_level_debug", "std", "tracing-attributes"] }
-tracing-core = { version = "0.1", features = ["lazy_static", "std", "valuable"] }
+tracing-core = { version = "0.1", features = ["lazy_static", "std"] }
 tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
 tracing-subscriber = { version = "0.3", features = ["alloc", "ansi", "ansi_term", "env-filter", "fmt", "json", "lazy_static", "matchers", "regex", "registry", "serde", "serde_json", "sharded-slab", "smallvec", "std", "thread_local", "tracing", "tracing-log", "tracing-serde"] }
 uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
@@ -99,7 +99,7 @@ smallvec = { version = "1", default-features = false, features = ["union"] }
 sqlx-core = { version = "0.5", default-features = false, features = ["_rt-tokio", "_tls-rustls", "base64", "crc", "dirs", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-rustls", "rustls", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "webpki", "webpki-roots", "whoami"] }
 sqlx-macros = { version = "0.5", default-features = false, features = ["_rt-tokio", "json", "migrate", "postgres", "runtime-tokio-rustls", "serde_json", "sha2", "uuid"] }
 syn = { version = "1", features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "quote", "visit", "visit-mut"] }
-tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "socket2", "sync", "time", "tokio-macros", "winapi"] }
+tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "socket2", "sync", "time", "tokio-macros"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
 
@@ -126,11 +126,13 @@ libc = { version = "0.2", features = ["extra_traits", "std"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
 scopeguard = { version = "1", features = ["use_std"] }
+tokio = { version = "1", default-features = false, features = ["winapi"] }
 tokio-rustls = { version = "0.23" }
 winapi = { version = "0.3", default-features = false, features = ["basetsd", "cfg", "consoleapi", "errhandlingapi", "evntrace", "fileapi", "handleapi", "impl-debug", "impl-default", "in6addr", "inaddr", "ioapiset", "knownfolders", "libloaderapi", "lmcons", "minschannel", "minwinbase", "minwindef", "mswsock", "namedpipeapi", "ntdef", "ntsecapi", "ntstatus", "objbase", "processenv", "profileapi", "schannel", "securitybaseapi", "shellapi", "shlobj", "sspi", "std", "stringapiset", "synchapi", "sysinfoapi", "timezoneapi", "winbase", "wincon", "wincrypt", "windef", "winerror", "winioctl", "winnt", "winreg", "winsock2", "winuser", "ws2def", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
 
 [target.x86_64-pc-windows-msvc.build-dependencies]
 scopeguard = { version = "1", features = ["use_std"] }
+tokio = { version = "1", default-features = false, features = ["winapi"] }
 winapi = { version = "0.3", default-features = false, features = ["basetsd", "cfg", "consoleapi", "errhandlingapi", "evntrace", "fileapi", "handleapi", "impl-debug", "impl-default", "in6addr", "inaddr", "ioapiset", "knownfolders", "libloaderapi", "lmcons", "minschannel", "minwinbase", "minwindef", "mswsock", "namedpipeapi", "ntdef", "ntsecapi", "ntstatus", "objbase", "processenv", "profileapi", "schannel", "securitybaseapi", "shellapi", "shlobj", "sspi", "std", "stringapiset", "synchapi", "sysinfoapi", "timezoneapi", "winbase", "wincon", "wincrypt", "windef", "winerror", "winioctl", "winnt", "winreg", "winsock2", "winuser", "ws2def", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
 
 ### END HAKARI SECTION
