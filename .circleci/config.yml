@@ -172,8 +172,8 @@ jobs:
       - run:
           name: Configure git
           command: |
-            git config user.email "49699333+dependabot[bot]@users.noreply.github.com"
-            git config user.name "dependabot[bot]"
+            git config user.email "circleci@influxdata.com"
+            git config user.name "CircleCI[bot]"
       - run:
           name: Commit any changes to the features in the workspace hack crate
           command: |
