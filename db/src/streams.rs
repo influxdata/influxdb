@@ -47,7 +47,7 @@ impl futures::Stream for ReadFilterResultsStream {
         let mut ctx = self.ctx.child_ctx("next_row_group");
         let rb = self.read_results.next();
         if let Some(rb) = &rb {
-            ctx.set_metadata("rows", rb.num_rows() as i64);
+            ctx.set_metadata("output_rows", rb.num_rows() as i64);
         }
 
         Poll::Ready(Ok(rb).transpose())

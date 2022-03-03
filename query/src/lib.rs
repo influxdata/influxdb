@@ -191,6 +191,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     /// this Chunk. Returns `None` otherwise
     fn column_names(
         &self,
+        ctx: IOxExecutionContext,
         predicate: &Predicate,
         columns: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error>;
@@ -202,6 +203,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     /// The requested columns must all have String type.
     fn column_values(
         &self,
+        ctx: IOxExecutionContext,
         column_name: &str,
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error>;

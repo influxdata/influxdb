@@ -952,6 +952,7 @@ impl QueryChunk for TestChunk {
 
     fn column_values(
         &self,
+        _ctx: IOxExecutionContext,
         _column_name: &str,
         _predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error> {
@@ -961,6 +962,7 @@ impl QueryChunk for TestChunk {
 
     fn column_names(
         &self,
+        _ctx: IOxExecutionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error> {

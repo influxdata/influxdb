@@ -75,7 +75,8 @@ impl Planner {
     where
         D: QueryDatabase + 'static,
     {
-        let planner = InfluxRpcPlanner::default();
+        let planner =
+            InfluxRpcPlanner::new().with_execution_context(self.ctx.child_ctx("influxrpc_planner"));
 
         self.ctx
             .run(async move {
@@ -98,7 +99,8 @@ impl Planner {
         D: QueryDatabase + 'static,
     {
         let tag_name = tag_name.into();
-        let planner = InfluxRpcPlanner::default();
+        let planner =
+            InfluxRpcPlanner::new().with_execution_context(self.ctx.child_ctx("influxrpc_planner"));
 
         self.ctx
             .run(async move {
@@ -119,7 +121,8 @@ impl Planner {
     where
         D: QueryDatabase + 'static,
     {
-        let planner = InfluxRpcPlanner::default();
+        let planner =
+            InfluxRpcPlanner::new().with_execution_context(self.ctx.child_ctx("influxrpc_planner"));
 
         self.ctx
             .run(async move {
@@ -164,7 +167,8 @@ impl Planner {
     where
         D: QueryDatabase + 'static,
     {
-        let planner = InfluxRpcPlanner::default();
+        let planner =
+            InfluxRpcPlanner::new().with_execution_context(self.ctx.child_ctx("influxrpc_planner"));
 
         self.ctx
             .run(async move {
