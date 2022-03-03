@@ -9,6 +9,7 @@ use std::{
 use parking_lot::Mutex;
 use query::QueryText;
 use time::{Time, TimeProvider};
+use trace::ctx::TraceId;
 
 // The query duration used for queries still running.
 const UNCOMPLETED_DURATION: i64 = -1;
@@ -20,6 +21,9 @@ pub struct QueryLogEntry {
 
     /// The text of the query (SQL for sql queries, pbjson for storage rpc queries)
     pub query_text: QueryText,
+
+    /// The trace ID if any
+    pub trace_id: Option<TraceId>,
 
     /// Time at which the query was run
     pub issue_time: Time,
@@ -46,10 +50,16 @@ impl std::fmt::Debug for QueryLogEntry {
 
 impl QueryLogEntry {
     /// Creates a new QueryLogEntry -- use `QueryLog::push` to add new entries to the log
-    fn new(query_type: String, query_text: QueryText, issue_time: Time) -> Self {
+    fn new(
+        query_type: String,
+        query_text: QueryText,
+        trace_id: Option<TraceId>,
+        issue_time: Time,
+    ) -> Self {
         Self {
             query_type,
             query_text,
+            trace_id,
             issue_time,
             query_completed_duration: UNCOMPLETED_DURATION.into(),
             success: atomic::AtomicBool::new(false),
@@ -103,10 +113,16 @@ impl QueryLog {
         }
     }
 
-    pub fn push(&self, query_type: impl Into<String>, query_text: QueryText) -> Arc<QueryLogEntry> {
+    pub fn push(
+        &self,
+        query_type: impl Into<String>,
+        query_text: QueryText,
+        trace_id: Option<TraceId>,
+    ) -> Arc<QueryLogEntry> {
         let entry = Arc::new(QueryLogEntry::new(
             query_type.into(),
             query_text,
+            trace_id,
             self.time_provider.now(),
         ));
 
@@ -150,6 +166,7 @@ mod test_super {
         let entry = Arc::new(QueryLogEntry::new(
             "sql".into(),
             Box::new("SELECT 1"),
+            None,
             time_provider.now(),
         ));
         // query has not completed

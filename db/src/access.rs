@@ -15,6 +15,7 @@ use metric::{Attributes, DurationCounter, Metric, U64Counter};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
+use query::exec::IOxExecutionContext;
 use query::{
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
@@ -299,13 +300,15 @@ impl QueryDatabase for QueryCatalogAccess {
 
     fn record_query(
         &self,
+        ctx: &IOxExecutionContext,
         query_type: impl Into<String>,
         query_text: QueryText,
     ) -> QueryCompletedToken {
         // When the query token is dropped the query entry's completion time
         // will be set.
         let query_log = Arc::clone(&self.query_log);
-        let entry = query_log.push(query_type, query_text);
+        let trace_id = ctx.span().map(|s| s.ctx.trace_id);
+        let entry = query_log.push(query_type, query_text, trace_id);
         QueryCompletedToken::new(move |success| query_log.set_completed(entry, success))
     }
 }

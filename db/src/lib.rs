@@ -1236,10 +1236,12 @@ impl QueryDatabase for Db {
 
     fn record_query(
         &self,
+        ctx: &IOxExecutionContext,
         query_type: impl Into<String>,
         query_text: QueryText,
     ) -> QueryCompletedToken {
-        self.catalog_access.record_query(query_type, query_text)
+        self.catalog_access
+            .record_query(ctx, query_type, query_text)
     }
 }
 

@@ -1,8 +1,10 @@
+use crate::common::server_fixture::TestConfig;
 use crate::{
     common::server_fixture::{ServerFixture, ServerType},
     end_to_end_cases::scenario::Scenario,
 };
 use arrow_util::{assert_batches_eq, test_util::normalize_batches};
+use std::num::NonZeroU32;
 
 use super::scenario::{create_readable_database, list_chunks, rand_name};
 
@@ -88,7 +90,12 @@ async fn test_operations() {
 
 #[tokio::test]
 async fn test_queries() {
-    let fixture = ServerFixture::create_shared(ServerType::Database).await;
+    // Need to enable tracing to capture traces
+    let config = TestConfig::new(ServerType::Database)
+        .with_server_id(NonZeroU32::new(2).unwrap())
+        .with_env("TRACES_EXPORTER", "jaeger");
+
+    let fixture = ServerFixture::create_single_use_with_config(config).await;
 
     let scenario = Scenario::new();
     let (db_name, _db_uuid) = scenario
@@ -122,11 +129,16 @@ async fn test_queries() {
         start: 22222,
         end: 11111,
     });
-    let read_filter_request = tonic::Request::new(generated_types::ReadFilterRequest {
+
+    let mut read_filter_request = tonic::Request::new(generated_types::ReadFilterRequest {
         read_source,
         range,
         ..Default::default()
     });
+    read_filter_request
+        .metadata_mut()
+        .insert("uber-trace-id", "45ded43:1:0:1".parse().unwrap());
+
     fixture
         .storage_client()
         .read_filter(read_filter_request)
@@ -142,7 +154,7 @@ async fn test_queries() {
     //
     // See https://github.com/influxdata/influxdb_iox/issues/3396
     let query =
-        "select query_type, query_text, success from system.queries where query_type = 'read_filter'";
+        "select query_type, query_text, success, trace_id from system.queries where query_type = 'read_filter'";
 
     // Query system.queries and should have an entry for the storage rpc
     let batches = fixture
@@ -156,30 +168,30 @@ async fn test_queries() {
     let batches = normalize_batches(batches, scenario.normalizer());
 
     let expected_read_data = vec![
-        "+-------------+---------------------------------+---------+",
-        "| query_type  | query_text                      | success |",
-        "+-------------+---------------------------------+---------+",
-        "| read_filter | {                               | true    |",
-        "|             |   \"ReadSource\": {               |         |",
-        "|             |     \"typeUrl\": \"/TODO\",         |         |",
-        "|             |     \"value\": \"ZZZZZZZZZZZZZZZZ\" |         |",
-        "|             |   },                            |         |",
-        "|             |   \"range\": {                    |         |",
-        "|             |     \"start\": \"111111\",          |         |",
-        "|             |     \"end\": \"222222\"             |         |",
-        "|             |   }                             |         |",
-        "|             | }                               |         |",
-        "| read_filter | {                               | false   |",
-        "|             |   \"ReadSource\": {               |         |",
-        "|             |     \"typeUrl\": \"/TODO\",         |         |",
-        "|             |     \"value\": \"ZZZZZZZZZZZZZZZZ\" |         |",
-        "|             |   },                            |         |",
-        "|             |   \"range\": {                    |         |",
-        "|             |     \"start\": \"22222\",           |         |",
-        "|             |     \"end\": \"11111\"              |         |",
-        "|             |   }                             |         |",
-        "|             | }                               |         |",
-        "+-------------+---------------------------------+---------+",
+        "+-------------+---------------------------------+---------+----------+",
+        "| query_type  | query_text                      | success | trace_id |",
+        "+-------------+---------------------------------+---------+----------+",
+        "| read_filter | {                               | true    |          |",
+        "|             |   \"ReadSource\": {               |         |          |",
+        "|             |     \"typeUrl\": \"/TODO\",         |         |          |",
+        "|             |     \"value\": \"ZZZZZZZZZZZZZZZZ\" |         |          |",
+        "|             |   },                            |         |          |",
+        "|             |   \"range\": {                    |         |          |",
+        "|             |     \"start\": \"111111\",          |         |          |",
+        "|             |     \"end\": \"222222\"             |         |          |",
+        "|             |   }                             |         |          |",
+        "|             | }                               |         |          |",
+        "| read_filter | {                               | false   | 45ded43  |",
+        "|             |   \"ReadSource\": {               |         |          |",
+        "|             |     \"typeUrl\": \"/TODO\",         |         |          |",
+        "|             |     \"value\": \"ZZZZZZZZZZZZZZZZ\" |         |          |",
+        "|             |   },                            |         |          |",
+        "|             |   \"range\": {                    |         |          |",
+        "|             |     \"start\": \"22222\",           |         |          |",
+        "|             |     \"end\": \"11111\"              |         |          |",
+        "|             |   }                             |         |          |",
+        "|             | }                               |         |          |",
+        "+-------------+---------------------------------+---------+----------+",
     ];
     assert_batches_eq!(expected_read_data, &batches);
 
@@ -210,7 +222,7 @@ async fn test_queries() {
         "+------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+---------+",
         "| query_type | query_text                                                                                                                                                             | is_complete | success |",
         "+------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+---------+",
-        "| sql        | select query_type, query_text, success from system.queries where query_type = 'read_filter'                                                                            | true        | true    |",
+        "| sql        | select query_type, query_text, success, trace_id from system.queries where query_type = 'read_filter'                                                                  | true        | true    |",
         "| sql        | select foo from blarg read_filter                                                                                                                                      | true        | false   |",
         "| sql        | select query_type, query_text, completed_duration IS NOT NULL as is_complete, success from system.queries where query_type = 'sql' and query_text like '%read_filter%' | false       | false   |",
         "+------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+---------+",

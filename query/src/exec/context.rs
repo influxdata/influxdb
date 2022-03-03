@@ -48,6 +48,7 @@ use crate::plan::{
 
 // Reuse DataFusion error and Result types for this module
 pub use datafusion::error::{DataFusionError as Error, Result};
+use trace::span::Span;
 
 use super::{
     non_null_checker::NonNullCheckerNode, seriesset::series::Either, split::StreamSplitNode,
@@ -579,6 +580,11 @@ impl IOxExecutionContext {
     /// Record an event on the span recorder
     pub fn set_metadata(&mut self, name: &'static str, value: impl Into<MetaValue>) {
         self.recorder.set_metadata(name, value);
+    }
+
+    /// Returns the current [`Span`] if any
+    pub fn span(&self) -> Option<&Span> {
+        self.recorder.span()
     }
 
     /// Number of currently active tasks.

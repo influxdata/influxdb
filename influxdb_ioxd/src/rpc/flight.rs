@@ -180,9 +180,9 @@ where
 
         let db = self.server.db(&database)?;
 
-        let query_completed_token = db.record_query("sql", Box::new(read_info.sql_query.clone()));
-
         let ctx = db.new_query_context(span_ctx);
+        let query_completed_token =
+            db.record_query(&ctx, "sql", Box::new(read_info.sql_query.clone()));
 
         let physical_plan = Planner::new(&ctx)
             .sql(&read_info.sql_query)

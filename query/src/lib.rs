@@ -151,6 +151,7 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     /// Record that particular type of query was run / planned
     fn record_query(
         &self,
+        ctx: &IOxExecutionContext,
         query_type: impl Into<String>,
         query_text: QueryText,
     ) -> QueryCompletedToken;
