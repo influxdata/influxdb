@@ -729,7 +729,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
-        let _ctx = self.ctx.child_ctx("planning_read_filter");
+        let ctx = self.ctx.child_ctx("planning_read_filter");
         debug!(?rpc_predicate, "planning read_filter");
 
         let table_predicates = rpc_predicate
@@ -748,7 +748,13 @@ impl InfluxRpcPlanner {
                 .table_schema(table_name)
                 .context(TableRemovedSnafu { table_name })?;
 
-            let ss_plan = self.read_filter_plan(table_name, schema, predicate, chunks)?;
+            let ss_plan = self.read_filter_plan(
+                ctx.child_ctx("read_filter plan"),
+                table_name,
+                schema,
+                predicate,
+                chunks,
+            )?;
             // If we have to do real work, add it to the list of plans
             if let Some(ss_plan) = ss_plan {
                 ss_plans.push(ss_plan);
@@ -809,9 +815,13 @@ impl InfluxRpcPlanner {
                 .context(TableRemovedSnafu { table_name })?;
 
             let ss_plan = match agg {
-                Aggregate::None => {
-                    self.read_filter_plan(table_name, Arc::clone(&schema), predicate, chunks)?
-                }
+                Aggregate::None => self.read_filter_plan(
+                    ctx.child_ctx("read_filter plan"),
+                    table_name,
+                    Arc::clone(&schema),
+                    predicate,
+                    chunks,
+                )?,
                 _ => self.read_group_plan(
                     ctx.child_ctx("read_group plan"),
                     table_name,
@@ -853,6 +863,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        let ctx = self.ctx.child_ctx("read_window_aggregate planning");
         debug!(
             ?rpc_predicate,
             ?agg,
@@ -879,7 +890,14 @@ impl InfluxRpcPlanner {
                 .context(TableRemovedSnafu { table_name })?;
 
             let ss_plan = self.read_window_aggregate_plan(
-                table_name, schema, predicate, agg, &every, &offset, chunks,
+                ctx.child_ctx("read_window_aggregate plan"),
+                table_name,
+                schema,
+                predicate,
+                agg,
+                &every,
+                &offset,
+                chunks,
             )?;
 
             // If we have to do real work, add it to the list of plans
@@ -1096,6 +1114,7 @@ impl InfluxRpcPlanner {
     ///          Scan
     fn read_filter_plan<C>(
         &self,
+        ctx: IOxExecutionContext,
         table_name: impl AsRef<str>,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -1106,7 +1125,7 @@ impl InfluxRpcPlanner {
     {
         let table_name = table_name.as_ref();
         let scan_and_filter = self.scan_and_filter(
-            self.ctx.child_ctx("scan_and_filter planning"),
+            ctx.child_ctx("scan_and_filter planning"),
             table_name,
             schema,
             predicate,
@@ -1329,6 +1348,7 @@ impl InfluxRpcPlanner {
     #[allow(clippy::too_many_arguments)]
     fn read_window_aggregate_plan<C>(
         &self,
+        ctx: IOxExecutionContext,
         table_name: impl Into<String>,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -1342,7 +1362,7 @@ impl InfluxRpcPlanner {
     {
         let table_name = table_name.into();
         let scan_and_filter = self.scan_and_filter(
-            self.ctx.child_ctx("scan_and_filter planning"),
+            ctx.child_ctx("scan_and_filter planning"),
             &table_name,
             schema,
             predicate,
