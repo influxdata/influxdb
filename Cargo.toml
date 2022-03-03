@@ -3,6 +3,7 @@
 members = [
     "arrow_util",
     "backoff",
+    "clap_blocks",
     "client_util",
     "compactor",
     "data_types",
@@ -16,6 +17,7 @@ members = [
     "grpc-router",
     "grpc-router-test-gen",
     "influxdb_iox",
+    "influxdb_ioxd",
     "influxdb_iox_client",
     "influxdb_line_protocol",
     "influxdb_storage_client",
@@ -55,6 +57,7 @@ members = [
     "schema",
     "server",
     "server_benchmarks",
+    "serving_readiness",
     "sqlx-hotswap-pool",
     "test_helpers",
     "time",

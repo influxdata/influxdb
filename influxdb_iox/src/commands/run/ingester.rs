@@ -1,18 +1,16 @@
 //! Implementation of command line option for running ingester
 
-use crate::{
-    clap_blocks::{
-        catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
-    },
-    influxdb_ioxd::{
-        self,
-        server_type::{
-            common_state::{CommonServerState, CommonServerStateError},
-            ingester::IngesterServerType,
-        },
-    },
+use clap_blocks::{
+    catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
 };
 use data_types2::KafkaPartition;
+use influxdb_ioxd::{
+    self,
+    server_type::{
+        common_state::{CommonServerState, CommonServerStateError},
+        ingester::IngesterServerType,
+    },
+};
 use ingester::{
     handler::IngestHandlerImpl,
     lifecycle::LifecycleConfig,
@@ -39,7 +37,7 @@ pub enum Error {
     KafkaTopicNotFound(String),
 
     #[error("Cannot parse object store config: {0}")]
-    ObjectStoreParsing(#[from] crate::clap_blocks::object_store::ParseError),
+    ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
     #[error("kafka_partition_range_start must be <= kafka_partition_range_end")]
     KafkaRange,
@@ -54,7 +52,7 @@ pub enum Error {
     NumSequencers(#[from] std::num::TryFromIntError),
 
     #[error("Catalog DSN error: {0}")]
-    CatalogDsn(#[from] crate::clap_blocks::catalog_dsn::Error),
+    CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -157,9 +155,9 @@ pub async fn command(config: Config) -> Result<()> {
     let mut txn = catalog.start_transaction().await?;
     let kafka_topic = txn
         .kafka_topics()
-        .get_by_name(&config.write_buffer_config.topic)
+        .get_by_name(config.write_buffer_config.topic())
         .await?
-        .ok_or_else(|| Error::KafkaTopicNotFound(config.write_buffer_config.topic.clone()))?;
+        .ok_or_else(|| Error::KafkaTopicNotFound(config.write_buffer_config.topic().to_string()))?;
 
     if config.write_buffer_partition_range_start > config.write_buffer_partition_range_end {
         return Err(Error::KafkaRange);
@@ -171,7 +169,7 @@ pub async fn command(config: Config) -> Result<()> {
         .collect();
 
     let object_store = Arc::new(
-        ObjectStore::try_from(&config.run_config.object_store_config)
+        ObjectStore::try_from(config.run_config.object_store_config())
             .map_err(Error::ObjectStoreParsing)?,
     );
 

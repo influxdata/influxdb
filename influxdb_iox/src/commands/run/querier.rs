@@ -8,13 +8,11 @@ use std::sync::Arc;
 use thiserror::Error;
 use time::SystemProvider;
 
-use crate::{
-    clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig},
-    influxdb_ioxd::{
-        self,
-        server_type::common_state::{CommonServerState, CommonServerStateError},
-        server_type::querier::QuerierServerType,
-    },
+use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
+use influxdb_ioxd::{
+    self,
+    server_type::common_state::{CommonServerState, CommonServerStateError},
+    server_type::querier::QuerierServerType,
 };
 
 #[derive(Debug, Error)]
@@ -29,10 +27,10 @@ pub enum Error {
     Catalog(#[from] iox_catalog::interface::Error),
 
     #[error("Catalog DSN error: {0}")]
-    CatalogDsn(#[from] crate::clap_blocks::catalog_dsn::Error),
+    CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
 
     #[error("Cannot parse object store config: {0}")]
-    ObjectStoreParsing(#[from] crate::clap_blocks::object_store::ParseError),
+    ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 }
 
 #[derive(Debug, clap::Parser)]
@@ -74,7 +72,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         .await?;
 
     let object_store = Arc::new(
-        ObjectStore::try_from(&config.run_config.object_store_config)
+        ObjectStore::try_from(config.run_config.object_store_config())
             .map_err(Error::ObjectStoreParsing)?,
     );
 

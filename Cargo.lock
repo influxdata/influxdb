@@ -595,6 +595,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_blocks"
+version = "0.1.0"
+dependencies = [
+ "clap 3.1.2",
+ "data_types",
+ "futures",
+ "iox_catalog",
+ "metric",
+ "object_store",
+ "observability_deps",
+ "serving_readiness",
+ "snafu",
+ "tempfile",
+ "time 0.1.0",
+ "trace",
+ "trace_exporters",
+ "trogging",
+ "uuid",
+ "workspace-hack",
+ "write_buffer",
+]
+
+[[package]]
 name = "clap_derive"
 version = "3.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1429,6 +1452,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "foreign-types"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1"
+dependencies = [
+ "foreign-types-shared",
+]
+
+[[package]]
+name = "foreign-types-shared"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
+
+[[package]]
 name = "form_urlencoded"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1908,6 +1946,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-tls"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6183ddfa99b85da61a140bea0efc93fdf56ceaa041b37d553518030827f9905"
+dependencies = [
+ "bytes",
+ "hyper",
+ "native-tls",
+ "tokio",
+ "tokio-native-tls",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1987,6 +2038,7 @@ dependencies = [
  "bytes",
  "chrono",
  "clap 3.1.2",
+ "clap_blocks",
  "comfy-table",
  "compactor",
  "csv",
@@ -2006,6 +2058,7 @@ dependencies = [
  "humantime",
  "hyper",
  "influxdb_iox_client",
+ "influxdb_ioxd",
  "influxdb_line_protocol",
  "influxdb_storage_client",
  "influxrpc_parser",
@@ -2099,6 +2152,113 @@ dependencies = [
  "tokio",
  "tonic",
  "uuid",
+]
+
+[[package]]
+name = "influxdb_ioxd"
+version = "0.1.0"
+dependencies = [
+ "ansi_term",
+ "arrow",
+ "arrow-flight",
+ "arrow_util",
+ "assert_cmd",
+ "async-trait",
+ "backtrace",
+ "base64 0.13.0",
+ "byteorder",
+ "bytes",
+ "chrono",
+ "clap 3.1.2",
+ "clap_blocks",
+ "comfy-table",
+ "compactor",
+ "csv",
+ "data_types",
+ "data_types2",
+ "datafusion 0.1.0",
+ "db",
+ "dml",
+ "dotenv",
+ "flate2",
+ "futures",
+ "generated_types",
+ "hashbrown 0.12.0",
+ "heappy",
+ "hex",
+ "http",
+ "humantime",
+ "hyper",
+ "influxdb_iox_client",
+ "influxdb_line_protocol",
+ "influxdb_storage_client",
+ "influxrpc_parser",
+ "ingester",
+ "internal_types",
+ "iox_catalog",
+ "iox_object_store",
+ "itertools",
+ "job_registry",
+ "libc",
+ "log",
+ "logfmt",
+ "metric",
+ "metric_exporters",
+ "mutable_batch",
+ "mutable_batch_lp",
+ "mutable_batch_pb",
+ "mutable_buffer",
+ "num_cpus",
+ "object_store",
+ "observability_deps",
+ "once_cell",
+ "panic_logging",
+ "parking_lot 0.12.0",
+ "parquet",
+ "parquet_catalog",
+ "parquet_file",
+ "pin-project",
+ "pprof",
+ "predicate",
+ "predicates",
+ "prost",
+ "querier",
+ "query",
+ "rand",
+ "read_buffer",
+ "regex",
+ "reqwest",
+ "router",
+ "router2",
+ "rustyline",
+ "schema",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "server",
+ "serving_readiness",
+ "snafu",
+ "tempfile",
+ "test_helpers",
+ "thiserror",
+ "tikv-jemalloc-ctl",
+ "tikv-jemalloc-sys",
+ "time 0.1.0",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.0",
+ "tonic",
+ "tonic-health",
+ "tonic-reflection",
+ "tower",
+ "trace",
+ "trace_exporters",
+ "trace_http",
+ "tracker",
+ "trogging",
+ "uuid",
+ "workspace-hack",
+ "write_buffer",
 ]
 
 [[package]]
@@ -2975,6 +3135,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-tls"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48ba9f7719b5a0f42f338907614285fb5fd70e53858141f69898a1fb7203b24d"
+dependencies = [
+ "lazy_static",
+ "libc",
+ "log",
+ "openssl",
+ "openssl-probe",
+ "openssl-sys",
+ "schannel",
+ "security-framework",
+ "security-framework-sys",
+ "tempfile",
+]
+
+[[package]]
 name = "nibble_vec"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3242,10 +3420,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
+name = "openssl"
+version = "0.10.38"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c7ae222234c30df141154f159066c5093ff73b63204dcda7121eb082fc56a95"
+dependencies = [
+ "bitflags",
+ "cfg-if",
+ "foreign-types",
+ "libc",
+ "once_cell",
+ "openssl-sys",
+]
+
+[[package]]
 name = "openssl-probe"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
+
+[[package]]
+name = "openssl-sys"
+version = "0.9.72"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e46109c383602735fa0a2e48dd2b7c892b048e1bf69e5c3b1d804b7d9c203cb"
+dependencies = [
+ "autocfg",
+ "cc",
+ "libc",
+ "pkg-config",
+ "vcpkg",
+]
 
 [[package]]
 name = "ordered-float"
@@ -3638,6 +3843,12 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "pkg-config"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58893f751c9b0412871a09abd62ecd2a00298c6c83befa223ef98c52aef40cbe"
 
 [[package]]
 name = "plotters"
@@ -4162,11 +4373,13 @@ dependencies = [
  "http-body",
  "hyper",
  "hyper-rustls 0.23.0",
+ "hyper-tls",
  "ipnet",
  "js-sys",
  "lazy_static",
  "log",
  "mime",
+ "native-tls",
  "percent-encoding",
  "pin-project-lite",
  "rustls 0.20.4",
@@ -4175,6 +4388,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "tokio",
+ "tokio-native-tls",
  "tokio-rustls 0.23.2",
  "tokio-util 0.6.9",
  "url",
@@ -4809,6 +5023,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "serving_readiness"
+version = "0.1.0"
+dependencies = [
+ "tonic",
+ "workspace-hack",
+]
+
+[[package]]
 name = "sha-1"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5432,6 +5654,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-native-tls"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7d995660bd2b7f8c1568414c1126076c13fbb725c40112dc0120b78eb9b717b"
+dependencies = [
+ "native-tls",
+ "tokio",
+]
+
+[[package]]
 name = "tokio-rustls"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5897,6 +6129,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
+name = "vcpkg"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
 name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6247,6 +6485,7 @@ dependencies = [
  "reqwest",
  "rustls 0.20.4",
  "scopeguard",
+ "security-framework-sys",
  "serde",
  "serde_json",
  "sha2 0.9.9",

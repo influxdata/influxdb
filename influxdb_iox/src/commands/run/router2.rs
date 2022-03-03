@@ -2,19 +2,17 @@
 
 use std::{collections::BTreeSet, iter, sync::Arc};
 
-use crate::{
-    clap_blocks::{
-        catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
-    },
-    influxdb_ioxd::{
-        self,
-        server_type::{
-            common_state::{CommonServerState, CommonServerStateError},
-            router2::RouterServerType,
-        },
-    },
+use clap_blocks::{
+    catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
 };
 use data_types::database_rules::{PartitionTemplate, TemplatePart};
+use influxdb_ioxd::{
+    self,
+    server_type::{
+        common_state::{CommonServerState, CommonServerStateError},
+        router2::RouterServerType,
+    },
+};
 use observability_deps::tracing::*;
 use router2::{
     dml_handlers::{
@@ -45,7 +43,7 @@ pub enum Error {
     WriteBuffer(#[from] WriteBufferError),
 
     #[error("Catalog DSN error: {0}")]
-    CatalogDsn(#[from] crate::clap_blocks::catalog_dsn::Error),
+    CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -145,13 +143,13 @@ pub async fn command(config: Config) -> Result<()> {
     let mut txn = catalog.start_transaction().await?;
     let topic_id = txn
         .kafka_topics()
-        .get_by_name(&config.write_buffer_config.topic)
+        .get_by_name(config.write_buffer_config.topic())
         .await?
         .map(|v| v.id)
         .unwrap_or_else(|| {
             panic!(
                 "no kafka topic named {} in catalog",
-                &config.write_buffer_config.topic
+                config.write_buffer_config.topic()
             )
         });
     let query_id = txn
@@ -162,7 +160,8 @@ pub async fn command(config: Config) -> Result<()> {
         .unwrap_or_else(|e| {
             panic!(
                 "failed to upsert query pool {} in catalog: {}",
-                &config.write_buffer_config.topic, e
+                config.write_buffer_config.topic(),
+                e
             )
         });
     txn.commit().await?;
@@ -241,7 +240,7 @@ async fn init_write_buffer(
     //          ^ don't change this to an unordered set
 
     info!(
-        topic = config.write_buffer_config.topic.as_str(),
+        topic = config.write_buffer_config.topic(),
         shards = shards.len(),
         "connected to write buffer topic",
     );

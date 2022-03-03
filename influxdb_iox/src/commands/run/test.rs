@@ -2,14 +2,12 @@
 
 use std::sync::Arc;
 
-use crate::{
-    clap_blocks::run_config::RunConfig,
-    influxdb_ioxd::{
-        self,
-        server_type::{
-            common_state::{CommonServerState, CommonServerStateError},
-            test::{TestAction, TestServerType},
-        },
+use clap_blocks::run_config::RunConfig;
+use influxdb_ioxd::{
+    self,
+    server_type::{
+        common_state::{CommonServerState, CommonServerStateError},
+        test::{TestAction, TestServerType},
     },
 };
 use metric::Registry;

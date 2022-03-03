@@ -1,9 +1,8 @@
 [package]
-name = "influxdb_iox"
+name = "influxdb_ioxd"
 version = "0.1.0"
-authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2021"
-default-run = "influxdb_iox"
+
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
@@ -15,7 +14,6 @@ datafusion = { path = "../datafusion" }
 db = { path = "../db" }
 dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
-influxdb_ioxd = { path = "../influxdb_ioxd" }
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
@@ -45,6 +43,7 @@ router = { path = "../router" }
 router2 = { path = "../router2" }
 schema = { path = "../schema" }
 server = { path = "../server" }
+serving_readiness = { path = "../serving_readiness" }
 time = { path = "../time" }
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }
@@ -90,7 +89,7 @@ serde_json = "1.0.79"
 serde_urlencoded = "0.7.0"
 snafu = "0.7"
 thiserror = "1.0.30"
-tikv-jemalloc-ctl = { version = "0.4.0", optional = true }
+tikv-jemalloc-ctl = { version = "0.4.0" }
 tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.0" }
@@ -118,7 +117,7 @@ hex = "0.4.2"
 predicates = "2.1.0"
 rand = "0.8.3"
 regex = "1"
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.11", features = ["json"] }
 tempfile = "3.1.0"
 
 [features]
@@ -133,7 +132,7 @@ aws = ["object_store/aws"] # Optional AWS / S3 object store support
 # runtime overhead on all allocations (calls to malloc).
 # Cargo cannot currently implement mutually exclusive features so let's force every build
 # to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
-jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
+jemalloc_replacing_malloc = ["tikv-jemalloc-sys"]
 
 # Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
 # linting

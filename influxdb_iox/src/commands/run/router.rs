@@ -3,18 +3,17 @@
 use hashbrown::HashMap;
 use std::sync::Arc;
 
-use crate::{
-    clap_blocks::run_config::RunConfig,
-    influxdb_ioxd::{
-        self,
-        server_type::{
-            common_state::{CommonServerState, CommonServerStateError},
-            router::RouterServerType,
-        },
-    },
-};
+use clap_blocks::run_config::RunConfig;
+
 use data_types::router::Router as RouterConfig;
 use generated_types::{google::FieldViolation, influxdata::iox::router::v1::RouterConfigFile};
+use influxdb_ioxd::{
+    self,
+    server_type::{
+        common_state::{CommonServerState, CommonServerStateError},
+        router::RouterServerType,
+    },
+};
 use observability_deps::tracing::warn;
 use router::{resolver::RemoteTemplate, server::RouterServer};
 use thiserror::Error;
@@ -26,7 +25,7 @@ pub enum Error {
     Run(#[from] influxdb_ioxd::Error),
 
     #[error("Cannot setup server: {0}")]
-    Setup(#[from] crate::influxdb_ioxd::server_type::database::setup::Error),
+    Setup(#[from] influxdb_ioxd::server_type::database::setup::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -147,7 +146,7 @@ pub async fn command(config: Config) -> Result<()> {
         None => false,
     };
 
-    if let Some(id) = config.run_config.server_id_config.server_id {
+    if let Some(id) = config.run_config.server_id_config().server_id {
         router_server
             .set_server_id(id)
             .expect("server id already set");

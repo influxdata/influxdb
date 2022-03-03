@@ -2,16 +2,14 @@
 
 use std::sync::Arc;
 
-use crate::{
-    clap_blocks::{boolean_flag::BooleanFlag, run_config::RunConfig},
-    influxdb_ioxd::{
-        self,
-        server_type::{
-            common_state::{CommonServerState, CommonServerStateError},
-            database::{
-                setup::{make_application, make_server},
-                DatabaseServerType,
-            },
+use clap_blocks::{boolean_flag::BooleanFlag, run_config::RunConfig};
+use influxdb_ioxd::{
+    self,
+    server_type::{
+        common_state::{CommonServerState, CommonServerStateError},
+        database::{
+            setup::{make_application, make_server},
+            DatabaseServerType,
         },
     },
 };
@@ -23,7 +21,7 @@ pub enum Error {
     Run(#[from] influxdb_ioxd::Error),
 
     #[error("Cannot setup server: {0}")]
-    Setup(#[from] crate::influxdb_ioxd::server_type::database::setup::Error),
+    Setup(#[from] influxdb_ioxd::server_type::database::setup::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -59,7 +57,7 @@ pub struct Config {
     ///
     /// If not specified, defaults to the number of cores on the system
     #[clap(long = "--num-worker-threads", env = "INFLUXDB_IOX_NUM_WORKER_THREADS")]
-    pub num_worker_threads: Option<usize>,
+    pub(crate) num_worker_threads: Option<usize>,
 
     // TODO(marco): Remove once the database-run-mode (aka the `server` crate) cannot handle routing anymore and we're
     //              fully migrated to the new router code.
@@ -96,11 +94,34 @@ pub struct Config {
     pub config_file: Option<String>,
 }
 
+impl Config {
+    /// Get a reference to the config's run config.
+    pub fn run_config(&self) -> &RunConfig {
+        &self.run_config
+    }
+
+    /// Get a reference to the config's config file.
+    pub fn config_file(&self) -> Option<&String> {
+        self.config_file.as_ref()
+    }
+}
+
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 
-    let application = make_application(&config, common_state.trace_collector()).await?;
-    let app_server = make_server(Arc::clone(&application), &config)?;
+    let application = make_application(
+        config.run_config(),
+        config.config_file().cloned(),
+        config.num_worker_threads,
+        common_state.trace_collector(),
+    )
+    .await?;
+    let app_server = make_server(
+        Arc::clone(&application),
+        config.wipe_catalog_on_error.into(),
+        config.skip_replay_and_seek_instead.into(),
+        config.run_config(),
+    )?;
     let server_type = Arc::new(DatabaseServerType::new(
         Arc::clone(&application),
         Arc::clone(&app_server),

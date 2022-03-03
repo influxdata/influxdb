@@ -1,6 +1,6 @@
 use snafu::{ResultExt, Snafu};
 
-use crate::clap_blocks::run_config::RunConfig;
+use clap_blocks::run_config::RunConfig;
 
 pub mod compactor;
 pub mod database;

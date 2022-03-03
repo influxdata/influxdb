@@ -1,4 +1,4 @@
-use crate::clap_blocks::{object_store::ObjectStoreConfig, server_id::ServerIdConfig};
+use clap_blocks::{object_store::ObjectStoreConfig, server_id::ServerIdConfig};
 use iox_object_store::IoxObjectStore;
 use object_store::ObjectStore;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -8,7 +8,7 @@ use std::{convert::TryFrom, sync::Arc};
 pub enum Error {
     #[snafu(display("Cannot parse object store config: {}", source))]
     ObjectStoreParsing {
-        source: crate::clap_blocks::object_store::ParseError,
+        source: clap_blocks::object_store::ParseError,
     },
 
     #[snafu(display("No server ID provided"))]
