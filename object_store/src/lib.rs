@@ -117,6 +117,7 @@ pub struct ObjectStore {
 
 impl ObjectStore {
     /// Configure a connection to Amazon S3.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_amazon_s3(
         access_key_id: Option<impl Into<String>>,
         secret_access_key: Option<impl Into<String>>,
@@ -125,6 +126,7 @@ impl ObjectStore {
         endpoint: Option<impl Into<String>>,
         session_token: Option<impl Into<String>>,
         max_connections: NonZeroUsize,
+        allow_http: bool,
     ) -> Result<Self> {
         let s3 = aws::new_s3(
             access_key_id,
@@ -134,6 +136,7 @@ impl ObjectStore {
             endpoint,
             session_token,
             max_connections,
+            allow_http,
         )?;
         Ok(Self {
             integration: ObjectStoreIntegration::AmazonS3(s3),

@@ -83,7 +83,7 @@ impl ObjectStoreApi for DummyObjectStore {
 }
 
 /// Stub when s3 is not configured
-#[allow(dead_code)]
+#[allow(dead_code, clippy::too_many_arguments)]
 pub(crate) fn new_s3(
     _access_key_id: Option<impl Into<String>>,
     _secret_access_key: Option<impl Into<String>>,
@@ -92,6 +92,7 @@ pub(crate) fn new_s3(
     _endpoint: Option<impl Into<String>>,
     _session_token: Option<impl Into<String>>,
     _max_connections: NonZeroUsize,
+    _allow_http: bool,
 ) -> Result<DummyObjectStore> {
     NotSupportedSnafu { name: "aws" }.fail()
 }

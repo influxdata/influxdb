@@ -372,6 +372,7 @@ impl ObjectStoreApi for AmazonS3 {
 ///
 /// Note do not expose the AmazonS3::new() function to allow it to be
 /// swapped out when the aws feature is not enabled
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn new_s3(
     access_key_id: Option<impl Into<String>>,
     secret_access_key: Option<impl Into<String>>,
@@ -380,6 +381,7 @@ pub(crate) fn new_s3(
     endpoint: Option<impl Into<String>>,
     session_token: Option<impl Into<String>>,
     max_connections: NonZeroUsize,
+    allow_http: bool,
 ) -> Result<AmazonS3> {
     let region = region.into();
     let region: rusoto_core::Region = match endpoint {
@@ -393,23 +395,21 @@ pub(crate) fn new_s3(
     let mut builder = HyperBuilder::default();
     builder.pool_max_idle_per_host(max_connections.get());
 
-    // For testing purposes, allow connections to HTTP endpoints.
-    #[cfg(test)]
-    let connector = hyper_rustls::HttpsConnectorBuilder::new()
-        .with_webpki_roots()
-        .https_or_http()
-        .enable_http1()
-        .enable_http2()
-        .build();
-    // In production, we should not allow plain-text connections when pushing
-    // parquet files to object storage, so only TLS connections are allowed.
-    #[cfg(not(test))]
-    let connector = hyper_rustls::HttpsConnectorBuilder::new()
-        .with_webpki_roots()
-        .https_only()
-        .enable_http1()
-        .enable_http2()
-        .build();
+    let connector = if allow_http {
+        hyper_rustls::HttpsConnectorBuilder::new()
+            .with_webpki_roots()
+            .https_or_http()
+            .enable_http1()
+            .enable_http2()
+            .build()
+    } else {
+        hyper_rustls::HttpsConnectorBuilder::new()
+            .with_webpki_roots()
+            .https_only()
+            .enable_http1()
+            .enable_http2()
+            .build()
+    };
 
     let http_client = rusoto_core::request::HttpClient::from_builder(builder, connector);
 
@@ -452,6 +452,7 @@ pub(crate) fn new_failing_s3() -> Result<AmazonS3> {
         None as Option<&str>,
         None as Option<&str>,
         NonZeroUsize::new(16).unwrap(),
+        true,
     )
 }
 
@@ -767,6 +768,7 @@ mod tests {
             config.endpoint,
             config.token,
             NonZeroUsize::new(16).unwrap(),
+            true,
         )
         .expect("Valid S3 config");
 
@@ -786,6 +788,7 @@ mod tests {
             config.endpoint,
             config.token,
             NonZeroUsize::new(16).unwrap(),
+            true,
         )
         .expect("Valid S3 config");
 
@@ -828,6 +831,7 @@ mod tests {
             config.endpoint,
             config.token,
             NonZeroUsize::new(16).unwrap(),
+            true,
         )
         .expect("Valid S3 config");
 
@@ -864,6 +868,7 @@ mod tests {
             config.endpoint,
             config.token,
             NonZeroUsize::new(16).unwrap(),
+            true,
         )
         .expect("Valid S3 config");
 
@@ -901,6 +906,7 @@ mod tests {
             config.endpoint,
             config.token,
             NonZeroUsize::new(16).unwrap(),
+            true,
         )
         .expect("Valid S3 config");
 
@@ -925,6 +931,7 @@ mod tests {
             config.endpoint,
             config.token,
             NonZeroUsize::new(16).unwrap(),
+            true,
         )
         .expect("Valid S3 config");
 

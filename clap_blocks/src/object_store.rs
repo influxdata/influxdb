@@ -145,6 +145,10 @@ Possible values (case insensitive):
     #[clap(long = "--aws-session-token", env = "AWS_SESSION_TOKEN")]
     pub aws_session_token: Option<String>,
 
+    /// Allow unencrypted HTTP connection to AWS.
+    #[clap(long = "--aws-allow-http", env = "AWS_ALLOW_HTTP")]
+    pub aws_allow_http: bool,
+
     /// When using Google Cloud Storage as the object store, set this to the
     /// path to the JSON file that contains the Google credentials.
     ///
@@ -272,6 +276,7 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
                             endpoint,
                             session_token,
                             config.object_store_connection_limit,
+                            config.aws_allow_http,
                         )
                         .context(InvalidS3ConfigSnafu)
                     }
