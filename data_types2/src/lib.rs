@@ -591,6 +591,15 @@ pub struct Partition {
     pub partition_key: String,
 }
 
+/// Information for a partition from the catalog.
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub struct PartitionInfo {
+    pub partition: Partition,
+    pub namespace_name: String,
+    pub table_name: String,
+}
+
 /// Data object for a tombstone.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct Tombstone {

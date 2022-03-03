@@ -2,14 +2,15 @@
 
 use crate::interface::{
     sealed::TransactionFinalize, ColumnRepo, ColumnUpsertRequest, KafkaTopicRepo, NamespaceRepo,
-    ParquetFileRepo, PartitionInfo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
-    RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo, TombstoneRepo,
+    ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result,
+    SequencerRepo, TablePersistInfo, TableRepo, TombstoneRepo,
 };
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, Partition, PartitionId, ProcessedTombstone, QueryPool, QueryPoolId,
-    SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, Partition, PartitionId, PartitionInfo, ProcessedTombstone,
+    QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp,
+    Tombstone, TombstoneId,
 };
 use metric::{Metric, U64Histogram, U64HistogramOptions};
 use std::{fmt::Debug, sync::Arc};

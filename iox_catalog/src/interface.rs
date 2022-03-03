@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use data_types2::{
     Column, ColumnSchema, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
     NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, Partition, PartitionId,
-    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
-    TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
+    PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
+    SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
 };
 use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, convert::TryFrom, fmt::Debug, sync::Arc};
@@ -377,15 +377,6 @@ pub trait PartitionRepo: Send + Sync {
         &mut self,
         partition_id: PartitionId,
     ) -> Result<Option<PartitionInfo>>;
-}
-
-/// Information for a partition from the catalog.
-#[derive(Debug)]
-#[allow(missing_docs)]
-pub struct PartitionInfo {
-    pub partition: Partition,
-    pub namespace_name: String,
-    pub table_name: String,
 }
 
 /// Functions for working with tombstones in the catalog
