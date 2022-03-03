@@ -173,26 +173,26 @@ jobs:
       - rust_components
       - cache_restore
       - run:
+          name: Check git log
+          command: |
+            if [[ $(git rev-list --count --author=CircleCI origin/main..) -ne 0 ]]; then
+              echo "There's already a cargo hakari commit on this branch; stopping'"
+              circleci-agent step halt
+            else
+              echo "No cargo hakari commits here; checking"
+            fi
+      - run:
           name: Configure git
           command: |
             git config user.email "circleci@influxdata.com"
             git config user.name "CircleCI[bot]"
       - run:
-          name: Commit any changes to the features in the workspace hack crate
+          name: Commit any changes from cargo hakari
           command: |
             cargo hakari generate
+            cargo hakari manage-deps -y
             if [[ $(git status --porcelain) ]] ; then
-              git commit -am "chore: Run cargo hakari generate"
-              git push origin "$CIRCLE_BRANCH"
-            else
-              echo "No changes to commit"
-            fi
-      - run:
-          name: Commit any changes to crates so they all depend on the workspace hack crate
-          command: |
-            cargo hakari manage-deps
-            if [[ $(git status --porcelain) ]] ; then
-              git commit -am "chore: Run cargo hakari manage-deps"
+              git commit -am "chore: Run cargo hakari tasks"
               git push origin "$CIRCLE_BRANCH"
             else
               echo "No changes to commit"
