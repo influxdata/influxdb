@@ -108,20 +108,24 @@ pub struct ProviderBuilder<C: QueryChunk + 'static> {
     chunks: Vec<Arc<C>>,
     sort_key: Option<SortKey>,
 
-    // optional execution context used for tracing
+    // execution context used for tracing
     ctx: IOxExecutionContext,
 }
 
 impl<C: QueryChunk> ProviderBuilder<C> {
-    pub fn new(ctx: IOxExecutionContext, table_name: impl AsRef<str>, schema: Arc<Schema>) -> Self {
+    pub fn new(table_name: impl AsRef<str>, schema: Arc<Schema>) -> Self {
         Self {
             table_name: Arc::from(table_name.as_ref()),
             schema,
             chunk_pruner: None,
             chunks: Vec::new(),
             sort_key: None,
-            ctx,
+            ctx: IOxExecutionContext::default(),
         }
+    }
+
+    pub fn with_execution_context(self, ctx: IOxExecutionContext) -> Self {
+        Self { ctx, ..self }
     }
 
     /// Produce sorted output

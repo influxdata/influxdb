@@ -97,7 +97,7 @@ pub(super) fn write_chunk_to_object_store(
             collect_checkpoints(flush_handle.checkpoint(), &db.catalog);
 
         // Get RecordBatchStream of data from the read buffer chunk
-        // TODO(edd): wire up execution context
+        // TODO: If we want to trace this we need to wire an IOxExecutionContext through.
         let stream = db_chunk
             .read_filter(
                 IOxExecutionContext::default(),

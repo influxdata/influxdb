@@ -7,7 +7,7 @@ use observability_deps::tracing::debug;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
 use crate::{
-    exec::{make_stream_split, IOxExecutionContext},
+    exec::make_stream_split,
     provider::{ChunkTableProvider, ProviderBuilder},
     QueryChunk,
 };
@@ -72,8 +72,7 @@ impl ReorgPlanner {
     {
         let table_name = chunk.table_name();
         // Prepare the plan for the table
-        // TODO(edd): wire in execution context
-        let mut builder = ProviderBuilder::new(IOxExecutionContext::default(), table_name, schema);
+        let mut builder = ProviderBuilder::new(table_name, schema);
 
         // There are no predicates in these plans, so no need to prune them
         builder = builder.add_no_op_pruner();
@@ -228,8 +227,7 @@ impl ReorgPlanner {
         let table_name = &table_name;
 
         // Prepare the plan for the table
-        // TODO(edd): wire up the correct execution context...
-        let mut builder = ProviderBuilder::new(IOxExecutionContext::default(), table_name, schema)
+        let mut builder = ProviderBuilder::new(table_name, schema)
             // There are no predicates in these plans, so no need to prune them
             .add_no_op_pruner()
             // Tell the scan of this provider to sort its output on the chunks' PK
