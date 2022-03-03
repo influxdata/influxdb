@@ -1,5 +1,4 @@
 //! Namespace within the whole database.
-
 use crate::{cache::CatalogCache, chunk::ParquetChunkAdapter};
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
@@ -17,7 +16,11 @@ use query::{
     QueryCompletedToken, QueryDatabase, QueryText,
 };
 use schema::Schema;
-use std::{any::Any, collections::HashSet, sync::Arc};
+use std::{
+    any::Any,
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use time::TimeProvider;
 use trace::ctx::SpanContext;
 
@@ -37,6 +40,9 @@ pub struct QuerierNamespace {
 
     /// The catalog.
     catalog: Arc<dyn Catalog>,
+
+    /// Catalog IO cache.
+    catalog_cache: Arc<CatalogCache>,
 
     /// Old-gen DB catalog.
     db_catalog: Arc<DbCatalog>,
@@ -93,6 +99,7 @@ impl QuerierNamespace {
         Self {
             backoff_config: BackoffConfig::default(),
             catalog,
+            catalog_cache: Arc::clone(&catalog_cache),
             db_catalog,
             chunk_adapter: ParquetChunkAdapter::new(
                 catalog_cache,
@@ -112,10 +119,23 @@ impl QuerierNamespace {
         Arc::clone(&self.name)
     }
 
-    /// Sync tables and chunks.
+    /// Sync entire namespace state.
+    ///
+    /// This includes:
+    /// - tables
+    /// - schemas
+    /// - partitions
+    /// - chunks
     ///
     /// Should be called regularly.
     pub async fn sync(&self) {
+        self.sync_tables_and_schemas().await;
+        self.sync_partitions().await;
+        self.sync_chunks().await;
+    }
+
+    /// Sync tables and schemas.
+    async fn sync_tables_and_schemas(&self) {
         let catalog_schema_desired = Backoff::new(&self.backoff_config)
             .retry_all_errors("get schema", || async {
                 let mut repos = self.catalog.repositories().await;
@@ -198,8 +218,101 @@ impl QuerierNamespace {
                 *schema = Arc::new(desired_schema);
             }
         }
+    }
 
-        // TODO: sync chunks
+    async fn sync_partitions(&self) {
+        let partitions = Backoff::new(&self.backoff_config)
+            .retry_all_errors("get schema", || async {
+                self.catalog
+                    .repositories()
+                    .await
+                    .partitions()
+                    .list_by_namespace(self.id)
+                    .await
+            })
+            .await
+            .expect("retry forever");
+
+        let mut desired_partitions = HashSet::with_capacity(partitions.len());
+        for partition in partitions {
+            let table = self.catalog_cache.table_name(partition.table_id).await;
+            let key = self.catalog_cache.old_gen_partition_key(partition.id).await;
+            desired_partitions.insert((table, key));
+        }
+
+        let actual_partitions: HashSet<_> = self
+            .db_catalog
+            .partitions()
+            .into_iter()
+            .map(|p| {
+                let p = p.read();
+                let addr = p.addr();
+                (
+                    Arc::clone(&addr.table_name),
+                    Arc::clone(&addr.partition_key),
+                )
+            })
+            .collect();
+
+        let to_delete: Vec<_> = actual_partitions
+            .iter()
+            .filter(|x| !desired_partitions.contains(x))
+            .cloned()
+            .collect();
+        let to_add: Vec<_> = desired_partitions
+            .iter()
+            .filter(|x| !actual_partitions.contains(x))
+            .cloned()
+            .collect();
+        info!(
+            add = to_add.len(),
+            delete = to_delete.len(),
+            actual = actual_partitions.len(),
+            desired = desired_partitions.len(),
+            namespace = self.name.as_ref(),
+            "Syncing partitions",
+        );
+
+        // Map table name to two lists of "old gen" partition keys (`<sequencer_id>-<partition_key>`), one with
+        // partiions to add (within that table) and one with partiions to delete (within that table).
+        //
+        // The per-table grouping is done so that we don't need to lock the table for every partition we want to add/delete.
+        let mut per_table_add_delete: HashMap<_, (Vec<_>, Vec<_>)> = HashMap::new();
+        for (table, key) in to_add {
+            per_table_add_delete.entry(table).or_default().0.push(key);
+        }
+        for (table, key) in to_delete {
+            per_table_add_delete.entry(table).or_default().1.push(key);
+        }
+
+        for (table, (to_add, to_delete)) in per_table_add_delete {
+            let mut table = match self.db_catalog.table_mut(Arc::clone(&table)) {
+                Ok(table) => table,
+                Err(e) => {
+                    // this might happen if some other process (e.g. management API) just removed the table
+                    warn!(
+                        %e,
+                        namespace = self.name.as_ref(),
+                        table = table.as_ref(),
+                        "Cannot add/remove partitions to/from table",
+                    );
+                    continue;
+                }
+            };
+
+            for key in to_add {
+                table.get_or_create_partition(key);
+            }
+
+            for _key in to_delete {
+                // TODO: implement partition deletation (currently iox_catalog cannot delete partitions)
+                unimplemented!("partition deletion");
+            }
+        }
+    }
+
+    async fn sync_chunks(&self) {
+        // TODO: implement
     }
 }
 
@@ -369,6 +482,45 @@ mod tests {
         assert!(Arc::ptr_eq(&actual_schema, &actual_schema2));
     }
 
+    #[tokio::test]
+    async fn test_sync_partitions() {
+        let catalog = TestCatalog::new();
+
+        let ns = catalog.create_namespace("ns").await;
+        let table1 = ns.create_table("table1").await;
+        let table2 = ns.create_table("table2").await;
+
+        let querier_namespace = querier_namespace(&catalog, &ns);
+
+        querier_namespace.sync().await;
+        assert_eq!(partitions(&querier_namespace), vec![],);
+
+        table1.create_partition("k2", 1).await;
+        table1.create_partition("k1", 2).await;
+        table2.create_partition("k1", 1).await;
+        querier_namespace.sync().await;
+        assert_eq!(
+            partitions(&querier_namespace),
+            vec![
+                (String::from("table1"), String::from("1-k2")),
+                (String::from("table1"), String::from("2-k1")),
+                (String::from("table2"), String::from("1-k1")),
+            ],
+        );
+
+        table1.create_partition("k2", 2).await;
+        querier_namespace.sync().await;
+        assert_eq!(
+            partitions(&querier_namespace),
+            vec![
+                (String::from("table1"), String::from("1-k2")),
+                (String::from("table1"), String::from("2-k1")),
+                (String::from("table1"), String::from("2-k2")),
+                (String::from("table2"), String::from("1-k1")),
+            ],
+        );
+    }
+
     fn querier_namespace(catalog: &Arc<TestCatalog>, ns: &Arc<TestNamespace>) -> QuerierNamespace {
         QuerierNamespace::new(
             Arc::new(CatalogCache::new(catalog.catalog())),
@@ -397,6 +549,21 @@ mod tests {
                 .unwrap()
                 .schema()
                 .read(),
+        )
+    }
+
+    fn partitions(querier_namespace: &QuerierNamespace) -> Vec<(String, String)> {
+        sorted(
+            querier_namespace
+                .db_catalog
+                .partitions()
+                .into_iter()
+                .map(|p| {
+                    let p = p.read();
+                    let addr = p.addr();
+                    (addr.table_name.to_string(), addr.partition_key.to_string())
+                })
+                .collect(),
         )
     }
 }
