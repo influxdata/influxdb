@@ -660,6 +660,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        let ctx = self.ctx.child_ctx("field_columns planning");
         debug!(?rpc_predicate, "planning field_columns");
 
         // Special case predicates that span the entire valid timestamp range
@@ -688,7 +689,13 @@ impl InfluxRpcPlanner {
                 .table_schema(table_name)
                 .context(TableRemovedSnafu { table_name })?;
 
-            if let Some(plan) = self.field_columns_plan(table_name, schema, predicate, chunks)? {
+            if let Some(plan) = self.field_columns_plan(
+                ctx.child_ctx("field_columns plan"),
+                table_name,
+                schema,
+                predicate,
+                chunks,
+            )? {
                 field_list_plan = field_list_plan.append(plan);
             }
         }
@@ -963,6 +970,7 @@ impl InfluxRpcPlanner {
     /// ```
     fn field_columns_plan<C>(
         &self,
+        ctx: IOxExecutionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -972,7 +980,7 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let scan_and_filter = self.scan_and_filter(
-            self.ctx.child_ctx("scan_and_filter planning"),
+            ctx.child_ctx("scan_and_filter planning"),
             table_name,
             schema,
             predicate,
