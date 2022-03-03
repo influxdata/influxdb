@@ -166,6 +166,9 @@ jobs:
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "77:99:88:4a:ac:1f:55:9e:39:c7:1f:e4:7f:1e:60:4b"
       - checkout
       - rust_components
       - cache_restore
@@ -484,19 +487,19 @@ jobs:
           command: |
             COMMIT_SHA="$(git rev-parse --short HEAD)"
             BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
-            
+
             docker pull quay.io/influxdb/iox:"$COMMIT_SHA"
             docker pull quay.io/influxdb/iox_data_generator:"$COMMIT_SHA"
             docker pull quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA"
-            
+
             docker tag quay.io/influxdb/iox:"$COMMIT_SHA" quay.io/influxdb/iox:"$BRANCH"
             docker tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" quay.io/influxdb/iox_data_generator:"$BRANCH"
             docker tag quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA" quay.io/influxdb/iox_gitops_adapter:"$BRANCH"
-            
+
             docker push quay.io/influxdb/iox:"$BRANCH"
             docker push quay.io/influxdb/iox_data_generator:"$BRANCH"
             docker push quay.io/influxdb/iox_gitops_adapter:"$BRANCH"
-            
+
             echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
       - run:
           name: Deploy tags
