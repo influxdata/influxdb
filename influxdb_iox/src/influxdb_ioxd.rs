@@ -8,8 +8,11 @@ use std::{net::SocketAddr, sync::Arc};
 use trace_http::ctx::TraceHeaderParser;
 
 mod http;
-mod jemalloc;
 mod planner;
+
+#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+mod jemalloc;
+
 pub(crate) mod rpc;
 pub(crate) mod server_type;
 pub(crate) mod serving_readiness;
@@ -141,6 +144,7 @@ where
     std::mem::forget(f);
 
     // Register jemalloc metrics
+    #[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
     server_type
         .metric_registry()
         .register_instrument("jemalloc_metrics", jemalloc::JemallocMetrics::new);
