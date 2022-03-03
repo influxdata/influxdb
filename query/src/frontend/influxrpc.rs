@@ -788,6 +788,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        let ctx = self.ctx.child_ctx("read_group planning");
         debug!(?rpc_predicate, ?agg, "planning read_group");
 
         let table_predicates = rpc_predicate
@@ -811,7 +812,14 @@ impl InfluxRpcPlanner {
                 Aggregate::None => {
                     self.read_filter_plan(table_name, Arc::clone(&schema), predicate, chunks)?
                 }
-                _ => self.read_group_plan(table_name, schema, predicate, agg, chunks)?,
+                _ => self.read_group_plan(
+                    ctx.child_ctx("read_group plan"),
+                    table_name,
+                    schema,
+                    predicate,
+                    agg,
+                    chunks,
+                )?,
             };
 
             // If we have to do real work, add it to the list of plans
@@ -1203,6 +1211,7 @@ impl InfluxRpcPlanner {
     ///          Scan
     fn read_group_plan<C>(
         &self,
+        ctx: IOxExecutionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -1213,7 +1222,7 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let scan_and_filter = self.scan_and_filter(
-            self.ctx.child_ctx("scan_and_filter planning"),
+            ctx.child_ctx("scan_and_filter planning"),
             table_name,
             schema,
             predicate,
