@@ -5,10 +5,10 @@ use crate::{
     GetResult, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
 };
 use async_trait::async_trait;
-use azure_core::prelude::*;
-use azure_storage::{
-    blob::prelude::{AsBlobClient, AsContainerClient, ContainerClient},
-    core::clients::{AsStorageClient, StorageAccountClient},
+use azure_core::{prelude::*, HttpClient};
+use azure_storage::core::prelude::*;
+use azure_storage_blobs::{
+    prelude::{AsBlobClient, AsContainerClient, ContainerClient},
     DeleteSnapshotsMethod,
 };
 use bytes::Bytes;

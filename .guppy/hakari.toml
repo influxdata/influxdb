@@ -38,8 +38,9 @@ workspace-members = [
     "server_benchmarks",
 ]
 third-party = [
-    { name = "azure_core", git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "cb5aba657fe378009c38e979434b2bc93ac0a3d5" },
-    { name = "azure_storage", git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "cb5aba657fe378009c38e979434b2bc93ac0a3d5" },
+    { name = "azure_core", git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "15de10cb58cf5cb271334a20e35fa9fbedd10244" },
+    { name = "azure_storage", git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "15de10cb58cf5cb271334a20e35fa9fbedd10244" },
+    { name = "azure_storage_blobs", git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "15de10cb58cf5cb271334a20e35fa9fbedd10244" },
     { name = "cloud-storage" },
     { name = "criterion" },
     { name = "pprof" },
