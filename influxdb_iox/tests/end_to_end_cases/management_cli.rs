@@ -1604,9 +1604,10 @@ async fn test_persist_partition() {
         .persist(true)
         .persist_age_threshold_seconds(1_000)
         .late_arrive_window_seconds(1)
+        .mub_row_threshold(100)
         .partition_template(PartitionTemplate {
             parts: vec![partition_template::Part {
-                part: Some(partition_template::part::Part::Time("00-00-00".into())),
+                part: Some(partition_template::part::Part::Column("region".into())),
             }],
         })
         .build(fixture.grpc_channel())
@@ -1616,6 +1617,7 @@ async fn test_persist_partition() {
         "cpu,region=west user=23.2 10",
         "foo,region=west user=23.2 10",
         "bar,region=west user=23.2 10",
+        "bar,region=east user=23.2 10",
     ];
     load_lp(addr, &db_name, lp_data);
 
@@ -1626,12 +1628,25 @@ async fn test_persist_partition() {
             ChunkStorage::OpenMutableBuffer,
             ChunkStorage::OpenMutableBuffer,
             ChunkStorage::OpenMutableBuffer,
+            ChunkStorage::OpenMutableBuffer,
         ],
         std::time::Duration::from_secs(5),
     )
     .await;
 
-    tokio::time::sleep(Duration::from_millis(1500)).await;
+    // Late arrival period is 1 second
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![
+            ChunkStorage::ReadBuffer,
+            ChunkStorage::ReadBuffer,
+            ChunkStorage::ReadBuffer,
+            ChunkStorage::ReadBuffer,
+        ],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -1639,7 +1654,9 @@ async fn test_persist_partition() {
         .arg("partition")
         .arg("persist")
         .arg(&db_name)
-        .arg("00-00-00")
+        .arg("--partition-key")
+        .arg("region_west")
+        .arg("--table-name")
         .arg("cpu")
         .arg("--host")
         .arg(addr)
@@ -1647,13 +1664,26 @@ async fn test_persist_partition() {
         .success()
         .stdout(predicate::str::contains("Ok"));
 
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![
+            ChunkStorage::ReadBuffer,
+            ChunkStorage::ReadBuffer,
+            ChunkStorage::ReadBuffer,
+            ChunkStorage::ReadBufferAndObjectStore,
+        ],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
         .arg("partition")
         .arg("persist")
         .arg(&db_name)
-        .arg("00-00-00")
+        .arg("--all-partitions")
         .arg("--all-tables")
         .arg("--host")
         .arg(addr)
@@ -1663,6 +1693,8 @@ async fn test_persist_partition() {
             predicate::str::contains("Ok")
                 .and(predicate::str::contains("foo"))
                 .and(predicate::str::contains("bar"))
+                .and(predicate::str::contains("west"))
+                .and(predicate::str::contains("east"))
                 .and(predicate::str::contains("cpu").not()),
         );
 }
@@ -1676,29 +1708,23 @@ async fn test_persist_partition_error() {
     DatabaseBuilder::new(db_name.clone())
         .persist(true)
         .persist_age_threshold_seconds(1_000)
-        .late_arrive_window_seconds(1_000)
+        .late_arrive_window_seconds(1)
         .build(fixture.grpc_channel())
         .await;
 
     let lp_data = vec!["cpu,region=west user=23.2 10"];
     load_lp(addr, &db_name, lp_data);
 
-    wait_for_exact_chunk_states(
-        &fixture,
-        &db_name,
-        vec![ChunkStorage::OpenMutableBuffer],
-        std::time::Duration::from_secs(5),
-    )
-    .await;
-
-    // there is no old data (late arrival window is 1000s) that can be persisted
+    // cannot persist data immediately
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
         .arg("partition")
         .arg("persist")
         .arg(&db_name)
+        .arg("--table-name")
         .arg("cpu")
+        .arg("--partition-key")
         .arg("cpu")
         .arg("--host")
         .arg(addr)
@@ -1707,6 +1733,51 @@ async fn test_persist_partition_error() {
         .stderr(predicate::str::contains(
             "Cannot persist partition because it cannot be flushed at the moment",
         ));
+
+    // Late arrival period is 1 second
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ReadBuffer],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    let lp_data = vec!["bananas,region=west val=23.2 10"];
+    load_lp(addr, &db_name, lp_data);
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("persist")
+        .arg(&db_name)
+        .arg("--all-tables")
+        .arg("--all-partitions")
+        .arg("--continue-on-error")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("cpu"))
+        .stderr(
+            predicate::str::contains(
+                "Cannot persist partition because it cannot be flushed at the moment",
+            )
+            .and(predicate::str::contains("bananas")),
+        );
+
+    // Should have persisted first write
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![
+            ChunkStorage::ReadBuffer,
+            ChunkStorage::ReadBufferAndObjectStore,
+        ],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
 }
 
 #[tokio::test]
