@@ -12,7 +12,6 @@ use futures::{
     Future, StreamExt, TryStreamExt,
 };
 use hyper::client::Builder as HyperBuilder;
-use hyper_tls::HttpsConnector;
 use observability_deps::tracing::{debug, warn};
 use rusoto_core::ByteStream;
 use rusoto_credential::{InstanceMetadataProvider, StaticProvider};
@@ -393,7 +392,25 @@ pub(crate) fn new_s3(
 
     let mut builder = HyperBuilder::default();
     builder.pool_max_idle_per_host(max_connections.get());
-    let connector = HttpsConnector::new();
+
+    // For testing purposes, allow connections to HTTP endpoints.
+    #[cfg(test)]
+    let connector = hyper_rustls::HttpsConnectorBuilder::new()
+        .with_webpki_roots()
+        .https_or_http()
+        .enable_http1()
+        .enable_http2()
+        .build();
+    // In production, we should not allow plain-text connections when pushing
+    // parquet files to object storage, so only TLS connections are allowed.
+    #[cfg(not(test))]
+    let connector = hyper_rustls::HttpsConnectorBuilder::new()
+        .with_webpki_roots()
+        .https_only()
+        .enable_http1()
+        .enable_http2()
+        .build();
+
     let http_client = rusoto_core::request::HttpClient::from_builder(builder, connector);
 
     let client = match (access_key_id, secret_access_key, session_token) {
