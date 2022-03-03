@@ -16,6 +16,7 @@ mod influxrpc;
 mod management_api;
 mod management_cli;
 mod metrics;
+mod ng;
 mod operations_api;
 mod operations_cli;
 mod persistence;
