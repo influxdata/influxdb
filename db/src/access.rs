@@ -211,7 +211,7 @@ impl ChunkAccess {
         let start = Instant::now();
 
         // Get chunks and schema as a single transaction
-        let (chunks, schema) = {
+        let (mut chunks, schema) = {
             let table = match self.catalog.table(table_name).ok() {
                 Some(table) => table,
                 None => return vec![],
@@ -231,6 +231,19 @@ impl ChunkAccess {
         self.access_metrics
             .catalog_snapshot_duration
             .inc(start.elapsed());
+
+        // if there is a field restriction on the predicate, only
+        // chunks with that field should be returned. If the chunk has
+        // none of the fields specified, then it doesn't match
+        if let Some(field_columns) = &predicate.field_columns {
+            chunks.retain(|chunk| {
+                let schema = chunk.schema();
+                // keep chunk if it has any of the columns requested
+                field_columns
+                    .iter()
+                    .any(|col| schema.find_index_of(col).is_some())
+            })
+        }
 
         self.prune_chunks(table_name, schema, chunks, predicate)
     }

@@ -311,7 +311,7 @@ async fn list_tag_values_measurement_pred_and_or() {
 }
 
 #[tokio::test]
-async fn list_tag_values_field_col() {
+async fn list_tag_values_field_col_on_tag() {
     let db_setup = TwoMeasurementsManyNulls {};
 
     for scenario in db_setup.make().await {
@@ -330,6 +330,46 @@ async fn list_tag_values_field_col() {
             "gRPC planner error: column \'temp\' is not a tag, it is Some(Field(Float))"
         );
     }
+}
+
+#[tokio::test]
+async fn list_tag_values_field_col_does_not_exist() {
+    let tag_name = "state";
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(0, 1000) // get all rows
+        // since this field doesn't exist this predicate should match no values
+        .add_expr(col("_field").eq(lit("not_a_column")))
+        .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+    let expected_tag_keys = vec![];
+
+    run_tag_values_test_case(
+        TwoMeasurementsManyNulls {},
+        tag_name,
+        predicate,
+        expected_tag_keys,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn list_tag_values_field_col_does_exist() {
+    let tag_name = "state";
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(0, 1000) // get all rows
+        // this field does exist (but only for rows with CA and MA, not NY)
+        .add_expr(col("_field").eq(lit("county")))
+        .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+    let expected_tag_keys = vec!["MA", "CA"];
+
+    run_tag_values_test_case(
+        TwoMeasurementsManyNulls {},
+        tag_name,
+        predicate,
+        expected_tag_keys,
+    )
+    .await;
 }
 
 fn to_stringset(v: &[&str]) -> StringSetRef {
