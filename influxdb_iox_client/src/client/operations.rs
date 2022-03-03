@@ -54,15 +54,14 @@ impl Client {
 
     /// Get information about a specific operation
     pub async fn get_operation(&mut self, id: usize) -> Result<IoxOperation, Error> {
-        Ok(self
-            .inner
+        self.inner
             .get_operation(GetOperationRequest {
                 name: id.to_string(),
             })
             .await?
             .into_inner()
             .try_into()
-            .map_err(Error::InvalidResponse)?)
+            .map_err(Error::InvalidResponse)
     }
 
     /// Cancel a given operation
@@ -83,8 +82,7 @@ impl Client {
         id: usize,
         timeout: Option<std::time::Duration>,
     ) -> Result<IoxOperation, Error> {
-        Ok(self
-            .inner
+        self.inner
             .wait_operation(WaitOperationRequest {
                 name: id.to_string(),
                 timeout: timeout.map(Into::into),
@@ -92,6 +90,6 @@ impl Client {
             .await?
             .into_inner()
             .try_into()
-            .map_err(Error::InvalidResponse)?)
+            .map_err(Error::InvalidResponse)
     }
 }

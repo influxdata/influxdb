@@ -9,12 +9,12 @@ use std::collections::HashMap;
 impl Client {
     /// List all Labels
     pub async fn labels(&self) -> Result<LabelsResponse, RequestError> {
-        Ok(self.get_labels(None).await?)
+        self.get_labels(None).await
     }
 
     /// List all Labels by organization ID
     pub async fn labels_by_org(&self, org_id: &str) -> Result<LabelsResponse, RequestError> {
-        Ok(self.get_labels(Some(org_id)).await?)
+        self.get_labels(Some(org_id)).await
     }
 
     async fn get_labels(&self, org_id: Option<&str>) -> Result<LabelsResponse, RequestError> {

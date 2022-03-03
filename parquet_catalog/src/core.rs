@@ -303,7 +303,7 @@ impl PreservedCatalog {
     ///
     /// Note that wiping the catalog will NOT wipe any referenced parquet files.
     pub async fn wipe(iox_object_store: &IoxObjectStore) -> Result<()> {
-        Ok(iox_object_store.wipe_catalog().await.context(WriteSnafu)?)
+        iox_object_store.wipe_catalog().await.context(WriteSnafu)
     }
 
     /// Create new catalog w/o any data.

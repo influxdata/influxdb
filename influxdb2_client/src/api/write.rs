@@ -55,7 +55,7 @@ impl Client {
 
         let body = Body::wrap_stream(body);
 
-        Ok(self.write_line_protocol(org, bucket, body).await?)
+        self.write_line_protocol(org, bucket, body).await
     }
 }
 

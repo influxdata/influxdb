@@ -87,8 +87,7 @@ struct Expected {
 fn filter_vec<T: Clone>(ranges: &[Range<usize>], src: &[T]) -> Vec<T> {
     ranges
         .iter()
-        .cloned()
-        .flatten()
+        .flat_map(|r| r.clone())
         .map(|x| src[x].clone())
         .collect()
 }

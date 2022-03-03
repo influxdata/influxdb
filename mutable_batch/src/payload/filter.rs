@@ -146,8 +146,7 @@ mod tests {
 
         let expected: Vec<_> = ranges
             .iter()
-            .cloned()
-            .flatten()
+            .flat_map(|r| r.clone())
             .filter(|idx| predicate(data[*idx]))
             .collect();
 

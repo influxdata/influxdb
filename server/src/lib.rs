@@ -875,10 +875,10 @@ impl Server {
         let database = self.database(&db_name)?;
 
         // attempt to save provided rules in the current state
-        Ok(database
+        database
             .update_provided_rules(rules)
             .await
-            .context(CanNotUpdateRulesSnafu { db_name })?)
+            .context(CanNotUpdateRulesSnafu { db_name })
     }
 
     /// Closes a chunk and starts moving its data to the read buffer, as a

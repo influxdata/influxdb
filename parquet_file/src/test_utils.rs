@@ -76,7 +76,7 @@ pub async fn load_parquet_from_store_for_chunk(
     store: Arc<IoxObjectStore>,
 ) -> Result<Vec<u8>> {
     let path = chunk.path();
-    Ok(load_parquet_from_store_for_path(path, store).await?)
+    load_parquet_from_store_for_path(path, store).await
 }
 
 pub async fn load_parquet_from_store_for_path(
@@ -97,7 +97,7 @@ pub async fn load_parquet_from_store_for_path(
 fn create_column_tag(
     name: &str,
     data: Vec<Vec<Option<&str>>>,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -140,7 +140,7 @@ fn create_column_tag(
 fn create_columns_tag(
     column_prefix: &str,
     test_size: TestSize,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -184,7 +184,7 @@ fn create_columns_tag(
 fn create_column_field_string(
     name: &str,
     data: Vec<Vec<Option<&str>>>,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -215,7 +215,7 @@ fn create_column_field_string(
 fn create_columns_field_string(
     column_prefix: &str,
     test_size: TestSize,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -258,7 +258,7 @@ fn create_columns_field_string(
 fn create_column_field_i64(
     name: &str,
     data: Vec<Vec<Option<i64>>>,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -275,7 +275,7 @@ fn create_column_field_i64(
 fn create_columns_field_i64(
     column_prefix: &str,
     test_size: TestSize,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -319,7 +319,7 @@ fn create_columns_field_i64(
 fn create_column_field_u64(
     name: &str,
     data: Vec<Vec<Option<u64>>>,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -336,7 +336,7 @@ fn create_column_field_u64(
 fn create_columns_field_u64(
     column_prefix: &str,
     test_size: TestSize,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -379,7 +379,7 @@ fn create_columns_field_u64(
 fn create_column_field_f64(
     name: &str,
     data: Vec<Vec<Option<f64>>>,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -425,7 +425,7 @@ fn create_column_field_f64(
 fn create_columns_field_f64(
     column_prefix: &str,
     test_size: TestSize,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -509,7 +509,7 @@ fn create_columns_field_f64(
 fn create_column_field_bool(
     name: &str,
     data: Vec<Vec<Option<bool>>>,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -526,7 +526,7 @@ fn create_column_field_bool(
 fn create_columns_field_bool(
     column_prefix: &str,
     test_size: TestSize,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {
@@ -562,7 +562,7 @@ fn create_columns_field_bool(
 fn create_column_field_generic<A, T, F>(
     name: &str,
     data: Vec<Vec<Option<T>>>,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
     f: F,
@@ -611,7 +611,7 @@ fn create_column_field_generic<A, T, F>(
 
 fn create_column_timestamp(
     data: Vec<Vec<i64>>,
-    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    arrow_cols: &mut [Vec<(String, ArrayRef, bool)>],
     summaries: &mut Vec<ColumnSummary>,
     schema_builder: &mut SchemaBuilder,
 ) {

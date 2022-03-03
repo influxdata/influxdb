@@ -197,7 +197,7 @@ mod tests {
         };
         let dsn = std::env::var("DATABASE_URL").unwrap();
         let captured_schema_name = schema_name.clone();
-        Ok(PgPoolOptions::new()
+        PgPoolOptions::new()
             .min_connections(1)
             .max_connections(5)
             .connect_timeout(Duration::from_secs(2))
@@ -222,7 +222,7 @@ mod tests {
                 })
             })
             .connect(&dsn)
-            .await?)
+            .await
     }
 
     // The goal of this test is to verify that the hotswap pool can indeed replace

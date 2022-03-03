@@ -615,7 +615,7 @@ struct FreeCandidate<'a, P> {
     access_metrics: AccessMetrics,
 }
 
-fn sort_free_candidates<P>(candidates: &mut Vec<FreeCandidate<'_, P>>) {
+fn sort_free_candidates<P>(candidates: &mut [FreeCandidate<'_, P>]) {
     candidates.sort_unstable_by(|a, b| match a.action.cmp(&b.action) {
         // Order candidates with the same FreeAction by last access time
         std::cmp::Ordering::Equal => a

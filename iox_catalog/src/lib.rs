@@ -66,6 +66,8 @@ where
     }
 }
 
+// &mut Cow is used to avoid a copy, so allow it
+#[allow(clippy::ptr_arg)]
 async fn validate_mutable_batch<R>(
     mb: &MutableBatch,
     table_name: &str,
