@@ -475,7 +475,8 @@ impl TestServer {
 
         println!("****************");
         println!(
-            "Server {} Logging to {:?}",
+            "{:?} Server {} Logging to {:?}",
+            server_type,
             addrs.http_bind_addr(),
             log_path
         );
@@ -539,11 +540,17 @@ impl TestServer {
             loop {
                 match client.get(&url).send().await {
                     Ok(resp) => {
-                        println!("Successfully got a response from HTTP: {:?}", resp);
+                        println!(
+                            "Successfully got a response from {:?} HTTP: {:?}",
+                            self.test_config.server_type, resp
+                        );
                         return;
                     }
                     Err(e) => {
-                        println!("Waiting for HTTP server to be up: {}", e);
+                        println!(
+                            "Waiting for {:?} HTTP server to be up: {}",
+                            self.test_config.server_type, e
+                        );
                     }
                 }
                 interval.tick().await;
@@ -563,7 +570,10 @@ impl TestServer {
                 // tell others that this server had some problem
                 *ready = ServerState::Error;
                 std::mem::drop(ready);
-                panic!("Server was not ready in required time: {}", e);
+                panic!(
+                    "{:?} Server was not ready in required time: {}",
+                    self.test_config.server_type, e
+                );
             }
         }
 
@@ -575,7 +585,7 @@ impl TestServer {
                 // tell others that this server had some problem
                 *ready = ServerState::Error;
                 std::mem::drop(ready);
-                panic!("Server already has an ID ({}); possibly a stray/orphan server from another test run.", id);
+                panic!("{:?} Server already has an ID ({}); possibly a stray/orphan server from another test run.", self.test_config.server_type, id);
             }
         }
 
@@ -589,7 +599,10 @@ impl TestServer {
                     .await
                     .expect("set ID failed");
 
-                println!("Set server ID to {:?}", id);
+                println!(
+                    "Set {:?} server ID to {:?}",
+                    self.test_config.server_type, id
+                );
 
                 if self.test_config.server_type == ServerType::Database {
                     // if server ID was set, we can also wait until DBs are loaded
@@ -645,7 +658,10 @@ impl TestServer {
                             println!("Write service is not running");
                         }
                         Err(e) => {
-                            println!("Waiting for gRPC API to be healthy: {:?}", e);
+                            println!(
+                                "Waiting for {:?} gRPC API to be healthy: {:?}",
+                                self.test_config.server_type, e
+                            );
                         }
                     }
                 }
@@ -661,7 +677,10 @@ impl TestServer {
                             println!("Flight service is not running");
                         }
                         Err(e) => {
-                            println!("Waiting for gRPC API to be healthy: {:?}", e);
+                            println!(
+                                "Waiting for {:?} gRPC API to be healthy: {:?}",
+                                self.test_config.server_type, e
+                            );
                         }
                     }
                 }
@@ -679,12 +698,18 @@ impl TestServer {
                             println!("Deployment service is not running");
                         }
                         Err(e) => {
-                            println!("Waiting for gRPC API to be healthy: {:?}", e);
+                            println!(
+                                "Waiting for {:?} gRPC API to be healthy: {:?}",
+                                self.test_config.server_type, e
+                            );
                         }
                     }
                 }
                 (Err(e), _) => {
-                    println!("Waiting for gRPC API to be up: {}", e);
+                    println!(
+                        "Waiting for {:?} gRPC API to be up: {}",
+                        self.test_config.server_type, e
+                    );
                 }
             }
             interval.tick().await;
@@ -746,7 +771,7 @@ impl Drop for TestServer {
         let mut buffer = [0_u8; 8 * 1024];
 
         println!("****************");
-        println!("Start TestServer Output");
+        println!("Start {:?} TestServer Output", self.test_config.server_type);
         println!("****************");
 
         while let Ok(read) = f.read(&mut buffer) {
@@ -764,7 +789,7 @@ impl Drop for TestServer {
         }
 
         println!("****************");
-        println!("End TestServer Output");
+        println!("End {:?} TestServer Output", self.test_config.server_type);
         println!("****************");
     }
 }
