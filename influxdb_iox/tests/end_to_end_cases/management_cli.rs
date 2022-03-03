@@ -1916,7 +1916,7 @@ pub async fn setup_load_and_persist_two_partition_chunks(
 }
 
 #[tokio::test]
-async fn test_router_static_config() {
+async fn test_database_static_config() {
     let mut file = tempfile::NamedTempFile::new().unwrap();
 
     // UUIDs generated with `uuid -rF BIN | base64`

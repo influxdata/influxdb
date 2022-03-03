@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::commands::server_remote;
+use generated_types::database_state::DatabaseState;
 use influxdb_iox_client::{connection::Connection, deployment, management};
 use thiserror::Error;
 
@@ -21,6 +22,12 @@ pub enum Error {
 
     #[error("Timeout waiting for databases to be loaded")]
     TimeoutDatabasesLoaded,
+
+    #[error("Server startup error: {0}")]
+    Server(String),
+
+    #[error("Database startup error for \"{0}\": {1}")]
+    Database(String, String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -53,7 +60,7 @@ struct Set {
     id: NonZeroU32,
 }
 
-/// Wait until server is initialized.
+/// Wait until server and all databases are initialized
 #[derive(Debug, clap::Parser)]
 struct WaitSeverInitialized {
     /// Timeout in seconds.
@@ -87,14 +94,28 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             let mut client = management::Client::new(connection);
             let end = Instant::now() + Duration::from_secs(command.timeout);
             loop {
-                let status = client.get_server_status().await?;
-                if status.initialized {
-                    println!("Server initialized.");
-                    if let Some(err) = status.error {
-                        println!("WARNING: Server is in error state: {}", err.message);
+                let server_status = client.get_server_status().await?;
+                if let Some(err) = server_status.error {
+                    return Err(Error::Server(err.message));
+                }
+
+                if server_status.initialized {
+                    let mut initialized = true;
+                    for db_status in server_status.database_statuses {
+                        if let Some(err) = db_status.error {
+                            return Err(Error::Database(db_status.db_name, err.message));
+                        }
+
+                        if db_status.state() != DatabaseState::Initialized {
+                            initialized = false;
+                            break;
+                        }
                     }
 
-                    return Ok(());
+                    if initialized {
+                        println!("Server initialized.");
+                        return Ok(());
+                    }
                 }
 
                 if Instant::now() >= end {
