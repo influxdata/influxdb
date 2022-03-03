@@ -205,6 +205,7 @@ impl QueryChunk for QueryableBatch {
     /// The requested columns must all have String type.
     fn column_values(
         &self,
+        _ctx: IOxExecutionContext,
         _column_name: &str,
         _predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error> {

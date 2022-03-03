@@ -444,7 +444,13 @@ impl InfluxRpcPlanner {
                         .table_schema(table_name)
                         .context(TableRemovedSnafu { table_name })?;
 
-                    let plan = self.tag_keys_plan(table_name, schema, predicate, chunks)?;
+                    let plan = self.tag_keys_plan(
+                        ctx.child_ctx("tag_keys_plan"),
+                        table_name,
+                        schema,
+                        predicate,
+                        chunks,
+                    )?;
 
                     if let Some(plan) = plan {
                         builder = builder.append_other(plan)
@@ -472,6 +478,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        let ctx = self.ctx.child_ctx("tag_values planning");
         debug!(?rpc_predicate, tag_name, "planning tag_values");
 
         // The basic algorithm is:
@@ -541,7 +548,11 @@ impl InfluxRpcPlanner {
                 if !do_full_plan {
                     // try and get the list of values directly from metadata
                     let maybe_values = chunk
-                        .column_values(tag_name, predicate)
+                        .column_values(
+                            self.ctx.child_ctx("tag_values execution"),
+                            tag_name,
+                            predicate,
+                        )
                         .map_err(|e| Box::new(e) as _)
                         .context(FindingColumnValuesSnafu)?;
 
@@ -591,8 +602,13 @@ impl InfluxRpcPlanner {
                     .table_schema(table_name)
                     .context(TableRemovedSnafu { table_name })?;
 
-                let scan_and_filter =
-                    self.scan_and_filter(table_name, schema, predicate, chunks)?;
+                let scan_and_filter = self.scan_and_filter(
+                    ctx.child_ctx("scan_and_filter planning"),
+                    table_name,
+                    schema,
+                    predicate,
+                    chunks,
+                )?;
 
                 // if we have any data to scan, make a plan!
                 if let Some(TableScanAndFilter {
@@ -872,6 +888,7 @@ impl InfluxRpcPlanner {
     /// ```
     fn tag_keys_plan<C>(
         &self,
+        ctx: IOxExecutionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -880,7 +897,13 @@ impl InfluxRpcPlanner {
     where
         C: QueryChunk + 'static,
     {
-        let scan_and_filter = self.scan_and_filter(table_name, schema, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(
+            ctx.child_ctx("scan_and_filter planning"),
+            table_name,
+            schema,
+            predicate,
+            chunks,
+        )?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -948,7 +971,13 @@ impl InfluxRpcPlanner {
     where
         C: QueryChunk + 'static,
     {
-        let scan_and_filter = self.scan_and_filter(table_name, schema, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(
+            self.ctx.child_ctx("scan_and_filter planning"),
+            table_name,
+            schema,
+            predicate,
+            chunks,
+        )?;
         let TableScanAndFilter {
             plan_builder,
             schema,
@@ -1007,7 +1036,13 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         debug!(%table_name, "Creating table_name full plan");
-        let scan_and_filter = self.scan_and_filter(table_name, schema, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(
+            self.ctx.child_ctx("scan_and_filter planning"),
+            table_name,
+            schema,
+            predicate,
+            chunks,
+        )?;
         let TableScanAndFilter {
             plan_builder,
             schema,
@@ -1054,7 +1089,13 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.as_ref();
-        let scan_and_filter = self.scan_and_filter(table_name, schema, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(
+            self.ctx.child_ctx("scan_and_filter planning"),
+            table_name,
+            schema,
+            predicate,
+            chunks,
+        )?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -1163,7 +1204,13 @@ impl InfluxRpcPlanner {
     where
         C: QueryChunk + 'static,
     {
-        let scan_and_filter = self.scan_and_filter(table_name, schema, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(
+            self.ctx.child_ctx("scan_and_filter planning"),
+            table_name,
+            schema,
+            predicate,
+            chunks,
+        )?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -1277,7 +1324,13 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, schema, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(
+            self.ctx.child_ctx("scan_and_filter planning"),
+            &table_name,
+            schema,
+            predicate,
+            chunks,
+        )?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -1346,6 +1399,7 @@ impl InfluxRpcPlanner {
     /// ```
     fn scan_and_filter<C>(
         &self,
+        ctx: IOxExecutionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -1354,8 +1408,6 @@ impl InfluxRpcPlanner {
     where
         C: QueryChunk + 'static,
     {
-        let ctx = self.ctx.child_ctx("scan_and_filter");
-
         // Scan all columns to begin with (DataFusion projection
         // push-down optimization will prune out unneeded columns later)
         let projection = None;

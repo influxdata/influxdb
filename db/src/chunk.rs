@@ -510,9 +510,14 @@ impl QueryChunk for DbChunk {
 
     fn column_values(
         &self,
+        mut ctx: IOxExecutionContext,
         column_name: &str,
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error> {
+        ctx.set_metadata("storage", self.state.state_name());
+        ctx.set_metadata("column_name", column_name.to_string());
+        ctx.set_metadata("predicate", format!("{}", &predicate));
+
         match &self.state {
             State::MutableBuffer { .. } => {
                 // There is no advantage to manually implementing this
@@ -527,6 +532,7 @@ impl QueryChunk for DbChunk {
                         return Ok(None);
                     }
                 };
+                ctx.set_metadata("rb_predicate", format!("{}", &rb_predicate));
 
                 self.access_recorder.record_access();
                 let mut values = chunk
@@ -553,6 +559,7 @@ impl QueryChunk for DbChunk {
                             column_name
                         ),
                     })?;
+                ctx.set_metadata("output_values", values.len() as i64);
 
                 Ok(Some(values))
             }
@@ -638,7 +645,7 @@ mod tests {
 
         let t3 = time.inc(Duration::from_secs(1));
         let column_values = snapshot
-            .column_values("tag", &Default::default())
+            .column_values(IOxExecutionContext::default(), "tag", &Default::default())
             .unwrap()
             .is_some();
         let m5 = chunk.access_recorder().get_metrics();
