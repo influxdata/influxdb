@@ -1391,8 +1391,8 @@ mod tests {
     use rand::Rng;
     use tempfile::NamedTempFile;
 
-    // Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment variables
-    // are not set.
+    // Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment
+    // variables are not set.
     macro_rules! maybe_skip_integration {
         ($panic_msg:expr) => {{
             dotenv::dotenv().ok();
