@@ -1217,7 +1217,7 @@ mod tests {
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
     use mutable_batch_lp::{lines_to_batches, test_helpers::lp_to_mutable_batch};
     use object_store::ObjectStoreApi;
-    use std::time::Duration;
+    use std::{ops::DerefMut, time::Duration};
     use test_helpers::assert_error;
     use time::Time;
 
@@ -1404,12 +1404,12 @@ mod tests {
             DmlMeta::sequenced(Sequence::new(1, 1), ignored_ts, None, 50),
         );
 
-        std::mem::drop(repos);
-        let _ = validate_or_insert_schema(w1.tables(), &schema, &*catalog)
+        let _ = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
             .await
             .unwrap()
             .unwrap();
 
+        std::mem::drop(repos);
         let pause_size = w1.size() + 1;
         let manager = LifecycleManager::new(
             LifecycleConfig::new(pause_size, 0, 0, Duration::from_secs(1)),
@@ -1475,8 +1475,7 @@ mod tests {
             DmlMeta::sequenced(Sequence::new(1, 1), ignored_ts, None, 50),
         );
         // drop repos so the mem catalog won't deadlock.
-        std::mem::drop(repos);
-        let schema = validate_or_insert_schema(w1.tables(), &schema, &*catalog)
+        let schema = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
             .await
             .unwrap()
             .unwrap();
@@ -1486,11 +1485,12 @@ mod tests {
             lines_to_batches("cpu foo=1 10", 1).unwrap(),
             DmlMeta::sequenced(Sequence::new(2, 1), ignored_ts, None, 50),
         );
-        let _ = validate_or_insert_schema(w2.tables(), &schema, &*catalog)
+        let _ = validate_or_insert_schema(w2.tables(), &schema, repos.deref_mut())
             .await
             .unwrap()
             .unwrap();
 
+        std::mem::drop(repos);
         let w3 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 30", 2).unwrap(),
@@ -1819,15 +1819,13 @@ mod tests {
             lines_to_batches("mem foo=1 10", 0).unwrap(),
             DmlMeta::sequenced(Sequence::new(1, 2), ignored_ts, None, 50),
         );
-        std::mem::drop(repos);
 
-        let _ = validate_or_insert_schema(w1.tables(), &schema, &*catalog)
+        let _ = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
             .await
             .unwrap()
             .unwrap();
 
         // create some persisted state
-        let mut repos = catalog.repositories().await;
         let table = repos
             .tables()
             .create_or_get("mem", namespace.id)

@@ -420,7 +420,7 @@ mod tests {
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
     use mutable_batch_lp::lines_to_batches;
-    use std::num::NonZeroU32;
+    use std::{num::NonZeroU32, ops::DerefMut};
     use time::Time;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
@@ -433,6 +433,7 @@ mod tests {
             ingester.kafka_topic.id,
             ingester.query_pool.id,
         );
+        let mut txn = ingester.catalog.start_transaction().await.unwrap();
         let ingest_ts1 = Time::from_timestamp_millis(42);
         let ingest_ts2 = Time::from_timestamp_millis(1337);
         let w1 = DmlWrite::new(
@@ -440,7 +441,7 @@ mod tests {
             lines_to_batches("mem foo=1 10", 0).unwrap(),
             DmlMeta::sequenced(Sequence::new(0, 0), ingest_ts1, None, 50),
         );
-        let schema = validate_or_insert_schema(w1.tables(), &schema, &*ingester.catalog)
+        let schema = validate_or_insert_schema(w1.tables(), &schema, txn.deref_mut())
             .await
             .unwrap()
             .unwrap();
@@ -450,7 +451,7 @@ mod tests {
             lines_to_batches("cpu bar=2 20\ncpu bar=3 30", 0).unwrap(),
             DmlMeta::sequenced(Sequence::new(0, 7), ingest_ts2, None, 150),
         );
-        let _schema = validate_or_insert_schema(w2.tables(), &schema, &*ingester.catalog)
+        let _schema = validate_or_insert_schema(w2.tables(), &schema, txn.deref_mut())
             .await
             .unwrap()
             .unwrap();
@@ -460,11 +461,12 @@ mod tests {
             lines_to_batches("a b=2 200", 0).unwrap(),
             DmlMeta::sequenced(Sequence::new(0, 9), ingest_ts2, None, 150),
         );
-        let _schema = validate_or_insert_schema(w3.tables(), &schema, &*ingester.catalog)
+        let _schema = validate_or_insert_schema(w3.tables(), &schema, txn.deref_mut())
             .await
             .unwrap()
             .unwrap();
         ingester.write_buffer_state.push_write(w3);
+        txn.commit().await.unwrap();
 
         // give the writes some time to go through the buffer. Exit once we've verified there's
         // data in there from both writes.
