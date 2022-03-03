@@ -8,40 +8,41 @@ edition = "2021"
 async-trait = "0.1.42"
 # Microsoft Azure Blob storage integration
 # In order to support tokio 1.0 and delimiters, needed to pull in unreleased azure sdk
-azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "cb5aba657fe378009c38e979434b2bc93ac0a3d5", optional = true }
-azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "cb5aba657fe378009c38e979434b2bc93ac0a3d5", optional = true, default-features = false, features = ["table", "blob", "queue"] }
+azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "15de10cb58cf5cb271334a20e35fa9fbedd10244", optional = true, default-features = false, features = ["enable_reqwest_rustls"] }
+azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "15de10cb58cf5cb271334a20e35fa9fbedd10244", optional = true, default-features = false, features = ["account"] }
+azure_storage_blobs = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "15de10cb58cf5cb271334a20e35fa9fbedd10244", optional = true, default-features = false, features = ["enable_reqwest_rustls"] }
 bytes = "1.0"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # Google Cloud Storage integration
-cloud-storage = {version = "0.11.0", optional = true}
+cloud-storage = {version = "0.11.0", optional = true, default-features = false, features = ["rustls-tls"] }
 futures = "0.3"
 # for rusoto
 hyper = { version = "0.14", optional = true, default-features = false }
 # for rusoto
-hyper-tls = { version = "0.5.0", optional = true, default-features = false }
+hyper-rustls = { version = "0.23.0", optional = true, default-features = false, features = ["webpki-tokio", "http1", "http2", "tls12"] }
 indexmap = { version = "1.7", optional = true, features = ["std"] }
 itertools = "0.10.1"
 observability_deps = { path = "../observability_deps" }
 percent-encoding = "2.1"
 # rusoto crates are for Amazon S3 integration
-rusoto_core = { version = "0.47.0", optional = true}
-rusoto_credential = { version = "0.47.0", optional = true}
-rusoto_s3 = { version = "0.47.0", optional = true}
+rusoto_core = { version = "0.47.0", optional = true, default-features = false, features = ["rustls"] }
+rusoto_credential = { version = "0.47.0", optional = true, default-features = false }
+rusoto_s3 = { version = "0.47.0", optional = true, default-features = false, features = ["rustls"] }
 snafu = "0.7"
 tokio = { version = "1.17", features = ["fs", "io-util", "macros", "parking_lot", "rt-multi-thread", "time"] }
 # Filesystem integration
 tokio-util = { version = "0.7.0", features = [ "codec", "io" ] }
-reqwest = { version = "0.11", optional = true }
+reqwest = { version = "0.11", optional = true, default-features = false, features = ["rustls-tls"] }
 # Filesystem integration
 walkdir = "2"
 tempfile = "3.1.0"
 workspace-hack = { path = "../workspace-hack"}
 
 [features]
-azure = ["azure_core", "azure_storage", "indexmap", "reqwest"]
-azure_test = ["azure", "azure_core/azurite_workaround", "azure_storage/azurite_workaround"]
+azure = ["azure_core", "azure_storage_blobs", "azure_storage", "indexmap", "reqwest"]
+azure_test = ["azure", "azure_core/azurite_workaround", "azure_storage/azurite_workaround", "azure_storage_blobs/azurite_workaround"]
 gcp = ["cloud-storage"]
-aws = ["rusoto_core", "rusoto_credential", "rusoto_s3", "hyper", "hyper-tls"]
+aws = ["rusoto_core", "rusoto_credential", "rusoto_s3", "hyper", "hyper-rustls"]
 
 [dev-dependencies] # In alphabetical order
 dotenv = "0.15.0"
