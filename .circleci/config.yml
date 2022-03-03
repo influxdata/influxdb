@@ -182,7 +182,7 @@ jobs:
           command: |
             cargo hakari generate
             if [[ $(git status --porcelain) ]] ; then
-              git commit -am "[skip ci] Run cargo hakari generate"
+              git commit -am "chore: Run cargo hakari generate"
               git push origin "$CIRCLE_BRANCH"
             else
               echo "No changes to commit"
@@ -192,7 +192,7 @@ jobs:
           command: |
             cargo hakari manage-deps
             if [[ $(git status --porcelain) ]] ; then
-              git commit -am "[skip ci] Run cargo hakari manage-deps"
+              git commit -am "chore: Run cargo hakari manage-deps"
               git push origin "$CIRCLE_BRANCH"
             else
               echo "No changes to commit"
