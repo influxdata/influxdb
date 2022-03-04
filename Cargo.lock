@@ -4094,6 +4094,7 @@ dependencies = [
  "iox_object_store",
  "job_registry",
  "metric",
+ "mutable_batch_lp",
  "object_store",
  "observability_deps",
  "parking_lot 0.12.0",

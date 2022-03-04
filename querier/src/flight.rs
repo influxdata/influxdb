@@ -116,8 +116,13 @@ impl Client {
 pub struct PerformQuery {
     /// The schema sent back in the first FlightData message.
     pub schema: Arc<Schema>,
-    /// The max_sequencer_number sent back in the app_metadata of the first FlightData message.
-    pub max_sequencer_number: Option<SequenceNumber>,
+
+    /// The parquet_max_sequence_number sent back in the app_metadata of the first FlightData message.
+    pub parquet_max_sequence_number: Option<SequenceNumber>,
+
+    /// The tombstone_max_sequence_number sent back in the app_metadata of the first FlightData message.
+    pub tombstone_max_sequence_number: Option<SequenceNumber>,
+
     /// The dictionaries as collected from the FlightData messages received
     pub dictionaries_by_field: Vec<Option<Arc<dyn Array>>>,
     response: Streaming<FlightData>,
@@ -141,7 +146,13 @@ impl PerformQuery {
         let app_metadata = &flight_data_schema.app_metadata[..];
         let app_metadata: proto::IngesterQueryResponseMetadata =
             prost::Message::decode(app_metadata)?;
-        let max_sequencer_number = app_metadata.max_sequencer_number.map(SequenceNumber::new);
+
+        let parquet_max_sequence_number = app_metadata
+            .parquet_max_sequence_number
+            .map(SequenceNumber::new);
+        let tombstone_max_sequence_number = app_metadata
+            .tombstone_max_sequence_number
+            .map(SequenceNumber::new);
 
         let schema = Arc::new(Schema::try_from(&flight_data_schema)?);
 
@@ -149,7 +160,8 @@ impl PerformQuery {
 
         Ok(Self {
             schema,
-            max_sequencer_number,
+            parquet_max_sequence_number,
+            tombstone_max_sequence_number,
             dictionaries_by_field,
             response,
         })

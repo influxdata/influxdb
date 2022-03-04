@@ -82,9 +82,21 @@ pub async fn prepare_data_to_querier(
         table_name: &request.table,
     })?;
 
+    let (
+        parquet_max_sequence_number,
+        tombstone_max_sequence_number,
+        (filter_not_applied_batches, persisting_batches),
+    ) = {
+        let table_data = table_data.read().await;
+        (
+            table_data.parquet_max_sequence_number(),
+            table_data.tombstone_max_sequence_number(),
+            table_data.non_persisted_and_persisting_batches(),
+        )
+    };
+
     // ------------------------------------------------
     // Accumulate data from each partition
-    let partition_keys = table_data.partition_keys();
 
     // Make Filters
     let selection_columns: Vec<_> = request.columns.iter().map(String::as_str).collect();
@@ -95,45 +107,22 @@ pub async fn prepare_data_to_querier(
     };
     let predicate = request.predicate.clone().unwrap_or_default();
 
-    let mut filter_not_applied_batches = vec![];
     let mut filter_applied_batches = vec![];
-    for p_key in partition_keys {
-        let partition = table_data
-            .partition_data(&p_key)
-            .expect("Partition should have been found");
-
-        // ------------------------------------------------
-        // not-yet-in-persisting data
-
-        // Collect non-persisting snpashots without tombstones because all tombstones (if any) were already applied
-        let non_persisting_batches = partition
-            .get_non_persisting_data()
-            .context(SnapshotNonPersistingDataSnafu)?;
-
-        // Collect the snapshots' record bacthes
-        // Note that these record batches may have different schema
-        filter_not_applied_batches.extend(non_persisting_batches);
-
+    for queryable_batch in persisting_batches {
         // ------------------------------------------------
         // persisting data
 
-        // Get persting data and tombstones that are not applied yet
-        let persisting_queryable_batch = partition.get_persisting_data();
+        let record_batch = run_query(
+            &ingest_data.exec,
+            Arc::new(queryable_batch),
+            predicate.clone(),
+            selection,
+        )
+        .await?;
 
-        // Run query on the queryable batch to apply new tombstones & request filters
-        if let Some(queryable_batch) = persisting_queryable_batch {
-            let record_batch = run_query(
-                &ingest_data.exec,
-                Arc::new(queryable_batch),
-                predicate.clone(),
-                selection,
-            )
-            .await?;
-
-            if let Some(record_batch) = record_batch {
-                if record_batch.num_rows() > 0 {
-                    filter_applied_batches.push(Arc::new(record_batch));
-                }
+        if let Some(record_batch) = record_batch {
+            if record_batch.num_rows() > 0 {
+                filter_applied_batches.push(Arc::new(record_batch));
             }
         }
     }
@@ -178,7 +167,8 @@ pub async fn prepare_data_to_querier(
     Ok(IngesterQueryResponse::new(
         Box::pin(stream),
         (*schema).clone(),
-        table_data.parquet_max_sequence_number(),
+        parquet_max_sequence_number,
+        tombstone_max_sequence_number,
     ))
 }
 

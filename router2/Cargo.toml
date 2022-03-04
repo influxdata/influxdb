@@ -48,5 +48,9 @@ name = "sharder"
 harness = false
 
 [[bench]]
+name = "schema_validator"
+harness = false
+
+[[bench]]
 name = "e2e"
 harness = false

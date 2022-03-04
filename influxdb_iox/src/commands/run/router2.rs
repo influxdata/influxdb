@@ -227,7 +227,7 @@ async fn init_write_buffer(
     let write_buffer = Arc::new(
         config
             .write_buffer_config
-            .writing(metrics, trace_collector)
+            .writing(Arc::clone(&metrics), trace_collector)
             .await?,
     );
 
@@ -248,7 +248,7 @@ async fn init_write_buffer(
     Ok(ShardedWriteBuffer::new(
         shards
             .into_iter()
-            .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer)))
+            .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer), &metrics))
             .map(Arc::new)
             .collect::<JumpHash<_>>(),
     ))

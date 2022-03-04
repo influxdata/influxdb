@@ -237,7 +237,11 @@ mod tests {
 
         // Configure the sharder to return shards containing the mock write
         // buffer.
-        let shard = Arc::new(Sequencer::new(0, Arc::new(write_buffer)));
+        let shard = Arc::new(Sequencer::new(
+            0,
+            Arc::new(write_buffer),
+            &Default::default(),
+        ));
         let sharder = Arc::new(MockSharder::default().with_return([
             Arc::clone(&shard),
             Arc::clone(&shard),
@@ -285,13 +289,21 @@ mod tests {
         // Configure the first shard to write to one write buffer
         let write_buffer1 = init_write_buffer(1);
         let write_buffer1_state = write_buffer1.state();
-        let shard1 = Arc::new(Sequencer::new(0, Arc::new(write_buffer1)));
+        let shard1 = Arc::new(Sequencer::new(
+            0,
+            Arc::new(write_buffer1),
+            &Default::default(),
+        ));
 
         // Configure the second shard to write to a different write buffer in
         // order to see which buffer saw what write.
         let write_buffer2 = init_write_buffer(2);
         let write_buffer2_state = write_buffer2.state();
-        let shard2 = Arc::new(Sequencer::new(1, Arc::new(write_buffer2)));
+        let shard2 = Arc::new(Sequencer::new(
+            1,
+            Arc::new(write_buffer2),
+            &Default::default(),
+        ));
 
         let sharder = Arc::new(MockSharder::default().with_return([
             // 4 tables, 3 mapped to the first shard
@@ -359,12 +371,20 @@ mod tests {
         // Configure the first shard to write to one write buffer
         let write_buffer1 = init_write_buffer(1);
         let write_buffer1_state = write_buffer1.state();
-        let shard1 = Arc::new(Sequencer::new(0, Arc::new(write_buffer1)));
+        let shard1 = Arc::new(Sequencer::new(
+            0,
+            Arc::new(write_buffer1),
+            &Default::default(),
+        ));
 
         // Configure the second shard to write to a write buffer that always fails
         let write_buffer2 = init_write_buffer(1);
         // Non-existant sequencer ID to trigger an error.
-        let shard2 = Arc::new(Sequencer::new(13, Arc::new(write_buffer2)));
+        let shard2 = Arc::new(Sequencer::new(
+            13,
+            Arc::new(write_buffer2),
+            &Default::default(),
+        ));
 
         let sharder = Arc::new(
             MockSharder::default().with_return([Arc::clone(&shard1), Arc::clone(&shard2)]),
@@ -403,7 +423,11 @@ mod tests {
 
         // Configure the sharder to return shards containing the mock write
         // buffer.
-        let shard = Arc::new(Sequencer::new(0, Arc::new(write_buffer)));
+        let shard = Arc::new(Sequencer::new(
+            0,
+            Arc::new(write_buffer),
+            &Default::default(),
+        ));
         let sharder = Arc::new(MockSharder::default().with_return([Arc::clone(&shard)]));
 
         let w = ShardedWriteBuffer::new(Arc::clone(&sharder));

@@ -312,7 +312,131 @@ impl QuerierNamespace {
     }
 
     async fn sync_chunks(&self) {
-        // TODO: implement
+        let parquet_files = Backoff::new(&self.backoff_config)
+            .retry_all_errors("get parquet files", || async {
+                self.catalog
+                    .repositories()
+                    .await
+                    .parquet_files()
+                    .list_by_namespace_not_to_delete(self.id)
+                    .await
+            })
+            .await
+            .expect("retry forever");
+
+        let mut desired_chunks: HashMap<_, _> = HashMap::with_capacity(parquet_files.len());
+        for parquet_file in parquet_files {
+            let addr = self.chunk_adapter.old_gen_chunk_addr(&parquet_file).await;
+            desired_chunks.insert(addr, parquet_file);
+        }
+
+        let actual_chunk_addresses: HashSet<_> = self
+            .db_catalog
+            .chunks()
+            .into_iter()
+            .map(|c| {
+                let c = c.read();
+                c.addr().clone()
+            })
+            .collect();
+
+        let to_add: Vec<_> = desired_chunks
+            .iter()
+            .filter_map(|(addr, file)| {
+                (!actual_chunk_addresses.contains(addr)).then(|| (addr.clone(), file.clone()))
+            })
+            .collect();
+        let to_delete: Vec<_> = actual_chunk_addresses
+            .iter()
+            .filter(|addr| !desired_chunks.contains_key(addr))
+            .cloned()
+            .collect();
+        info!(
+            add = to_add.len(),
+            delete = to_delete.len(),
+            actual = actual_chunk_addresses.len(),
+            desired = desired_chunks.len(),
+            namespace = self.name.as_ref(),
+            "Syncing chunks",
+        );
+
+        // prepare to-be-added chunks, so we don't have to perform any IO while holding locks
+        let to_add2 = to_add;
+        let mut to_add = Vec::with_capacity(to_add2.len());
+        for (addr, file) in to_add2 {
+            let parts = self.chunk_adapter.new_catalog_chunk_parts(file).await;
+            to_add.push((addr, parts));
+        }
+
+        // group by table and partition to reduce locking attempts
+        // table name => (partition key => (list of parts to be added, list of chunk IDs to be removed))
+        let mut per_partition_add_delete: HashMap<_, HashMap<_, (Vec<_>, Vec<_>)>> = HashMap::new();
+        for (addr, file) in to_add {
+            per_partition_add_delete
+                .entry(addr.table_name)
+                .or_default()
+                .entry(addr.partition_key)
+                .or_default()
+                .0
+                .push(file);
+        }
+        for addr in to_delete {
+            per_partition_add_delete
+                .entry(addr.table_name)
+                .or_default()
+                .entry(addr.partition_key)
+                .or_default()
+                .1
+                .push(addr.chunk_id);
+        }
+
+        for (table, sub) in per_partition_add_delete {
+            let table = match self.db_catalog.table_mut(Arc::clone(&table)) {
+                Ok(table) => table,
+                Err(e) => {
+                    // this might happen if some other process (e.g. management API) just removed the table
+                    warn!(
+                        %e,
+                        namespace = self.name.as_ref(),
+                        table = table.as_ref(),
+                        "Cannot add/remove chunks to/from table",
+                    );
+                    continue;
+                }
+            };
+
+            for (partition, (to_add, to_delete)) in sub {
+                let partition = match table.partition(&partition) {
+                    Some(partition) => Arc::clone(partition),
+                    None => {
+                        // this might happen if some other process (e.g. management API) just removed the table
+                        warn!(
+                            namespace = self.name.as_ref(),
+                            table = table.name().as_ref(),
+                            partition = partition.as_ref(),
+                            "Cannot add/remove chunks to/from partition",
+                        );
+                        continue;
+                    }
+                };
+                let mut partition = partition.write();
+
+                for (addr, chunk_order, metadata, chunk) in to_add {
+                    let chunk_id = addr.chunk_id;
+                    partition.insert_object_store_only_chunk(
+                        chunk_id,
+                        chunk_order,
+                        metadata,
+                        chunk,
+                    );
+                }
+
+                for chunk_id in to_delete {
+                    // it's OK if the chunk is already gone
+                    partition.force_drop_chunk(chunk_id).ok();
+                }
+            }
+        }
     }
 }
 
@@ -380,9 +504,13 @@ impl ExecutionContextProvider for QuerierNamespace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_util::{TestCatalog, TestNamespace};
-    use data_types2::ColumnType;
+    use crate::test_util::{TestCatalog, TestNamespace, TestParquetFile};
+    use arrow::record_batch::RecordBatch;
+    use arrow_util::assert_batches_sorted_eq;
+    use data_types2::{ChunkAddr, ChunkId, ColumnType};
+    use query::frontend::sql::SqlQueryPlanner;
     use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_sync_namespace_gone() {
@@ -509,6 +637,10 @@ mod tests {
                 (String::from("table2"), String::from("1-k1")),
             ],
         );
+        let partition_a = querier_namespace
+            .db_catalog
+            .partition("table1", "1-k2")
+            .unwrap();
 
         table1.create_partition("k2", 2).await;
         querier_namespace.sync().await;
@@ -521,6 +653,144 @@ mod tests {
                 (String::from("table2"), String::from("1-k1")),
             ],
         );
+        let partition_b = querier_namespace
+            .db_catalog
+            .partition("table1", "1-k2")
+            .unwrap();
+        assert!(Arc::ptr_eq(&partition_a, &partition_b));
+    }
+
+    #[tokio::test]
+    async fn test_sync_chunks() {
+        let catalog = TestCatalog::new();
+
+        let ns = catalog.create_namespace("ns").await;
+        let table = ns.create_table("table").await;
+        let partition = table.create_partition("k", 1).await;
+
+        let querier_namespace = querier_namespace(&catalog, &ns);
+        querier_namespace.sync().await;
+        assert_eq!(chunks(&querier_namespace), vec![],);
+
+        let file1 = partition.create_parquet_file("table foo=1 11").await;
+        let file2 = partition.create_parquet_file("table foo=2 22").await;
+        querier_namespace.sync().await;
+        let partition_addr = PartitionAddr {
+            db_name: Arc::from("ns"),
+            table_name: Arc::from("table"),
+            partition_key: Arc::from("1-k"),
+        };
+        assert_eq!(
+            chunks(&querier_namespace),
+            vec![
+                ChunkAddr::new(&partition_addr, chunk_id(&file1)),
+                ChunkAddr::new(&partition_addr, chunk_id(&file2)),
+            ],
+        );
+        let chunk_a = querier_namespace
+            .db_catalog
+            .chunk("table", "1-k", chunk_id(&file1))
+            .unwrap()
+            .0;
+
+        file2.flag_for_delete().await;
+        let file3 = partition.create_parquet_file("table foo=3 33").await;
+        querier_namespace.sync().await;
+        assert_eq!(
+            chunks(&querier_namespace),
+            vec![
+                ChunkAddr::new(&partition_addr, chunk_id(&file1)),
+                ChunkAddr::new(&partition_addr, chunk_id(&file3)),
+            ],
+        );
+        let chunk_b = querier_namespace
+            .db_catalog
+            .chunk("table", "1-k", chunk_id(&file1))
+            .unwrap()
+            .0;
+        assert!(Arc::ptr_eq(&chunk_a, &chunk_b));
+    }
+
+    #[tokio::test]
+    async fn test_query() {
+        let catalog = TestCatalog::new();
+
+        let ns = catalog.create_namespace("ns").await;
+
+        let table_cpu = ns.create_table("cpu").await;
+        let table_mem = ns.create_table("mem").await;
+
+        table_cpu.create_column("host", ColumnType::Tag).await;
+        table_cpu.create_column("time", ColumnType::Time).await;
+        table_cpu.create_column("load", ColumnType::F64).await;
+        table_cpu.create_column("foo", ColumnType::I64).await;
+        table_mem.create_column("host", ColumnType::Tag).await;
+        table_mem.create_column("time", ColumnType::Time).await;
+        table_mem.create_column("perc", ColumnType::F64).await;
+
+        let partition_cpu_a_1 = table_cpu.create_partition("a", 1).await;
+        let partition_cpu_a_2 = table_cpu.create_partition("a", 2).await;
+        let partition_cpu_b_1 = table_cpu.create_partition("b", 1).await;
+        let partition_mem_c_1 = table_mem.create_partition("c", 1).await;
+        let partition_mem_c_2 = table_mem.create_partition("c", 2).await;
+
+        partition_cpu_a_1
+            .create_parquet_file("cpu,host=a load=1 11")
+            .await;
+        partition_cpu_a_1
+            .create_parquet_file("cpu,host=a load=2 22")
+            .await
+            .flag_for_delete()
+            .await;
+        partition_cpu_a_1
+            .create_parquet_file("cpu,host=a load=3 33")
+            .await;
+        partition_cpu_a_2
+            .create_parquet_file("cpu,host=a load=4 10001")
+            .await;
+        partition_cpu_b_1
+            .create_parquet_file("cpu,host=b load=5 11")
+            .await;
+        partition_mem_c_1
+            .create_parquet_file("mem,host=c perc=50 11\nmem,host=c perc=51 12")
+            .await;
+        partition_mem_c_2
+            .create_parquet_file("mem,host=c perc=50 1001")
+            .await
+            .flag_for_delete()
+            .await;
+
+        let querier_namespace = Arc::new(querier_namespace(&catalog, &ns));
+        querier_namespace.sync().await;
+
+        assert_query(
+            &querier_namespace,
+            "SELECT * FROM cpu ORDER BY host,time",
+            &[
+                "+-----+------+------+--------------------------------+",
+                "| foo | host | load | time                           |",
+                "+-----+------+------+--------------------------------+",
+                "|     | a    | 1    | 1970-01-01T00:00:00.000000011Z |",
+                "|     | a    | 3    | 1970-01-01T00:00:00.000000033Z |",
+                "|     | a    | 4    | 1970-01-01T00:00:00.000010001Z |",
+                "|     | b    | 5    | 1970-01-01T00:00:00.000000011Z |",
+                "+-----+------+------+--------------------------------+",
+            ],
+        )
+        .await;
+        assert_query(
+            &querier_namespace,
+            "SELECT * FROM mem ORDER BY host,time",
+            &[
+                "+------+------+--------------------------------+",
+                "| host | perc | time                           |",
+                "+------+------+--------------------------------+",
+                "| c    | 50   | 1970-01-01T00:00:00.000000011Z |",
+                "| c    | 51   | 1970-01-01T00:00:00.000000012Z |",
+                "+------+------+--------------------------------+",
+            ],
+        )
+        .await;
     }
 
     fn querier_namespace(catalog: &Arc<TestCatalog>, ns: &Arc<TestNamespace>) -> QuerierNamespace {
@@ -567,5 +837,40 @@ mod tests {
                 })
                 .collect(),
         )
+    }
+
+    fn chunks(querier_namespace: &QuerierNamespace) -> Vec<ChunkAddr> {
+        sorted(
+            querier_namespace
+                .db_catalog
+                .chunks()
+                .into_iter()
+                .map(|c| {
+                    let c = c.read();
+                    c.addr().clone()
+                })
+                .collect(),
+        )
+    }
+
+    fn chunk_id(file: &Arc<TestParquetFile>) -> ChunkId {
+        ChunkId::from(Uuid::from_u128(file.parquet_file.id.get() as _))
+    }
+
+    async fn assert_query(
+        querier_namespace: &Arc<QuerierNamespace>,
+        sql: &str,
+        expected_lines: &[&str],
+    ) {
+        let planner = SqlQueryPlanner::default();
+        let ctx = querier_namespace.new_query_context(None);
+
+        let physical_plan = planner
+            .query(sql, &ctx)
+            .await
+            .expect("built plan successfully");
+
+        let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
+        assert_batches_sorted_eq!(expected_lines, &results);
     }
 }

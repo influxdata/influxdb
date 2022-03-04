@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::partition_metadata::PartitionAddr;
 
 /// Address of the chunk within the catalog
-#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub struct ChunkAddr {
     /// Database name
     pub db_name: Arc<str>,

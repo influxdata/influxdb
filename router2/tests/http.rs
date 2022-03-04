@@ -82,7 +82,7 @@ impl TestContext {
         let sharded_write_buffer = ShardedWriteBuffer::new(
             shards
                 .into_iter()
-                .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer)))
+                .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer), &metrics))
                 .map(Arc::new)
                 .collect::<JumpHash<_>>(),
         );
@@ -217,4 +217,17 @@ async fn test_write_ok() {
             .fetch(),
         1
     );
+
+    let histogram = ctx
+        .metrics()
+        .get_instrument::<Metric<U64Histogram>>("sequencer_enqueue_duration_ms")
+        .expect("failed to read metric")
+        .get_observer(&Attributes::from(&[
+            ("shard_id", "0"),
+            ("result", "success"),
+        ]))
+        .expect("failed to get observer")
+        .fetch();
+    let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+    assert_eq!(hit_count, 1);
 }

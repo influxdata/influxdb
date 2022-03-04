@@ -1,3 +1,4 @@
+use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
 use data_types2::{
     ColumnType, InfluxDbType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, Partition,
@@ -5,12 +6,11 @@ use data_types2::{
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::ObjectStore;
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
-use query::{
-    exec::Executor,
-    test::{raw_data, TestChunk},
-};
+use query::exec::Executor;
+use schema::selection::Selection;
 use std::sync::Arc;
 use time::{MockProvider, Time, TimeProvider};
 use uuid::Uuid;
@@ -163,13 +163,17 @@ pub struct TestPartition {
 }
 
 impl TestPartition {
-    pub async fn create_parquet_file(self: &Arc<Self>) -> Arc<TestParquetFile> {
+    pub async fn create_parquet_file(self: &Arc<Self>, lp: &str) -> Arc<TestParquetFile> {
         let mut repos = self.catalog.catalog.repositories().await;
 
-        let object_store_id = Uuid::nil();
+        let (table, batch) = lp_to_mutable_batch(lp);
+        assert_eq!(table, self.table.table.name);
+        let row_count = batch.rows();
+        let record_batch = batch.to_arrow(Selection::All).unwrap();
+
+        let object_store_id = Uuid::new_v4();
         let min_sequence_number = SequenceNumber::new(1);
         let max_sequence_number = SequenceNumber::new(100);
-        let row_count_expected = 3;
         let metadata = IoxMetadata {
             object_store_id,
             creation_timestamp: now(),
@@ -184,10 +188,10 @@ impl TestPartition {
             time_of_last_write: now(),
             min_sequence_number,
             max_sequence_number,
-            row_count: row_count_expected,
+            row_count: row_count as i64,
         };
         let (parquet_metadata_bin, file_size_bytes) =
-            create_parquet_file(&self.catalog.object_store, &metadata).await;
+            create_parquet_file(&self.catalog.object_store, &metadata, record_batch).await;
 
         // decode metadata because we need to store them within the catalog
         let parquet_metadata = Arc::new(IoxParquetMetaData::from_thrift_bytes(
@@ -196,8 +200,6 @@ impl TestPartition {
         let decoded_metadata = parquet_metadata.decode().unwrap();
         let schema = decoded_metadata.read_schema().unwrap();
         let stats = decoded_metadata.read_statistics(&schema).unwrap();
-        let row_count = stats[0].total_count();
-        assert_eq!(row_count as i64, row_count_expected);
         let ts_min_max = stats
             .iter()
             .find_map(|stat| {
@@ -224,7 +226,10 @@ impl TestPartition {
             .await
             .unwrap();
 
-        Arc::new(TestParquetFile { parquet_file })
+        Arc::new(TestParquetFile {
+            catalog: Arc::clone(&self.catalog),
+            parquet_file,
+        })
     }
 }
 
@@ -232,25 +237,17 @@ impl TestPartition {
 async fn create_parquet_file(
     object_store: &Arc<ObjectStore>,
     metadata: &IoxMetadata,
+    record_batch: RecordBatch,
 ) -> (Vec<u8>, usize) {
     let iox_object_store = Arc::new(IoxObjectStore::existing(
         Arc::clone(object_store),
         IoxObjectStore::root_path_for(object_store, uuid::Uuid::new_v4()),
     ));
 
-    let chunk1 = Arc::new(
-        TestChunk::new("t")
-            .with_id(1)
-            .with_time_column()
-            .with_tag_column("tag1")
-            .with_i64_field_column("field_int")
-            .with_three_rows_of_data(),
-    );
-    let record_batches = raw_data(&[chunk1]).await;
-    let schema = record_batches.first().unwrap().schema();
+    let schema = record_batch.schema();
 
     let data = parquet_file::storage::Storage::new(Arc::clone(&iox_object_store))
-        .parquet_bytes(record_batches, schema, metadata)
+        .parquet_bytes(vec![record_batch], schema, metadata)
         .await
         .unwrap();
     let data = Arc::new(data);
@@ -280,7 +277,20 @@ async fn create_parquet_file(
 }
 
 pub struct TestParquetFile {
+    pub catalog: Arc<TestCatalog>,
     pub parquet_file: ParquetFile,
+}
+
+impl TestParquetFile {
+    pub async fn flag_for_delete(self: &Arc<Self>) {
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        repos
+            .parquet_files()
+            .flag_for_delete(self.parquet_file.id)
+            .await
+            .unwrap()
+    }
 }
 
 fn now() -> Time {

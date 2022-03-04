@@ -148,13 +148,13 @@ enum Command {
 
 #[derive(Debug, clap::Parser)]
 struct ReadWindowAggregate {
-    #[clap(long, default_value = "", parse(try_from_str = humantime::parse_duration))]
+    #[clap(long, parse(try_from_str = humantime::parse_duration))]
     window_every: Duration,
 
-    #[clap(long, default_value = "", parse(try_from_str = humantime::parse_duration))]
+    #[clap(long, parse(try_from_str = humantime::parse_duration))]
     offset: Duration,
 
-    #[clap(long, default_value = "", parse(try_from_str = parse_aggregate))]
+    #[clap(long, parse(try_from_str = parse_aggregate))]
     aggregate: Vec<AggregateType>,
 }
 

@@ -481,14 +481,11 @@ mod tests {
                     .get(&ingester.sequencer.id)
                 {
                     if let Some(data) = data.namespace(&ingester.namespace.name) {
-                        // verify mem table
-                        if let Some(table) = data.table_data("a") {
-                            if let Some(partition) = table.partition_data("1970-01-01") {
-                                let snapshots = partition.snapshot().unwrap();
-                                if let Some(s) = snapshots.last() {
-                                    if s.data.num_rows() > 0 {
-                                        has_measurement = true;
-                                    }
+                        // verify there's data in the buffer
+                        if let Some((b, _)) = data.snapshot("a", "1970-01-01").await {
+                            if let Some(b) = b.first() {
+                                if b.data.num_rows() > 0 {
+                                    has_measurement = true;
                                 }
                             }
                         }

@@ -234,7 +234,8 @@ impl GetStream {
         let IngesterQueryResponse {
             mut data,
             schema,
-            max_sequencer_number,
+            parquet_max_sequence_number,
+            tombstone_max_sequence_number,
         } = query_response;
 
         // setup channel
@@ -248,7 +249,8 @@ impl GetStream {
         // Add max_sequencer_number to app metadata
         let mut bytes = bytes::BytesMut::new();
         let app_metadata = proto::IngesterQueryResponseMetadata {
-            max_sequencer_number: max_sequencer_number.map(|n| n.get()),
+            parquet_max_sequence_number: parquet_max_sequence_number.map(|n| n.get()),
+            tombstone_max_sequence_number: tombstone_max_sequence_number.map(|n| n.get()),
         };
         prost::Message::encode(&app_metadata, &mut bytes).context(SerializationSnafu)?;
         schema_flight_data.app_metadata = bytes.to_vec();

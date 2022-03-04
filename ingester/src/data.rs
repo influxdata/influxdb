@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use chrono::{format::StrftimeItems, TimeZone, Utc};
 use data_types2::{
-    DeletePredicate, KafkaPartition, NamespaceId, PartitionId, SequenceNumber, SequencerId,
-    TableId, Timestamp, Tombstone,
+    DeletePredicate, KafkaPartition, NamespaceId, PartitionId, PartitionInfo, SequenceNumber,
+    SequencerId, TableId, Timestamp, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
@@ -133,12 +133,12 @@ impl IngesterData {
     }
 
     /// Return table data of a given (sequencer id, namespace name, and table name)
-    pub fn table_data(
+    pub(crate) fn table_data(
         &self,
         sequencer_id: SequencerId,
         namespace_name: &str,
         table_name: &str,
-    ) -> Option<Arc<TableData>> {
+    ) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
         let sequencer_data = self.sequencers.get(&sequencer_id)?;
         let namespaces = sequencer_data.namespaces.read();
         let namespace_data = namespaces.get(namespace_name)?;
@@ -199,101 +199,78 @@ impl Persister for IngesterData {
                     partition_info.namespace_name, partition_info.partition.sequencer_id
                 )
             });
-        let table_data = namespace
-            .table_data(&partition_info.table_name)
-            .unwrap_or_else(|| {
-                panic!(
-                    "table {} for namespace {} not in sequencer {} state",
-                    partition_info.table_name,
-                    partition_info.namespace_name,
-                    partition_info.partition.sequencer_id
-                )
-            });
-        let partition_data = table_data
-            .partition_data(&partition_info.partition.partition_key)
-            .unwrap_or_else(|| {
-                panic!(
-                    "partition {} not in table {} for namespace {} in sequencer {} state",
-                    partition_info.partition.partition_key,
-                    partition_info.table_name,
-                    partition_info.namespace_name,
-                    partition_info.partition.sequencer_id
-                )
-            });
 
-        // snapshot and make arc clones of the data.
-        let persisting_batch = partition_data.snapshot_to_persisting_batch(
-            partition_info.partition.sequencer_id,
-            partition_info.partition.table_id,
-            partition_info.partition.id,
-            &partition_info.table_name,
-        );
+        let persisting_batch = namespace.snapshot_to_persisting(&partition_info).await;
 
-        // do the CPU intensive work of compaction, de-duplication and sorting
-        let (record_batches, iox_meta) = match compact_persisting_batch(
-            Arc::new(SystemProvider::new()),
-            &self.exec,
-            namespace.namespace_id.get(),
-            &partition_info.namespace_name,
-            &partition_info.table_name,
-            &partition_info.partition.partition_key,
-            Arc::clone(&persisting_batch),
-        )
-        .await
-        {
-            Err(e) => {
-                // this should never error out. if it does, we need to crash hard so
-                // someone can take a look.
-                panic!("unable to compact persisting batch with error: {:?}", e);
-            }
-            Ok(Some(r)) => r,
-            Ok(None) => {
-                warn!("persist called with no data");
-                return;
-            }
-        };
-
-        // save the compacted data to a parquet file in object storage
-        let file_size_and_md = Backoff::new(&self.backoff_config)
-            .retry_all_errors("persist to object store", || {
-                persist(&iox_meta, record_batches.to_vec(), &self.object_store)
-            })
+        if let Some(persisting_batch) = persisting_batch {
+            // do the CPU intensive work of compaction, de-duplication and sorting
+            let (record_batches, iox_meta) = match compact_persisting_batch(
+                Arc::new(SystemProvider::new()),
+                &self.exec,
+                namespace.namespace_id.get(),
+                &partition_info.namespace_name,
+                &partition_info.table_name,
+                &partition_info.partition.partition_key,
+                Arc::clone(&persisting_batch),
+            )
             .await
-            .expect("retry forever");
+            {
+                Err(e) => {
+                    // this should never error out. if it does, we need to crash hard so
+                    // someone can take a look.
+                    panic!("unable to compact persisting batch with error: {:?}", e);
+                }
+                Ok(Some(r)) => r,
+                Ok(None) => {
+                    warn!("persist called with no data");
+                    return;
+                }
+            };
 
-        if let Some((file_size, md)) = file_size_and_md {
-            // Add the parquet file to the catalog until succeed
-            // TODO: clean this up when updating the min_sequence_number is added in.
-            let parquet_file = iox_meta.to_parquet_file(file_size, &md);
-            Backoff::new(&self.backoff_config)
-                .retry_all_errors("add parquet file to catalog", || async {
-                    let mut repos = self.catalog.repositories().await;
-                    repos
-                        .parquet_files()
-                        .create(
-                            parquet_file.sequencer_id,
-                            parquet_file.table_id,
-                            parquet_file.partition_id,
-                            parquet_file.object_store_id,
-                            parquet_file.min_sequence_number,
-                            parquet_file.max_sequence_number,
-                            parquet_file.min_time,
-                            parquet_file.max_time,
-                            parquet_file.file_size_bytes,
-                            parquet_file.parquet_metadata.clone(),
-                            parquet_file.row_count,
-                        )
-                        .await
+            // save the compacted data to a parquet file in object storage
+            let file_size_and_md = Backoff::new(&self.backoff_config)
+                .retry_all_errors("persist to object store", || {
+                    persist(&iox_meta, record_batches.to_vec(), &self.object_store)
                 })
                 .await
                 .expect("retry forever");
-        }
 
-        // and remove the persisted data from memory
-        namespace.mark_persisted_and_remove_if_empty(
-            &partition_info.table_name,
-            &partition_info.partition.partition_key,
-        );
+            if let Some((file_size, md)) = file_size_and_md {
+                // Add the parquet file to the catalog until succeed
+                let parquet_file = iox_meta.to_parquet_file(file_size, &md);
+                Backoff::new(&self.backoff_config)
+                    .retry_all_errors("add parquet file to catalog", || async {
+                        let mut repos = self.catalog.repositories().await;
+                        repos
+                            .parquet_files()
+                            .create(
+                                parquet_file.sequencer_id,
+                                parquet_file.table_id,
+                                parquet_file.partition_id,
+                                parquet_file.object_store_id,
+                                parquet_file.min_sequence_number,
+                                parquet_file.max_sequence_number,
+                                parquet_file.min_time,
+                                parquet_file.max_time,
+                                parquet_file.file_size_bytes,
+                                parquet_file.parquet_metadata.clone(),
+                                parquet_file.row_count,
+                            )
+                            .await
+                    })
+                    .await
+                    .expect("retry forever");
+            }
+
+            // and remove the persisted data from memory
+            namespace
+                .mark_persisted_and_remove_if_empty(
+                    &partition_info.table_name,
+                    &partition_info.partition.partition_key,
+                    iox_meta.max_sequence_number,
+                )
+                .await;
+        }
     }
 
     async fn update_min_unpersisted_sequence_number(
@@ -396,7 +373,7 @@ impl SequencerData {
 /// Data of a Namespace that belongs to a given Shard
 pub struct NamespaceData {
     namespace_id: NamespaceId,
-    tables: RwLock<BTreeMap<String, Arc<TableData>>>,
+    tables: RwLock<BTreeMap<String, Arc<tokio::sync::RwLock<TableData>>>>,
 }
 
 impl NamespaceData {
@@ -410,9 +387,9 @@ impl NamespaceData {
 
     /// Initialize new tables with data for testing purpose only
     #[cfg(test)]
-    pub fn new_for_test(
+    pub(crate) fn new_for_test(
         namespace_id: NamespaceId,
-        tables: BTreeMap<String, Arc<TableData>>,
+        tables: BTreeMap<String, Arc<tokio::sync::RwLock<TableData>>>,
     ) -> Self {
         Self {
             namespace_id,
@@ -447,6 +424,8 @@ impl NamespaceData {
                         Some(t) => t,
                         None => self.insert_table(sequencer_id, &t, catalog).await?,
                     };
+
+                    let mut table_data = table_data.write().await;
                     let should_pause = table_data
                         .buffer_table_write(
                             sequence_number,
@@ -469,6 +448,8 @@ impl NamespaceData {
                     None => self.insert_table(sequencer_id, table_name, catalog).await?,
                 };
 
+                let mut table_data = table_data.write().await;
+
                 table_data
                     .buffer_delete(
                         table_name,
@@ -486,8 +467,55 @@ impl NamespaceData {
         }
     }
 
+    /// Snapshots the mutable buffer for the partition, which clears it out and moves it over to snapshots. Then
+    /// return a vec of the snapshots and the optional persisting batch.
+    pub async fn snapshot(
+        &self,
+        table_name: &str,
+        partition_key: &str,
+    ) -> Option<(Vec<Arc<SnapshotBatch>>, Option<Arc<PersistingBatch>>)> {
+        if let Some(t) = self.table_data(table_name) {
+            let mut t = t.write().await;
+
+            return t.partition_data.get_mut(partition_key).map(|p| {
+                p.data
+                    .snapshot()
+                    .expect("snapshot on mutable batch should never fail");
+                (p.data.snapshots.to_vec(), p.data.persisting.clone())
+            });
+        }
+
+        None
+    }
+
+    /// Snapshots the mutable buffer for the partition, which clears it out and then moves all
+    /// snapshots over to a persisting batch, which is returned. If there is no data to snapshot
+    /// or persist, None will be returned.
+    pub async fn snapshot_to_persisting(
+        &self,
+        partition_info: &PartitionInfo,
+    ) -> Option<Arc<PersistingBatch>> {
+        if let Some(table_data) = self.table_data(&partition_info.table_name) {
+            let mut table_data = table_data.write().await;
+
+            return table_data
+                .partition_data
+                .get_mut(&partition_info.partition.partition_key)
+                .map(|partition_data| {
+                    partition_data.snapshot_to_persisting_batch(
+                        partition_info.partition.sequencer_id,
+                        partition_info.partition.table_id,
+                        partition_info.partition.id,
+                        &partition_info.table_name,
+                    )
+                });
+        }
+
+        None
+    }
+
     /// Gets the buffered table data
-    pub fn table_data(&self, table_name: &str) -> Option<Arc<TableData>> {
+    fn table_data(&self, table_name: &str) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
         let t = self.tables.read();
         t.get(table_name).cloned()
     }
@@ -498,7 +526,7 @@ impl NamespaceData {
         sequencer_id: SequencerId,
         table_name: &str,
         catalog: &dyn Catalog,
-    ) -> Result<Arc<TableData>> {
+    ) -> Result<Arc<tokio::sync::RwLock<TableData>>> {
         let mut repos = catalog.repositories().await;
         let info = repos
             .tables()
@@ -509,53 +537,56 @@ impl NamespaceData {
 
         let mut t = self.tables.write();
         let data = Arc::clone(t.entry(table_name.to_string()).or_insert_with(|| {
-            Arc::new(TableData::new(
+            Arc::new(tokio::sync::RwLock::new(TableData::new(
                 info.table_id,
                 info.parquet_max_sequence_number,
                 info.tombstone_max_sequence_number,
-            ))
+            )))
         }));
 
         Ok(data)
     }
 
     /// Walks down the table and partition and clears the persisting batch. If there is no
-    /// data buffered in the partition, it is removed. If there are no other partitions in
-    /// the table, it is removed.
-    fn mark_persisted_and_remove_if_empty(&self, table_name: &str, partition_key: &str) {
-        let mut tables = self.tables.write();
-        let table = tables.get(table_name).cloned();
-
-        if let Some(t) = table {
-            let mut partitions = t.partition_data.write();
-            let partition = partitions.get(partition_key).cloned();
+    /// data buffered in the partition, it is removed. The sequence number is the max_sequence_number
+    /// for the persisted parquet file, which should be kept in the table data buffer.
+    async fn mark_persisted_and_remove_if_empty(
+        &self,
+        table_name: &str,
+        partition_key: &str,
+        sequence_number: SequenceNumber,
+    ) {
+        if let Some(t) = self.table_data(table_name) {
+            let mut t = t.write().await;
+            let partition = t.partition_data.get_mut(partition_key);
 
             if let Some(p) = partition {
-                let mut data = p.inner.write();
-                data.persisting = None;
+                p.data.persisting = None;
                 // clear the deletes kept for this persisting batch
-                data.deletes_during_persisting.clear();
-                if data.is_empty() {
-                    partitions.remove(partition_key);
+                p.data.deletes_during_persisting.clear();
+                if p.data.is_empty() {
+                    t.partition_data.remove(partition_key);
                 }
             }
 
-            if partitions.is_empty() {
-                tables.remove(table_name);
-            }
+            let max_sequence_number = t
+                .parquet_max_sequence_number
+                .unwrap_or(sequence_number)
+                .max(sequence_number);
+            t.parquet_max_sequence_number = Some(max_sequence_number);
         }
     }
 }
 
 /// Data of a Table in a given Namesapce that belongs to a given Shard
-pub struct TableData {
+pub(crate) struct TableData {
     table_id: TableId,
     // the max sequence number persisted for this table
     parquet_max_sequence_number: Option<SequenceNumber>,
     // the max sequence number for a tombstone associated with this table
     tombstone_max_sequence_number: Option<SequenceNumber>,
     // Map pf partition key to its data
-    partition_data: RwLock<BTreeMap<String, Arc<PartitionData>>>,
+    partition_data: BTreeMap<String, PartitionData>,
 }
 
 impl TableData {
@@ -579,13 +610,13 @@ impl TableData {
         table_id: TableId,
         parquet_max_sequence_number: Option<SequenceNumber>,
         tombstone_max_sequence_number: Option<SequenceNumber>,
-        partitions: BTreeMap<String, Arc<PartitionData>>,
+        partitions: BTreeMap<String, PartitionData>,
     ) -> Self {
         Self {
             table_id,
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
-            partition_data: RwLock::new(partitions),
+            partition_data: partitions,
         }
     }
 
@@ -602,7 +633,7 @@ impl TableData {
     // buffers the table write and returns true if the lifecycle manager indicates that
     // ingest should be paused.
     async fn buffer_table_write(
-        &self,
+        &mut self,
         sequence_number: SequenceNumber,
         batch: MutableBatch,
         sequencer_id: SequencerId,
@@ -630,11 +661,12 @@ impl TableData {
                 .format_with_items(StrftimeItems::new("%Y-%m-%d"))
         );
 
-        let partition_data = match self.partition_data(&partition_key) {
+        let partition_data = match self.partition_data.get_mut(&partition_key) {
             Some(p) => p,
             None => {
                 self.insert_partition(&partition_key, sequencer_id, catalog)
-                    .await?
+                    .await?;
+                self.partition_data.get_mut(&partition_key).unwrap()
             }
         };
 
@@ -650,7 +682,7 @@ impl TableData {
     }
 
     async fn buffer_delete(
-        &self,
+        &mut self,
         table_name: &str,
         predicate: &DeletePredicate,
         sequencer_id: SequencerId,
@@ -675,10 +707,8 @@ impl TableData {
             .await
             .context(CatalogSnafu)?;
 
-        // take and release lock immediately to only get pointers to all partittions
-        let partitions: Vec<_> = self.partition_data.read().values().cloned().collect();
         // modify one partition at a time
-        for data in partitions {
+        for data in self.partition_data.values_mut() {
             data.buffer_tombstone(executor, table_name, tombstone.clone())
                 .await;
         }
@@ -686,41 +716,50 @@ impl TableData {
         Ok(())
     }
 
-    /// Gets the buffered partition data
-    pub fn partition_data(&self, partition_key: &str) -> Option<Arc<PartitionData>> {
-        let p = self.partition_data.read();
-        p.get(partition_key).cloned()
-    }
+    pub fn non_persisted_and_persisting_batches(
+        &self,
+    ) -> (Vec<Arc<SnapshotBatch>>, Vec<QueryableBatch>) {
+        let mut snapshots = vec![];
+        let mut queryable_batches = vec![];
 
-    /// Returns all partition keys
-    pub fn partition_keys(&self) -> Vec<String> {
-        self.partition_data.read().keys().cloned().collect()
+        for p in self.partition_data.values() {
+            snapshots.append(
+                &mut p
+                    .get_non_persisting_data()
+                    .expect("get_non_persisting should always work"),
+            );
+
+            if let Some(q) = p.get_persisting_data() {
+                queryable_batches.push(q);
+            }
+        }
+
+        (snapshots, queryable_batches)
     }
 
     async fn insert_partition(
-        &self,
+        &mut self,
         partition_key: &str,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
-    ) -> Result<Arc<PartitionData>> {
+    ) -> Result<()> {
         let mut repos = catalog.repositories().await;
         let partition = repos
             .partitions()
             .create_or_get(partition_key, sequencer_id, self.table_id)
             .await
             .context(CatalogSnafu)?;
-        let mut p = self.partition_data.write();
-        let data = Arc::new(PartitionData::new(partition.id));
-        p.insert(partition.partition_key, Arc::clone(&data));
+        let data = PartitionData::new(partition.id);
+        self.partition_data.insert(partition.partition_key, data);
 
-        Ok(data)
+        Ok(())
     }
 }
 
 /// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
-pub struct PartitionData {
+pub(crate) struct PartitionData {
     id: PartitionId,
-    inner: RwLock<DataBuffer>,
+    data: DataBuffer,
 }
 
 impl PartitionData {
@@ -728,54 +767,49 @@ impl PartitionData {
     pub fn new(id: PartitionId) -> Self {
         Self {
             id,
-            inner: Default::default(),
+            data: Default::default(),
         }
     }
 
     /// Snapshot anything in the buffer and move all snapshot data into a persisting batch
     pub fn snapshot_to_persisting_batch(
-        &self,
+        &mut self,
         sequencer_id: SequencerId,
         table_id: TableId,
         partition_id: PartitionId,
         table_name: &str,
     ) -> Arc<PersistingBatch> {
-        let mut data = self.inner.write();
-        data.snapshot_to_persisting(sequencer_id, table_id, partition_id, table_name)
+        self.data
+            .snapshot_to_persisting(sequencer_id, table_id, partition_id, table_name)
     }
 
     /// Clears the persisting batch and returns true if there is no other data in the partition.
-    fn clear_persisting(&self) -> bool {
-        let mut d = self.inner.write();
-        d.persisting = None;
+    fn clear_persisting(&mut self) -> bool {
+        self.data.persisting = None;
 
-        d.snapshots.is_empty() && d.buffer.is_empty()
+        self.data.snapshots.is_empty() && self.data.buffer.is_empty()
     }
 
     /// Snapshot whatever is in the buffer and return a new vec of the
     /// arc cloned snapshots
-    pub fn snapshot(&self) -> Result<Vec<Arc<SnapshotBatch>>> {
-        let mut data = self.inner.write();
-        data.snapshot().context(SnapshotSnafu)?;
-        Ok(data.snapshots.to_vec())
+    pub fn snapshot(&mut self) -> Result<Vec<Arc<SnapshotBatch>>> {
+        self.data.snapshot().context(SnapshotSnafu)?;
+        Ok(self.data.snapshots.to_vec())
     }
 
     /// Return non persisting data
     pub fn get_non_persisting_data(&self) -> Result<Vec<Arc<SnapshotBatch>>> {
-        let data = self.inner.read();
-        data.buffer_and_snapshots()
+        self.data.buffer_and_snapshots()
     }
 
     /// Return persisting data
     pub fn get_persisting_data(&self) -> Option<QueryableBatch> {
-        let data = self.inner.read();
-        data.get_persisting_data()
+        self.data.get_persisting_data()
     }
 
     /// Write the given mb in the bufer
-    pub fn buffer_write(&self, sequencer_number: SequenceNumber, mb: MutableBatch) {
-        let mut data = self.inner.write();
-        data.buffer.push(BufferBatch {
+    pub(crate) fn buffer_write(&mut self, sequencer_number: SequenceNumber, mb: MutableBatch) {
+        self.data.buffer.push(BufferBatch {
             sequencer_number,
             data: mb,
         })
@@ -784,32 +818,21 @@ impl PartitionData {
     /// Buffers a new tombstone:
     ///   . All the data in the `buffer` and `snapshots` will be replaced with one tombstone-applied snapshot
     ///   . The tombstone is only added in the `deletes_during_persisting` if the `persisting` exists
-    pub async fn buffer_tombstone(
-        &self,
+    pub(crate) async fn buffer_tombstone(
+        &mut self,
         executor: &Executor,
         table_name: &str,
         tombstone: Tombstone,
     ) {
-        // ----------------------------------------------------------
-        // keep the tombstone if needed
-        // acquire and release lock
-        {
-            let mut data = self.inner.write();
-            data.add_tombstone(tombstone.clone());
-        }
+        self.data.add_tombstone(tombstone.clone());
 
         // ----------------------------------------------------------
         // First apply the tombstone on all in-memeory & non-persisting data
         // Make a QueryableBatch for all buffer + snapshots + the given tombstone
         let max_sequencer_number = tombstone.sequence_number;
-        let query_batch = {
-            // take lock, do write and then release
-            let mut data = self.inner.write();
-            // After this function, the `buffer` and `snapshots` will be empty
-            // Hence the rest of this function should not error, otherwise
-            // we will lose data
-            data.snapshot_to_queryable_batch(table_name, Some(tombstone.clone()))
-        };
+        let query_batch = self
+            .data
+            .snapshot_to_queryable_batch(table_name, Some(tombstone.clone()));
         if query_batch.is_empty() {
             //No need to procedd further
             return;
@@ -864,8 +887,7 @@ impl PartitionData {
         // ----------------------------------------------------------
         // Add the tombstone-applied data back in as one snapshot
         if let Some(snapshot) = snapshot {
-            let mut data = self.inner.write();
-            data.snapshots.push(snapshot);
+            self.data.snapshots.push(snapshot);
         }
     }
 }
@@ -893,7 +915,7 @@ impl PartitionData {
 /// │                        │        │ └───────────────────┘  │      │  └───────────────────┘  │
 /// └────────────────────────┘        └────────────────────────┘      └─────────────────────────┘
 #[derive(Default)]
-pub struct DataBuffer {
+struct DataBuffer {
     /// Buffer of incoming writes
     pub(crate) buffer: Vec<BufferBatch>,
 
@@ -1187,8 +1209,11 @@ pub struct IngesterQueryResponse {
     /// The schema of the record batches
     pub schema: Schema,
 
-    /// Max persisted sequence number of the table
-    pub max_sequencer_number: Option<SequenceNumber>,
+    /// Max sequence number persisted for this table
+    pub parquet_max_sequence_number: Option<SequenceNumber>,
+
+    /// Max sequence number for a tombstone associated with this table
+    pub tombstone_max_sequence_number: Option<SequenceNumber>,
 }
 
 impl IngesterQueryResponse {
@@ -1196,12 +1221,14 @@ impl IngesterQueryResponse {
     pub fn new(
         data: SendableRecordBatchStream,
         schema: Schema,
-        max_sequencer_number: Option<SequenceNumber>,
+        parquet_max_sequence_number: Option<SequenceNumber>,
+        tombstone_max_sequence_number: Option<SequenceNumber>,
     ) -> Self {
         Self {
             data,
             schema,
-            max_sequencer_number,
+            parquet_max_sequence_number,
+            tombstone_max_sequence_number,
         }
     }
 }
@@ -1515,11 +1542,18 @@ mod tests {
 
         let sd = data.sequencers.get(&sequencer1.id).unwrap();
         let n = sd.namespace("foo").unwrap();
-        let mem_table = n.table_data("mem").unwrap();
-        assert!(n.table_data("cpu").is_some());
+        let partition_id;
+        let table_id;
+        {
+            let mem_table = n.table_data("mem").unwrap();
+            assert!(n.table_data("cpu").is_some());
+            let mem_table = mem_table.write().await;
+            let p = mem_table.partition_data.get("1970-01-01").unwrap();
 
-        let p = mem_table.partition_data("1970-01-01").unwrap();
-        data.persist(p.id).await;
+            table_id = mem_table.table_id;
+            partition_id = p.id;
+        }
+        data.persist(partition_id).await;
 
         // verify that a file got put into object store
         let file_paths: Vec<_> = object_store
@@ -1540,8 +1574,8 @@ mod tests {
             .unwrap();
         assert_eq!(parquet_files.len(), 1);
         let pf = parquet_files.first().unwrap();
-        assert_eq!(pf.partition_id, p.id);
-        assert_eq!(pf.table_id, mem_table.table_id);
+        assert_eq!(pf.partition_id, partition_id);
+        assert_eq!(pf.table_id, table_id);
         assert_eq!(pf.min_time, Timestamp::new(10));
         assert_eq!(pf.max_time, Timestamp::new(30));
         assert_eq!(pf.min_sequence_number, SequenceNumber::new(1));
@@ -1549,8 +1583,17 @@ mod tests {
         assert_eq!(pf.sequencer_id, sequencer1.id);
         assert!(!pf.to_delete);
 
+        let mem_table = n.table_data("mem").unwrap();
+        let mem_table = mem_table.read().await;
+
         // verify that the partition got removed from the table because it is now empty
-        assert!(mem_table.partition_data("1970-01-01").is_none());
+        assert!(mem_table.partition_data.get("1970-01-01").is_none());
+
+        // verify that the parquet_max_sequence_number got updated
+        assert_eq!(
+            mem_table.parquet_max_sequence_number,
+            Some(SequenceNumber::new(2))
+        );
     }
 
     // Test deletes mixed with writes on a single parittion
@@ -1561,7 +1604,7 @@ mod tests {
         let t_id = 1;
         let p_id = 1;
         let table_name = "restaurant";
-        let p = PartitionData::new(PartitionId::new(p_id));
+        let mut p = PartitionData::new(PartitionId::new(p_id));
         let exec = Executor::new(1);
 
         // ------------------------------------------
@@ -1576,10 +1619,10 @@ mod tests {
         p.buffer_write(SequenceNumber::new(2), mb);
 
         // verify data
-        assert_eq!(p.inner.read().buffer.len(), 2);
-        assert_eq!(p.inner.read().snapshots.len(), 0);
-        assert_eq!(p.inner.read().deletes_during_persisting.len(), 0);
-        assert_eq!(p.inner.read().persisting, None);
+        assert_eq!(p.data.buffer.len(), 2);
+        assert_eq!(p.data.snapshots.len(), 0);
+        assert_eq!(p.data.deletes_during_persisting.len(), 0);
+        assert_eq!(p.data.persisting, None);
 
         // ------------------------------------------
         // Delete
@@ -1597,12 +1640,12 @@ mod tests {
         p.buffer_tombstone(&exec, "restaurant", ts).await;
 
         // verify data
-        assert_eq!(p.inner.read().buffer.len(), 0); // always empty after delete
-        assert_eq!(p.inner.read().snapshots.len(), 1); // one snpashot if there is data
-        assert_eq!(p.inner.read().deletes_during_persisting.len(), 0);
-        assert_eq!(p.inner.read().persisting, None);
+        assert_eq!(p.data.buffer.len(), 0); // always empty after delete
+        assert_eq!(p.data.snapshots.len(), 1); // one snpashot if there is data
+        assert_eq!(p.data.deletes_during_persisting.len(), 0);
+        assert_eq!(p.data.persisting, None);
         // snapshot only has one row since the other one got deleted
-        let data = (*p.inner.read().snapshots[0].data).clone();
+        let data = (*p.data.snapshots[0].data).clone();
         let expected = vec![
             "+--------+-----+------+--------------------------------+",
             "| city   | day | temp | time                           |",
@@ -1611,8 +1654,8 @@ mod tests {
             "+--------+-----+------+--------------------------------+",
         ];
         assert_batches_sorted_eq!(&expected, &[data]);
-        assert_eq!(p.inner.read().snapshots[0].min_sequencer_number.get(), 1);
-        assert_eq!(p.inner.read().snapshots[0].max_sequencer_number.get(), 3);
+        assert_eq!(p.data.snapshots[0].min_sequencer_number.get(), 1);
+        assert_eq!(p.data.snapshots[0].max_sequencer_number.get(), 3);
 
         // ------------------------------------------
         // Fill `buffer`
@@ -1631,10 +1674,10 @@ mod tests {
         p.buffer_write(SequenceNumber::new(5), mb);
 
         // verify data
-        assert_eq!(p.inner.read().buffer.len(), 2); // 2 newlly added mutable batches of 3 rows of data
-        assert_eq!(p.inner.read().snapshots.len(), 1); // existing sanpshot
-        assert_eq!(p.inner.read().deletes_during_persisting.len(), 0);
-        assert_eq!(p.inner.read().persisting, None);
+        assert_eq!(p.data.buffer.len(), 2); // 2 newlly added mutable batches of 3 rows of data
+        assert_eq!(p.data.snapshots.len(), 1); // existing sanpshot
+        assert_eq!(p.data.deletes_during_persisting.len(), 0);
+        assert_eq!(p.data.persisting, None);
 
         // ------------------------------------------
         // Delete
@@ -1652,12 +1695,12 @@ mod tests {
         p.buffer_tombstone(&exec, "restaurant", ts).await;
 
         // verify data
-        assert_eq!(p.inner.read().buffer.len(), 0); // always empty after delete
-        assert_eq!(p.inner.read().snapshots.len(), 1); // one snpashot
-        assert_eq!(p.inner.read().deletes_during_persisting.len(), 0);
-        assert_eq!(p.inner.read().persisting, None);
+        assert_eq!(p.data.buffer.len(), 0); // always empty after delete
+        assert_eq!(p.data.snapshots.len(), 1); // one snpashot
+        assert_eq!(p.data.deletes_during_persisting.len(), 0);
+        assert_eq!(p.data.persisting, None);
         // snapshot only has two rows since the other 2 rows with city=Boston have got deleted
-        let data = (*p.inner.read().snapshots[0].data).clone();
+        let data = (*p.data.snapshots[0].data).clone();
         let expected = vec![
             "+---------+-----+------+--------------------------------+",
             "| city    | day | temp | time                           |",
@@ -1667,8 +1710,8 @@ mod tests {
             "+---------+-----+------+--------------------------------+",
         ];
         assert_batches_sorted_eq!(&expected, &[data]);
-        assert_eq!(p.inner.read().snapshots[0].min_sequencer_number.get(), 1);
-        assert_eq!(p.inner.read().snapshots[0].max_sequencer_number.get(), 6);
+        assert_eq!(p.data.snapshots[0].min_sequencer_number.get(), 1);
+        assert_eq!(p.data.snapshots[0].max_sequencer_number.get(), 6);
 
         // ------------------------------------------
         // Persisting
@@ -1680,10 +1723,10 @@ mod tests {
         );
 
         // verify data
-        assert_eq!(p.inner.read().buffer.len(), 0); // always empty after issuing persit
-        assert_eq!(p.inner.read().snapshots.len(), 0); // always empty after issuing persit
-        assert_eq!(p.inner.read().deletes_during_persisting.len(), 0); // deletes not happen yet
-        assert_eq!(p.inner.read().persisting, Some(Arc::clone(&p_batch)));
+        assert_eq!(p.data.buffer.len(), 0); // always empty after issuing persit
+        assert_eq!(p.data.snapshots.len(), 0); // always empty after issuing persit
+        assert_eq!(p.data.deletes_during_persisting.len(), 0); // deletes not happen yet
+        assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
 
         // ------------------------------------------
         // Delete
@@ -1702,11 +1745,11 @@ mod tests {
         p.buffer_tombstone(&exec, "restaurant", ts).await;
 
         // verify data
-        assert_eq!(p.inner.read().buffer.len(), 0); // always empty after delete
-                                                    // no snpashots becasue buffer has not data yet and the sanpshot was empty too
-        assert_eq!(p.inner.read().snapshots.len(), 0);
-        assert_eq!(p.inner.read().deletes_during_persisting.len(), 1); // tombstone added since data is persisting
-        assert_eq!(p.inner.read().persisting, Some(Arc::clone(&p_batch)));
+        assert_eq!(p.data.buffer.len(), 0); // always empty after delete
+                                            // no snpashots becasue buffer has not data yet and the sanpshot was empty too
+        assert_eq!(p.data.snapshots.len(), 0);
+        assert_eq!(p.data.deletes_during_persisting.len(), 1); // tombstone added since data is persisting
+        assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
 
         // ------------------------------------------
         // Fill `buffer`
@@ -1721,21 +1764,21 @@ mod tests {
         p.buffer_write(SequenceNumber::new(8), mb);
 
         // verify data
-        assert_eq!(p.inner.read().buffer.len(), 1); // 1 newlly added mutable batch of 3 rows of data
-        assert_eq!(p.inner.read().snapshots.len(), 0); // still empty
-        assert_eq!(p.inner.read().deletes_during_persisting.len(), 1);
-        assert_eq!(p.inner.read().persisting, Some(Arc::clone(&p_batch)));
+        assert_eq!(p.data.buffer.len(), 1); // 1 newlly added mutable batch of 3 rows of data
+        assert_eq!(p.data.snapshots.len(), 0); // still empty
+        assert_eq!(p.data.deletes_during_persisting.len(), 1);
+        assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
 
         // ------------------------------------------
         // Take snaphot of the `buffer`
         p.snapshot().unwrap();
         // verify data
-        assert_eq!(p.inner.read().buffer.len(), 0); // empty after snaphot
-        assert_eq!(p.inner.read().snapshots.len(), 1); // data moved from buffer
-        assert_eq!(p.inner.read().deletes_during_persisting.len(), 1);
-        assert_eq!(p.inner.read().persisting, Some(Arc::clone(&p_batch)));
+        assert_eq!(p.data.buffer.len(), 0); // empty after snaphot
+        assert_eq!(p.data.snapshots.len(), 1); // data moved from buffer
+        assert_eq!(p.data.deletes_during_persisting.len(), 1);
+        assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
         // snapshot has three rows moved from buffer
-        let data = (*p.inner.read().snapshots[0].data).clone();
+        let data = (*p.data.snapshots[0].data).clone();
         let expected = vec![
             "+------------+-----+------+--------------------------------+",
             "| city       | day | temp | time                           |",
@@ -1746,8 +1789,8 @@ mod tests {
             "+------------+-----+------+--------------------------------+",
         ];
         assert_batches_sorted_eq!(&expected, &[data]);
-        assert_eq!(p.inner.read().snapshots[0].min_sequencer_number.get(), 8);
-        assert_eq!(p.inner.read().snapshots[0].max_sequencer_number.get(), 8);
+        assert_eq!(p.data.snapshots[0].min_sequencer_number.get(), 8);
+        assert_eq!(p.data.snapshots[0].max_sequencer_number.get(), 8);
 
         // ------------------------------------------
         // Delete
@@ -1765,12 +1808,12 @@ mod tests {
         p.buffer_tombstone(&exec, "restaurant", ts).await;
 
         // verify data
-        assert_eq!(p.inner.read().buffer.len(), 0); // always empty after delete
-        assert_eq!(p.inner.read().snapshots.len(), 1); // new snapshot of the existing with delete applied
-        assert_eq!(p.inner.read().deletes_during_persisting.len(), 2); // one more tombstone added make it 2
-        assert_eq!(p.inner.read().persisting, Some(Arc::clone(&p_batch)));
+        assert_eq!(p.data.buffer.len(), 0); // always empty after delete
+        assert_eq!(p.data.snapshots.len(), 1); // new snapshot of the existing with delete applied
+        assert_eq!(p.data.deletes_during_persisting.len(), 2); // one more tombstone added make it 2
+        assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
         // snapshot has only 2 rows becasue the row with tem=60 was removed
-        let data = (*p.inner.read().snapshots[0].data).clone();
+        let data = (*p.data.snapshots[0].data).clone();
         let expected = vec![
             "+------------+-----+------+--------------------------------+",
             "| city       | day | temp | time                           |",
@@ -1780,8 +1823,8 @@ mod tests {
             "+------------+-----+------+--------------------------------+",
         ];
         assert_batches_sorted_eq!(&expected, &[data]);
-        assert_eq!(p.inner.read().snapshots[0].min_sequencer_number.get(), 8);
-        assert_eq!(p.inner.read().snapshots[0].max_sequencer_number.get(), 9);
+        assert_eq!(p.data.snapshots[0].min_sequencer_number.get(), 8);
+        assert_eq!(p.data.snapshots[0].max_sequencer_number.get(), 9);
 
         exec.join().await;
     }
@@ -1877,13 +1920,12 @@ mod tests {
             .unwrap();
         {
             let tables = data.tables.read();
-            let table = tables.get("mem").unwrap();
+            let table = tables.get("mem").unwrap().read().await;
             assert_eq!(
                 table.parquet_max_sequence_number,
                 Some(SequenceNumber::new(1))
             );
-            let partitions = table.partition_data.read();
-            assert!(partitions.is_empty());
+            assert!(table.partition_data.is_empty());
         }
         assert!(!should_pause);
 
@@ -1899,10 +1941,8 @@ mod tests {
         .unwrap();
 
         let tables = data.tables.read();
-        let table = tables.get("mem").unwrap();
-        let partitions = table.partition_data.read();
-        let partition = partitions.get("1970-01-01").unwrap();
-        let d = partition.inner.read();
-        assert_eq!(d.buffer.len(), 1);
+        let table = tables.get("mem").unwrap().read().await;
+        let partition = table.partition_data.get("1970-01-01").unwrap();
+        assert_eq!(partition.data.buffer.len(), 1);
     }
 }
