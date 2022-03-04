@@ -11,7 +11,7 @@ pub fn rand_name() -> String {
         .collect()
 }
 
-// Helper macro to skip tests if TEST_INTEGRATION and DATABASE_URL environment variables are
+// Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment variables are
 // not set.
 #[macro_export]
 macro_rules! maybe_skip_integration {
@@ -19,7 +19,7 @@ macro_rules! maybe_skip_integration {
         use std::env;
         dotenv::dotenv().ok();
 
-        let required_vars = ["DATABASE_URL"];
+        let required_vars = ["TEST_INFLUXDB_IOX_CATALOG_DSN"];
         let unset_vars: Vec<_> = required_vars
             .iter()
             .filter_map(|&name| match env::var(name) {
@@ -49,7 +49,7 @@ macro_rules! maybe_skip_integration {
 
             return;
         } else {
-            env::var("DATABASE_URL").expect("already checked DATABASE_URL")
+            env::var("TEST_INFLUXDB_IOX_CATALOG_DSN").expect("already checked TEST_INFLUXDB_IOX_CATALOG_DSN")
         }
     }};
 }
