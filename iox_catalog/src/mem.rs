@@ -4,17 +4,18 @@
 use crate::{
     interface::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
-        KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionInfo, PartitionRepo,
-        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, SequencerRepo,
-        TablePersistInfo, TableRepo, TombstoneRepo, Transaction,
+        KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
+        QueryPoolRepo, RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo,
+        TombstoneRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnId, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, Partition, PartitionId, ProcessedTombstone, QueryPool, QueryPoolId,
-    SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, Partition, PartitionId, PartitionInfo, ProcessedTombstone,
+    QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp,
+    Tombstone, TombstoneId,
 };
 use observability_deps::tracing::warn;
 use std::fmt::Formatter;
@@ -800,6 +801,26 @@ impl ParquetFileRepo for MemTxn {
             .cloned()
             .collect();
         Ok(files)
+    }
+
+    async fn list_by_namespace_not_to_delete(
+        &mut self,
+        namespace_id: NamespaceId,
+    ) -> Result<Vec<ParquetFile>> {
+        let stage = self.stage();
+
+        let table_ids: HashSet<_> = stage
+            .tables
+            .iter()
+            .filter_map(|table| (table.namespace_id == namespace_id).then(|| table.id))
+            .collect();
+        let parquet_files: Vec<_> = stage
+            .parquet_files
+            .iter()
+            .filter(|f| table_ids.contains(&f.table_id) && !f.to_delete)
+            .cloned()
+            .collect();
+        Ok(parquet_files)
     }
 
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {

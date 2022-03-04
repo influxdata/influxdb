@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use data_types2::{
     Column, ColumnSchema, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
     NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, Partition, PartitionId,
-    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
-    TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
+    PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
+    SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
 };
 use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, convert::TryFrom, fmt::Debug, sync::Arc};
@@ -379,15 +379,6 @@ pub trait PartitionRepo: Send + Sync {
     ) -> Result<Option<PartitionInfo>>;
 }
 
-/// Information for a partition from the catalog.
-#[derive(Debug)]
-#[allow(missing_docs)]
-pub struct PartitionInfo {
-    pub partition: Partition,
-    pub namespace_name: String,
-    pub table_name: String,
-}
-
 /// Functions for working with tombstones in the catalog
 #[async_trait]
 pub trait TombstoneRepo: Send + Sync {
@@ -443,6 +434,12 @@ pub trait ParquetFileRepo: Send + Sync {
         &mut self,
         sequencer_id: SequencerId,
         sequence_number: SequenceNumber,
+    ) -> Result<Vec<ParquetFile>>;
+
+    /// List all parquet files within a given namespace that are NOT marked as [`to_delete`](ParquetFile::to_delete).
+    async fn list_by_namespace_not_to_delete(
+        &mut self,
+        namespace_id: NamespaceId,
     ) -> Result<Vec<ParquetFile>>;
 
     /// Verify if the parquet file exists by selecting its id
@@ -1306,7 +1303,7 @@ pub(crate) mod test_helpers {
             .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(150))
             .await
             .unwrap();
-        assert_eq!(vec![other_file], files);
+        assert_eq!(vec![other_file.clone()], files);
 
         // verify that to_delete is initially set to false and that it can be updated to true
         assert!(!parquet_file.to_delete);
@@ -1321,6 +1318,82 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(files.first().unwrap().to_delete);
+
+        // test list_by_namespace_not_to_delete
+        let namespace2 = repos
+            .namespaces()
+            .create("namespace_parquet_file_test1", "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        let table2 = repos
+            .tables()
+            .create_or_get("test_table2", namespace2.id)
+            .await
+            .unwrap();
+        let partition2 = repos
+            .partitions()
+            .create_or_get("foo", sequencer.id, table2.id)
+            .await
+            .unwrap();
+        let files = repos
+            .parquet_files()
+            .list_by_namespace_not_to_delete(namespace2.id)
+            .await
+            .unwrap();
+        assert_eq!(Vec::<ParquetFile>::new(), files);
+        let f1 = repos
+            .parquet_files()
+            .create(
+                sequencer.id,
+                partition2.table_id,
+                partition2.id,
+                Uuid::new_v4(),
+                SequenceNumber::new(10),
+                SequenceNumber::new(140),
+                min_time,
+                max_time,
+                1337,
+                b"md4".to_vec(),
+                0,
+            )
+            .await
+            .unwrap();
+        let f2 = repos
+            .parquet_files()
+            .create(
+                sequencer.id,
+                partition2.table_id,
+                partition2.id,
+                Uuid::new_v4(),
+                SequenceNumber::new(10),
+                SequenceNumber::new(140),
+                min_time,
+                max_time,
+                1337,
+                b"md4".to_vec(),
+                0,
+            )
+            .await
+            .unwrap();
+        let files = repos
+            .parquet_files()
+            .list_by_namespace_not_to_delete(namespace2.id)
+            .await
+            .unwrap();
+        assert_eq!(vec![f1.clone(), f2.clone()], files);
+        repos.parquet_files().flag_for_delete(f2.id).await.unwrap();
+        let files = repos
+            .parquet_files()
+            .list_by_namespace_not_to_delete(namespace2.id)
+            .await
+            .unwrap();
+        assert_eq!(vec![f1], files);
+        let files = repos
+            .parquet_files()
+            .list_by_namespace_not_to_delete(NamespaceId::new(i32::MAX))
+            .await
+            .unwrap();
+        assert_eq!(Vec::<ParquetFile>::new(), files);
     }
 
     async fn test_add_parquet_file_with_tombstones(catalog: Arc<dyn Catalog>) {

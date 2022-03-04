@@ -108,17 +108,18 @@ impl ParquetChunkAdapter {
         .expect("cannot create chunk")
     }
 
-    /// Create a catalog chunk.
-    pub async fn new_catalog_chunk(&self, parquet_file: ParquetFile) -> CatalogChunk {
+    /// Create all components to create a catalog chunk using
+    /// [`Partition::insert_object_store_only_chunk`](db::catalog::partition::Partition::insert_object_store_only_chunk).
+    pub async fn new_catalog_chunk_parts(
+        &self,
+        parquet_file: ParquetFile,
+    ) -> (ChunkAddr, ChunkOrder, ChunkMetadata, Arc<ParquetChunk>) {
         let decoded_parquet_file = DecodedParquetFile::new(parquet_file);
         let chunk = Arc::new(self.new_parquet_chunk(&decoded_parquet_file).await);
 
         let addr = self
             .old_gen_chunk_addr(&decoded_parquet_file.parquet_file)
             .await;
-
-        // TODO: register metrics w/ catalog registry
-        let metrics = CatalogChunkMetrics::new_unregistered();
 
         let iox_metadata = &decoded_parquet_file.iox_metadata;
 
@@ -138,6 +139,16 @@ impl ParquetChunkAdapter {
             sort_key: None,
         };
 
+        (addr, order, metadata, chunk)
+    }
+
+    /// Create a catalog chunk.
+    pub async fn new_catalog_chunk(&self, parquet_file: ParquetFile) -> CatalogChunk {
+        let (addr, order, metadata, chunk) = self.new_catalog_chunk_parts(parquet_file).await;
+
+        // TODO: register metrics w/ catalog registry
+        let metrics = CatalogChunkMetrics::new_unregistered();
+
         CatalogChunk::new_object_store_only(
             addr,
             order,
@@ -155,7 +166,7 @@ impl ParquetChunkAdapter {
     /// - `table.name -> table_name`
     /// - `sequencer.id X partition.name -> partition_key`
     /// - `parquet_file.id -> chunk_id`
-    async fn old_gen_chunk_addr(&self, parquet_file: &ParquetFile) -> ChunkAddr {
+    pub async fn old_gen_chunk_addr(&self, parquet_file: &ParquetFile) -> ChunkAddr {
         ChunkAddr {
             db_name: self
                 .catalog_cache
@@ -197,6 +208,12 @@ mod tests {
             catalog.time_provider(),
         );
 
+        let lp = vec![
+            "table,tag1=WA field_int=1000 8000",
+            "table,tag1=VT field_int=10 10000",
+            "table,tag1=UT field_int=70 20000",
+        ]
+        .join("\n");
         let parquet_file = catalog
             .create_namespace("ns")
             .await
@@ -204,7 +221,7 @@ mod tests {
             .await
             .create_partition("part", 1)
             .await
-            .create_parquet_file()
+            .create_parquet_file(&lp)
             .await
             .parquet_file
             .clone();

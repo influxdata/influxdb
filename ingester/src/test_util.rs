@@ -620,13 +620,17 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
 
     // Two tables: one empty and one with data of one or two partitions
     let mut tables = BTreeMap::new();
-    let empty_tbl = Arc::new(TableData::new(empty_table_id, None, None));
-    let data_tbl = Arc::new(TableData::new_for_test(
+    let empty_tbl = Arc::new(tokio::sync::RwLock::new(TableData::new(
+        empty_table_id,
+        None,
+        None,
+    )));
+    let data_tbl = Arc::new(tokio::sync::RwLock::new(TableData::new_for_test(
         data_table_id,
         None,
         None,
         partitions,
-    ));
+    )));
     tables.insert(TEST_TABLE_EMPTY.to_string(), empty_tbl);
     tables.insert(TEST_TABLE.to_string(), data_tbl);
 
@@ -669,13 +673,11 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
 
     // Two tables: one empty and one with data of one or two partitions
     let mut tables = BTreeMap::new();
-    let data_tbl = Arc::new(TableData::new_for_test(
-        data_table_id,
-        None,
-        None,
-        partitions,
-    ));
-    tables.insert(TEST_TABLE.to_string(), data_tbl);
+    let data_tbl = TableData::new_for_test(data_table_id, None, None, partitions);
+    tables.insert(
+        TEST_TABLE.to_string(),
+        Arc::new(tokio::sync::RwLock::new(data_tbl)),
+    );
 
     // Two namespaces: one empty and one with data of 2 tables
     let mut namespaces = BTreeMap::new();
@@ -698,13 +700,13 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
 }
 
 /// Make data for one or two partitions per requested
-pub fn make_partitions(
+pub(crate) fn make_partitions(
     two_partitions: bool,
     loc: DataLocation,
     sequencer_id: SequencerId,
     table_id: TableId,
     table_name: &str,
-) -> BTreeMap<String, Arc<PartitionData>> {
+) -> BTreeMap<String, PartitionData> {
     // In-memory data includes these rows but split between 4 groups go into
     // different batches of parittion 1 or partittion 2  as requeted
     // let expected = vec![
@@ -727,7 +729,7 @@ pub fn make_partitions(
     // ------------------------------------------
     // Build the first partition
     let partition_id = PartitionId::new(1);
-    let (p1, seq_num) =
+    let (mut p1, seq_num) =
         make_first_partition_data(partition_id, loc, sequencer_id, table_id, table_name);
 
     // ------------------------------------------
@@ -736,7 +738,7 @@ pub fn make_partitions(
     let mut seq_num = seq_num.get();
     if two_partitions {
         let partition_id = PartitionId::new(2);
-        let p2 = PartitionData::new(partition_id);
+        let mut p2 = PartitionData::new(partition_id);
         // Group 4: in buffer of p2
         // Fill `buffer`
         seq_num += 1;
@@ -750,7 +752,7 @@ pub fn make_partitions(
         );
         p2.buffer_write(SequenceNumber::new(seq_num), mb);
 
-        partitions.insert(TEST_PARTITION_2.to_string(), Arc::new(p2));
+        partitions.insert(TEST_PARTITION_2.to_string(), p2);
     } else {
         // Group 4: in buffer of p1
         // Fill `buffer`
@@ -766,18 +768,18 @@ pub fn make_partitions(
         p1.buffer_write(SequenceNumber::new(seq_num), mb);
     }
 
-    partitions.insert(TEST_PARTITION_1.to_string(), Arc::new(p1));
+    partitions.insert(TEST_PARTITION_1.to_string(), p1);
     partitions
 }
 
 /// Make data for one partition with tombstones
-pub async fn make_one_partition_with_tombstones(
+pub(crate) async fn make_one_partition_with_tombstones(
     exec: &query::exec::Executor,
     loc: DataLocation,
     sequencer_id: SequencerId,
     table_id: TableId,
     table_name: &str,
-) -> BTreeMap<String, Arc<PartitionData>> {
+) -> BTreeMap<String, PartitionData> {
     // In-memory data includes these rows but split between 4 groups go into
     // different batches of parittion 1 or partittion 2  as requeted
     // let expected = vec![
@@ -796,7 +798,7 @@ pub async fn make_one_partition_with_tombstones(
     //     ];
 
     let partition_id = PartitionId::new(1);
-    let (p1, seq_num) =
+    let (mut p1, seq_num) =
         make_first_partition_data(partition_id, loc, sequencer_id, table_id, table_name);
 
     // Add tombtones
@@ -831,7 +833,7 @@ pub async fn make_one_partition_with_tombstones(
     p1.buffer_write(SequenceNumber::new(seq_num), mb);
 
     let mut partitions = BTreeMap::new();
-    partitions.insert(TEST_PARTITION_1.to_string(), Arc::new(p1));
+    partitions.insert(TEST_PARTITION_1.to_string(), p1);
 
     partitions
 }
@@ -860,7 +862,7 @@ fn make_first_partition_data(
 
     // ------------------------------------------
     // Build the first partition
-    let p1 = PartitionData::new(partition_id);
+    let mut p1 = PartitionData::new(partition_id);
     let mut seq_num = 0;
 
     // --------------------
