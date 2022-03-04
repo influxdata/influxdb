@@ -227,7 +227,7 @@ jobs:
       AZURE_USE_EMULATOR: "1"
       INFLUXDB_IOX_BUCKET: iox-test
       POSTGRES_USER: postgres
-      DATABASE_URL: "postgres://postgres@localhost/iox_shared"
+      TEST_INFLUXDB_IOX_CATALOG_DSN: "postgres://postgres@localhost/iox_shared"
     steps:
       - run:
           name: Setup localstack (AWS emulation)
@@ -247,8 +247,8 @@ jobs:
       - rust_components
       - cache_restore
       - run: cargo install sqlx-cli
-      - run: sqlx database create
-      - run: INFLUXDB_IOX_CATALOG_DSN=${DATABASE_URL} cargo run -- catalog setup
+      - run: DATABASE_URL=${TEST_INFLUXDB_IOX_CATALOG_DSN} sqlx database create
+      - run: INFLUXDB_IOX_CATALOG_DSN=${TEST_INFLUXDB_IOX_CATALOG_DSN} cargo run -- catalog setup
       - run:
           name: Cargo test
           command: cargo test --workspace --features=aws,azure,azure_test
