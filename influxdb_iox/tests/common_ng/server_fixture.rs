@@ -20,8 +20,6 @@ use tokio::sync::Mutex;
 // running locally.
 static NEXT_PORT: AtomicU16 = AtomicU16::new(8090);
 
-pub const DEFAULT_SERVER_ID: u32 = 32;
-
 /// This structure contains all the addresses a test server should use
 pub struct BindAddresses {
     http_bind_addr: String,
