@@ -803,6 +803,26 @@ impl ParquetFileRepo for MemTxn {
         Ok(files)
     }
 
+    async fn list_by_namespace_not_to_delete(
+        &mut self,
+        namespace_id: NamespaceId,
+    ) -> Result<Vec<ParquetFile>> {
+        let stage = self.stage();
+
+        let table_ids: HashSet<_> = stage
+            .tables
+            .iter()
+            .filter_map(|table| (table.namespace_id == namespace_id).then(|| table.id))
+            .collect();
+        let parquet_files: Vec<_> = stage
+            .parquet_files
+            .iter()
+            .filter(|f| table_ids.contains(&f.table_id) && !f.to_delete)
+            .cloned()
+            .collect();
+        Ok(parquet_files)
+    }
+
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {
         let stage = self.stage();
 

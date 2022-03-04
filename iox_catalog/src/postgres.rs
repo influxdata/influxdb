@@ -1209,6 +1209,37 @@ RETURNING *
             .map_err(|e| Error::SqlxError { source: e })
     }
 
+    async fn list_by_namespace_not_to_delete(
+        &mut self,
+        namespace_id: NamespaceId,
+    ) -> Result<Vec<ParquetFile>> {
+        sqlx::query_as::<_, ParquetFile>(
+            r#"
+SELECT
+    parquet_file.id as id,
+    parquet_file.sequencer_id as sequencer_id,
+    parquet_file.table_id as table_id,
+    parquet_file.partition_id as partition_id,
+    parquet_file.object_store_id as object_store_id,
+    parquet_file.min_sequence_number as min_sequence_number,
+    parquet_file.max_sequence_number as max_sequence_number,
+    parquet_file.min_time as min_time,
+    parquet_file.max_time as max_time,
+    parquet_file.to_delete as to_delete,
+    parquet_file.file_size_bytes as file_size_bytes,
+    parquet_file.parquet_metadata as parquet_metadata,
+    parquet_file.row_count as row_count
+FROM parquet_file
+INNER JOIN table_name on table_name.id = parquet_file.table_id
+WHERE table_name.namespace_id = $1 AND parquet_file.to_delete = false;
+             "#,
+        )
+        .bind(&namespace_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {
         let read_result = sqlx::query_as::<_, Count>(
             r#"SELECT count(*) as count FROM parquet_file WHERE id = $1;"#,
