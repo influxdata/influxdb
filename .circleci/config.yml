@@ -194,6 +194,8 @@ jobs:
             if [[ $(git status --porcelain) ]] ; then
               git commit -am "chore: Run cargo hakari tasks"
               git push origin "$CIRCLE_BRANCH"
+              echo "Cargo hakari changes need to be committed before merging this branch."
+              exit 1
             else
               echo "No changes to commit"
             fi
