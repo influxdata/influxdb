@@ -193,7 +193,7 @@ impl Storage {
     /// made simpler by using a plain `Iter` rather than a `Stream`.
     async fn record_batches_to_parquet_bytes(
         &self,
-        mut stream: impl Stream<Item = ArrowResult<RecordBatch>> + Send + Sync + Unpin,
+        mut stream: impl Stream<Item = ArrowResult<RecordBatch>> + Send + Unpin,
         schema: SchemaRef,
         metadata_bytes: &[u8],
     ) -> Result<Vec<u8>> {

@@ -74,6 +74,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "159bb86af3a200e19a068f4224eae4c8bb2d0fa054c7e5d1cacd5cef95e684cd"
 
 [[package]]
+name = "arrayref"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4c527152e37cf757a3f78aae5a06fbeefdb07ccc535c980a3208ee3060dd544"
+
+[[package]]
 name = "arrayvec"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -81,6 +87,12 @@ checksum = "cd9fd44efafa8690358b7408d253adf110036b88f55672a933f01d616ad9b1b9"
 dependencies = [
  "nodrop",
 ]
+
+[[package]]
+name = "arrayvec"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
 name = "arrow"
@@ -380,6 +392,29 @@ name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
+
+[[package]]
+name = "blake2"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9cf849ee05b2ee5fba5e36f97ff8ec2533916700fc0758d40d92136a42f3388"
+dependencies = [
+ "digest 0.10.3",
+]
+
+[[package]]
+name = "blake3"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a08e53fc5a564bb15bfe6fae56bd71522205f1f91893f9c0116edad6496c183f"
+dependencies = [
+ "arrayref",
+ "arrayvec 0.7.2",
+ "cc",
+ "cfg-if",
+ "constant_time_eq",
+ "digest 0.10.3",
+]
 
 [[package]]
 name = "block-buffer"
@@ -721,6 +756,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "constant_time_eq"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
+
+[[package]]
 name = "core-foundation"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1040,7 +1081,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=81e76edc330067332ac9a3972525ecbe92953267#81e76edc330067332ac9a3972525ecbe92953267"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3261e2bcdfa13e460d7a11a64dd72f272c7d872b#3261e2bcdfa13e460d7a11a64dd72f272c7d872b"
 dependencies = [
  "ahash",
  "arrow",
@@ -1048,6 +1089,7 @@ dependencies = [
  "chrono",
  "datafusion-common",
  "datafusion-expr",
+ "datafusion-physical-expr",
  "futures",
  "hashbrown 0.12.0",
  "lazy_static",
@@ -1069,7 +1111,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=81e76edc330067332ac9a3972525ecbe92953267#81e76edc330067332ac9a3972525ecbe92953267"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3261e2bcdfa13e460d7a11a64dd72f272c7d872b#3261e2bcdfa13e460d7a11a64dd72f272c7d872b"
 dependencies = [
  "arrow",
  "ordered-float 2.10.0",
@@ -1080,12 +1122,35 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=81e76edc330067332ac9a3972525ecbe92953267#81e76edc330067332ac9a3972525ecbe92953267"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3261e2bcdfa13e460d7a11a64dd72f272c7d872b#3261e2bcdfa13e460d7a11a64dd72f272c7d872b"
 dependencies = [
  "ahash",
  "arrow",
  "datafusion-common",
  "sqlparser",
+]
+
+[[package]]
+name = "datafusion-physical-expr"
+version = "7.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3261e2bcdfa13e460d7a11a64dd72f272c7d872b#3261e2bcdfa13e460d7a11a64dd72f272c7d872b"
+dependencies = [
+ "ahash",
+ "arrow",
+ "blake2",
+ "blake3",
+ "chrono",
+ "datafusion-common",
+ "datafusion-expr",
+ "hashbrown 0.12.0",
+ "lazy_static",
+ "md-5 0.10.1",
+ "ordered-float 2.10.0",
+ "paste",
+ "rand",
+ "regex",
+ "sha2 0.10.2",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -2910,6 +2975,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "md-5"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "658646b21e0b72f7866c7038ab086d3d5e1cd6271f060fd37defb241949d0582"
+dependencies = [
+ "digest 0.10.3",
+]
+
+[[package]]
 name = "md5"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3246,7 +3320,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bafe4179722c2894288ee77a9f044f02811c86af699344c498b0840c698a2465"
 dependencies = [
- "arrayvec",
+ "arrayvec 0.4.12",
  "itoa 0.4.8",
 ]
 
@@ -4570,7 +4644,7 @@ dependencies = [
  "http",
  "hyper",
  "log",
- "md-5",
+ "md-5 0.9.1",
  "percent-encoding",
  "pin-project-lite",
  "rusoto_credential",
@@ -5236,7 +5310,7 @@ dependencies = [
  "itoa 1.0.1",
  "libc",
  "log",
- "md-5",
+ "md-5 0.9.1",
  "memchr",
  "once_cell",
  "paste",
@@ -6450,6 +6524,7 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "futures-util",
+ "generic-array 0.14.5",
  "getrandom",
  "hashbrown 0.11.2",
  "hashbrown 0.12.0",

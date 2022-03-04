@@ -76,6 +76,7 @@ fn is_comparison(op: Operator) -> bool {
     // added to the enum we will have to update this `match`
     match op {
         Operator::BitwiseAnd => false,
+        Operator::BitwiseOr => false,
         Operator::Eq => true,
         Operator::NotEq => true,
         Operator::Lt => true,

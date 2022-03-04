@@ -20,7 +20,7 @@ use arrow::{array::ArrayRef, datatypes::DataType};
 use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
     physical_plan::{
-        functions::{ReturnTypeFunction, Signature, Volatility},
+        functions::{Signature, Volatility},
         udaf::AggregateUDF,
         Accumulator,
     },
@@ -194,6 +194,8 @@ impl SelectorOutput {
         }
     }
 }
+
+type ReturnTypeFunction = Arc<dyn Fn(&[DataType]) -> DataFusionResult<Arc<DataType>> + Send + Sync>;
 
 /// Factory function for creating the UDA function for DataFusion
 fn make_uda<SELECTOR>(name: &'static str, output: SelectorOutput) -> AggregateUDF
