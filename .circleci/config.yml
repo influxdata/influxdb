@@ -166,23 +166,34 @@ jobs:
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "77:99:88:4a:ac:1f:55:9e:39:c7:1f:e4:7f:1e:60:4b"
       - checkout
       - rust_components
       - cache_restore
       - run:
-          name: Check that the workspace hack crate contains all features in use
+          name: Configure git
           command: |
-            cargo hakari generate --diff || {
-              echo "If this fails, fix it by running \`cargo hakari generate\` locally and committing the changes"
-              exit 1
-            }
+            git config user.email "circleci@influxdata.com"
+            git config user.name "CircleCI[bot]"
       - run:
-          name: Check that all crates in the workspace depend on the workspace hack crate
+          name: Commit any changes from cargo hakari
           command: |
-            cargo hakari manage-deps --dry-run || {
-              echo "If this fails, fix it by running \`cargo hakari manage-deps\` locally and committing the changes"
+            cargo hakari generate
+            cargo hakari manage-deps -y
+            if [[ $(git status --porcelain) ]] ; then
+              if [[ $(git rev-list --count --author=CircleCI origin/main..) -ne 0 ]]; then
+                echo "There's already a cargo hakari commit on this branch, but there are cargo hakari changes... something is wrong."
+              else
+                git commit -am "chore: Run cargo hakari tasks"
+                git push origin "$CIRCLE_BRANCH"
+                echo "Cargo hakari changes need to be committed before merging this branch."
+              fi
               exit 1
-            }
+            else
+              echo "No changes to commit"
+            fi
 
   test:
     # setup multiple docker images (see https://circleci.com/docs/2.0/configuration-reference/#docker)
@@ -473,19 +484,19 @@ jobs:
           command: |
             COMMIT_SHA="$(git rev-parse --short HEAD)"
             BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
-            
+
             docker pull quay.io/influxdb/iox:"$COMMIT_SHA"
             docker pull quay.io/influxdb/iox_data_generator:"$COMMIT_SHA"
             docker pull quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA"
-            
+
             docker tag quay.io/influxdb/iox:"$COMMIT_SHA" quay.io/influxdb/iox:"$BRANCH"
             docker tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" quay.io/influxdb/iox_data_generator:"$BRANCH"
             docker tag quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA" quay.io/influxdb/iox_gitops_adapter:"$BRANCH"
-            
+
             docker push quay.io/influxdb/iox:"$BRANCH"
             docker push quay.io/influxdb/iox_data_generator:"$BRANCH"
             docker push quay.io/influxdb/iox_gitops_adapter:"$BRANCH"
-            
+
             echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
       - run:
           name: Deploy tags
