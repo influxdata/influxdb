@@ -35,7 +35,7 @@ fn init_write_buffer(n_sequencers: u32) -> ShardedWriteBuffer<JumpHash<Arc<Seque
     ShardedWriteBuffer::new(
         shards
             .into_iter()
-            .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer)))
+            .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer), &Default::default()))
             .map(Arc::new)
             .collect::<JumpHash<_>>(),
     )
