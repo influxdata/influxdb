@@ -2,16 +2,14 @@ use assert_cmd::prelude::*;
 use futures::prelude::*;
 use http::{header::HeaderName, HeaderValue};
 use influxdb_iox_client::connection::Connection;
-use once_cell::sync::OnceCell;
 use std::{
-    collections::HashMap,
     net::SocketAddrV4,
     path::Path,
     process::{Child, Command},
     str,
     sync::{
         atomic::{AtomicU16, Ordering},
-        Arc, Weak,
+        Arc,
     },
     time::Duration,
 };
@@ -82,45 +80,6 @@ pub struct ServerFixture {
 }
 
 impl ServerFixture {
-    /// Create a new server fixture and wait for it to be ready. This
-    /// is called "create" rather than new because it is async and
-    /// waits. The shared router is configured with a server id and
-    /// can be used immediately
-    ///
-    /// This is currently implemented as a singleton so all tests *must*
-    /// use a new router and not interfere with the existing routers.
-    pub async fn create_shared(server_type: ServerType) -> Self {
-        // Try and reuse the same shared server, if there is already
-        // one present
-        static SHARED_SERVERS: OnceCell<parking_lot::Mutex<HashMap<ServerType, Weak<TestServer>>>> =
-            OnceCell::new();
-        let shared_servers = SHARED_SERVERS.get_or_init(|| parking_lot::Mutex::new(HashMap::new()));
-
-        let mut shared_servers = shared_servers.lock();
-
-        // is a shared server already present?
-        let server = match shared_servers.get(&server_type).and_then(|x| x.upgrade()) {
-            Some(server) => server,
-            None => {
-                // if not, create one
-                let test_config = TestConfig::new(server_type);
-                let server = TestServer::new(test_config);
-                let server = Arc::new(server);
-
-                // ensure the server is ready
-                server.wait_until_ready().await;
-                // save a reference for other threads that may want to
-                // use this server, but don't prevent it from being
-                // destroyed when going out of scope
-                shared_servers.insert(server_type, Arc::downgrade(&server));
-                server
-            }
-        };
-        std::mem::drop(shared_servers);
-
-        Self::create_common(server).await
-    }
-
     /// Create a new server fixture and wait for it to be ready. This
     /// is called "create" rather than new because it is async and
     /// waits. The server is not shared with any other tests.
