@@ -156,16 +156,22 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> PackedStringArray<K> {
 }
 
 impl PackedStringArray<i32> {
-    /// Convert to an arrow representation
-    pub fn to_arrow(&self) -> StringArray {
+    /// Convert to an arrow with an optional null bitmask
+    pub fn to_arrow(&self, nulls: Option<Buffer>) -> StringArray {
         let len = self.offsets.len() - 1;
         let offsets = Buffer::from_slice_ref(&self.offsets);
         let values = Buffer::from(self.storage.as_bytes());
 
-        let data = ArrayDataBuilder::new(arrow::datatypes::DataType::Utf8)
+        let mut array_builder = ArrayDataBuilder::new(arrow::datatypes::DataType::Utf8)
             .len(len)
             .add_buffer(offsets)
-            .add_buffer(values)
+            .add_buffer(values);
+
+        if let Some(nulls) = nulls {
+            array_builder = array_builder.null_bit_buffer(nulls);
+        }
+
+        let data = array_builder
             .build()
             // TODO consider skipping the validation checks by using
             // `new_unchecked`
