@@ -4,7 +4,7 @@ use data_types::sequence::Sequence;
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use hashbrown::{hash_map::Entry, HashMap};
 use mutable_batch::MutableBatch;
-use observability_deps::tracing::{error, info, warn};
+use observability_deps::tracing::{debug, error, warn};
 use rskafka::{
     client::producer::aggregator::{self, Aggregator, StatusDeaggregator, TryPush},
     record::Record,
@@ -402,7 +402,7 @@ impl Aggregator for DmlAggregator {
             "missing records following flush"
         );
 
-        info!(
+        debug!(
             db_name = %self.database_name,
             sequencer_id = self.sequencer_id,
             records = state.tag_to_record.len(),
@@ -514,7 +514,6 @@ impl StatusDeaggregator for Deaggregator {
                 "tag {} out of range (database_name: {}, tag_to_record: {:?}, offsets: {:?})",
                 tag.0, self.database_name, self.tag_to_record, input
             );
-            // TODO: Temporary non-fatal assertion to reduce log spam (#3805)
             return Err("internal aggregator error: invalid tag".into());
         }
 
