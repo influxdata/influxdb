@@ -1,1 +1,1 @@
-pub(crate) mod flight;
+pub(crate) mod query;
