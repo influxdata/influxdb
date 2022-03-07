@@ -338,6 +338,26 @@ impl TestServer {
             Postgres::create_database(dsn).await.unwrap();
         }
 
+        // Set up the catalog
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("catalog")
+            .arg("setup")
+            .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
+            .ok()
+            .unwrap();
+
+        // Create the shared Kafka topic in the catalog
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("catalog")
+            .arg("topic")
+            .arg("update")
+            .arg("iox-shared")
+            .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
+            .ok()
+            .unwrap();
+
         // This will inherit environment from the test runner
         // in particular `LOG_FILTER`
         let child = Command::cargo_bin("influxdb_iox")

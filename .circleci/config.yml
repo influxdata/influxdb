@@ -240,7 +240,6 @@ jobs:
       - checkout
       - rust_components
       - cache_restore
-      - run: INFLUXDB_IOX_CATALOG_DSN=${TEST_INFLUXDB_IOX_CATALOG_DSN} cargo run -- catalog setup
       - run:
           name: Cargo test
           command: cargo test --workspace --features=aws,azure,azure_test
