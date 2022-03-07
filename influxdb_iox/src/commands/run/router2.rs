@@ -21,7 +21,7 @@ use router2::{
     },
     namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
-    server::{http::HttpDelegate, RouterServer},
+    server::{grpc::GrpcDelegate, http::HttpDelegate, RouterServer},
     sharder::JumpHash,
 };
 use thiserror::Error;
@@ -198,17 +198,16 @@ pub async fn command(config: Config) -> Result<()> {
     let handler_stack =
         InstrumentationDecorator::new("request", Arc::clone(&metrics), handler_stack);
 
+    // Initialise the API delegates, sharing the handler stack between them.
+    let handler_stack = Arc::new(handler_stack);
     let http = HttpDelegate::new(
         config.run_config.max_http_request_size,
-        handler_stack,
+        Arc::clone(&handler_stack),
         &metrics,
     );
-    let router_server = RouterServer::new(
-        http,
-        Default::default(),
-        metrics,
-        common_state.trace_collector(),
-    );
+    let grpc = GrpcDelegate::new(handler_stack, Arc::clone(&metrics));
+
+    let router_server = RouterServer::new(http, grpc, metrics, common_state.trace_collector());
     let server_type = Arc::new(RouterServerType::new(router_server, &common_state));
 
     info!("starting router2");

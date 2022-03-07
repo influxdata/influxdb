@@ -1,8 +1,10 @@
+use std::{collections::VecDeque, fmt::Debug};
+
 use super::{DmlError, DmlHandler};
+
 use async_trait::async_trait;
 use data_types2::{DatabaseName, DeletePredicate};
 use parking_lot::Mutex;
-use std::{collections::VecDeque, fmt::Debug, sync::Arc};
 use trace::ctx::SpanContext;
 
 /// A captured call to a [`MockDmlHandler`], generic over `W`, the captured
@@ -84,7 +86,7 @@ macro_rules! record_and_return {
 }
 
 #[async_trait]
-impl<W> DmlHandler for Arc<MockDmlHandler<W>>
+impl<W> DmlHandler for MockDmlHandler<W>
 where
     W: Debug + Send + Sync,
 {
