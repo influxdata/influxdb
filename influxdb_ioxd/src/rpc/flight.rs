@@ -29,6 +29,8 @@ use query::exec::{ExecutionContextProvider, IOxExecutionContext};
 
 use crate::planner::Planner;
 
+use super::common::QueryDatabaseProvider;
+
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -120,12 +122,6 @@ struct ReadInfo {
     sql_query: String,
 }
 
-pub trait QueryDatabaseProvider: std::fmt::Debug + Send + Sync + 'static {
-    type Db: ExecutionContextProvider + QueryDatabase;
-
-    fn db(&self, db_name: &DatabaseName<'_>) -> std::result::Result<Arc<Self::Db>, tonic::Status>;
-}
-
 /// Concrete implementation of the gRPC Arrow Flight Service API
 #[derive(Debug)]
 struct FlightService<S>
@@ -178,7 +174,10 @@ where
         let database =
             DatabaseName::new(&read_info.database_name).context(InvalidDatabaseNameSnafu)?;
 
-        let db = self.server.db(&database)?;
+        let db = self
+            .server
+            .db(&database)
+            .ok_or_else(|| tonic::Status::not_found(format!("Unknown namespace: {database}")))?;
 
         let ctx = db.new_query_context(span_ctx);
         let query_completed_token =

@@ -9,7 +9,9 @@ use trace_http::ctx::TraceHeaderParser;
 use crate::server_type::{RpcError, ServerType};
 use serving_readiness::ServingReadiness;
 
+pub(crate) mod common;
 pub(crate) mod flight;
+pub(crate) mod storage;
 pub(crate) mod testing;
 
 /// Returns the name of the gRPC service S.

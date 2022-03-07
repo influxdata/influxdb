@@ -8,10 +8,9 @@ use crate::{
 mod delete;
 mod deployment;
 mod error;
-mod flight;
 mod management;
 mod operations;
-mod storage;
+mod query;
 mod write_pb;
 
 pub async fn server_grpc(
@@ -22,11 +21,11 @@ pub async fn server_grpc(
 
     add_gated_service!(
         builder,
-        storage::make_server(Arc::clone(&server_type.server),)
+        query::make_storage_server(Arc::clone(&server_type.server),)
     );
     add_gated_service!(
         builder,
-        flight::make_server(Arc::clone(&server_type.server))
+        query::make_flight_server(Arc::clone(&server_type.server))
     );
     add_gated_service!(
         builder,

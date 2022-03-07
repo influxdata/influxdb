@@ -68,7 +68,6 @@
     clippy::future_not_send
 )]
 
-use async_trait::async_trait;
 use data_types::{
     chunk_metadata::ChunkId,
     error::ErrorLogger,
@@ -208,24 +207,6 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/// Storage for `Databases` which can be retrieved by name
-#[async_trait]
-pub trait DatabaseStore: std::fmt::Debug + Send + Sync {
-    /// The type of database that is stored by this DatabaseStore
-    type Database: query::QueryDatabase + query::exec::ExecutionContextProvider;
-
-    /// The type of error this DataBase store generates
-    type Error: std::error::Error + Send + Sync + 'static;
-
-    /// Retrieve the database specified by `name` returning None if no
-    /// such database exists
-    fn db(&self, name: &str) -> Option<Arc<Self::Database>>;
-
-    /// Retrieve the database specified by `name`, creating it if it
-    /// doesn't exist.
-    async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error>;
-}
 
 /// Configuration options for `Server`
 #[derive(Debug, Default)]
@@ -1034,37 +1015,6 @@ async fn maybe_initialize_server(shared: &ServerShared) {
 
     *shared.state.write().unfreeze(handle) = next_state;
     shared.state_notify.notify_waiters();
-}
-
-/// TODO: Revisit this trait's API
-#[async_trait]
-impl DatabaseStore for Server {
-    type Database = Db;
-    type Error = Error;
-
-    fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
-        DatabaseName::new(name)
-            .ok()
-            .and_then(|name| self.db(&name).ok())
-    }
-
-    // TODO: refactor usages of this to use the Server rather than this trait and to
-    //       explicitly create a database.
-    async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
-        let db_name = DatabaseName::new(name.to_string()).context(InvalidDatabaseNameSnafu)?;
-
-        let db = match self.db(&db_name) {
-            Ok(db) => db,
-            Err(Error::DatabaseNotFound { .. }) => {
-                self.create_database(ProvidedDatabaseRules::new_empty(db_name.clone()))
-                    .await?;
-                self.db(&db_name).expect("db not inserted")
-            }
-            Err(e) => return Err(e),
-        };
-
-        Ok(db)
-    }
 }
 
 #[cfg(test)]
