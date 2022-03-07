@@ -24,7 +24,7 @@ mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_buffer = { path = "../mutable_buffer" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
-once_cell = { version = "1.4.0", features = ["parking_lot"] }
+once_cell = { version = "1.10.0", features = ["parking_lot"] }
 parking_lot = "0.12"
 parquet_catalog = { path = "../parquet_catalog" }
 parquet_file = { path = "../parquet_file" }

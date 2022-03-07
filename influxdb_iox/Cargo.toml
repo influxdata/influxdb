@@ -77,7 +77,7 @@ itertools = "0.10.1"
 libc = { version = "0.2" }
 log = "0.4"
 num_cpus = "1.13.0"
-once_cell = { version = "1.4.0", features = ["parking_lot"] }
+once_cell = { version = "1.10.0", features = ["parking_lot"] }
 parking_lot = "0.12"
 parquet = "9.1"
 pin-project = "1.0"

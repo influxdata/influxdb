@@ -12,7 +12,7 @@ async-trait = "0.1"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 db = { path = "../db" }
-once_cell = { version = "1.4.0", features = ["parking_lot"] }
+once_cell = { version = "1.10.0", features = ["parking_lot"] }
 predicate = { path = "../predicate" }
 query = { path = "../query" }
 workspace-hack = { path = "../workspace-hack"}
