@@ -15,7 +15,7 @@ datafusion = { path = "../datafusion" }
 db = { path = "../db" }
 dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
-influxdb_ioxd = { path = "../influxdb_ioxd" }
+influxdb_ioxd = { path = "../influxdb_ioxd", default-features = false }
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
@@ -133,7 +133,7 @@ aws = ["object_store/aws"] # Optional AWS / S3 object store support
 # runtime overhead on all allocations (calls to malloc).
 # Cargo cannot currently implement mutually exclusive features so let's force every build
 # to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
-jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
+jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl", "influxdb_ioxd/jemalloc_replacing_malloc"]
 
 # Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
 # linting

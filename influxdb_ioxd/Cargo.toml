@@ -84,7 +84,7 @@ serde_json = "1.0.79"
 serde_urlencoded = "0.7.0"
 snafu = "0.7"
 thiserror = "1.0.30"
-tikv-jemalloc-ctl = { version = "0.4.0" }
+tikv-jemalloc-ctl = { version = "0.4.0", optional = true }
 tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.0" }
@@ -126,7 +126,7 @@ aws = ["object_store/aws"] # Optional AWS / S3 object store support
 # runtime overhead on all allocations (calls to malloc).
 # Cargo cannot currently implement mutually exclusive features so let's force every build
 # to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
-jemalloc_replacing_malloc = ["tikv-jemalloc-sys"]
+jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
 
 # Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
 # linting
