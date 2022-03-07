@@ -26,7 +26,7 @@ async fn router2_through_ingester() {
     // Set up router2 ====================================
 
     let test_config = TestConfig::new(ServerType::Router2)
-        .with_env("INFLUXDB_IOX_CATALOG_DSN", &database_url)
+        .with_postgres_catalog(&database_url)
         .with_env("INFLUXDB_IOX_WRITE_BUFFER_TYPE", "file")
         .with_env(
             "INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS",
@@ -58,7 +58,7 @@ async fn router2_through_ingester() {
     // Set up ingester ===================================
 
     let test_config = TestConfig::new(ServerType::Ingester)
-        .with_env("INFLUXDB_IOX_CATALOG_DSN", &database_url)
+        .with_postgres_catalog(&database_url)
         .with_env("INFLUXDB_IOX_WRITE_BUFFER_TYPE", "file")
         .with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "20")
         .with_env("INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES", "10")

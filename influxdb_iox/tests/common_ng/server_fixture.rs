@@ -198,6 +198,9 @@ pub struct TestConfig {
 
     /// Server type
     server_type: ServerType,
+
+    /// Catalog DSN value
+    dsn: Option<String>,
 }
 
 impl TestConfig {
@@ -206,6 +209,7 @@ impl TestConfig {
             env: vec![],
             client_headers: vec![],
             server_type,
+            dsn: None,
         }
     }
 
@@ -213,6 +217,20 @@ impl TestConfig {
     pub fn with_server_type(mut self, server_type: ServerType) -> Self {
         self.server_type = server_type;
         self
+    }
+
+    /// Set Postgres catalog DSN URL
+    pub fn with_postgres_catalog(mut self, dsn: &str) -> Self {
+        self.dsn = Some(dsn.into());
+        self
+    }
+
+    // Get the catalog DSN URL and panic if it's not set
+    fn dsn(&self) -> &str {
+        self
+            .dsn
+            .as_ref()
+            .expect("Test Config must have a catalog configured")
     }
 
     // add a name=value environment variable when starting the server
@@ -246,6 +264,7 @@ impl TestServer {
         let server_process = Mutex::new(Self::create_server_process(
             &addrs,
             &dir,
+            test_config.dsn(),
             &test_config.env,
             test_config.server_type,
         ));
@@ -267,6 +286,7 @@ impl TestServer {
         *server_process = Self::create_server_process(
             &self.addrs,
             &self.dir,
+            self.test_config.dsn(),
             &self.test_config.env,
             self.test_config.server_type,
         );
@@ -276,6 +296,7 @@ impl TestServer {
     fn create_server_process(
         addrs: &BindAddresses,
         dir: &TempDir,
+        dsn: &str,
         env: &[(String, String)],
         server_type: ServerType,
     ) -> Process {
@@ -314,6 +335,7 @@ impl TestServer {
             .arg("run")
             .arg(type_name)
             .env("LOG_FILTER", log_filter)
+            .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
             .env("INFLUXDB_IOX_OBJECT_STORE", "file")
             .env("INFLUXDB_IOX_DB_DIR", dir.path())
             .env("INFLUXDB_IOX_BIND_ADDR", addrs.http_bind_addr())
