@@ -1,6 +1,4 @@
 /// Boolean flag that works with environment variables.
-///
-/// Workaround for <https://github.com/TeXitoi/structopt/issues/428>
 #[derive(Debug, Clone, Copy)]
 pub enum BooleanFlag {
     True,

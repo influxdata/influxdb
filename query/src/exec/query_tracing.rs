@@ -5,6 +5,7 @@ use std::{fmt, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 use chrono::{DateTime, Utc};
+use data_types::boolean_flag::BooleanFlag;
 use datafusion::physical_plan::{
     metrics::{MetricValue, MetricsSet},
     DisplayFormatType, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
@@ -13,6 +14,26 @@ use futures::StreamExt;
 use hashbrown::HashMap;
 use observability_deps::tracing::debug;
 use trace::span::{Span, SpanRecorder};
+
+const PER_PARTITION_TRACING_ENABLE_ENV: &str = "INFLUXDB_IOX_PER_PARTITION_TRACING";
+fn per_partition_tracing() -> bool {
+    use std::sync::atomic::{AtomicU8, Ordering};
+    static TRACING_ENABLED: AtomicU8 = AtomicU8::new(u8::MAX);
+
+    match TRACING_ENABLED.load(Ordering::Relaxed) {
+        u8::MAX => {
+            let val = std::env::var(PER_PARTITION_TRACING_ENABLE_ENV)
+                .ok()
+                .and_then(|x| x.parse::<BooleanFlag>().ok())
+                .map(Into::into)
+                .unwrap_or(false);
+
+            TRACING_ENABLED.store(val as u8, Ordering::Relaxed);
+            val
+        }
+        x => x != 0,
+    }
+}
 
 /// Stream wrapper that records DataFusion `MetricSets` into IOx
 /// [`Span`]s when it is dropped.
@@ -59,7 +80,13 @@ impl Drop for TracedStream {
     fn drop(&mut self) {
         if let Some(span) = self.span_recorder.span() {
             let default_end_time = Utc::now();
-            send_metrics_to_tracing(default_end_time, span, self.physical_plan.as_ref());
+            let per_partition_tracing = per_partition_tracing();
+            send_metrics_to_tracing(
+                default_end_time,
+                span,
+                self.physical_plan.as_ref(),
+                per_partition_tracing,
+            );
         }
     }
 }
@@ -87,6 +114,7 @@ fn send_metrics_to_tracing(
     default_end_time: DateTime<Utc>,
     parent_span: &Span,
     physical_plan: &dyn ExecutionPlan,
+    per_partition_tracing: bool,
 ) {
     // Something like this when one_line is contributed back upstream
     //let plan_name = physical_plan.displayable().one_line().to_string();
@@ -137,17 +165,21 @@ fn send_metrics_to_tracing(
                 // Update the aggregate totals in the operator span
                 operator_metrics.aggregate_child(&partition_metrics);
 
-                // Generate a span for the partition or skip if these metrics
-                // only correspond to the operator and not a specific partition
-                if let Some(partition) = partition {
-                    let mut partition_span =
-                        operator_span.child(format!("{} ({})", operator_name, partition));
+                // Generate a span for the partition if
+                // - these metrics correspond to a partition
+                // - per partition tracing is enabled
+                if per_partition_tracing {
+                    if let Some(partition) = partition {
+                        let mut partition_span =
+                            operator_span.child(format!("{} ({})", operator_name, partition));
 
-                    partition_span.start = Some(partition_start_time);
-                    partition_span.end = Some(partition_end_time);
+                        partition_span.start = Some(partition_start_time);
+                        partition_span.end = Some(partition_end_time);
 
-                    partition_metrics.add_to_span(&mut partition_span);
-                    partition_span.export();
+                        partition_metrics.add_to_span(&mut partition_span);
+
+                        partition_span.export();
+                    }
                 }
             }
         }
@@ -168,7 +200,12 @@ fn send_metrics_to_tracing(
 
     // recurse
     for child in physical_plan.children() {
-        send_metrics_to_tracing(operator_end_time, &operator_span, child.as_ref());
+        send_metrics_to_tracing(
+            operator_end_time,
+            &operator_span,
+            child.as_ref(),
+            per_partition_tracing,
+        );
     }
 
     operator_metrics.add_to_span(&mut operator_span);
@@ -299,7 +336,7 @@ mod tests {
         let exec = TestExec::new(name, Default::default());
 
         let traces = TraceBuilder::new();
-        send_metrics_to_tracing(Utc::now(), &traces.make_span(), &exec);
+        send_metrics_to_tracing(Utc::now(), &traces.make_span(), &exec, true);
 
         let spans = traces.spans();
         assert_eq!(spans.len(), 1);
@@ -349,7 +386,7 @@ mod tests {
         exec.new_child("child5: bongo", many_partition);
 
         let traces = TraceBuilder::new();
-        send_metrics_to_tracing(ts5, &traces.make_span(), &exec);
+        send_metrics_to_tracing(ts5, &traces.make_span(), &exec, true);
 
         let spans = traces.spans();
         let spans: BTreeMap<_, _> = spans.iter().map(|s| (s.name.as_ref(), s)).collect();
@@ -419,7 +456,7 @@ mod tests {
         exec.metrics = None;
 
         let traces = TraceBuilder::new();
-        send_metrics_to_tracing(Utc::now(), &traces.make_span(), &exec);
+        send_metrics_to_tracing(Utc::now(), &traces.make_span(), &exec, true);
 
         let spans = traces.spans();
         assert_eq!(spans.len(), 1);
@@ -443,7 +480,7 @@ mod tests {
         add_elapsed_compute(exec.metrics_mut(), 2000, 2);
 
         let traces = TraceBuilder::new();
-        send_metrics_to_tracing(Utc::now(), &traces.make_span(), &exec);
+        send_metrics_to_tracing(Utc::now(), &traces.make_span(), &exec, true);
 
         // aggregated metrics should be reported
         let spans = traces.spans();

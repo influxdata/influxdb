@@ -85,6 +85,14 @@ For example, a command such as this should do the trick:
 TRACES_EXPORTER=jaeger TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost TRACES_EXPORTER_JAEGER_AGENT_PORT=6831 cargo run -- run -v --server-id=42
 ```
 
+Additional trace granularity, in particular traces with spans for each DataFusion partition, can be enabled with
+
+```
+INFLUXDB_IOX_PER_PARTITION_TRACING=1
+```
+
+_Some tracing setups may struggle with the size of the generated traces with this setting enabled_
+
 ### Step 3: Send a request with trace context
 
 For IOx to emit traces, the request must have a span context set. You can use the `--header` flag on the IOx CLI to do
