@@ -46,7 +46,7 @@ rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-automata = { version = "0.1", features = ["regex-syntax", "std"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
-reqwest = { version = "0.11", features = ["__rustls", "__tls", "default-tls", "hyper-rustls", "hyper-tls", "json", "native-tls-crate", "rustls", "rustls-pemfile", "rustls-tls", "rustls-tls-webpki-roots", "serde_json", "tokio-native-tls", "tokio-rustls", "webpki-roots"] }
+reqwest = { version = "0.11", default-features = false, features = ["__rustls", "__tls", "hyper-rustls", "json", "rustls", "rustls-pemfile", "rustls-tls", "rustls-tls-webpki-roots", "serde_json", "tokio-rustls", "webpki-roots"] }
 rustls = { version = "0.20", features = ["dangerous_configuration", "log", "logging", "tls12"] }
 serde = { version = "1", features = ["alloc", "derive", "rc", "serde_derive", "std"] }
 serde_json = { version = "1", features = ["alloc", "indexmap", "preserve_order", "raw_value", "std"] }
@@ -112,7 +112,6 @@ libc = { version = "0.2", features = ["extra_traits", "std"] }
 
 [target.x86_64-apple-darwin.dependencies]
 libc = { version = "0.2", features = ["extra_traits", "std"] }
-security-framework-sys = { version = "2", features = ["OSX_10_9"] }
 tokio-rustls = { version = "0.23" }
 
 [target.x86_64-apple-darwin.build-dependencies]
@@ -120,7 +119,6 @@ libc = { version = "0.2", features = ["extra_traits", "std"] }
 
 [target.aarch64-apple-darwin.dependencies]
 libc = { version = "0.2", features = ["extra_traits", "std"] }
-security-framework-sys = { version = "2", features = ["OSX_10_9"] }
 tokio-rustls = { version = "0.23" }
 
 [target.aarch64-apple-darwin.build-dependencies]
