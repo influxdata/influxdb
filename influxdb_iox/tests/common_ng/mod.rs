@@ -11,46 +11,39 @@ pub fn rand_name() -> String {
         .collect()
 }
 
-// Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment variables are
-// not set.
+// Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment
+// variables are not set.
 #[macro_export]
 macro_rules! maybe_skip_integration {
     () => {{
         use std::env;
         dotenv::dotenv().ok();
 
-        let required_vars = ["TEST_INFLUXDB_IOX_CATALOG_DSN"];
-        let unset_vars: Vec<_> = required_vars
-            .iter()
-            .filter_map(|&name| match env::var(name) {
-                Ok(_) => None,
-                Err(_) => Some(name),
-            })
-            .collect();
-        let unset_var_names = unset_vars.join(", ");
-
-        let force = env::var("TEST_INTEGRATION");
-
-        if force.is_ok() && !unset_var_names.is_empty() {
-            panic!(
-                "TEST_INTEGRATION is set, \
-                        but variable(s) {} need to be set",
-                unset_var_names
-            );
-        } else if force.is_err() {
-            eprintln!(
-                "skipping end-to-end integration test - set {}TEST_INTEGRATION to run",
-                if unset_var_names.is_empty() {
-                    String::new()
-                } else {
-                    format!("{} and ", unset_var_names)
-                }
-            );
-
-            return;
-        } else {
-            env::var("TEST_INFLUXDB_IOX_CATALOG_DSN")
-                .expect("already checked TEST_INFLUXDB_IOX_CATALOG_DSN")
+        match (
+            env::var("TEST_INTEGRATION").is_ok(),
+            env::var("TEST_INFLUXDB_IOX_CATALOG_DSN").ok(),
+        ) {
+            (true, Some(dsn)) => dsn,
+            (true, None) => {
+                panic!(
+                    "TEST_INTEGRATION is set which requires running integration tests, but \
+                    TEST_INFLUXDB_IOX_CATALOG_DSN is not set. Please set \
+                    TEST_INFLUXDB_IOX_CATALOG_DSN to the test catalog database. For example, \
+                    `TEST_INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost/iox_shared_test` \
+                    would connect to a Postgres catalog."
+                )
+            }
+            (false, Some(_)) => {
+                eprintln!("skipping NG end-to-end integration tests - set TEST_INTEGRATION to run");
+                return;
+            }
+            (false, None) => {
+                eprintln!(
+                    "skipping NG end-to-end integration tests - set TEST_INTEGRATION and \
+                    TEST_INFLUXDB_IOX_CATALOG_DSN to run"
+                );
+                return;
+            }
         }
     }};
 }
