@@ -9,14 +9,8 @@ use clap_blocks::catalog_dsn::CatalogDsnConfig;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error connecting to IOx: {0}")]
-    ConnectionError(#[from] influxdb_iox_client::connection::Error),
-
     #[error("Error updating catalog: {0}")]
     UpdateCatalogError(#[from] iox_catalog::interface::Error),
-
-    #[error("Client error: {0}")]
-    ClientError(#[from] influxdb_iox_client::error::Error),
 
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
