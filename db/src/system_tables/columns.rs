@@ -155,6 +155,7 @@ fn chunk_columns_schema() -> SchemaRef {
         Field::new("memory_bytes", DataType::UInt64, true),
         Field::new("chunk_order", DataType::UInt32, false),
         Field::new("sort_ordinal", DataType::UInt32, true),
+        Field::new("distinct_count", DataType::UInt64, true),
     ]))
 }
 
@@ -246,6 +247,11 @@ fn assemble_chunk_columns(
         .map(|each| each.column_sort.map(|x| x.sort_ordinal as u32))
         .collect::<UInt32Array>();
 
+    let distinct_count = rows
+        .iter()
+        .map(|each| each.column_summary.stats.distinct_count().map(|x| x.get()))
+        .collect::<UInt64Array>();
+
     // handle memory bytes specially to avoid having to search for
     // each column in ColumnSummary
     let memory_bytes = chunk_summaries
@@ -286,6 +292,7 @@ fn assemble_chunk_columns(
             Arc::new(memory_bytes),
             Arc::new(order),
             Arc::new(sort_order),
+            Arc::new(distinct_count),
         ],
     )
 }
@@ -298,6 +305,7 @@ mod tests {
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
     };
     use schema::sort::SortKey;
+    use std::num::NonZeroU64;
     use time::Time;
 
     use super::*;
@@ -373,11 +381,12 @@ mod tests {
                         ColumnSummary {
                             name: "c1".to_string(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::String(StatValues::new(
+                            stats: Statistics::String(StatValues::new_with_distinct(
                                 Some("bar".to_string()),
                                 Some("foo".to_string()),
                                 55,
                                 0,
+                                Some(NonZeroU64::new(23).unwrap()),
                             )),
                         },
                         ColumnSummary {
@@ -480,14 +489,14 @@ mod tests {
         ];
 
         let expected = vec![
-            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+--------------+",
-            "| partition_key | chunk_id                             | table_name | column_name | storage           | row_count | null_count | min_value | max_value | memory_bytes | chunk_order | sort_ordinal |",
-            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+--------------+",
-            "| p1            | 00000000-0000-0000-0000-00000000002a | t1         | c1          | ReadBuffer        | 55        | 0          | bar       | foo       | 11           | 5           | 1            |",
-            "| p1            | 00000000-0000-0000-0000-00000000002a | t1         | c2          | ReadBuffer        | 66        | 0          | 11        | 43        | 12           | 5           | 0            |",
-            "| p2            | 00000000-0000-0000-0000-00000000002b | t1         | c1          | OpenMutableBuffer | 667       | 99         | 110       | 430       | 100          | 6           |              |",
-            "| p2            | 00000000-0000-0000-0000-00000000002c | t2         | c3          | OpenMutableBuffer | 4         | 0          | -1        | 2         | 200          | 5           |              |",
-            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+--------------+",
+            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+--------------+----------------+",
+            "| partition_key | chunk_id                             | table_name | column_name | storage           | row_count | null_count | min_value | max_value | memory_bytes | chunk_order | sort_ordinal | distinct_count |",
+            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+--------------+----------------+",
+            "| p1            | 00000000-0000-0000-0000-00000000002a | t1         | c1          | ReadBuffer        | 55        | 0          | bar       | foo       | 11           | 5           | 1            | 23             |",
+            "| p1            | 00000000-0000-0000-0000-00000000002a | t1         | c2          | ReadBuffer        | 66        | 0          | 11        | 43        | 12           | 5           | 0            |                |",
+            "| p2            | 00000000-0000-0000-0000-00000000002b | t1         | c1          | OpenMutableBuffer | 667       | 99         | 110       | 430       | 100          | 6           |              |                |",
+            "| p2            | 00000000-0000-0000-0000-00000000002c | t2         | c3          | OpenMutableBuffer | 4         | 0          | -1        | 2         | 200          | 5           |              |                |",
+            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+-------------+--------------+----------------+",
         ];
 
         let batch = assemble_chunk_columns(chunk_columns_schema(), summaries).unwrap();
