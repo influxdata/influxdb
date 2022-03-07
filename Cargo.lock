@@ -614,9 +614,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.2"
+version = "3.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5177fac1ab67102d8989464efd043c6ff44191b1557ec1ddd489b4f7e1447e77"
+checksum = "ced1892c55c910c1219e98d6fc8d71f6bddba7905866ce740066d8bfea859312"
 dependencies = [
  "atty",
  "bitflags",
@@ -626,14 +626,14 @@ dependencies = [
  "os_str_bytes",
  "strsim 0.10.0",
  "termcolor",
- "textwrap 0.14.2",
+ "textwrap 0.15.0",
 ]
 
 [[package]]
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.2",
+ "clap 3.1.5",
  "data_types",
  "futures",
  "iox_catalog",
@@ -654,9 +654,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.1.2"
+version = "3.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01d42c94ce7c2252681b5fed4d3627cc807b13dfc033246bd05d5b252399000e"
+checksum = "da95d038ede1a964ce99f49cbe27a7fb538d1da595e4b4f70b8c8f338d17bf16"
 dependencies = [
  "heck 0.4.0",
  "proc-macro-error",
@@ -2096,7 +2096,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
- "clap 3.1.2",
+ "clap 3.1.5",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2227,7 +2227,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
- "clap 3.1.2",
+ "clap 3.1.5",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2484,7 +2484,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 3.1.2",
+ "clap 3.1.5",
  "criterion",
  "data_types",
  "futures",
@@ -2513,7 +2513,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
- "clap 3.1.2",
+ "clap 3.1.5",
  "dotenv",
  "futures",
  "glob",
@@ -5543,9 +5543,9 @@ dependencies = [
 
 [[package]]
 name = "textwrap"
-version = "0.14.2"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0066c8d12af8b5acd21e00547c3797fde4e8677254a7ee429176ccebbe93dd80"
+checksum = "b1141d4d61095b28419e22cb0bbf02755f5e54e0526f97f1e3d1d160e60885fb"
 
 [[package]]
 name = "thiserror"
@@ -5938,7 +5938,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 3.1.2",
+ "clap 3.1.5",
  "futures",
  "observability_deps",
  "snafu",
@@ -6083,7 +6083,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.2",
+ "clap 3.1.5",
  "logfmt",
  "observability_deps",
  "regex",
