@@ -1209,8 +1209,11 @@ pub struct IngesterQueryResponse {
     /// The schema of the record batches
     pub schema: Schema,
 
-    /// Max persisted sequence number of the table
-    pub max_sequencer_number: Option<SequenceNumber>,
+    /// Max sequence number persisted for this table
+    pub parquet_max_sequence_number: Option<SequenceNumber>,
+
+    /// Max sequence number for a tombstone associated with this table
+    pub tombstone_max_sequence_number: Option<SequenceNumber>,
 }
 
 impl IngesterQueryResponse {
@@ -1218,12 +1221,14 @@ impl IngesterQueryResponse {
     pub fn new(
         data: SendableRecordBatchStream,
         schema: Schema,
-        max_sequencer_number: Option<SequenceNumber>,
+        parquet_max_sequence_number: Option<SequenceNumber>,
+        tombstone_max_sequence_number: Option<SequenceNumber>,
     ) -> Self {
         Self {
             data,
             schema,
-            max_sequencer_number,
+            parquet_max_sequence_number,
+            tombstone_max_sequence_number,
         }
     }
 }

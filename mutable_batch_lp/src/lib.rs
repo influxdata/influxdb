@@ -199,8 +199,8 @@ mod tests {
         mem,tag1=v5 ival=2i 1
         "#;
 
-        let batch = lines_to_batches(lp, 5).unwrap();
-        assert_eq!(batch.len(), 2);
+        let batches = lines_to_batches(lp, 5).unwrap();
+        assert_eq!(batches.len(), 2);
 
         assert_batches_eq!(
             &[
@@ -213,7 +213,7 @@ mod tests {
                 "| 2    | v1   | v2   | 1970-01-01T00:00:00.000000005Z |     |",
                 "+------+------+------+--------------------------------+-----+",
             ],
-            &[batch["cpu"].to_arrow(Selection::All).unwrap()]
+            &[batches["cpu"].to_arrow(Selection::All).unwrap()]
         );
 
         assert_batches_eq!(
@@ -225,7 +225,83 @@ mod tests {
                 "| 2    | v5   | 1970-01-01T00:00:00.000000001Z |",
                 "+------+------+--------------------------------+",
             ],
-            &[batch["mem"].to_arrow(Selection::All).unwrap()]
+            &[batches["mem"].to_arrow(Selection::All).unwrap()]
         );
+    }
+
+    #[test]
+    fn test_nulls_string_and_float() {
+        let lp = r#"m f0="cat" 1639612800000000000
+m f1=10i 1639612800000000000
+        "#;
+
+        let batches = lines_to_batches(lp, 5).unwrap();
+        assert_eq!(batches.len(), 1);
+
+        let batch = batches["m"].to_arrow(Selection::All).unwrap();
+        assert_batches_eq!(
+            &[
+                "+-----+----+----------------------+",
+                "| f0  | f1 | time                 |",
+                "+-----+----+----------------------+",
+                "| cat |    | 2021-12-16T00:00:00Z |",
+                "|     | 10 | 2021-12-16T00:00:00Z |",
+                "+-----+----+----------------------+",
+            ],
+            &[batch.clone()]
+        );
+
+        // Verify the nullness of the string column ("" not the same as null)
+        let f0 = &batch.columns()[0];
+        assert!(f0.is_valid(0));
+        assert!(!f0.is_valid(1));
+
+        // Verify the nullness of the f1 column ("" not the same as null)
+        let f1 = &batch.columns()[1];
+        assert!(!f1.is_valid(0));
+        assert!(f1.is_valid(1));
+    }
+
+    #[test]
+    fn test_nulls_int_and_uint_and_bool() {
+        let lp = r#"m i=1i 1639612800000000000
+m u=2u 1639612800000000000
+m b=t 1639612800000000000
+        "#;
+
+        let batches = lines_to_batches(lp, 5).unwrap();
+        assert_eq!(batches.len(), 1);
+
+        let batch = batches["m"].to_arrow(Selection::All).unwrap();
+        assert_batches_eq!(
+            &[
+                "+------+---+----------------------+---+",
+                "| b    | i | time                 | u |",
+                "+------+---+----------------------+---+",
+                "|      | 1 | 2021-12-16T00:00:00Z |   |",
+                "|      |   | 2021-12-16T00:00:00Z | 2 |",
+                "| true |   | 2021-12-16T00:00:00Z |   |",
+                "+------+---+----------------------+---+",
+            ],
+            &[batch.clone()]
+        );
+
+        // Verify the nullness of the int column
+        let b = &batch.columns()[0];
+        assert!(!b.is_valid(0));
+        assert!(!b.is_valid(1));
+        assert!(b.is_valid(2));
+
+        // Verify the nullness of the int column
+        let i = &batch.columns()[1];
+        assert!(i.is_valid(0));
+        assert!(!i.is_valid(1));
+        assert!(!i.is_valid(2));
+
+        // Verify the nullness of the uint column
+        let u = &batch.columns()[3];
+        assert!(!u.is_valid(0));
+        assert!(u.is_valid(1));
+        assert!(!u.is_valid(2));
     }
 }

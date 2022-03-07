@@ -22,7 +22,7 @@ hyper = { version = "0.14", optional = true, default-features = false }
 hyper-rustls = { version = "0.23.0", optional = true, default-features = false, features = ["webpki-tokio", "http1", "http2", "tls12"] }
 indexmap = { version = "1.7", optional = true, features = ["std"] }
 itertools = "0.10.1"
-observability_deps = { path = "../observability_deps" }
+observability_deps = { path = "../observability_deps", optional = true }
 percent-encoding = "2.1"
 # rusoto crates are for Amazon S3 integration
 rusoto_core = { version = "0.47.0", optional = true, default-features = false, features = ["rustls"] }
@@ -42,7 +42,7 @@ workspace-hack = { path = "../workspace-hack"}
 azure = ["azure_core", "azure_storage_blobs", "azure_storage", "indexmap", "reqwest"]
 azure_test = ["azure", "azure_core/azurite_workaround", "azure_storage/azurite_workaround", "azure_storage_blobs/azurite_workaround"]
 gcp = ["cloud-storage"]
-aws = ["rusoto_core", "rusoto_credential", "rusoto_s3", "hyper", "hyper-rustls"]
+aws = ["rusoto_core", "rusoto_credential", "rusoto_s3", "hyper", "hyper-rustls", "observability_deps"]
 
 [dev-dependencies] # In alphabetical order
 dotenv = "0.15.0"

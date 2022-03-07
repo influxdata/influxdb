@@ -36,9 +36,18 @@ message IngesterQueryRequest {
 // in the FlightData's app_metadata for the schema that is returned as the first item from the
 // Arrow Flight doGet request.
 message IngesterQueryResponseMetadata {
-  // Max persisted sequence number of the table, if it is larger than the IngesterQueryRequest's
-  // greater_than_sequence_number
-  optional int64 max_sequencer_number = 2;
+  // There was no field 1, oops.
+  reserved 1;
+
+  // Was max persisted sequence number of the table
+  reserved "max_sequencer_number";
+  reserved 2;
+
+  // Max sequence number persisted for this table
+  optional int64 parquet_max_sequence_number = 3;
+
+  // Max sequence number for a tombstone associated with this table
+  optional int64 tombstone_max_sequence_number = 4;
 }
 
 // Serialization of `predicate::predicate::Predicate` that contains DataFusion `Expr`s

@@ -82,11 +82,17 @@ pub async fn prepare_data_to_querier(
         table_name: &request.table,
     })?;
 
-    let parquet_max_sequence_number;
-    let (filter_not_applied_batches, persisting_batches) = {
+    let (
+        parquet_max_sequence_number,
+        tombstone_max_sequence_number,
+        (filter_not_applied_batches, persisting_batches),
+    ) = {
         let table_data = table_data.read().await;
-        parquet_max_sequence_number = table_data.parquet_max_sequence_number();
-        table_data.non_persisted_and_persisting_batches()
+        (
+            table_data.parquet_max_sequence_number(),
+            table_data.tombstone_max_sequence_number(),
+            table_data.non_persisted_and_persisting_batches(),
+        )
     };
 
     // ------------------------------------------------
@@ -162,6 +168,7 @@ pub async fn prepare_data_to_querier(
         Box::pin(stream),
         (*schema).clone(),
         parquet_max_sequence_number,
+        tombstone_max_sequence_number,
     ))
 }
 

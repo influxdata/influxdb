@@ -165,7 +165,7 @@ async fn test_field_name_plan() {
             Field {
                 name: "field2".into(),
                 data_type: DataType::Utf8,
-                last_timestamp: 1000, // Need to verify with alamb if 1000 is the right one. It looks to me it should be 100
+                last_timestamp: 100,
             },
             Field {
                 name: "field3".into(),

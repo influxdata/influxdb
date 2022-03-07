@@ -142,6 +142,9 @@ impl StringDictionary<i32> {
         I: IntoIterator<Item = i32>,
         I::IntoIter: ExactSizeIterator,
     {
+        // the nulls are recored in the keys array, the dictionary itself
+        // is entirely non null
+        let dictionary_nulls = None;
         let keys = keys.into_iter();
         let mut array_builder = ArrayDataBuilder::new(DataType::Dictionary(
             Box::new(DataType::Int32),
@@ -149,7 +152,7 @@ impl StringDictionary<i32> {
         ))
         .len(keys.len())
         .add_buffer(keys.collect())
-        .add_child_data(self.storage.to_arrow().data().clone());
+        .add_child_data(self.storage.to_arrow(dictionary_nulls).data().clone());
 
         if let Some(nulls) = nulls {
             array_builder = array_builder.null_bit_buffer(nulls);
@@ -227,7 +230,7 @@ mod test {
         let womble = dictionary.lookup_id(id5).unwrap();
 
         let arrow_expected = arrow::array::StringArray::from(vec!["cupcake", "womble"]);
-        let arrow_actual = dictionary.values().to_arrow();
+        let arrow_actual = dictionary.values().to_arrow(None);
 
         assert_eq!(id1, id2);
         assert_eq!(id1, id4);

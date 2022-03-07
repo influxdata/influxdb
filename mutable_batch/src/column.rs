@@ -298,7 +298,7 @@ impl Column {
                     .context(CreatingArrowArraySnafu)?;
                 Arc::new(UInt64Array::from(data))
             }
-            ColumnData::String(data, _) => Arc::new(data.to_arrow()),
+            ColumnData::String(data, _) => Arc::new(data.to_arrow(Some(nulls))),
             ColumnData::Bool(data, _) => {
                 let data = ArrayDataBuilder::new(DataType::Boolean)
                     .len(data.len())
