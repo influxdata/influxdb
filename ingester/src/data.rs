@@ -1439,7 +1439,13 @@ mod tests {
         std::mem::drop(repos);
         let pause_size = w1.size() + 1;
         let manager = LifecycleManager::new(
-            LifecycleConfig::new(pause_size, 0, 0, Duration::from_secs(1)),
+            LifecycleConfig::new(
+                pause_size,
+                0,
+                0,
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+            ),
             metrics,
             Arc::new(SystemProvider::new()),
         );
@@ -1525,7 +1531,7 @@ mod tests {
         );
 
         let manager = LifecycleManager::new(
-            LifecycleConfig::new(1, 0, 0, Duration::from_secs(1)),
+            LifecycleConfig::new(1, 0, 0, Duration::from_secs(1), Duration::from_secs(1)),
             metrics,
             Arc::new(SystemProvider::new()),
         );
@@ -1899,7 +1905,7 @@ mod tests {
         std::mem::drop(repos);
 
         let manager = LifecycleManager::new(
-            LifecycleConfig::new(1, 0, 0, Duration::from_secs(1)),
+            LifecycleConfig::new(1, 0, 0, Duration::from_secs(1), Duration::from_secs(1)),
             metrics,
             Arc::new(SystemProvider::new()),
         );

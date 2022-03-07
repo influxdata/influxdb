@@ -703,8 +703,13 @@ mod tests {
                 Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
             let object_store = Arc::new(ObjectStore::new_in_memory());
 
-            let lifecycle_config =
-                LifecycleConfig::new(1000000, 1000, 1000, Duration::from_secs(10));
+            let lifecycle_config = LifecycleConfig::new(
+                1000000,
+                1000,
+                1000,
+                Duration::from_secs(10),
+                Duration::from_secs(10),
+            );
             let ingester = IngestHandlerImpl::new(
                 lifecycle_config,
                 kafka_topic.clone(),
