@@ -52,12 +52,6 @@ DIFFERENT database name for your test database than your `INFLUXDB_IOX_CATALOG_D
 
 * Set `TEST_INFLUXDB_IOX_CATALOG_DSN=<testdsn>` env as above with the `INFLUXDB_IOX_CATALOG_DSN`
   env var. The integration tests *will* pick up this value if set in your `.env` file.
-* Create the test database once by running:
-
-```
-DATABASE_URL=<testdsn> sqlx database create
-```
-
 * Set up the test database as above but specify the test database URL as follows (`catalog setup`
   will NOT pick up the `TEST_` version of the environment variable from your `.env` file so it
   needs to be specified explicitly WITHOUT the `TEST_` prefix):

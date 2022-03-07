@@ -49,7 +49,8 @@ macro_rules! maybe_skip_integration {
 
             return;
         } else {
-            env::var("TEST_INFLUXDB_IOX_CATALOG_DSN").expect("already checked TEST_INFLUXDB_IOX_CATALOG_DSN")
+            env::var("TEST_INFLUXDB_IOX_CATALOG_DSN")
+                .expect("already checked TEST_INFLUXDB_IOX_CATALOG_DSN")
         }
     }};
 }

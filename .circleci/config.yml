@@ -240,8 +240,6 @@ jobs:
       - checkout
       - rust_components
       - cache_restore
-      - run: cargo install sqlx-cli
-      - run: DATABASE_URL=${TEST_INFLUXDB_IOX_CATALOG_DSN} sqlx database create
       - run: INFLUXDB_IOX_CATALOG_DSN=${TEST_INFLUXDB_IOX_CATALOG_DSN} cargo run -- catalog setup
       - run:
           name: Cargo test

@@ -2141,6 +2141,7 @@ dependencies = [
  "serde_urlencoded",
  "server",
  "snafu",
+ "sqlx",
  "tempfile",
  "test_helpers",
  "thiserror",

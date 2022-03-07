@@ -2,6 +2,7 @@ use assert_cmd::prelude::*;
 use futures::prelude::*;
 use http::{header::HeaderName, HeaderValue};
 use influxdb_iox_client::connection::Connection;
+use sqlx::{migrate::MigrateDatabase, Postgres};
 use std::{
     net::SocketAddrV4,
     path::Path,
@@ -89,7 +90,7 @@ impl ServerFixture {
     /// Create a new server fixture with the provided additional environment variables
     /// and wait for it to be ready. The server is not shared with any other tests.
     pub async fn create_single_use_with_config(test_config: TestConfig) -> Self {
-        let server = TestServer::new(test_config);
+        let server = TestServer::new(test_config).await;
         let server = Arc::new(server);
 
         // ensure the server is ready
@@ -222,13 +223,13 @@ impl TestConfig {
     /// Set Postgres catalog DSN URL
     pub fn with_postgres_catalog(mut self, dsn: &str) -> Self {
         self.dsn = Some(dsn.into());
+
         self
     }
 
     // Get the catalog DSN URL and panic if it's not set
     fn dsn(&self) -> &str {
-        self
-            .dsn
+        self.dsn
             .as_ref()
             .expect("Test Config must have a catalog configured")
     }
@@ -255,19 +256,22 @@ struct Process {
 }
 
 impl TestServer {
-    fn new(test_config: TestConfig) -> Self {
+    async fn new(test_config: TestConfig) -> Self {
         let addrs = BindAddresses::default();
         let ready = Mutex::new(ServerState::Started);
 
         let dir = test_helpers::tmp_dir().unwrap();
 
-        let server_process = Mutex::new(Self::create_server_process(
-            &addrs,
-            &dir,
-            test_config.dsn(),
-            &test_config.env,
-            test_config.server_type,
-        ));
+        let server_process = Mutex::new(
+            Self::create_server_process(
+                &addrs,
+                &dir,
+                test_config.dsn(),
+                &test_config.env,
+                test_config.server_type,
+            )
+            .await,
+        );
 
         Self {
             ready,
@@ -289,11 +293,12 @@ impl TestServer {
             self.test_config.dsn(),
             &self.test_config.env,
             self.test_config.server_type,
-        );
+        )
+        .await;
         *ready_guard = ServerState::Started;
     }
 
-    fn create_server_process(
+    async fn create_server_process(
         addrs: &BindAddresses,
         dir: &TempDir,
         dsn: &str,
@@ -327,6 +332,11 @@ impl TestServer {
             ServerType::Ingester => "ingester",
             ServerType::Router2 => "router2",
         };
+
+        // Create the catalog database if it doesn't exist
+        if !Postgres::database_exists(dsn).await.unwrap() {
+            Postgres::create_database(dsn).await.unwrap();
+        }
 
         // This will inherit environment from the test runner
         // in particular `LOG_FILTER`

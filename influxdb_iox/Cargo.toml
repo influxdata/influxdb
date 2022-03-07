@@ -119,6 +119,7 @@ predicates = "2.1.0"
 rand = "0.8.3"
 regex = "1"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
 tempfile = "3.1.0"
 
 [features]
