@@ -593,7 +593,7 @@ mod tests {
         let execute_span = child(ctx_span, "execute_stream_partitioned").unwrap();
 
         // validate spans from DataFusion ExecutionPlan are present
-        child(execute_span, "ProjectionExec: expr").unwrap();
+        child(execute_span, "ProjectionExec").unwrap();
 
         let database_not_found = root_spans[3];
         assert_eq!(database_not_found.status, SpanStatus::Err);

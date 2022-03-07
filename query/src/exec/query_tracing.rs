@@ -88,21 +88,19 @@ fn send_metrics_to_tracing(
     parent_span: &Span,
     physical_plan: &dyn ExecutionPlan,
 ) {
-    // Somthing like this when one_line is contributed back upstream
+    // Something like this when one_line is contributed back upstream
     //let plan_name = physical_plan.displayable().one_line().to_string();
-
-    // create a child span for this physical plan node. Truncate the
-    // name first 20 characters of the display representation to avoid
-    // making massive span names
-    let mut plan_name = one_line(physical_plan).to_string();
-    plan_name.truncate(20);
+    let desc = one_line(physical_plan).to_string();
+    let operator_name: String = desc.chars().take_while(|x| *x != ':').collect();
 
     // Get the timings of the parent operator
     let parent_start_time = parent_span.start.unwrap_or(default_end_time);
     let parent_end_time = parent_span.end.unwrap_or(default_end_time);
 
     // A span for the operation, this is the aggregate of all the partition spans
-    let mut operator_span = parent_span.child(plan_name.clone());
+    let mut operator_span = parent_span.child(operator_name.clone());
+    operator_span.metadata.insert("desc".into(), desc.into());
+
     let mut operator_metrics = SpanMetrics {
         output_rows: None,
         elapsed_compute_nanos: None,
@@ -143,7 +141,7 @@ fn send_metrics_to_tracing(
                 // only correspond to the operator and not a specific partition
                 if let Some(partition) = partition {
                     let mut partition_span =
-                        operator_span.child(format!("{} ({})", plan_name, partition));
+                        operator_span.child(format!("{} ({})", operator_name, partition));
 
                     partition_span.start = Some(partition_start_time);
                     partition_span.end = Some(partition_end_time);
@@ -297,7 +295,7 @@ mod tests {
 
     #[test]
     fn name_truncation() {
-        let name = "This is a really super duper long node name";
+        let name = "Foo: expr nonsense";
         let exec = TestExec::new(name, Default::default());
 
         let traces = TraceBuilder::new();
@@ -305,8 +303,9 @@ mod tests {
 
         let spans = traces.spans();
         assert_eq!(spans.len(), 1);
-        // name is truncated to 20 cahracters
-        assert_eq!(spans[0].name, "TestExec: This is a ", "span: {:#?}", spans);
+
+        // name is truncated to the operator name
+        assert_eq!(spans[0].name, "TestExec - Foo", "span: {:#?}", spans);
     }
 
     // children and time propagation
@@ -334,11 +333,20 @@ mod tests {
         // child5 (2): [ ts2 --- ts3]
         // child5 (4): [ ts1 ---  ]
         let mut exec = TestExec::new("exec", make_time_metric_set(Some(ts1), Some(ts4), Some(1)));
-        exec.new_child("child1", make_time_metric_set(Some(ts2), None, Some(1)));
-        exec.new_child("child2", make_time_metric_set(Some(ts2), Some(ts3), None));
-        exec.new_child("child3", make_time_metric_set(None, Some(ts3), Some(1)));
-        exec.new_child("child4", make_time_metric_set(None, None, Some(1)));
-        exec.new_child("child5", many_partition);
+        exec.new_child(
+            "child1: foo",
+            make_time_metric_set(Some(ts2), None, Some(1)),
+        );
+        exec.new_child(
+            "child2: bar",
+            make_time_metric_set(Some(ts2), Some(ts3), None),
+        );
+        exec.new_child(
+            "child3: baz",
+            make_time_metric_set(None, Some(ts3), Some(1)),
+        );
+        exec.new_child("child4: bingo", make_time_metric_set(None, None, Some(1)));
+        exec.new_child("child5: bongo", many_partition);
 
         let traces = TraceBuilder::new();
         send_metrics_to_tracing(ts5, &traces.make_span(), &exec);
@@ -349,28 +357,59 @@ mod tests {
         println!("Spans: \n\n{:#?}", spans);
         assert_eq!(spans.len(), 12);
 
-        let check_span = |span: &Span, expected_start, expected_end| {
+        let check_span = |span: &Span, expected_start, expected_end, desc: Option<&str>| {
             assert_eq!(span.start, expected_start, "expected start; {:?}", span);
             assert_eq!(span.end, expected_end, "expected end; {:?}", span);
+            assert_eq!(span.metadata.get("desc").map(|x| x.string().unwrap()), desc);
         };
 
-        check_span(spans["TestExec: exec"], Some(ts1), Some(ts4));
-        check_span(spans["TestExec: exec (1)"], Some(ts1), Some(ts4));
+        check_span(
+            spans["TestExec - exec"],
+            Some(ts1),
+            Some(ts4),
+            Some("TestExec - exec"),
+        );
+        check_span(spans["TestExec - exec (1)"], Some(ts1), Some(ts4), None);
 
-        check_span(spans["TestExec: child1"], Some(ts2), Some(ts4));
-        check_span(spans["TestExec: child1 (1)"], Some(ts2), Some(ts4));
+        check_span(
+            spans["TestExec - child1"],
+            Some(ts2),
+            Some(ts4),
+            Some("TestExec - child1: foo"),
+        );
+        check_span(spans["TestExec - child1 (1)"], Some(ts2), Some(ts4), None);
 
-        check_span(spans["TestExec: child2"], Some(ts2), Some(ts3));
+        check_span(
+            spans["TestExec - child2"],
+            Some(ts2),
+            Some(ts3),
+            Some("TestExec - child2: bar"),
+        );
 
-        check_span(spans["TestExec: child3"], Some(ts1), Some(ts3));
-        check_span(spans["TestExec: child3 (1)"], Some(ts1), Some(ts3));
+        check_span(
+            spans["TestExec - child3"],
+            Some(ts1),
+            Some(ts3),
+            Some("TestExec - child3: baz"),
+        );
+        check_span(spans["TestExec - child3 (1)"], Some(ts1), Some(ts3), None);
 
-        check_span(spans["TestExec: child4"], Some(ts1), Some(ts4));
+        check_span(
+            spans["TestExec - child4"],
+            Some(ts1),
+            Some(ts4),
+            Some("TestExec - child4: bingo"),
+        );
 
-        check_span(spans["TestExec: child5"], Some(ts1), Some(ts4));
-        check_span(spans["TestExec: child5 (1)"], Some(ts1), Some(ts2));
-        check_span(spans["TestExec: child5 (2)"], Some(ts2), Some(ts3));
-        check_span(spans["TestExec: child5 (3)"], Some(ts1), Some(ts4));
+        check_span(
+            spans["TestExec - child5"],
+            Some(ts1),
+            Some(ts4),
+            Some("TestExec - child5: bongo"),
+        );
+        check_span(spans["TestExec - child5 (1)"], Some(ts1), Some(ts2), None);
+        check_span(spans["TestExec - child5 (2)"], Some(ts2), Some(ts3), None);
+        check_span(spans["TestExec - child5 (3)"], Some(ts1), Some(ts4), None);
     }
 
     #[test]
@@ -428,9 +467,9 @@ mod tests {
             );
         };
 
-        check_span(spans["TestExec: exec"], 300, 3000);
-        check_span(spans["TestExec: exec (1)"], 100, 1000);
-        check_span(spans["TestExec: exec (2)"], 200, 2000);
+        check_span(spans["TestExec - exec"], 300, 3000);
+        check_span(spans["TestExec - exec (1)"], 100, 1000);
+        check_span(spans["TestExec - exec (2)"], 200, 2000);
     }
 
     fn add_output_rows(metrics: &mut MetricsSet, output_rows: usize, partition: usize) {
@@ -590,7 +629,7 @@ mod tests {
         }
 
         fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "TestExec: {}", self.name)
+            write!(f, "TestExec - {}", self.name)
         }
     }
 }

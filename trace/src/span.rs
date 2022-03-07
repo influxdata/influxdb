@@ -114,6 +114,15 @@ pub enum MetaValue {
     Bool(bool),
 }
 
+impl MetaValue {
+    pub fn string(&self) -> Option<&str> {
+        match &self {
+            Self::String(s) => Some(s.as_ref()),
+            _ => None,
+        }
+    }
+}
+
 impl From<&'static str> for MetaValue {
     fn from(v: &'static str) -> Self {
         Self::String(Cow::Borrowed(v))
