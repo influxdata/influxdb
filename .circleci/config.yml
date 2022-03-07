@@ -122,17 +122,11 @@ jobs:
       - rust_components
       - cache_restore
       - run:
-          name: Install Cargo Audit
-          command: cargo install --force cargo-audit
-      # https://github.com/rust-lang/cargo/issues/10280 but `cargo audit` doesn't support `CARGO_NET_GIT_FETCH_WITH_CLI`
+          name: Install cargo-deny
+          command: cargo install --force cargo-deny
       - run:
-          name: Workaround SSH issues
-          command: |
-            cd /usr/local/cargo
-            git clone https://github.com/RustSec/advisory-db.git
-      - run:
-          name: Cargo Audit
-          command: cargo audit --no-fetch
+          name: cargo-deny Checks
+          command: cargo deny check -s
       - cache_save
   doc:
     docker:
