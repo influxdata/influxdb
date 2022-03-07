@@ -2,7 +2,8 @@
 
 use std::sync::Arc;
 
-use clap_blocks::{boolean_flag::BooleanFlag, run_config::RunConfig};
+use clap_blocks::run_config::RunConfig;
+use data_types::boolean_flag::BooleanFlag;
 use influxdb_ioxd::{
     self,
     server_type::{
