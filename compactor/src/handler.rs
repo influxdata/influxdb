@@ -1,6 +1,8 @@
 //! Compactor handler
 
 use async_trait::async_trait;
+use backoff::BackoffConfig;
+use data_types2::SequencerId;
 use futures::{
     future::{BoxFuture, Shared},
     stream::FuturesUnordered,
@@ -9,10 +11,13 @@ use futures::{
 use iox_catalog::interface::Catalog;
 use object_store::ObjectStore;
 use observability_deps::tracing::warn;
+use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
+
+use crate::compact::Compactor;
 
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -41,14 +46,11 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
 /// Implementation of the `CompactorHandler` trait (that currently does nothing)
 #[derive(Debug)]
 pub struct CompactorHandlerImpl {
-    /// The global catalog for schema, parquet files and tombstones
-    catalog: Arc<dyn Catalog>,
-
     /// Future that resolves when the background worker exits
     join_handles: Vec<(String, SharedJoinHandle)>,
 
-    /// Object store for persistence of parquet files
-    object_store: Arc<ObjectStore>,
+    /// Data to compact
+    compactor_data: Arc<Compactor>,
 
     /// A token that is used to trigger shutdown of the background worker
     shutdown: CancellationToken,
@@ -57,17 +59,27 @@ pub struct CompactorHandlerImpl {
 impl CompactorHandlerImpl {
     /// Initialize the Compactor
     pub fn new(
+        sequencers: Vec<SequencerId>,
         catalog: Arc<dyn Catalog>,
         object_store: Arc<ObjectStore>,
+        exec: Executor,
         _registry: &metric::Registry,
     ) -> Self {
         let shutdown = CancellationToken::new();
 
         let join_handles = vec![];
-        Self {
+
+        let compactor_data = Arc::new(Compactor::new(
+            sequencers,
             catalog,
-            join_handles,
             object_store,
+            exec,
+            BackoffConfig::default(),
+        ));
+
+        Self {
+            join_handles,
+            compactor_data,
             shutdown,
         }
     }

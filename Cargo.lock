@@ -740,7 +740,9 @@ name = "compactor"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "backoff 0.1.0",
  "data_types",
+ "data_types2",
  "futures",
  "iox_catalog",
  "metric",
@@ -748,8 +750,11 @@ dependencies = [
  "observability_deps",
  "parking_lot 0.12.0",
  "predicate",
+ "query",
+ "snafu",
  "test_helpers",
  "thiserror",
+ "time 0.1.0",
  "tokio",
  "tokio-util 0.7.0",
  "workspace-hack",

@@ -1,8 +1,10 @@
 //! Implementation of command line option for running the compactor
 
 use compactor::{handler::CompactorHandlerImpl, server::CompactorServer};
+use data_types2::SequencerId;
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
+use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -52,6 +54,14 @@ pub struct Config {
 
     #[clap(flatten)]
     pub(crate) catalog_dsn: CatalogDsnConfig,
+
+    /// Number of threads to use for the compactor query execution, compaction and persistence.
+    #[clap(
+        long = "--query-exec-thread-count",
+        env = "INFLUXDB_IOX_QUERY_EXEC_THREAD_COUNT",
+        default_value = "4"
+    )]
+    pub query_exect_thread_count: usize,
 }
 
 impl Config {
@@ -74,9 +84,15 @@ pub async fn command(config: Config) -> Result<(), Error> {
         ObjectStore::try_from(config.run_config().object_store_config())
             .map_err(Error::ObjectStoreParsing)?,
     );
+
+    // TODO: modify config to let us get assigned sequence numbers
+    let sequencers: Vec<SequencerId> = vec![];
+
     let compactor_handler = Arc::new(CompactorHandlerImpl::new(
+        sequencers,
         catalog,
         object_store,
+        Executor::new(config.query_exect_thread_count),
         &metric_registry,
     ));
 
