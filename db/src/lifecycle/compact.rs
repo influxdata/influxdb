@@ -184,7 +184,6 @@ mod tests {
         timestamp::TimestampRange,
     };
     use lifecycle::{LockableChunk, LockablePartition};
-    use query::QueryDatabase;
     use std::time::Duration;
 
     #[tokio::test]

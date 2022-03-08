@@ -11,7 +11,7 @@
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder, ChunkSummary},
     delete_predicate::DeletePredicate,
-    partition_metadata::{InfluxDbType, PartitionAddr, TableSummary},
+    partition_metadata::{InfluxDbType, TableSummary},
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, IOxExecutionContext};
@@ -136,9 +136,6 @@ pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 /// data in Chunks.
 pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     type Chunk: QueryChunk;
-
-    /// Return the partition keys for data in this DB
-    fn partition_addrs(&self) -> Vec<PartitionAddr>;
 
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate. If possible, chunks which have no rows that can

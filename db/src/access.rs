@@ -4,7 +4,7 @@
 use super::{catalog::Catalog, chunk::DbChunk, query_log::QueryLog};
 use crate::system_tables;
 use async_trait::async_trait;
-use data_types::{chunk_metadata::ChunkSummary, partition_metadata::PartitionAddr};
+use data_types::chunk_metadata::ChunkSummary;
 use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
@@ -284,10 +284,6 @@ impl PruningObserver for TableAccessMetrics {
 #[async_trait]
 impl QueryDatabase for QueryCatalogAccess {
     type Chunk = DbChunk;
-
-    fn partition_addrs(&self) -> Vec<PartitionAddr> {
-        self.catalog.partition_addrs()
-    }
 
     /// Return a covering set of chunks for a particular table and predicate
     fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {

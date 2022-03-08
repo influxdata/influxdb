@@ -251,7 +251,6 @@ mod tests {
     };
     use lifecycle::{LockableChunk, LockablePartition};
     use object_store::ObjectStore;
-    use query::QueryDatabase;
     use std::{
         convert::TryFrom,
         num::{NonZeroU32, NonZeroU64},

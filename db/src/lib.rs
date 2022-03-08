@@ -1213,6 +1213,10 @@ impl Db {
 
         Ok(())
     }
+
+    pub fn partition_addrs(&self) -> Vec<PartitionAddr> {
+        self.catalog.partition_addrs()
+    }
 }
 
 #[async_trait]
@@ -1221,10 +1225,6 @@ impl Db {
 /// lives in `catalog_access`
 impl QueryDatabase for Db {
     type Chunk = DbChunk;
-
-    fn partition_addrs(&self) -> Vec<PartitionAddr> {
-        self.catalog_access.partition_addrs()
-    }
 
     fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         self.catalog_access.chunks(table_name, predicate)

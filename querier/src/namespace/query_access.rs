@@ -1,7 +1,7 @@
 use std::{any::Any, sync::Arc};
 
 use async_trait::async_trait;
-use data_types2::{ChunkSummary, PartitionAddr};
+use data_types2::ChunkSummary;
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use db::chunk::DbChunk;
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
@@ -27,10 +27,6 @@ impl QueryDatabaseMeta for QuerierNamespace {
 #[async_trait]
 impl QueryDatabase for QuerierNamespace {
     type Chunk = DbChunk;
-
-    fn partition_addrs(&self) -> Vec<PartitionAddr> {
-        self.catalog_access.partition_addrs()
-    }
 
     fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         self.catalog_access.chunks(table_name, predicate)
