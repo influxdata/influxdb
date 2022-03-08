@@ -196,9 +196,9 @@ else
 	exit 1	
 fi
 
-pipelineStartMsg="starting monitor-ci pipeline targeting monitor-ci branch ${MONITOR_CI_BRANCH}, UI branch ${UI_BRANCH:-'master'} and using UI SHA ${UI_SHA:-'latest'}, using OSS SHA ${OSS_SHA:-'latest'}."
+pipelineStartMsg="starting monitor-ci pipeline targeting monitor-ci branch ${MONITOR_CI_BRANCH}, UI branch ${UI_BRANCH:-master} and using UI SHA ${UI_SHA:-latest}, using OSS SHA ${OSS_SHA:-latest}."
 
-reqData="{\"branch\":\"${MONITOR_CI_BRANCH}\", \"parameters\":{ \"run-workflow\":\"${RUN_WORKFLOW}\", \"ui-sha\":\"${UI_SHA:-'not-a-real-sha'}\", \"ui-branch\":\"${UI_BRANCH:-'master'}\", \"oss-sha\":\"${OSS_SHA:-''}\"}}"
+reqData="{\"branch\":\"${MONITOR_CI_BRANCH}\", \"parameters\":{ \"run-workflow\":\"${RUN_WORKFLOW}\", \"ui-sha\":\"${UI_SHA:-not-a-real-sha}\", \"ui-branch\":\"${UI_BRANCH:-master}\", \"oss-sha\":\"${OSS_SHA:-}\"}}"
 
 # start a new pipeline if we didn't find an existing one to retry
 if [ $found_failed_pipeline -eq 0 ]; then
