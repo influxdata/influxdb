@@ -4,7 +4,6 @@
 use super::{catalog::Catalog, chunk::DbChunk, query_log::QueryLog};
 use crate::system_tables;
 use async_trait::async_trait;
-use data_types::chunk_metadata::ChunkSummary;
 use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
@@ -288,10 +287,6 @@ impl QueryDatabase for QueryCatalogAccess {
     /// Return a covering set of chunks for a particular table and predicate
     fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         self.chunk_access.candidate_chunks(table_name, predicate)
-    }
-
-    fn chunk_summaries(&self) -> Vec<ChunkSummary> {
-        self.catalog.chunk_summaries()
     }
 
     fn record_query(

@@ -1137,7 +1137,6 @@ mod tests {
         core::{PreservedCatalog, PreservedCatalogConfig},
         test_helpers::{load_ok, new_empty},
     };
-    use query::QueryDatabase;
     use std::num::NonZeroU32;
     use std::{
         convert::TryFrom,

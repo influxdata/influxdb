@@ -17,7 +17,6 @@ use arrow::{
 };
 use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
 use data_types::{
-    chunk_metadata::ChunkSummary,
     delete_predicate::DeletePredicate,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
 };
@@ -128,10 +127,6 @@ impl QueryDatabase for TestDatabase {
             .filter(|x| x.table_name == table_name)
             .cloned()
             .collect()
-    }
-
-    fn chunk_summaries(&self) -> Vec<ChunkSummary> {
-        unimplemented!("summaries not implemented TestDatabase")
     }
 
     fn record_query(

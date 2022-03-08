@@ -9,7 +9,7 @@
 )]
 
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder, ChunkSummary},
+    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
     delete_predicate::DeletePredicate,
     partition_metadata::{InfluxDbType, TableSummary},
 };
@@ -141,9 +141,6 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     /// the provided predicate. If possible, chunks which have no rows that can
     /// possibly match the predicate may be omitted.
     fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>>;
-
-    /// Return a summary of all chunks in this database, in all partitions
-    fn chunk_summaries(&self) -> Vec<ChunkSummary>;
 
     /// Record that particular type of query was run / planned
     fn record_query(

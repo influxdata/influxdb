@@ -8,7 +8,7 @@ use db::{
     utils::{count_mub_table_chunks, count_os_table_chunks, count_rub_table_chunks, make_db},
     Db,
 };
-use query::{QueryChunk, QueryDatabase};
+use query::QueryChunk;
 use std::{fmt::Display, sync::Arc};
 
 // Structs, enums, and functions used to exhaust all test scenarios of chunk life cycle
