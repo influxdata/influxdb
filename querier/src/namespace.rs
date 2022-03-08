@@ -2,7 +2,10 @@
 use crate::{cache::CatalogCache, chunk::ParquetChunkAdapter};
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types2::{ChunkSummary, NamespaceId, PartitionAddr};
+use data_types2::{
+    ChunkSummary, DeletePredicate, NamespaceId, ParquetFileId, PartitionAddr, SequencerId,
+    TombstoneId,
+};
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use db::{access::QueryCatalogAccess, catalog::Catalog as DbCatalog, chunk::DbChunk};
 use iox_catalog::interface::{get_schema_by_name, Catalog};
@@ -10,7 +13,9 @@ use job_registry::JobRegistry;
 use object_store::ObjectStore;
 use observability_deps::tracing::{info, warn};
 use parking_lot::lock_api::RwLockUpgradableReadGuard;
-use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
+use predicate::{
+    delete_predicate::parse_delete_predicate, rpc_predicate::QueryDatabaseMeta, Predicate,
+};
 use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
     QueryCompletedToken, QueryDatabase, QueryText,
@@ -22,6 +27,7 @@ use std::{
     sync::Arc,
 };
 use time::TimeProvider;
+use tokio::sync::Mutex;
 use trace::ctx::SpanContext;
 
 /// Maps a catalog namespace to all the in-memory resources and sync-state that the querier needs.
@@ -61,6 +67,9 @@ pub struct QuerierNamespace {
 
     /// Executor for queries.
     exec: Arc<Executor>,
+
+    /// Cache of parsed delete predicates
+    predicate_cache: Mutex<HashMap<TombstoneId, Arc<DeletePredicate>>>,
 }
 
 impl QuerierNamespace {
@@ -111,6 +120,7 @@ impl QuerierNamespace {
             name,
             catalog_access,
             exec,
+            predicate_cache: Mutex::new(HashMap::default()),
         }
     }
 
@@ -126,12 +136,14 @@ impl QuerierNamespace {
     /// - schemas
     /// - partitions
     /// - chunks
+    /// - tombstones / delete predicates
     ///
     /// Should be called regularly.
     pub async fn sync(&self) {
         self.sync_tables_and_schemas().await;
         self.sync_partitions().await;
         self.sync_chunks().await;
+        self.sync_tombstones().await;
     }
 
     /// Sync tables and schemas.
@@ -438,6 +450,160 @@ impl QuerierNamespace {
             }
         }
     }
+
+    async fn sync_tombstones(&self) {
+        let tombstones = Backoff::new(&self.backoff_config)
+            .retry_all_errors("get tombstones", || async {
+                self.catalog
+                    .repositories()
+                    .await
+                    .tombstones()
+                    .list_by_namespace(self.id)
+                    .await
+            })
+            .await
+            .expect("retry forever");
+
+        // sort by table and sequencer to reduce locking
+        // table_id -> (sequencer_id -> list of tombstones)
+        let mut tombstones_by_table_and_sequencer: HashMap<_, HashMap<_, Vec<_>>> = HashMap::new();
+        for tombstone in tombstones {
+            tombstones_by_table_and_sequencer
+                .entry(tombstone.table_id)
+                .or_default()
+                .entry(tombstone.sequencer_id)
+                .or_default()
+                .push(tombstone);
+        }
+
+        // parse predicates and lookup table names in advance
+        // table name -> (sequencer_id -> list of predicates)
+        let mut predicate_cache = self.predicate_cache.lock().await;
+        let mut predicates_by_table_and_sequencer: HashMap<_, HashMap<_, Vec<_>>> =
+            HashMap::with_capacity(tombstones_by_table_and_sequencer.len());
+        for (table_id, tombstones_by_sequencer) in tombstones_by_table_and_sequencer {
+            let table_name = self.catalog_cache.table_name(table_id).await;
+            let mut predicates_by_sequencer = HashMap::with_capacity(tombstones_by_sequencer.len());
+            for (sequencer_id, mut tombstones) in tombstones_by_sequencer {
+                // sort tombstones by ID so that predicate lists are stable
+                tombstones.sort_by_key(|t| t.id);
+
+                let predicates: Vec<_> = tombstones
+                    .into_iter()
+                    .map(|t| {
+                        let predicate =
+                            predicate_cache
+                                .get(&t.id)
+                                .map(Arc::clone)
+                                .unwrap_or_else(|| {
+                                    Arc::new(
+                                        parse_delete_predicate(
+                                            &t.min_time.get().to_string(),
+                                            &t.max_time.get().to_string(),
+                                            &t.serialized_predicate,
+                                        )
+                                        .expect("broken delete predicate"),
+                                    )
+                                });
+
+                        (t.id, predicate)
+                    })
+                    .collect();
+                predicates_by_sequencer.insert(sequencer_id, predicates);
+            }
+            predicates_by_table_and_sequencer.insert(table_name, predicates_by_sequencer);
+        }
+
+        // update predicate cache
+        *predicate_cache = predicates_by_table_and_sequencer
+            .values()
+            .flat_map(|predicates_by_sequencer| {
+                predicates_by_sequencer
+                    .values()
+                    .flat_map(|predicates| predicates.iter().cloned())
+            })
+            .collect();
+        drop(predicate_cache);
+
+        // write changes to DB catalog
+        let empty_predicates = vec![]; // required so we can reference an empty vector later
+        for (table_name, predicates_by_sequencer) in predicates_by_table_and_sequencer {
+            let partitions: Vec<_> = match self.db_catalog.table(Arc::clone(&table_name)) {
+                Ok(table) => table.partitions().cloned().collect(),
+                Err(e) => {
+                    // this might happen if some other process (e.g. management API) just removed the table
+                    warn!(
+                        %e,
+                        namespace = self.name.as_ref(),
+                        table = table_name.as_ref(),
+                        "Cannot add/remove tombstones to/from table",
+                    );
+                    continue;
+                }
+            };
+
+            for partition in partitions {
+                let (predicates, chunks) = {
+                    let partition = partition.read();
+
+                    // parse sequencer ID from old-gen partition key
+                    let sequencer_id = SequencerId::new(
+                        partition
+                            .key()
+                            .split_once('-')
+                            .expect("malformed partition key")
+                            .0
+                            .parse()
+                            .expect("malformed partition key"),
+                    );
+
+                    let predicates = match predicates_by_sequencer.get(&sequencer_id) {
+                        Some(predicates) => predicates,
+                        None => {
+                            // don't skip modification since we might need to remove delete predicates from chunks
+                            &empty_predicates
+                        }
+                    };
+
+                    let chunks: Vec<_> = partition.chunks().cloned().collect();
+
+                    (predicates, chunks)
+                };
+
+                for chunk in chunks {
+                    let parquet_file_id = {
+                        let chunk = chunk.read();
+                        ParquetFileId::new(chunk.id().get().as_u128() as i64)
+                    };
+
+                    let mut predicates_filtered = vec![];
+                    for (tombstone_id, predicate) in predicates {
+                        let is_processed = Backoff::new(&self.backoff_config)
+                            .retry_all_errors("processed tombstone exists", || async {
+                                self.catalog
+                                    .repositories()
+                                    .await
+                                    .processed_tombstones()
+                                    .exist(parquet_file_id, *tombstone_id)
+                                    .await
+                            })
+                            .await
+                            .expect("retry forever");
+
+                        if !is_processed {
+                            predicates_filtered.push(Arc::clone(predicate));
+                        }
+                    }
+
+                    let chunk = chunk.upgradable_read();
+                    if chunk.delete_predicates() != predicates_filtered {
+                        let mut chunk = RwLockUpgradableReadGuard::upgrade(chunk);
+                        chunk.set_delete_predicates(predicates_filtered);
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl QueryDatabaseMeta for QuerierNamespace {
@@ -619,15 +785,26 @@ mod tests {
         let ns = catalog.create_namespace("ns").await;
         let table1 = ns.create_table("table1").await;
         let table2 = ns.create_table("table2").await;
+        let sequencer1 = ns.create_sequencer(1).await;
+        let sequencer2 = ns.create_sequencer(2).await;
 
         let querier_namespace = querier_namespace(&catalog, &ns);
 
         querier_namespace.sync().await;
         assert_eq!(partitions(&querier_namespace), vec![],);
 
-        table1.create_partition("k2", 1).await;
-        table1.create_partition("k1", 2).await;
-        table2.create_partition("k1", 1).await;
+        table1
+            .with_sequencer(&sequencer1)
+            .create_partition("k2")
+            .await;
+        table1
+            .with_sequencer(&sequencer2)
+            .create_partition("k1")
+            .await;
+        table2
+            .with_sequencer(&sequencer1)
+            .create_partition("k1")
+            .await;
         querier_namespace.sync().await;
         assert_eq!(
             partitions(&querier_namespace),
@@ -642,7 +819,10 @@ mod tests {
             .partition("table1", "1-k2")
             .unwrap();
 
-        table1.create_partition("k2", 2).await;
+        table1
+            .with_sequencer(&sequencer2)
+            .create_partition("k2")
+            .await;
         querier_namespace.sync().await;
         assert_eq!(
             partitions(&querier_namespace),
@@ -666,7 +846,8 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
-        let partition = table.create_partition("k", 1).await;
+        let sequencer = ns.create_sequencer(1).await;
+        let partition = table.with_sequencer(&sequencer).create_partition("k").await;
 
         let querier_namespace = querier_namespace(&catalog, &ns);
         querier_namespace.sync().await;
@@ -712,10 +893,170 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_sync_tombstones() {
+        let catalog = TestCatalog::new();
+
+        let ns = catalog.create_namespace("ns").await;
+
+        let table1 = ns.create_table("table1").await;
+        let table2 = ns.create_table("table2").await;
+
+        let sequencer1 = ns.create_sequencer(1).await;
+        let sequencer2 = ns.create_sequencer(2).await;
+
+        let partition111 = table1
+            .with_sequencer(&sequencer1)
+            .create_partition("k")
+            .await;
+        let partition112 = table1
+            .with_sequencer(&sequencer1)
+            .create_partition("l")
+            .await;
+        let partition121 = table1
+            .with_sequencer(&sequencer2)
+            .create_partition("k")
+            .await;
+        let partition211 = table2
+            .with_sequencer(&sequencer1)
+            .create_partition("k")
+            .await;
+
+        let file1111 = partition111.create_parquet_file("table1 foo=1 11").await;
+        let _file1112 = partition111.create_parquet_file("table1 foo=2 22").await;
+        let _file1121 = partition112.create_parquet_file("table1 foo=3 33").await;
+        let _file1211 = partition121.create_parquet_file("table1 foo=4 44").await;
+        let _file2111 = partition211.create_parquet_file("table2 foo=5 55").await;
+
+        let querier_namespace = querier_namespace(&catalog, &ns);
+        querier_namespace.sync().await;
+        assert_eq!(
+            delete_predicates(&querier_namespace),
+            vec![
+                (
+                    String::from("Chunk('ns':'table1':'1-k':00000000-0000-0000-0000-000000000001)"),
+                    vec![]
+                ),
+                (
+                    String::from("Chunk('ns':'table1':'1-k':00000000-0000-0000-0000-000000000002)"),
+                    vec![]
+                ),
+                (
+                    String::from("Chunk('ns':'table1':'1-l':00000000-0000-0000-0000-000000000003)"),
+                    vec![]
+                ),
+                (
+                    String::from("Chunk('ns':'table1':'2-k':00000000-0000-0000-0000-000000000004)"),
+                    vec![]
+                ),
+                (
+                    String::from("Chunk('ns':'table2':'1-k':00000000-0000-0000-0000-000000000005)"),
+                    vec![]
+                ),
+            ],
+        );
+
+        let ts1 = table1
+            .with_sequencer(&sequencer1)
+            .create_tombstone(1, 1, 10, "foo=1")
+            .await;
+        let _ts2 = table1
+            .with_sequencer(&sequencer1)
+            .create_tombstone(2, 1, 10, "foo=2")
+            .await;
+        let _ts3 = table2
+            .with_sequencer(&sequencer1)
+            .create_tombstone(3, 1, 10, "foo=3")
+            .await;
+        querier_namespace.sync().await;
+        assert_eq!(
+            delete_predicates(&querier_namespace),
+            vec![
+                (
+                    String::from("Chunk('ns':'table1':'1-k':00000000-0000-0000-0000-000000000001)"),
+                    vec![String::from(r#""foo"=1"#), String::from(r#""foo"=2"#)]
+                ),
+                (
+                    String::from("Chunk('ns':'table1':'1-k':00000000-0000-0000-0000-000000000002)"),
+                    vec![String::from(r#""foo"=1"#), String::from(r#""foo"=2"#)]
+                ),
+                (
+                    String::from("Chunk('ns':'table1':'1-l':00000000-0000-0000-0000-000000000003)"),
+                    vec![String::from(r#""foo"=1"#), String::from(r#""foo"=2"#)]
+                ),
+                (
+                    String::from("Chunk('ns':'table1':'2-k':00000000-0000-0000-0000-000000000004)"),
+                    vec![]
+                ),
+                (
+                    String::from("Chunk('ns':'table2':'1-k':00000000-0000-0000-0000-000000000005)"),
+                    vec![String::from(r#""foo"=3"#)]
+                ),
+            ],
+        );
+        let predicate_a = delete_predicate(&querier_namespace, "table1", "1-k", 1, 1);
+
+        let _file1113 = partition111.create_parquet_file("table1 foo=6 66").await;
+        ts1.mark_processed(&file1111).await;
+        let _ts4 = table2
+            .with_sequencer(&sequencer1)
+            .create_tombstone(4, 1, 10, "foo=4")
+            .await;
+        querier_namespace.sync().await;
+        assert_eq!(
+            delete_predicates(&querier_namespace),
+            vec![
+                (
+                    String::from("Chunk('ns':'table1':'1-k':00000000-0000-0000-0000-000000000001)"),
+                    vec![String::from(r#""foo"=2"#)]
+                ),
+                (
+                    String::from("Chunk('ns':'table1':'1-k':00000000-0000-0000-0000-000000000002)"),
+                    vec![String::from(r#""foo"=1"#), String::from(r#""foo"=2"#)]
+                ),
+                (
+                    String::from("Chunk('ns':'table1':'1-k':00000000-0000-0000-0000-000000000006)"),
+                    vec![String::from(r#""foo"=1"#), String::from(r#""foo"=2"#)]
+                ),
+                (
+                    String::from("Chunk('ns':'table1':'1-l':00000000-0000-0000-0000-000000000003)"),
+                    vec![String::from(r#""foo"=1"#), String::from(r#""foo"=2"#)]
+                ),
+                (
+                    String::from("Chunk('ns':'table1':'2-k':00000000-0000-0000-0000-000000000004)"),
+                    vec![]
+                ),
+                (
+                    String::from("Chunk('ns':'table2':'1-k':00000000-0000-0000-0000-000000000005)"),
+                    vec![String::from(r#""foo"=3"#), String::from(r#""foo"=4"#)]
+                ),
+            ],
+        );
+        assert!(Arc::ptr_eq(
+            &predicate_a,
+            &delete_predicate(&querier_namespace, "table1", "1-k", 1, 0)
+        ));
+        assert!(Arc::ptr_eq(
+            &predicate_a,
+            &delete_predicate(&querier_namespace, "table1", "1-k", 2, 1)
+        ));
+        assert!(Arc::ptr_eq(
+            &predicate_a,
+            &delete_predicate(&querier_namespace, "table1", "1-k", 6, 1)
+        ));
+        assert!(Arc::ptr_eq(
+            &predicate_a,
+            &delete_predicate(&querier_namespace, "table1", "1-l", 3, 1)
+        ));
+    }
+
+    #[tokio::test]
     async fn test_query() {
         let catalog = TestCatalog::new();
 
         let ns = catalog.create_namespace("ns").await;
+
+        let sequencer1 = ns.create_sequencer(1).await;
+        let sequencer2 = ns.create_sequencer(2).await;
 
         let table_cpu = ns.create_table("cpu").await;
         let table_mem = ns.create_table("mem").await;
@@ -728,11 +1069,26 @@ mod tests {
         table_mem.create_column("time", ColumnType::Time).await;
         table_mem.create_column("perc", ColumnType::F64).await;
 
-        let partition_cpu_a_1 = table_cpu.create_partition("a", 1).await;
-        let partition_cpu_a_2 = table_cpu.create_partition("a", 2).await;
-        let partition_cpu_b_1 = table_cpu.create_partition("b", 1).await;
-        let partition_mem_c_1 = table_mem.create_partition("c", 1).await;
-        let partition_mem_c_2 = table_mem.create_partition("c", 2).await;
+        let partition_cpu_a_1 = table_cpu
+            .with_sequencer(&sequencer1)
+            .create_partition("a")
+            .await;
+        let partition_cpu_a_2 = table_cpu
+            .with_sequencer(&sequencer2)
+            .create_partition("a")
+            .await;
+        let partition_cpu_b_1 = table_cpu
+            .with_sequencer(&sequencer1)
+            .create_partition("b")
+            .await;
+        let partition_mem_c_1 = table_mem
+            .with_sequencer(&sequencer1)
+            .create_partition("c")
+            .await;
+        let partition_mem_c_2 = table_mem
+            .with_sequencer(&sequencer2)
+            .create_partition("c")
+            .await;
 
         partition_cpu_a_1
             .create_parquet_file("cpu,host=a load=1 11")
@@ -752,12 +1108,20 @@ mod tests {
             .create_parquet_file("cpu,host=b load=5 11")
             .await;
         partition_mem_c_1
-            .create_parquet_file("mem,host=c perc=50 11\nmem,host=c perc=51 12")
+            .create_parquet_file("mem,host=c perc=50 11\nmem,host=c perc=51 12\nmem,host=d perc=52 13\nmem,host=d perc=53 14")
             .await;
         partition_mem_c_2
             .create_parquet_file("mem,host=c perc=50 1001")
             .await
             .flag_for_delete()
+            .await;
+        partition_mem_c_1
+            .create_parquet_file("mem,host=d perc=55 1")
+            .await;
+
+        table_mem
+            .with_sequencer(&sequencer1)
+            .create_tombstone(1, 1, 13, "host=d")
             .await;
 
         let querier_namespace = Arc::new(querier_namespace(&catalog, &ns));
@@ -787,6 +1151,7 @@ mod tests {
                 "+------+------+--------------------------------+",
                 "| c    | 50   | 1970-01-01T00:00:00.000000011Z |",
                 "| c    | 51   | 1970-01-01T00:00:00.000000012Z |",
+                "| d    | 53   | 1970-01-01T00:00:00.000000014Z |",
                 "+------+------+--------------------------------+",
             ],
         )
@@ -850,6 +1215,45 @@ mod tests {
                     c.addr().clone()
                 })
                 .collect(),
+        )
+    }
+
+    fn delete_predicates(querier_namespace: &QuerierNamespace) -> Vec<(String, Vec<String>)> {
+        sorted(
+            querier_namespace
+                .db_catalog
+                .chunks()
+                .into_iter()
+                .map(|c| {
+                    let c = c.read();
+                    let chunk_addr = c.addr().to_string();
+                    let delete_predicates: Vec<_> = c
+                        .delete_predicates()
+                        .iter()
+                        .map(|p| p.expr_sql_string())
+                        .collect();
+                    (chunk_addr, delete_predicates)
+                })
+                .collect(),
+        )
+    }
+
+    fn delete_predicate(
+        querier_namespace: &QuerierNamespace,
+        table_name: &str,
+        partition_key: &str,
+        chunk_id: u128,
+        idx: usize,
+    ) -> Arc<DeletePredicate> {
+        let chunk_id = ChunkId::from(Uuid::from_u128(chunk_id));
+        Arc::clone(
+            &querier_namespace
+                .db_catalog
+                .chunk(table_name, partition_key, chunk_id)
+                .unwrap()
+                .0
+                .read()
+                .delete_predicates()[idx],
         )
     }
 

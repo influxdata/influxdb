@@ -214,12 +214,12 @@ mod tests {
             "table,tag1=UT field_int=70 20000",
         ]
         .join("\n");
-        let parquet_file = catalog
-            .create_namespace("ns")
-            .await
-            .create_table("table")
-            .await
-            .create_partition("part", 1)
+        let ns = catalog.create_namespace("ns").await;
+        let sequencer = ns.create_sequencer(1).await;
+        let table = ns.create_table("table").await;
+        let parquet_file = table
+            .with_sequencer(&sequencer)
+            .create_partition("part")
             .await
             .create_parquet_file(&lp)
             .await

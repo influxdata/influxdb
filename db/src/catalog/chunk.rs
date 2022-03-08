@@ -541,6 +541,26 @@ impl CatalogChunk {
         }
     }
 
+    /// Override current list of delete predicates with new value.
+    pub fn set_delete_predicates(&mut self, delete_predicates: Vec<Arc<DeletePredicate>>) {
+        match &mut self.stage {
+            ChunkStage::Open { .. } => {
+                panic!("No delete predicates for open chunk");
+            }
+            ChunkStage::Frozen { meta, .. } | ChunkStage::Persisted { meta, .. } => {
+                // Add the delete_predicate into the chunk's metadata
+                *meta = Arc::new(ChunkMetadata {
+                    table_summary: Arc::clone(&meta.table_summary),
+                    schema: Arc::clone(&meta.schema),
+                    delete_predicates,
+                    time_of_first_write: meta.time_of_first_write,
+                    time_of_last_write: meta.time_of_last_write,
+                    sort_key: meta.sort_key.clone(),
+                });
+            }
+        }
+    }
+
     pub fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         match &self.stage {
             ChunkStage::Open { mb_chunk: _, .. } => {
