@@ -46,6 +46,7 @@ set -eu -o pipefail
 # Required Env Vars for Testing Changes to an OSS Image with Embedded UI with e2e tests from a Specific UI Commit:
 # - RUN_WORKFLOW='build_oss_embedded'
 # - UI_SHA: the UI repo commit SHA we want to build and run e2e tests from
+# - UI_BRANCH: the UI branch where the commit exists
 # - OSS_SHA: the influxdb repo commit SHA we're running against
 
 ########################
