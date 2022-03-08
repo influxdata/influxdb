@@ -88,6 +88,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Contains all buffered and cached data for the ingester.
+#[derive(Debug)]
 pub struct IngesterData {
     /// Object store for persistence of parquet files
     pub(crate) object_store: Arc<ObjectStore>,
@@ -293,7 +294,7 @@ impl Persister for IngesterData {
 }
 
 /// Data of a Shard
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SequencerData {
     // New namespaces can come in at any time so we need to be able to add new ones
     namespaces: RwLock<BTreeMap<String, Arc<NamespaceData>>>,
@@ -371,6 +372,7 @@ impl SequencerData {
 }
 
 /// Data of a Namespace that belongs to a given Shard
+#[derive(Debug)]
 pub struct NamespaceData {
     namespace_id: NamespaceId,
     tables: RwLock<BTreeMap<String, Arc<tokio::sync::RwLock<TableData>>>>,
@@ -579,6 +581,7 @@ impl NamespaceData {
 }
 
 /// Data of a Table in a given Namesapce that belongs to a given Shard
+#[derive(Debug)]
 pub(crate) struct TableData {
     table_id: TableId,
     // the max sequence number persisted for this table
@@ -757,6 +760,7 @@ impl TableData {
 }
 
 /// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
+#[derive(Debug)]
 pub(crate) struct PartitionData {
     id: PartitionId,
     data: DataBuffer,
@@ -914,7 +918,7 @@ impl PartitionData {
 /// │          ...           │        │ │└───────────────┘  │  │      │  │└───────────────┘  │  │
 /// │                        │        │ └───────────────────┘  │      │  └───────────────────┘  │
 /// └────────────────────────┘        └────────────────────────┘      └─────────────────────────┘
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct DataBuffer {
     /// Buffer of incoming writes
     pub(crate) buffer: Vec<BufferBatch>,
@@ -1121,6 +1125,7 @@ impl DataBuffer {
 
 /// BufferBatch is a MutauableBatch with its ingesting order, sequencer_number, that
 /// helps the ingester keep the batches of data in thier ingesting order
+#[derive(Debug)]
 pub struct BufferBatch {
     /// Sequencer number of the ingesting data
     pub(crate) sequencer_number: SequenceNumber,
@@ -1214,6 +1219,23 @@ pub struct IngesterQueryResponse {
 
     /// Max sequence number for a tombstone associated with this table
     pub tombstone_max_sequence_number: Option<SequenceNumber>,
+}
+
+impl std::fmt::Debug for IngesterQueryResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IngesterQueryResponse")
+            .field("data", &"<RECORDBATCH STREAM>")
+            .field("schema", &self.schema)
+            .field(
+                "parquet_max_sequence_number",
+                &self.parquet_max_sequence_number,
+            )
+            .field(
+                "tombstone_max_sequence_number",
+                &self.tombstone_max_sequence_number,
+            )
+            .finish()
+    }
 }
 
 impl IngesterQueryResponse {

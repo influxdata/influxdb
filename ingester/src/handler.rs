@@ -23,7 +23,6 @@ use query::exec::Executor;
 use snafu::{ResultExt, Snafu};
 use std::{
     collections::BTreeMap,
-    fmt::Formatter,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -86,7 +85,9 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
     handle.map_err(Arc::new).boxed().shared()
 }
 
-/// Implementation of the `IngestHandler` trait to ingest from kafka and manage persistence and answer queries
+/// Implementation of the `IngestHandler` trait to ingest from kafka and manage
+/// persistence and answer queries
+#[derive(Debug)]
 pub struct IngestHandlerImpl {
     /// Kafka Topic assigned to this ingester
     #[allow(dead_code)]
@@ -106,12 +107,6 @@ pub struct IngestHandlerImpl {
 
     /// The lifecycle manager, keeping state of partitions across all sequencers
     lifecycle_manager: Arc<LifecycleManager>,
-}
-
-impl std::fmt::Debug for IngestHandlerImpl {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
 }
 
 impl IngestHandlerImpl {
