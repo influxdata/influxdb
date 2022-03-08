@@ -180,13 +180,13 @@ if [[ -z "${API_KEY:-}" ]] || [[ -z "${MONITOR_CI_BRANCH:-}" ]]; then
 fi
 
 if [[ "${RUN_WORKFLOW}" == "build_oss" ]]; then
-	required_workflows=( "build-oss" )
+	required_workflows=( "build_oss" )
 	if [[ -z "${OSS_SHA:-}" ]]; then
 		printf "\nERROR: monitor-ci pipeline missing required env vars. Must set OSS_SHA.\n"
 		exit 1	
 	fi
 elif [[ "${RUN_WORKFLOW}" == "build_oss_embedded" ]]; then
-	required_workflows=( "build-oss-embedded" )
+	required_workflows=( "build_oss_embedded" )
 	if [[ -z "${UI_SHA:-}" ]] || [[ -z "${UI_BRANCH:-}" ]] || [[ -z "${OSS_SHA:-}" ]]; then
 		printf "\nERROR: monitor-ci pipeline missing required env vars. Must set UI_SHA, UI_BRANCH, and OSS_SHA.\n"
 		exit 1	
@@ -219,6 +219,7 @@ do
 		--header "Circle-Token: ${API_KEY}" \
 		--header 'content-type: application/json' \
 		--header 'Accept: application/json')
+
 
 	number_running_workflows=$(echo ${workflows} | jq  -r '.items | map(select(.status == "running" or .status == "failing")) | length')
 
