@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 use crate::{
-    http::metrics::LineProtocolMetrics,
+    http::{error::HttpApiErrorSource, metrics::LineProtocolMetrics},
     rpc::RpcBuilderInput,
     server_type::{common_state::CommonServerState, RpcError, ServerType},
 };
@@ -50,8 +50,6 @@ impl RouterServerType {
 
 #[async_trait]
 impl ServerType for RouterServerType {
-    type RouteError = ApplicationError;
-
     fn metric_registry(&self) -> Arc<Registry> {
         Arc::clone(self.server.metric_registry())
     }
@@ -63,8 +61,10 @@ impl ServerType for RouterServerType {
     async fn route_http_request(
         &self,
         req: Request<Body>,
-    ) -> Result<Response<Body>, Self::RouteError> {
-        self::http::route_request(self, req).await
+    ) -> Result<Response<Body>, Box<dyn HttpApiErrorSource>> {
+        self::http::route_request(self, req)
+            .await
+            .map_err(|e| Box::new(e) as _)
     }
 
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {

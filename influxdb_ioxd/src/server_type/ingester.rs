@@ -33,8 +33,6 @@ impl<I: IngestHandler> IngesterServerType<I> {
 
 #[async_trait]
 impl<I: IngestHandler + Sync + Send + Debug + 'static> ServerType for IngesterServerType<I> {
-    type RouteError = IoxHttpError;
-
     /// Return the [`metric::Registry`] used by the ingester.
     fn metric_registry(&self) -> Arc<Registry> {
         self.server.metric_registry()
@@ -49,8 +47,8 @@ impl<I: IngestHandler + Sync + Send + Debug + 'static> ServerType for IngesterSe
     async fn route_http_request(
         &self,
         _req: Request<Body>,
-    ) -> Result<Response<Body>, Self::RouteError> {
-        Err(IoxHttpError::NotFound)
+    ) -> Result<Response<Body>, Box<dyn HttpApiErrorSource>> {
+        Err(Box::new(IoxHttpError::NotFound))
     }
 
     /// Provide a placeholder gRPC service.

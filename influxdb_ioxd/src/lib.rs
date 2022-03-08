@@ -108,10 +108,7 @@ fn build_malloc_conf() -> String {
 /// practice, e.g. that we print the GIT-hash and malloc-configs, that a panic handler is installed, etc.
 ///
 /// Due to the invasive nature of the setup routine, this should not be used during unit tests.
-pub async fn main<T>(common_state: CommonServerState, server_type: Arc<T>) -> Result<()>
-where
-    T: ServerType,
-{
+pub async fn main(common_state: CommonServerState, server_type: Arc<dyn ServerType>) -> Result<()> {
     let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
@@ -186,15 +183,12 @@ pub async fn http_listener(addr: SocketAddr) -> Result<AddrIncoming> {
 /// these listeners, the Server, Databases, etc... have all exited.
 ///
 /// This is effectively the "main loop" for influxdb_iox
-async fn serve<T>(
+async fn serve(
     common_state: CommonServerState,
     grpc_listener: tokio::net::TcpListener,
     http_listener: AddrIncoming,
-    server_type: Arc<T>,
-) -> Result<()>
-where
-    T: ServerType,
-{
+    server_type: Arc<dyn ServerType>,
+) -> Result<()> {
     // Construct a token to trigger shutdown of API services
     let frontend_shutdown = tokio_util::sync::CancellationToken::new();
 

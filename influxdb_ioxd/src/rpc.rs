@@ -175,16 +175,13 @@ pub(crate) use serve_builder;
 /// implementing the IOx, Storage, and Flight gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
 /// shutdown.
-pub async fn serve<T>(
+pub async fn serve(
     socket: TcpListener,
-    server_type: Arc<T>,
+    server_type: Arc<dyn ServerType>,
     trace_header_parser: TraceHeaderParser,
     shutdown: CancellationToken,
     serving_readiness: ServingReadiness,
-) -> Result<(), RpcError>
-where
-    T: ServerType,
-{
+) -> Result<(), RpcError> {
     let builder_input = RpcBuilderInput {
         socket,
         trace_header_parser,
