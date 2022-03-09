@@ -640,7 +640,6 @@ dependencies = [
  "metric",
  "object_store",
  "observability_deps",
- "serving_readiness",
  "snafu",
  "tempfile",
  "time 0.1.0",
@@ -2267,7 +2266,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "server",
- "serving_readiness",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -5006,14 +5004,6 @@ dependencies = [
  "rand",
  "test_helpers",
  "tokio",
-]
-
-[[package]]
-name = "serving_readiness"
-version = "0.1.0"
-dependencies = [
- "tonic",
- "workspace-hack",
 ]
 
 [[package]]

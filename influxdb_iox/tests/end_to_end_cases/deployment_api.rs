@@ -1,88 +1,9 @@
 use std::num::NonZeroU32;
 
-use influxdb_iox_client::{
-    error::Error, management::generated_types::DatabaseRules, router::generated_types::Router,
-};
+use influxdb_iox_client::error::Error;
 use test_helpers::assert_error;
 
 use crate::common::server_fixture::{ServerFixture, ServerType, TestConfig};
-
-#[tokio::test]
-async fn test_serving_readiness_database() {
-    let server_fixture = ServerFixture::create_single_use(ServerType::Database).await;
-    let mut deployment_client = server_fixture.deployment_client();
-    let mut mgmt_client = server_fixture.management_client();
-    let mut write_client = server_fixture.write_client();
-
-    let name = "foo";
-    let lp_data = "bar baz=1 10";
-
-    deployment_client
-        .update_server_id(NonZeroU32::try_from(42).unwrap())
-        .await
-        .expect("set ID failed");
-    server_fixture.wait_server_initialized().await;
-    mgmt_client
-        .create_database(DatabaseRules {
-            name: name.to_string(),
-            ..Default::default()
-        })
-        .await
-        .expect("create database failed");
-
-    assert!(deployment_client.get_serving_readiness().await.unwrap());
-
-    deployment_client
-        .set_serving_readiness(false)
-        .await
-        .unwrap();
-    let r = write_client.write_lp(name, lp_data, 0).await;
-    assert_error!(r, Error::Unavailable(_));
-
-    assert!(!deployment_client.get_serving_readiness().await.unwrap());
-
-    deployment_client.set_serving_readiness(true).await.unwrap();
-    assert!(deployment_client.get_serving_readiness().await.unwrap());
-    write_client.write_lp(name, lp_data, 0).await.unwrap();
-}
-
-#[tokio::test]
-async fn test_serving_readiness_router() {
-    let server_fixture = ServerFixture::create_single_use(ServerType::Router).await;
-    let mut deployment_client = server_fixture.deployment_client();
-    let mut router_client = server_fixture.router_client();
-    let mut write_client = server_fixture.write_client();
-
-    let name = "foo";
-    let lp_data = "bar baz=1 10";
-
-    deployment_client
-        .update_server_id(NonZeroU32::try_from(42).unwrap())
-        .await
-        .expect("set ID failed");
-    router_client
-        .update_router(Router {
-            name: name.to_string(),
-            ..Default::default()
-        })
-        .await
-        .expect("create router failed");
-
-    assert!(deployment_client.get_serving_readiness().await.unwrap());
-
-    deployment_client
-        .set_serving_readiness(false)
-        .await
-        .unwrap();
-    let r = write_client.write_lp(name, lp_data, 0).await;
-    assert_error!(r, Error::Unavailable(_));
-
-    assert!(!deployment_client.get_serving_readiness().await.unwrap());
-
-    deployment_client.set_serving_readiness(true).await.unwrap();
-    assert!(deployment_client.get_serving_readiness().await.unwrap());
-    write_client.write_lp(name, lp_data, 0).await.unwrap();
-}
 
 #[tokio::test]
 async fn test_set_get_server_id_database() {

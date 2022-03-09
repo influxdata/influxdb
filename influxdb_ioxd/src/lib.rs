@@ -213,7 +213,6 @@ async fn serve(
         Arc::clone(&server_type),
         trace_header_parser.clone(),
         frontend_shutdown.clone(),
-        common_state.serving_readiness().clone(),
     )
     .fuse();
 

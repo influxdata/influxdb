@@ -9,7 +9,6 @@ use hyper::{Body, Request, Response};
 use metric::Registry;
 use observability_deps::tracing::{error, info};
 use server::{ApplicationState, Server};
-use serving_readiness::ServingReadiness;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
@@ -28,7 +27,6 @@ pub struct DatabaseServerType {
     pub server: Arc<Server>,
     pub lp_metrics: Arc<LineProtocolMetrics>,
     pub max_request_size: usize,
-    pub serving_readiness: ServingReadiness,
     config_immutable: bool,
     shutdown: CancellationToken,
 }
@@ -50,7 +48,6 @@ impl DatabaseServerType {
             lp_metrics,
             config_immutable,
             max_request_size: common_state.run_config().max_http_request_size,
-            serving_readiness: common_state.serving_readiness().clone(),
             shutdown: CancellationToken::new(),
         }
     }

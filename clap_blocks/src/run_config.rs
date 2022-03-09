@@ -3,8 +3,6 @@ use trogging::cli::LoggingConfig;
 
 use crate::{object_store::ObjectStoreConfig, server_id::ServerIdConfig, socket_addr::SocketAddr};
 
-use serving_readiness::ServingReadinessState;
-
 /// The default bind address for the HTTP API.
 pub const DEFAULT_API_BIND_ADDR: &str = "127.0.0.1:8080";
 
@@ -41,15 +39,6 @@ pub struct RunConfig {
     default_value = DEFAULT_GRPC_BIND_ADDR,
     )]
     pub grpc_bind_address: SocketAddr,
-
-    /// After startup the IOx server can either accept serving data plane traffic right away
-    /// or require a SetServingReadiness call from the Management API to enable serving.
-    #[clap(
-        long = "--initial-serving-readiness-state",
-        env = "INFLUXDB_IOX_INITIAL_SERVING_READINESS_STATE",
-        default_value = "serving"
-    )]
-    pub initial_serving_state: ServingReadinessState,
 
     /// Maximum size of HTTP requests.
     #[clap(
