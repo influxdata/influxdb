@@ -28,6 +28,7 @@ import (
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
@@ -1703,6 +1704,24 @@ func TestMeasurementFieldSet_ConcurrentSave(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestMeasurementFieldSet_MeasurementNames(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+	defer mf.Close()
+
+	mf.CreateFieldsIfNotExists([]byte("cpu"))
+	mf.CreateFieldsIfNotExists([]byte("memory"))
+	mf.CreateFieldsIfNotExists([]byte("disk_usage"))
+
+	exp := []string{"cpu", "disk_usage", "memory"}
+	got := mf.MeasurementNames()
+	assert.Equal(t, exp, got)
 }
 
 func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldSet, measurement string, fieldNames []string) {
