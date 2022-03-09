@@ -619,7 +619,7 @@ pub struct Tombstone {
     pub serialized_predicate: String,
 }
 
-/// Data for a parquet file reference in the catalog.
+/// Data for a parquet file reference that has been inserted in the catalog.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct ParquetFile {
     /// the id of the file in the catalog
@@ -642,6 +642,37 @@ pub struct ParquetFile {
     pub max_time: Timestamp,
     /// flag to mark that this file should be deleted from object storage
     pub to_delete: bool,
+    /// file size in bytes
+    pub file_size_bytes: i64,
+    /// thrift-encoded parquet metadata
+    pub parquet_metadata: Vec<u8>,
+    /// the number of rows of data in this file
+    pub row_count: i64,
+    /// the compaction level of the file
+    pub compaction_level: i16,
+    /// the creation time of the parquet file
+    pub created_at: Timestamp,
+}
+
+/// Data for a parquet file to be inserted into the catalog.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParquetFileParams {
+    /// the sequencer that sequenced writes that went into this file
+    pub sequencer_id: SequencerId,
+    /// the table
+    pub table_id: TableId,
+    /// the partition
+    pub partition_id: PartitionId,
+    /// the uuid used in the object store path for this file
+    pub object_store_id: Uuid,
+    /// the minimum sequence number from a record in this file
+    pub min_sequence_number: SequenceNumber,
+    /// the maximum sequence number from a record in this file
+    pub max_sequence_number: SequenceNumber,
+    /// the min timestamp of data in this file
+    pub min_time: Timestamp,
+    /// the max timestamp of data in this file
+    pub max_time: Timestamp,
     /// file size in bytes
     pub file_size_bytes: i64,
     /// thrift-encoded parquet metadata

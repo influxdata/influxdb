@@ -3,8 +3,9 @@
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
 use data_types2::{
-    ColumnType, InfluxDbType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, Partition,
-    QueryPool, SequenceNumber, Sequencer, Table, Timestamp, Tombstone,
+    ColumnType, InfluxDbType, KafkaPartition, KafkaTopic, Namespace, ParquetFile,
+    ParquetFileParams, Partition, QueryPool, SequenceNumber, Sequencer, Table, Timestamp,
+    Tombstone,
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
@@ -302,23 +303,24 @@ impl TestPartition {
             })
             .unwrap();
 
+        let parquet_file_params = ParquetFileParams {
+            sequencer_id: self.sequencer.sequencer.id,
+            table_id: self.table.table.id,
+            partition_id: self.partition.id,
+            object_store_id,
+            min_sequence_number,
+            max_sequence_number,
+            min_time: Timestamp::new(ts_min_max.min),
+            max_time: Timestamp::new(ts_min_max.max),
+            file_size_bytes: file_size_bytes as i64,
+            parquet_metadata: parquet_metadata_bin,
+            row_count: row_count as i64,
+            compaction_level: 0,
+            created_at: Timestamp::new(1),
+        };
         let parquet_file = repos
             .parquet_files()
-            .create(
-                self.sequencer.sequencer.id,
-                self.table.table.id,
-                self.partition.id,
-                object_store_id,
-                min_sequence_number,
-                max_sequence_number,
-                Timestamp::new(ts_min_max.min),
-                Timestamp::new(ts_min_max.max),
-                file_size_bytes as i64,
-                parquet_metadata_bin,
-                row_count as i64,
-                0,
-                Timestamp::new(1),
-            )
+            .create(parquet_file_params)
             .await
             .unwrap();
 

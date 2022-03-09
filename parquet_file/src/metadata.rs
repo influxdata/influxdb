@@ -91,8 +91,8 @@ use data_types::{
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
 };
 use data_types2::{
-    NamespaceId, ParquetFile, ParquetFileId, PartitionId, SequenceNumber, SequencerId, TableId,
-    Timestamp, INITIAL_COMPACTION_LEVEL,
+    NamespaceId, ParquetFileParams, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
+    INITIAL_COMPACTION_LEVEL,
 };
 use generated_types::influxdata::iox::{
     ingester::v1 as proto, preserved_catalog::v1 as preserved_catalog,
@@ -635,9 +635,8 @@ impl IoxMetadata {
         &self,
         file_size_bytes: usize,
         metadata: &IoxParquetMetaData,
-    ) -> ParquetFile {
-        ParquetFile {
-            id: ParquetFileId::new(0), // this will be created in the DB. This 0 won't be used anywhere
+    ) -> ParquetFileParams {
+        ParquetFileParams {
             sequencer_id: self.sequencer_id,
             table_id: self.table_id,
             partition_id: self.partition_id,
@@ -646,7 +645,6 @@ impl IoxMetadata {
             max_sequence_number: self.max_sequence_number,
             min_time: Timestamp::new(self.time_of_first_write.timestamp_nanos()),
             max_time: Timestamp::new(self.time_of_last_write.timestamp_nanos()),
-            to_delete: false,
             file_size_bytes: file_size_bytes as i64,
             parquet_metadata: metadata.thrift_bytes().to_vec(),
             row_count: self.row_count,

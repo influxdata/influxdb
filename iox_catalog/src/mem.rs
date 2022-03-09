@@ -13,16 +13,15 @@ use crate::{
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnId, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, Partition, PartitionId, PartitionInfo, ProcessedTombstone,
-    QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp,
-    Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
+    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
+    TableId, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::warn;
 use std::fmt::Formatter;
 use std::sync::Arc;
 use std::{collections::HashSet, convert::TryFrom};
 use tokio::sync::{Mutex, OwnedMutexGuard};
-use uuid::Uuid;
 
 /// In-memory catalog that implements the `RepoCollection` and individual repo traits from
 /// the catalog interface.
@@ -750,23 +749,24 @@ impl TombstoneRepo for MemTxn {
 
 #[async_trait]
 impl ParquetFileRepo for MemTxn {
-    async fn create(
-        &mut self,
-        sequencer_id: SequencerId,
-        table_id: TableId,
-        partition_id: PartitionId,
-        object_store_id: Uuid,
-        min_sequence_number: SequenceNumber,
-        max_sequence_number: SequenceNumber,
-        min_time: Timestamp,
-        max_time: Timestamp,
-        file_size_bytes: i64,
-        parquet_metadata: Vec<u8>,
-        row_count: i64,
-        level: i16,
-        created_at: Timestamp,
-    ) -> Result<ParquetFile> {
+    async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile> {
         let stage = self.stage();
+
+        let ParquetFileParams {
+            sequencer_id,
+            table_id,
+            partition_id,
+            object_store_id,
+            min_sequence_number,
+            max_sequence_number,
+            min_time,
+            max_time,
+            file_size_bytes,
+            parquet_metadata,
+            row_count,
+            compaction_level,
+            created_at,
+        } = parquet_file_params;
 
         if stage
             .parquet_files
@@ -790,7 +790,7 @@ impl ParquetFileRepo for MemTxn {
             to_delete: false,
             file_size_bytes,
             parquet_metadata,
-            compaction_level: level,
+            compaction_level,
             created_at,
         };
         stage.parquet_files.push(parquet_file);
