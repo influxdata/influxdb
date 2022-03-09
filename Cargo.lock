@@ -740,7 +740,6 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "backoff 0.1.0",
- "data_types",
  "data_types2",
  "futures",
  "iox_catalog",
