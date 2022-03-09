@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use http::HeaderMap;
-use observability_deps::tracing::info;
+use observability_deps::tracing::*;
 use snafu::Snafu;
 
 use trace::ctx::{SpanContext, SpanId, TraceId};
@@ -124,7 +124,7 @@ impl TraceHeaderParser {
                 // It would be nice to record the debug-name in the span somehow for easy finding in Jaeger
                 // for now, also log it.
                 let trace_id = format!("{:x}", new_trace_context.trace_id.get());
-                info!(%trace_id, ?debug_header_value, "Created new trace rooted at IOx");
+                trace!(%trace_id, ?debug_header_value, "Created new trace rooted at IOx");
                 return Ok(Some(new_trace_context));
             }
         }
