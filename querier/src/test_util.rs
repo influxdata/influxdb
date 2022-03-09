@@ -2,7 +2,7 @@ use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
 use data_types2::{
     ColumnType, InfluxDbType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, Partition,
-    QueryPool, SequenceNumber, Sequencer, Table, Timestamp,
+    QueryPool, SequenceNumber, Sequencer, Table, Timestamp, Tombstone,
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
@@ -107,6 +107,28 @@ impl TestNamespace {
             table,
         })
     }
+
+    pub async fn create_sequencer(self: &Arc<Self>, sequencer: i32) -> Arc<TestSequencer> {
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        let sequencer = repos
+            .sequencers()
+            .create_or_get(&self.kafka_topic, KafkaPartition::new(sequencer))
+            .await
+            .unwrap();
+
+        Arc::new(TestSequencer {
+            catalog: Arc::clone(&self.catalog),
+            namespace: Arc::clone(self),
+            sequencer,
+        })
+    }
+}
+
+pub struct TestSequencer {
+    pub catalog: Arc<TestCatalog>,
+    pub namespace: Arc<TestNamespace>,
+    pub sequencer: Sequencer,
 }
 
 pub struct TestTable {
@@ -116,30 +138,18 @@ pub struct TestTable {
 }
 
 impl TestTable {
-    pub async fn create_partition(
+    pub fn with_sequencer(
         self: &Arc<Self>,
-        key: &str,
-        sequencer: i32,
-    ) -> Arc<TestPartition> {
-        let mut repos = self.catalog.catalog.repositories().await;
+        sequencer: &Arc<TestSequencer>,
+    ) -> Arc<TestTableBoundSequencer> {
+        assert!(Arc::ptr_eq(&self.catalog, &sequencer.catalog));
+        assert!(Arc::ptr_eq(&self.namespace, &sequencer.namespace));
 
-        let sequencer = repos
-            .sequencers()
-            .create_or_get(&self.namespace.kafka_topic, KafkaPartition::new(sequencer))
-            .await
-            .unwrap();
-        let partition = repos
-            .partitions()
-            .create_or_get(key, sequencer.id, self.table.id)
-            .await
-            .unwrap();
-
-        Arc::new(TestPartition {
+        Arc::new(TestTableBoundSequencer {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             table: Arc::clone(self),
-            sequencer,
-            partition,
+            sequencer: Arc::clone(sequencer),
         })
     }
 
@@ -154,11 +164,67 @@ impl TestTable {
     }
 }
 
+pub struct TestTableBoundSequencer {
+    pub catalog: Arc<TestCatalog>,
+    pub namespace: Arc<TestNamespace>,
+    pub table: Arc<TestTable>,
+    pub sequencer: Arc<TestSequencer>,
+}
+
+impl TestTableBoundSequencer {
+    pub async fn create_partition(self: &Arc<Self>, key: &str) -> Arc<TestPartition> {
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        let partition = repos
+            .partitions()
+            .create_or_get(key, self.sequencer.sequencer.id, self.table.table.id)
+            .await
+            .unwrap();
+
+        Arc::new(TestPartition {
+            catalog: Arc::clone(&self.catalog),
+            namespace: Arc::clone(&self.namespace),
+            table: Arc::clone(&self.table),
+            sequencer: Arc::clone(&self.sequencer),
+            partition,
+        })
+    }
+
+    pub async fn create_tombstone(
+        self: &Arc<Self>,
+        sequence_number: i64,
+        min_time: i64,
+        max_time: i64,
+        predicate: &str,
+    ) -> Arc<TestTombstone> {
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        let tombstone = repos
+            .tombstones()
+            .create_or_get(
+                self.table.table.id,
+                self.sequencer.sequencer.id,
+                SequenceNumber::new(sequence_number),
+                Timestamp::new(min_time),
+                Timestamp::new(max_time),
+                predicate,
+            )
+            .await
+            .unwrap();
+
+        Arc::new(TestTombstone {
+            catalog: Arc::clone(&self.catalog),
+            namespace: Arc::clone(&self.namespace),
+            tombstone,
+        })
+    }
+}
+
 pub struct TestPartition {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
     pub table: Arc<TestTable>,
-    pub sequencer: Sequencer,
+    pub sequencer: Arc<TestSequencer>,
     pub partition: Partition,
 }
 
@@ -179,7 +245,7 @@ impl TestPartition {
             creation_timestamp: now(),
             namespace_id: self.namespace.namespace.id,
             namespace_name: self.namespace.namespace.name.clone().into(),
-            sequencer_id: self.sequencer.id,
+            sequencer_id: self.sequencer.sequencer.id,
             table_id: self.table.table.id,
             table_name: self.table.table.name.clone().into(),
             partition_id: self.partition.id,
@@ -211,7 +277,7 @@ impl TestPartition {
         let parquet_file = repos
             .parquet_files()
             .create(
-                self.sequencer.id,
+                self.sequencer.sequencer.id,
                 self.table.table.id,
                 self.partition.id,
                 object_store_id,
@@ -228,6 +294,7 @@ impl TestPartition {
 
         Arc::new(TestParquetFile {
             catalog: Arc::clone(&self.catalog),
+            namespace: Arc::clone(&self.namespace),
             parquet_file,
         })
     }
@@ -278,6 +345,7 @@ async fn create_parquet_file(
 
 pub struct TestParquetFile {
     pub catalog: Arc<TestCatalog>,
+    pub namespace: Arc<TestNamespace>,
     pub parquet_file: ParquetFile,
 }
 
@@ -290,6 +358,27 @@ impl TestParquetFile {
             .flag_for_delete(self.parquet_file.id)
             .await
             .unwrap()
+    }
+}
+
+pub struct TestTombstone {
+    pub catalog: Arc<TestCatalog>,
+    pub namespace: Arc<TestNamespace>,
+    pub tombstone: Tombstone,
+}
+
+impl TestTombstone {
+    pub async fn mark_processed(self: &Arc<Self>, parquet_file: &Arc<TestParquetFile>) {
+        assert!(Arc::ptr_eq(&self.catalog, &parquet_file.catalog));
+        assert!(Arc::ptr_eq(&self.namespace, &parquet_file.namespace));
+
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        repos
+            .processed_tombstones()
+            .create(parquet_file.parquet_file.id, self.tombstone.id)
+            .await
+            .unwrap();
     }
 }
 

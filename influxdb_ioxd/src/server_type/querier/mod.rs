@@ -43,8 +43,6 @@ impl<C: QuerierHandler> QuerierServerType<C> {
 
 #[async_trait]
 impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServerType<C> {
-    type RouteError = IoxHttpError;
-
     /// Return the [`metric::Registry`] used by the compactor.
     fn metric_registry(&self) -> Arc<Registry> {
         self.server.metric_registry()
@@ -59,8 +57,8 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
     async fn route_http_request(
         &self,
         _req: Request<Body>,
-    ) -> Result<Response<Body>, Self::RouteError> {
-        Err(IoxHttpError::NotFound)
+    ) -> Result<Response<Body>, Box<dyn HttpApiErrorSource>> {
+        Err(Box::new(IoxHttpError::NotFound))
     }
 
     /// Provide a placeholder gRPC service.
@@ -68,7 +66,11 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
         let builder = setup_builder!(builder_input, self);
         add_service!(
             builder,
-            rpc::flight::make_server(Arc::clone(&self.database),)
+            rpc::query::make_flight_server(Arc::clone(&self.database),)
+        );
+        add_service!(
+            builder,
+            rpc::query::make_storage_server(Arc::clone(&self.database),)
         );
         serve_builder!(builder);
 

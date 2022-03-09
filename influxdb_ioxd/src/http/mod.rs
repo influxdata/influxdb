@@ -87,15 +87,12 @@ impl HttpApiErrorSource for ApplicationError {
     }
 }
 
-pub async fn serve<M>(
+pub async fn serve(
     addr: AddrIncoming,
-    server_type: Arc<M>,
+    server_type: Arc<dyn ServerType>,
     shutdown: CancellationToken,
     trace_header_parser: TraceHeaderParser,
-) -> Result<(), hyper::Error>
-where
-    M: ServerType,
-{
+) -> Result<(), hyper::Error> {
     let metric_registry = server_type.metric_registry();
     let trace_collector = server_type.trace_collector();
 
@@ -115,13 +112,10 @@ where
         .await
 }
 
-async fn route_request<M>(
-    server_type: Arc<M>,
+async fn route_request(
+    server_type: Arc<dyn ServerType>,
     mut req: Request<Body>,
-) -> Result<Response<Body>, Infallible>
-where
-    M: ServerType,
-{
+) -> Result<Response<Body>, Infallible> {
     // we don't need the authorization header and we don't want to accidentally log it.
     req.headers_mut().remove("authorization");
     debug!(request = ?req,"Processing request");
@@ -139,7 +133,7 @@ where
         _ => server_type
             .route_http_request(req)
             .await
-            .map_err(|e| ApplicationError::RunModeRouteError { e: Box::new(e) }),
+            .map_err(|e| ApplicationError::RunModeRouteError { e }),
     };
 
     // TODO: Move logging to TraceLayer
@@ -165,10 +159,7 @@ fn health() -> Result<Response<Body>, ApplicationError> {
     Ok(Response::new(Body::from(response_body.to_string())))
 }
 
-fn handle_metrics<M>(server_type: &M) -> Result<Response<Body>, ApplicationError>
-where
-    M: ServerType,
-{
+fn handle_metrics(server_type: &dyn ServerType) -> Result<Response<Body>, ApplicationError> {
     let mut body: Vec<u8> = Default::default();
     let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
     server_type.metric_registry().report(&mut reporter);

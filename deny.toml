@@ -1,4 +1,11 @@
+# Configuration documentation:
+#   https://embarkstudios.github.io/cargo-deny/index.html
+
 [advisories]
+vulnerability = "deny"
+yanked = "deny"
+unmaintained = "warn"
+notice = "warn"
 ignore = [
     # title: Potential segfault in the time crate
     # why needed: used by `chrono`
@@ -21,18 +28,22 @@ ignore = [
     "RUSTSEC-2021-0127",
 ]
 
-[output]
+[licenses]
+default = "allow"
+unlicensed = "allow"
+copyleft = "allow"
+
+[sources.allow-org]
+github = ["influxdata", "apache"]
+
+[bans]
+multiple-versions = "warn"
 deny = [
-    "unmaintained",
-    "unsound",
-    "yanked",
+    # We are using rustls as the TLS implementation, so we shouldn't be linking
+    # in OpenSSL too.
+    #
+    # If you're hitting this, you might want to take a look at what new
+    # dependencies you have introduced and check if there's a way to depend on
+    # rustls instead of OpenSSL (tip: check the crate's feature flags).
+    { name = "openssl-sys" }
 ]
-quiet = false
-
-[yanked]
-# interaction of workspace-local crates and crates.io is currently broken (e.g. for `query`)
-# see https://github.com/rustsec/rustsec/issues/232
-enabled = false
-
-# currently broken on CircleCI due to https://github.com/rustsec/rustsec/issues/292
-update_index = false

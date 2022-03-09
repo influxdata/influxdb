@@ -61,8 +61,6 @@ impl TestServerType {
 
 #[async_trait]
 impl ServerType for TestServerType {
-    type RouteError = ApplicationError;
-
     fn metric_registry(&self) -> Arc<Registry> {
         Arc::clone(&self.metric_registry)
     }
@@ -74,11 +72,11 @@ impl ServerType for TestServerType {
     async fn route_http_request(
         &self,
         req: Request<Body>,
-    ) -> Result<Response<Body>, Self::RouteError> {
-        Err(ApplicationError::RouteNotFound {
+    ) -> Result<Response<Body>, Box<dyn HttpApiErrorSource>> {
+        Err(Box::new(ApplicationError::RouteNotFound {
             method: req.method().clone(),
             path: req.uri().path().to_string(),
-        })
+        }))
     }
 
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {

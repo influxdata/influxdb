@@ -35,8 +35,6 @@ impl<C: CompactorHandler> CompactorServerType<C> {
 
 #[async_trait]
 impl<C: CompactorHandler + std::fmt::Debug + 'static> ServerType for CompactorServerType<C> {
-    type RouteError = IoxHttpError;
-
     /// Return the [`metric::Registry`] used by the compactor.
     fn metric_registry(&self) -> Arc<Registry> {
         self.server.metric_registry()
@@ -51,8 +49,8 @@ impl<C: CompactorHandler + std::fmt::Debug + 'static> ServerType for CompactorSe
     async fn route_http_request(
         &self,
         _req: Request<Body>,
-    ) -> Result<Response<Body>, Self::RouteError> {
-        Err(IoxHttpError::NotFound)
+    ) -> Result<Response<Body>, Box<dyn HttpApiErrorSource>> {
+        Err(Box::new(IoxHttpError::NotFound))
     }
 
     /// Provide a placeholder gRPC service.

@@ -640,7 +640,6 @@ dependencies = [
  "metric",
  "object_store",
  "observability_deps",
- "serving_readiness",
  "snafu",
  "tempfile",
  "time 0.1.0",
@@ -740,7 +739,9 @@ name = "compactor"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "backoff 0.1.0",
  "data_types",
+ "data_types2",
  "futures",
  "iox_catalog",
  "metric",
@@ -748,8 +749,11 @@ dependencies = [
  "observability_deps",
  "parking_lot 0.12.0",
  "predicate",
+ "query",
+ "snafu",
  "test_helpers",
  "thiserror",
+ "time 0.1.0",
  "tokio",
  "tokio-util 0.7.0",
  "workspace-hack",
@@ -2262,7 +2266,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "server",
- "serving_readiness",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -4309,9 +4312,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.5.4"
+version = "1.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d07a8629359eb56f1e2fb1652bb04212c072a87ba68546a04065d525673ac461"
+checksum = "1a11647b6b25ff05a515cb92c365cec08801e83423a235b51e231e1808747286"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -5001,14 +5004,6 @@ dependencies = [
  "rand",
  "test_helpers",
  "tokio",
-]
-
-[[package]]
-name = "serving_readiness"
-version = "0.1.0"
-dependencies = [
- "tonic",
- "workspace-hack",
 ]
 
 [[package]]

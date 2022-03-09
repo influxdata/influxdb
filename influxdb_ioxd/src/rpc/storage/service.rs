@@ -1,6 +1,5 @@
 //! This module contains implementations for the storage gRPC service
-//! implemented in terms of the [`QueryDatabase`](query::QueryDatabase) and
-//! [`DatabaseStore`]
+//! implemented in terms of the [`QueryDatabase`](query::QueryDatabase).
 
 use std::{
     collections::{BTreeSet, HashMap},
@@ -33,11 +32,11 @@ use query::{
     },
     QueryDatabase, QueryText,
 };
-use server::DatabaseStore;
 
 use crate::{
     planner::Planner,
-    server_type::database::rpc::storage::{
+    rpc::common::QueryDatabaseProvider,
+    rpc::storage::{
         data::{
             fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
             tag_keys_to_byte_vecs,
@@ -226,7 +225,7 @@ impl Error {
 #[tonic::async_trait]
 impl<T> Storage for StorageService<T>
 where
-    T: DatabaseStore + 'static,
+    T: QueryDatabaseProvider + 'static,
 {
     type ReadFilterStream = futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>;
 
@@ -2957,9 +2956,7 @@ mod tests {
                     true,
                 ))
                 .add_service(crate::rpc::testing::make_server())
-                .add_service(crate::server_type::database::rpc::storage::make_server(
-                    Arc::clone(&test_storage),
-                ));
+                .add_service(crate::rpc::storage::make_server(Arc::clone(&test_storage)));
 
             let server = async move {
                 let stream = TcpListenerStream::new(socket);
@@ -3027,6 +3024,18 @@ mod tests {
         pub fn new() -> Self {
             Self::default()
         }
+
+        async fn db_or_create(&self, name: &str) -> Result<Arc<TestDatabase>, TestError> {
+            let mut databases = self.databases.lock();
+
+            if let Some(db) = databases.get(name) {
+                Ok(Arc::clone(db))
+            } else {
+                let new_db = Arc::new(TestDatabase::new(Arc::clone(&self.executor)));
+                databases.insert(name.to_string(), Arc::clone(&new_db));
+                Ok(new_db)
+            }
+        }
     }
 
     impl Default for TestDatabaseStore {
@@ -3039,30 +3048,14 @@ mod tests {
         }
     }
 
-    #[tonic::async_trait]
-    impl DatabaseStore for TestDatabaseStore {
-        type Database = TestDatabase;
-        type Error = TestError;
+    impl QueryDatabaseProvider for TestDatabaseStore {
+        type Db = TestDatabase;
 
         /// Retrieve the database specified name
-        fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
+        fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
             let databases = self.databases.lock();
 
             databases.get(name).cloned()
-        }
-
-        /// Retrieve the database specified by name, creating it if it
-        /// doesn't exist.
-        async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
-            let mut databases = self.databases.lock();
-
-            if let Some(db) = databases.get(name) {
-                Ok(Arc::clone(db))
-            } else {
-                let new_db = Arc::new(TestDatabase::new(Arc::clone(&self.executor)));
-                databases.insert(name.to_string(), Arc::clone(&new_db));
-                Ok(new_db)
-            }
         }
     }
 }

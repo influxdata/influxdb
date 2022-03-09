@@ -42,8 +42,6 @@ impl From<tonic::transport::Error> for RpcError {
 
 #[async_trait]
 pub trait ServerType: std::fmt::Debug + Send + Sync + 'static {
-    type RouteError: HttpApiErrorSource;
-
     /// Metric registry associated with the server.
     fn metric_registry(&self) -> Arc<Registry>;
 
@@ -56,7 +54,7 @@ pub trait ServerType: std::fmt::Debug + Send + Sync + 'static {
     async fn route_http_request(
         &self,
         req: Request<Body>,
-    ) -> Result<Response<Body>, Self::RouteError>;
+    ) -> Result<Response<Body>, Box<dyn HttpApiErrorSource>>;
 
     /// Construct and serve gRPC subsystem.
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError>;

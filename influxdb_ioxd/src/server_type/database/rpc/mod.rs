@@ -1,17 +1,16 @@
 use std::sync::Arc;
 
 use crate::{
-    rpc::{add_gated_service, add_service, serve_builder, setup_builder, RpcBuilderInput},
+    rpc::{add_service, serve_builder, setup_builder, RpcBuilderInput},
     server_type::{database::DatabaseServerType, RpcError},
 };
 
 mod delete;
 mod deployment;
 mod error;
-mod flight;
 mod management;
 mod operations;
-mod storage;
+mod query;
 mod write_pb;
 
 pub async fn server_grpc(
@@ -20,19 +19,19 @@ pub async fn server_grpc(
 ) -> Result<(), RpcError> {
     let builder = setup_builder!(builder_input, server_type);
 
-    add_gated_service!(
+    add_service!(
         builder,
-        storage::make_server(Arc::clone(&server_type.server),)
+        query::make_storage_server(Arc::clone(&server_type.server),)
     );
-    add_gated_service!(
+    add_service!(
         builder,
-        flight::make_server(Arc::clone(&server_type.server))
+        query::make_flight_server(Arc::clone(&server_type.server))
     );
-    add_gated_service!(
+    add_service!(
         builder,
         delete::make_server(Arc::clone(&server_type.server))
     );
-    add_gated_service!(
+    add_service!(
         builder,
         write_pb::make_server(Arc::clone(&server_type.server))
     );
@@ -48,10 +47,7 @@ pub async fn server_grpc(
     );
     add_service!(
         builder,
-        deployment::make_server(
-            Arc::clone(&server_type.server),
-            server_type.serving_readiness.clone(),
-        )
+        deployment::make_server(Arc::clone(&server_type.server),)
     );
     add_service!(
         builder,

@@ -277,10 +277,32 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let t = ns.create_table("table").await;
-        let p11 = t.create_partition("k1", 1).await.partition.clone();
-        let p12 = t.create_partition("k1", 2).await.partition.clone();
-        let p21 = t.create_partition("k2", 1).await.partition.clone();
-        let p22 = t.create_partition("k2", 2).await.partition.clone();
+        let s1 = ns.create_sequencer(1).await;
+        let s2 = ns.create_sequencer(2).await;
+        let p11 = t
+            .with_sequencer(&s1)
+            .create_partition("k1")
+            .await
+            .partition
+            .clone();
+        let p12 = t
+            .with_sequencer(&s2)
+            .create_partition("k1")
+            .await
+            .partition
+            .clone();
+        let p21 = t
+            .with_sequencer(&s1)
+            .create_partition("k2")
+            .await
+            .partition
+            .clone();
+        let p22 = t
+            .with_sequencer(&s2)
+            .create_partition("k2")
+            .await
+            .partition
+            .clone();
 
         let cache = CatalogCache::new(catalog.catalog());
 

@@ -12,5 +12,6 @@
 )]
 #![allow(dead_code)]
 
+pub mod compact;
 pub mod handler;
 pub mod server;

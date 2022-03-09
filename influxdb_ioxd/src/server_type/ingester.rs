@@ -11,7 +11,7 @@ use trace::TraceCollector;
 
 use crate::{
     http::error::{HttpApiError, HttpApiErrorCode, HttpApiErrorSource},
-    rpc::{add_gated_service, add_service, serve_builder, setup_builder, RpcBuilderInput},
+    rpc::{add_service, serve_builder, setup_builder, RpcBuilderInput},
     server_type::{common_state::CommonServerState, RpcError, ServerType},
 };
 use ingester::handler::IngestHandler;
@@ -33,8 +33,6 @@ impl<I: IngestHandler> IngesterServerType<I> {
 
 #[async_trait]
 impl<I: IngestHandler + Sync + Send + Debug + 'static> ServerType for IngesterServerType<I> {
-    type RouteError = IoxHttpError;
-
     /// Return the [`metric::Registry`] used by the ingester.
     fn metric_registry(&self) -> Arc<Registry> {
         self.server.metric_registry()
@@ -49,14 +47,14 @@ impl<I: IngestHandler + Sync + Send + Debug + 'static> ServerType for IngesterSe
     async fn route_http_request(
         &self,
         _req: Request<Body>,
-    ) -> Result<Response<Body>, Self::RouteError> {
-        Err(IoxHttpError::NotFound)
+    ) -> Result<Response<Body>, Box<dyn HttpApiErrorSource>> {
+        Err(Box::new(IoxHttpError::NotFound))
     }
 
     /// Provide a placeholder gRPC service.
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
-        add_gated_service!(builder, self.server.grpc().flight_service());
+        add_service!(builder, self.server.grpc().flight_service());
         serve_builder!(builder);
 
         Ok(())

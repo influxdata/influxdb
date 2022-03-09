@@ -6,7 +6,9 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.42"
+backoff = { path = "../backoff" }
 data_types = { path = "../data_types" }
+data_types2 = { path = "../data_types2" }
 futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
 metric = { path = "../metric" }
@@ -14,7 +16,10 @@ object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 predicate = { path = "../predicate" }
+query = { path = "../query" }
+snafu = "0.7"
 thiserror = "1.0"
+time = { path = "../time" }
 tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.0" }
 workspace-hack = { path = "../workspace-hack"}

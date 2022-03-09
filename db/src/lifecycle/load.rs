@@ -73,7 +73,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use data_types::chunk_metadata::ChunkStorage;
     use lifecycle::LockableChunk;
-    use query::{QueryChunk, QueryDatabase};
+    use query::QueryChunk;
 
     #[tokio::test]
     async fn test_load() {

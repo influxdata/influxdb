@@ -10,14 +10,8 @@ mod topic;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error formatting: {0}")]
-    FormattingError(#[from] influxdb_iox_client::format::Error),
-
     #[error("Error in topic subcommand: {0}")]
     Topic(#[from] topic::Error),
-
-    #[error("Client error: {0}")]
-    ClientError(#[from] influxdb_iox_client::error::Error),
 
     #[error("Catalog error: {0}")]
     Catalog(#[from] iox_catalog::interface::Error),

@@ -1,5 +1,5 @@
 use crate::{
-    http::metrics::LineProtocolMetrics,
+    http::{error::HttpApiErrorSource, metrics::LineProtocolMetrics},
     rpc::RpcBuilderInput,
     server_type::{RpcError, ServerType},
 };
@@ -9,7 +9,6 @@ use hyper::{Body, Request, Response};
 use metric::Registry;
 use observability_deps::tracing::{error, info};
 use server::{ApplicationState, Server};
-use serving_readiness::ServingReadiness;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
@@ -28,7 +27,6 @@ pub struct DatabaseServerType {
     pub server: Arc<Server>,
     pub lp_metrics: Arc<LineProtocolMetrics>,
     pub max_request_size: usize,
-    pub serving_readiness: ServingReadiness,
     config_immutable: bool,
     shutdown: CancellationToken,
 }
@@ -50,7 +48,6 @@ impl DatabaseServerType {
             lp_metrics,
             config_immutable,
             max_request_size: common_state.run_config().max_http_request_size,
-            serving_readiness: common_state.serving_readiness().clone(),
             shutdown: CancellationToken::new(),
         }
     }
@@ -58,8 +55,6 @@ impl DatabaseServerType {
 
 #[async_trait]
 impl ServerType for DatabaseServerType {
-    type RouteError = ApplicationError;
-
     fn metric_registry(&self) -> Arc<Registry> {
         Arc::clone(self.application.metric_registry())
     }
@@ -71,8 +66,10 @@ impl ServerType for DatabaseServerType {
     async fn route_http_request(
         &self,
         req: Request<Body>,
-    ) -> Result<Response<Body>, Self::RouteError> {
-        self::http::route_request(self, req).await
+    ) -> Result<Response<Body>, Box<dyn HttpApiErrorSource>> {
+        self::http::route_request(self, req)
+            .await
+            .map_err(|e| Box::new(e) as _)
     }
 
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {

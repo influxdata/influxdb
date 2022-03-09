@@ -4,7 +4,6 @@ use snafu::{ResultExt, Snafu};
 use trace::TraceCollector;
 
 use clap_blocks::run_config::RunConfig;
-use serving_readiness::ServingReadiness;
 
 #[derive(Debug, Snafu)]
 pub enum CommonServerStateError {
@@ -16,18 +15,15 @@ pub enum CommonServerStateError {
 #[derive(Debug)]
 pub struct CommonServerState {
     run_config: RunConfig,
-    serving_readiness: ServingReadiness,
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
 }
 
 impl CommonServerState {
     pub fn from_config(run_config: RunConfig) -> Result<Self, CommonServerStateError> {
-        let serving_readiness = run_config.initial_serving_state.clone().into();
         let trace_exporter = run_config.tracing_config().build().context(TracingSnafu)?;
 
         Ok(Self {
             run_config,
-            serving_readiness,
             trace_exporter,
         })
     }
@@ -44,10 +40,6 @@ impl CommonServerState {
 
     pub fn run_config(&self) -> &RunConfig {
         &self.run_config
-    }
-
-    pub fn serving_readiness(&self) -> &ServingReadiness {
-        &self.serving_readiness
     }
 
     pub fn trace_exporter(&self) -> Option<Arc<trace_exporters::export::AsyncExporter>> {

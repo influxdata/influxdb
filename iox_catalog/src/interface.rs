@@ -393,6 +393,9 @@ pub trait TombstoneRepo: Send + Sync {
         predicate: &str,
     ) -> Result<Tombstone>;
 
+    /// list all tombstones for a given namespace
+    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Tombstone>>;
+
     /// return all tombstones for the sequencer with a sequence number greater than that
     /// passed in. This will be used by the ingester on startup to see what tombstones
     /// might have to be applied to data that is read from the write buffer.
@@ -1189,6 +1192,54 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(vec![t2, t3], listed);
+
+        // test list_by_namespace
+        let namespace2 = repos
+            .namespaces()
+            .create("namespace_tombstone_test2", "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        let table2 = repos
+            .tables()
+            .create_or_get("test_table2", namespace2.id)
+            .await
+            .unwrap();
+        let t4 = repos
+            .tombstones()
+            .create_or_get(
+                table2.id,
+                sequencer.id,
+                SequenceNumber::new(1),
+                min_time,
+                max_time,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+        let t5 = repos
+            .tombstones()
+            .create_or_get(
+                table2.id,
+                sequencer.id,
+                SequenceNumber::new(2),
+                min_time,
+                max_time,
+                "foo",
+            )
+            .await
+            .unwrap();
+        let listed = repos
+            .tombstones()
+            .list_by_namespace(namespace2.id)
+            .await
+            .unwrap();
+        assert_eq!(vec![t4, t5], listed);
+        let listed = repos
+            .tombstones()
+            .list_by_namespace(NamespaceId::new(i32::MAX))
+            .await
+            .unwrap();
+        assert_eq!(Vec::<Tombstone>::new(), listed);
     }
 
     async fn test_parquet_file(catalog: Arc<dyn Catalog>) {

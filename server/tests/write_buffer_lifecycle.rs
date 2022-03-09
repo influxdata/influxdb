@@ -12,7 +12,6 @@ use db::{
     Db,
 };
 use futures_util::FutureExt;
-use query::QueryDatabase;
 use server::{
     rules::ProvidedDatabaseRules,
     test_utils::{make_application, make_initialized_server},

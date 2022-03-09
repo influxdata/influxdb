@@ -16,9 +16,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
-use data_types::partition_metadata::PartitionAddr;
 use data_types::{
-    chunk_metadata::ChunkSummary,
     delete_predicate::DeletePredicate,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
 };
@@ -118,23 +116,6 @@ impl TestDatabase {
 impl QueryDatabase for TestDatabase {
     type Chunk = TestChunk;
 
-    /// Return the partition keys for data in this DB
-    fn partition_addrs(&self) -> Vec<PartitionAddr> {
-        let partitions = self.partitions.lock();
-        partitions
-            .values()
-            .filter_map(|chunks| {
-                // each partition has some number of chunks which
-                // should all have the same partition address, so just
-                // take the first one, if any
-                chunks
-                    .values()
-                    .next()
-                    .map(|chunk| chunk.addr().into_partition())
-            })
-            .collect()
-    }
-
     fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         // save last predicate
         *self.chunks_predicate.lock() = predicate.clone();
@@ -146,10 +127,6 @@ impl QueryDatabase for TestDatabase {
             .filter(|x| x.table_name == table_name)
             .cloned()
             .collect()
-    }
-
-    fn chunk_summaries(&self) -> Vec<ChunkSummary> {
-        unimplemented!("summaries not implemented TestDatabase")
     }
 
     fn record_query(

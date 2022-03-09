@@ -9,9 +9,9 @@
 )]
 
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder, ChunkSummary},
+    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
     delete_predicate::DeletePredicate,
-    partition_metadata::{InfluxDbType, PartitionAddr, TableSummary},
+    partition_metadata::{InfluxDbType, TableSummary},
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, IOxExecutionContext};
@@ -137,16 +137,10 @@ pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     type Chunk: QueryChunk;
 
-    /// Return the partition keys for data in this DB
-    fn partition_addrs(&self) -> Vec<PartitionAddr>;
-
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate. If possible, chunks which have no rows that can
     /// possibly match the predicate may be omitted.
     fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>>;
-
-    /// Return a summary of all chunks in this database, in all partitions
-    fn chunk_summaries(&self) -> Vec<ChunkSummary>;
 
     /// Record that particular type of query was run / planned
     fn record_query(

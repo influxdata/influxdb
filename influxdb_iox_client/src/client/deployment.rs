@@ -64,22 +64,4 @@ impl Client {
         let maybe_id = response.get_ref().id.try_into().ok();
         Ok(maybe_id)
     }
-
-    /// Set serving readiness.
-    pub async fn set_serving_readiness(&mut self, ready: bool) -> Result<(), Error> {
-        self.inner
-            .set_serving_readiness(SetServingReadinessRequest { ready })
-            .await?;
-        Ok(())
-    }
-
-    /// Get serving readiness.
-    pub async fn get_serving_readiness(&mut self) -> Result<bool, Error> {
-        let response = self
-            .inner
-            .get_serving_readiness(GetServingReadinessRequest {})
-            .await?;
-
-        Ok(response.get_ref().ready)
-    }
 }

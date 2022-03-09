@@ -21,6 +21,7 @@ use tracker::TrackedFutureExt;
 /// The lifecycle manager keeps track of the size and age of partitions across all sequencers.
 /// It triggers persistence based on keeping total memory usage around a set amount while
 /// ensuring that partitions don't get too old or large before being persisted.
+#[derive(Debug)]
 pub struct LifecycleManager {
     config: LifecycleConfig,
     time_provider: Arc<dyn TimeProvider>,
@@ -46,6 +47,10 @@ pub struct LifecycleConfig {
     /// manager will persist it. This setting is to ensure we have an upper bound on how far back
     /// we will need to read in Kafka on restart or recovery.
     partition_age_threshold: Duration,
+    /// If an individual partition hasn't received a write for longer than this period of time, the
+    /// manager will persist it. This is to ensure that cold partitions get cleared out to make
+    /// room for partitions that are actively receiving writes.
+    partition_cold_threshold: Duration,
 }
 
 impl LifecycleConfig {
@@ -56,6 +61,7 @@ impl LifecycleConfig {
         persist_memory_threshold: usize,
         partition_size_threshold: usize,
         partition_age_threshold: Duration,
+        partition_cold_threshold: Duration,
     ) -> Self {
         // this must be true to ensure that persistence will get triggered, freeing up memory
         assert!(pause_ingest_size > persist_memory_threshold);
@@ -65,6 +71,7 @@ impl LifecycleConfig {
             persist_memory_threshold,
             partition_size_threshold,
             partition_age_threshold,
+            partition_cold_threshold,
         }
     }
 }
@@ -104,6 +111,9 @@ pub struct PartitionLifecycleStats {
     /// Time that the partition received its first write. This is reset anytime
     /// the partition is persisted.
     first_write: Time,
+    /// Time that the partition received its last write. This is reset anytime
+    /// the partition is persisted.
+    last_write: Time,
     /// The number of bytes in the partition as estimated by the mutable batch sizes.
     bytes_written: usize,
     /// The sequence number the partition received on its first write. This is reset anytime
@@ -143,16 +153,23 @@ impl LifecycleManager {
         bytes_written: usize,
     ) -> bool {
         let mut s = self.state.lock();
-        s.partition_stats
-            .entry(partition_id)
-            .or_insert_with(|| PartitionLifecycleStats {
-                sequencer_id,
-                partition_id,
-                first_write: self.time_provider.now(),
-                bytes_written: 0,
-                first_sequence_number: sequence_number,
-            })
-            .bytes_written += bytes_written;
+        let now = self.time_provider.now();
+
+        let mut stats =
+            s.partition_stats
+                .entry(partition_id)
+                .or_insert_with(|| PartitionLifecycleStats {
+                    sequencer_id,
+                    partition_id,
+                    first_write: now,
+                    last_write: now,
+                    bytes_written: 0,
+                    first_sequence_number: sequence_number,
+                });
+
+        stats.bytes_written += bytes_written;
+        stats.last_write = now;
+
         s.total_bytes += bytes_written;
 
         s.total_bytes > self.config.pause_ingest_size
@@ -189,9 +206,13 @@ impl LifecycleManager {
                 .checked_duration_since(s.first_write)
                 .map(|age| age > self.config.partition_age_threshold)
                 .unwrap_or(false);
+            let is_cold = now
+                .checked_duration_since(s.last_write)
+                .map(|age| age > self.config.partition_cold_threshold)
+                .unwrap_or(false);
             let sized_out = s.bytes_written > self.config.partition_size_threshold;
 
-            aged_out || sized_out
+            aged_out || sized_out || is_cold
         });
 
         // keep track of what we'll be evicting to see what else to drop
@@ -376,6 +397,7 @@ mod tests {
             persist_memory_threshold: 10,
             partition_size_threshold: 5,
             partition_age_threshold: Duration::from_nanos(0),
+            partition_cold_threshold: Duration::from_secs(500),
         };
         let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
@@ -409,6 +431,7 @@ mod tests {
             persist_memory_threshold: 10,
             partition_size_threshold: 5,
             partition_age_threshold: Duration::from_nanos(0),
+            partition_cold_threshold: Duration::from_secs(500),
         };
         let TestLifecycleManger { m, .. } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
@@ -441,6 +464,7 @@ mod tests {
             persist_memory_threshold: 20,
             partition_size_threshold: 10,
             partition_age_threshold: Duration::from_nanos(5),
+            partition_cold_threshold: Duration::from_secs(500),
         };
         let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
         let partition_id = PartitionId::new(1);
@@ -485,6 +509,7 @@ mod tests {
             persist_memory_threshold: 20,
             partition_size_threshold: 5,
             partition_age_threshold: Duration::from_millis(100),
+            partition_cold_threshold: Duration::from_secs(500),
         };
         let TestLifecycleManger { m, .. } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
@@ -526,6 +551,7 @@ mod tests {
             persist_memory_threshold: 20,
             partition_size_threshold: 20,
             partition_age_threshold: Duration::from_millis(1000),
+            partition_cold_threshold: Duration::from_secs(500),
         };
         let sequencer_id = SequencerId::new(1);
         let TestLifecycleManger { m, .. } = TestLifecycleManger::new(config);
@@ -589,6 +615,7 @@ mod tests {
             persist_memory_threshold: 6,
             partition_size_threshold: 5,
             partition_age_threshold: Duration::from_millis(1000),
+            partition_cold_threshold: Duration::from_secs(500),
         };
         let sequencer_id = SequencerId::new(1);
         let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
@@ -612,6 +639,51 @@ mod tests {
             persister.update_min_calls(),
             vec![(sequencer_id, SequenceNumber::new(3))]
         );
+    }
+
+    #[tokio::test]
+    async fn persists_based_on_cold() {
+        let config = LifecycleConfig {
+            pause_ingest_size: 500,
+            persist_memory_threshold: 500,
+            partition_size_threshold: 500,
+            partition_age_threshold: Duration::from_secs(1000),
+            partition_cold_threshold: Duration::from_secs(5),
+        };
+        let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
+        let partition_id = PartitionId::new(1);
+        let persister = Arc::new(TestPersister::default());
+        let sequencer_id = SequencerId::new(1);
+
+        m.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 10);
+
+        m.maybe_persist(&persister).await;
+        let stats = m.stats();
+        assert_eq!(stats.total_bytes, 10);
+        assert_eq!(stats.partition_stats[0].partition_id, partition_id);
+
+        // make the partition go cold
+        time_provider.inc(Duration::from_secs(6));
+
+        // validate that from before, persist wasn't called for the partition
+        assert!(!persister.persist_called_for(partition_id));
+
+        // write in data for a new partition so we can be sure it isn't persisted, but the older one is
+        m.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 6);
+
+        m.maybe_persist(&persister).await;
+
+        assert!(persister.persist_called_for(partition_id));
+        assert!(!persister.persist_called_for(PartitionId::new(2)));
+        assert_eq!(
+            persister.update_min_calls(),
+            vec![(sequencer_id, SequenceNumber::new(2))]
+        );
+
+        let stats = m.stats();
+        assert_eq!(stats.total_bytes, 6);
+        assert_eq!(stats.partition_stats.len(), 1);
+        assert_eq!(stats.partition_stats[0].partition_id, PartitionId::new(2));
     }
 
     struct TestLifecycleManger {

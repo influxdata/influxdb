@@ -5,7 +5,6 @@ use generated_types::{
     google::{FieldViolation, FieldViolationExt},
     influxdata::iox::management::v1::{Error as ProtobufError, *},
 };
-use query::QueryDatabase;
 use server::{rules::ProvidedDatabaseRules, ApplicationState, Server};
 use std::{convert::TryFrom, sync::Arc};
 use tonic::{Request, Response, Status};

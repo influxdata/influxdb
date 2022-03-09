@@ -714,6 +714,23 @@ impl TombstoneRepo for MemTxn {
         Ok(tombstone.clone())
     }
 
+    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Tombstone>> {
+        let stage = self.stage();
+
+        let table_ids: HashSet<_> = stage
+            .tables
+            .iter()
+            .filter_map(|table| (table.namespace_id == namespace_id).then(|| table.id))
+            .collect();
+        let tombstones: Vec<_> = stage
+            .tombstones
+            .iter()
+            .filter(|t| table_ids.contains(&t.table_id))
+            .cloned()
+            .collect();
+        Ok(tombstones)
+    }
+
     async fn list_tombstones_by_sequencer_greater_than(
         &mut self,
         sequencer_id: SequencerId,

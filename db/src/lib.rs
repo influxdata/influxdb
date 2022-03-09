@@ -1213,6 +1213,14 @@ impl Db {
 
         Ok(())
     }
+
+    pub fn partition_addrs(&self) -> Vec<PartitionAddr> {
+        self.catalog.partition_addrs()
+    }
+
+    pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {
+        self.catalog.chunk_summaries()
+    }
 }
 
 #[async_trait]
@@ -1222,16 +1230,8 @@ impl Db {
 impl QueryDatabase for Db {
     type Chunk = DbChunk;
 
-    fn partition_addrs(&self) -> Vec<PartitionAddr> {
-        self.catalog_access.partition_addrs()
-    }
-
     fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         self.catalog_access.chunks(table_name, predicate)
-    }
-
-    fn chunk_summaries(&self) -> Vec<ChunkSummary> {
-        self.catalog_access.chunk_summaries()
     }
 
     fn record_query(
@@ -1453,7 +1453,7 @@ mod tests {
         metadata::IoxParquetMetaData,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
-    use query::{QueryChunk, QueryDatabase};
+    use query::QueryChunk;
     use schema::{selection::Selection, Schema};
     use std::{
         convert::TryFrom,
