@@ -1,33 +1,25 @@
 use assert_cmd::prelude::*;
 use futures::prelude::*;
-use generated_types::influxdata::iox::management::v1::{
-    database_status::DatabaseState, ServerStatus,
-};
 use http::{header::HeaderName, HeaderValue};
 use influxdb_iox_client::connection::Connection;
-use once_cell::sync::OnceCell;
+use sqlx::{migrate::MigrateDatabase, Postgres};
 use std::{
-    collections::HashMap,
     net::SocketAddrV4,
-    num::NonZeroU32,
     path::Path,
     process::{Child, Command},
     str,
     sync::{
         atomic::{AtomicU16, Ordering},
-        Arc, Weak,
+        Arc,
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tempfile::{NamedTempFile, TempDir};
 use tokio::sync::Mutex;
-use uuid::Uuid;
 
 // These port numbers are chosen to not collide with a development ioxd server
 // running locally.
 static NEXT_PORT: AtomicU16 = AtomicU16::new(8090);
-
-pub const DEFAULT_SERVER_ID: u32 = 32;
 
 /// This structure contains all the addresses a test server should use
 pub struct BindAddresses {
@@ -86,82 +78,23 @@ pub struct ServerFixture {
     grpc_channel: Connection,
 }
 
-/// Specifieds should we configure a server initially
-enum InitialConfig {
-    /// Set the server ID to something so it can accept writes
-    SetServerId,
-
-    /// Server ID already set (e.g. via environment variable)
-    ServerIdAlreadySet,
-
-    /// Leave the server ID empty so the test can set it
-    None,
-}
-
 impl ServerFixture {
     /// Create a new server fixture and wait for it to be ready. This
     /// is called "create" rather than new because it is async and
-    /// waits. The shared router is configured with a server id and
-    /// can be used immediately
-    ///
-    /// This is currently implemented as a singleton so all tests *must*
-    /// use a new router and not interfere with the existing routers.
-    pub async fn create_shared(server_type: ServerType) -> Self {
-        // Try and reuse the same shared server, if there is already
-        // one present
-        static SHARED_SERVERS: OnceCell<parking_lot::Mutex<HashMap<ServerType, Weak<TestServer>>>> =
-            OnceCell::new();
-        let shared_servers = SHARED_SERVERS.get_or_init(|| parking_lot::Mutex::new(HashMap::new()));
-
-        let mut shared_servers = shared_servers.lock();
-
-        // is a shared server already present?
-        let server = match shared_servers.get(&server_type).and_then(|x| x.upgrade()) {
-            Some(server) => server,
-            None => {
-                // if not, create one
-                let test_config = TestConfig::new(server_type);
-                let server = TestServer::new(test_config);
-                let server = Arc::new(server);
-
-                // ensure the server is ready
-                server.wait_until_ready(InitialConfig::SetServerId).await;
-                // save a reference for other threads that may want to
-                // use this server, but don't prevent it from being
-                // destroyed when going out of scope
-                shared_servers.insert(server_type, Arc::downgrade(&server));
-                server
-            }
-        };
-        std::mem::drop(shared_servers);
-
-        Self::create_common(server).await
-    }
-
-    /// Create a new server fixture and wait for it to be ready. This
-    /// is called "create" rather than new because it is async and
-    /// waits. The server is left unconfigured (e.g. no server id) and
-    /// is not shared with any other tests.
+    /// waits. The server is not shared with any other tests.
     pub async fn create_single_use(server_type: ServerType) -> Self {
         let test_config = TestConfig::new(server_type);
         Self::create_single_use_with_config(test_config).await
     }
 
     /// Create a new server fixture with the provided additional environment variables
-    /// and wait for it to be ready. The database is left unconfigured (no server id)
-    /// and is not shared with any other tests.
+    /// and wait for it to be ready. The server is not shared with any other tests.
     pub async fn create_single_use_with_config(test_config: TestConfig) -> Self {
-        let initial_config = if test_config.server_id.is_some() {
-            InitialConfig::ServerIdAlreadySet
-        } else {
-            InitialConfig::None
-        };
-
-        let server = TestServer::new(test_config);
+        let server = TestServer::new(test_config).await;
         let server = Arc::new(server);
 
         // ensure the server is ready
-        server.wait_until_ready(initial_config).await;
+        server.wait_until_ready().await;
         Self::create_common(server).await
     }
 
@@ -193,58 +126,10 @@ impl ServerFixture {
         &self.server.addrs().http_base
     }
 
-    /// Return a delete client suitable for communicating with this
-    /// server
-    pub fn delete_client(&self) -> influxdb_iox_client::delete::Client {
-        influxdb_iox_client::delete::Client::new(self.grpc_channel())
-    }
-
-    /// Return a deployment client suitable for communicating with this
-    /// server
-    pub fn deployment_client(&self) -> influxdb_iox_client::deployment::Client {
-        influxdb_iox_client::deployment::Client::new(self.grpc_channel())
-    }
-
-    /// Return a management client suitable for communicating with this
-    /// server
-    pub fn management_client(&self) -> influxdb_iox_client::management::Client {
-        influxdb_iox_client::management::Client::new(self.grpc_channel())
-    }
-
-    /// Return a operations client suitable for communicating with this
-    /// server
-    pub fn operations_client(&self) -> influxdb_iox_client::operations::Client {
-        influxdb_iox_client::operations::Client::new(self.grpc_channel())
-    }
-
-    /// Return a remote client suitable for communicating with this
-    /// server
-    pub fn remote_client(&self) -> influxdb_iox_client::remote::Client {
-        influxdb_iox_client::remote::Client::new(self.grpc_channel())
-    }
-
-    /// Return a router client suitable for communicating with this
-    /// server
-    pub fn router_client(&self) -> influxdb_iox_client::router::Client {
-        influxdb_iox_client::router::Client::new(self.grpc_channel())
-    }
-
-    /// Return a write client suitable for communicating with this
-    /// server
-    pub fn write_client(&self) -> influxdb_iox_client::write::Client {
-        influxdb_iox_client::write::Client::new(self.grpc_channel())
-    }
-
-    /// Return a flight client suitable for communicating with this
-    /// server
-    pub fn flight_client(&self) -> influxdb_iox_client::flight::Client {
-        influxdb_iox_client::flight::Client::new(self.grpc_channel())
-    }
-
-    /// Return a storage API client suitable for communicating with this
-    /// server
-    pub fn storage_client(&self) -> generated_types::storage_client::StorageClient<Connection> {
-        generated_types::storage_client::StorageClient::new(self.grpc_channel())
+    /// Return a flight client suitable for communicating with the ingester service, like the one
+    /// the query service uses
+    pub fn querier_flight_client(&self) -> querier::flight::Client {
+        querier::flight::Client::new(self.grpc_channel())
     }
 
     /// Restart test server.
@@ -252,9 +137,7 @@ impl ServerFixture {
     /// This will break all currently connected clients!
     pub async fn restart_server(self) -> Self {
         self.server.restart().await;
-        self.server
-            .wait_until_ready(InitialConfig::SetServerId)
-            .await;
+        self.server.wait_until_ready().await;
         let grpc_channel = self
             .server
             .grpc_channel()
@@ -267,47 +150,9 @@ impl ServerFixture {
         }
     }
 
-    /// Wait until server is initialized and all databases have initialized or errored.
-    pub async fn wait_server_initialized(&self) -> ServerStatus {
-        let mut client = self.management_client();
-        let t_0 = Instant::now();
-        loop {
-            let status = client.get_server_status().await.unwrap();
-            if status.initialized
-                && status.database_statuses.iter().all(|status| {
-                    status.error.is_some()
-                        || DatabaseState::from_i32(status.state).unwrap()
-                            == DatabaseState::Initialized
-                })
-            {
-                return status;
-            }
-            assert!(
-                t_0.elapsed() < Duration::from_secs(10),
-                "Server and all databases are not initialized. Status:\n\n {:#?}",
-                status
-            );
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-    }
-
     /// Directory used for data storage.
     pub fn dir(&self) -> &Path {
         self.server.dir.path()
-    }
-
-    /// Poison persisted catalog
-    pub fn poison_catalog(&self, database_uuid: Uuid) {
-        let mut path = self.dir().to_path_buf();
-        path.push("dbs");
-        path.push(database_uuid.to_string());
-
-        path.push("transactions");
-        path.push("10000000000000000000");
-        std::fs::create_dir(path.clone()).unwrap();
-
-        path.push("48eb9059-ca73-45e1-b6b4-e1f47d6159fb.txn");
-        std::fs::write(path, "INVALID").unwrap();
     }
 }
 
@@ -339,14 +184,8 @@ struct TestServer {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ServerType {
-    Database,
-    Router,
-}
-
-impl Default for ServerType {
-    fn default() -> Self {
-        Self::Database
-    }
+    Ingester,
+    Router2,
 }
 
 // Options for creating test servers
@@ -358,11 +197,11 @@ pub struct TestConfig {
     /// Headers to add to all client requests
     client_headers: Vec<(HeaderName, HeaderValue)>,
 
-    /// Server ID
-    server_id: Option<NonZeroU32>,
-
     /// Server type
     server_type: ServerType,
+
+    /// Catalog DSN value
+    dsn: Option<String>,
 }
 
 impl TestConfig {
@@ -370,8 +209,8 @@ impl TestConfig {
         Self {
             env: vec![],
             client_headers: vec![],
-            server_id: None,
             server_type,
+            dsn: None,
         }
     }
 
@@ -379,6 +218,20 @@ impl TestConfig {
     pub fn with_server_type(mut self, server_type: ServerType) -> Self {
         self.server_type = server_type;
         self
+    }
+
+    /// Set Postgres catalog DSN URL
+    pub fn with_postgres_catalog(mut self, dsn: &str) -> Self {
+        self.dsn = Some(dsn.into());
+
+        self
+    }
+
+    // Get the catalog DSN URL and panic if it's not set
+    fn dsn(&self) -> &str {
+        self.dsn
+            .as_ref()
+            .expect("Test Config must have a catalog configured")
     }
 
     // add a name=value environment variable when starting the server
@@ -395,12 +248,6 @@ impl TestConfig {
         ));
         self
     }
-
-    /// Set server ID on startup.
-    pub fn with_server_id(mut self, server_id: NonZeroU32) -> Self {
-        self.server_id = Some(server_id);
-        self
-    }
 }
 
 struct Process {
@@ -409,19 +256,22 @@ struct Process {
 }
 
 impl TestServer {
-    fn new(test_config: TestConfig) -> Self {
+    async fn new(test_config: TestConfig) -> Self {
         let addrs = BindAddresses::default();
         let ready = Mutex::new(ServerState::Started);
 
         let dir = test_helpers::tmp_dir().unwrap();
 
-        let server_process = Mutex::new(Self::create_server_process(
-            &addrs,
-            &dir,
-            &test_config.env,
-            test_config.server_id,
-            test_config.server_type,
-        ));
+        let server_process = Mutex::new(
+            Self::create_server_process(
+                &addrs,
+                &dir,
+                test_config.dsn(),
+                &test_config.env,
+                test_config.server_type,
+            )
+            .await,
+        );
 
         Self {
             ready,
@@ -440,18 +290,19 @@ impl TestServer {
         *server_process = Self::create_server_process(
             &self.addrs,
             &self.dir,
+            self.test_config.dsn(),
             &self.test_config.env,
-            self.test_config.server_id,
             self.test_config.server_type,
-        );
+        )
+        .await;
         *ready_guard = ServerState::Started;
     }
 
-    fn create_server_process(
+    async fn create_server_process(
         addrs: &BindAddresses,
         dir: &TempDir,
+        dsn: &str,
         env: &[(String, String)],
-        server_id: Option<NonZeroU32>,
         server_type: ServerType,
     ) -> Process {
         // Create a new file each time and keep it around to aid debugging
@@ -478,9 +329,34 @@ impl TestServer {
         let log_filter = std::env::var("LOG_FILTER").unwrap_or_else(|_| "info".to_string());
 
         let type_name = match server_type {
-            ServerType::Database => "database",
-            ServerType::Router => "router",
+            ServerType::Ingester => "ingester",
+            ServerType::Router2 => "router2",
         };
+
+        // Create the catalog database if it doesn't exist
+        if !Postgres::database_exists(dsn).await.unwrap() {
+            Postgres::create_database(dsn).await.unwrap();
+        }
+
+        // Set up the catalog
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("catalog")
+            .arg("setup")
+            .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
+            .ok()
+            .unwrap();
+
+        // Create the shared Kafka topic in the catalog
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("catalog")
+            .arg("topic")
+            .arg("update")
+            .arg("iox-shared")
+            .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
+            .ok()
+            .unwrap();
 
         // This will inherit environment from the test runner
         // in particular `LOG_FILTER`
@@ -489,11 +365,11 @@ impl TestServer {
             .arg("run")
             .arg(type_name)
             .env("LOG_FILTER", log_filter)
+            .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
             .env("INFLUXDB_IOX_OBJECT_STORE", "file")
             .env("INFLUXDB_IOX_DB_DIR", dir.path())
             .env("INFLUXDB_IOX_BIND_ADDR", addrs.http_bind_addr())
             .env("INFLUXDB_IOX_GRPC_BIND_ADDR", addrs.grpc_bind_addr())
-            .envs(server_id.map(|id| ("INFLUXDB_IOX_ID", id.get().to_string())))
             .envs(env.iter().map(|(a, b)| (a.as_str(), b.as_str())))
             // redirect output to log file
             .stdout(stdout_log_file)
@@ -507,7 +383,7 @@ impl TestServer {
         }
     }
 
-    async fn wait_until_ready(&self, initial_config: InitialConfig) {
+    async fn wait_until_ready(&self) {
         let mut ready = self.ready.lock().await;
         match *ready {
             ServerState::Started => {} // first time, need to try and start it
@@ -566,69 +442,6 @@ impl TestServer {
                 );
             }
         }
-
-        let channel = self.grpc_channel().await.expect("gRPC should be running");
-        let mut deployment_client = influxdb_iox_client::deployment::Client::new(channel.clone());
-
-        if !matches!(initial_config, InitialConfig::ServerIdAlreadySet) {
-            if let Ok(Some(id)) = deployment_client.get_server_id().await {
-                // tell others that this server had some problem
-                *ready = ServerState::Error;
-                std::mem::drop(ready);
-                panic!("{:?} Server already has an ID ({}); possibly a stray/orphan server from another test run.", self.test_config.server_type, id);
-            }
-        }
-
-        // Set the server id, if requested
-        match initial_config {
-            InitialConfig::SetServerId => {
-                let id = DEFAULT_SERVER_ID;
-
-                deployment_client
-                    .update_server_id(NonZeroU32::try_from(id).unwrap())
-                    .await
-                    .expect("set ID failed");
-
-                println!(
-                    "Set {:?} server ID to {:?}",
-                    self.test_config.server_type, id
-                );
-
-                if self.test_config.server_type == ServerType::Database {
-                    // if server ID was set, we can also wait until DBs are loaded
-                    let mut management_client =
-                        influxdb_iox_client::management::Client::new(channel);
-                    let check_dbs_loaded = async {
-                        let mut interval = tokio::time::interval(Duration::from_millis(1000));
-
-                        while !management_client
-                            .get_server_status()
-                            .await
-                            .unwrap()
-                            .initialized
-                        {
-                            interval.tick().await;
-                        }
-                    };
-
-                    let capped_check =
-                        tokio::time::timeout(Duration::from_secs(30), check_dbs_loaded);
-
-                    match capped_check.await {
-                        Ok(_) => {
-                            println!("Databases loaded");
-                        }
-                        Err(e) => {
-                            // tell others that this server had some problem
-                            *ready = ServerState::Error;
-                            std::mem::drop(ready);
-                            panic!("Server did not load databases in required time: {}", e);
-                        }
-                    }
-                }
-            }
-            InitialConfig::ServerIdAlreadySet | InitialConfig::None => {}
-        };
     }
 
     pub async fn wait_for_grpc(&self) {
@@ -636,18 +449,35 @@ impl TestServer {
 
         loop {
             match (self.grpc_channel().await, self.test_config.server_type) {
-                (Ok(channel), _) => {
-                    println!("Successfully connected to server");
-
+                (Ok(channel), ServerType::Router2) => {
                     let mut health = influxdb_iox_client::health::Client::new(channel);
 
-                    match health.check_deployment().await {
+                    match health.check("influxdata.pbdata.v1.WriteService").await {
                         Ok(true) => {
-                            println!("Deployment service is running");
+                            println!("Write service is running");
                             return;
                         }
                         Ok(false) => {
-                            println!("Deployment service is not running");
+                            println!("Write service is not running");
+                        }
+                        Err(e) => {
+                            println!(
+                                "Waiting for {:?} gRPC API to be healthy: {:?}",
+                                self.test_config.server_type, e
+                            );
+                        }
+                    }
+                }
+                (Ok(channel), ServerType::Ingester) => {
+                    let mut health = influxdb_iox_client::health::Client::new(channel);
+
+                    match health.check_arrow().await {
+                        Ok(true) => {
+                            println!("Flight service is running");
+                            return;
+                        }
+                        Ok(false) => {
+                            println!("Flight service is not running");
                         }
                         Err(e) => {
                             println!(
