@@ -2,7 +2,7 @@
 
 use crate::{
     data::{IngesterData, IngesterQueryResponse, SequencerData},
-    lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
+    lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleHandle, LifecycleManager},
     poison::{PoisonCabinet, PoisonPill},
     querier_handler::prepare_data_to_querier,
 };
@@ -104,9 +104,6 @@ pub struct IngestHandlerImpl {
 
     /// The cache and buffered data for the ingester
     data: Arc<IngesterData>,
-
-    /// The lifecycle manager, keeping state of partitions across all sequencers
-    lifecycle_manager: Arc<LifecycleManager>,
 }
 
 impl IngestHandlerImpl {
@@ -141,16 +138,16 @@ impl IngestHandlerImpl {
 
         // start the lifecycle manager
         let persister = Arc::clone(&data);
-        let lifecycle_manager = Arc::new(LifecycleManager::new(
+        let lifecycle_manager = LifecycleManager::new(
             lifecycle_config,
             metric_registry,
             Arc::new(SystemProvider::new()),
-        ));
-        let manager = Arc::clone(&lifecycle_manager);
+        );
+        let lifecycle_handle = lifecycle_manager.handle();
         let shutdown = CancellationToken::new();
         let poison_cabinet = Arc::new(PoisonCabinet::new());
         let handle = tokio::task::spawn(run_lifecycle_manager(
-            manager,
+            lifecycle_manager,
             persister,
             shutdown.clone(),
             Arc::clone(&poison_cabinet),
@@ -175,7 +172,7 @@ impl IngestHandlerImpl {
                 .context(WriteBufferSnafu)?;
 
             let handle = tokio::task::spawn(stream_in_sequenced_entries(
-                Arc::clone(&lifecycle_manager),
+                lifecycle_handle.clone(),
                 ingester_data,
                 sequencer.id,
                 kafka_topic_name,
@@ -195,7 +192,6 @@ impl IngestHandlerImpl {
             join_handles,
             shutdown,
             poison_cabinet,
-            lifecycle_manager,
         })
     }
 }
@@ -262,7 +258,7 @@ impl Drop for IngestHandlerImpl {
 /// buffer are ignored.
 #[allow(clippy::too_many_arguments)]
 async fn stream_in_sequenced_entries(
-    lifecycle_manager: Arc<LifecycleManager>,
+    lifecycle_manager: LifecycleHandle,
     ingester_data: Arc<IngesterData>,
     sequencer_id: SequencerId,
     kafka_topic: String,
