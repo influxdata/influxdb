@@ -1391,12 +1391,13 @@ mod tests {
     use rand::Rng;
     use tempfile::NamedTempFile;
 
-    // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
+    // Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment variables
+    // are not set.
     macro_rules! maybe_skip_integration {
         ($panic_msg:expr) => {{
             dotenv::dotenv().ok();
 
-            let required_vars = ["DATABASE_URL"];
+            let required_vars = ["TEST_INFLUXDB_IOX_CATALOG_DSN"];
             let unset_vars: Vec<_> = required_vars
                 .iter()
                 .filter_map(|&name| match env::var(name) {
@@ -1464,7 +1465,7 @@ mod tests {
         };
 
         let metrics = Arc::new(metric::Registry::default());
-        let dsn = std::env::var("DATABASE_URL").unwrap();
+        let dsn = std::env::var("TEST_INFLUXDB_IOX_CATALOG_DSN").unwrap();
         let pg = PostgresCatalog::connect("test", &schema_name, &dsn, 3, metrics)
             .await
             .expect("failed to connect catalog");
@@ -1802,7 +1803,7 @@ mod tests {
         const POLLING_INTERVAL: Duration = Duration::from_millis(10);
 
         // fetch dsn from envvar
-        let test_dsn = std::env::var("DATABASE_URL").unwrap();
+        let test_dsn = std::env::var("TEST_INFLUXDB_IOX_CATALOG_DSN").unwrap();
         eprintln!("TEST_DSN={}", test_dsn);
 
         // create a temp file to store the initial dsn
