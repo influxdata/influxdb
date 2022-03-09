@@ -1379,16 +1379,13 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::create_or_get_default_records;
-
     use super::*;
-
-    use std::{env, ops::DerefMut, sync::Arc};
-    use std::{io::Write, time::Instant};
-
+    use crate::create_or_get_default_records;
     use assert_matches::assert_matches;
     use metric::{Attributes, Metric, U64Histogram};
     use rand::Rng;
+    use sqlx::migrate::MigrateDatabase;
+    use std::{env, io::Write, ops::DerefMut, sync::Arc, time::Instant};
     use tempfile::NamedTempFile;
 
     // Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment
@@ -1450,6 +1447,14 @@ mod tests {
         assert!(hit_count > 0, "metric did not record any calls");
     }
 
+    async fn create_db(dsn: &str) {
+        // Create the catalog database if it doesn't exist
+        if !Postgres::database_exists(dsn).await.unwrap() {
+            // Ignore failure if another test has already created the database
+            let _ = Postgres::create_database(dsn).await;
+        }
+    }
+
     async fn setup_db() -> PostgresCatalog {
         // create a random schema for this particular pool
         let schema_name = {
@@ -1466,6 +1471,9 @@ mod tests {
 
         let metrics = Arc::new(metric::Registry::default());
         let dsn = std::env::var("TEST_INFLUXDB_IOX_CATALOG_DSN").unwrap();
+
+        create_db(&dsn).await;
+
         let pg = PostgresCatalog::connect("test", &schema_name, &dsn, 3, metrics)
             .await
             .expect("failed to connect catalog");
@@ -1804,6 +1812,7 @@ mod tests {
 
         // fetch dsn from envvar
         let test_dsn = std::env::var("TEST_INFLUXDB_IOX_CATALOG_DSN").unwrap();
+        create_db(&test_dsn).await;
         eprintln!("TEST_DSN={}", test_dsn);
 
         // create a temp file to store the initial dsn
