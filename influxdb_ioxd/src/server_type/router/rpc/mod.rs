@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    rpc::{add_gated_service, add_service, serve_builder, setup_builder, RpcBuilderInput},
+    rpc::{add_service, serve_builder, setup_builder, RpcBuilderInput},
     server_type::RpcError,
 };
 
@@ -21,10 +21,7 @@ pub async fn server_grpc(
 
     add_service!(
         builder,
-        deployment::make_server(
-            Arc::clone(&server_type.server),
-            server_type.serving_readiness.clone(),
-        )
+        deployment::make_server(Arc::clone(&server_type.server),)
     );
     add_service!(
         builder,
@@ -37,11 +34,11 @@ pub async fn server_grpc(
             server_type.config_immutable
         )
     );
-    add_gated_service!(
+    add_service!(
         builder,
         delete::make_server(Arc::clone(&server_type.server))
     );
-    add_gated_service!(
+    add_service!(
         builder,
         write_pb::make_server(Arc::clone(&server_type.server))
     );

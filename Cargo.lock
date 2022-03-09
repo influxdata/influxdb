@@ -640,7 +640,6 @@ dependencies = [
  "metric",
  "object_store",
  "observability_deps",
- "serving_readiness",
  "snafu",
  "tempfile",
  "time 0.1.0",
@@ -741,7 +740,6 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "backoff 0.1.0",
- "data_types",
  "data_types2",
  "futures",
  "iox_catalog",
@@ -2142,6 +2140,7 @@ dependencies = [
  "serde_urlencoded",
  "server",
  "snafu",
+ "sqlx",
  "tempfile",
  "test_helpers",
  "thiserror",
@@ -2267,7 +2266,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "server",
- "serving_readiness",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -5006,14 +5004,6 @@ dependencies = [
  "rand",
  "test_helpers",
  "tokio",
-]
-
-[[package]]
-name = "serving_readiness"
-version = "0.1.0"
-dependencies = [
- "tonic",
- "workspace-hack",
 ]
 
 [[package]]

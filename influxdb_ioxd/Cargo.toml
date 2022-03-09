@@ -42,7 +42,6 @@ router = { path = "../router" }
 router2 = { path = "../router2" }
 schema = { path = "../schema" }
 server = { path = "../server" }
-serving_readiness = { path = "../serving_readiness" }
 time = { path = "../time" }
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }

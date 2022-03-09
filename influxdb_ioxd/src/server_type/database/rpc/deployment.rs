@@ -10,11 +10,9 @@ use tonic::{Request, Response, Status};
 
 struct DeploymentService {
     server: Arc<Server>,
-    serving_readiness: ServingReadiness,
 }
 
 use super::error::default_server_error_handler;
-use serving_readiness::ServingReadiness;
 
 #[tonic::async_trait]
 impl deployment_service_server::DeploymentService for DeploymentService {
@@ -47,34 +45,12 @@ impl deployment_service_server::DeploymentService for DeploymentService {
             Err(e) => Err(default_server_error_handler(e)),
         }
     }
-
-    async fn set_serving_readiness(
-        &self,
-        request: Request<SetServingReadinessRequest>,
-    ) -> Result<Response<SetServingReadinessResponse>, Status> {
-        let SetServingReadinessRequest { ready } = request.into_inner();
-        self.serving_readiness.set(ready.into());
-        Ok(Response::new(SetServingReadinessResponse {}))
-    }
-
-    async fn get_serving_readiness(
-        &self,
-        _request: Request<GetServingReadinessRequest>,
-    ) -> Result<Response<GetServingReadinessResponse>, Status> {
-        Ok(Response::new(GetServingReadinessResponse {
-            ready: self.serving_readiness.get().into(),
-        }))
-    }
 }
 
 pub fn make_server(
     server: Arc<Server>,
-    serving_readiness: ServingReadiness,
 ) -> deployment_service_server::DeploymentServiceServer<
     impl deployment_service_server::DeploymentService,
 > {
-    deployment_service_server::DeploymentServiceServer::new(DeploymentService {
-        server,
-        serving_readiness,
-    })
+    deployment_service_server::DeploymentServiceServer::new(DeploymentService { server })
 }
