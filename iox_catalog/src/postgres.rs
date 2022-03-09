@@ -5,7 +5,7 @@ use crate::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
         KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
         QueryPoolRepo, RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo,
-        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL,
+        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL, MAX_COMPACT_SIZE,
     },
     metrics::MetricDecorator,
 };
@@ -1262,6 +1262,39 @@ WHERE table_name.namespace_id = $1 AND parquet_file.to_delete = false;
              "#,
         )
         .bind(&namespace_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>> {
+        sqlx::query_as::<_, ParquetFile>(
+            r#"
+SELECT
+    parquet_file.id as id,
+    parquet_file.sequencer_id as sequencer_id,
+    parquet_file.table_id as table_id,
+    parquet_file.partition_id as partition_id,
+    parquet_file.object_store_id as object_store_id,
+    parquet_file.min_sequence_number as min_sequence_number,
+    parquet_file.max_sequence_number as max_sequence_number,
+    parquet_file.min_time as min_time,
+    parquet_file.max_time as max_time,
+    parquet_file.to_delete as to_delete,
+    parquet_file.file_size_bytes as file_size_bytes,
+    parquet_file.parquet_metadata as parquet_metadata,
+    parquet_file.row_count as row_count,
+    parquet_file.compaction_level as compaction_level,
+    parquet_file.created_at as created_at
+FROM parquet_file
+WHERE parquet_file.sequencer_id = $1
+  AND parquet_file.compaction_level = 0
+  AND parquet_file.to_delete = false
+  AND parquet_file.file_size_bytes <= $2;
+             "#,
+        )
+        .bind(&sequencer_id) // $1
+        .bind(MAX_COMPACT_SIZE) // $2
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })

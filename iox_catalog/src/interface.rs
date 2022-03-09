@@ -409,6 +409,9 @@ pub trait TombstoneRepo: Send + Sync {
 /// The starting compaction level for parquet files is zero.
 pub const INITIAL_COMPACTION_LEVEL: i16 = 0;
 
+/// The maximum size, in bytes, of a file to be considered for compaction.
+pub const MAX_COMPACT_SIZE: i64 = 1024 * 1024;
+
 /// Functions for working with parquet file pointers in the catalog
 #[async_trait]
 pub trait ParquetFileRepo: Send + Sync {
@@ -433,6 +436,10 @@ pub trait ParquetFileRepo: Send + Sync {
         &mut self,
         namespace_id: NamespaceId,
     ) -> Result<Vec<ParquetFile>>;
+
+    /// List parquet files for a given sequencer with compaction level 0 and other criteria that
+    /// define a file as a candidate for compaction
+    async fn level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>>;
 
     /// Verify if the parquet file exists by selecting its id
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool>;
@@ -536,6 +543,7 @@ pub(crate) mod test_helpers {
         test_partition(Arc::clone(&catalog)).await;
         test_tombstone(Arc::clone(&catalog)).await;
         test_parquet_file(Arc::clone(&catalog)).await;
+        test_parquet_file_compaction_level_0(Arc::clone(&catalog)).await;
         test_add_parquet_file_with_tombstones(Arc::clone(&catalog)).await;
         test_txn_isolation(Arc::clone(&catalog)).await;
         test_txn_drop(Arc::clone(&catalog)).await;
@@ -1358,7 +1366,7 @@ pub(crate) mod test_helpers {
             .list_by_namespace_not_to_delete(namespace2.id)
             .await
             .unwrap();
-        assert_eq!(Vec::<ParquetFile>::new(), files);
+        assert!(files.is_empty());
 
         let f1_params = ParquetFileParams {
             table_id: partition2.table_id,
@@ -1383,19 +1391,134 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(vec![f1.clone(), f2.clone()], files);
+
         repos.parquet_files().flag_for_delete(f2.id).await.unwrap();
         let files = repos
             .parquet_files()
             .list_by_namespace_not_to_delete(namespace2.id)
             .await
             .unwrap();
-        assert_eq!(vec![f1], files);
+        assert_eq!(vec![f1.clone()], files);
+
         let files = repos
             .parquet_files()
             .list_by_namespace_not_to_delete(NamespaceId::new(i32::MAX))
             .await
             .unwrap();
-        assert_eq!(Vec::<ParquetFile>::new(), files);
+        assert!(files.is_empty());
+    }
+
+    async fn test_parquet_file_compaction_level_0(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = repos
+            .namespaces()
+            .create(
+                "namespace_parquet_file_compaction_level_0_test",
+                "inf",
+                kafka.id,
+                pool.id,
+            )
+            .await
+            .unwrap();
+        let table = repos
+            .tables()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = repos
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(100))
+            .await
+            .unwrap();
+        let other_sequencer = repos
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(101))
+            .await
+            .unwrap();
+
+        let partition = repos
+            .partitions()
+            .create_or_get("one", sequencer.id, table.id)
+            .await
+            .unwrap();
+
+        let min_time = Timestamp::new(1);
+        let max_time = Timestamp::new(10);
+
+        let parquet_file_params = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            table_id: partition.table_id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(10),
+            max_sequence_number: SequenceNumber::new(140),
+            min_time,
+            max_time,
+            file_size_bytes: 1337,
+            parquet_metadata: b"md1".to_vec(),
+            row_count: 0,
+            created_at: Timestamp::new(1),
+        };
+
+        let parquet_file = repos
+            .parquet_files()
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+
+        // Create a compaction level 0 file for some other sequencer
+        let other_sequencer_params = ParquetFileParams {
+            sequencer_id: other_sequencer.id,
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+
+        let _other_sequencer_file = repos
+            .parquet_files()
+            .create(other_sequencer_params)
+            .await
+            .unwrap();
+
+        // Create a compaction level 0 file marked to delete
+        let to_delete_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+        let to_delete_file = repos
+            .parquet_files()
+            .create(to_delete_params)
+            .await
+            .unwrap();
+        repos
+            .parquet_files()
+            .flag_for_delete(to_delete_file.id)
+            .await
+            .unwrap();
+
+        // Create a compaction level 0 file over the MAX_COMPACT_SIZE
+        let too_big_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            file_size_bytes: MAX_COMPACT_SIZE + 1,
+            ..parquet_file_params.clone()
+        };
+        let _too_big_file = repos.parquet_files().create(too_big_params).await.unwrap();
+
+        // Level 0 parquet files for a sequencer should contain only those that match the right
+        // criteria
+        let level_0 = repos.parquet_files().level_0(sequencer.id).await.unwrap();
+        let mut level_0_ids: Vec<_> = level_0.iter().map(|pf| pf.id).collect();
+        level_0_ids.sort();
+        let expected = vec![parquet_file];
+        let mut expected_ids: Vec<_> = expected.iter().map(|pf| pf.id).collect();
+        expected_ids.sort();
+
+        assert_eq!(
+            level_0_ids, expected_ids,
+            "\nlevel 0: {:#?}\nexpected: {:#?}",
+            level_0, expected,
+        );
     }
 
     async fn test_add_parquet_file_with_tombstones(catalog: Arc<dyn Catalog>) {

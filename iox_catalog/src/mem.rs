@@ -6,7 +6,7 @@ use crate::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
         KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
         QueryPoolRepo, RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo,
-        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL,
+        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL, MAX_COMPACT_SIZE,
     },
     metrics::MetricDecorator,
 };
@@ -841,6 +841,22 @@ impl ParquetFileRepo for MemTxn {
             .cloned()
             .collect();
         Ok(parquet_files)
+    }
+
+    async fn level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>> {
+        let stage = self.stage();
+
+        Ok(stage
+            .parquet_files
+            .iter()
+            .filter(|f| {
+                f.sequencer_id == sequencer_id
+                    && f.compaction_level == 0
+                    && !f.to_delete
+                    && f.file_size_bytes <= MAX_COMPACT_SIZE
+            })
+            .cloned()
+            .collect())
     }
 
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {

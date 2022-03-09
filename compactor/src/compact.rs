@@ -1,11 +1,9 @@
 //! Data Points for the lifecycle of the Compactor
 
-use std::{
-    cmp::{max, min},
-    collections::{BTreeMap, HashSet},
-    sync::Arc,
+use crate::{
+    query::QueryableParquetChunk,
+    utils::{CompactedData, ParquetFileWithTombstone, TablePartition},
 };
-
 use backoff::BackoffConfig;
 use data_types2::{ParquetFile, ParquetFileId, PartitionId, SequencerId, TableId, TombstoneId};
 use datafusion::error::DataFusionError;
@@ -19,13 +17,13 @@ use query::{
     util::compute_timenanosecond_min_max,
 };
 use snafu::{ensure, ResultExt, Snafu};
+use std::{
+    cmp::{max, min},
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
 use time::{Time, TimeProvider};
 use uuid::Uuid;
-
-use crate::{
-    query::QueryableParquetChunk,
-    utils::{CompactedData, ParquetFileWithTombstone, TablePartition},
-};
 
 /// 24 hours in nanoseconds
 // TODO: make this a config parameter
@@ -93,6 +91,11 @@ pub enum Error {
 
     #[snafu(display("Error computing min and max for record batches: {}", source))]
     MinMax { source: query::util::Error },
+
+    #[snafu(display("Error while requesting level 0 parquet files {}", source))]
+    Level0 {
+        source: iox_catalog::interface::Error,
+    },
 }
 
 /// A specialized `Error` for Compactor Data errors
@@ -137,6 +140,15 @@ impl Compactor {
         }
     }
 
+    async fn level_0_parquet_files(&self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>> {
+        let mut repos = self.catalog.repositories().await;
+        repos
+            .parquet_files()
+            .level_0(sequencer_id)
+            .await
+            .context(Level0Snafu)
+    }
+
     // TODO: this function should be invoked in a backround loop
     /// Find and compact parquet files for a given sequencer
     pub async fn find_and_compact(&self, sequencer_id: SequencerId) -> Result<()> {
@@ -145,14 +157,14 @@ impl Compactor {
         }
 
         // Read level-0 parquet files
-        let level_0_files: Vec<Arc<ParquetFile>> = vec![]; // TODO: #3946
+        let level_0_files = self.level_0_parquet_files(sequencer_id).await?;
 
         // Group files into table partition
         let mut partitions = Self::group_parquet_files_into_partition(level_0_files);
 
         // Get level-1 files overlapped with level-0
         for (_key, val) in &mut partitions.iter_mut() {
-            let level_1_files: Vec<Arc<ParquetFile>> = vec![]; // TODO: #3946
+            let level_1_files: Vec<ParquetFile> = vec![]; // TODO: #3946
             val.extend(level_1_files);
         }
 
@@ -160,7 +172,7 @@ impl Compactor {
         // groups overlapped files in each partition
         let mut overlapped_file_groups = vec![];
         for _val in partitions.values_mut() {
-            let overlapped_files: Vec<Vec<Arc<ParquetFile>>> = vec![]; // TODO: #3949
+            let overlapped_files: Vec<Vec<ParquetFile>> = vec![]; // TODO: #3949
             overlapped_file_groups.extend(overlapped_files);
         }
 
@@ -212,11 +224,11 @@ impl Compactor {
         Ok(())
     }
 
-    // Group given parquet files into parittion of the same (sequencer_id, table_id, partition_id)
+    // Group given parquet files into partition of the same (sequencer_id, table_id, partition_id)
     fn group_parquet_files_into_partition(
-        parquet_files: Vec<Arc<ParquetFile>>,
-    ) -> BTreeMap<TablePartition, Vec<Arc<ParquetFile>>> {
-        let mut groups: BTreeMap<TablePartition, Vec<Arc<ParquetFile>>> = BTreeMap::default();
+        parquet_files: Vec<ParquetFile>,
+    ) -> BTreeMap<TablePartition, Vec<ParquetFile>> {
+        let mut groups: BTreeMap<TablePartition, Vec<ParquetFile>> = BTreeMap::default();
         for file in parquet_files {
             let key = TablePartition::new(file.sequencer_id, file.table_id, file.partition_id);
             if let Some(val) = groups.get_mut(&key) {
