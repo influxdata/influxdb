@@ -63,7 +63,8 @@ struct CachedPartition {
 
 #[cfg(test)]
 mod tests {
-    use crate::{cache::test_util::assert_histogram_metric_count, test_util::TestCatalog};
+    use crate::cache::test_util::assert_histogram_metric_count;
+    use iox_tests::util::TestCatalog;
 
     use super::*;
 

@@ -69,10 +69,11 @@ impl ExecutionContextProvider for QuerierNamespace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{namespace::test_util::querier_namespace, test_util::TestCatalog};
+    use crate::namespace::test_util::querier_namespace;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
     use data_types2::ColumnType;
+    use iox_tests::util::TestCatalog;
     use query::frontend::sql::SqlQueryPlanner;
 
     #[tokio::test]

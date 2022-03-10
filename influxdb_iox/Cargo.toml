@@ -108,6 +108,7 @@ workspace-hack = { path = "../workspace-hack"}
 # Workspace dependencies, in alphabetical order
 arrow_util = { path = "../arrow_util" }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
+iox_tests = { path = "../iox_tests" }
 test_helpers = { path = "../test_helpers" }
 schema = { path = "../schema" }
 

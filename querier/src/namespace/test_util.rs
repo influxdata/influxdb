@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
-use crate::{
-    cache::CatalogCache,
-    test_util::{TestCatalog, TestNamespace},
-};
+use crate::cache::CatalogCache;
+use iox_tests::util::{TestCatalog, TestNamespace};
 
 use super::QuerierNamespace;
 

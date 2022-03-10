@@ -152,11 +152,11 @@ impl ParquetChunkAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_util::TestCatalog;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use db::chunk::DbChunk;
     use futures::StreamExt;
+    use iox_tests::util::TestCatalog;
     use query::{exec::IOxExecutionContext, QueryChunk};
     use schema::selection::Selection;
 

@@ -2100,6 +2100,7 @@ dependencies = [
  "internal_types",
  "iox_catalog",
  "iox_object_store",
+ "iox_tests",
  "itertools",
  "job_registry",
  "libc",
@@ -2525,6 +2526,26 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-stream",
+ "uuid",
+ "workspace-hack",
+]
+
+[[package]]
+name = "iox_tests"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "bytes",
+ "data_types2",
+ "iox_catalog",
+ "iox_object_store",
+ "metric",
+ "mutable_batch_lp",
+ "object_store",
+ "parquet_file",
+ "query",
+ "schema",
+ "time 0.1.0",
  "uuid",
  "workspace-hack",
 ]
@@ -4079,6 +4100,7 @@ dependencies = [
  "hyper",
  "iox_catalog",
  "iox_object_store",
+ "iox_tests",
  "job_registry",
  "metric",
  "mutable_batch_lp",

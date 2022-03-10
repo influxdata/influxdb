@@ -30,6 +30,7 @@ members = [
     "iox_data_generator",
     "iox_gitops_adapter",
     "iox_object_store",
+    "iox_tests",
     "job_registry",
     "lifecycle",
     "logfmt",

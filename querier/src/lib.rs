@@ -23,6 +23,3 @@ pub mod handler;
 pub mod namespace;
 mod poison;
 pub mod server;
-
-#[cfg(test)]
-mod test_util;

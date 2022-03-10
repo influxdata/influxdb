@@ -606,11 +606,9 @@ impl QuerierNamespace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        namespace::test_util::querier_namespace,
-        test_util::{TestCatalog, TestParquetFile},
-    };
+    use crate::namespace::test_util::querier_namespace;
     use data_types2::{ChunkAddr, ChunkId, ColumnType, PartitionAddr};
+    use iox_tests::util::{TestCatalog, TestParquetFile};
     use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
     use uuid::Uuid;
 

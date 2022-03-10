@@ -1,3 +1,5 @@
+//! Utils of the tests
+
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
 use data_types2::{
@@ -15,6 +17,8 @@ use std::sync::Arc;
 use time::{MockProvider, Time, TimeProvider};
 use uuid::Uuid;
 
+/// Catalog for tests
+#[allow(missing_docs)]
 pub struct TestCatalog {
     pub catalog: Arc<dyn Catalog>,
     pub metric_registry: Arc<metric::Registry>,
@@ -24,6 +28,7 @@ pub struct TestCatalog {
 }
 
 impl TestCatalog {
+    /// Initialize the catalog
     pub fn new() -> Arc<Self> {
         let metric_registry = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
@@ -40,26 +45,32 @@ impl TestCatalog {
         })
     }
 
+    /// Return the catalog
     pub fn catalog(&self) -> Arc<dyn Catalog> {
         Arc::clone(&self.catalog)
     }
 
+    /// Return the catalog's metric registry
     pub fn metric_registry(&self) -> Arc<metric::Registry> {
         Arc::clone(&self.metric_registry)
     }
 
+    /// Return the catalog's  object store
     pub fn object_store(&self) -> Arc<ObjectStore> {
         Arc::clone(&self.object_store)
     }
 
+    /// Return the catalog's time provider
     pub fn time_provider(&self) -> Arc<dyn TimeProvider> {
         Arc::clone(&self.time_provider)
     }
 
+    /// Return the catalog's executor
     pub fn exec(&self) -> Arc<Executor> {
         Arc::clone(&self.exec)
     }
 
+    /// Create a namesapce in teh catalog
     pub async fn create_namespace(self: &Arc<Self>, name: &str) -> Arc<TestNamespace> {
         let mut repos = self.catalog.repositories().await;
 
@@ -84,6 +95,8 @@ impl TestCatalog {
     }
 }
 
+/// A test namespace
+#[allow(missing_docs)]
 pub struct TestNamespace {
     pub catalog: Arc<TestCatalog>,
     pub kafka_topic: KafkaTopic,
@@ -92,6 +105,7 @@ pub struct TestNamespace {
 }
 
 impl TestNamespace {
+    /// Create a table in this namespace
     pub async fn create_table(self: &Arc<Self>, name: &str) -> Arc<TestTable> {
         let mut repos = self.catalog.catalog.repositories().await;
 
@@ -108,6 +122,7 @@ impl TestNamespace {
         })
     }
 
+    /// Create a sequencer for this namespace
     pub async fn create_sequencer(self: &Arc<Self>, sequencer: i32) -> Arc<TestSequencer> {
         let mut repos = self.catalog.catalog.repositories().await;
 
@@ -125,12 +140,16 @@ impl TestNamespace {
     }
 }
 
+/// A test sequencer with ist namespace in the catalog
+#[allow(missing_docs)]
 pub struct TestSequencer {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
     pub sequencer: Sequencer,
 }
 
+/// A test table of a namespace in the catalog
+#[allow(missing_docs)]
 pub struct TestTable {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
@@ -138,6 +157,7 @@ pub struct TestTable {
 }
 
 impl TestTable {
+    /// Attach a sequncer to the table
     pub fn with_sequencer(
         self: &Arc<Self>,
         sequencer: &Arc<TestSequencer>,
@@ -153,6 +173,7 @@ impl TestTable {
         })
     }
 
+    /// Create a column for the table
     pub async fn create_column(self: &Arc<Self>, name: &str, column_type: ColumnType) {
         let mut repos = self.catalog.catalog.repositories().await;
 
@@ -164,6 +185,8 @@ impl TestTable {
     }
 }
 
+/// A test catalog with specified namespace, sequencer, and table
+#[allow(missing_docs)]
 pub struct TestTableBoundSequencer {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
@@ -172,6 +195,7 @@ pub struct TestTableBoundSequencer {
 }
 
 impl TestTableBoundSequencer {
+    /// Creat a partition for the table
     pub async fn create_partition(self: &Arc<Self>, key: &str) -> Arc<TestPartition> {
         let mut repos = self.catalog.catalog.repositories().await;
 
@@ -190,6 +214,7 @@ impl TestTableBoundSequencer {
         })
     }
 
+    /// Create a tombstone
     pub async fn create_tombstone(
         self: &Arc<Self>,
         sequence_number: i64,
@@ -220,6 +245,8 @@ impl TestTableBoundSequencer {
     }
 }
 
+/// A test catalog with specified namespace, sequencer, table, partition
+#[allow(missing_docs)]
 pub struct TestPartition {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
@@ -229,6 +256,7 @@ pub struct TestPartition {
 }
 
 impl TestPartition {
+    /// CReate a parquet for the partition
     pub async fn create_parquet_file(self: &Arc<Self>, lp: &str) -> Arc<TestParquetFile> {
         let mut repos = self.catalog.catalog.repositories().await;
 
@@ -345,6 +373,8 @@ async fn create_parquet_file(
     (parquet_md, file_size)
 }
 
+/// A test parquet file of the catalog
+#[allow(missing_docs)]
 pub struct TestParquetFile {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
@@ -352,6 +382,7 @@ pub struct TestParquetFile {
 }
 
 impl TestParquetFile {
+    /// Make the parquet file deletable
     pub async fn flag_for_delete(self: &Arc<Self>) {
         let mut repos = self.catalog.catalog.repositories().await;
 
@@ -363,6 +394,8 @@ impl TestParquetFile {
     }
 }
 
+/// A catalog test tombstone
+#[allow(missing_docs)]
 pub struct TestTombstone {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
@@ -370,6 +403,7 @@ pub struct TestTombstone {
 }
 
 impl TestTombstone {
+    /// mark the tombstone proccesed
     pub async fn mark_processed(self: &Arc<Self>, parquet_file: &Arc<TestParquetFile>) {
         assert!(Arc::ptr_eq(&self.catalog, &parquet_file.catalog));
         assert!(Arc::ptr_eq(&self.namespace, &parquet_file.namespace));
