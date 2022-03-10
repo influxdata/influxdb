@@ -1698,7 +1698,7 @@ mod tests {
             .id();
 
         // A chunk is now in the object store and still in read buffer
-        let expected_parquet_size = 1257;
+        let expected_parquet_size = 1258;
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", expected_parquet_size);
@@ -2730,8 +2730,8 @@ mod tests {
                 id: chunk_summaries[0].id,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 4102,       // size of RB and OS chunks
-                object_store_bytes: 1573, // size of parquet file
+                memory_bytes: 4103,       // size of RB and OS chunks
+                object_store_bytes: 1574, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
                 time_of_first_write: Time::from_timestamp_nanos(1),
@@ -2781,7 +2781,7 @@ mod tests {
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 1463);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2550);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 1552);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 1553);
     }
 
     #[tokio::test]

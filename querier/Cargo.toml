@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-arrow = "9.1"
-arrow-flight = "9.1"
+arrow = "10"
+arrow-flight = "10"
 async-trait = "0.1.42"
 backoff = { path = "../backoff" }
 bytes = "1.0"
@@ -40,7 +40,6 @@ uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-arrow = { version = "9.1", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 bytes = "1.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }

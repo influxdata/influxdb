@@ -57,14 +57,15 @@ where
     };
     trace!(%filter_expr, "Filter_expr of pruning chunks");
 
-    let pruning_predicate = match PruningPredicate::try_new(&filter_expr, table_schema.as_arrow()) {
-        Ok(p) => p,
-        Err(e) => {
-            observer.could_not_prune("Can not create pruning predicate");
-            trace!(%e, ?filter_expr, "Can not create pruning predicate");
-            return chunks;
-        }
-    };
+    let pruning_predicate =
+        match PruningPredicate::try_new(filter_expr.clone(), table_schema.as_arrow()) {
+            Ok(p) => p,
+            Err(e) => {
+                observer.could_not_prune("Can not create pruning predicate");
+                trace!(%e, ?filter_expr, "Can not create pruning predicate");
+                return chunks;
+            }
+        };
 
     let statistics = ChunkPruningStatistics {
         table_schema: table_schema.as_ref(),

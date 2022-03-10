@@ -301,8 +301,8 @@ File {
                                         file_name: "00000000-0000-0000-0000-000000000001.parquet",
                                     },
                                 ),
-                                file_size_bytes: 3660,
-                                metadata: b"metadata omitted (952 bytes)",
+                                file_size_bytes: 3661,
+                                metadata: b"metadata omitted (953 bytes)",
                             },
                         ),
                     ),
@@ -333,7 +333,7 @@ File {
 
         assert_eq!(
             actual, expected,
-            "actual:\n{}\n\nexpected:\n{}",
+            "\n\nactual:\n{}\n\nexpected:\n{}",
             actual, expected
         );
     }
@@ -417,8 +417,8 @@ File {
                                         file_name: "00000000-0000-0000-0000-000000000001.parquet",
                                     },
                                 ),
-                                file_size_bytes: 3660,
-                                metadata: b"metadata omitted (952 bytes)",
+                                file_size_bytes: 3661,
+                                metadata: b"metadata omitted (953 bytes)",
                             },
                         ),
                     ),
@@ -617,7 +617,7 @@ File {
 
         assert_eq!(
             actual, expected,
-            "actual:\n{}\n\nexpected:\n{}",
+            "\n\nactual:\n{}\n\nexpected:\n{}",
             actual, expected
         );
     }
