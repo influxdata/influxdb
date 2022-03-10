@@ -79,6 +79,15 @@ func (d Dependencies) PrometheusCollectors() []prometheus.Collector {
 	return collectors
 }
 
+type FluxDepOption func(*flux.Deps)
+
+func WithURLValidator(v url.Validator) FluxDepOption {
+	return func(d *flux.Deps) {
+		d.Deps.URLValidator = v
+		d.Deps.HTTPClient = http.NewDefaultClient(d.Deps.URLValidator)
+	}
+}
+
 func NewDependencies(
 	reader query.StorageReader,
 	writer storage.PointsWriter,
@@ -86,10 +95,16 @@ func NewDependencies(
 	orgSvc influxdb.OrganizationService,
 	ss influxdb.SecretService,
 	metricLabelKeys []string,
+	fluxopts ...FluxDepOption,
 ) (Dependencies, error) {
 	fdeps := flux.NewDefaultDependencies()
 	fdeps.Deps.HTTPClient = http.NewDefaultClient(url.PassValidator{})
 	fdeps.Deps.SecretService = query.FromSecretService(ss)
+	// apply fluxopts before assigning fdeps to deps (ie, before casting)
+	for _, opt := range fluxopts {
+		opt(&fdeps)
+	}
+
 	deps := Dependencies{FluxDeps: fdeps}
 	bucketLookupSvc := query.FromBucketService(bucketSvc)
 	orgLookupSvc := query.FromOrganizationService(orgSvc)

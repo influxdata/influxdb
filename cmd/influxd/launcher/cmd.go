@@ -187,6 +187,8 @@ type InfluxdOpts struct {
 	StorageConfig storage.Config
 
 	Viper *viper.Viper
+
+	HardeningEnabled bool
 }
 
 // NewOpts constructs options with default values.
@@ -237,6 +239,8 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 
 		Testing:                 false,
 		TestingAlwaysAllowSetup: false,
+
+		HardeningEnabled: false,
 	}
 }
 
@@ -626,6 +630,24 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "ui-disabled",
 			Default: o.UIDisabled,
 			Desc:    "Disable the InfluxDB UI",
+		},
+
+		// hardening options
+		// --hardening-enabled is meant to enable all hardending
+		// options in one go. Today it enables the IP validator for
+		// flux and pkger templates HTTP requests. In the future,
+		// --hardening-enabled might be used to enable other security
+		// features, at which point we can add per-feature flags so
+		// that users can either opt into all features
+		// (--hardening-enabled) or to precisely the features they
+		// require. Since today there is but one feature, there is no
+		// need to introduce --hardening-ip-validation-enabled (or
+		// similar).
+		{
+			DestP:   &o.HardeningEnabled,
+			Flag:    "hardening-enabled",
+			Default: o.HardeningEnabled,
+			Desc:    "enable hardening options (disallow private IPs within flux and templates HTTP requests)",
 		},
 	}
 }

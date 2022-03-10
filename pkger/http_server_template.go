@@ -30,14 +30,16 @@ type HTTPServerTemplates struct {
 	api    *kithttp.API
 	logger *zap.Logger
 	svc    SVC
+	client *http.Client
 }
 
 // NewHTTPServerTemplates constructs a new http server.
-func NewHTTPServerTemplates(log *zap.Logger, svc SVC) *HTTPServerTemplates {
+func NewHTTPServerTemplates(log *zap.Logger, svc SVC, client *http.Client) *HTTPServerTemplates {
 	svr := &HTTPServerTemplates{
 		api:    kithttp.NewAPI(kithttp.WithLog(log)),
 		logger: log,
 		svc:    svc,
+		client: client,
 	}
 
 	exportAllowContentTypes := middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")
@@ -212,13 +214,13 @@ type ReqApply struct {
 }
 
 // Templates returns all templates associated with the request.
-func (r ReqApply) Templates(encoding Encoding) (*Template, error) {
+func (r ReqApply) Templates(encoding Encoding, client *http.Client) (*Template, error) {
 	var rawTemplates []*Template
 	for _, rem := range r.Remotes {
 		if rem.URL == "" {
 			continue
 		}
-		template, err := Parse(rem.Encoding(), FromHTTPRequest(rem.URL), ValidSkipParseError())
+		template, err := Parse(rem.Encoding(), FromHTTPRequest(rem.URL, client), ValidSkipParseError())
 		if err != nil {
 			msg := fmt.Sprintf("template from url[%s] had an issue: %s", rem.URL, err.Error())
 			return nil, influxErr(errors.EUnprocessableEntity, msg)
@@ -386,7 +388,7 @@ func (s *HTTPServerTemplates) apply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	parsedTemplate, err := reqBody.Templates(encoding)
+	parsedTemplate, err := reqBody.Templates(encoding, s.client)
 	if err != nil {
 		s.api.Err(w, r, &errors.Error{
 			Code: errors.EUnprocessableEntity,
