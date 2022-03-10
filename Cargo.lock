@@ -3688,9 +3688,9 @@ dependencies = [
 
 [[package]]
 name = "pbjson-types"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bbdacc7c9b2132fbbbe60d38e6728afbc5ea20bc7d504ed7b74dd0ee8bc57b1"
+checksum = "58d94ffa4c36eb9d09fb8e0461f8256347d1e48793f53a8a210b43726f4ec884"
 dependencies = [
  "bytes",
  "chrono",
