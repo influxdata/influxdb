@@ -614,9 +614,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.5"
+version = "3.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ced1892c55c910c1219e98d6fc8d71f6bddba7905866ce740066d8bfea859312"
+checksum = "d8c93436c21e4698bacadf42917db28b23017027a4deccb35dbe47a7e7840123"
 dependencies = [
  "atty",
  "bitflags",
@@ -633,7 +633,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.5",
+ "clap 3.1.6",
  "data_types",
  "futures",
  "iox_catalog",
@@ -2071,7 +2071,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
- "clap 3.1.5",
+ "clap 3.1.6",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2203,7 +2203,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
- "clap 3.1.5",
+ "clap 3.1.6",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2459,7 +2459,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 3.1.5",
+ "clap 3.1.6",
  "criterion",
  "data_types",
  "futures",
@@ -2488,7 +2488,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
- "clap 3.1.5",
+ "clap 3.1.6",
  "dotenv",
  "futures",
  "glob",
@@ -5842,7 +5842,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 3.1.5",
+ "clap 3.1.6",
  "futures",
  "observability_deps",
  "snafu",
@@ -5987,7 +5987,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.5",
+ "clap 3.1.6",
  "logfmt",
  "observability_deps",
  "regex",
