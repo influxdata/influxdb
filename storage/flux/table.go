@@ -128,7 +128,7 @@ func (t *table) allocateBuffer(l int) *colReader {
 		t.colBufs = &colReader{
 			key:     t.key,
 			colMeta: t.cols,
-			cols:    make([]array.Interface, len(t.cols)),
+			cols:    make([]array.Array, len(t.cols)),
 		}
 	}
 	t.colBufs.refCount = 1
@@ -141,7 +141,7 @@ type colReader struct {
 
 	key     flux.GroupKey
 	colMeta []flux.ColMeta
-	cols    []array.Interface
+	cols    []array.Array
 	l       int
 }
 

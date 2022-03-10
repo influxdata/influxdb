@@ -8,7 +8,7 @@ require (
 	github.com/NYTimes/gziphandler v1.0.1
 	github.com/RoaringBitmap/roaring v0.4.16
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
-	github.com/apache/arrow/go/arrow v0.0.0-20210722123801-4591d76fce28
+	github.com/apache/arrow/go/arrow v0.0.0-20210722123801-4591d76fce28 // indirect
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3
 	github.com/benbjohnson/tmpl v1.0.0
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
@@ -88,7 +88,10 @@ require (
 	honnef.co/go/tools v0.2.0
 )
 
-require github.com/influxdata/influx-cli/v2 v2.2.1-0.20211129214229-4c0fae3a4c0d
+require (
+	github.com/apache/arrow/go/v7 v7.0.0
+	github.com/influxdata/influx-cli/v2 v2.2.1-0.20211129214229-4c0fae3a4c0d
+)
 
 require (
 	cloud.google.com/go v0.82.0 // indirect
@@ -111,7 +114,6 @@ require (
 	github.com/Microsoft/go-winio v0.4.11 // indirect
 	github.com/SAP/go-hdb v0.14.1 // indirect
 	github.com/aokoli/goutils v1.0.1 // indirect
-	github.com/apache/arrow/go/v7 v7.0.0 // indirect
 	github.com/aws/aws-sdk-go v1.29.16 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.3.2 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.1.5 // indirect
