@@ -679,14 +679,9 @@ pub struct ParquetFileParams {
     pub parquet_metadata: Vec<u8>,
     /// the number of rows of data in this file
     pub row_count: i64,
-    /// the compaction level of the file
-    pub compaction_level: i16,
     /// the creation time of the parquet file
     pub created_at: Timestamp,
 }
-
-/// The starting compaction level for parquet files is zero.
-pub const INITIAL_COMPACTION_LEVEL: i16 = 0;
 
 /// Data for a processed tombstone reference in the catalog.
 #[derive(Debug, Copy, Clone, PartialEq, sqlx::FromRow)]

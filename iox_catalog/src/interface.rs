@@ -406,6 +406,9 @@ pub trait TombstoneRepo: Send + Sync {
     ) -> Result<Vec<Tombstone>>;
 }
 
+/// The starting compaction level for parquet files is zero.
+pub const INITIAL_COMPACTION_LEVEL: i16 = 0;
+
 /// Functions for working with parquet file pointers in the catalog
 #[async_trait]
 pub trait ParquetFileRepo: Send + Sync {
@@ -755,7 +758,6 @@ pub(crate) mod test_helpers {
             file_size_bytes: 0,
             parquet_metadata: vec![],
             row_count: 0,
-            compaction_level: 0,
             created_at: Timestamp::new(1),
         };
         let p1 = repos
@@ -1275,7 +1277,6 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
-            compaction_level: 0,
             created_at: Timestamp::new(1),
         };
         let parquet_file = repos
@@ -1480,7 +1481,6 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
-            compaction_level: 0,
             created_at: Timestamp::new(1),
         };
         let other_parquet = ParquetFileParams {

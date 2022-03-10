@@ -315,7 +315,6 @@ impl TestPartition {
             file_size_bytes: file_size_bytes as i64,
             parquet_metadata: parquet_metadata_bin,
             row_count: row_count as i64,
-            compaction_level: 0,
             created_at: Timestamp::new(1),
         };
         let parquet_file = repos

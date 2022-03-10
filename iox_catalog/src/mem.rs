@@ -6,7 +6,7 @@ use crate::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
         KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
         QueryPoolRepo, RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo,
-        TombstoneRepo, Transaction,
+        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL,
     },
     metrics::MetricDecorator,
 };
@@ -764,7 +764,6 @@ impl ParquetFileRepo for MemTxn {
             file_size_bytes,
             parquet_metadata,
             row_count,
-            compaction_level,
             created_at,
         } = parquet_file_params;
 
@@ -790,7 +789,7 @@ impl ParquetFileRepo for MemTxn {
             to_delete: false,
             file_size_bytes,
             parquet_metadata,
-            compaction_level,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at,
         };
         stage.parquet_files.push(parquet_file);

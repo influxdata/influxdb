@@ -1904,7 +1904,6 @@ mod tests {
             file_size_bytes: 0,
             parquet_metadata: vec![],
             row_count: 0,
-            compaction_level: 0,
             created_at: Timestamp::new(1),
         };
         repos
