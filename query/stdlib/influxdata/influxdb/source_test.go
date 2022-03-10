@@ -97,6 +97,10 @@ func (mockAdministration) Parents() []execute.DatasetID {
 	return nil
 }
 
+func (mockAdministration) ParallelOpts() execute.ParallelOpts {
+	panic("implement me")
+}
+
 const (
 	labelKey   = "key1"
 	labelValue = "value1"
