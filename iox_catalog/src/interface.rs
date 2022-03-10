@@ -5,7 +5,8 @@ use data_types2::{
     Column, ColumnSchema, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
     NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
     PartitionId, PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Sequencer, SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
+    Sequencer, SequencerId, Table, TableId, TablePartition, TableSchema, Timestamp, Tombstone,
+    TombstoneId,
 };
 use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, convert::TryFrom, fmt::Debug, sync::Arc};
@@ -441,6 +442,16 @@ pub trait ParquetFileRepo: Send + Sync {
     /// define a file as a candidate for compaction
     async fn level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>>;
 
+    /// List parquet files for a given table partition, in a given time range, with compaction
+    /// level 1, and other criteria that define a file as a candidate for compaction with a level 0
+    /// file
+    async fn level_1(
+        &mut self,
+        table_partition: TablePartition,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<Vec<ParquetFile>>;
+
     /// Update the compaction level of the specified parquet files to level 1. Returns the IDs
     /// of the files that were successfully updated.
     async fn update_to_level_1(
@@ -551,6 +562,7 @@ pub(crate) mod test_helpers {
         test_tombstone(Arc::clone(&catalog)).await;
         test_parquet_file(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_0(Arc::clone(&catalog)).await;
+        test_parquet_file_compaction_level_1(Arc::clone(&catalog)).await;
         test_update_to_compaction_level_1(Arc::clone(&catalog)).await;
         test_add_parquet_file_with_tombstones(Arc::clone(&catalog)).await;
         test_txn_isolation(Arc::clone(&catalog)).await;
@@ -1538,6 +1550,230 @@ pub(crate) mod test_helpers {
             level_0_ids, expected_ids,
             "\nlevel 0: {:#?}\nexpected: {:#?}",
             level_0, expected,
+        );
+    }
+
+    async fn test_parquet_file_compaction_level_1(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = repos
+            .namespaces()
+            .create(
+                "namespace_parquet_file_compaction_level_1_test",
+                "inf",
+                kafka.id,
+                pool.id,
+            )
+            .await
+            .unwrap();
+        let table = repos
+            .tables()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let other_table = repos
+            .tables()
+            .create_or_get("test_table2", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = repos
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(100))
+            .await
+            .unwrap();
+        let other_sequencer = repos
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(101))
+            .await
+            .unwrap();
+        let partition = repos
+            .partitions()
+            .create_or_get("one", sequencer.id, table.id)
+            .await
+            .unwrap();
+        let other_partition = repos
+            .partitions()
+            .create_or_get("two", sequencer.id, table.id)
+            .await
+            .unwrap();
+
+        // Set up the window of times we're interested in level 1 files for
+        let query_min_time = Timestamp::new(5);
+        let query_max_time = Timestamp::new(10);
+
+        // Create a file with times entirely within the window
+        let parquet_file_params = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            table_id: partition.table_id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(10),
+            max_sequence_number: SequenceNumber::new(140),
+            min_time: query_min_time + 1,
+            max_time: query_max_time - 1,
+            file_size_bytes: 1337,
+            parquet_metadata: b"md1".to_vec(),
+            row_count: 0,
+            created_at: Timestamp::new(1),
+        };
+        let parquet_file = repos
+            .parquet_files()
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+
+        // Create a file that will remain as level 0
+        let level_0_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+        let _level_0_file = repos.parquet_files().create(level_0_params).await.unwrap();
+
+        // Create a file completely before the window
+        let too_early_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            min_time: query_min_time - 2,
+            max_time: query_min_time - 1,
+            ..parquet_file_params.clone()
+        };
+        let too_early_file = repos
+            .parquet_files()
+            .create(too_early_params)
+            .await
+            .unwrap();
+
+        // Create a file overlapping the window on the lower end
+        let overlap_lower_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            min_time: query_min_time - 1,
+            max_time: query_min_time + 1,
+            ..parquet_file_params.clone()
+        };
+        let overlap_lower_file = repos
+            .parquet_files()
+            .create(overlap_lower_params)
+            .await
+            .unwrap();
+
+        // Create a file overlapping the window on the upper end
+        let overlap_upper_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            min_time: query_max_time - 1,
+            max_time: query_max_time + 1,
+            ..parquet_file_params.clone()
+        };
+        let overlap_upper_file = repos
+            .parquet_files()
+            .create(overlap_upper_params)
+            .await
+            .unwrap();
+
+        // Create a file completely after the window
+        let too_late_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            min_time: query_max_time + 1,
+            max_time: query_max_time + 2,
+            ..parquet_file_params.clone()
+        };
+        let too_late_file = repos.parquet_files().create(too_late_params).await.unwrap();
+
+        // Create a file for some other sequencer
+        let other_sequencer_params = ParquetFileParams {
+            sequencer_id: other_sequencer.id,
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+        let other_sequencer_file = repos
+            .parquet_files()
+            .create(other_sequencer_params)
+            .await
+            .unwrap();
+
+        // Create a file for the same sequencer but a different table
+        let other_table_params = ParquetFileParams {
+            table_id: other_table.id,
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+        let other_table_file = repos
+            .parquet_files()
+            .create(other_table_params)
+            .await
+            .unwrap();
+
+        // Create a file for the same sequencer and table but a different partition
+        let other_partition_params = ParquetFileParams {
+            partition_id: other_partition.id,
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+        let other_partition_file = repos
+            .parquet_files()
+            .create(other_partition_params)
+            .await
+            .unwrap();
+
+        // Create a file too big to be considered
+        let too_big_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            file_size_bytes: MAX_COMPACT_SIZE + 1,
+            ..parquet_file_params.clone()
+        };
+        let too_big_file = repos.parquet_files().create(too_big_params).await.unwrap();
+
+        // Create a file marked to be deleted
+        let to_delete_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+        let to_delete_file = repos
+            .parquet_files()
+            .create(to_delete_params)
+            .await
+            .unwrap();
+        repos
+            .parquet_files()
+            .flag_for_delete(to_delete_file.id)
+            .await
+            .unwrap();
+
+        // Make all but _level_0_file compaction level 1
+        repos
+            .parquet_files()
+            .update_to_level_1(&[
+                parquet_file.id,
+                too_early_file.id,
+                too_late_file.id,
+                overlap_lower_file.id,
+                overlap_upper_file.id,
+                other_sequencer_file.id,
+                other_table_file.id,
+                other_partition_file.id,
+                too_big_file.id,
+                to_delete_file.id,
+            ])
+            .await
+            .unwrap();
+
+        // Level 1 parquet files for a sequencer should contain only those that match the right
+        // criteria
+        let table_partition = TablePartition::new(sequencer.id, table.id, partition.id);
+        let level_1 = repos
+            .parquet_files()
+            .level_1(table_partition, query_min_time, query_max_time)
+            .await
+            .unwrap();
+        let mut level_1_ids: Vec<_> = level_1.iter().map(|pf| pf.id).collect();
+        level_1_ids.sort();
+        let expected = vec![parquet_file, overlap_lower_file, overlap_upper_file];
+        let mut expected_ids: Vec<_> = expected.iter().map(|pf| pf.id).collect();
+        expected_ids.sort();
+
+        assert_eq!(
+            level_1_ids, expected_ids,
+            "\nlevel 1: {:#?}\nexpected: {:#?}",
+            level_1, expected,
         );
     }
 

@@ -2,10 +2,13 @@
 
 use crate::{
     query::QueryableParquetChunk,
-    utils::{CompactedData, ParquetFileWithTombstone, TablePartition},
+    utils::{CompactedData, ParquetFileWithTombstone},
 };
 use backoff::BackoffConfig;
-use data_types2::{ParquetFile, ParquetFileId, PartitionId, SequencerId, TableId, TombstoneId};
+use data_types2::{
+    ParquetFile, ParquetFileId, PartitionId, SequencerId, TableId, TablePartition, Timestamp,
+    TombstoneId,
+};
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::Catalog;
 use object_store::ObjectStore;
@@ -98,6 +101,11 @@ pub enum Error {
         source: iox_catalog::interface::Error,
     },
 
+    #[snafu(display("Error while requesting level 1 parquet files {}", source))]
+    Level1 {
+        source: iox_catalog::interface::Error,
+    },
+
     #[snafu(display("Error updating catalog {}", source))]
     Update {
         source: iox_catalog::interface::Error,
@@ -156,6 +164,21 @@ impl Compactor {
             .context(Level0Snafu)
     }
 
+    async fn level_1_parquet_files(
+        &self,
+        table_partition: TablePartition,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<Vec<ParquetFile>> {
+        let mut repos = self.catalog.repositories().await;
+
+        repos
+            .parquet_files()
+            .level_1(table_partition, min_time, max_time)
+            .await
+            .context(Level1Snafu)
+    }
+
     async fn update_to_level_1(&self, parquet_file_ids: &[ParquetFileId]) -> Result<()> {
         let mut repos = self.catalog.repositories().await;
 
@@ -189,12 +212,29 @@ impl Compactor {
         // Read level-0 parquet files
         let level_0_files = self.level_0_parquet_files(sequencer_id).await?;
 
+        // If there are no level-0 parquet files, return because there's nothing to do
+        if level_0_files.is_empty() {
+            return Ok(());
+        }
+
         // Group files into table partition
         let mut partitions = Self::group_parquet_files_into_partition(level_0_files);
 
-        // Get level-1 files overlapped with level-0
-        for (_key, val) in &mut partitions.iter_mut() {
-            let level_1_files: Vec<ParquetFile> = vec![]; // TODO: #3946
+        // Get level-1 files overlapped in time with level-0
+        for (key, val) in &mut partitions.iter_mut() {
+            let overall_min_time = val
+                .iter()
+                .map(|pf| pf.min_time)
+                .min()
+                .expect("The list of files was checked for emptiness above");
+            let overall_max_time = val
+                .iter()
+                .map(|pf| pf.max_time)
+                .max()
+                .expect("The list of files was checked for emptiness above");
+            let level_1_files = self
+                .level_1_parquet_files(*key, overall_min_time, overall_max_time)
+                .await?;
             val.extend(level_1_files);
         }
 
@@ -285,7 +325,8 @@ impl Compactor {
     }
 
     // Compact given files. Assume the given files are overlaped in time.
-    // If the assumption does not meet, we will spend time not to compact anything but put data together
+    // If the assumption does not meet, we will spend time not to compact anything but put data
+    // together
     async fn compact(
         &self,
         overlapped_files: Vec<ParquetFileWithTombstone>,

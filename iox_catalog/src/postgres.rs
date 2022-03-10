@@ -14,7 +14,7 @@ use data_types2::{
     Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
     ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
-    TableId, Timestamp, Tombstone, TombstoneId,
+    TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::{info, warn};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgres, Row};
@@ -1295,6 +1295,52 @@ WHERE parquet_file.sequencer_id = $1
         )
         .bind(&sequencer_id) // $1
         .bind(MAX_COMPACT_SIZE) // $2
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn level_1(
+        &mut self,
+        table_partition: TablePartition,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<Vec<ParquetFile>> {
+        sqlx::query_as::<_, ParquetFile>(
+            r#"
+SELECT
+    parquet_file.id as id,
+    parquet_file.sequencer_id as sequencer_id,
+    parquet_file.table_id as table_id,
+    parquet_file.partition_id as partition_id,
+    parquet_file.object_store_id as object_store_id,
+    parquet_file.min_sequence_number as min_sequence_number,
+    parquet_file.max_sequence_number as max_sequence_number,
+    parquet_file.min_time as min_time,
+    parquet_file.max_time as max_time,
+    parquet_file.to_delete as to_delete,
+    parquet_file.file_size_bytes as file_size_bytes,
+    parquet_file.parquet_metadata as parquet_metadata,
+    parquet_file.row_count as row_count,
+    parquet_file.compaction_level as compaction_level,
+    parquet_file.created_at as created_at
+FROM parquet_file
+WHERE parquet_file.sequencer_id = $1
+  AND parquet_file.table_id = $2
+  AND parquet_file.partition_id = $3
+  AND parquet_file.compaction_level = 1
+  AND parquet_file.to_delete = false
+  AND parquet_file.file_size_bytes <= $4
+  AND ((parquet_file.min_time <= $5 AND parquet_file.max_time >= $5)
+      OR (parquet_file.min_time > $5 AND parquet_file.min_time <= $6))
+  ;"#,
+        )
+        .bind(&table_partition.sequencer_id) // $1
+        .bind(&table_partition.table_id) // $2
+        .bind(&table_partition.partition_id) // $3
+        .bind(MAX_COMPACT_SIZE) // $4
+        .bind(min_time) // $5
+        .bind(max_time) // $6
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })

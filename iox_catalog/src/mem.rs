@@ -15,7 +15,7 @@ use data_types2::{
     Column, ColumnId, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
     ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
-    TableId, Timestamp, Tombstone, TombstoneId,
+    TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::warn;
 use std::fmt::Formatter;
@@ -854,6 +854,31 @@ impl ParquetFileRepo for MemTxn {
                     && f.compaction_level == 0
                     && !f.to_delete
                     && f.file_size_bytes <= MAX_COMPACT_SIZE
+            })
+            .cloned()
+            .collect())
+    }
+
+    async fn level_1(
+        &mut self,
+        table_partition: TablePartition,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<Vec<ParquetFile>> {
+        let stage = self.stage();
+
+        Ok(stage
+            .parquet_files
+            .iter()
+            .filter(|f| {
+                f.sequencer_id == table_partition.sequencer_id
+                    && f.table_id == table_partition.table_id
+                    && f.partition_id == table_partition.partition_id
+                    && f.compaction_level == 1
+                    && !f.to_delete
+                    && f.file_size_bytes <= MAX_COMPACT_SIZE
+                    && ((f.min_time <= min_time && f.max_time >= min_time)
+                        || (f.min_time > min_time && f.min_time <= max_time))
             })
             .cloned()
             .collect())
