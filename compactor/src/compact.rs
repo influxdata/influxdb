@@ -9,6 +9,7 @@ use data_types2::{ParquetFile, ParquetFileId, PartitionId, SequencerId, TableId,
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::Catalog;
 use object_store::ObjectStore;
+use observability_deps::tracing::warn;
 use parquet_file::metadata::IoxMetadata;
 use query::{
     compute_sort_key_for_chunks,
@@ -96,6 +97,11 @@ pub enum Error {
     Level0 {
         source: iox_catalog::interface::Error,
     },
+
+    #[snafu(display("Error updating catalog {}", source))]
+    Update {
+        source: iox_catalog::interface::Error,
+    },
 }
 
 /// A specialized `Error` for Compactor Data errors
@@ -142,11 +148,35 @@ impl Compactor {
 
     async fn level_0_parquet_files(&self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>> {
         let mut repos = self.catalog.repositories().await;
+
         repos
             .parquet_files()
             .level_0(sequencer_id)
             .await
             .context(Level0Snafu)
+    }
+
+    async fn update_to_level_1(&self, parquet_file_ids: &[ParquetFileId]) -> Result<()> {
+        let mut repos = self.catalog.repositories().await;
+
+        let updated = repos
+            .parquet_files()
+            .update_to_level_1(parquet_file_ids)
+            .await
+            .context(UpdateSnafu)?;
+
+        if updated.len() < parquet_file_ids.len() {
+            let parquet_file_ids: HashSet<_> = parquet_file_ids.iter().collect();
+            let updated: HashSet<_> = updated.iter().collect();
+            let not_updated = parquet_file_ids.difference(&updated);
+
+            warn!(
+                "Unable to update to level 1 parquet files with IDs: {:?}",
+                not_updated
+            );
+        }
+
+        Ok(())
     }
 
     // TODO: this function should be invoked in a backround loop
@@ -219,7 +249,7 @@ impl Compactor {
         // TODO: #3953 - remove_fully_processed_tombstones(tombstones)
 
         // Upgrade old level-0 to level 1
-        // TODO: #3950 - update_to_level_1(upgrade_level_list)
+        self.update_to_level_1(&upgrade_level_list).await?;
 
         Ok(())
     }

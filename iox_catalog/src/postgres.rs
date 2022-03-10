@@ -1300,6 +1300,30 @@ WHERE parquet_file.sequencer_id = $1
         .map_err(|e| Error::SqlxError { source: e })
     }
 
+    async fn update_to_level_1(
+        &mut self,
+        parquet_file_ids: &[ParquetFileId],
+    ) -> Result<Vec<ParquetFileId>> {
+        // If I try to do `.bind(parquet_file_ids)` directly, I get a compile error from sqlx.
+        // See https://github.com/launchbadge/sqlx/issues/1744
+        let ids: Vec<_> = parquet_file_ids.iter().map(|p| p.get()).collect();
+        let updated = sqlx::query(
+            r#"
+            UPDATE parquet_file
+            SET compaction_level = 1
+            WHERE id = ANY($1)
+            RETURNING id
+            ;"#,
+        )
+        .bind(&ids[..])
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        let updated = updated.into_iter().map(|row| row.get("id")).collect();
+        Ok(updated)
+    }
+
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {
         let read_result = sqlx::query_as::<_, Count>(
             r#"SELECT count(*) as count FROM parquet_file WHERE id = $1;"#,

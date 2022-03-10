@@ -859,6 +859,26 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
+    async fn update_to_level_1(
+        &mut self,
+        parquet_file_ids: &[ParquetFileId],
+    ) -> Result<Vec<ParquetFileId>> {
+        let stage = self.stage();
+
+        let mut updated = Vec::with_capacity(parquet_file_ids.len());
+
+        for f in stage
+            .parquet_files
+            .iter_mut()
+            .filter(|p| parquet_file_ids.contains(&p.id))
+        {
+            f.compaction_level = 1;
+            updated.push(f.id);
+        }
+
+        Ok(updated)
+    }
+
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {
         let stage = self.stage();
 
