@@ -3676,11 +3676,11 @@ dependencies = [
 
 [[package]]
 name = "pbjson-build"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6b0ea8424e26dc5ecacd82be3f329332af251ac804764dc5d1f15354b955662"
+checksum = "f7ded6959888ee91bc803eb467411e416181ce68c125955338c2ad7dfbfa610d"
 dependencies = [
- "heck 0.3.3",
+ "heck 0.4.0",
  "itertools",
  "prost",
  "prost-types",
