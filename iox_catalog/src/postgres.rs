@@ -5,22 +5,21 @@ use crate::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
         KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
         QueryPoolRepo, RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo,
-        TombstoneRepo, Transaction,
+        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL,
     },
     metrics::MetricDecorator,
 };
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, Partition, PartitionId, PartitionInfo, ProcessedTombstone,
-    QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp,
-    Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
+    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
+    TableId, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::{info, warn};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgres, Row};
 use sqlx_hotswap_pool::HotSwapPool;
 use std::{sync::Arc, time::Duration};
-use uuid::Uuid;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(500);
@@ -1159,22 +1158,22 @@ WHERE table_name.namespace_id = $1;
 
 #[async_trait]
 impl ParquetFileRepo for PostgresTxn {
-    async fn create(
-        &mut self,
-        sequencer_id: SequencerId,
-        table_id: TableId,
-        partition_id: PartitionId,
-        object_store_id: Uuid,
-        min_sequence_number: SequenceNumber,
-        max_sequence_number: SequenceNumber,
-        min_time: Timestamp,
-        max_time: Timestamp,
-        file_size_bytes: i64,
-        parquet_metadata: Vec<u8>,
-        row_count: i64,
-        level: i16,
-        created_at: Timestamp,
-    ) -> Result<ParquetFile> {
+    async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile> {
+        let ParquetFileParams {
+            sequencer_id,
+            table_id,
+            partition_id,
+            object_store_id,
+            min_sequence_number,
+            max_sequence_number,
+            min_time,
+            max_time,
+            file_size_bytes,
+            parquet_metadata,
+            row_count,
+            created_at,
+        } = parquet_file_params;
+
         let rec = sqlx::query_as::<_, ParquetFile>(
             r#"
 INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes, parquet_metadata, row_count, compaction_level, created_at )
@@ -1193,7 +1192,7 @@ RETURNING *
             .bind(file_size_bytes) // $9
             .bind(parquet_metadata) // $10
             .bind(row_count) // $11
-            .bind(level) // $12
+            .bind(INITIAL_COMPACTION_LEVEL) // $12
             .bind(created_at) // $13
             .fetch_one(&mut self.inner)
             .await

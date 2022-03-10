@@ -242,24 +242,7 @@ impl Persister for IngesterData {
                 Backoff::new(&self.backoff_config)
                     .retry_all_errors("add parquet file to catalog", || async {
                         let mut repos = self.catalog.repositories().await;
-                        repos
-                            .parquet_files()
-                            .create(
-                                parquet_file.sequencer_id,
-                                parquet_file.table_id,
-                                parquet_file.partition_id,
-                                parquet_file.object_store_id,
-                                parquet_file.min_sequence_number,
-                                parquet_file.max_sequence_number,
-                                parquet_file.min_time,
-                                parquet_file.max_time,
-                                parquet_file.file_size_bytes,
-                                parquet_file.parquet_metadata.clone(),
-                                parquet_file.row_count,
-                                parquet_file.compaction_level,
-                                parquet_file.created_at,
-                            )
-                            .await
+                        repos.parquet_files().create(parquet_file.clone()).await
                     })
                     .await
                     .expect("retry forever");
@@ -1262,7 +1245,7 @@ mod tests {
     use super::*;
     use crate::{lifecycle::LifecycleConfig, test_util::create_tombstone};
     use arrow_util::assert_batches_sorted_eq;
-    use data_types2::{NamespaceSchema, Sequence};
+    use data_types2::{NamespaceSchema, ParquetFileParams, Sequence};
     use dml::{DmlMeta, DmlWrite};
     use futures::TryStreamExt;
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
@@ -1909,23 +1892,23 @@ mod tests {
             .create_or_get("1970-01-01", sequencer.id, table.id)
             .await
             .unwrap();
+        let parquet_file_params = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            table_id: table.id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(0),
+            max_sequence_number: SequenceNumber::new(1),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(1),
+            file_size_bytes: 0,
+            parquet_metadata: vec![],
+            row_count: 0,
+            created_at: Timestamp::new(1),
+        };
         repos
             .parquet_files()
-            .create(
-                sequencer.id,
-                table.id,
-                partition.id,
-                Uuid::new_v4(),
-                SequenceNumber::new(0),
-                SequenceNumber::new(1),
-                Timestamp::new(1),
-                Timestamp::new(1),
-                0,
-                vec![],
-                0,
-                0,
-                Timestamp::new(1),
-            )
+            .create(parquet_file_params)
             .await
             .unwrap();
         std::mem::drop(repos);
