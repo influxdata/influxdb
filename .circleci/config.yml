@@ -1030,8 +1030,8 @@ jobs:
     steps:
       - checkout
       - run:
-          # OSS_SHA refers to the current commit from the InfluxDB OSS repo; SHA refers to the commit in the UI repo that the OSS backend should be tested against.
-          command: API_KEY=${MONITOR_CI_API_KEY} MONITOR_CI_BRANCH="master" OSS_SHA=${CIRCLE_SHA1} SHA="cc65325af35078b6886dac24357a88c9f815369d" UI_BRANCH="OSS-2.1" ./scripts/ci/run-monitor-ci-tests.bash
+          name: Run the tests
+          command: API_KEY=${MONITOR_CI_API_KEY} MONITOR_CI_BRANCH="master" OSS_SHA=${CIRCLE_SHA1} UI_SHA="cc65325af35078b6886dac24357a88c9f815369d" UI_BRANCH="OSS-2.1" RUN_WORKFLOW="build_oss_embedded" ./scripts/ci/run-monitor-ci-tests.bash
       - store_artifacts:
           path: monitor-ci/test-artifacts/results/build-oss-image
           destination: test_artifacts/results/build-oss-image
