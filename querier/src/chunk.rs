@@ -51,9 +51,10 @@ impl ParquetChunkAdapter {
     /// Create parquet chunk.
     async fn new_parquet_chunk(&self, decoded_parquet_file: &DecodedParquetFile) -> ParquetChunk {
         let parquet_file = &decoded_parquet_file.parquet_file;
-        let table_name = self.catalog_cache.table_name(parquet_file.table_id).await;
+        let table_name = self.catalog_cache.table().name(parquet_file.table_id).await;
         let partition_key = self
             .catalog_cache
+            .partition()
             .old_gen_partition_key(parquet_file.partition_id)
             .await;
         let metrics = ParquetChunkMetrics::new(self.metric_registry.as_ref());
@@ -129,15 +130,18 @@ impl ParquetChunkAdapter {
         ChunkAddr {
             db_name: self
                 .catalog_cache
-                .namespace_name(
+                .namespace()
+                .name(
                     self.catalog_cache
-                        .table_namespace_id(parquet_file.table_id)
+                        .table()
+                        .namespace_id(parquet_file.table_id)
                         .await,
                 )
                 .await,
-            table_name: self.catalog_cache.table_name(parquet_file.table_id).await,
+            table_name: self.catalog_cache.table().name(parquet_file.table_id).await,
             partition_key: self
                 .catalog_cache
+                .partition()
                 .old_gen_partition_key(parquet_file.partition_id)
                 .await,
             chunk_id: ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _)),

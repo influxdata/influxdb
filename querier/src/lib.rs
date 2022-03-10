@@ -14,6 +14,7 @@
 pub use client_util::connection;
 
 mod cache;
+mod cache_system;
 mod chunk;
 pub mod database;
 /// Flight client to the ingester to request in-memory data.
