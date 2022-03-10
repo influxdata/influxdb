@@ -1172,11 +1172,13 @@ impl ParquetFileRepo for PostgresTxn {
         file_size_bytes: i64,
         parquet_metadata: Vec<u8>,
         row_count: i64,
+        level: i16,
+        created_at: Timestamp,
     ) -> Result<ParquetFile> {
         let rec = sqlx::query_as::<_, ParquetFile>(
             r#"
-INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes, parquet_metadata, row_count )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10, $11 )
+INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes, parquet_metadata, row_count, compaction_level, created_at )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10, $11, $12, $13 )
 RETURNING *
         "#,
         )
@@ -1191,6 +1193,8 @@ RETURNING *
             .bind(file_size_bytes) // $9
             .bind(parquet_metadata) // $10
             .bind(row_count) // $11
+            .bind(level) // $12
+            .bind(created_at) // $13
             .fetch_one(&mut self.inner)
             .await
             .map_err(|e| {
@@ -1250,7 +1254,9 @@ SELECT
     parquet_file.to_delete as to_delete,
     parquet_file.file_size_bytes as file_size_bytes,
     parquet_file.parquet_metadata as parquet_metadata,
-    parquet_file.row_count as row_count
+    parquet_file.row_count as row_count,
+    parquet_file.compaction_level as compaction_level,
+    parquet_file.created_at as created_at
 FROM parquet_file
 INNER JOIN table_name on table_name.id = parquet_file.table_id
 WHERE table_name.namespace_id = $1 AND parquet_file.to_delete = false;

@@ -763,6 +763,8 @@ impl ParquetFileRepo for MemTxn {
         file_size_bytes: i64,
         parquet_metadata: Vec<u8>,
         row_count: i64,
+        level: i16,
+        created_at: Timestamp,
     ) -> Result<ParquetFile> {
         let stage = self.stage();
 
@@ -788,6 +790,8 @@ impl ParquetFileRepo for MemTxn {
             to_delete: false,
             file_size_bytes,
             parquet_metadata,
+            compaction_level: level,
+            created_at,
         };
         stage.parquet_files.push(parquet_file);
         Ok(stage.parquet_files.last().unwrap().clone())

@@ -424,6 +424,8 @@ pub trait ParquetFileRepo: Send + Sync {
         file_size_bytes: i64,
         parquet_metadata: Vec<u8>,
         row_count: i64,
+        level: i16,
+        created_at: Timestamp,
     ) -> Result<ParquetFile>;
 
     /// Flag the parquet file for deletion
@@ -771,6 +773,8 @@ pub(crate) mod test_helpers {
                 0,
                 vec![],
                 0,
+                0,
+                Timestamp::new(1),
             )
             .await
             .unwrap();
@@ -805,6 +809,8 @@ pub(crate) mod test_helpers {
                 0,
                 vec![],
                 0,
+                0,
+                Timestamp::new(1),
             )
             .await
             .unwrap();
@@ -1294,6 +1300,8 @@ pub(crate) mod test_helpers {
                 1337,
                 b"md1".to_vec(),
                 0,
+                0,
+                Timestamp::new(1),
             )
             .await
             .unwrap();
@@ -1313,6 +1321,8 @@ pub(crate) mod test_helpers {
                 1338,
                 b"md2".to_vec(),
                 0,
+                0,
+                Timestamp::new(1),
             )
             .await
             .unwrap_err();
@@ -1332,6 +1342,8 @@ pub(crate) mod test_helpers {
                 1339,
                 b"md3".to_vec(),
                 0,
+                0,
+                Timestamp::new(1),
             )
             .await
             .unwrap();
@@ -1406,6 +1418,8 @@ pub(crate) mod test_helpers {
                 1337,
                 b"md4".to_vec(),
                 0,
+                0,
+                Timestamp::new(1),
             )
             .await
             .unwrap();
@@ -1423,6 +1437,8 @@ pub(crate) mod test_helpers {
                 1337,
                 b"md4".to_vec(),
                 0,
+                0,
+                Timestamp::new(1),
             )
             .await
             .unwrap();
@@ -1532,6 +1548,8 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
+            compaction_level: 0,
+            created_at: Timestamp::new(1),
         };
         let other_parquet = ParquetFile {
             id: ParquetFileId::new(0), //fake id that will never be used
@@ -1547,6 +1565,8 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1338,
             parquet_metadata: b"md2".to_vec(),
             row_count: 0,
+            compaction_level: 0,
+            created_at: Timestamp::new(1),
         };
         let another_parquet = ParquetFile {
             id: ParquetFileId::new(0), //fake id that will never be used
@@ -1562,6 +1582,8 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1339,
             parquet_metadata: b"md3".to_vec(),
             row_count: 0,
+            compaction_level: 0,
+            created_at: Timestamp::new(1),
         };
 
         let parquet_file_count_before = txn.parquet_files().count().await.unwrap();

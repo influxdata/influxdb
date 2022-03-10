@@ -288,6 +288,8 @@ impl TestPartition {
                 file_size_bytes as i64,
                 parquet_metadata_bin,
                 row_count as i64,
+                0,
+                Timestamp::new(1),
             )
             .await
             .unwrap();

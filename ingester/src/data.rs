@@ -256,6 +256,8 @@ impl Persister for IngesterData {
                                 parquet_file.file_size_bytes,
                                 parquet_file.parquet_metadata.clone(),
                                 parquet_file.row_count,
+                                parquet_file.compaction_level,
+                                parquet_file.created_at,
                             )
                             .await
                     })
@@ -1921,6 +1923,8 @@ mod tests {
                 0,
                 vec![],
                 0,
+                0,
+                Timestamp::new(1),
             )
             .await
             .unwrap();

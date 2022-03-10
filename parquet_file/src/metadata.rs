@@ -92,7 +92,7 @@ use data_types::{
 };
 use data_types2::{
     NamespaceId, ParquetFile, ParquetFileId, PartitionId, SequenceNumber, SequencerId, TableId,
-    Timestamp,
+    Timestamp, INITIAL_COMPACTION_LEVEL,
 };
 use generated_types::influxdata::iox::{
     ingester::v1 as proto, preserved_catalog::v1 as preserved_catalog,
@@ -650,6 +650,8 @@ impl IoxMetadata {
             file_size_bytes: file_size_bytes as i64,
             parquet_metadata: metadata.thrift_bytes().to_vec(),
             row_count: self.row_count,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
+            created_at: Timestamp::new(self.creation_timestamp.timestamp_nanos()),
         }
     }
 }
