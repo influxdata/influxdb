@@ -1,0 +1,41 @@
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    hash::{BuildHasher, Hash},
+};
+
+use super::CacheBackend;
+
+impl<K, V, S> CacheBackend for HashMap<K, V, S>
+where
+    K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+    S: BuildHasher + Send + 'static,
+{
+    type K = K;
+    type V = V;
+
+    fn get(&mut self, k: &Self::K) -> Option<Self::V> {
+        Self::get(self, k).cloned()
+    }
+
+    fn set(&mut self, k: Self::K, v: Self::V) {
+        self.insert(k, v);
+    }
+
+    fn remove(&mut self, k: &Self::K) {
+        self.remove(k);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generic() {
+        use crate::cache_system::backend::test_util::test_generic;
+
+        test_generic(HashMap::new);
+    }
+}

@@ -7,7 +7,7 @@ use futures::{
 use parking_lot::Mutex;
 use tokio::{sync::oneshot::error::RecvError, task::JoinHandle};
 
-use super::loader::Loader;
+use super::{backend::CacheBackend, loader::Loader};
 
 /// High-level cache implementation.
 ///
@@ -23,7 +23,7 @@ use super::loader::Loader;
 #[derive(Debug)]
 pub struct Cache<K, V>
 where
-    K: Clone + Eq + Hash + std::fmt::Debug + Send + 'static,
+    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
     V: Clone + std::fmt::Debug + Send + 'static,
 {
     state: Arc<Mutex<CacheState<K, V>>>,
@@ -32,14 +32,17 @@ where
 
 impl<K, V> Cache<K, V>
 where
-    K: Clone + Eq + Hash + std::fmt::Debug + Send + 'static,
+    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
     V: Clone + std::fmt::Debug + Send + 'static,
 {
     /// Create new, empty cache with given loader function.
-    pub fn new(loader: Arc<dyn Loader<K = K, V = V>>) -> Self {
+    pub fn new(
+        loader: Arc<dyn Loader<K = K, V = V>>,
+        backend: Box<dyn CacheBackend<K = K, V = V>>,
+    ) -> Self {
         Self {
             state: Arc::new(Mutex::new(CacheState {
-                cached_entries: HashMap::new(),
+                cached_entries: backend,
                 running_queries: HashMap::new(),
             })),
             loader,
@@ -54,7 +57,7 @@ where
 
             // check if the already cached this entry
             if let Some(v) = state.cached_entries.get(&k) {
-                return v.clone();
+                return v;
             }
 
             // check if there is already a query for this key running
@@ -99,7 +102,7 @@ where
                             .remove(&k_captured)
                             .expect("query should be running"),
                     );
-                    state.cached_entries.insert(k_captured, v);
+                    state.cached_entries.set(k_captured, v);
                 });
 
                 state.running_queries.insert(k, (receiver.clone(), handle));
@@ -117,7 +120,7 @@ where
 
 impl<K, V> Drop for Cache<K, V>
 where
-    K: Clone + Eq + Hash + std::fmt::Debug + Send + 'static,
+    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
     V: Clone + std::fmt::Debug + Send + 'static,
 {
     fn drop(&mut self) {
@@ -147,7 +150,7 @@ type SharedReceiver<V> = Shared<BoxFuture<'static, Result<Arc<Mutex<V>>, Arc<Rec
 #[derive(Debug)]
 struct CacheState<K, V> {
     /// Cached entires (i.e. queries completed).
-    cached_entries: HashMap<K, V>,
+    cached_entries: Box<dyn CacheBackend<K = K, V = V>>,
 
     /// Currently running queries indexed by cache key.
     ///
@@ -307,7 +310,10 @@ mod tests {
 
     fn setup() -> (Arc<Cache<u8, String>>, Arc<TestLoader>) {
         let loader = Arc::new(TestLoader::default());
-        let cache = Arc::new(Cache::new(Arc::clone(&loader) as _));
+        let cache = Arc::new(Cache::new(
+            Arc::clone(&loader) as _,
+            Box::new(HashMap::new()),
+        ));
 
         (cache, loader)
     }

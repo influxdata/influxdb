@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use backoff::{Backoff, BackoffConfig};
 use data_types2::PartitionId;
@@ -42,9 +42,10 @@ impl PartitionCache {
                 }
             }
         }));
+        let backend = Box::new(HashMap::new());
 
         Self {
-            cache: Cache::new(loader),
+            cache: Cache::new(loader, backend),
         }
     }
 
