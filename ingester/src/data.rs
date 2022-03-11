@@ -99,8 +99,7 @@ pub struct IngesterData {
     /// get ingested.
     pub(crate) sequencers: BTreeMap<SequencerId, SequencerData>,
     /// Executor for running queries and compacting and persisting
-    pub(crate) exec: Executor,
-
+    pub(crate) exec: Arc<Executor>,
     /// Backoff config
     pub(crate) backoff_config: BackoffConfig,
 }
@@ -1427,7 +1426,7 @@ mod tests {
             object_store: Arc::clone(&object_store),
             catalog: Arc::clone(&catalog),
             sequencers,
-            exec: Executor::new(1),
+            exec: Arc::new(Executor::new(1)),
             backoff_config: BackoffConfig::default(),
         });
 
@@ -1508,7 +1507,7 @@ mod tests {
             object_store: Arc::clone(&object_store),
             catalog: Arc::clone(&catalog),
             sequencers,
-            exec: Executor::new(1),
+            exec: Arc::new(Executor::new(1)),
             backoff_config: BackoffConfig::default(),
         });
 
