@@ -1822,7 +1822,7 @@ dependencies = [
  "bytes",
  "lazy_static",
  "libc",
- "pprof",
+ "pprof 0.6.2",
  "spin 0.9.2",
  "thiserror",
  "tikv-jemalloc-sys",
@@ -2038,6 +2038,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "inferno"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26143de514661e4241e71840e4f82029b5d8b55e57b25be63b5126869794df57"
+dependencies = [
+ "ahash",
+ "atty",
+ "indexmap",
+ "itoa 1.0.1",
+ "lazy_static",
+ "log",
+ "num-format",
+ "quick-xml",
+ "rgb",
+ "str_stack",
+]
+
+[[package]]
 name = "influxdb2_client"
 version = "0.1.0"
 dependencies = [
@@ -2122,7 +2140,7 @@ dependencies = [
  "parquet_catalog",
  "parquet_file",
  "pin-project",
- "pprof",
+ "pprof 0.7.0",
  "predicate",
  "predicates",
  "prost",
@@ -2250,7 +2268,7 @@ dependencies = [
  "parquet_catalog",
  "parquet_file",
  "pin-project",
- "pprof",
+ "pprof 0.7.0",
  "predicate",
  "predicates",
  "prost",
@@ -3895,12 +3913,36 @@ dependencies = [
  "backtrace",
  "cfg-if",
  "findshlibs",
- "inferno",
+ "inferno 0.10.12",
  "lazy_static",
  "libc",
  "log",
  "nix",
  "parking_lot 0.11.2",
+ "prost",
+ "prost-build",
+ "prost-derive",
+ "smallvec",
+ "symbolic-demangle",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "pprof"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c090facb9ab04a4fb15fe27f8861059f195dd0847e6f1042016244e129eddeb2"
+dependencies = [
+ "backtrace",
+ "cfg-if",
+ "findshlibs",
+ "inferno 0.11.0",
+ "libc",
+ "log",
+ "nix",
+ "once_cell",
+ "parking_lot 0.12.0",
  "prost",
  "prost-build",
  "prost-derive",

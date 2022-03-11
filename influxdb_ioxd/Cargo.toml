@@ -75,7 +75,7 @@ once_cell = { version = "1.10.0", features = ["parking_lot"] }
 parking_lot = "0.12"
 parquet = "10"
 pin-project = "1.0"
-pprof = { version = "0.6", default-features = false, features = ["flamegraph", "protobuf"], optional = true }
+pprof = { version = "0.7", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
 prost = "0.9"
 regex = "1.5.4"
 serde = { version = "1.0", features = ["derive"] }
