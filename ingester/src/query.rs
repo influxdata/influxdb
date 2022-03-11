@@ -7,7 +7,8 @@ use arrow::{
 };
 use arrow_util::util::merge_record_batches;
 use data_types2::{
-    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, SequenceNumber, TableSummary, Tombstone,
+    tombstones_to_delete_predicates, tombstones_to_delete_predicates_iter, ChunkAddr, ChunkId,
+    ChunkOrder, DeletePredicate, SequenceNumber, TableSummary, Tombstone,
 };
 use datafusion::{
     error::DataFusionError,
@@ -19,7 +20,7 @@ use datafusion::{
     },
 };
 use observability_deps::tracing::{debug, trace};
-use predicate::{delete_predicate::parse_delete_predicate, Predicate, PredicateMatch};
+use predicate::{Predicate, PredicateMatch};
 use query::{
     exec::{stringset::StringSet, IOxExecutionContext},
     util::{df_physical_expr_from_schema_and_expr, MissingColumnsToNull},
@@ -62,7 +63,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 impl QueryableBatch {
     /// Initilaize a QueryableBatch
     pub fn new(table_name: &str, data: Vec<Arc<SnapshotBatch>>, deletes: Vec<Tombstone>) -> Self {
-        let delete_predicates = Self::tombstones_to_delete_predicates(&deletes);
+        let delete_predicates = tombstones_to_delete_predicates(&deletes);
         Self {
             data,
             delete_predicates,
@@ -72,28 +73,8 @@ impl QueryableBatch {
 
     /// Add more tombstones
     pub fn add_tombstones(&mut self, deletes: &[Tombstone]) {
-        let delete_predicates = Self::tombstones_to_delete_predicates_iter(deletes);
+        let delete_predicates = tombstones_to_delete_predicates_iter(deletes);
         self.delete_predicates.extend(delete_predicates);
-    }
-
-    /// Convert tombstones to delete predicates
-    pub fn tombstones_to_delete_predicates(tombstones: &[Tombstone]) -> Vec<Arc<DeletePredicate>> {
-        Self::tombstones_to_delete_predicates_iter(tombstones).collect()
-    }
-
-    fn tombstones_to_delete_predicates_iter(
-        tombstones: &[Tombstone],
-    ) -> impl Iterator<Item = Arc<DeletePredicate>> + '_ {
-        tombstones.iter().map(|tombstone| {
-            Arc::new(
-                parse_delete_predicate(
-                    &tombstone.min_time.get().to_string(),
-                    &tombstone.max_time.get().to_string(),
-                    &tombstone.serialized_predicate,
-                )
-                .expect("Error building delete predicate"),
-            )
-        })
     }
 
     /// return min and max of all the snapshots
@@ -128,7 +109,7 @@ impl QueryChunkMeta for QueryableBatch {
 
     fn schema(&self) -> Arc<Schema> {
         // TODO: may want store this schema as a field of QueryableBatch and
-        // only do this schema merge the first time it is call
+        // only do this schema merge the first time it is called
 
         // Merge schema of all RecordBatches of the PerstingBatch
         let batches: Vec<Arc<RecordBatch>> =

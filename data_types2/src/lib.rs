@@ -11,12 +11,13 @@
 )]
 
 use influxdb_line_protocol::FieldValue;
-use predicate::Predicate;
+use predicate::{delete_predicate::parse_delete_predicate, Predicate};
 use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema};
 use std::{
     collections::BTreeMap,
     convert::TryFrom,
     fmt::{Debug, Formatter},
+    sync::Arc,
 };
 use uuid::Uuid;
 
@@ -617,6 +618,27 @@ pub struct Tombstone {
     pub max_time: Timestamp,
     /// the full delete predicate
     pub serialized_predicate: String,
+}
+
+/// Convert tombstones to delete predicates
+pub fn tombstones_to_delete_predicates(tombstones: &[Tombstone]) -> Vec<Arc<DeletePredicate>> {
+    tombstones_to_delete_predicates_iter(tombstones).collect()
+}
+
+/// Return Iterator of delete predicates
+pub fn tombstones_to_delete_predicates_iter(
+    tombstones: &[Tombstone],
+) -> impl Iterator<Item = Arc<DeletePredicate>> + '_ {
+    tombstones.iter().map(|tombstone| {
+        Arc::new(
+            parse_delete_predicate(
+                &tombstone.min_time.get().to_string(),
+                &tombstone.max_time.get().to_string(),
+                &tombstone.serialized_predicate,
+            )
+            .expect("Error building delete predicate"),
+        )
+    })
 }
 
 /// Data for a parquet file reference that has been inserted in the catalog.

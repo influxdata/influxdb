@@ -14,6 +14,7 @@ use iox_catalog::interface::Catalog;
 use metric::Registry;
 use object_store::ObjectStore;
 use query::exec::Executor;
+use time::TimeProvider;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
@@ -113,6 +114,7 @@ pub async fn create_compactor_server_type(
     catalog: Arc<dyn Catalog>,
     object_store: Arc<ObjectStore>,
     exec: Arc<Executor>,
+    time_provider: Arc<dyn TimeProvider>,
     sequencers: Vec<SequencerId>,
 ) -> Arc<dyn ServerType> {
     let compactor_handler = Arc::new(CompactorHandlerImpl::new(
@@ -120,6 +122,7 @@ pub async fn create_compactor_server_type(
         catalog,
         object_store,
         exec,
+        time_provider,
         &metric_registry,
     ));
 

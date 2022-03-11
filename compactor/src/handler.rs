@@ -14,6 +14,7 @@ use observability_deps::tracing::warn;
 use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
+use time::TimeProvider;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
@@ -63,6 +64,7 @@ impl CompactorHandlerImpl {
         catalog: Arc<dyn Catalog>,
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
+        time_provider: Arc<dyn TimeProvider>,
         _registry: &metric::Registry,
     ) -> Self {
         let shutdown = CancellationToken::new();
@@ -74,6 +76,7 @@ impl CompactorHandlerImpl {
             catalog,
             object_store,
             exec,
+            time_provider,
             BackoffConfig::default(),
         ));
 

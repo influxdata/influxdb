@@ -6,6 +6,7 @@ use observability_deps::tracing::*;
 use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
+use time::SystemProvider;
 
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
 use influxdb_ioxd::{
@@ -87,6 +88,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     );
 
     let exec = Arc::new(Executor::new(config.query_exect_thread_count));
+    let time_provider = Arc::new(SystemProvider::new());
 
     // TODO: modify config to let us get assigned sequence numbers
     let sequencers: Vec<SequencerId> = vec![];
@@ -97,6 +99,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         catalog,
         object_store,
         exec,
+        time_provider,
         sequencers,
     )
     .await;

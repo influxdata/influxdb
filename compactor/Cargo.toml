@@ -5,23 +5,31 @@ authors = ["Luke Bond <luke.n.bond@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+arrow = { version = "10.0.0", features = ["prettyprint"] }
 async-trait = "0.1.42"
 backoff = { path = "../backoff" }
 data_types2 = { path = "../data_types2" }
+datafusion = { path = "../datafusion" }
 futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
+iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
+parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
 query = { path = "../query" }
+schema = { path = "../schema" }
 snafu = "0.7"
 thiserror = "1.0"
 time = { path = "../time" }
 tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.0" }
+uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
+arrow_util = { path = "../arrow_util" }
+iox_tests = { path = "../iox_tests" }
 test_helpers = { path = "../test_helpers" }

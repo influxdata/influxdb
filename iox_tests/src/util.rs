@@ -158,7 +158,7 @@ pub struct TestTable {
 }
 
 impl TestTable {
-    /// Attach a sequncer to the table
+    /// Attach a sequencer to the table
     pub fn with_sequencer(
         self: &Arc<Self>,
         sequencer: &Arc<TestSequencer>,
@@ -257,8 +257,19 @@ pub struct TestPartition {
 }
 
 impl TestPartition {
-    /// CReate a parquet for the partition
+    /// Create a parquet for the partition
     pub async fn create_parquet_file(self: &Arc<Self>, lp: &str) -> Arc<TestParquetFile> {
+        self.create_parquet_file_with_sequence_numbers(lp, 1, 100)
+            .await
+    }
+
+    /// Create a parquet for the partition
+    pub async fn create_parquet_file_with_sequence_numbers(
+        self: &Arc<Self>,
+        lp: &str,
+        min_seq: i64,
+        max_seq: i64,
+    ) -> Arc<TestParquetFile> {
         let mut repos = self.catalog.catalog.repositories().await;
 
         let (table, batch) = lp_to_mutable_batch(lp);
@@ -267,8 +278,8 @@ impl TestPartition {
         let record_batch = batch.to_arrow(Selection::All).unwrap();
 
         let object_store_id = Uuid::new_v4();
-        let min_sequence_number = SequenceNumber::new(1);
-        let max_sequence_number = SequenceNumber::new(100);
+        let min_sequence_number = SequenceNumber::new(min_seq);
+        let max_sequence_number = SequenceNumber::new(max_seq);
         let metadata = IoxMetadata {
             object_store_id,
             creation_timestamp: now(),

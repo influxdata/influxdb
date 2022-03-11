@@ -1,8 +1,13 @@
 //! This module contains DataFusion utility functions and helpers
 
-use std::{convert::TryInto, sync::Arc};
+use std::{
+    cmp::{max, min},
+    convert::TryInto,
+    sync::Arc,
+};
 
 use arrow::{
+    array::TimestampNanosecondArray,
     compute::SortOptions,
     datatypes::{DataType, Schema as ArrowSchema},
     record_batch::RecordBatch,
@@ -22,9 +27,33 @@ use datafusion::{
     scalar::ScalarValue,
 };
 
+use itertools::Itertools;
 use observability_deps::tracing::trace;
 use predicate::rpc_predicate::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME};
-use schema::{sort::SortKey, Schema};
+use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
+
+#[derive(Debug, Snafu)]
+#[allow(missing_copy_implementations, missing_docs)]
+pub enum Error {
+    #[snafu(display("The Record batch is empty"))]
+    EmptyBatch,
+
+    #[snafu(display("Error while searching Time column in a Record Batch"))]
+    TimeColumn { source: arrow::error::ArrowError },
+
+    #[snafu(display("Error while casting Timenanosecond on Time column"))]
+    TimeCasting,
+
+    #[snafu(display("Time column does not have value"))]
+    TimeValue,
+
+    #[snafu(display("Time column is null"))]
+    TimeNull,
+}
+
+/// A specialized `Error`
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Create a logical plan that produces the record batch
 pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, DataFusionError> {
@@ -196,6 +225,49 @@ impl<'a> ExprRewriter for MissingColumnsToNull<'a> {
             expr => Ok(expr),
         }
     }
+}
+
+/// Return min and max for column `time` of the given set of record batches
+pub fn compute_timenanosecond_min_max(batches: &[RecordBatch]) -> Result<(i64, i64)> {
+    let mut min_time = i64::MAX;
+    let mut max_time = i64::MIN;
+    for batch in batches {
+        let (mi, ma) = compute_timenanosecond_min_max_for_one_record_batch(batch)?;
+        min_time = min(min_time, mi);
+        max_time = max(max_time, ma);
+    }
+    Ok((min_time, max_time))
+}
+
+/// Return min and max for column `time` in the given record batch
+pub fn compute_timenanosecond_min_max_for_one_record_batch(
+    batch: &RecordBatch,
+) -> Result<(i64, i64)> {
+    ensure!(batch.num_columns() > 0, EmptyBatchSnafu);
+
+    let index = batch
+        .schema()
+        .index_of(TIME_COLUMN_NAME)
+        .context(TimeColumnSnafu {})?;
+
+    let time_col = batch
+        .column(index)
+        .as_any()
+        .downcast_ref::<TimestampNanosecondArray>()
+        .context(TimeCastingSnafu {})?;
+
+    let (min, max) = match time_col.iter().minmax() {
+        itertools::MinMaxResult::NoElements => return Err(Error::TimeValue),
+        itertools::MinMaxResult::OneElement(val) => {
+            let val = val.context(TimeNullSnafu)?;
+            (val, val)
+        }
+        itertools::MinMaxResult::MinMax(min, max) => {
+            (min.context(TimeNullSnafu)?, max.context(TimeNullSnafu)?)
+        }
+    };
+
+    Ok((min, max))
 }
 
 #[cfg(test)]
