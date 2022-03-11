@@ -48,7 +48,7 @@ impl ObjectStoreApi for InMemory {
     }
 
     fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
-        path.into()
+        path
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
@@ -169,7 +169,7 @@ mod tests {
             get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
             put_get_delete_list,
         },
-        Error as ObjectStoreError, ObjectStoreImpl, ObjectStoreApi, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStoreApi, ObjectStoreImpl, ObjectStorePath,
     };
 
     #[tokio::test]

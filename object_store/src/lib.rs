@@ -60,12 +60,18 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{stream::BoxStream, StreamExt, TryFutureExt, TryStreamExt};
 use snafu::{ResultExt, Snafu};
-use std::{fmt::Formatter, num::NonZeroUsize};
+use std::{
+    fmt::{Debug, Formatter},
+    num::NonZeroUsize,
+};
 use std::{path::PathBuf, sync::Arc};
+
+/// An alias for a dynamically dispatched object store implementation.
+pub type DynObjectStore = dyn ObjectStoreApi<Path = path::Path, Error = Error>;
 
 /// Universal API to multiple object store services.
 #[async_trait]
-pub trait ObjectStoreApi: Send + Sync + 'static {
+pub trait ObjectStoreApi: Send + Sync + Debug + 'static {
     /// The type of the locations used in interacting with this object store.
     type Path: path::ObjectStorePath;
 
@@ -499,7 +505,7 @@ impl Cache for ObjectStoreFileCache {
     async fn fs_path_or_cache(
         &self,
         path: &Path,
-        store: Arc<ObjectStoreImpl>,
+        store: Arc<DynObjectStore>,
     ) -> crate::cache::Result<&str> {
         match &self {
             Self::Passthrough(f) => f.fs_path_or_cache(path, store).await,
@@ -600,7 +606,7 @@ pub enum GetResult<E> {
     Stream(BoxStream<'static, Result<Bytes, E>>),
 }
 
-impl<E> std::fmt::Debug for GetResult<E> {
+impl<E> Debug for GetResult<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             GetResult::File(_, _) => write!(f, "GetResult(File)"),
@@ -757,7 +763,7 @@ mod tests {
     type Result<T, E = Error> = std::result::Result<T, E>;
 
     async fn flatten_list_stream(
-        storage: &ObjectStoreImpl,
+        storage: &DynObjectStore,
         prefix: Option<&path::Path>,
     ) -> Result<Vec<path::Path>> {
         storage
@@ -769,7 +775,7 @@ mod tests {
             .await
     }
 
-    pub(crate) async fn put_get_delete_list(storage: &ObjectStoreImpl) -> Result<()> {
+    pub(crate) async fn put_get_delete_list(storage: &DynObjectStore) -> Result<()> {
         delete_fixtures(storage).await;
 
         let content_list = flatten_list_stream(storage, None).await?;
@@ -814,7 +820,7 @@ mod tests {
         Ok(())
     }
 
-    pub(crate) async fn list_uses_directories_correctly(storage: &ObjectStoreImpl) -> Result<()> {
+    pub(crate) async fn list_uses_directories_correctly(storage: &DynObjectStore) -> Result<()> {
         delete_fixtures(storage).await;
 
         let content_list = flatten_list_stream(storage, None).await?;
@@ -850,7 +856,7 @@ mod tests {
         Ok(())
     }
 
-    pub(crate) async fn list_with_delimiter(storage: &ObjectStoreImpl) -> Result<()> {
+    pub(crate) async fn list_with_delimiter(storage: &DynObjectStore) -> Result<()> {
         delete_fixtures(storage).await;
 
         // ==================== check: store is empty ====================
@@ -935,7 +941,7 @@ mod tests {
 
     #[allow(dead_code)]
     pub(crate) async fn get_nonexistent_object(
-        storage: &ObjectStoreImpl,
+        storage: &DynObjectStore,
         location: Option<<ObjectStoreImpl as ObjectStoreApi>::Path>,
     ) -> Result<Vec<u8>> {
         let location = location.unwrap_or_else(|| {
@@ -954,7 +960,7 @@ mod tests {
     /// associated storage might not be cloud storage, to reuse the cloud
     /// path parsing logic. Then convert into the correct type of path for
     /// the given storage.
-    fn str_to_path(storage: &ObjectStoreImpl, val: &str) -> path::Path {
+    fn str_to_path(storage: &DynObjectStore, val: &str) -> path::Path {
         let cloud_path = CloudPath::raw(val);
         let parsed: DirsAndFileName = cloud_path.into();
 
@@ -969,7 +975,7 @@ mod tests {
         new_path
     }
 
-    async fn delete_fixtures(storage: &ObjectStoreImpl) {
+    async fn delete_fixtures(storage: &DynObjectStore) {
         let files: Vec<_> = [
             "test_file",
             "test_dir/test_file.json",

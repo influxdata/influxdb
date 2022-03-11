@@ -5,7 +5,7 @@ use bytes::Bytes;
 use futures::TryStreamExt;
 use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, TransactionFilePath};
-use object_store::{ObjectStoreImpl, ObjectStoreApi};
+use object_store::{ObjectStoreApi, ObjectStoreImpl};
 use parquet_file::metadata::{DecodedIoxParquetMetaData, IoxParquetMetaData};
 use snafu::{ResultExt, Snafu};
 

@@ -5,7 +5,7 @@ use data_types2::{DeletePredicate, NamespaceId, ParquetFileId, SequencerId, Tomb
 use db::{access::QueryCatalogAccess, catalog::Catalog as DbCatalog};
 use iox_catalog::interface::{get_schema_by_name, Catalog};
 use job_registry::JobRegistry;
-use object_store::ObjectStoreImpl;
+use object_store::DynObjectStore;
 use observability_deps::tracing::{info, warn};
 use parking_lot::lock_api::RwLockUpgradableReadGuard;
 use predicate::delete_predicate::parse_delete_predicate;
@@ -74,7 +74,7 @@ impl QuerierNamespace {
         name: Arc<str>,
         id: NamespaceId,
         metric_registry: Arc<metric::Registry>,
-        object_store: Arc<ObjectStoreImpl>,
+        object_store: Arc<DynObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
         exec: Arc<Executor>,
     ) -> Self {

@@ -3,7 +3,7 @@
 use data_types::server_id::ServerId;
 use object_store::{
     path::{ObjectStorePath, Path},
-    ObjectStoreImpl, ObjectStoreApi,
+    DynObjectStore,
 };
 use std::fmt;
 use uuid::Uuid;
@@ -21,7 +21,7 @@ const DATABASE_OWNER_FILE_NAME: &str = "owner.pb";
 
 /// The path to the server file containing the list of databases this server owns.
 // TODO: this is in the process of replacing all_databases_path for the floating databases design
-pub(crate) fn server_config_path(object_store: &ObjectStoreImpl, server_id: ServerId) -> Path {
+pub(crate) fn server_config_path(object_store: &DynObjectStore, server_id: ServerId) -> Path {
     let mut path = object_store.new_path();
     path.push_dir(ALL_SERVERS_DIRECTORY);
     path.push_dir(server_id.to_string());
@@ -39,14 +39,14 @@ pub struct RootPath {
 
 impl RootPath {
     /// How the root of a database is defined in object storage.
-    pub(crate) fn new(object_store: &ObjectStoreImpl, uuid: Uuid) -> Self {
+    pub(crate) fn new(object_store: &DynObjectStore, uuid: Uuid) -> Self {
         let mut inner = object_store.new_path();
         inner.push_dir(ALL_DATABASES_DIRECTORY);
         inner.push_dir(uuid.to_string());
         Self { inner }
     }
 
-    pub(crate) fn from_str(object_store: &ObjectStoreImpl, raw: &str) -> Self {
+    pub(crate) fn from_str(object_store: &DynObjectStore, raw: &str) -> Self {
         Self {
             inner: object_store.path_from_raw(raw),
         }
@@ -178,7 +178,7 @@ mod tests {
 
     /// Creates a new in-memory object store. These tests rely on the `Path`s being of type
     /// `DirsAndFileName` and thus using object_store::path::DELIMITER as the separator
-    fn make_object_store() -> Arc<ObjectStoreImpl> {
+    fn make_object_store() -> Arc<DynObjectStore> {
         Arc::new(ObjectStoreImpl::new_in_memory())
     }
 
@@ -186,7 +186,7 @@ mod tests {
     fn root_path_contains_dbs_and_db_uuid() {
         let object_store = make_object_store();
         let uuid = Uuid::new_v4();
-        let root_path = RootPath::new(&object_store, uuid);
+        let root_path = RootPath::new(&*object_store, uuid);
 
         assert_eq!(
             root_path.inner.to_string(),
@@ -198,7 +198,7 @@ mod tests {
     fn root_path_join_concatenates() {
         let object_store = make_object_store();
         let uuid = Uuid::new_v4();
-        let root_path = RootPath::new(&object_store, uuid);
+        let root_path = RootPath::new(&*object_store, uuid);
 
         let path = root_path.join("foo");
         assert_eq!(
@@ -211,7 +211,7 @@ mod tests {
     fn transactions_path_is_relative_to_root_path() {
         let object_store = make_object_store();
         let uuid = Uuid::new_v4();
-        let root_path = RootPath::new(&object_store, uuid);
+        let root_path = RootPath::new(&*object_store, uuid);
         let iox_object_store = IoxObjectStore::existing(Arc::clone(&object_store), root_path);
         assert_eq!(
             iox_object_store.transactions_path.inner.to_string(),
@@ -223,7 +223,7 @@ mod tests {
     fn data_path_is_relative_to_root_path() {
         let object_store = make_object_store();
         let uuid = Uuid::new_v4();
-        let root_path = RootPath::new(&object_store, uuid);
+        let root_path = RootPath::new(&*object_store, uuid);
         let iox_object_store = IoxObjectStore::existing(Arc::clone(&object_store), root_path);
         assert_eq!(
             iox_object_store.data_path.inner.to_string(),

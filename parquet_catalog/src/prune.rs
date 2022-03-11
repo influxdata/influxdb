@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use futures::TryStreamExt;
 use iox_object_store::{IoxObjectStore, TransactionFilePath};
-use object_store::{ObjectStoreImpl, ObjectStoreApi};
+use object_store::{ObjectStoreApi, ObjectStoreImpl};
 use snafu::{ResultExt, Snafu};
 use time::Time;
 

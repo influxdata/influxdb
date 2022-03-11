@@ -196,13 +196,13 @@ impl FromStr for TransactionFileSuffix {
 mod tests {
     use super::*;
     use crate::{paths::ALL_DATABASES_DIRECTORY, IoxObjectStore, RootPath};
-    use object_store::{ObjectStoreImpl, ObjectStoreApi};
+    use object_store::{DynObjectStore, ObjectStoreImpl};
     use std::sync::Arc;
     use test_helpers::assert_error;
 
     /// Creates a new in-memory object store. These tests rely on the `Path`s being of type
     /// `DirsAndFileName` and thus using object_store::path::DELIMITER as the separator
-    fn make_object_store() -> Arc<ObjectStoreImpl> {
+    fn make_object_store() -> Arc<DynObjectStore> {
         Arc::new(ObjectStoreImpl::new_in_memory())
     }
 
@@ -358,7 +358,7 @@ mod tests {
     fn transactions_path_join_with_parquet_file_path() {
         let db_uuid = Uuid::new_v4();
         let object_store = make_object_store();
-        let root_path = RootPath::new(&object_store, db_uuid);
+        let root_path = RootPath::new(&*object_store, db_uuid);
         let iox_object_store = IoxObjectStore::existing(Arc::clone(&object_store), root_path);
 
         let uuid = Uuid::new_v4();

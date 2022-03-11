@@ -6,7 +6,7 @@ use futures::{StreamExt, TryStreamExt};
 use generated_types::google::FieldViolation;
 use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
-use object_store::{ObjectStoreImpl, ObjectStoreApi};
+use object_store::{ObjectStoreApi, ObjectStoreImpl};
 use observability_deps::tracing::{info, warn};
 use parking_lot::RwLock;
 use parquet_file::metadata::IoxParquetMetaData;

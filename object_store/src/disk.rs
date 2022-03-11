@@ -1,10 +1,8 @@
 //! This module contains the IOx implementation for using local disk as the
 //! object store.
-use crate::cache::Cache;
 use crate::path::{parsed::DirsAndFileName, Path};
-use crate::{
-    path::file::FilePath, GetResult, ListResult, ObjectMeta, ObjectStoreApi, ObjectStoreImpl,
-};
+use crate::{cache::Cache, DynObjectStore};
+use crate::{path::file::FilePath, GetResult, ListResult, ObjectMeta, ObjectStoreApi};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{
@@ -278,7 +276,7 @@ impl Cache for File {
     async fn fs_path_or_cache(
         &self,
         _path: &Path,
-        _store: Arc<ObjectStoreImpl>,
+        _store: Arc<DynObjectStore>,
     ) -> crate::cache::Result<&str> {
         todo!()
     }

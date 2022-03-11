@@ -1,6 +1,6 @@
 use arrow_util::assert_batches_sorted_eq;
 use db::{test_helpers::write_lp, utils::TestDb};
-use object_store::{ObjectStoreImpl, ObjectStoreIntegration};
+use object_store::{DynObjectStore, ObjectStoreImpl, ObjectStoreIntegration};
 use query::{
     exec::{ExecutionContextProvider, IOxExecutionContext},
     frontend::sql::SqlQueryPlanner,
@@ -16,7 +16,12 @@ use std::{
 
 #[tokio::test]
 async fn test_query_cancellation_slow_store() {
-    let object_store = Arc::new(ObjectStoreImpl::new_in_memory_throttled(Default::default()));
+    let object_store = ObjectStoreImpl::new_in_memory_throttled(Default::default());
+    let throttle_config = match &object_store.integration {
+        ObjectStoreIntegration::InMemoryThrottled(t) => Arc::clone(&t.config),
+        _ => unreachable!(),
+    };
+    let object_store: Arc<DynObjectStore> = Arc::new(object_store);
 
     // create test DB
     let test_db = TestDb::builder()
@@ -53,11 +58,7 @@ async fn test_query_cancellation_slow_store() {
     write_lp(&db, data);
 
     // make store access really slow
-    if let ObjectStoreIntegration::InMemoryThrottled(inner) = &object_store.integration {
-        inner.config_mut(|cfg| cfg.wait_get_per_call = Duration::from_secs(1_000));
-    } else {
-        panic!("wrong store type");
-    }
+    throttle_config.lock().unwrap().wait_get_per_call = Duration::from_secs(1_000);
 
     // setup query context
     let ctx = db.new_query_context(None);

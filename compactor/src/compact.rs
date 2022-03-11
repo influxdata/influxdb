@@ -11,7 +11,7 @@ use data_types2::{
 };
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::Catalog;
-use object_store::ObjectStoreImpl;
+use object_store::DynObjectStore;
 use observability_deps::tracing::warn;
 use parquet_file::metadata::IoxMetadata;
 use query::exec::Executor;
@@ -120,7 +120,7 @@ pub struct Compactor {
     /// Sequencers assigned to this compactor
     sequencers: Vec<SequencerId>,
     /// Object store for reading and persistence of parquet files
-    object_store: Arc<ObjectStoreImpl>,
+    object_store: Arc<DynObjectStore>,
     /// The global catalog for schema, parquet files and tombstones
     catalog: Arc<dyn Catalog>,
 
@@ -138,7 +138,7 @@ impl Compactor {
     pub fn new(
         sequencers: Vec<SequencerId>,
         catalog: Arc<dyn Catalog>,
-        object_store: Arc<ObjectStoreImpl>,
+        object_store: Arc<DynObjectStore>,
         exec: Arc<Executor>,
         time_provider: Arc<dyn TimeProvider>,
         backoff_config: BackoffConfig,

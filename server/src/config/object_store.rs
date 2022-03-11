@@ -16,7 +16,7 @@ use generated_types::google::FieldViolation;
 use generated_types::influxdata::iox::management;
 use generated_types::influxdata::iox::management::v1::OwnerInfo;
 use iox_object_store::IoxObjectStore;
-use object_store::ObjectStoreImpl;
+use object_store::DynObjectStore;
 use snafu::{ensure, ResultExt, Snafu};
 use std::sync::Arc;
 use time::TimeProvider;
@@ -101,12 +101,12 @@ fn parse_location(location: &str) -> Result<Uuid> {
 
 #[derive(Debug)]
 pub struct ConfigProviderObjectStorage {
-    object_store: Arc<ObjectStoreImpl>,
+    object_store: Arc<DynObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
 }
 
 impl ConfigProviderObjectStorage {
-    pub fn new(object_store: Arc<ObjectStoreImpl>, time_provider: Arc<dyn TimeProvider>) -> Self {
+    pub fn new(object_store: Arc<DynObjectStore>, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
             object_store,
             time_provider,
@@ -114,7 +114,7 @@ impl ConfigProviderObjectStorage {
     }
 
     fn iox_object_store(&self, uuid: Uuid) -> IoxObjectStore {
-        let root_path = IoxObjectStore::root_path_for(&self.object_store, uuid);
+        let root_path = IoxObjectStore::root_path_for(&*self.object_store, uuid);
         IoxObjectStore::existing(Arc::clone(&self.object_store), root_path)
     }
 }
@@ -123,7 +123,7 @@ impl ConfigProviderObjectStorage {
 impl ConfigProvider for ConfigProviderObjectStorage {
     async fn fetch_server_config(&self, server_id: ServerId) -> ConfigResult<Vec<(String, Uuid)>> {
         let fetch_result =
-            IoxObjectStore::get_server_config_file(&self.object_store, server_id).await;
+            IoxObjectStore::get_server_config_file(&*self.object_store, server_id).await;
 
         let server_config_bytes = match fetch_result {
             Ok(bytes) => bytes,
@@ -157,7 +157,7 @@ impl ConfigProvider for ConfigProviderObjectStorage {
             .map(|(name, database)| {
                 (
                     name.to_string(),
-                    IoxObjectStore::root_path_for(&self.object_store, *database).to_string(),
+                    IoxObjectStore::root_path_for(&*self.object_store, *database).to_string(),
                 )
             })
             .collect();
@@ -170,7 +170,7 @@ impl ConfigProvider for ConfigProviderObjectStorage {
 
         let bytes = encoded.freeze();
 
-        IoxObjectStore::put_server_config_file(&self.object_store, server_id, bytes)
+        IoxObjectStore::put_server_config_file(&*self.object_store, server_id, bytes)
             .await
             .context(StoreServerSnafu)?;
 
@@ -230,7 +230,7 @@ impl ConfigProvider for ConfigProviderObjectStorage {
 
     async fn update_owner_info(&self, server_id: Option<ServerId>, uuid: Uuid) -> ConfigResult<()> {
         let path = server_id.map(|server_id| {
-            IoxObjectStore::server_config_path(&self.object_store, server_id).to_string()
+            IoxObjectStore::server_config_path(&*self.object_store, server_id).to_string()
         });
 
         update_owner_info(
@@ -246,7 +246,7 @@ impl ConfigProvider for ConfigProviderObjectStorage {
     }
 
     async fn create_owner_info(&self, server_id: ServerId, uuid: Uuid) -> ConfigResult<()> {
-        let path = IoxObjectStore::server_config_path(&self.object_store, server_id).to_string();
+        let path = IoxObjectStore::server_config_path(&*self.object_store, server_id).to_string();
         create_owner_info(server_id, path, &self.iox_object_store(uuid))
             .await
             .context(CreatingOwnerInfoSnafu)?;

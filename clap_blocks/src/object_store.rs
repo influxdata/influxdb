@@ -2,7 +2,7 @@
 use std::{convert::TryFrom, fs, num::NonZeroUsize, path::PathBuf, time::Duration};
 
 use futures::TryStreamExt;
-use object_store::{path::ObjectStorePath, ObjectStoreImpl, ObjectStoreApi, ThrottleConfig};
+use object_store::{path::ObjectStorePath, DynObjectStore, ObjectStoreImpl, ThrottleConfig};
 use observability_deps::tracing::{info, warn};
 use snafu::{ResultExt, Snafu};
 use uuid::Uuid;
@@ -352,7 +352,7 @@ pub enum CheckError {
 /// Check if object store is properly configured and accepts writes and reads.
 ///
 /// Note: This does NOT test if the object store is writable!
-pub async fn check_object_store(object_store: &ObjectStoreImpl) -> Result<(), CheckError> {
+pub async fn check_object_store(object_store: &DynObjectStore) -> Result<(), CheckError> {
     // Use some prefix that will very likely end in an empty result, so we don't pull too much actual data here.
     let uuid = Uuid::new_v4().to_string();
     let mut prefix = object_store.new_path();

@@ -3,7 +3,7 @@
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
 use iox_object_store::ParquetFilePath;
-use object_store::ObjectStoreImpl;
+use object_store::DynObjectStore;
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
@@ -29,7 +29,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub async fn persist(
     metadata: &IoxMetadata,
     record_batches: Vec<RecordBatch>,
-    object_store: &Arc<ObjectStoreImpl>,
+    object_store: &Arc<DynObjectStore>,
 ) -> Result<Option<(usize, IoxParquetMetaData)>> {
     if record_batches.is_empty() {
         return Ok(None);
@@ -45,7 +45,7 @@ pub async fn persist(
     use iox_object_store::IoxObjectStore;
     let iox_object_store = Arc::new(IoxObjectStore::existing(
         Arc::clone(object_store),
-        IoxObjectStore::root_path_for(object_store, uuid::Uuid::new_v4()),
+        IoxObjectStore::root_path_for(&**object_store, uuid::Uuid::new_v4()),
     ));
 
     let data = parquet_file::storage::Storage::new(Arc::clone(&iox_object_store))
@@ -88,7 +88,7 @@ mod tests {
     use super::*;
     use data_types2::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
     use futures::{stream, StreamExt, TryStreamExt};
-    use object_store::{path::Path, ObjectStoreApi};
+    use object_store::{path::Path, ObjectStoreImpl};
     use query::test::{raw_data, TestChunk};
     use std::sync::Arc;
     use time::Time;
@@ -98,11 +98,11 @@ mod tests {
         Time::from_timestamp(0, 0)
     }
 
-    fn object_store() -> Arc<ObjectStoreImpl> {
+    fn object_store() -> Arc<DynObjectStore> {
         Arc::new(ObjectStoreImpl::new_in_memory())
     }
 
-    async fn list_all(object_store: &ObjectStoreImpl) -> Result<Vec<Path>, object_store::Error> {
+    async fn list_all(object_store: &DynObjectStore) -> Result<Vec<Path>, object_store::Error> {
         object_store
             .list(None)
             .await?
@@ -134,7 +134,7 @@ mod tests {
 
         persist(&metadata, vec![], &object_store).await.unwrap();
 
-        assert!(list_all(&object_store).await.unwrap().is_empty());
+        assert!(list_all(&*object_store).await.unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -171,7 +171,7 @@ mod tests {
 
         persist(&metadata, batches, &object_store).await.unwrap();
 
-        let obj_store_paths = list_all(&object_store).await.unwrap();
+        let obj_store_paths = list_all(&*object_store).await.unwrap();
         assert_eq!(obj_store_paths.len(), 1);
     }
 }

@@ -17,7 +17,7 @@ use futures::{
     FutureExt, StreamExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
-use object_store::ObjectStoreImpl;
+use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, error, info, warn};
 use query::exec::Executor;
 use snafu::{ResultExt, Snafu};
@@ -114,7 +114,7 @@ impl IngestHandlerImpl {
         topic: KafkaTopic,
         sequencer_states: BTreeMap<KafkaPartition, Sequencer>,
         catalog: Arc<dyn Catalog>,
-        object_store: Arc<ObjectStoreImpl>,
+        object_store: Arc<DynObjectStore>,
         write_buffer: Arc<dyn WriteBufferReading>,
         exec: Arc<Executor>,
         metric_registry: Arc<metric::Registry>,
@@ -416,6 +416,7 @@ mod tests {
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
     use mutable_batch_lp::lines_to_batches;
+    use object_store::ObjectStoreImpl;
     use std::{num::NonZeroU32, ops::DerefMut};
     use time::Time;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};

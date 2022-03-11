@@ -13,7 +13,7 @@ use metric::{Metric, U64Counter, U64Histogram, U64HistogramOptions};
 use pin_project::{pin_project, pinned_drop};
 use time::{SystemProvider, Time, TimeProvider};
 
-use crate::{GetResult, ListResult, ObjectStoreApi};
+use crate::{path::parsed::DirsAndFileName, GetResult, ListResult, ObjectStoreApi};
 
 /// An instrumentation decorator, wrapping an underlying [`ObjectStoreApi`]
 /// implementation and recording bytes transferred and call latency.
@@ -162,6 +162,10 @@ where
 
     fn path_from_raw(&self, raw: &str) -> Self::Path {
         self.inner.path_from_raw(raw)
+    }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        self.inner.path_from_dirs_and_filename(path)
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error> {

@@ -2,8 +2,7 @@
 //! in the local filesystem. In the case of the disk backed object store implementation,
 //! it yields locations to its files for cache locations and no-ops any cache modifications.
 
-use crate::path::Path;
-use crate::ObjectStoreImpl;
+use crate::{path::Path, DynObjectStore};
 use async_trait::async_trait;
 use snafu::Snafu;
 use std::sync::Arc;
@@ -29,7 +28,7 @@ pub trait Cache {
     /// will get the object from object storage and write it to the local filesystem cache.
     /// If the cache is over its limit, it will evict other cached objects based on an LRU
     /// policy.
-    async fn fs_path_or_cache(&self, path: &Path, store: Arc<ObjectStoreImpl>) -> Result<&str>;
+    async fn fs_path_or_cache(&self, path: &Path, store: Arc<DynObjectStore>) -> Result<&str>;
 
     /// The size in bytes of all files in the cache.
     fn size(&self) -> u64;
@@ -50,7 +49,7 @@ impl Cache for LocalFSCache {
         todo!()
     }
 
-    async fn fs_path_or_cache(&self, _path: &Path, _store: Arc<ObjectStoreImpl>) -> Result<&str> {
+    async fn fs_path_or_cache(&self, _path: &Path, _store: Arc<DynObjectStore>) -> Result<&str> {
         todo!()
     }
 

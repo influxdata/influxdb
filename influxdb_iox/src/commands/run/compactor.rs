@@ -67,13 +67,6 @@ pub struct Config {
     pub query_exect_thread_count: usize,
 }
 
-impl Config {
-    /// Get a reference to the config's run config.
-    pub fn run_config(&self) -> &RunConfig {
-        &self.run_config
-    }
-}
-
 pub async fn command(config: Config) -> Result<(), Error> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
 

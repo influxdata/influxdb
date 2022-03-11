@@ -670,7 +670,7 @@ mod tests {
             get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
             put_get_delete_list,
         },
-        Error as ObjectStoreError, ObjectStoreImpl, ObjectStoreApi, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStoreApi, ObjectStoreImpl, ObjectStorePath,
     };
     use bytes::Bytes;
     use std::env;

@@ -160,11 +160,12 @@ impl Database {
             "new database"
         );
 
-        let path = IoxObjectStore::root_path_for(application.object_store(), config.database_uuid);
+        let path =
+            IoxObjectStore::root_path_for(&*application.object_store(), config.database_uuid);
         // The database state machine handles the case of this path not existing, as it will end
         // up in [`DatabaseState::RulesLoadError`] or [`DatabaseState::OwnerInfoLoadError`]
         let iox_object_store = Arc::new(IoxObjectStore::existing(
-            Arc::clone(application.object_store()),
+            Arc::clone(&application.object_store()),
             path,
         ));
 
@@ -767,7 +768,7 @@ mod tests {
         sequence::Sequence,
         write_buffer::WriteBufferConnection,
     };
-    use object_store::{ObjectStoreImpl, ObjectStoreIntegration, ThrottleConfig};
+    use object_store::{DynObjectStore, ObjectStoreImpl, ObjectStoreIntegration, ThrottleConfig};
     use test_helpers::assert_contains;
     use write_buffer::mock::MockBufferSharedState;
 
@@ -848,7 +849,7 @@ mod tests {
         let (application, database) = initialized_database().await;
         let server_id = database.shared.config.read().server_id;
         let server_location =
-            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
+            IoxObjectStore::server_config_path(&*application.object_store(), server_id).to_string();
 
         let uuid = database.release().await.unwrap();
 
@@ -876,10 +877,10 @@ mod tests {
         let db_name = &database.shared.config.read().name.clone();
         let server_id = database.shared.config.read().server_id;
         let server_location =
-            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string();
+            IoxObjectStore::server_config_path(&*application.object_store(), server_id).to_string();
         let new_server_id = ServerId::try_from(2).unwrap();
         let new_server_location =
-            IoxObjectStore::server_config_path(application.object_store(), new_server_id)
+            IoxObjectStore::server_config_path(&*application.object_store(), new_server_id)
                 .to_string();
         let uuid = database.release().await.unwrap();
 
@@ -964,7 +965,12 @@ mod tests {
             ..Default::default()
         };
 
-        let store = Arc::new(ObjectStoreImpl::new_in_memory_throttled(throttle_config));
+        let store = ObjectStoreImpl::new_in_memory_throttled(throttle_config);
+        let throttle_config = match &store.integration {
+            ObjectStoreIntegration::InMemoryThrottled(t) => Arc::clone(&t.config),
+            _ => unreachable!(),
+        };
+        let store: Arc<DynObjectStore> = Arc::new(store);
         let application = Arc::new(ApplicationState::new(Arc::clone(&store), None, None, None));
 
         let db_config = DatabaseConfig {
@@ -990,12 +996,7 @@ mod tests {
         assert_eq!(database.state_code(), DatabaseStateCode::Shutdown);
 
         // Disable throttling
-        match &store.integration {
-            ObjectStoreIntegration::InMemoryThrottled(s) => {
-                s.config_mut(|c| *c = Default::default())
-            }
-            _ => unreachable!(),
-        }
+        *throttle_config.lock().unwrap() = Default::default();
 
         // Restart should recover from aborted state, but will now error due to missing config
         let error = tokio::time::timeout(Duration::from_secs(1), database.restart())

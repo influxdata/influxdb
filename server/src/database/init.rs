@@ -627,7 +627,7 @@ pub async fn create_empty_db_in_object_store(
 ) -> Result<String, InitError> {
     let db_name = provided_rules.db_name().clone();
     let iox_object_store = Arc::new(
-        match IoxObjectStore::create(Arc::clone(application.object_store()), uuid).await {
+        match IoxObjectStore::create(Arc::clone(&application.object_store()), uuid).await {
             Ok(ios) => ios,
             Err(source) => return Err(InitError::IoxObjectStoreError { source }),
         },
@@ -675,7 +675,7 @@ pub async fn claim_database_in_object_store(
 ) -> Result<String, InitError> {
     info!(%db_name, %uuid, %force, "claiming database");
 
-    let iox_object_store = IoxObjectStore::load(Arc::clone(application.object_store()), uuid)
+    let iox_object_store = IoxObjectStore::load(Arc::clone(&application.object_store()), uuid)
         .await
         .context(IoxObjectStoreSnafu)?;
 

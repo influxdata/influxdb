@@ -1,5 +1,8 @@
 //! This module contains the IOx implementation for wrapping existing object store types into an artificial "sleep" wrapper.
-use std::{convert::TryInto, sync::Mutex};
+use std::{
+    convert::TryInto,
+    sync::{Arc, Mutex},
+};
 
 use crate::{path::parsed::DirsAndFileName, GetResult, ListResult, ObjectStoreApi, Result};
 use async_trait::async_trait;
@@ -82,7 +85,7 @@ pub struct ThrottleConfig {
 #[derive(Debug)]
 pub struct ThrottledStore<T: ObjectStoreApi> {
     inner: T,
-    config: Mutex<ThrottleConfig>,
+    pub config: Arc<Mutex<ThrottleConfig>>,
 }
 
 impl<T: ObjectStoreApi> ThrottledStore<T> {
@@ -90,7 +93,7 @@ impl<T: ObjectStoreApi> ThrottledStore<T> {
     pub fn new(inner: T, config: ThrottleConfig) -> Self {
         Self {
             inner,
-            config: Mutex::new(config),
+            config: Arc::new(Mutex::new(config)),
         }
     }
 

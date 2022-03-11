@@ -285,7 +285,7 @@ mod test {
             get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
             put_get_delete_list,
         },
-        Error as ObjectStoreError, ObjectStoreImpl, ObjectStoreApi, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStoreApi, ObjectStoreImpl, ObjectStorePath,
     };
     use bytes::Bytes;
     use std::env;
@@ -346,7 +346,8 @@ mod test {
     async fn gcs_test() {
         let config = maybe_skip_integration!();
         let integration =
-            ObjectStoreImpl::new_google_cloud_storage(config.service_account, config.bucket).unwrap();
+            ObjectStoreImpl::new_google_cloud_storage(config.service_account, config.bucket)
+                .unwrap();
 
         put_get_delete_list(&integration).await.unwrap();
         list_uses_directories_correctly(&integration).await.unwrap();
@@ -357,7 +358,8 @@ mod test {
     async fn gcs_test_get_nonexistent_location() {
         let config = maybe_skip_integration!();
         let integration =
-            ObjectStoreImpl::new_google_cloud_storage(config.service_account, &config.bucket).unwrap();
+            ObjectStoreImpl::new_google_cloud_storage(config.service_account, &config.bucket)
+                .unwrap();
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -386,7 +388,8 @@ mod test {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
         let integration =
-            ObjectStoreImpl::new_google_cloud_storage(config.service_account, &config.bucket).unwrap();
+            ObjectStoreImpl::new_google_cloud_storage(config.service_account, &config.bucket)
+                .unwrap();
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -410,7 +413,8 @@ mod test {
     async fn gcs_test_delete_nonexistent_location() {
         let config = maybe_skip_integration!();
         let integration =
-            ObjectStoreImpl::new_google_cloud_storage(config.service_account, &config.bucket).unwrap();
+            ObjectStoreImpl::new_google_cloud_storage(config.service_account, &config.bucket)
+                .unwrap();
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -439,7 +443,8 @@ mod test {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
         let integration =
-            ObjectStoreImpl::new_google_cloud_storage(config.service_account, &config.bucket).unwrap();
+            ObjectStoreImpl::new_google_cloud_storage(config.service_account, &config.bucket)
+                .unwrap();
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -468,7 +473,8 @@ mod test {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
         let integration =
-            ObjectStoreImpl::new_google_cloud_storage(config.service_account, &config.bucket).unwrap();
+            ObjectStoreImpl::new_google_cloud_storage(config.service_account, &config.bucket)
+                .unwrap();
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
