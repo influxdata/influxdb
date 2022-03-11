@@ -449,7 +449,7 @@ mod tests {
     use metric::Attributes;
     use tokio::io::AsyncReadExt;
 
-    use crate::ObjectStore;
+    use crate::{dummy, ObjectStore};
 
     use super::*;
 
@@ -509,7 +509,7 @@ mod tests {
     #[tokio::test]
     async fn test_put_fails() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStore::new_failing_store().expect("cannot init failing store");
+        let store = dummy::new_failing_s3().expect("cannot init failing store");
         let store = ObjectStoreMetrics::new(store, &metrics);
 
         store
@@ -546,7 +546,7 @@ mod tests {
     #[tokio::test]
     async fn test_list_fails() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStore::new_failing_store().expect("cannot init failing store");
+        let store = dummy::new_failing_s3().expect("cannot init failing store");
         let store = ObjectStoreMetrics::new(store, &metrics);
 
         assert!(store.list(None).await.is_err(), "mock configured to fail");
@@ -579,7 +579,7 @@ mod tests {
     #[tokio::test]
     async fn test_list_with_delimiter_fails() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStore::new_failing_store().expect("cannot init failing store");
+        let store = dummy::new_failing_s3().expect("cannot init failing store");
         let store = ObjectStoreMetrics::new(store, &metrics);
 
         assert!(
@@ -600,7 +600,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_fails() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStore::new_failing_store().expect("cannot init failing store");
+        let store = dummy::new_failing_s3().expect("cannot init failing store");
         let store = ObjectStoreMetrics::new(store, &metrics);
 
         store
@@ -674,7 +674,7 @@ mod tests {
 
         let got = store.get(&path).await.expect("should read stream");
         match got {
-            GetResult::Stream(mut stream) => while let Some(_) = stream.next().await {},
+            GetResult::Stream(mut stream) => while (stream.next().await).is_some() {},
             v => panic!("not a stream: {:?}", v),
         }
 
