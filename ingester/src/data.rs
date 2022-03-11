@@ -1,7 +1,7 @@
 //! Data for the lifecycle of the Ingester
 
 use crate::{
-    compact::compact_persisting_batch, lifecycle::LifecycleManager, persist::persist,
+    compact::compact_persisting_batch, lifecycle::LifecycleHandle, persist::persist,
     querier_handler::query,
 };
 use arrow::record_batch::RecordBatch;
@@ -116,7 +116,7 @@ impl IngesterData {
         &self,
         sequencer_id: SequencerId,
         dml_operation: DmlOperation,
-        lifecycle_manager: &LifecycleManager,
+        lifecycle_handle: &LifecycleHandle,
     ) -> Result<bool> {
         let sequencer_data = self
             .sequencers
@@ -127,7 +127,7 @@ impl IngesterData {
                 dml_operation,
                 sequencer_id,
                 self.catalog.as_ref(),
-                lifecycle_manager,
+                lifecycle_handle,
                 &self.exec,
             )
             .await
@@ -303,7 +303,7 @@ impl SequencerData {
         dml_operation: DmlOperation,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
-        lifecycle_manager: &LifecycleManager,
+        lifecycle_handle: &LifecycleHandle,
         executor: &Executor,
     ) -> Result<bool> {
         let namespace_data = match self.namespace(dml_operation.namespace()) {
@@ -319,7 +319,7 @@ impl SequencerData {
                 dml_operation,
                 sequencer_id,
                 catalog,
-                lifecycle_manager,
+                lifecycle_handle,
                 executor,
             )
             .await
@@ -391,7 +391,7 @@ impl NamespaceData {
         dml_operation: DmlOperation,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
-        lifecycle_manager: &LifecycleManager,
+        lifecycle_handle: &LifecycleHandle,
         executor: &Executor,
     ) -> Result<bool> {
         let sequence_number = dml_operation
@@ -419,7 +419,7 @@ impl NamespaceData {
                             b,
                             sequencer_id,
                             catalog,
-                            lifecycle_manager,
+                            lifecycle_handle,
                         )
                         .await?;
 
@@ -626,7 +626,7 @@ impl TableData {
         batch: MutableBatch,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
-        lifecycle_manager: &LifecycleManager,
+        lifecycle_handle: &LifecycleHandle,
     ) -> Result<bool> {
         if let Some(max) = self.parquet_max_sequence_number {
             if sequence_number <= max {
@@ -658,7 +658,7 @@ impl TableData {
             }
         };
 
-        let should_pause = lifecycle_manager.log_write(
+        let should_pause = lifecycle_handle.log_write(
             partition_data.id,
             sequencer_id,
             sequence_number,
@@ -1243,7 +1243,10 @@ impl IngesterQueryResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{lifecycle::LifecycleConfig, test_util::create_tombstone};
+    use crate::{
+        lifecycle::{LifecycleConfig, LifecycleManager},
+        test_util::create_tombstone,
+    };
     use arrow_util::assert_batches_sorted_eq;
     use data_types2::{NamespaceSchema, ParquetFileParams, Sequence};
     use dml::{DmlMeta, DmlWrite};
@@ -1457,12 +1460,16 @@ mod tests {
             Arc::new(SystemProvider::new()),
         );
         let should_pause = data
-            .buffer_operation(sequencer1.id, DmlOperation::Write(w1.clone()), &manager)
+            .buffer_operation(
+                sequencer1.id,
+                DmlOperation::Write(w1.clone()),
+                &manager.handle(),
+            )
             .await
             .unwrap();
         assert!(!should_pause);
         let should_pause = data
-            .buffer_operation(sequencer1.id, DmlOperation::Write(w1), &manager)
+            .buffer_operation(sequencer1.id, DmlOperation::Write(w1), &manager.handle())
             .await
             .unwrap();
         assert!(should_pause);
@@ -1543,13 +1550,13 @@ mod tests {
             Arc::new(SystemProvider::new()),
         );
 
-        data.buffer_operation(sequencer1.id, DmlOperation::Write(w1), &manager)
+        data.buffer_operation(sequencer1.id, DmlOperation::Write(w1), &manager.handle())
             .await
             .unwrap();
-        data.buffer_operation(sequencer2.id, DmlOperation::Write(w2), &manager)
+        data.buffer_operation(sequencer2.id, DmlOperation::Write(w2), &manager.handle())
             .await
             .unwrap();
-        data.buffer_operation(sequencer1.id, DmlOperation::Write(w3), &manager)
+        data.buffer_operation(sequencer1.id, DmlOperation::Write(w3), &manager.handle())
             .await
             .unwrap();
 
@@ -1928,7 +1935,7 @@ mod tests {
                 DmlOperation::Write(w1),
                 sequencer.id,
                 catalog.as_ref(),
-                &manager,
+                &manager.handle(),
                 &exec,
             )
             .await
@@ -1949,7 +1956,7 @@ mod tests {
             DmlOperation::Write(w2),
             sequencer.id,
             catalog.as_ref(),
-            &manager,
+            &manager.handle(),
             &exec,
         )
         .await

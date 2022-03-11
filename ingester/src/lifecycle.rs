@@ -18,16 +18,89 @@ use time::{Time, TimeProvider};
 use tokio_util::sync::CancellationToken;
 use tracker::TrackedFutureExt;
 
-/// The lifecycle manager keeps track of the size and age of partitions across all sequencers.
-/// It triggers persistence based on keeping total memory usage around a set amount while
-/// ensuring that partitions don't get too old or large before being persisted.
+/// A handle for sequencer consumers to interact with the global
+/// [`LifecycleManager`] instance.
+///
+/// This handle presents an API suitable for ingester tasks to query and update
+/// the [`LifecycleManager`] state.
+#[derive(Debug, Clone)]
+pub struct LifecycleHandle {
+    time_provider: Arc<dyn TimeProvider>,
+
+    config: Arc<LifecycleConfig>,
+
+    /// The state shared with the [`LifecycleManager`].
+    state: Arc<Mutex<LifecycleState>>,
+}
+
+impl LifecycleHandle {
+    /// Logs bytes written into a partition so that it can be tracked for the manager to
+    /// trigger persistence. Returns true if the ingester should pause consuming from the
+    /// write buffer so that persistence can catch up and free up memory.
+    pub fn log_write(
+        &self,
+        partition_id: PartitionId,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+        bytes_written: usize,
+    ) -> bool {
+        let mut s = self.state.lock();
+        let now = self.time_provider.now();
+
+        let mut stats =
+            s.partition_stats
+                .entry(partition_id)
+                .or_insert_with(|| PartitionLifecycleStats {
+                    sequencer_id,
+                    partition_id,
+                    first_write: now,
+                    last_write: now,
+                    bytes_written: 0,
+                    first_sequence_number: sequence_number,
+                });
+
+        stats.bytes_written += bytes_written;
+        stats.last_write = now;
+
+        s.total_bytes += bytes_written;
+        s.total_bytes > self.config.pause_ingest_size
+    }
+
+    /// Returns true if the `total_bytes` tracked by the manager is less than the pause amount.
+    /// As persistence runs, the `total_bytes` go down.
+    pub fn can_resume_ingest(&self) -> bool {
+        let s = self.state.lock();
+        s.total_bytes < self.config.pause_ingest_size
+    }
+}
+
+/// The lifecycle manager keeps track of the size and age of partitions across
+/// all sequencers. It triggers persistence based on keeping total memory usage
+/// around a set amount while ensuring that partitions don't get too old or
+/// large before being persisted.
+///
+/// The [`LifecycleManager`] instance is responsible for evaluating the state of
+/// the partitions and periodically persisting and evicting partitions to
+/// maintain the memory usage and acceptable data loss windows within the
+/// defined configuration limits. It is expected to act as a singleton within an
+/// ingester process.
+///
+/// The current system state is tracked by ingester tasks pushing updates to the
+/// [`LifecycleManager`] through their respective [`LifecycleHandle`] instances.
+///
+/// A [`LifecycleManager`] MUST be driven by an external actor periodically
+/// calling [`LifecycleManager::maybe_persist()`].
 #[derive(Debug)]
 pub struct LifecycleManager {
-    config: LifecycleConfig,
+    config: Arc<LifecycleConfig>,
     time_provider: Arc<dyn TimeProvider>,
-    state: Mutex<LifecycleState>,
-    persist_running: tokio::sync::Mutex<()>,
     job_registry: Arc<JobRegistry>,
+
+    /// State shared with the [`LifecycleHandle`].
+    ///
+    /// [`LifecycleHandle`] instances update statistics directly by calling
+    /// [`LifecycleHandle::log_write()`].
+    state: Arc<Mutex<LifecycleState>>,
 }
 
 /// The configuration options for the lifecycle on the ingester.
@@ -134,62 +207,27 @@ impl LifecycleManager {
             Arc::clone(&time_provider),
         ));
         Self {
-            config,
+            config: Arc::new(config),
             time_provider,
-            state: Default::default(),
-            persist_running: Default::default(),
             job_registry,
+            state: Default::default(),
         }
     }
 
-    /// Logs bytes written into a partition so that it can be tracked for the manager to
-    /// trigger persistence. Returns true if the ingester should pause consuming from the
-    /// write buffer so that persistence can catch up and free up memory.
-    pub fn log_write(
-        &self,
-        partition_id: PartitionId,
-        sequencer_id: SequencerId,
-        sequence_number: SequenceNumber,
-        bytes_written: usize,
-    ) -> bool {
-        let mut s = self.state.lock();
-        let now = self.time_provider.now();
-
-        let mut stats =
-            s.partition_stats
-                .entry(partition_id)
-                .or_insert_with(|| PartitionLifecycleStats {
-                    sequencer_id,
-                    partition_id,
-                    first_write: now,
-                    last_write: now,
-                    bytes_written: 0,
-                    first_sequence_number: sequence_number,
-                });
-
-        stats.bytes_written += bytes_written;
-        stats.last_write = now;
-
-        s.total_bytes += bytes_written;
-
-        s.total_bytes > self.config.pause_ingest_size
-    }
-
-    /// Returns true if the `total_bytes` tracked by the manager is less than the pause amount.
-    /// As persistence runs, the `total_bytes` go down.
-    pub fn can_resume_ingest(&self) -> bool {
-        let s = self.state.lock();
-        s.total_bytes < self.config.pause_ingest_size
+    /// Acquire a shareable [`LifecycleHandle`] for this manager instance.
+    pub fn handle(&self) -> LifecycleHandle {
+        LifecycleHandle {
+            time_provider: Arc::clone(&self.time_provider),
+            config: Arc::clone(&self.config),
+            state: Arc::clone(&self.state),
+        }
     }
 
     /// This will persist any partitions that are over their size or age thresholds and
     /// persist as many partitions as necessary (largest first) to get below the memory threshold.
     /// The persist operations are spawned in new tasks and run at the same time, but the
     /// function waits for all to return before completing.
-    pub async fn maybe_persist<P: Persister>(&self, persister: &Arc<P>) {
-        // ensure that this is only running one at a time
-        self.persist_running.lock().await;
-
+    pub async fn maybe_persist<P: Persister>(&mut self, persister: &Arc<P>) {
         let LifecycleStats {
             mut total_bytes,
             partition_stats,
@@ -318,7 +356,7 @@ const CHECK_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Runs the lifecycle manager to trigger persistence every second.
 pub(crate) async fn run_lifecycle_manager<P: Persister>(
-    manager: Arc<LifecycleManager>,
+    mut manager: LifecycleManager,
     persister: Arc<P>,
     shutdown: CancellationToken,
     poison_cabinet: Arc<PoisonCabinet>,
@@ -401,14 +439,20 @@ mod tests {
         };
         let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
+        let h = m.handle();
 
         // log first two writes at different times
-        assert!(!m.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(1), 1));
+        assert!(!h.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(1), 1));
         time_provider.inc(Duration::from_nanos(10));
-        assert!(!m.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(2), 1));
+        assert!(!h.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(2), 1));
 
-        // log another write for different partition
-        assert!(!m.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(3), 3));
+        // log another write for different partition using a different handle
+        assert!(!m.handle().log_write(
+            PartitionId::new(2),
+            sequencer_id,
+            SequenceNumber::new(3),
+            3
+        ));
 
         let stats = m.stats();
         assert_eq!(stats.total_bytes, 5);
@@ -435,8 +479,9 @@ mod tests {
         };
         let TestLifecycleManger { m, .. } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
+        let h = m.handle();
 
-        assert!(!m.log_write(
+        assert!(!h.log_write(
             PartitionId::new(1),
             sequencer_id,
             SequenceNumber::new(1),
@@ -444,17 +489,17 @@ mod tests {
         ));
 
         // now it should indicate a pause
-        assert!(m.log_write(
+        assert!(h.log_write(
             PartitionId::new(1),
             sequencer_id,
             SequenceNumber::new(2),
             10
         ));
-        assert!(!m.can_resume_ingest());
+        assert!(!h.can_resume_ingest());
 
         m.remove(PartitionId::new(1));
-        assert!(m.can_resume_ingest());
-        assert!(!m.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(3), 3));
+        assert!(h.can_resume_ingest());
+        assert!(!h.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(3), 3));
     }
 
     #[tokio::test]
@@ -466,12 +511,16 @@ mod tests {
             partition_age_threshold: Duration::from_nanos(5),
             partition_cold_threshold: Duration::from_secs(500),
         };
-        let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
+        let TestLifecycleManger {
+            mut m,
+            time_provider,
+        } = TestLifecycleManger::new(config);
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
         let sequencer_id = SequencerId::new(1);
+        let h = m.handle();
 
-        m.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 10);
+        h.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 10);
 
         m.maybe_persist(&persister).await;
         let stats = m.stats();
@@ -485,7 +534,7 @@ mod tests {
         assert!(!persister.persist_called_for(partition_id));
 
         // write in data for a new partition so we can be sure it isn't persisted, but the older one is
-        m.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 6);
+        h.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 6);
 
         m.maybe_persist(&persister).await;
 
@@ -511,12 +560,13 @@ mod tests {
             partition_age_threshold: Duration::from_millis(100),
             partition_cold_threshold: Duration::from_secs(500),
         };
-        let TestLifecycleManger { m, .. } = TestLifecycleManger::new(config);
+        let TestLifecycleManger { mut m, .. } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
+        let h = m.handle();
 
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
-        m.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 4);
+        h.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 4);
 
         m.maybe_persist(&persister).await;
 
@@ -526,8 +576,8 @@ mod tests {
         assert!(!persister.persist_called_for(partition_id));
 
         // introduce a new partition under the limit to verify it doesn't get taken with the other
-        m.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 3);
-        m.log_write(partition_id, sequencer_id, SequenceNumber::new(3), 5);
+        h.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 3);
+        h.log_write(partition_id, sequencer_id, SequenceNumber::new(3), 5);
 
         m.maybe_persist(&persister).await;
 
@@ -554,11 +604,12 @@ mod tests {
             partition_cold_threshold: Duration::from_secs(500),
         };
         let sequencer_id = SequencerId::new(1);
-        let TestLifecycleManger { m, .. } = TestLifecycleManger::new(config);
+        let TestLifecycleManger { mut m, .. } = TestLifecycleManger::new(config);
+        let h = m.handle();
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
-        m.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 8);
-        m.log_write(
+        h.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 8);
+        h.log_write(
             PartitionId::new(2),
             sequencer_id,
             SequenceNumber::new(2),
@@ -579,8 +630,8 @@ mod tests {
         );
 
         // add that partition back in over size
-        m.log_write(partition_id, sequencer_id, SequenceNumber::new(3), 20);
-        m.log_write(
+        h.log_write(partition_id, sequencer_id, SequenceNumber::new(3), 20);
+        h.log_write(
             PartitionId::new(2),
             sequencer_id,
             SequenceNumber::new(4),
@@ -618,13 +669,17 @@ mod tests {
             partition_cold_threshold: Duration::from_secs(500),
         };
         let sequencer_id = SequencerId::new(1);
-        let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
+        let TestLifecycleManger {
+            mut m,
+            time_provider,
+        } = TestLifecycleManger::new(config);
+        let h = m.handle();
         let persister = Arc::new(TestPersister::default());
-        m.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(1), 4);
+        h.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(1), 4);
         time_provider.inc(Duration::from_nanos(1));
-        m.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 6);
+        h.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 6);
         time_provider.inc(Duration::from_nanos(1));
-        m.log_write(PartitionId::new(3), sequencer_id, SequenceNumber::new(3), 3);
+        h.log_write(PartitionId::new(3), sequencer_id, SequenceNumber::new(3), 3);
 
         m.maybe_persist(&persister).await;
 
@@ -650,12 +705,16 @@ mod tests {
             partition_age_threshold: Duration::from_secs(1000),
             partition_cold_threshold: Duration::from_secs(5),
         };
-        let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
+        let TestLifecycleManger {
+            mut m,
+            time_provider,
+        } = TestLifecycleManger::new(config);
+        let h = m.handle();
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
         let sequencer_id = SequencerId::new(1);
 
-        m.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 10);
+        h.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 10);
 
         m.maybe_persist(&persister).await;
         let stats = m.stats();
@@ -669,7 +728,7 @@ mod tests {
         assert!(!persister.persist_called_for(partition_id));
 
         // write in data for a new partition so we can be sure it isn't persisted, but the older one is
-        m.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 6);
+        h.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 6);
 
         m.maybe_persist(&persister).await;
 
