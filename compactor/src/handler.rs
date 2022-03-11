@@ -62,7 +62,7 @@ impl CompactorHandlerImpl {
         sequencers: Vec<SequencerId>,
         catalog: Arc<dyn Catalog>,
         object_store: Arc<ObjectStore>,
-        exec: Executor,
+        exec: Arc<Executor>,
         _registry: &metric::Registry,
     ) -> Self {
         let shutdown = CancellationToken::new();

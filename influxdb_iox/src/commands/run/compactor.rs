@@ -1,6 +1,5 @@
 //! Implementation of command line option for running the compactor
 
-use compactor::{handler::CompactorHandlerImpl, server::CompactorServer};
 use data_types2::SequencerId;
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
@@ -11,8 +10,10 @@ use thiserror::Error;
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
 use influxdb_ioxd::{
     self,
-    server_type::common_state::{CommonServerState, CommonServerStateError},
-    server_type::compactor::CompactorServerType,
+    server_type::{
+        common_state::{CommonServerState, CommonServerStateError},
+        compactor::create_compactor_server_type,
+    },
 };
 
 #[derive(Debug, Error)]
@@ -85,19 +86,20 @@ pub async fn command(config: Config) -> Result<(), Error> {
             .map_err(Error::ObjectStoreParsing)?,
     );
 
+    let exec = Arc::new(Executor::new(config.query_exect_thread_count));
+
     // TODO: modify config to let us get assigned sequence numbers
     let sequencers: Vec<SequencerId> = vec![];
 
-    let compactor_handler = Arc::new(CompactorHandlerImpl::new(
-        sequencers,
+    let server_type = create_compactor_server_type(
+        &common_state,
+        metric_registry,
         catalog,
         object_store,
-        Executor::new(config.query_exect_thread_count),
-        &metric_registry,
-    ));
-
-    let compactor = CompactorServer::new(metric_registry, compactor_handler);
-    let server_type = Arc::new(CompactorServerType::new(compactor, &common_state));
+        exec,
+        sequencers,
+    )
+    .await;
 
     info!("starting compactor");
 

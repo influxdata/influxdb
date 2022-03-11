@@ -42,7 +42,7 @@ pub struct Compactor {
     catalog: Arc<dyn Catalog>,
 
     /// Executor for running queries and compacting and persisting
-    exec: Executor,
+    exec: Arc<Executor>,
 
     /// Backoff config
     backoff_config: BackoffConfig,
@@ -54,7 +54,7 @@ impl Compactor {
         sequencers: Vec<SequencerId>,
         catalog: Arc<dyn Catalog>,
         object_store: Arc<ObjectStore>,
-        exec: Executor,
+        exec: Arc<Executor>,
         backoff_config: BackoffConfig,
     ) -> Self {
         Self {
