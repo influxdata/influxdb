@@ -521,65 +521,6 @@ func FindTelegrafConfigs(
 				telegrafConfigs: []*influxdb.TelegrafConfig{},
 			},
 		},
-		{
-			name: "find with limit and offset",
-			fields: TelegrafConfigFields{
-				IDGenerator: mock.NewIncrementingIDGenerator(oneID),
-				TelegrafConfigs: []*influxdb.TelegrafConfig{
-					{
-						ID:       oneID,
-						OrgID:    fourID,
-						Name:     "tc1",
-						Config:   "[[inputs.cpu]]\n",
-						Metadata: map[string]interface{}{"buckets": []interface{}{}},
-					},
-					{
-						ID:       twoID,
-						OrgID:    fourID,
-						Name:     "tc2",
-						Config:   "[[inputs.file]]\n[[inputs.mem]]\n",
-						Metadata: map[string]interface{}{"buckets": []interface{}{}},
-					},
-					{
-						ID:       threeID,
-						OrgID:    oneID,
-						Name:     "tc3",
-						Config:   "[[inputs.cpu]]\n",
-						Metadata: map[string]interface{}{"buckets": []interface{}{}},
-					},
-					{
-						ID:       fourID,
-						OrgID:    oneID,
-						Name:     "tc4",
-						Config:   "[[inputs.cpu]]\n",
-						Metadata: map[string]interface{}{"buckets": []interface{}{}},
-					},
-				},
-			},
-			args: args{
-				opts: []influxdb.FindOptions{
-					{Limit: 2, Offset: 1},
-				},
-			},
-			wants: wants{
-				telegrafConfigs: []*influxdb.TelegrafConfig{
-					{
-						ID:       twoID,
-						OrgID:    fourID,
-						Name:     "tc2",
-						Config:   "[[inputs.file]]\n[[inputs.mem]]\n",
-						Metadata: map[string]interface{}{"buckets": []interface{}{}},
-					},
-					{
-						ID:       threeID,
-						OrgID:    oneID,
-						Name:     "tc3",
-						Config:   "[[inputs.cpu]]\n",
-						Metadata: map[string]interface{}{"buckets": []interface{}{}},
-					},
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {

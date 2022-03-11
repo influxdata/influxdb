@@ -154,27 +154,19 @@ func (s *Service) findTelegrafConfigByID(ctx context.Context, tx kv.Tx, id platf
 }
 
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
-// Additional options provide pagination & sorting.
+// FindOptions are ignored.
 func (s *Service) FindTelegrafConfigs(ctx context.Context, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) (tcs []*influxdb.TelegrafConfig, n int, err error) {
 	err = s.kv.View(ctx, func(tx kv.Tx) error {
-		tcs, n, err = s.findTelegrafConfigs(ctx, tx, filter, opt...)
+		tcs, n, err = s.findTelegrafConfigs(ctx, tx, filter)
 		return err
 	})
 	return tcs, n, err
 }
 
-func (s *Service) findTelegrafConfigs(ctx context.Context, tx kv.Tx, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, error) {
+func (s *Service) findTelegrafConfigs(ctx context.Context, tx kv.Tx, filter influxdb.TelegrafConfigFilter) ([]*influxdb.TelegrafConfig, int, error) {
 	var (
-		limit  = influxdb.DefaultPageSize
-		offset int
-		count  int
-		tcs    = make([]*influxdb.TelegrafConfig, 0)
+		tcs = make([]*influxdb.TelegrafConfig, 0)
 	)
-
-	if len(opt) > 0 {
-		limit = opt[0].GetLimit()
-		offset = opt[0].Offset
-	}
 
 	visit := func(k, v []byte) (bool, error) {
 		var tc influxdb.TelegrafConfig
@@ -182,15 +174,10 @@ func (s *Service) findTelegrafConfigs(ctx context.Context, tx kv.Tx, filter infl
 			return false, err
 		}
 
-		// skip until offset reached
-		if count >= offset {
-			tcs = append(tcs, &tc)
-		}
-
-		count++
+		tcs = append(tcs, &tc)
 
 		// stop cursing when limit is reached
-		return len(tcs) < limit, nil
+		return true, nil
 	}
 
 	if filter.OrgID == nil {
@@ -207,7 +194,7 @@ func (s *Service) findTelegrafConfigs(ctx context.Context, tx kv.Tx, filter infl
 		// REMOVE this cursor option if you do any
 		// other filtering
 
-		cursor, err := bucket.ForwardCursor(nil, kv.WithCursorLimit(offset+limit))
+		cursor, err := bucket.ForwardCursor(nil)
 		if err != nil {
 			return nil, 0, err
 		}
