@@ -11,7 +11,6 @@ iox_catalog = { path = "../iox_catalog" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
-serving_readiness = { path = "../serving_readiness" }
 trace_exporters = { path = "../trace_exporters" }
 trace = { path = "../trace" }
 time = { path = "../time" }

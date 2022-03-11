@@ -1,42 +1,14 @@
 use crate::cache::CatalogCache;
 use data_types2::{ChunkAddr, ChunkId, ChunkOrder, ParquetFile};
 use db::catalog::chunk::{CatalogChunk, ChunkMetadata, ChunkMetrics as CatalogChunkMetrics};
-use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use iox_object_store::IoxObjectStore;
 use object_store::ObjectStore;
-use parquet_file::{
-    chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
-    metadata::{DecodedIoxParquetMetaData, IoxMetadata, IoxParquetMetaData},
+use parquet_file::chunk::{
+    new_parquet_chunk, ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk,
 };
 use std::sync::Arc;
 use time::TimeProvider;
 use uuid::Uuid;
-
-/// Parquet file with decoded metadata.
-struct DecodedParquetFile {
-    parquet_file: ParquetFile,
-    parquet_metadata: Arc<IoxParquetMetaData>,
-    decoded_metadata: DecodedIoxParquetMetaData,
-    iox_metadata: IoxMetadata,
-}
-
-impl DecodedParquetFile {
-    fn new(parquet_file: ParquetFile) -> Self {
-        let parquet_metadata = Arc::new(IoxParquetMetaData::from_thrift_bytes(
-            parquet_file.parquet_metadata.clone(),
-        ));
-        let decoded_metadata = parquet_metadata.decode().expect("parquet metadata broken");
-        let iox_metadata = decoded_metadata
-            .read_iox_metadata_new()
-            .expect("cannot read IOx metadata from parquet MD");
-
-        Self {
-            parquet_file,
-            parquet_metadata,
-            decoded_metadata,
-            iox_metadata,
-        }
-    }
-}
 
 /// Adapter that can create old-gen chunks for the new-gen catalog.
 #[derive(Debug)]
@@ -78,34 +50,22 @@ impl ParquetChunkAdapter {
 
     /// Create parquet chunk.
     async fn new_parquet_chunk(&self, decoded_parquet_file: &DecodedParquetFile) -> ParquetChunk {
-        let iox_metadata = &decoded_parquet_file.iox_metadata;
-        let path = ParquetFilePath::new_new_gen(
-            iox_metadata.namespace_id,
-            iox_metadata.table_id,
-            iox_metadata.sequencer_id,
-            iox_metadata.partition_id,
-            iox_metadata.object_store_id,
-        );
-
         let parquet_file = &decoded_parquet_file.parquet_file;
-        let file_size_bytes = parquet_file.file_size_bytes as usize;
-        let table_name = self.catalog_cache.table_name(parquet_file.table_id).await;
+        let table_name = self.catalog_cache.table().name(parquet_file.table_id).await;
         let partition_key = self
             .catalog_cache
+            .partition()
             .old_gen_partition_key(parquet_file.partition_id)
             .await;
         let metrics = ParquetChunkMetrics::new(self.metric_registry.as_ref());
 
-        ParquetChunk::new(
-            &path,
-            Arc::clone(&self.iox_object_store),
-            file_size_bytes,
-            Arc::clone(&decoded_parquet_file.parquet_metadata),
+        new_parquet_chunk(
+            decoded_parquet_file,
             table_name,
             partition_key,
             metrics,
+            Arc::clone(&self.iox_object_store),
         )
-        .expect("cannot create chunk")
     }
 
     /// Create all components to create a catalog chunk using
@@ -170,15 +130,18 @@ impl ParquetChunkAdapter {
         ChunkAddr {
             db_name: self
                 .catalog_cache
-                .namespace_name(
+                .namespace()
+                .name(
                     self.catalog_cache
-                        .table_namespace_id(parquet_file.table_id)
+                        .table()
+                        .namespace_id(parquet_file.table_id)
                         .await,
                 )
                 .await,
-            table_name: self.catalog_cache.table_name(parquet_file.table_id).await,
+            table_name: self.catalog_cache.table().name(parquet_file.table_id).await,
             partition_key: self
                 .catalog_cache
+                .partition()
                 .old_gen_partition_key(parquet_file.partition_id)
                 .await,
             chunk_id: ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _)),
@@ -189,11 +152,11 @@ impl ParquetChunkAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_util::TestCatalog;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use db::chunk::DbChunk;
     use futures::StreamExt;
+    use iox_tests::util::TestCatalog;
     use query::{exec::IOxExecutionContext, QueryChunk};
     use schema::selection::Selection;
 

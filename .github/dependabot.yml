@@ -4,7 +4,8 @@ updates:
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: daily
+    open-pull-requests-limit: 10
     ignore:
       # Thrift version needs to match the version of the thrift-compiler used to generate code,
       # and therefore this dependency requires a more manual upgrade

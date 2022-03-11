@@ -1,9 +1,22 @@
 #!/usr/bin/env bash
+#
+# Script that checks for conventional commit[1] messages
+#
+# We tried Semantic Pull Requests github app for a while, but it
+# caused too many interittent failures / outages.
+#
+# To test:
+# ./semantic_check.sh test
+#
+# [1] https://www.conventionalcommits.org/en/v1.0.0/
+# [2] https://probot.github.io/apps/semantic-pull-requests/
+#
+
 
 set -e -o pipefail
 
 shopt -s nocasematch
-semantic_pattern='^(Merge branch '\''.+'\'' into|(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?: +[^ ])'
+semantic_pattern='^(Merge .*branch '\''.+'\'' into|(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?: +[^ ])'
 
 if [[ $1 == "test" ]]; then
   exit_code=0
@@ -12,6 +25,7 @@ if [[ $1 == "test" ]]; then
   expect_ok="chore: foo
 chore(hello): foo
 CHORE: foo
+Merge remote-tracking branch 'origin/main' into alamb/update_df_101
 Merge branch 'main' into foo"
   while read -r s; do
     if [[ ! $s =~ $semantic_pattern ]]; then
@@ -27,6 +41,7 @@ chore : foo
 chore:
 chore:
 chore:foo
+Merge this is not a legit merge
 "
   while read -r s; do
     if [[ $s =~ $semantic_pattern ]]; then

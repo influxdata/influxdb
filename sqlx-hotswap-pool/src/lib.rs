@@ -144,12 +144,13 @@ mod tests {
     use rand::{distributions::Alphanumeric, Rng};
     use sqlx::{postgres::PgPoolOptions, Postgres};
 
-    // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
+    // Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment variables
+    // are not set.
     macro_rules! maybe_skip_integration {
         () => {{
             dotenv::dotenv().ok();
 
-            let required_vars = ["DATABASE_URL"];
+            let required_vars = ["TEST_INFLUXDB_IOX_CATALOG_DSN"];
             let unset_vars: Vec<_> = required_vars
                 .iter()
                 .filter_map(|&name| match env::var(name) {
@@ -195,7 +196,7 @@ mod tests {
                 .map(char::from)
                 .collect::<String>()
         };
-        let dsn = std::env::var("DATABASE_URL").unwrap();
+        let dsn = std::env::var("TEST_INFLUXDB_IOX_CATALOG_DSN").unwrap();
         let captured_schema_name = schema_name.clone();
         PgPoolOptions::new()
             .min_connections(1)

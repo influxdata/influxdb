@@ -8,14 +8,13 @@ use crate::interface::{
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, Partition, PartitionId, PartitionInfo, ProcessedTombstone,
-    QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp,
-    Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
+    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
+    TableId, Timestamp, Tombstone, TombstoneId,
 };
 use metric::{Metric, U64Histogram, U64HistogramOptions};
 use std::{fmt::Debug, sync::Arc};
 use time::{SystemProvider, TimeProvider};
-use uuid::Uuid;
 
 /// Decorates a implementation of the catalog's [`RepoCollection`] (and the
 /// transactional variant) with instrumentation that emits latency histograms
@@ -259,7 +258,7 @@ decorate!(
 decorate!(
     impl_trait = ParquetFileRepo,
     methods = [
-        "parquet_create" = create( &mut self, sequencer_id: SequencerId, table_id: TableId, partition_id: PartitionId, object_store_id: Uuid, min_sequence_number: SequenceNumber, max_sequence_number: SequenceNumber, min_time: Timestamp, max_time: Timestamp, file_size_bytes: i64, parquet_metadata: Vec<u8>, row_count: i64) -> Result<ParquetFile>;
+        "parquet_create" = create( &mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile>;
         "parquet_flag_for_delete" = flag_for_delete(&mut self, id: ParquetFileId) -> Result<()>;
         "parquet_list_by_sequencer_greater_than" = list_by_sequencer_greater_than(&mut self, sequencer_id: SequencerId, sequence_number: SequenceNumber) -> Result<Vec<ParquetFile>>;
         "parquet_list_by_namespace_not_to_delete" = list_by_namespace_not_to_delete(&mut self, namespace_id: NamespaceId) -> Result<Vec<ParquetFile>>;

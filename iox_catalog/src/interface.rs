@@ -3,9 +3,9 @@
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnSchema, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
-    NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, Partition, PartitionId,
-    PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
-    SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
+    NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
+    PartitionId, PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
+    Sequencer, SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
 };
 use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, convert::TryFrom, fmt::Debug, sync::Arc};
@@ -406,25 +406,14 @@ pub trait TombstoneRepo: Send + Sync {
     ) -> Result<Vec<Tombstone>>;
 }
 
+/// The starting compaction level for parquet files is zero.
+pub const INITIAL_COMPACTION_LEVEL: i16 = 0;
+
 /// Functions for working with parquet file pointers in the catalog
 #[async_trait]
 pub trait ParquetFileRepo: Send + Sync {
     /// create the parquet file
-    #[allow(clippy::too_many_arguments)]
-    async fn create(
-        &mut self,
-        sequencer_id: SequencerId,
-        table_id: TableId,
-        partition_id: PartitionId,
-        object_store_id: Uuid,
-        min_sequence_number: SequenceNumber,
-        max_sequence_number: SequenceNumber,
-        min_time: Timestamp,
-        max_time: Timestamp,
-        file_size_bytes: i64,
-        parquet_metadata: Vec<u8>,
-        row_count: i64,
-    ) -> Result<ParquetFile>;
+    async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile>;
 
     /// Flag the parquet file for deletion
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()>;
@@ -757,21 +746,23 @@ pub(crate) mod test_helpers {
             .create_or_get("1970-01-01", seq.id, t.id)
             .await
             .unwrap();
+        let parquet_file_params = ParquetFileParams {
+            sequencer_id: seq.id,
+            table_id: t.id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(10),
+            max_sequence_number: SequenceNumber::new(513),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(2),
+            file_size_bytes: 0,
+            parquet_metadata: vec![],
+            row_count: 0,
+            created_at: Timestamp::new(1),
+        };
         let p1 = repos
             .parquet_files()
-            .create(
-                seq.id,
-                t.id,
-                partition.id,
-                Uuid::new_v4(),
-                SequenceNumber::new(10),
-                SequenceNumber::new(513),
-                Timestamp::new(1),
-                Timestamp::new(2),
-                0,
-                vec![],
-                0,
-            )
+            .create(parquet_file_params.clone())
             .await
             .unwrap();
         let ti = repos
@@ -791,21 +782,15 @@ pub(crate) mod test_helpers {
         );
 
         // and with another parquet file persisted
+        let parquet_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(514),
+            max_sequence_number: SequenceNumber::new(1008),
+            ..parquet_file_params
+        };
         let p1 = repos
             .parquet_files()
-            .create(
-                seq.id,
-                t.id,
-                partition.id,
-                Uuid::new_v4(),
-                SequenceNumber::new(514),
-                SequenceNumber::new(1008),
-                Timestamp::new(1),
-                Timestamp::new(2),
-                0,
-                vec![],
-                0,
-            )
+            .create(parquet_file_params.clone())
             .await
             .unwrap();
         let ti = repos
@@ -1280,61 +1265,43 @@ pub(crate) mod test_helpers {
         let min_time = Timestamp::new(1);
         let max_time = Timestamp::new(10);
 
+        let parquet_file_params = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            table_id: partition.table_id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(10),
+            max_sequence_number: SequenceNumber::new(140),
+            min_time,
+            max_time,
+            file_size_bytes: 1337,
+            parquet_metadata: b"md1".to_vec(),
+            row_count: 0,
+            created_at: Timestamp::new(1),
+        };
         let parquet_file = repos
             .parquet_files()
-            .create(
-                sequencer.id,
-                partition.table_id,
-                partition.id,
-                Uuid::new_v4(),
-                SequenceNumber::new(10),
-                SequenceNumber::new(140),
-                min_time,
-                max_time,
-                1337,
-                b"md1".to_vec(),
-                0,
-            )
+            .create(parquet_file_params.clone())
             .await
             .unwrap();
 
         // verify that trying to create a file with the same UUID throws an error
         let err = repos
             .parquet_files()
-            .create(
-                sequencer.id,
-                partition.table_id,
-                partition.id,
-                parquet_file.object_store_id,
-                SequenceNumber::new(10),
-                SequenceNumber::new(140),
-                min_time,
-                max_time,
-                1338,
-                b"md2".to_vec(),
-                0,
-            )
+            .create(parquet_file_params.clone())
             .await
             .unwrap_err();
         assert!(matches!(err, Error::FileExists { object_store_id: _ }));
 
-        let other_file = repos
-            .parquet_files()
-            .create(
-                sequencer.id,
-                other_partition.table_id,
-                other_partition.id,
-                Uuid::new_v4(),
-                SequenceNumber::new(45),
-                SequenceNumber::new(200),
-                min_time,
-                max_time,
-                1339,
-                b"md3".to_vec(),
-                0,
-            )
-            .await
-            .unwrap();
+        let other_params = ParquetFileParams {
+            table_id: other_partition.table_id,
+            partition_id: other_partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(45),
+            max_sequence_number: SequenceNumber::new(200),
+            ..parquet_file_params.clone()
+        };
+        let other_file = repos.parquet_files().create(other_params).await.unwrap();
 
         let exist_id = parquet_file.id;
         let non_exist_id = ParquetFileId::new(other_file.id.get() + 10);
@@ -1392,40 +1359,24 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(Vec::<ParquetFile>::new(), files);
+
+        let f1_params = ParquetFileParams {
+            table_id: partition2.table_id,
+            partition_id: partition2.id,
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params
+        };
         let f1 = repos
             .parquet_files()
-            .create(
-                sequencer.id,
-                partition2.table_id,
-                partition2.id,
-                Uuid::new_v4(),
-                SequenceNumber::new(10),
-                SequenceNumber::new(140),
-                min_time,
-                max_time,
-                1337,
-                b"md4".to_vec(),
-                0,
-            )
+            .create(f1_params.clone())
             .await
             .unwrap();
-        let f2 = repos
-            .parquet_files()
-            .create(
-                sequencer.id,
-                partition2.table_id,
-                partition2.id,
-                Uuid::new_v4(),
-                SequenceNumber::new(10),
-                SequenceNumber::new(140),
-                min_time,
-                max_time,
-                1337,
-                b"md4".to_vec(),
-                0,
-            )
-            .await
-            .unwrap();
+
+        let f2_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..f1_params
+        };
+        let f2 = repos.parquet_files().create(f2_params).await.unwrap();
         let files = repos
             .parquet_files()
             .list_by_namespace_not_to_delete(namespace2.id)
@@ -1517,9 +1468,8 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        // Prepare metadata in form of ParquetFile to get added with tombstone
-        let parquet = ParquetFile {
-            id: ParquetFileId::new(0), //fake id that will never be used
+        // Prepare metadata in form of ParquetFileParams to get added with tombstone
+        let parquet = ParquetFileParams {
             sequencer_id: sequencer.id,
             table_id: table.id,
             partition_id: partition.id,
@@ -1528,40 +1478,22 @@ pub(crate) mod test_helpers {
             max_sequence_number: SequenceNumber::new(10),
             min_time,
             max_time,
-            to_delete: false,
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
+            created_at: Timestamp::new(1),
         };
-        let other_parquet = ParquetFile {
-            id: ParquetFileId::new(0), //fake id that will never be used
-            sequencer_id: sequencer.id,
-            table_id: table.id,
-            partition_id: partition.id,
+        let other_parquet = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             min_sequence_number: SequenceNumber::new(11),
             max_sequence_number: SequenceNumber::new(20),
-            min_time,
-            max_time,
-            to_delete: false,
-            file_size_bytes: 1338,
-            parquet_metadata: b"md2".to_vec(),
-            row_count: 0,
+            ..parquet.clone()
         };
-        let another_parquet = ParquetFile {
-            id: ParquetFileId::new(0), //fake id that will never be used
-            sequencer_id: sequencer.id,
-            table_id: table.id,
-            partition_id: partition.id,
+        let another_parquet = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             min_sequence_number: SequenceNumber::new(21),
             max_sequence_number: SequenceNumber::new(30),
-            min_time,
-            max_time,
-            to_delete: false,
-            file_size_bytes: 1339,
-            parquet_metadata: b"md3".to_vec(),
-            row_count: 0,
+            ..parquet.clone()
         };
 
         let parquet_file_count_before = txn.parquet_files().count().await.unwrap();
@@ -1570,10 +1502,13 @@ pub(crate) mod test_helpers {
 
         // Add parquet and processed tombstone in one transaction
         let mut txn = catalog.start_transaction().await.unwrap();
-        let (parquet_file, p_tombstones) =
-            add_parquet_file_with_tombstones(&parquet, &[t1.clone(), t2.clone()], txn.deref_mut())
-                .await
-                .unwrap();
+        let (parquet_file, p_tombstones) = add_parquet_file_with_tombstones(
+            parquet.clone(),
+            &[t1.clone(), t2.clone()],
+            txn.deref_mut(),
+        )
+        .await
+        .unwrap();
         txn.commit().await.unwrap();
         assert_eq!(p_tombstones.len(), 2);
         assert_eq!(t1.id, p_tombstones[0].tombstone_id);
@@ -1603,7 +1538,7 @@ pub(crate) mod test_helpers {
 
         // Error due to duplicate parquet file
         let mut txn = catalog.start_transaction().await.unwrap();
-        add_parquet_file_with_tombstones(&parquet, &[t3.clone(), t1.clone()], txn.deref_mut())
+        add_parquet_file_with_tombstones(parquet, &[t3.clone(), t1.clone()], txn.deref_mut())
             .await
             .unwrap_err();
         txn.abort().await.unwrap();
@@ -1618,7 +1553,7 @@ pub(crate) mod test_helpers {
 
         // Add new parquet and new tombstone. Should go trhough
         let (parquet_file, p_tombstones) =
-            add_parquet_file_with_tombstones(&other_parquet, &[t3.clone()], txn.deref_mut())
+            add_parquet_file_with_tombstones(other_parquet, &[t3.clone()], txn.deref_mut())
                 .await
                 .unwrap();
         assert_eq!(p_tombstones.len(), 1);
@@ -1642,7 +1577,7 @@ pub(crate) mod test_helpers {
         let mut txn = catalog.start_transaction().await.unwrap();
         let mut t4 = t3.clone();
         t4.id = TombstoneId::new(t4.id.get() + 10);
-        add_parquet_file_with_tombstones(&another_parquet, &[t4], txn.deref_mut())
+        add_parquet_file_with_tombstones(another_parquet, &[t4], txn.deref_mut())
             .await
             .unwrap_err();
         txn.abort().await.unwrap();

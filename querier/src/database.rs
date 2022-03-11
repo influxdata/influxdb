@@ -186,7 +186,7 @@ pub(crate) async fn database_sync_loop(
 
 #[cfg(test)]
 mod tests {
-    use crate::test_util::TestCatalog;
+    use iox_tests::util::TestCatalog;
 
     use super::*;
 

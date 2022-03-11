@@ -11,7 +11,7 @@ use trace::TraceCollector;
 
 use crate::{
     http::error::{HttpApiError, HttpApiErrorCode, HttpApiErrorSource},
-    rpc::{add_gated_service, add_service, serve_builder, setup_builder, RpcBuilderInput},
+    rpc::{add_service, serve_builder, setup_builder, RpcBuilderInput},
     server_type::{common_state::CommonServerState, RpcError, ServerType},
 };
 use ingester::handler::IngestHandler;
@@ -54,7 +54,7 @@ impl<I: IngestHandler + Sync + Send + Debug + 'static> ServerType for IngesterSe
     /// Provide a placeholder gRPC service.
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
-        add_gated_service!(builder, self.server.grpc().flight_service());
+        add_service!(builder, self.server.grpc().flight_service());
         serve_builder!(builder);
 
         Ok(())

@@ -5,22 +5,21 @@ use crate::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
         KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
         QueryPoolRepo, RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo,
-        TombstoneRepo, Transaction,
+        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL,
     },
     metrics::MetricDecorator,
 };
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, Partition, PartitionId, PartitionInfo, ProcessedTombstone,
-    QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp,
-    Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
+    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
+    TableId, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::{info, warn};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgres, Row};
 use sqlx_hotswap_pool::HotSwapPool;
 use std::{sync::Arc, time::Duration};
-use uuid::Uuid;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(500);
@@ -1159,24 +1158,26 @@ WHERE table_name.namespace_id = $1;
 
 #[async_trait]
 impl ParquetFileRepo for PostgresTxn {
-    async fn create(
-        &mut self,
-        sequencer_id: SequencerId,
-        table_id: TableId,
-        partition_id: PartitionId,
-        object_store_id: Uuid,
-        min_sequence_number: SequenceNumber,
-        max_sequence_number: SequenceNumber,
-        min_time: Timestamp,
-        max_time: Timestamp,
-        file_size_bytes: i64,
-        parquet_metadata: Vec<u8>,
-        row_count: i64,
-    ) -> Result<ParquetFile> {
+    async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile> {
+        let ParquetFileParams {
+            sequencer_id,
+            table_id,
+            partition_id,
+            object_store_id,
+            min_sequence_number,
+            max_sequence_number,
+            min_time,
+            max_time,
+            file_size_bytes,
+            parquet_metadata,
+            row_count,
+            created_at,
+        } = parquet_file_params;
+
         let rec = sqlx::query_as::<_, ParquetFile>(
             r#"
-INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes, parquet_metadata, row_count )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10, $11 )
+INSERT INTO parquet_file ( sequencer_id, table_id, partition_id, object_store_id, min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes, parquet_metadata, row_count, compaction_level, created_at )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10, $11, $12, $13 )
 RETURNING *
         "#,
         )
@@ -1191,6 +1192,8 @@ RETURNING *
             .bind(file_size_bytes) // $9
             .bind(parquet_metadata) // $10
             .bind(row_count) // $11
+            .bind(INITIAL_COMPACTION_LEVEL) // $12
+            .bind(created_at) // $13
             .fetch_one(&mut self.inner)
             .await
             .map_err(|e| {
@@ -1250,7 +1253,9 @@ SELECT
     parquet_file.to_delete as to_delete,
     parquet_file.file_size_bytes as file_size_bytes,
     parquet_file.parquet_metadata as parquet_metadata,
-    parquet_file.row_count as row_count
+    parquet_file.row_count as row_count,
+    parquet_file.compaction_level as compaction_level,
+    parquet_file.created_at as created_at
 FROM parquet_file
 INNER JOIN table_name on table_name.id = parquet_file.table_id
 WHERE table_name.namespace_id = $1 AND parquet_file.to_delete = false;
@@ -1379,24 +1384,22 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::create_or_get_default_records;
-
     use super::*;
-
-    use std::{env, ops::DerefMut, sync::Arc};
-    use std::{io::Write, time::Instant};
-
+    use crate::create_or_get_default_records;
     use assert_matches::assert_matches;
     use metric::{Attributes, Metric, U64Histogram};
     use rand::Rng;
+    use sqlx::migrate::MigrateDatabase;
+    use std::{env, io::Write, ops::DerefMut, sync::Arc, time::Instant};
     use tempfile::NamedTempFile;
 
-    // Helper macro to skip tests if TEST_INTEGRATION and the AWS environment variables are not set.
+    // Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment
+    // variables are not set.
     macro_rules! maybe_skip_integration {
         ($panic_msg:expr) => {{
             dotenv::dotenv().ok();
 
-            let required_vars = ["DATABASE_URL"];
+            let required_vars = ["TEST_INFLUXDB_IOX_CATALOG_DSN"];
             let unset_vars: Vec<_> = required_vars
                 .iter()
                 .filter_map(|&name| match env::var(name) {
@@ -1449,6 +1452,14 @@ mod tests {
         assert!(hit_count > 0, "metric did not record any calls");
     }
 
+    async fn create_db(dsn: &str) {
+        // Create the catalog database if it doesn't exist
+        if !Postgres::database_exists(dsn).await.unwrap() {
+            // Ignore failure if another test has already created the database
+            let _ = Postgres::create_database(dsn).await;
+        }
+    }
+
     async fn setup_db() -> PostgresCatalog {
         // create a random schema for this particular pool
         let schema_name = {
@@ -1464,7 +1475,10 @@ mod tests {
         };
 
         let metrics = Arc::new(metric::Registry::default());
-        let dsn = std::env::var("DATABASE_URL").unwrap();
+        let dsn = std::env::var("TEST_INFLUXDB_IOX_CATALOG_DSN").unwrap();
+
+        create_db(&dsn).await;
+
         let pg = PostgresCatalog::connect("test", &schema_name, &dsn, 3, metrics)
             .await
             .expect("failed to connect catalog");
@@ -1802,7 +1816,8 @@ mod tests {
         const POLLING_INTERVAL: Duration = Duration::from_millis(10);
 
         // fetch dsn from envvar
-        let test_dsn = std::env::var("DATABASE_URL").unwrap();
+        let test_dsn = std::env::var("TEST_INFLUXDB_IOX_CATALOG_DSN").unwrap();
+        create_db(&test_dsn).await;
         eprintln!("TEST_DSN={}", test_dsn);
 
         // create a temp file to store the initial dsn

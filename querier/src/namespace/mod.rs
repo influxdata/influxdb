@@ -31,7 +31,7 @@ mod test_util;
 /// in-memory data structure are synced regularly via [`sync`](Self::sync).
 ///
 /// To speed up the sync process and reduce the load on the [IOx Catalog](Catalog) we try to use rather large-scoped
-/// queries as well as a [`CatalogCache`].
+/// queries as well as a `CatalogCache`.
 #[derive(Debug)]
 pub struct QuerierNamespace {
     /// Backoff config for IO operations.
@@ -240,8 +240,12 @@ impl QuerierNamespace {
 
         let mut desired_partitions = HashSet::with_capacity(partitions.len());
         for partition in partitions {
-            let table = self.catalog_cache.table_name(partition.table_id).await;
-            let key = self.catalog_cache.old_gen_partition_key(partition.id).await;
+            let table = self.catalog_cache.table().name(partition.table_id).await;
+            let key = self
+                .catalog_cache
+                .partition()
+                .old_gen_partition_key(partition.id)
+                .await;
             desired_partitions.insert((table, key));
         }
 
@@ -475,7 +479,7 @@ impl QuerierNamespace {
         let mut predicates_by_table_and_sequencer: HashMap<_, HashMap<_, Vec<_>>> =
             HashMap::with_capacity(tombstones_by_table_and_sequencer.len());
         for (table_id, tombstones_by_sequencer) in tombstones_by_table_and_sequencer {
-            let table_name = self.catalog_cache.table_name(table_id).await;
+            let table_name = self.catalog_cache.table().name(table_id).await;
             let mut predicates_by_sequencer = HashMap::with_capacity(tombstones_by_sequencer.len());
             for (sequencer_id, mut tombstones) in tombstones_by_sequencer {
                 // sort tombstones by ID so that predicate lists are stable
@@ -602,11 +606,9 @@ impl QuerierNamespace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        namespace::test_util::querier_namespace,
-        test_util::{TestCatalog, TestParquetFile},
-    };
+    use crate::namespace::test_util::querier_namespace;
     use data_types2::{ChunkAddr, ChunkId, ColumnType, PartitionAddr};
+    use iox_tests::util::{TestCatalog, TestParquetFile};
     use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
     use uuid::Uuid;
 

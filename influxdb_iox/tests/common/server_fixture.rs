@@ -241,12 +241,6 @@ impl ServerFixture {
         influxdb_iox_client::flight::Client::new(self.grpc_channel())
     }
 
-    /// Return a flight client suitable for communicating with the ingester service, like the one
-    /// the query service uses
-    pub fn querier_flight_client(&self) -> querier::flight::Client {
-        querier::flight::Client::new(self.grpc_channel())
-    }
-
     /// Return a storage API client suitable for communicating with this
     /// server
     pub fn storage_client(&self) -> generated_types::storage_client::StorageClient<Connection> {
@@ -346,7 +340,6 @@ struct TestServer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ServerType {
     Database,
-    Ingester,
     Router,
 }
 
@@ -474,7 +467,8 @@ impl TestServer {
 
         println!("****************");
         println!(
-            "Server {} Logging to {:?}",
+            "{:?} Server {} Logging to {:?}",
+            server_type,
             addrs.http_bind_addr(),
             log_path
         );
@@ -485,7 +479,6 @@ impl TestServer {
 
         let type_name = match server_type {
             ServerType::Database => "database",
-            ServerType::Ingester => "ingester",
             ServerType::Router => "router",
         };
 
@@ -537,11 +530,17 @@ impl TestServer {
             loop {
                 match client.get(&url).send().await {
                     Ok(resp) => {
-                        println!("Successfully got a response from HTTP: {:?}", resp);
+                        println!(
+                            "Successfully got a response from {:?} HTTP: {:?}",
+                            self.test_config.server_type, resp
+                        );
                         return;
                     }
                     Err(e) => {
-                        println!("Waiting for HTTP server to be up: {}", e);
+                        println!(
+                            "Waiting for {:?} HTTP server to be up: {}",
+                            self.test_config.server_type, e
+                        );
                     }
                 }
                 interval.tick().await;
@@ -561,7 +560,10 @@ impl TestServer {
                 // tell others that this server had some problem
                 *ready = ServerState::Error;
                 std::mem::drop(ready);
-                panic!("Server was not ready in required time: {}", e);
+                panic!(
+                    "{:?} Server was not ready in required time: {}",
+                    self.test_config.server_type, e
+                );
             }
         }
 
@@ -573,7 +575,7 @@ impl TestServer {
                 // tell others that this server had some problem
                 *ready = ServerState::Error;
                 std::mem::drop(ready);
-                panic!("Server already has an ID ({}); possibly a stray/orphan server from another test run.", id);
+                panic!("{:?} Server already has an ID ({}); possibly a stray/orphan server from another test run.", self.test_config.server_type, id);
             }
         }
 
@@ -587,7 +589,10 @@ impl TestServer {
                     .await
                     .expect("set ID failed");
 
-                println!("Set server ID to {:?}", id);
+                println!(
+                    "Set {:?} server ID to {:?}",
+                    self.test_config.server_type, id
+                );
 
                 if self.test_config.server_type == ServerType::Database {
                     // if server ID was set, we can also wait until DBs are loaded
@@ -631,26 +636,6 @@ impl TestServer {
 
         loop {
             match (self.grpc_channel().await, self.test_config.server_type) {
-                (Ok(channel), ServerType::Ingester) => {
-                    // TODO: What should be checked to ensure the ingester is up? Should
-                    // ingester implement the deployment service?
-                    println!("ingester grpc connected");
-
-                    let mut health = influxdb_iox_client::health::Client::new(channel);
-
-                    match health.check_arrow().await {
-                        Ok(true) => {
-                            println!("Flight service is running");
-                            return;
-                        }
-                        Ok(false) => {
-                            println!("Flight service is not running");
-                        }
-                        Err(e) => {
-                            println!("Waiting for gRPC API to be healthy: {:?}", e);
-                        }
-                    }
-                }
                 (Ok(channel), _) => {
                     println!("Successfully connected to server");
 
@@ -665,12 +650,18 @@ impl TestServer {
                             println!("Deployment service is not running");
                         }
                         Err(e) => {
-                            println!("Waiting for gRPC API to be healthy: {:?}", e);
+                            println!(
+                                "Waiting for {:?} gRPC API to be healthy: {:?}",
+                                self.test_config.server_type, e
+                            );
                         }
                     }
                 }
                 (Err(e), _) => {
-                    println!("Waiting for gRPC API to be up: {}", e);
+                    println!(
+                        "Waiting for {:?} gRPC API to be up: {}",
+                        self.test_config.server_type, e
+                    );
                 }
             }
             interval.tick().await;
@@ -701,7 +692,8 @@ impl std::fmt::Display for TestServer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(
             f,
-            "TestServer (grpc {}, http {})",
+            "TestServer {:?} (grpc {}, http {})",
+            self.test_config.server_type,
             self.addrs().grpc_base,
             self.addrs().http_base
         )
@@ -731,7 +723,7 @@ impl Drop for TestServer {
         let mut buffer = [0_u8; 8 * 1024];
 
         println!("****************");
-        println!("Start TestServer Output");
+        println!("Start {:?} TestServer Output", self.test_config.server_type);
         println!("****************");
 
         while let Ok(read) = f.read(&mut buffer) {
@@ -749,7 +741,7 @@ impl Drop for TestServer {
         }
 
         println!("****************");
-        println!("End TestServer Output");
+        println!("End {:?} TestServer Output", self.test_config.server_type);
         println!("****************");
     }
 }

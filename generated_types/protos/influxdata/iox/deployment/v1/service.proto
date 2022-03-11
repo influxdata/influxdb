@@ -9,11 +9,6 @@ service DeploymentService {
   // Update server ID.
   rpc UpdateServerId(UpdateServerIdRequest) returns (UpdateServerIdResponse);
 
-  // Set serving readiness.
-  rpc SetServingReadiness(SetServingReadinessRequest) returns (SetServingReadinessResponse);
-
-  // Get serving readiness.
-  rpc GetServingReadiness(GetServingReadinessRequest) returns (GetServingReadinessResponse);
 }
 
 message GetServerIdRequest {}
@@ -29,17 +24,3 @@ message UpdateServerIdRequest {
 }
 
 message UpdateServerIdResponse {}
-
-message SetServingReadinessRequest {
-  // If false, the IOx server will respond with UNAVAILABLE to all data plane requests.
-  bool ready = 1;
-}
-
-message SetServingReadinessResponse {}
-
-message GetServingReadinessRequest {}
-
-message GetServingReadinessResponse {
-  // If false, the IOx server will respond with UNAVAILABLE to all data plane requests.
-  bool ready = 1;
-}
