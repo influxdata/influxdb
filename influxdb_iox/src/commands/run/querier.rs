@@ -2,7 +2,6 @@
 
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
-use querier::{database::QuerierDatabase, handler::QuerierHandlerImpl, server::QuerierServer};
 use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
@@ -11,8 +10,10 @@ use time::SystemProvider;
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
 use influxdb_ioxd::{
     self,
-    server_type::common_state::{CommonServerState, CommonServerStateError},
-    server_type::querier::QuerierServerType,
+    server_type::{
+        common_state::{CommonServerState, CommonServerStateError},
+        querier::create_querier_server_type,
+    },
 };
 
 #[derive(Debug, Error)]
@@ -82,17 +83,15 @@ pub async fn command(config: Config) -> Result<(), Error> {
     info!(%num_threads, "using specified number of threads per thread pool");
 
     let exec = Arc::new(Executor::new(num_threads));
-    let database = Arc::new(QuerierDatabase::new(
+    let server_type = create_querier_server_type(
+        &common_state,
+        metric_registry,
         catalog,
-        Arc::clone(&metric_registry),
         object_store,
         time_provider,
         exec,
-    ));
-    let querier_handler = Arc::new(QuerierHandlerImpl::new(Arc::clone(&database)));
-
-    let querier = QuerierServer::new(metric_registry, querier_handler);
-    let server_type = Arc::new(QuerierServerType::new(querier, database, &common_state));
+    )
+    .await;
 
     info!("starting querier");
 
