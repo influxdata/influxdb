@@ -250,7 +250,7 @@ mod tests {
         timestamp::TimestampRange,
     };
     use lifecycle::{LockableChunk, LockablePartition};
-    use object_store::ObjectStore;
+    use object_store::ObjectStoreImpl;
     use std::{
         convert::TryFrom,
         num::{NonZeroU32, NonZeroU64},
@@ -470,7 +470,7 @@ mod tests {
     #[tokio::test]
     async fn test_delete_predicate_propagation() {
         // setup DB
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "delete_predicate_propagation";
         let test_db = TestDb::builder()

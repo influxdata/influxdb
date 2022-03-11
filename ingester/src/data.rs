@@ -16,7 +16,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
 use iox_catalog::interface::Catalog;
 use mutable_batch::{column::ColumnData, MutableBatch};
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use observability_deps::tracing::warn;
 use parking_lot::RwLock;
 use predicate::Predicate;
@@ -91,7 +91,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct IngesterData {
     /// Object store for persistence of parquet files
-    pub(crate) object_store: Arc<ObjectStore>,
+    pub(crate) object_store: Arc<ObjectStoreImpl>,
     /// The global catalog for schema, parquet files and tombstones
     pub(crate) catalog: Arc<dyn Catalog>,
     /// This map gets set up on initialization of the ingester so it won't ever be modified.
@@ -1420,7 +1420,7 @@ mod tests {
         let mut sequencers = BTreeMap::new();
         sequencers.insert(sequencer1.id, SequencerData::default());
 
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
 
         let data = Arc::new(IngesterData {
             object_store: Arc::clone(&object_store),
@@ -1501,7 +1501,7 @@ mod tests {
         sequencers.insert(sequencer1.id, SequencerData::default());
         sequencers.insert(sequencer2.id, SequencerData::default());
 
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
 
         let data = Arc::new(IngesterData {
             object_store: Arc::clone(&object_store),

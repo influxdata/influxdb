@@ -3,7 +3,7 @@
 use data_types::server_id::ServerId;
 use object_store::{
     path::{ObjectStorePath, Path},
-    ObjectStore, ObjectStoreApi,
+    ObjectStoreImpl, ObjectStoreApi,
 };
 use std::fmt;
 use uuid::Uuid;
@@ -21,7 +21,7 @@ const DATABASE_OWNER_FILE_NAME: &str = "owner.pb";
 
 /// The path to the server file containing the list of databases this server owns.
 // TODO: this is in the process of replacing all_databases_path for the floating databases design
-pub(crate) fn server_config_path(object_store: &ObjectStore, server_id: ServerId) -> Path {
+pub(crate) fn server_config_path(object_store: &ObjectStoreImpl, server_id: ServerId) -> Path {
     let mut path = object_store.new_path();
     path.push_dir(ALL_SERVERS_DIRECTORY);
     path.push_dir(server_id.to_string());
@@ -39,14 +39,14 @@ pub struct RootPath {
 
 impl RootPath {
     /// How the root of a database is defined in object storage.
-    pub(crate) fn new(object_store: &ObjectStore, uuid: Uuid) -> Self {
+    pub(crate) fn new(object_store: &ObjectStoreImpl, uuid: Uuid) -> Self {
         let mut inner = object_store.new_path();
         inner.push_dir(ALL_DATABASES_DIRECTORY);
         inner.push_dir(uuid.to_string());
         Self { inner }
     }
 
-    pub(crate) fn from_str(object_store: &ObjectStore, raw: &str) -> Self {
+    pub(crate) fn from_str(object_store: &ObjectStoreImpl, raw: &str) -> Self {
         Self {
             inner: object_store.path_from_raw(raw),
         }
@@ -173,13 +173,13 @@ impl DataPath {
 mod tests {
     use super::*;
     use crate::IoxObjectStore;
-    use object_store::ObjectStore;
+    use object_store::ObjectStoreImpl;
     use std::sync::Arc;
 
     /// Creates a new in-memory object store. These tests rely on the `Path`s being of type
     /// `DirsAndFileName` and thus using object_store::path::DELIMITER as the separator
-    fn make_object_store() -> Arc<ObjectStore> {
-        Arc::new(ObjectStore::new_in_memory())
+    fn make_object_store() -> Arc<ObjectStoreImpl> {
+        Arc::new(ObjectStoreImpl::new_in_memory())
     }
 
     #[test]

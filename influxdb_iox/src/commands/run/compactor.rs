@@ -1,7 +1,7 @@
 //! Implementation of command line option for running the compactor
 
 use data_types2::SequencerId;
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use std::sync::Arc;
@@ -84,7 +84,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         .await?;
 
     let object_store = Arc::new(
-        ObjectStore::try_from(config.run_config().object_store_config())
+        ObjectStoreImpl::try_from(config.run_config().object_store_config())
             .map_err(Error::ObjectStoreParsing)?,
     );
 

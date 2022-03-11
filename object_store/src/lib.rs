@@ -110,13 +110,13 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
 
 /// Universal interface to multiple object store services.
 #[derive(Debug)]
-pub struct ObjectStore {
+pub struct ObjectStoreImpl {
     /// The object store
     pub integration: ObjectStoreIntegration,
     cache: Option<ObjectStoreFileCache>,
 }
 
-impl ObjectStore {
+impl ObjectStoreImpl {
     /// Configure a connection to Amazon S3.
     #[allow(clippy::too_many_arguments)]
     pub fn new_amazon_s3(
@@ -229,7 +229,7 @@ impl ObjectStore {
 }
 
 #[async_trait]
-impl ObjectStoreApi for ObjectStore {
+impl ObjectStoreApi for ObjectStoreImpl {
     type Path = path::Path;
     type Error = Error;
 
@@ -496,7 +496,7 @@ impl Cache for ObjectStoreFileCache {
     async fn fs_path_or_cache(
         &self,
         path: &Path,
-        store: Arc<ObjectStore>,
+        store: Arc<ObjectStoreImpl>,
     ) -> crate::cache::Result<&str> {
         match &self {
             Self::Passthrough(f) => f.fs_path_or_cache(path, store).await,
@@ -754,7 +754,7 @@ mod tests {
     type Result<T, E = Error> = std::result::Result<T, E>;
 
     async fn flatten_list_stream(
-        storage: &ObjectStore,
+        storage: &ObjectStoreImpl,
         prefix: Option<&path::Path>,
     ) -> Result<Vec<path::Path>> {
         storage
@@ -766,7 +766,7 @@ mod tests {
             .await
     }
 
-    pub(crate) async fn put_get_delete_list(storage: &ObjectStore) -> Result<()> {
+    pub(crate) async fn put_get_delete_list(storage: &ObjectStoreImpl) -> Result<()> {
         delete_fixtures(storage).await;
 
         let content_list = flatten_list_stream(storage, None).await?;
@@ -811,7 +811,7 @@ mod tests {
         Ok(())
     }
 
-    pub(crate) async fn list_uses_directories_correctly(storage: &ObjectStore) -> Result<()> {
+    pub(crate) async fn list_uses_directories_correctly(storage: &ObjectStoreImpl) -> Result<()> {
         delete_fixtures(storage).await;
 
         let content_list = flatten_list_stream(storage, None).await?;
@@ -847,7 +847,7 @@ mod tests {
         Ok(())
     }
 
-    pub(crate) async fn list_with_delimiter(storage: &ObjectStore) -> Result<()> {
+    pub(crate) async fn list_with_delimiter(storage: &ObjectStoreImpl) -> Result<()> {
         delete_fixtures(storage).await;
 
         // ==================== check: store is empty ====================
@@ -932,8 +932,8 @@ mod tests {
 
     #[allow(dead_code)]
     pub(crate) async fn get_nonexistent_object(
-        storage: &ObjectStore,
-        location: Option<<ObjectStore as ObjectStoreApi>::Path>,
+        storage: &ObjectStoreImpl,
+        location: Option<<ObjectStoreImpl as ObjectStoreApi>::Path>,
     ) -> Result<Vec<u8>> {
         let location = location.unwrap_or_else(|| {
             let mut loc = storage.new_path();
@@ -951,7 +951,7 @@ mod tests {
     /// associated storage might not be cloud storage, to reuse the cloud
     /// path parsing logic. Then convert into the correct type of path for
     /// the given storage.
-    fn str_to_path(storage: &ObjectStore, val: &str) -> path::Path {
+    fn str_to_path(storage: &ObjectStoreImpl, val: &str) -> path::Path {
         let cloud_path = CloudPath::raw(val);
         let parsed: DirsAndFileName = cloud_path.into();
 
@@ -966,7 +966,7 @@ mod tests {
         new_path
     }
 
-    async fn delete_fixtures(storage: &ObjectStore) {
+    async fn delete_fixtures(storage: &ObjectStoreImpl) {
         let files: Vec<_> = [
             "test_file",
             "test_dir/test_file.json",

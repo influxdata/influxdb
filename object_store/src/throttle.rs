@@ -217,7 +217,7 @@ mod tests {
         memory::InMemory,
         path::ObjectStorePath,
         tests::{list_uses_directories_correctly, list_with_delimiter, put_get_delete_list},
-        ObjectStore,
+        ObjectStoreImpl,
     };
     use bytes::Bytes;
     use futures::TryStreamExt;
@@ -243,7 +243,7 @@ mod tests {
     #[tokio::test]
     async fn throttle_test() {
         let config = ThrottleConfig::default();
-        let integration = ObjectStore::new_in_memory_throttled(config);
+        let integration = ObjectStoreImpl::new_in_memory_throttled(config);
 
         put_get_delete_list(&integration).await.unwrap();
         list_uses_directories_correctly(&integration).await.unwrap();

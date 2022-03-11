@@ -1062,7 +1062,7 @@ pub enum DatabaseNameFromRulesError {
 }
 
 async fn database_name_from_rules_file(
-    object_store: Arc<object_store::ObjectStore>,
+    object_store: Arc<object_store::ObjectStoreImpl>,
     uuid: Uuid,
 ) -> Result<DatabaseName<'static>, DatabaseNameFromRulesError> {
     let rules_bytes = IoxObjectStore::load_database_rules(object_store, uuid)
@@ -1085,12 +1085,12 @@ async fn database_name_from_rules_file(
 
 pub mod test_utils {
     use super::*;
-    use object_store::ObjectStore;
+    use object_store::ObjectStoreImpl;
 
     /// Create a new [`ApplicationState`] with an in-memory object store
     pub fn make_application() -> Arc<ApplicationState> {
         Arc::new(ApplicationState::new(
-            Arc::new(ObjectStore::new_in_memory()),
+            Arc::new(ObjectStoreImpl::new_in_memory()),
             None,
             None,
             None,
@@ -1132,7 +1132,7 @@ mod tests {
     use generated_types::influxdata::iox::management;
     use iox_object_store::IoxObjectStore;
     use mutable_batch_lp::lines_to_batches;
-    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+    use object_store::{path::ObjectStorePath, ObjectStoreImpl, ObjectStoreApi};
     use parquet_catalog::{
         core::{PreservedCatalog, PreservedCatalogConfig},
         test_helpers::{load_ok, new_empty},
@@ -1153,14 +1153,14 @@ mod tests {
         assert!(matches!(resp, Error::IdNotSet));
     }
 
-    async fn server_config_contents(object_store: &ObjectStore, server_id: ServerId) -> Bytes {
+    async fn server_config_contents(object_store: &ObjectStoreImpl, server_id: ServerId) -> Bytes {
         IoxObjectStore::get_server_config_file(object_store, server_id)
             .await
             .unwrap_or_else(|_| Bytes::new())
     }
 
     async fn server_config(
-        object_store: &ObjectStore,
+        object_store: &ObjectStoreImpl,
         server_id: ServerId,
     ) -> management::v1::ServerConfig {
         let server_config_contents = server_config_contents(object_store, server_id).await;
@@ -1650,7 +1650,7 @@ mod tests {
     #[tokio::test]
     async fn init_error_generic() {
         // use an object store that will hopefully fail to read
-        let store = Arc::new(ObjectStore::new_failing_store().unwrap());
+        let store = Arc::new(ObjectStoreImpl::new_failing_store().unwrap());
         let application = Arc::new(ApplicationState::new(store, None, None, None));
         let server = make_server(application);
 

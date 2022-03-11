@@ -4,7 +4,7 @@ use crate::query::QueryableParquetChunk;
 use arrow::record_batch::RecordBatch;
 use data_types2::{ParquetFile, ParquetFileId, Tombstone, TombstoneId};
 use iox_object_store::IoxObjectStore;
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use parquet_file::{
     chunk::{new_parquet_chunk, ChunkMetrics, DecodedParquetFile},
     metadata::IoxMetadata,
@@ -50,7 +50,7 @@ impl ParquetFileWithTombstone {
     /// Convert to a QueryableParquetChunk
     pub fn to_queryable_parquet_chunk(
         &self,
-        object_store: Arc<ObjectStore>,
+        object_store: Arc<ObjectStoreImpl>,
         table_name: String,
         partition_key: String,
     ) -> QueryableParquetChunk {

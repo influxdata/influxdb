@@ -7,7 +7,7 @@ use data_types::{
 };
 use iox_object_store::IoxObjectStore;
 use job_registry::JobRegistry;
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use persistence_windows::checkpoint::ReplayPlan;
 use query::exec::Executor;
 use query::exec::ExecutorConfig;
@@ -33,7 +33,7 @@ impl TestDb {
 #[derive(Debug)]
 pub struct TestDbBuilder {
     server_id: ServerId,
-    object_store: Arc<ObjectStore>,
+    object_store: Arc<ObjectStoreImpl>,
     db_name: DatabaseName<'static>,
     uuid: Uuid,
     worker_cleanup_avg_sleep: Duration,
@@ -46,7 +46,7 @@ impl Default for TestDbBuilder {
     fn default() -> Self {
         Self {
             server_id: ServerId::try_from(1).unwrap(),
-            object_store: Arc::new(ObjectStore::new_in_memory()),
+            object_store: Arc::new(ObjectStoreImpl::new_in_memory()),
             db_name: DatabaseName::new("placeholder").unwrap(),
             uuid: Uuid::new_v4(),
             // make background loop spin a bit faster for tests
@@ -139,7 +139,7 @@ impl TestDbBuilder {
         self
     }
 
-    pub fn object_store(mut self, object_store: Arc<ObjectStore>) -> Self {
+    pub fn object_store(mut self, object_store: Arc<ObjectStoreImpl>) -> Self {
         self.object_store = object_store;
         self
     }

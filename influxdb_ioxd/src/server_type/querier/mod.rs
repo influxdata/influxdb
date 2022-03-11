@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use metric::Registry;
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use querier::{
     database::QuerierDatabase,
     handler::{QuerierHandler, QuerierHandlerImpl},
@@ -127,7 +127,7 @@ pub async fn create_querier_server_type(
     common_state: &CommonServerState,
     metric_registry: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
-    object_store: Arc<ObjectStore>,
+    object_store: Arc<ObjectStoreImpl>,
     time_provider: Arc<dyn TimeProvider>,
     exec: Arc<Executor>,
 ) -> Arc<dyn ServerType> {

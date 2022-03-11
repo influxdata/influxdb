@@ -10,7 +10,7 @@ use data_types2::{
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use query::exec::Executor;
 use schema::selection::Selection;
@@ -23,7 +23,7 @@ use uuid::Uuid;
 pub struct TestCatalog {
     pub catalog: Arc<dyn Catalog>,
     pub metric_registry: Arc<metric::Registry>,
-    pub object_store: Arc<ObjectStore>,
+    pub object_store: Arc<ObjectStoreImpl>,
     pub time_provider: Arc<MockProvider>,
     pub exec: Arc<Executor>,
 }
@@ -33,7 +33,7 @@ impl TestCatalog {
     pub fn new() -> Arc<Self> {
         let metric_registry = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0)));
         let exec = Arc::new(Executor::new(1));
 
@@ -57,7 +57,7 @@ impl TestCatalog {
     }
 
     /// Return the catalog's  object store
-    pub fn object_store(&self) -> Arc<ObjectStore> {
+    pub fn object_store(&self) -> Arc<ObjectStoreImpl> {
         Arc::clone(&self.object_store)
     }
 
@@ -353,7 +353,7 @@ impl TestPartition {
 
 /// Create parquet file and return thrift-encoded and zstd-compressed parquet metadata as well as the file size.
 async fn create_parquet_file(
-    object_store: &Arc<ObjectStore>,
+    object_store: &Arc<ObjectStoreImpl>,
     metadata: &IoxMetadata,
     record_batch: RecordBatch,
 ) -> (Vec<u8>, usize) {

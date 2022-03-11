@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, TransactionFilePath};
-use object_store::{ObjectStore, ObjectStoreApi};
+use object_store::{ObjectStoreImpl, ObjectStoreApi};
 use prost::Message;
 use snafu::{ResultExt, Snafu};
 
@@ -15,12 +15,12 @@ pub enum Error {
 
     #[snafu(display("Error during store write operation: {}", source))]
     Write {
-        source: <ObjectStore as ObjectStoreApi>::Error,
+        source: <ObjectStoreImpl as ObjectStoreApi>::Error,
     },
 
     #[snafu(display("Error during store read operation: {}", source))]
     Read {
-        source: <ObjectStore as ObjectStoreApi>::Error,
+        source: <ObjectStoreImpl as ObjectStoreApi>::Error,
     },
 }
 

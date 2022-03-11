@@ -325,7 +325,7 @@ mod tests {
     use super::*;
     use crate::checkpoint_data_from_catalog;
     use data_types::DatabaseName;
-    use object_store::ObjectStore;
+    use object_store::ObjectStoreImpl;
     use parquet_catalog::{
         interface::CheckpointData,
         test_helpers::{assert_catalog_state_implementation, new_empty},
@@ -334,7 +334,7 @@ mod tests {
 
     #[tokio::test]
     async fn load_or_create_preserved_catalog_recovers_from_error() {
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
         let time_provider: Arc<dyn TimeProvider> = Arc::new(time::SystemProvider::new());
         let db_name = DatabaseName::new("preserved_catalog_test").unwrap();
         let db_uuid = Uuid::new_v4();

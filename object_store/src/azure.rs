@@ -287,7 +287,7 @@ pub fn new_azure(
 #[cfg(test)]
 mod tests {
     use crate::tests::{list_uses_directories_correctly, list_with_delimiter, put_get_delete_list};
-    use crate::ObjectStore;
+    use crate::ObjectStoreImpl;
     use std::env;
 
     #[derive(Debug)]
@@ -353,7 +353,7 @@ mod tests {
     #[tokio::test]
     async fn azure_blob_test() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStore::new_microsoft_azure(
+        let integration = ObjectStoreImpl::new_microsoft_azure(
             config.storage_account,
             config.access_key,
             config.bucket,

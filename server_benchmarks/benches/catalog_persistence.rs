@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, SamplingMode};
 use data_types::{chunk_metadata::ChunkId, database_rules::LifecycleRules};
 use db::{test_helpers::write_lp, utils::TestDb};
-use object_store::{ObjectStore, ThrottleConfig};
+use object_store::{ObjectStoreImpl, ThrottleConfig};
 use query::QueryChunk;
 use std::{
     convert::TryFrom,
@@ -74,7 +74,7 @@ fn benchmark_catalog_persistence(c: &mut Criterion) {
 
 /// Persist a database to the given object store with [`N_CHUNKS`] chunks.
 async fn setup(
-    object_store: Arc<ObjectStore>,
+    object_store: Arc<ObjectStoreImpl>,
     done: &Mutex<Option<Arc<Vec<ChunkId>>>>,
 ) -> Arc<Vec<ChunkId>> {
     let mut guard = done.lock().await;
@@ -115,7 +115,7 @@ async fn setup(
 
 /// Create a persisted database and load its catalog.
 #[inline(never)]
-async fn create_persisted_db(object_store: Arc<ObjectStore>) -> TestDb {
+async fn create_persisted_db(object_store: Arc<ObjectStoreImpl>) -> TestDb {
     TestDb::builder()
         .object_store(object_store)
         .lifecycle_rules(LifecycleRules {
@@ -148,7 +148,7 @@ fn create_lp(n_tags: usize, n_fields: usize) -> String {
 }
 
 /// Create object store with somewhat realistic operation latencies.
-fn create_throttled_store() -> Arc<ObjectStore> {
+fn create_throttled_store() -> Arc<ObjectStoreImpl> {
     let config = ThrottleConfig {
         // for every call: assume a 100ms latency
         wait_delete_per_call: Duration::from_millis(100),
@@ -165,7 +165,7 @@ fn create_throttled_store() -> Arc<ObjectStore> {
         wait_get_per_byte: Duration::from_secs(1) / 1_000_000_000,
     };
 
-    Arc::new(ObjectStore::new_in_memory_throttled(config))
+    Arc::new(ObjectStoreImpl::new_in_memory_throttled(config))
 }
 
 criterion_group!(benches, benchmark_catalog_persistence);

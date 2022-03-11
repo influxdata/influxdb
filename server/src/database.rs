@@ -767,7 +767,7 @@ mod tests {
         sequence::Sequence,
         write_buffer::WriteBufferConnection,
     };
-    use object_store::{ObjectStore, ObjectStoreIntegration, ThrottleConfig};
+    use object_store::{ObjectStoreImpl, ObjectStoreIntegration, ThrottleConfig};
     use test_helpers::assert_contains;
     use write_buffer::mock::MockBufferSharedState;
 
@@ -964,7 +964,7 @@ mod tests {
             ..Default::default()
         };
 
-        let store = Arc::new(ObjectStore::new_in_memory_throttled(throttle_config));
+        let store = Arc::new(ObjectStoreImpl::new_in_memory_throttled(throttle_config));
         let application = Arc::new(ApplicationState::new(Arc::clone(&store), None, None, None));
 
         let db_config = DatabaseConfig {

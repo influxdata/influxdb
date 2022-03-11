@@ -1447,7 +1447,7 @@ mod tests {
     use iox_object_store::ParquetFilePath;
     use metric::{Attributes, CumulativeGauge, Metric, Observation};
     use mutable_batch_lp::lines_to_batches;
-    use object_store::ObjectStore;
+    use object_store::ObjectStoreImpl;
     use parquet_catalog::test_helpers::load_ok;
     use parquet_file::{
         metadata::IoxParquetMetaData,
@@ -2086,7 +2086,7 @@ mod tests {
     #[tokio::test]
     async fn write_one_chunk_to_parquet_file() {
         // Test that data can be written into parquet files
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
         let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
 
         let test_db = TestDb::builder()
@@ -2187,7 +2187,7 @@ mod tests {
         // be able to read data from object store
 
         // Create an object store in memory
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
         let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
 
         let test_db = TestDb::builder()
@@ -2973,7 +2973,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn lock_tracker_metrics() {
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
 
         // Create a DB given a server id, an object store and a db name
         let server_id = ServerId::try_from(10).unwrap();
@@ -3106,7 +3106,7 @@ mod tests {
         // Test that parquet data is committed to preserved catalog
 
         // ==================== setup ====================
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "preserved_catalog_test";
 
@@ -3205,7 +3205,7 @@ mod tests {
         // Test that stale parquet files are removed from object store
 
         // ==================== setup ====================
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
 
         // ==================== do: create DB ====================
         let test_db = TestDb::builder()
@@ -3298,7 +3298,7 @@ mod tests {
         // Test that the preserved catalog creates checkpoints
 
         // ==================== setup ====================
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "preserved_catalog_test";
 
@@ -3374,7 +3374,7 @@ mod tests {
         // Test that the background worker prunes transactions
 
         // ==================== setup ====================
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "transaction_pruning_test";
 

@@ -17,7 +17,7 @@ use futures::{
     FutureExt, StreamExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use observability_deps::tracing::{debug, error, info, warn};
 use query::exec::Executor;
 use snafu::{ResultExt, Snafu};
@@ -114,7 +114,7 @@ impl IngestHandlerImpl {
         topic: KafkaTopic,
         sequencer_states: BTreeMap<KafkaPartition, Sequencer>,
         catalog: Arc<dyn Catalog>,
-        object_store: Arc<ObjectStore>,
+        object_store: Arc<ObjectStoreImpl>,
         write_buffer: Arc<dyn WriteBufferReading>,
         exec: Arc<Executor>,
         metric_registry: Arc<metric::Registry>,
@@ -713,7 +713,7 @@ mod tests {
 
         let reading: Arc<dyn WriteBufferReading> =
             Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
-        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
 
         let lifecycle_config = LifecycleConfig::new(
             1000000,
@@ -813,7 +813,7 @@ mod tests {
                 MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
             let reading: Arc<dyn WriteBufferReading> =
                 Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
-            let object_store = Arc::new(ObjectStore::new_in_memory());
+            let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
 
             let lifecycle_config = LifecycleConfig::new(
                 1000000,

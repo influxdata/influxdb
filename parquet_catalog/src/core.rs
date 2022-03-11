@@ -6,7 +6,7 @@ use futures::{StreamExt, TryStreamExt};
 use generated_types::google::FieldViolation;
 use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
-use object_store::{ObjectStore, ObjectStoreApi};
+use object_store::{ObjectStoreImpl, ObjectStoreApi};
 use observability_deps::tracing::{info, warn};
 use parking_lot::RwLock;
 use parquet_file::metadata::IoxParquetMetaData;
@@ -49,12 +49,12 @@ pub enum Error {
 
     #[snafu(display("Error during store write operation: {}", source))]
     Write {
-        source: <ObjectStore as ObjectStoreApi>::Error,
+        source: <ObjectStoreImpl as ObjectStoreApi>::Error,
     },
 
     #[snafu(display("Error during store read operation: {}", source))]
     Read {
-        source: <ObjectStore as ObjectStoreApi>::Error,
+        source: <ObjectStoreImpl as ObjectStoreApi>::Error,
     },
 
     #[snafu(display("Missing transaction: {}", revision_counter))]

@@ -17,7 +17,7 @@
 use bytes::Bytes;
 use data_types::server_id::ServerId;
 use futures::{stream::BoxStream, StreamExt, TryStreamExt};
-use object_store::{path::Path, GetResult, ObjectStore, ObjectStoreApi, Result};
+use object_store::{path::Path, GetResult, ObjectStoreImpl, ObjectStoreApi, Result};
 use observability_deps::tracing::warn;
 use snafu::{ensure, ResultExt, Snafu};
 use std::sync::Arc;
@@ -50,7 +50,7 @@ pub enum IoxObjectStoreError {
 /// This wrapper on top of an `ObjectStore` maps IOx specific concepts to ObjectStore locations
 #[derive(Debug)]
 pub struct IoxObjectStore {
-    inner: Arc<ObjectStore>,
+    inner: Arc<ObjectStoreImpl>,
     root_path: RootPath,
     data_path: DataPath,
     transactions_path: TransactionsPath,
@@ -63,7 +63,7 @@ impl IoxObjectStore {
     /// TEMPORARY: Server config used to be at the top level instead of beneath `/nodes/`. Until
     /// all deployments have transitioned, check both locations before reporting that the server
     /// config is not found.
-    pub async fn get_server_config_file(inner: &ObjectStore, server_id: ServerId) -> Result<Bytes> {
+    pub async fn get_server_config_file(inner: &ObjectStoreImpl, server_id: ServerId) -> Result<Bytes> {
         let path = paths::server_config_path(inner, server_id);
         let result = match inner.get(&path).await {
             Err(object_store::Error::NotFound { .. }) => {
@@ -83,7 +83,7 @@ impl IoxObjectStore {
     /// Store the data for the server config with the names and locations of the databases
     /// that this server owns.
     pub async fn put_server_config_file(
-        inner: &ObjectStore,
+        inner: &ObjectStoreImpl,
         server_id: ServerId,
         bytes: Bytes,
     ) -> Result<()> {
@@ -93,13 +93,13 @@ impl IoxObjectStore {
 
     /// Return the path to the server config file to be used in database ownership information to
     /// identify the current server that a database thinks is its owner.
-    pub fn server_config_path(inner: &ObjectStore, server_id: ServerId) -> Path {
+    pub fn server_config_path(inner: &ObjectStoreImpl, server_id: ServerId) -> Path {
         paths::server_config_path(inner, server_id)
     }
 
     /// Returns what the root path would be for a given database. Does not check existence or
     /// validity of the path in object storage.
-    pub fn root_path_for(inner: &ObjectStore, uuid: Uuid) -> RootPath {
+    pub fn root_path_for(inner: &ObjectStoreImpl, uuid: Uuid) -> RootPath {
         RootPath::new(inner, uuid)
     }
 
@@ -109,7 +109,7 @@ impl IoxObjectStore {
     ///
     /// Caller *MUST* ensure there is at most 1 concurrent call of this function with the same
     /// parameters; this function does *NOT* do any locking.
-    pub async fn create(inner: Arc<ObjectStore>, uuid: Uuid) -> Result<Self, IoxObjectStoreError> {
+    pub async fn create(inner: Arc<ObjectStoreImpl>, uuid: Uuid) -> Result<Self, IoxObjectStoreError> {
         let root_path = Self::root_path_for(&inner, uuid);
 
         let list_result = inner
@@ -126,7 +126,7 @@ impl IoxObjectStore {
     }
 
     /// Look in object storage for an existing, active database with this UUID.
-    pub async fn load(inner: Arc<ObjectStore>, uuid: Uuid) -> Result<Self, IoxObjectStoreError> {
+    pub async fn load(inner: Arc<ObjectStoreImpl>, uuid: Uuid) -> Result<Self, IoxObjectStoreError> {
         let root_path = Self::root_path_for(&inner, uuid);
 
         Self::find(inner, root_path).await
@@ -135,7 +135,7 @@ impl IoxObjectStore {
     /// Look in object storage for an existing database with this name and the given root path
     /// that was retrieved from a server config
     pub async fn load_at_root_path(
-        inner: Arc<ObjectStore>,
+        inner: Arc<ObjectStoreImpl>,
         root_path_str: &str,
     ) -> Result<Self, IoxObjectStoreError> {
         let root_path = RootPath::from_str(&inner, root_path_str);
@@ -144,7 +144,7 @@ impl IoxObjectStore {
     }
 
     async fn find(
-        inner: Arc<ObjectStore>,
+        inner: Arc<ObjectStoreImpl>,
         root_path: RootPath,
     ) -> Result<Self, IoxObjectStoreError> {
         let list_result = inner
@@ -165,7 +165,7 @@ impl IoxObjectStore {
 
     /// Access the database-specific object storage files for an existing database that has
     /// already been located and verified to be active. Does not check object storage.
-    pub fn existing(inner: Arc<ObjectStore>, root_path: RootPath) -> Self {
+    pub fn existing(inner: Arc<ObjectStoreImpl>, root_path: RootPath) -> Self {
         let data_path = root_path.data_path();
         let transactions_path = root_path.transactions_path();
 
@@ -342,7 +342,7 @@ impl IoxObjectStore {
     /// when restoring a database given a UUID to check existence of the specified database and
     /// get information such as the database name from the rules before proceeding with restoring
     /// and initializing the database.
-    pub async fn load_database_rules(inner: Arc<ObjectStore>, uuid: Uuid) -> Result<Bytes> {
+    pub async fn load_database_rules(inner: Arc<ObjectStoreImpl>, uuid: Uuid) -> Result<Bytes> {
         let root_path = Self::root_path_for(&inner, uuid);
         let db_rules_path = root_path.rules_path().inner;
 
@@ -396,16 +396,16 @@ mod tests {
     use crate::paths::ALL_DATABASES_DIRECTORY;
     use data_types::chunk_metadata::{ChunkAddr, ChunkId};
     use data_types2::{NamespaceId, PartitionId, SequencerId, TableId};
-    use object_store::{parsed_path, path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+    use object_store::{parsed_path, path::ObjectStorePath, ObjectStoreImpl, ObjectStoreApi};
     use test_helpers::assert_error;
     use uuid::Uuid;
 
     /// Creates a new in-memory object store
-    fn make_object_store() -> Arc<ObjectStore> {
-        Arc::new(ObjectStore::new_in_memory())
+    fn make_object_store() -> Arc<ObjectStoreImpl> {
+        Arc::new(ObjectStoreImpl::new_in_memory())
     }
 
-    async fn add_file(object_store: &ObjectStore, location: &Path) {
+    async fn add_file(object_store: &ObjectStoreImpl, location: &Path) {
         let data = Bytes::from("arbitrary data");
 
         object_store.put(location, data).await.unwrap();
@@ -587,7 +587,7 @@ mod tests {
         assert!(ctf.contains(&t2));
     }
 
-    fn make_db_rules_path(object_store: &ObjectStore, uuid: Uuid) -> Path {
+    fn make_db_rules_path(object_store: &ObjectStoreImpl, uuid: Uuid) -> Path {
         let mut p = object_store.new_path();
         p.push_all_dirs(&[ALL_DATABASES_DIRECTORY, uuid.to_string().as_str()]);
         p.set_file_name("rules.pb");
@@ -647,7 +647,7 @@ mod tests {
         assert_eq!(file_count, 0);
     }
 
-    fn make_owner_path(object_store: &ObjectStore, uuid: Uuid) -> Path {
+    fn make_owner_path(object_store: &ObjectStoreImpl, uuid: Uuid) -> Path {
         let mut p = object_store.new_path();
         p.push_all_dirs(&[ALL_DATABASES_DIRECTORY, uuid.to_string().as_str()]);
         p.set_file_name("owner.pb");
@@ -733,7 +733,7 @@ mod tests {
         );
     }
 
-    async fn create_database(object_store: Arc<ObjectStore>, uuid: Uuid) -> IoxObjectStore {
+    async fn create_database(object_store: Arc<ObjectStoreImpl>, uuid: Uuid) -> IoxObjectStore {
         let iox_object_store = IoxObjectStore::create(Arc::clone(&object_store), uuid)
             .await
             .unwrap();

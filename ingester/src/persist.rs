@@ -3,7 +3,7 @@
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
 use iox_object_store::ParquetFilePath;
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
@@ -29,7 +29,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub async fn persist(
     metadata: &IoxMetadata,
     record_batches: Vec<RecordBatch>,
-    object_store: &Arc<ObjectStore>,
+    object_store: &Arc<ObjectStoreImpl>,
 ) -> Result<Option<(usize, IoxParquetMetaData)>> {
     if record_batches.is_empty() {
         return Ok(None);
@@ -98,11 +98,11 @@ mod tests {
         Time::from_timestamp(0, 0)
     }
 
-    fn object_store() -> Arc<ObjectStore> {
-        Arc::new(ObjectStore::new_in_memory())
+    fn object_store() -> Arc<ObjectStoreImpl> {
+        Arc::new(ObjectStoreImpl::new_in_memory())
     }
 
-    async fn list_all(object_store: &ObjectStore) -> Result<Vec<Path>, object_store::Error> {
+    async fn list_all(object_store: &ObjectStoreImpl) -> Result<Vec<Path>, object_store::Error> {
         object_store
             .list(None)
             .await?

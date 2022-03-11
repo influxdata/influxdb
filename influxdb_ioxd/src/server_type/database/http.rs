@@ -303,7 +303,7 @@ mod tests {
     use db::Db;
     use dml::DmlWrite;
     use http::StatusCode;
-    use object_store::ObjectStore;
+    use object_store::ObjectStoreImpl;
     use reqwest::Client;
     use schema::selection::Selection;
     use server::{rules::ProvidedDatabaseRules, ApplicationState, Server};
@@ -312,7 +312,7 @@ mod tests {
 
     fn make_application() -> Arc<ApplicationState> {
         Arc::new(ApplicationState::new(
-            Arc::new(ObjectStore::new_in_memory()),
+            Arc::new(ObjectStoreImpl::new_in_memory()),
             None,
             Some(Arc::new(RingBufferTraceCollector::new(5))),
             None,

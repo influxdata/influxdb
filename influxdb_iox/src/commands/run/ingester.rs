@@ -12,7 +12,7 @@ use influxdb_ioxd::{
     },
     Service,
 };
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use std::{convert::TryFrom, sync::Arc};
@@ -84,7 +84,7 @@ pub async fn command(config: Config) -> Result<()> {
         .await?;
 
     let object_store = Arc::new(
-        ObjectStore::try_from(config.run_config.object_store_config())
+        ObjectStoreImpl::try_from(config.run_config.object_store_config())
             .map_err(Error::ObjectStoreParsing)?,
     );
 

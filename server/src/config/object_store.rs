@@ -16,7 +16,7 @@ use generated_types::google::FieldViolation;
 use generated_types::influxdata::iox::management;
 use generated_types::influxdata::iox::management::v1::OwnerInfo;
 use iox_object_store::IoxObjectStore;
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use snafu::{ensure, ResultExt, Snafu};
 use std::sync::Arc;
 use time::TimeProvider;
@@ -101,12 +101,12 @@ fn parse_location(location: &str) -> Result<Uuid> {
 
 #[derive(Debug)]
 pub struct ConfigProviderObjectStorage {
-    object_store: Arc<ObjectStore>,
+    object_store: Arc<ObjectStoreImpl>,
     time_provider: Arc<dyn TimeProvider>,
 }
 
 impl ConfigProviderObjectStorage {
-    pub fn new(object_store: Arc<ObjectStore>, time_provider: Arc<dyn TimeProvider>) -> Self {
+    pub fn new(object_store: Arc<ObjectStoreImpl>, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
             object_store,
             time_provider,

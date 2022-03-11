@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use futures::TryStreamExt;
 use iox_object_store::{IoxObjectStore, TransactionFilePath};
-use object_store::{ObjectStore, ObjectStoreApi};
+use object_store::{ObjectStoreImpl, ObjectStoreApi};
 use snafu::{ResultExt, Snafu};
 use time::Time;
 
@@ -16,12 +16,12 @@ use crate::{
 pub enum Error {
     #[snafu(display("Error during store read operation: {}", source))]
     Read {
-        source: <ObjectStore as ObjectStoreApi>::Error,
+        source: <ObjectStoreImpl as ObjectStoreApi>::Error,
     },
 
     #[snafu(display("Error during store delete operation: {}", source))]
     Delete {
-        source: <ObjectStore as ObjectStoreApi>::Error,
+        source: <ObjectStoreImpl as ObjectStoreApi>::Error,
     },
 
     #[snafu(display("Error during protobuf IO: {}", source))]

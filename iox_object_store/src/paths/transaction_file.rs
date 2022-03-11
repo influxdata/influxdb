@@ -196,14 +196,14 @@ impl FromStr for TransactionFileSuffix {
 mod tests {
     use super::*;
     use crate::{paths::ALL_DATABASES_DIRECTORY, IoxObjectStore, RootPath};
-    use object_store::{ObjectStore, ObjectStoreApi};
+    use object_store::{ObjectStoreImpl, ObjectStoreApi};
     use std::sync::Arc;
     use test_helpers::assert_error;
 
     /// Creates a new in-memory object store. These tests rely on the `Path`s being of type
     /// `DirsAndFileName` and thus using object_store::path::DELIMITER as the separator
-    fn make_object_store() -> Arc<ObjectStore> {
-        Arc::new(ObjectStore::new_in_memory())
+    fn make_object_store() -> Arc<ObjectStoreImpl> {
+        Arc::new(ObjectStoreImpl::new_in_memory())
     }
 
     #[test]

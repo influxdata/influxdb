@@ -2,7 +2,7 @@ use crate::cache::CatalogCache;
 use data_types2::{ChunkAddr, ChunkId, ChunkOrder, ParquetFile};
 use db::catalog::chunk::{CatalogChunk, ChunkMetadata, ChunkMetrics as CatalogChunkMetrics};
 use iox_object_store::IoxObjectStore;
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use parquet_file::chunk::{
     new_parquet_chunk, ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk,
 };
@@ -30,7 +30,7 @@ impl ParquetChunkAdapter {
     /// Create new adapter with empty cache.
     pub fn new(
         catalog_cache: Arc<CatalogCache>,
-        object_store: Arc<ObjectStore>,
+        object_store: Arc<ObjectStoreImpl>,
         metric_registry: Arc<metric::Registry>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {

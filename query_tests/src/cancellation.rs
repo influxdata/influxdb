@@ -1,6 +1,6 @@
 use arrow_util::assert_batches_sorted_eq;
 use db::{test_helpers::write_lp, utils::TestDb};
-use object_store::{ObjectStore, ObjectStoreIntegration};
+use object_store::{ObjectStoreImpl, ObjectStoreIntegration};
 use query::{
     exec::{ExecutionContextProvider, IOxExecutionContext},
     frontend::sql::SqlQueryPlanner,
@@ -16,7 +16,7 @@ use std::{
 
 #[tokio::test]
 async fn test_query_cancellation_slow_store() {
-    let object_store = Arc::new(ObjectStore::new_in_memory_throttled(Default::default()));
+    let object_store = Arc::new(ObjectStoreImpl::new_in_memory_throttled(Default::default()));
 
     // create test DB
     let test_db = TestDb::builder()
