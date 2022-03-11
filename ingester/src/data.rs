@@ -116,7 +116,7 @@ impl IngesterData {
         &self,
         sequencer_id: SequencerId,
         dml_operation: DmlOperation,
-        lifecycle_manager: &LifecycleHandle,
+        lifecycle_handle: &LifecycleHandle,
     ) -> Result<bool> {
         let sequencer_data = self
             .sequencers
@@ -127,7 +127,7 @@ impl IngesterData {
                 dml_operation,
                 sequencer_id,
                 self.catalog.as_ref(),
-                lifecycle_manager,
+                lifecycle_handle,
                 &self.exec,
             )
             .await
@@ -318,7 +318,7 @@ impl SequencerData {
         dml_operation: DmlOperation,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
-        lifecycle_manager: &LifecycleHandle,
+        lifecycle_handle: &LifecycleHandle,
         executor: &Executor,
     ) -> Result<bool> {
         let namespace_data = match self.namespace(dml_operation.namespace()) {
@@ -334,7 +334,7 @@ impl SequencerData {
                 dml_operation,
                 sequencer_id,
                 catalog,
-                lifecycle_manager,
+                lifecycle_handle,
                 executor,
             )
             .await
@@ -406,7 +406,7 @@ impl NamespaceData {
         dml_operation: DmlOperation,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
-        lifecycle_manager: &LifecycleHandle,
+        lifecycle_handle: &LifecycleHandle,
         executor: &Executor,
     ) -> Result<bool> {
         let sequence_number = dml_operation
@@ -434,7 +434,7 @@ impl NamespaceData {
                             b,
                             sequencer_id,
                             catalog,
-                            lifecycle_manager,
+                            lifecycle_handle,
                         )
                         .await?;
 
@@ -641,7 +641,7 @@ impl TableData {
         batch: MutableBatch,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
-        lifecycle_manager: &LifecycleHandle,
+        lifecycle_handle: &LifecycleHandle,
     ) -> Result<bool> {
         if let Some(max) = self.parquet_max_sequence_number {
             if sequence_number <= max {
@@ -673,7 +673,7 @@ impl TableData {
             }
         };
 
-        let should_pause = lifecycle_manager.log_write(
+        let should_pause = lifecycle_handle.log_write(
             partition_data.id,
             sequencer_id,
             sequence_number,
