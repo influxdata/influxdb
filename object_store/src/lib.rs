@@ -78,6 +78,10 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     /// Return a new location path constructed from a string appropriate for this object storage
     fn path_from_raw(&self, raw: &str) -> Self::Path;
 
+    /// Construct an implementation-specific path from the parsed
+    /// representation.
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path;
+
     /// Save the provided bytes to the specified location.
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error>;
 
@@ -207,19 +211,6 @@ impl ObjectStoreImpl {
             integration: ObjectStoreIntegration::MicrosoftAzure(Box::new(azure)),
             cache: None,
         })
-    }
-
-    /// Create implementation-specific path from parsed representation.
-    pub fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> path::Path {
-        use ObjectStoreIntegration::*;
-        match &self.integration {
-            AmazonS3(_) => path::Path::AmazonS3(path.into()),
-            GoogleCloudStorage(_) => path::Path::GoogleCloudStorage(path.into()),
-            InMemory(_) => path::Path::InMemory(path),
-            InMemoryThrottled(_) => path::Path::InMemory(path),
-            File(_) => path::Path::File(path.into()),
-            MicrosoftAzure(_) => path::Path::MicrosoftAzure(path.into()),
-        }
     }
 
     /// Returns the filesystem cache if configured
@@ -453,6 +444,18 @@ impl ObjectStoreApi for ObjectStoreImpl {
                 .await
                 .context(AzureObjectStoreSnafu),
             _ => unreachable!(),
+        }
+    }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> path::Path {
+        use ObjectStoreIntegration::*;
+        match &self.integration {
+            AmazonS3(_) => path::Path::AmazonS3(path.into()),
+            GoogleCloudStorage(_) => path::Path::GoogleCloudStorage(path.into()),
+            InMemory(_) => path::Path::InMemory(path),
+            InMemoryThrottled(_) => path::Path::InMemory(path),
+            File(_) => path::Path::File(path.into()),
+            MicrosoftAzure(_) => path::Path::MicrosoftAzure(path.into()),
         }
     }
 }

@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for wrapping existing object store types into an artificial "sleep" wrapper.
 use std::{convert::TryInto, sync::Mutex};
 
-use crate::{GetResult, ListResult, ObjectStoreApi, Result};
+use crate::{path::parsed::DirsAndFileName, GetResult, ListResult, ObjectStoreApi, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{stream::BoxStream, StreamExt};
@@ -110,7 +110,10 @@ impl<T: ObjectStoreApi> ThrottledStore<T> {
 }
 
 #[async_trait]
-impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
+impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T>
+where
+    DirsAndFileName: Into<T::Path>,
+{
     type Path = T::Path;
 
     type Error = T::Error;
@@ -121,6 +124,10 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
 
     fn path_from_raw(&self, raw: &str) -> Self::Path {
         self.inner.path_from_raw(raw)
+    }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        path.into()
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error> {

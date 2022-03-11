@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using Azure Blob storage as
 //! the object store.
 use crate::{
-    path::{cloud::CloudPath, DELIMITER},
+    path::{cloud::CloudPath, parsed::DirsAndFileName, DELIMITER},
     GetResult, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
 };
 use async_trait::async_trait;
@@ -75,6 +75,10 @@ impl ObjectStoreApi for MicrosoftAzure {
 
     fn path_from_raw(&self, raw: &str) -> Self::Path {
         CloudPath::raw(raw)
+    }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        path.into()
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {

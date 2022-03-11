@@ -1,8 +1,10 @@
 //! This module contains the IOx implementation for using local disk as the
 //! object store.
 use crate::cache::Cache;
-use crate::path::Path;
-use crate::{path::file::FilePath, GetResult, ListResult, ObjectMeta, ObjectStoreImpl, ObjectStoreApi};
+use crate::path::{parsed::DirsAndFileName, Path};
+use crate::{
+    path::file::FilePath, GetResult, ListResult, ObjectMeta, ObjectStoreApi, ObjectStoreImpl,
+};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{
@@ -98,6 +100,10 @@ impl ObjectStoreApi for File {
 
     fn path_from_raw(&self, raw: &str) -> Self::Path {
         FilePath::raw(raw, true)
+    }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        path.into()
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
@@ -330,7 +336,7 @@ mod tests {
             get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
             put_get_delete_list,
         },
-        Error as ObjectStoreError, ObjectStoreImpl, ObjectStoreApi, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStoreApi, ObjectStoreImpl, ObjectStorePath,
     };
     use std::{fs::set_permissions, os::unix::prelude::PermissionsExt};
     use tempfile::TempDir;

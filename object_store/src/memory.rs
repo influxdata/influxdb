@@ -47,6 +47,10 @@ impl ObjectStoreApi for InMemory {
         cloud_path.into()
     }
 
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        path.into()
+    }
+
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
         self.storage
             .write()
