@@ -639,7 +639,7 @@ fn from_expr(expr: Expr) -> Result<proto::LogicalExprNode, FieldViolation> {
                 expr_type: Some(ExprType::AggregateExpr(aggregate_expr)),
             })
         }
-        Expr::ScalarVariable(_) => unimplemented!(),
+        Expr::ScalarVariable(_, _) => unimplemented!(),
         Expr::ScalarFunction { fun, args } => {
             let fun = from_scalar_function(fun)?;
             let args: Vec<proto::LogicalExprNode> = args
