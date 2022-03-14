@@ -61,19 +61,19 @@ pub struct ObjectStoreMetrics<T, P = SystemProvider> {
     inner: T,
     time_provider: P,
 
-    put_success_duration: U64Histogram,
-    put_error_duration: U64Histogram,
+    put_success_duration_ms: U64Histogram,
+    put_error_duration_ms: U64Histogram,
     put_bytes: U64Counter,
 
-    get_success_duration: U64Histogram,
-    get_error_duration: U64Histogram,
+    get_success_duration_ms: U64Histogram,
+    get_error_duration_ms: U64Histogram,
     get_bytes: U64Counter,
 
-    delete_success_duration: U64Histogram,
-    delete_error_duration: U64Histogram,
+    delete_success_duration_ms: U64Histogram,
+    delete_error_duration_ms: U64Histogram,
 
-    list_success_duration: U64Histogram,
-    list_error_duration: U64Histogram,
+    list_success_duration_ms: U64Histogram,
+    list_error_duration_ms: U64Histogram,
 }
 
 impl<T> ObjectStoreMetrics<T> {
@@ -125,19 +125,19 @@ impl<T> ObjectStoreMetrics<T> {
             inner,
             time_provider: Default::default(),
 
-            put_success_duration,
-            put_error_duration,
+            put_success_duration_ms: put_success_duration,
+            put_error_duration_ms: put_error_duration,
             put_bytes,
 
             get_bytes,
-            get_success_duration,
-            get_error_duration,
+            get_success_duration_ms: get_success_duration,
+            get_error_duration_ms: get_error_duration,
 
-            delete_success_duration,
-            delete_error_duration,
+            delete_success_duration_ms: delete_success_duration,
+            delete_error_duration_ms: delete_error_duration,
 
-            list_success_duration,
-            list_error_duration,
+            list_success_duration_ms: list_success_duration,
+            list_error_duration_ms: list_error_duration,
         }
     }
 }
@@ -170,8 +170,8 @@ where
         // if it happens.
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Ok(_) => self.put_success_duration.record(delta.as_millis() as _),
-                Err(_) => self.put_error_duration.record(delta.as_millis() as _),
+                Ok(_) => self.put_success_duration_ms.record(delta.as_millis() as _),
+                Err(_) => self.put_error_duration_ms.record(delta.as_millis() as _),
             };
         }
 
@@ -189,7 +189,7 @@ where
                 if let Ok(m) = file.metadata().await {
                     self.get_bytes.inc(m.len());
                     if let Some(d) = self.time_provider.now().checked_duration_since(started_at) {
-                        self.get_success_duration.record(d.as_millis() as _)
+                        self.get_success_duration_ms.record(d.as_millis() as _)
                     }
                 }
                 Ok(GetResult::File(file, path))
@@ -201,8 +201,8 @@ where
                     StreamMetricRecorder::new(
                         s,
                         started_at,
-                        self.get_success_duration.clone(),
-                        self.get_error_duration.clone(),
+                        self.get_success_duration_ms.clone(),
+                        self.get_error_duration_ms.clone(),
                         self.get_bytes.clone(),
                     )
                     .fuse(),
@@ -211,7 +211,7 @@ where
             Err(e) => {
                 // Record the call duration in the error histogram.
                 if let Some(delta) = self.time_provider.now().checked_duration_since(started_at) {
-                    self.get_error_duration.record(delta.as_millis() as _);
+                    self.get_error_duration_ms.record(delta.as_millis() as _);
                 }
                 Err(e)
             }
@@ -227,8 +227,10 @@ where
         // if it happens.
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Ok(_) => self.delete_success_duration.record(delta.as_millis() as _),
-                Err(_) => self.delete_error_duration.record(delta.as_millis() as _),
+                Ok(_) => self
+                    .delete_success_duration_ms
+                    .record(delta.as_millis() as _),
+                Err(_) => self.delete_error_duration_ms.record(delta.as_millis() as _),
             };
         }
 
@@ -247,8 +249,8 @@ where
         // if it happens.
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Ok(_) => self.list_success_duration.record(delta.as_millis() as _),
-                Err(_) => self.list_error_duration.record(delta.as_millis() as _),
+                Ok(_) => self.list_success_duration_ms.record(delta.as_millis() as _),
+                Err(_) => self.list_error_duration_ms.record(delta.as_millis() as _),
             };
         }
 
@@ -267,8 +269,8 @@ where
         // if it happens.
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Ok(_) => self.list_success_duration.record(delta.as_millis() as _),
-                Err(_) => self.list_error_duration.record(delta.as_millis() as _),
+                Ok(_) => self.list_success_duration_ms.record(delta.as_millis() as _),
+                Err(_) => self.list_error_duration_ms.record(delta.as_millis() as _),
             };
         }
 
