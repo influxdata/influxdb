@@ -78,37 +78,40 @@ func (p Provider) WriterFor(ctx context.Context, conf influxdb.Config) (influxdb
 	}
 	reqOrgID := req.OrganizationID
 
-	// Check if the to() spec is pointing to an org. If so, ensure it's the same as the org executing the request.
-	//
-	// It's possible for flux to write points into an org other than the one running the query, but only via an HTTP
-	// request (which requires a `host` to be set). Specifying an `org` that's == to the one executing the query is
-	// redundant, but we allow it in order to support running the e2e tests imported from the flux codebase.
-	var orgID platform.ID
-	switch {
-	case conf.Org.Name != "":
-		var ok bool
-		orgID, ok = deps.OrganizationLookup.Lookup(ctx, conf.Org.Name)
-		if !ok {
-			return nil, &flux.Error{
-				Code: codes.NotFound,
-				Msg:  fmt.Sprintf("could not find org %q", conf.Org.Name),
+	{
+		// Check if the to() spec is pointing to an org. If so, ensure it's the same as the org executing the request.
+		//
+		// It's possible for flux to write points into an org other than the one running the query, but only via an HTTP
+		// request (which requires a `host` to be set). Specifying an `org` that's == to the one executing the query is
+		// redundant, but we allow it in order to support running the e2e tests imported from the flux codebase.
+		var toOrgID platform.ID
+		switch {
+		case conf.Org.Name != "":
+			var ok bool
+			toOrgID, ok = deps.OrganizationLookup.Lookup(ctx, conf.Org.Name)
+			if !ok {
+				return nil, &flux.Error{
+					Code: codes.NotFound,
+					Msg:  fmt.Sprintf("could not find org %q", conf.Org.Name),
+				}
 			}
+		case conf.Org.ID != "":
+			if err := toOrgID.DecodeFromString(conf.Org.ID); err != nil {
+				return nil, &flux.Error{
+					Code: codes.Invalid,
+					Msg:  "invalid org id",
+					Err:  err,
+				}
+			}
+		default:
+			toOrgID = reqOrgID
 		}
-	case conf.Org.ID != "":
-		if err := orgID.DecodeFromString(conf.Org.ID); err != nil {
+
+		if toOrgID.Valid() && toOrgID != reqOrgID {
 			return nil, &flux.Error{
 				Code: codes.Invalid,
-				Msg:  "invalid org id",
-				Err:  err,
+				Msg:  "host must be specified when writing points to another org",
 			}
-		}
-	default:
-	}
-
-	if orgID.Valid() && orgID != reqOrgID {
-		return nil, &flux.Error{
-			Code: codes.Invalid,
-			Msg:  "host must be specified when writing points to another org",
 		}
 	}
 
@@ -120,7 +123,7 @@ func (p Provider) WriterFor(ctx context.Context, conf influxdb.Config) (influxdb
 	return &localPointsWriter{
 		ctx:      ctx,
 		buf:      make([]models.Point, 1<<14),
-		orgID:    orgID,
+		orgID:    reqOrgID,
 		bucketID: bucketID,
 		wr:       deps.PointsWriter,
 	}, nil

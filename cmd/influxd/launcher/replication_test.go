@@ -169,11 +169,17 @@ func TestReplicationStreamEndToEnd(t *testing.T) {
 		`m,k=v2 f=200i 946684800000000000`,
 	}
 
-	// Points that will be written to the local bucket when both replications are active.
-	testPoints2 := []string{
-		`m,k=v3 f=300i 946684800000000000`,
-		`m,k=v4 f=400i 946684800000000000`,
-	}
+	// Flux script to write points that to the local bucket when both replications are active.
+	testPoints2 := `import "csv"
+csvData = "#datatype,string,long,dateTime:RFC3339,string,long,string,string
+#group,false,false,false,true,false,true,true
+#default,,,,,,,
+,result,table,_time,k,_value,_measurement,_field
+,,0,2000-01-01T00:00:00Z,v3,300,m,f
+,,0,2000-01-01T00:00:00Z,v4,400,m,f
+"
+csv.from(csv: csvData) |> to(bucket: %q)
+`
 
 	// Format string to be used as a flux query to get data from a bucket.
 	qs := `from(bucket:%q) |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
@@ -290,11 +296,9 @@ func TestReplicationStreamEndToEnd(t *testing.T) {
 	_, err = client.ReplicationsApi.PostReplication(ctx).ReplicationCreationRequest(replicationCreateReq).Execute()
 	require.NoError(t, err)
 
-	// Write the second set of points to the launcher bucket.
-	for _, p := range testPoints2 {
-		wg.Add(2) // since there are two replications, the proxy server will handle 2 requests for each point
-		l.WritePointsOrFail(t, p)
-	}
+	// Write the second set of points to the launcher bucket via flux
+	wg.Add(2) // since there are two replications, the proxy server will handle 2 requests
+	l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(testPoints2, l.Bucket.Name))
 	wg.Wait()
 
 	// All of the data should be in the local bucket and first replicated bucket. Only part of the data should be in the

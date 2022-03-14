@@ -388,7 +388,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	deps, err := influxdb.NewDependencies(
 		storageflux.NewReader(storage2.NewStore(m.engine.TSDBStore(), m.engine.MetaClient())),
-		m.engine,
+		pointsWriter,
 		authorizer.NewBucketService(ts.BucketService),
 		authorizer.NewOrgService(ts.OrganizationService),
 		authorizer.NewSecretService(secretSvc),
