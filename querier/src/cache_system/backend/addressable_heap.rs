@@ -135,6 +135,8 @@ fn project_tuple<A, B>(t: &(A, B)) -> (&A, &B) {
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
     use super::*;
 
     #[test]
@@ -382,5 +384,116 @@ mod tests {
         assert_eq!(heap.insert(1, "a", 4), None);
         assert_eq!(heap.insert(2, "b", 3), None);
         assert_eq!(heap.insert(1, "c", 5), Some(("a", 4)));
+    }
+
+    /// Simple version of [`AddressableHeap`] for testing.
+    struct SimpleAddressableHeap {
+        inner: Vec<(u8, String, i8)>,
+    }
+
+    impl SimpleAddressableHeap {
+        fn new() -> Self {
+            Self { inner: Vec::new() }
+        }
+
+        fn insert(&mut self, k: u8, v: String, o: i8) -> Option<(String, i8)> {
+            let res = self.remove(&k);
+            self.inner.push((k, v, o));
+
+            res
+        }
+
+        fn peek(&self) -> Option<(&u8, &String, &i8)> {
+            self.inner
+                .iter()
+                .min_by_key(|(k, _v, o)| (o, k))
+                .map(|(k, v, o)| (k, v, o))
+        }
+
+        fn pop(&mut self) -> Option<(u8, String, i8)> {
+            self.inner
+                .iter()
+                .enumerate()
+                .min_by_key(|(_idx, (k, _v, o))| (o, k))
+                .map(|(idx, _)| idx)
+                .map(|idx| self.inner.remove(idx))
+        }
+
+        fn get(&self, k: &u8) -> Option<(&String, &i8)> {
+            self.inner
+                .iter()
+                .find(|(k2, _v, _o)| k2 == k)
+                .map(|(_k, v, o)| (v, o))
+        }
+
+        fn remove(&mut self, k: &u8) -> Option<(String, i8)> {
+            self.inner
+                .iter()
+                .enumerate()
+                .find(|(_idx, (k2, _v, _o))| k2 == k)
+                .map(|(idx, _)| idx)
+                .map(|idx| {
+                    let (_k, v, o) = self.inner.remove(idx);
+                    (v, o)
+                })
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    enum Action {
+        Insert { k: u8, v: String, o: i8 },
+        Peek,
+        Pop,
+        Get { k: u8 },
+        Remove { k: u8 },
+    }
+
+    // Use a hand-rolled strategy instead of `proptest-derive`, because the latter one is quite a heavy dependency.
+    fn action() -> impl Strategy<Value = Action> {
+        prop_oneof![
+            (any::<u8>(), ".*", any::<i8>()).prop_map(|(k, v, o)| Action::Insert { k, v, o }),
+            Just(Action::Peek),
+            Just(Action::Pop),
+            any::<u8>().prop_map(|k| Action::Get { k }),
+            any::<u8>().prop_map(|k| Action::Remove { k }),
+        ]
+    }
+
+    proptest! {
+        #[test]
+        fn test_proptest(actions in prop::collection::vec(action(), 0..100)) {
+            let mut heap = AddressableHeap::new();
+            let mut sim = SimpleAddressableHeap::new();
+
+            for action in actions {
+                match action {
+                    Action::Insert{k, v, o} => {
+                        let res1 = heap.insert(k, v.clone(), o);
+                        let res2 = sim.insert(k, v, o);
+                        assert_eq!(res1, res2);
+                    }
+                    Action::Peek => {
+                        let res1 = heap.peek();
+                        let res2 = sim.peek();
+                        assert_eq!(res1, res2);
+                    }
+                    Action::Pop => {
+                        let res1 = heap.pop();
+                        let res2 = sim.pop();
+                        assert_eq!(res1, res2);
+                    }
+                    Action::Get{k} => {
+                        let res1 = heap.get(&k);
+                        let res2 = sim.get(&k);
+                        assert_eq!(res1, res2);
+                    }
+                    Action::Remove{k} => {
+                        let res1 = heap.remove(&k);
+                        let res2 = sim.remove(&k);
+                        assert_eq!(res1, res2);
+                    }
+                }
+            }
+        }
     }
 }
