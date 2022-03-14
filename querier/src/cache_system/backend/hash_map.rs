@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     collections::HashMap,
     fmt::Debug,
     hash::{BuildHasher, Hash},
@@ -25,6 +26,10 @@ where
 
     fn remove(&mut self, k: &Self::K) {
         self.remove(k);
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
     }
 }
 
