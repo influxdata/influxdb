@@ -1,5 +1,6 @@
 use std::{fmt::Debug, hash::Hash};
 
+mod addressable_heap;
 pub mod hash_map;
 
 #[cfg(test)]
