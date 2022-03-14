@@ -1,38 +1,15 @@
 //! Helpers of the Compactor
 
-use std::{collections::HashSet, sync::Arc};
-
+use crate::query::QueryableParquetChunk;
 use arrow::record_batch::RecordBatch;
-use data_types2::{
-    ParquetFile, ParquetFileId, PartitionId, SequencerId, TableId, Tombstone, TombstoneId,
-};
+use data_types2::{ParquetFile, ParquetFileId, Tombstone, TombstoneId};
 use iox_object_store::IoxObjectStore;
 use object_store::ObjectStore;
 use parquet_file::{
     chunk::{new_parquet_chunk, ChunkMetrics, DecodedParquetFile},
     metadata::IoxMetadata,
 };
-
-use crate::query::QueryableParquetChunk;
-
-/// Define table partition
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
-pub struct TablePartition {
-    sequencer_id: SequencerId,
-    table_id: TableId,
-    partition_id: PartitionId,
-}
-
-impl TablePartition {
-    /// Return a new table partition
-    pub fn new(sequencer_id: SequencerId, table_id: TableId, partition_id: PartitionId) -> Self {
-        Self {
-            sequencer_id,
-            table_id,
-            partition_id,
-        }
-    }
-}
+use std::{collections::HashSet, sync::Arc};
 
 /// Wrapper of a parquet file and its tombstones
 #[allow(missing_docs)]

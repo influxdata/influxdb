@@ -15,7 +15,7 @@ use data_types2::{
     Column, ColumnId, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
     ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
-    TableId, Timestamp, Tombstone, TombstoneId,
+    TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::warn;
 use std::fmt::Formatter;
@@ -841,6 +841,61 @@ impl ParquetFileRepo for MemTxn {
             .cloned()
             .collect();
         Ok(parquet_files)
+    }
+
+    async fn level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>> {
+        let stage = self.stage();
+
+        Ok(stage
+            .parquet_files
+            .iter()
+            .filter(|f| f.sequencer_id == sequencer_id && f.compaction_level == 0 && !f.to_delete)
+            .cloned()
+            .collect())
+    }
+
+    async fn level_1(
+        &mut self,
+        table_partition: TablePartition,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<Vec<ParquetFile>> {
+        let stage = self.stage();
+
+        Ok(stage
+            .parquet_files
+            .iter()
+            .filter(|f| {
+                f.sequencer_id == table_partition.sequencer_id
+                    && f.table_id == table_partition.table_id
+                    && f.partition_id == table_partition.partition_id
+                    && f.compaction_level == 1
+                    && !f.to_delete
+                    && ((f.min_time <= min_time && f.max_time >= min_time)
+                        || (f.min_time > min_time && f.min_time <= max_time))
+            })
+            .cloned()
+            .collect())
+    }
+
+    async fn update_to_level_1(
+        &mut self,
+        parquet_file_ids: &[ParquetFileId],
+    ) -> Result<Vec<ParquetFileId>> {
+        let stage = self.stage();
+
+        let mut updated = Vec::with_capacity(parquet_file_ids.len());
+
+        for f in stage
+            .parquet_files
+            .iter_mut()
+            .filter(|p| parquet_file_ids.contains(&p.id))
+        {
+            f.compaction_level = 1;
+            updated.push(f.id);
+        }
+
+        Ok(updated)
     }
 
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {

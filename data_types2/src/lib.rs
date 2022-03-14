@@ -17,6 +17,7 @@ use std::{
     collections::BTreeMap,
     convert::TryFrom,
     fmt::{Debug, Formatter},
+    ops::{Add, Sub},
     sync::Arc,
 };
 use uuid::Uuid;
@@ -189,6 +190,29 @@ impl std::fmt::Display for PartitionId {
     }
 }
 
+/// Combination of Sequencer ID, Table ID, and Partition ID useful for identifying groups of
+/// Parquet files to be compacted together.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
+pub struct TablePartition {
+    /// The sequencer ID
+    pub sequencer_id: SequencerId,
+    /// The table ID
+    pub table_id: TableId,
+    /// The partition ID
+    pub partition_id: PartitionId,
+}
+
+impl TablePartition {
+    /// Combine the relevant parts
+    pub fn new(sequencer_id: SequencerId, table_id: TableId, partition_id: PartitionId) -> Self {
+        Self {
+            sequencer_id,
+            table_id,
+            partition_id,
+        }
+    }
+}
+
 /// Unique ID for a `Tombstone`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
@@ -231,6 +255,22 @@ impl Timestamp {
     }
     pub fn get(&self) -> i64 {
         self.0
+    }
+}
+
+impl Add<i64> for Timestamp {
+    type Output = Self;
+
+    fn add(self, other: i64) -> Self {
+        Self(self.0 + other)
+    }
+}
+
+impl Sub<i64> for Timestamp {
+    type Output = Self;
+
+    fn sub(self, other: i64) -> Self {
+        Self(self.0 - other)
     }
 }
 
