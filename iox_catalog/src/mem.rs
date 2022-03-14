@@ -6,7 +6,7 @@ use crate::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
         KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
         QueryPoolRepo, RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo,
-        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL, MAX_COMPACT_SIZE,
+        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL,
     },
     metrics::MetricDecorator,
 };
@@ -849,12 +849,7 @@ impl ParquetFileRepo for MemTxn {
         Ok(stage
             .parquet_files
             .iter()
-            .filter(|f| {
-                f.sequencer_id == sequencer_id
-                    && f.compaction_level == 0
-                    && !f.to_delete
-                    && f.file_size_bytes <= MAX_COMPACT_SIZE
-            })
+            .filter(|f| f.sequencer_id == sequencer_id && f.compaction_level == 0 && !f.to_delete)
             .cloned()
             .collect())
     }
@@ -876,7 +871,6 @@ impl ParquetFileRepo for MemTxn {
                     && f.partition_id == table_partition.partition_id
                     && f.compaction_level == 1
                     && !f.to_delete
-                    && f.file_size_bytes <= MAX_COMPACT_SIZE
                     && ((f.min_time <= min_time && f.max_time >= min_time)
                         || (f.min_time > min_time && f.min_time <= max_time))
             })

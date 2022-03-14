@@ -410,9 +410,6 @@ pub trait TombstoneRepo: Send + Sync {
 /// The starting compaction level for parquet files is zero.
 pub const INITIAL_COMPACTION_LEVEL: i16 = 0;
 
-/// The maximum size, in bytes, of a file to be considered for compaction.
-pub const MAX_COMPACT_SIZE: i64 = 1024 * 1024;
-
 /// Functions for working with parquet file pointers in the catalog
 #[async_trait]
 pub trait ParquetFileRepo: Send + Sync {
@@ -1517,14 +1514,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        // Create a compaction level 0 file over the MAX_COMPACT_SIZE
-        let too_big_params = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            file_size_bytes: MAX_COMPACT_SIZE + 1,
-            ..parquet_file_params.clone()
-        };
-        let _too_big_file = repos.parquet_files().create(too_big_params).await.unwrap();
-
         // Create a compaction level 1 file
         let level_1_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
@@ -1714,14 +1703,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        // Create a file too big to be considered
-        let too_big_params = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            file_size_bytes: MAX_COMPACT_SIZE + 1,
-            ..parquet_file_params.clone()
-        };
-        let too_big_file = repos.parquet_files().create(too_big_params).await.unwrap();
-
         // Create a file marked to be deleted
         let to_delete_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
@@ -1750,7 +1731,6 @@ pub(crate) mod test_helpers {
                 other_sequencer_file.id,
                 other_table_file.id,
                 other_partition_file.id,
-                too_big_file.id,
                 to_delete_file.id,
             ])
             .await

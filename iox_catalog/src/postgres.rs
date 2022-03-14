@@ -5,7 +5,7 @@ use crate::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
         KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
         QueryPoolRepo, RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo,
-        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL, MAX_COMPACT_SIZE,
+        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL,
     },
     metrics::MetricDecorator,
 };
@@ -1289,12 +1289,10 @@ SELECT
 FROM parquet_file
 WHERE parquet_file.sequencer_id = $1
   AND parquet_file.compaction_level = 0
-  AND parquet_file.to_delete = false
-  AND parquet_file.file_size_bytes <= $2;
+  AND parquet_file.to_delete = false;
              "#,
         )
         .bind(&sequencer_id) // $1
-        .bind(MAX_COMPACT_SIZE) // $2
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1330,17 +1328,15 @@ WHERE parquet_file.sequencer_id = $1
   AND parquet_file.partition_id = $3
   AND parquet_file.compaction_level = 1
   AND parquet_file.to_delete = false
-  AND parquet_file.file_size_bytes <= $4
-  AND ((parquet_file.min_time <= $5 AND parquet_file.max_time >= $5)
-      OR (parquet_file.min_time > $5 AND parquet_file.min_time <= $6))
+  AND ((parquet_file.min_time <= $5 AND parquet_file.max_time >= $4)
+      OR (parquet_file.min_time > $5 AND parquet_file.min_time <= $5))
   ;"#,
         )
         .bind(&table_partition.sequencer_id) // $1
         .bind(&table_partition.table_id) // $2
         .bind(&table_partition.partition_id) // $3
-        .bind(MAX_COMPACT_SIZE) // $4
-        .bind(min_time) // $5
-        .bind(max_time) // $6
+        .bind(min_time) // $4
+        .bind(max_time) // $5
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
