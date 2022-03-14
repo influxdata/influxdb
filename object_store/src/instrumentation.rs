@@ -25,8 +25,12 @@ use crate::{GetResult, ListResult, ObjectStoreApi};
 /// polling and therefore fetching of data from the object store over the
 /// lifetime of the [`Stream`], the duration of a [`ObjectStoreApi::get()`]
 /// request is measured to be the wall clock difference between the moment the
-/// caller executes the [`ObjectStoreApi::get()`] call, up until the returned
-/// stream is completed (when it yields `Poll::Ready(None)`) or dropped.
+/// caller executes the [`ObjectStoreApi::get()`] call, up until the last chunk
+/// of data is yielded to the caller.
+///
+/// This means the duration metrics measuring consumption of returned streams
+/// are recording the rate at which the application reads the data, as opposed
+/// to the duration of time taken to fetch that data.
 ///
 /// # Stream Errors
 ///
