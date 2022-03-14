@@ -106,7 +106,7 @@ type service struct {
 	maxRemoteWritePointSize int
 }
 
-func (s service) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
+func (s *service) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
 	rs, err := s.store.ListReplications(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -131,7 +131,7 @@ func (s service) ListReplications(ctx context.Context, filter influxdb.Replicati
 	return rs, nil
 }
 
-func (s service) CreateReplication(ctx context.Context, request influxdb.CreateReplicationRequest) (*influxdb.Replication, error) {
+func (s *service) CreateReplication(ctx context.Context, request influxdb.CreateReplicationRequest) (*influxdb.Replication, error) {
 	s.bucketService.RLock()
 	defer s.bucketService.RUnlock()
 
@@ -159,7 +159,7 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 	return r, nil
 }
 
-func (s service) ValidateNewReplication(ctx context.Context, request influxdb.CreateReplicationRequest) error {
+func (s *service) ValidateNewReplication(ctx context.Context, request influxdb.CreateReplicationRequest) error {
 	if _, err := s.bucketService.FindBucketByID(ctx, request.LocalBucketID); err != nil {
 		return errLocalBucketNotFound(request.LocalBucketID, err)
 	}
@@ -179,7 +179,7 @@ func (s service) ValidateNewReplication(ctx context.Context, request influxdb.Cr
 	return nil
 }
 
-func (s service) GetReplication(ctx context.Context, id platform.ID) (*influxdb.Replication, error) {
+func (s *service) GetReplication(ctx context.Context, id platform.ID) (*influxdb.Replication, error) {
 	r, err := s.store.GetReplication(ctx, id)
 	if err != nil {
 		return nil, err
@@ -194,7 +194,7 @@ func (s service) GetReplication(ctx context.Context, id platform.ID) (*influxdb.
 	return r, nil
 }
 
-func (s service) UpdateReplication(ctx context.Context, id platform.ID, request influxdb.UpdateReplicationRequest) (*influxdb.Replication, error) {
+func (s *service) UpdateReplication(ctx context.Context, id platform.ID, request influxdb.UpdateReplicationRequest) (*influxdb.Replication, error) {
 	s.store.Lock()
 	defer s.store.Unlock()
 
@@ -219,7 +219,7 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 	return r, nil
 }
 
-func (s service) ValidateUpdatedReplication(ctx context.Context, id platform.ID, request influxdb.UpdateReplicationRequest) error {
+func (s *service) ValidateUpdatedReplication(ctx context.Context, id platform.ID, request influxdb.UpdateReplicationRequest) error {
 	baseConfig, err := s.store.GetFullHTTPConfig(ctx, id)
 	if err != nil {
 		return err
@@ -244,7 +244,7 @@ func (s service) ValidateUpdatedReplication(ctx context.Context, id platform.ID,
 	return nil
 }
 
-func (s service) DeleteReplication(ctx context.Context, id platform.ID) error {
+func (s *service) DeleteReplication(ctx context.Context, id platform.ID) error {
 	s.store.Lock()
 	defer s.store.Unlock()
 
@@ -259,7 +259,7 @@ func (s service) DeleteReplication(ctx context.Context, id platform.ID) error {
 	return nil
 }
 
-func (s service) DeleteBucketReplications(ctx context.Context, localBucketID platform.ID) error {
+func (s *service) DeleteBucketReplications(ctx context.Context, localBucketID platform.ID) error {
 	s.store.Lock()
 	defer s.store.Unlock()
 
@@ -289,7 +289,7 @@ func (s service) DeleteBucketReplications(ctx context.Context, localBucketID pla
 	return nil
 }
 
-func (s service) ValidateReplication(ctx context.Context, id platform.ID) error {
+func (s *service) ValidateReplication(ctx context.Context, id platform.ID) error {
 	config, err := s.store.GetFullHTTPConfig(ctx, id)
 	if err != nil {
 		return err
@@ -309,7 +309,7 @@ type batch struct {
 	numPoints int
 }
 
-func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
+func (s *service) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
 	replications := s.durableQueueManager.GetReplications(orgID, bucketID)
 
 	// If there are no registered replications, all we need to do is a local write.
@@ -394,7 +394,7 @@ func (s service) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 	return nil
 }
 
-func (s service) Open(ctx context.Context) error {
+func (s *service) Open(ctx context.Context) error {
 	trackedReplications, err := s.store.ListReplications(ctx, influxdb.ReplicationListFilter{})
 	if err != nil {
 		return err
@@ -416,14 +416,14 @@ func (s service) Open(ctx context.Context) error {
 	return nil
 }
 
-func (s service) Close() error {
+func (s *service) Close() error {
 	if err := s.durableQueueManager.CloseAll(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s service) startNewBatch(currentSize, nextSize, pointCount int) bool {
+func (s *service) startNewBatch(currentSize, nextSize, pointCount int) bool {
 	return currentSize+nextSize > s.maxRemoteWriteBatchSize ||
 		pointCount > 0 && pointCount%s.maxRemoteWritePointSize == 0
 }
