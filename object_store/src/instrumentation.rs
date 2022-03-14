@@ -397,17 +397,16 @@ where
                     false => this.get_error_duration,
                 };
 
+                // Take the last_yielded_at option, marking metrics as emitted
+                // so the drop impl does not duplicate them.
                 if let Some(d) = this
                     .last_yielded_at
+                    .take()
                     .expect("no last_yielded_at value for fused stream")
                     .checked_duration_since(*this.started_at)
                 {
                     hist.record(d.as_millis() as _)
                 }
-
-                // Mark the metrics as emitted so the drop impl does not
-                // duplicate them.
-                *this.last_yielded_at = None;
 
                 Poll::Ready(None)
             }
