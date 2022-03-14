@@ -1,4 +1,4 @@
-//! An metric instrumentation wrapper over [`ObjectStoreApi`] implementations.
+//! A metric instrumentation wrapper over [`ObjectStoreApi`] implementations.
 
 use std::{
     pin::Pin,
@@ -185,7 +185,7 @@ where
 
         match res {
             Ok(GetResult::File(file, path)) => {
-                // Record a the file size in bytes and time the inner call took.
+                // Record the file size in bytes and time the inner call took.
                 if let Ok(m) = file.metadata().await {
                     self.get_bytes.inc(m.len());
                     if let Some(d) = self.time_provider.now().checked_duration_since(started_at) {
