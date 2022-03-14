@@ -208,7 +208,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		if toSpec.Spec.FieldFn.Fn != nil {
 			recordParam := toSpec.Spec.FieldFn.Fn.Parameters.List[0].Key.Name
 			exprNode := toSpec.Spec.FieldFn.Fn
-			colVisitor := newFieldFunctionVisitor(recordParam)
+			colVisitor := newFieldFunctionVisitor(recordParam.Name())
 
 			// Walk the field function expression and record which columns
 			// are referenced. None of these columns will be used as tag columns.
@@ -416,8 +416,8 @@ func (v *fieldFunctionVisitor) Visit(node semantic.Node) semantic.Visitor {
 	}
 	if member, ok := node.(*semantic.MemberExpression); ok {
 		if obj, ok := member.Object.(*semantic.IdentifierExpression); ok {
-			if obj.Name == v.rowParam {
-				v.captured[member.Property] = true
+			if obj.Name.Name() == v.rowParam {
+				v.captured[member.Property.Name()] = true
 			}
 		}
 	}

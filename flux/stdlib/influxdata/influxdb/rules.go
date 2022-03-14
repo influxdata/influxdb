@@ -164,7 +164,7 @@ func (PushDownFilterRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node,
 	paramName := filterSpec.Fn.Fn.Parameters.List[0].Key.Name
 
 	pushable, notPushable, err := semantic.PartitionPredicates(bodyExpr, func(e semantic.Expression) (bool, error) {
-		return isPushableExpr(paramName, e)
+		return isPushableExpr(paramName.Name(), e)
 	})
 	if err != nil {
 		return nil, false, err
@@ -176,7 +176,7 @@ func (PushDownFilterRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node,
 	}
 	pushable, _ = rewritePushableExpr(pushable)
 
-	pushablePredicate, err := ToStoragePredicate(pushable, paramName)
+	pushablePredicate, err := ToStoragePredicate(pushable, paramName.Name())
 
 	newFromSpec := fromSpec.Copy().(*ReadRangePhysSpec)
 	if newFromSpec.Predicate != nil {
@@ -297,20 +297,6 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 	return plan.CreatePhysicalNode("ReadTagKeys", &ReadTagKeysPhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 	}), true, nil
-}
-
-func hasFieldExpr(expr semantic.Expression) bool {
-	hasField := false
-	v := semantic.CreateVisitor(func(node semantic.Node) {
-		switch n := node.(type) {
-		case *semantic.MemberExpression:
-			if n.Property == "_field" {
-				hasField = true
-			}
-		}
-	})
-	semantic.Walk(v, expr)
-	return hasField
 }
 
 // PushDownReadTagValuesRule matches 'ReadRange |> keep(columns: [tag]) |> group() |> distinct(column: tag)'.
@@ -566,12 +552,12 @@ const fieldValueProperty = "_value"
 
 func isTag(paramName string, e semantic.Expression) bool {
 	memberExpr := validateMemberExpr(paramName, e)
-	return memberExpr != nil && memberExpr.Property != fieldValueProperty
+	return memberExpr != nil && memberExpr.Property.Name() != fieldValueProperty
 }
 
 func isField(paramName string, e semantic.Expression) bool {
 	memberExpr := validateMemberExpr(paramName, e)
-	return memberExpr != nil && memberExpr.Property == fieldValueProperty
+	return memberExpr != nil && memberExpr.Property.Name() == fieldValueProperty
 }
 
 func validateMemberExpr(paramName string, e semantic.Expression) *semantic.MemberExpression {
@@ -585,7 +571,7 @@ func validateMemberExpr(paramName string, e semantic.Expression) *semantic.Membe
 		return nil
 	}
 
-	if idExpr.Name != paramName {
+	if idExpr.Name.Name() != paramName {
 		return nil
 	}
 
