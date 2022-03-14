@@ -16,6 +16,7 @@
 # Will generate the deployment JSON file and output it to stdout. If
 # IMAGE_PROMOTION_COMMAND is set in the environment, the deployment JSON file is
 # piped to it at the end of execution.
+#
 
 set -euo pipefail
 
