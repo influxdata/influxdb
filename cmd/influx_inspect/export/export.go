@@ -201,10 +201,23 @@ func (cmd *Command) walkWALFiles() error {
 func (cmd *Command) writeDDL(mw io.Writer, w io.Writer) error {
 	// Write out all the DDL
 	fmt.Fprintln(mw, "# DDL")
+	manifest := make(map[string][]string)
 	for key := range cmd.manifest {
 		keys := strings.Split(key, string(os.PathSeparator))
 		db, rp := influxql.QuoteIdent(keys[0]), influxql.QuoteIdent(keys[1])
-		fmt.Fprintf(w, "CREATE DATABASE %s WITH NAME %s\n", db, rp)
+		manifest[db] = append(manifest[db], rp)
+	}
+	for db, rps := range manifest {
+		if len(rps) > 1 {
+			fmt.Fprintf(w, "CREATE DATABASE %s WITH NAME autogen\n", db)
+			for _, rp := range rps {
+				if rp != "autogen" {
+					fmt.Fprintf(w, "CREATE RETENTION POLICY %s ON %s DURATION 0s REPLICATION 1\n", rp, db)
+				}
+			}
+		} else {
+			fmt.Fprintf(w, "CREATE DATABASE %s WITH NAME %s\n", db, rps[0])
+		}
 	}
 
 	return nil
