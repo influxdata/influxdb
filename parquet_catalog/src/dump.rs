@@ -5,7 +5,7 @@ use bytes::Bytes;
 use futures::TryStreamExt;
 use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, TransactionFilePath};
-use object_store::{ObjectStore, ObjectStoreApi};
+use object_store::{ObjectStoreApi, ObjectStoreImpl};
 use parquet_file::metadata::{DecodedIoxParquetMetaData, IoxParquetMetaData};
 use snafu::{ResultExt, Snafu};
 
@@ -15,7 +15,7 @@ use super::internals::proto_io::load_transaction_proto;
 pub enum Error {
     #[snafu(display("Error while listing files from object store: {}", source))]
     ListFiles {
-        source: <ObjectStore as ObjectStoreApi>::Error,
+        source: <ObjectStoreImpl as ObjectStoreApi>::Error,
     },
 
     #[snafu(display("Error while writing result to output: {}", source))]

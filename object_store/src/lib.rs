@@ -60,12 +60,18 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{stream::BoxStream, StreamExt, TryFutureExt, TryStreamExt};
 use snafu::{ResultExt, Snafu};
-use std::{fmt::Formatter, num::NonZeroUsize};
+use std::{
+    fmt::{Debug, Formatter},
+    num::NonZeroUsize,
+};
 use std::{path::PathBuf, sync::Arc};
+
+/// An alias for a dynamically dispatched object store implementation.
+pub type DynObjectStore = dyn ObjectStoreApi<Path = path::Path, Error = Error>;
 
 /// Universal API to multiple object store services.
 #[async_trait]
-pub trait ObjectStoreApi: Send + Sync + 'static {
+pub trait ObjectStoreApi: Send + Sync + Debug + 'static {
     /// The type of the locations used in interacting with this object store.
     type Path: path::ObjectStorePath;
 
@@ -77,6 +83,10 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
 
     /// Return a new location path constructed from a string appropriate for this object storage
     fn path_from_raw(&self, raw: &str) -> Self::Path;
+
+    /// Construct an implementation-specific path from the parsed
+    /// representation.
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path;
 
     /// Save the provided bytes to the specified location.
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error>;
@@ -110,13 +120,13 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
 
 /// Universal interface to multiple object store services.
 #[derive(Debug)]
-pub struct ObjectStore {
+pub struct ObjectStoreImpl {
     /// The object store
     pub integration: ObjectStoreIntegration,
     cache: Option<ObjectStoreFileCache>,
 }
 
-impl ObjectStore {
+impl ObjectStoreImpl {
     /// Configure a connection to Amazon S3.
     #[allow(clippy::too_many_arguments)]
     pub fn new_amazon_s3(
@@ -209,19 +219,6 @@ impl ObjectStore {
         })
     }
 
-    /// Create implementation-specific path from parsed representation.
-    pub fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> path::Path {
-        use ObjectStoreIntegration::*;
-        match &self.integration {
-            AmazonS3(_) => path::Path::AmazonS3(path.into()),
-            GoogleCloudStorage(_) => path::Path::GoogleCloudStorage(path.into()),
-            InMemory(_) => path::Path::InMemory(path),
-            InMemoryThrottled(_) => path::Path::InMemory(path),
-            File(_) => path::Path::File(path.into()),
-            MicrosoftAzure(_) => path::Path::MicrosoftAzure(path.into()),
-        }
-    }
-
     /// Returns the filesystem cache if configured
     pub fn cache(&self) -> &Option<ObjectStoreFileCache> {
         &self.cache
@@ -229,7 +226,7 @@ impl ObjectStore {
 }
 
 #[async_trait]
-impl ObjectStoreApi for ObjectStore {
+impl ObjectStoreApi for ObjectStoreImpl {
     type Path = path::Path;
     type Error = Error;
 
@@ -455,6 +452,18 @@ impl ObjectStoreApi for ObjectStore {
             _ => unreachable!(),
         }
     }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> path::Path {
+        use ObjectStoreIntegration::*;
+        match &self.integration {
+            AmazonS3(_) => path::Path::AmazonS3(path.into()),
+            GoogleCloudStorage(_) => path::Path::GoogleCloudStorage(path.into()),
+            InMemory(_) => path::Path::InMemory(path),
+            InMemoryThrottled(_) => path::Path::InMemory(path),
+            File(_) => path::Path::File(path.into()),
+            MicrosoftAzure(_) => path::Path::MicrosoftAzure(path.into()),
+        }
+    }
 }
 
 /// All supported object storage integrations
@@ -496,7 +505,7 @@ impl Cache for ObjectStoreFileCache {
     async fn fs_path_or_cache(
         &self,
         path: &Path,
-        store: Arc<ObjectStore>,
+        store: Arc<DynObjectStore>,
     ) -> crate::cache::Result<&str> {
         match &self {
             Self::Passthrough(f) => f.fs_path_or_cache(path, store).await,
@@ -597,7 +606,7 @@ pub enum GetResult<E> {
     Stream(BoxStream<'static, Result<Bytes, E>>),
 }
 
-impl<E> std::fmt::Debug for GetResult<E> {
+impl<E> Debug for GetResult<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             GetResult::File(_, _) => write!(f, "GetResult(File)"),
@@ -754,7 +763,7 @@ mod tests {
     type Result<T, E = Error> = std::result::Result<T, E>;
 
     async fn flatten_list_stream(
-        storage: &ObjectStore,
+        storage: &DynObjectStore,
         prefix: Option<&path::Path>,
     ) -> Result<Vec<path::Path>> {
         storage
@@ -766,7 +775,7 @@ mod tests {
             .await
     }
 
-    pub(crate) async fn put_get_delete_list(storage: &ObjectStore) -> Result<()> {
+    pub(crate) async fn put_get_delete_list(storage: &DynObjectStore) -> Result<()> {
         delete_fixtures(storage).await;
 
         let content_list = flatten_list_stream(storage, None).await?;
@@ -811,7 +820,7 @@ mod tests {
         Ok(())
     }
 
-    pub(crate) async fn list_uses_directories_correctly(storage: &ObjectStore) -> Result<()> {
+    pub(crate) async fn list_uses_directories_correctly(storage: &DynObjectStore) -> Result<()> {
         delete_fixtures(storage).await;
 
         let content_list = flatten_list_stream(storage, None).await?;
@@ -847,7 +856,7 @@ mod tests {
         Ok(())
     }
 
-    pub(crate) async fn list_with_delimiter(storage: &ObjectStore) -> Result<()> {
+    pub(crate) async fn list_with_delimiter(storage: &DynObjectStore) -> Result<()> {
         delete_fixtures(storage).await;
 
         // ==================== check: store is empty ====================
@@ -932,8 +941,8 @@ mod tests {
 
     #[allow(dead_code)]
     pub(crate) async fn get_nonexistent_object(
-        storage: &ObjectStore,
-        location: Option<<ObjectStore as ObjectStoreApi>::Path>,
+        storage: &DynObjectStore,
+        location: Option<<ObjectStoreImpl as ObjectStoreApi>::Path>,
     ) -> Result<Vec<u8>> {
         let location = location.unwrap_or_else(|| {
             let mut loc = storage.new_path();
@@ -951,7 +960,7 @@ mod tests {
     /// associated storage might not be cloud storage, to reuse the cloud
     /// path parsing logic. Then convert into the correct type of path for
     /// the given storage.
-    fn str_to_path(storage: &ObjectStore, val: &str) -> path::Path {
+    fn str_to_path(storage: &DynObjectStore, val: &str) -> path::Path {
         let cloud_path = CloudPath::raw(val);
         let parsed: DirsAndFileName = cloud_path.into();
 
@@ -966,7 +975,7 @@ mod tests {
         new_path
     }
 
-    async fn delete_fixtures(storage: &ObjectStore) {
+    async fn delete_fixtures(storage: &DynObjectStore) {
         let files: Vec<_> = [
             "test_file",
             "test_dir/test_file.json",

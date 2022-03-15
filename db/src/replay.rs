@@ -467,7 +467,7 @@ mod tests {
         timestamp::TimestampRange,
     };
     use dml::{DmlDelete, DmlMeta};
-    use object_store::ObjectStore;
+    use object_store::{DynObjectStore, ObjectStoreImpl};
     use persistence_windows::{
         checkpoint::{PartitionCheckpoint, PersistCheckpointBuilder, ReplayPlanner},
         min_max_sequence::OptionalMinMaxSequence,
@@ -603,7 +603,7 @@ mod tests {
             // Test that data is replayed from write buffers
 
             // ==================== setup ====================
-            let object_store = Arc::new(ObjectStore::new_in_memory());
+            let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
             let time = Arc::new(time::MockProvider::new(Time::from_timestamp(12, 0)));
             let server_id = ServerId::try_from(1).unwrap();
             let db_name = "replay_test";
@@ -851,7 +851,7 @@ mod tests {
         }
 
         fn create_test_db_builder(
-            object_store: Arc<ObjectStore>,
+            object_store: Arc<DynObjectStore>,
             server_id: ServerId,
             db_name: &'static str,
             partition_template: PartitionTemplate,

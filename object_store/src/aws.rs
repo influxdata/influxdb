@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using S3 as the object
 //! store.
 use crate::{
-    path::{cloud::CloudPath, DELIMITER},
+    path::{cloud::CloudPath, parsed::DirsAndFileName, DELIMITER},
     GetResult, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
 };
 use async_trait::async_trait;
@@ -174,6 +174,10 @@ impl ObjectStoreApi for AmazonS3 {
 
     fn path_from_raw(&self, raw: &str) -> Self::Path {
         CloudPath::raw(raw)
+    }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        path.into()
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
@@ -666,7 +670,7 @@ mod tests {
             get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
             put_get_delete_list,
         },
-        Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStoreApi, ObjectStoreImpl, ObjectStorePath,
     };
     use bytes::Bytes;
     use std::env;
@@ -760,7 +764,7 @@ mod tests {
     #[tokio::test]
     async fn s3_test() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStore::new_amazon_s3(
+        let integration = ObjectStoreImpl::new_amazon_s3(
             Some(config.access_key_id),
             Some(config.secret_access_key),
             config.region,
@@ -780,7 +784,7 @@ mod tests {
     #[tokio::test]
     async fn s3_test_get_nonexistent_location() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStore::new_amazon_s3(
+        let integration = ObjectStoreImpl::new_amazon_s3(
             Some(config.access_key_id),
             Some(config.secret_access_key),
             config.region,
@@ -823,7 +827,7 @@ mod tests {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
 
-        let integration = ObjectStore::new_amazon_s3(
+        let integration = ObjectStoreImpl::new_amazon_s3(
             Some(config.access_key_id),
             Some(config.secret_access_key),
             config.region,
@@ -860,7 +864,7 @@ mod tests {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
 
-        let integration = ObjectStore::new_amazon_s3(
+        let integration = ObjectStoreImpl::new_amazon_s3(
             Some(config.access_key_id),
             Some(config.secret_access_key),
             config.region,
@@ -898,7 +902,7 @@ mod tests {
     #[tokio::test]
     async fn s3_test_delete_nonexistent_location() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStore::new_amazon_s3(
+        let integration = ObjectStoreImpl::new_amazon_s3(
             Some(config.access_key_id),
             Some(config.secret_access_key),
             config.region,
@@ -923,7 +927,7 @@ mod tests {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
 
-        let integration = ObjectStore::new_amazon_s3(
+        let integration = ObjectStoreImpl::new_amazon_s3(
             Some(config.access_key_id),
             Some(config.secret_access_key),
             config.region,

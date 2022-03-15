@@ -1,6 +1,6 @@
 use crate::config::{object_store::ConfigProviderObjectStorage, ConfigProvider};
 use job_registry::JobRegistry;
-use object_store::ObjectStore;
+use object_store::DynObjectStore;
 use observability_deps::tracing::info;
 use query::exec::Executor;
 use std::sync::Arc;
@@ -12,7 +12,7 @@ use write_buffer::config::WriteBufferConfigFactory;
 /// shared between server and all DatabaseInstances
 #[derive(Debug, Clone)]
 pub struct ApplicationState {
-    object_store: Arc<ObjectStore>,
+    object_store: Arc<DynObjectStore>,
     write_buffer_factory: Arc<WriteBufferConfigFactory>,
     executor: Arc<Executor>,
     job_registry: Arc<JobRegistry>,
@@ -27,7 +27,7 @@ impl ApplicationState {
     ///
     /// Uses number of CPUs in the system if num_worker_threads is not set
     pub fn new(
-        object_store: Arc<ObjectStore>,
+        object_store: Arc<DynObjectStore>,
         num_worker_threads: Option<usize>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
         config_provider: Option<Arc<dyn ConfigProvider>>,
@@ -66,8 +66,8 @@ impl ApplicationState {
         }
     }
 
-    pub fn object_store(&self) -> &Arc<ObjectStore> {
-        &self.object_store
+    pub fn object_store(&self) -> Arc<DynObjectStore> {
+        Arc::clone(&self.object_store)
     }
 
     pub fn write_buffer_factory(&self) -> &Arc<WriteBufferConfigFactory> {

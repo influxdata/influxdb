@@ -15,7 +15,7 @@ use data_types::{
     server_id::ServerId,
 };
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
     file::serialized_reader::{SerializedFileReader, SliceableCursor},
@@ -750,7 +750,7 @@ pub fn make_server_id() -> ServerId {
 /// Creates new in-memory database iox_object_store for testing.
 pub async fn make_iox_object_store() -> Arc<IoxObjectStore> {
     Arc::new(
-        IoxObjectStore::create(Arc::new(ObjectStore::new_in_memory()), Uuid::new_v4())
+        IoxObjectStore::create(Arc::new(ObjectStoreImpl::new_in_memory()), Uuid::new_v4())
             .await
             .unwrap(),
     )

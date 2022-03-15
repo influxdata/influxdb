@@ -8,7 +8,7 @@ use crate::{
 use backoff::{Backoff, BackoffConfig};
 use data_types2::NamespaceId;
 use iox_catalog::interface::Catalog;
-use object_store::ObjectStore;
+use object_store::DynObjectStore;
 use observability_deps::tracing::{error, info};
 use parking_lot::RwLock;
 use query::exec::Executor;
@@ -43,7 +43,7 @@ pub struct QuerierDatabase {
     namespaces: RwLock<HashMap<Arc<str>, Arc<QuerierNamespace>>>,
 
     /// Object store.
-    object_store: Arc<ObjectStore>,
+    object_store: Arc<DynObjectStore>,
 
     /// Time provider.
     time_provider: Arc<dyn TimeProvider>,
@@ -59,7 +59,7 @@ impl QuerierDatabase {
     pub fn new(
         catalog: Arc<dyn Catalog>,
         metric_registry: Arc<metric::Registry>,
-        object_store: Arc<ObjectStore>,
+        object_store: Arc<DynObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
         exec: Arc<Executor>,
     ) -> Self {

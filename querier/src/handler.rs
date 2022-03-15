@@ -119,7 +119,7 @@ mod tests {
     use std::time::Duration;
 
     use iox_catalog::mem::MemCatalog;
-    use object_store::ObjectStore;
+    use object_store::ObjectStoreImpl;
     use query::exec::Executor;
     use time::{MockProvider, Time};
 
@@ -172,7 +172,7 @@ mod tests {
         fn new() -> Self {
             let metric_registry = Arc::new(metric::Registry::new());
             let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
-            let object_store = Arc::new(ObjectStore::new_in_memory());
+            let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
             let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
             let exec = Arc::new(Executor::new(1));
             let database = Arc::new(QuerierDatabase::new(

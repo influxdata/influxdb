@@ -19,7 +19,7 @@ use influxdb_ioxd::{
     },
     Service,
 };
-use object_store::ObjectStore;
+use object_store::{DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use thiserror::Error;
@@ -293,8 +293,8 @@ pub async fn command(config: Config) -> Result<()> {
         .create_or_get(query_pool_name)
         .await?;
 
-    let object_store = Arc::new(
-        ObjectStore::try_from(router_run_config.object_store_config())
+    let object_store: Arc<DynObjectStore> = Arc::new(
+        ObjectStoreImpl::try_from(router_run_config.object_store_config())
             .map_err(Error::ObjectStoreParsing)?,
     );
 

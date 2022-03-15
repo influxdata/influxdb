@@ -1,6 +1,6 @@
 use clap_blocks::{object_store::ObjectStoreConfig, server_id::ServerIdConfig};
 use iox_object_store::IoxObjectStore;
-use object_store::ObjectStore;
+use object_store::{DynObjectStore, ObjectStoreImpl};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{convert::TryFrom, sync::Arc};
 
@@ -105,11 +105,11 @@ impl From<DumpOptions> for parquet_catalog::dump::DumpOptions {
 }
 
 pub async fn command(config: Config) -> Result<()> {
-    let object_store = Arc::new(
-        ObjectStore::try_from(&config.object_store_config).context(ObjectStoreParsingSnafu)?,
+    let object_store: Arc<DynObjectStore> = Arc::new(
+        ObjectStoreImpl::try_from(&config.object_store_config).context(ObjectStoreParsingSnafu)?,
     );
     let server_id = config.server_id_config.server_id.context(NoServerIdSnafu)?;
-    let server_config_bytes = IoxObjectStore::get_server_config_file(&object_store, server_id)
+    let server_config_bytes = IoxObjectStore::get_server_config_file(&*object_store, server_id)
         .await
         .context(CantReadServerConfigSnafu)?;
 

@@ -607,7 +607,7 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
     // Whatever data because they won't be used in the tests
     let metrics: Arc<metric::Registry> = Default::default();
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
-    let object_store = Arc::new(object_store::ObjectStore::new_in_memory());
+    let object_store = Arc::new(object_store::ObjectStoreImpl::new_in_memory());
     let exec = Arc::new(query::exec::Executor::new(1));
 
     // Make data for one sequencer/shard and two tables
@@ -660,7 +660,7 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
     // Whatever data because they won't be used in the tests
     let metrics: Arc<metric::Registry> = Default::default();
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
-    let object_store = Arc::new(object_store::ObjectStore::new_in_memory());
+    let object_store = Arc::new(object_store::ObjectStoreImpl::new_in_memory());
     let exec = Arc::new(query::exec::Executor::new(1));
 
     // Make data for one sequencer/shard and two tables

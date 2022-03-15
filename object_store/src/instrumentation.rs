@@ -13,7 +13,7 @@ use metric::{Metric, U64Counter, U64Histogram, U64HistogramOptions};
 use pin_project::{pin_project, pinned_drop};
 use time::{SystemProvider, Time, TimeProvider};
 
-use crate::{GetResult, ListResult, ObjectStoreApi};
+use crate::{path::parsed::DirsAndFileName, GetResult, ListResult, ObjectStoreApi};
 
 /// An instrumentation decorator, wrapping an underlying [`ObjectStoreApi`]
 /// implementation and recording bytes transferred and call latency.
@@ -162,6 +162,10 @@ where
 
     fn path_from_raw(&self, raw: &str) -> Self::Path {
         self.inner.path_from_raw(raw)
+    }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        self.inner.path_from_dirs_and_filename(path)
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error> {
@@ -514,7 +518,7 @@ mod tests {
     use metric::Attributes;
     use tokio::io::AsyncReadExt;
 
-    use crate::{dummy, ObjectStore};
+    use crate::{dummy, ObjectStoreImpl};
 
     use super::*;
 
@@ -552,7 +556,7 @@ mod tests {
     #[tokio::test]
     async fn test_put() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStore::new_in_memory();
+        let store = ObjectStoreImpl::new_in_memory();
         let store = ObjectStoreMetrics::new(store, &metrics);
 
         store
@@ -596,7 +600,7 @@ mod tests {
     #[tokio::test]
     async fn test_list() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStore::new_in_memory();
+        let store = ObjectStoreImpl::new_in_memory();
         let store = ObjectStoreMetrics::new(store, &metrics);
 
         store.list(None).await.expect("list should succeed");
@@ -626,7 +630,7 @@ mod tests {
     #[tokio::test]
     async fn test_list_with_delimiter() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStore::new_in_memory();
+        let store = ObjectStoreImpl::new_in_memory();
         let store = ObjectStoreMetrics::new(store, &metrics);
 
         store
@@ -683,7 +687,7 @@ mod tests {
     #[tokio::test]
     async fn test_put_get_delete_file() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStore::new_file("./");
+        let store = ObjectStoreImpl::new_file("./");
         let store = ObjectStoreMetrics::new(store, &metrics);
 
         let data = [42_u8, 42, 42, 42, 42];
@@ -727,7 +731,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_stream() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStore::new_in_memory();
+        let store = ObjectStoreImpl::new_in_memory();
         let store = ObjectStoreMetrics::new(store, &metrics);
 
         let data = [42_u8, 42, 42, 42, 42];

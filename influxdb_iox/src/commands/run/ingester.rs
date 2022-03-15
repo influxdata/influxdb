@@ -12,7 +12,7 @@ use influxdb_ioxd::{
     },
     Service,
 };
-use object_store::ObjectStore;
+use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use std::{convert::TryFrom, sync::Arc};
@@ -83,10 +83,11 @@ pub async fn command(config: Config) -> Result<()> {
         .get_catalog("ingester", Arc::clone(&metric_registry))
         .await?;
 
-    let object_store = Arc::new(
-        ObjectStore::try_from(config.run_config.object_store_config())
-            .map_err(Error::ObjectStoreParsing)?,
-    );
+    let object_store = ObjectStoreImpl::try_from(config.run_config.object_store_config())
+        .map_err(Error::ObjectStoreParsing)?;
+    // Decorate the object store with a metric recorder.
+    let object_store: Arc<DynObjectStore> =
+        Arc::new(ObjectStoreMetrics::new(object_store, &*metric_registry));
 
     let exec = Arc::new(Executor::new(config.query_exec_thread_count));
     let server_type = create_ingester_server_type(

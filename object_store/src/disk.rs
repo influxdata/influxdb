@@ -1,8 +1,8 @@
 //! This module contains the IOx implementation for using local disk as the
 //! object store.
-use crate::cache::Cache;
-use crate::path::Path;
-use crate::{path::file::FilePath, GetResult, ListResult, ObjectMeta, ObjectStore, ObjectStoreApi};
+use crate::path::{parsed::DirsAndFileName, Path};
+use crate::{cache::Cache, DynObjectStore};
+use crate::{path::file::FilePath, GetResult, ListResult, ObjectMeta, ObjectStoreApi};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{
@@ -98,6 +98,10 @@ impl ObjectStoreApi for File {
 
     fn path_from_raw(&self, raw: &str) -> Self::Path {
         FilePath::raw(raw, true)
+    }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        path.into()
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
@@ -272,7 +276,7 @@ impl Cache for File {
     async fn fs_path_or_cache(
         &self,
         _path: &Path,
-        _store: Arc<ObjectStore>,
+        _store: Arc<DynObjectStore>,
     ) -> crate::cache::Result<&str> {
         todo!()
     }
@@ -330,7 +334,7 @@ mod tests {
             get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
             put_get_delete_list,
         },
-        Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStoreApi, ObjectStoreImpl, ObjectStorePath,
     };
     use std::{fs::set_permissions, os::unix::prelude::PermissionsExt};
     use tempfile::TempDir;
@@ -338,7 +342,7 @@ mod tests {
     #[tokio::test]
     async fn file_test() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStore::new_file(root.path());
+        let integration = ObjectStoreImpl::new_file(root.path());
 
         put_get_delete_list(&integration).await.unwrap();
         list_uses_directories_correctly(&integration).await.unwrap();
@@ -348,7 +352,7 @@ mod tests {
     #[tokio::test]
     async fn creates_dir_if_not_present() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStore::new_file(root.path());
+        let integration = ObjectStoreImpl::new_file(root.path());
 
         let mut location = integration.new_path();
         location.push_all_dirs(&["nested", "file", "test_file"]);
@@ -371,7 +375,7 @@ mod tests {
     #[tokio::test]
     async fn unknown_length() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStore::new_file(root.path());
+        let integration = ObjectStoreImpl::new_file(root.path());
 
         let mut location = integration.new_path();
         location.set_file_name("some_file");
@@ -428,7 +432,7 @@ mod tests {
     #[tokio::test]
     async fn get_nonexistent_location() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStore::new_file(root.path());
+        let integration = ObjectStoreImpl::new_file(root.path());
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);

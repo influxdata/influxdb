@@ -9,7 +9,7 @@ use futures::{
     FutureExt, StreamExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
-use object_store::ObjectStore;
+use object_store::DynObjectStore;
 use observability_deps::tracing::warn;
 use query::exec::Executor;
 use std::sync::Arc;
@@ -62,7 +62,7 @@ impl CompactorHandlerImpl {
     pub fn new(
         sequencers: Vec<SequencerId>,
         catalog: Arc<dyn Catalog>,
-        object_store: Arc<ObjectStore>,
+        object_store: Arc<DynObjectStore>,
         exec: Arc<Executor>,
         time_provider: Arc<dyn TimeProvider>,
         _registry: &metric::Registry,

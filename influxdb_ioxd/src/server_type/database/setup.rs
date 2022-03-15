@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use clap_blocks::run_config::RunConfig;
-use object_store::ObjectStore;
+use object_store::ObjectStoreImpl;
 use observability_deps::tracing::warn;
 use server::config::ConfigProvider;
 use server::{ApplicationState, Server, ServerConfig};
@@ -35,7 +35,7 @@ pub async fn make_application(
     let object_store_config = run_config.object_store_config();
     warn_about_inmem_store(object_store_config);
     let object_store =
-        ObjectStore::try_from(object_store_config).context(ObjectStoreParsingSnafu)?;
+        ObjectStoreImpl::try_from(object_store_config).context(ObjectStoreParsingSnafu)?;
 
     check_object_store(&object_store)
         .await

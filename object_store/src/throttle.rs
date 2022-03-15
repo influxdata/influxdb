@@ -1,7 +1,10 @@
 //! This module contains the IOx implementation for wrapping existing object store types into an artificial "sleep" wrapper.
-use std::{convert::TryInto, sync::Mutex};
+use std::{
+    convert::TryInto,
+    sync::{Arc, Mutex},
+};
 
-use crate::{GetResult, ListResult, ObjectStoreApi, Result};
+use crate::{path::parsed::DirsAndFileName, GetResult, ListResult, ObjectStoreApi, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{stream::BoxStream, StreamExt};
@@ -82,7 +85,7 @@ pub struct ThrottleConfig {
 #[derive(Debug)]
 pub struct ThrottledStore<T: ObjectStoreApi> {
     inner: T,
-    config: Mutex<ThrottleConfig>,
+    pub config: Arc<Mutex<ThrottleConfig>>,
 }
 
 impl<T: ObjectStoreApi> ThrottledStore<T> {
@@ -90,7 +93,7 @@ impl<T: ObjectStoreApi> ThrottledStore<T> {
     pub fn new(inner: T, config: ThrottleConfig) -> Self {
         Self {
             inner,
-            config: Mutex::new(config),
+            config: Arc::new(Mutex::new(config)),
         }
     }
 
@@ -110,7 +113,10 @@ impl<T: ObjectStoreApi> ThrottledStore<T> {
 }
 
 #[async_trait]
-impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
+impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T>
+where
+    DirsAndFileName: Into<T::Path>,
+{
     type Path = T::Path;
 
     type Error = T::Error;
@@ -121,6 +127,10 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
 
     fn path_from_raw(&self, raw: &str) -> Self::Path {
         self.inner.path_from_raw(raw)
+    }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        path.into()
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error> {
@@ -217,7 +227,7 @@ mod tests {
         memory::InMemory,
         path::ObjectStorePath,
         tests::{list_uses_directories_correctly, list_with_delimiter, put_get_delete_list},
-        ObjectStore,
+        ObjectStoreImpl,
     };
     use bytes::Bytes;
     use futures::TryStreamExt;
@@ -243,7 +253,7 @@ mod tests {
     #[tokio::test]
     async fn throttle_test() {
         let config = ThrottleConfig::default();
-        let integration = ObjectStore::new_in_memory_throttled(config);
+        let integration = ObjectStoreImpl::new_in_memory_throttled(config);
 
         put_get_delete_list(&integration).await.unwrap();
         list_uses_directories_correctly(&integration).await.unwrap();

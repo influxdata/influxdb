@@ -6,7 +6,10 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use snafu::Snafu;
 
-use crate::{path::cloud::CloudPath, GetResult, ObjectStoreApi};
+use crate::{
+    path::{cloud::CloudPath, parsed::DirsAndFileName},
+    GetResult, ObjectStoreApi,
+};
 
 /// A specialized `Error` for Azure object store-related errors
 #[derive(Debug, Snafu, Clone)]
@@ -47,6 +50,10 @@ impl ObjectStoreApi for DummyObjectStore {
 
     fn path_from_raw(&self, raw: &str) -> Self::Path {
         CloudPath::raw(raw)
+    }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        path.into()
     }
 
     async fn put(&self, _location: &Self::Path, _bytes: Bytes) -> crate::Result<(), Self::Error> {

@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using Azure Blob storage as
 //! the object store.
 use crate::{
-    path::{cloud::CloudPath, DELIMITER},
+    path::{cloud::CloudPath, parsed::DirsAndFileName, DELIMITER},
     GetResult, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
 };
 use async_trait::async_trait;
@@ -75,6 +75,10 @@ impl ObjectStoreApi for MicrosoftAzure {
 
     fn path_from_raw(&self, raw: &str) -> Self::Path {
         CloudPath::raw(raw)
+    }
+
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        path.into()
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
@@ -287,7 +291,7 @@ pub fn new_azure(
 #[cfg(test)]
 mod tests {
     use crate::tests::{list_uses_directories_correctly, list_with_delimiter, put_get_delete_list};
-    use crate::ObjectStore;
+    use crate::ObjectStoreImpl;
     use std::env;
 
     #[derive(Debug)]
@@ -353,7 +357,7 @@ mod tests {
     #[tokio::test]
     async fn azure_blob_test() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStore::new_microsoft_azure(
+        let integration = ObjectStoreImpl::new_microsoft_azure(
             config.storage_account,
             config.access_key,
             config.bucket,

@@ -80,6 +80,7 @@ use database::{
     state::DatabaseConfig,
     Database,
 };
+use object_store::DynObjectStore;
 use std::any::Any;
 
 use db::Db;
@@ -757,15 +758,17 @@ impl Server {
         };
 
         // Read the database's rules from object storage to get the database name
-        let db_name =
-            database_name_from_rules_file(Arc::clone(self.shared.application.object_store()), uuid)
-                .await
-                .map_err(|e| match e {
-                    DatabaseNameFromRulesError::DatabaseRulesNotFound { .. } => {
-                        Error::DatabaseUuidNotFound { uuid }
-                    }
-                    _ => Error::CouldNotGetDatabaseNameFromRules { source: e },
-                })?;
+        let db_name = database_name_from_rules_file(
+            Arc::clone(&self.shared.application.object_store()),
+            uuid,
+        )
+        .await
+        .map_err(|e| match e {
+            DatabaseNameFromRulesError::DatabaseRulesNotFound { .. } => {
+                Error::DatabaseUuidNotFound { uuid }
+            }
+            _ => Error::CouldNotGetDatabaseNameFromRules { source: e },
+        })?;
 
         info!(%db_name, %uuid, "start restoring database");
 
@@ -1062,7 +1065,7 @@ pub enum DatabaseNameFromRulesError {
 }
 
 async fn database_name_from_rules_file(
-    object_store: Arc<object_store::ObjectStore>,
+    object_store: Arc<DynObjectStore>,
     uuid: Uuid,
 ) -> Result<DatabaseName<'static>, DatabaseNameFromRulesError> {
     let rules_bytes = IoxObjectStore::load_database_rules(object_store, uuid)
@@ -1085,12 +1088,12 @@ async fn database_name_from_rules_file(
 
 pub mod test_utils {
     use super::*;
-    use object_store::ObjectStore;
+    use object_store::ObjectStoreImpl;
 
     /// Create a new [`ApplicationState`] with an in-memory object store
     pub fn make_application() -> Arc<ApplicationState> {
         Arc::new(ApplicationState::new(
-            Arc::new(ObjectStore::new_in_memory()),
+            Arc::new(ObjectStoreImpl::new_in_memory()),
             None,
             None,
             None,
@@ -1132,7 +1135,7 @@ mod tests {
     use generated_types::influxdata::iox::management;
     use iox_object_store::IoxObjectStore;
     use mutable_batch_lp::lines_to_batches;
-    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+    use object_store::{path::ObjectStorePath, DynObjectStore, ObjectStoreImpl};
     use parquet_catalog::{
         core::{PreservedCatalog, PreservedCatalogConfig},
         test_helpers::{load_ok, new_empty},
@@ -1153,14 +1156,14 @@ mod tests {
         assert!(matches!(resp, Error::IdNotSet));
     }
 
-    async fn server_config_contents(object_store: &ObjectStore, server_id: ServerId) -> Bytes {
+    async fn server_config_contents(object_store: &DynObjectStore, server_id: ServerId) -> Bytes {
         IoxObjectStore::get_server_config_file(object_store, server_id)
             .await
             .unwrap_or_else(|_| Bytes::new())
     }
 
     async fn server_config(
-        object_store: &ObjectStore,
+        object_store: &DynObjectStore,
         server_id: ServerId,
     ) -> management::v1::ServerConfig {
         let server_config_contents = server_config_contents(object_store, server_id).await;
@@ -1200,7 +1203,7 @@ mod tests {
 
         // assert server config file either doesn't exist or exists but has 0 entries
         let server_config_contents =
-            server_config_contents(application.object_store(), server_id).await;
+            server_config_contents(&*application.object_store(), server_id).await;
         assert_eq!(server_config_contents.len(), 0);
 
         let name = DatabaseName::new("bananas").unwrap();
@@ -1243,11 +1246,11 @@ mod tests {
         assert_eq!(owner_info.id, server_id.get_u32());
         assert_eq!(
             owner_info.location,
-            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string()
+            IoxObjectStore::server_config_path(&*application.object_store(), server_id).to_string()
         );
 
         // assert server config file exists and has 1 entry
-        let config = server_config(application.object_store(), server_id).await;
+        let config = server_config(&*application.object_store(), server_id).await;
         assert_config_contents(&config, &[(&name, format!("dbs/{}/", bananas_uuid))]);
 
         let db2 = DatabaseName::new("db_awesome").unwrap();
@@ -1261,7 +1264,7 @@ mod tests {
         let awesome_uuid = awesome.uuid();
 
         // assert server config file exists and has 2 entries
-        let config = server_config(application.object_store(), server_id).await;
+        let config = server_config(&*application.object_store(), server_id).await;
         assert_config_contents(
             &config,
             &[
@@ -1284,7 +1287,7 @@ mod tests {
         assert!(server2.db(&name).is_ok());
 
         // assert server config file still exists and has 2 entries
-        let config = server_config(application.object_store(), server_id).await;
+        let config = server_config(&*application.object_store(), server_id).await;
         assert_config_contents(
             &config,
             &[
@@ -1405,7 +1408,7 @@ mod tests {
 
         // assert server config file has been recreated and contains 2 entries, even though
         // the databases fail to initialize
-        let config = server_config(application.object_store(), server_id).await;
+        let config = server_config(&*application.object_store(), server_id).await;
         assert_config_contents(
             &config,
             &[
@@ -1510,7 +1513,7 @@ mod tests {
         database.wait_for_init().await.unwrap();
 
         // Server config should be transitioned to the new location
-        let config = server_config(application.object_store(), server_id).await;
+        let config = server_config(&*application.object_store(), server_id).await;
         assert_config_contents(&config, &[(&db_name, format!("dbs/{}/", db_uuid))]);
     }
 
@@ -1650,7 +1653,7 @@ mod tests {
     #[tokio::test]
     async fn init_error_generic() {
         // use an object store that will hopefully fail to read
-        let store = Arc::new(ObjectStore::new_failing_store().unwrap());
+        let store = Arc::new(ObjectStoreImpl::new_failing_store().unwrap());
         let application = Arc::new(ApplicationState::new(store, None, None, None));
         let server = make_server(application);
 
@@ -1845,7 +1848,7 @@ mod tests {
             Error::DatabaseNotFound { .. },
         );
 
-        let config = server_config(application.object_store(), server_id).await;
+        let config = server_config(&*application.object_store(), server_id).await;
         assert_config_contents(&config, &[]);
 
         // create another database
@@ -1910,7 +1913,7 @@ mod tests {
         let claimed = server.database(&foo_db_name).unwrap();
         claimed.wait_for_init().await.unwrap();
 
-        let config = server_config(application.object_store(), server_id).await;
+        let config = server_config(&*application.object_store(), server_id).await;
         assert_config_contents(
             &config,
             &[(&foo_db_name, format!("dbs/{}/", released_uuid))],
@@ -2120,9 +2123,12 @@ mod tests {
             Error::DatabaseNotFound { .. }
         ));
         let non_existing_iox_object_store = Arc::new(
-            IoxObjectStore::create(Arc::clone(application.object_store()), db_uuid_non_existing)
-                .await
-                .unwrap(),
+            IoxObjectStore::create(
+                Arc::clone(&application.object_store()),
+                db_uuid_non_existing,
+            )
+            .await
+            .unwrap(),
         );
 
         let config = PreservedCatalogConfig::new(

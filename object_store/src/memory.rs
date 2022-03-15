@@ -47,6 +47,10 @@ impl ObjectStoreApi for InMemory {
         cloud_path.into()
     }
 
+    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
+        path
+    }
+
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
         self.storage
             .write()
@@ -165,12 +169,12 @@ mod tests {
             get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
             put_get_delete_list,
         },
-        Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStoreApi, ObjectStoreImpl, ObjectStorePath,
     };
 
     #[tokio::test]
     async fn in_memory_test() {
-        let integration = ObjectStore::new_in_memory();
+        let integration = ObjectStoreImpl::new_in_memory();
 
         put_get_delete_list(&integration).await.unwrap();
         list_uses_directories_correctly(&integration).await.unwrap();
@@ -179,7 +183,7 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_length() {
-        let integration = ObjectStore::new_in_memory();
+        let integration = ObjectStoreImpl::new_in_memory();
 
         let mut location = integration.new_path();
         location.set_file_name("some_file");
@@ -203,7 +207,7 @@ mod tests {
 
     #[tokio::test]
     async fn nonexistent_location() {
-        let integration = ObjectStore::new_in_memory();
+        let integration = ObjectStoreImpl::new_in_memory();
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);

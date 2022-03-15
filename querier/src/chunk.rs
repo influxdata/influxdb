@@ -2,7 +2,7 @@ use crate::cache::CatalogCache;
 use data_types2::{ChunkAddr, ChunkId, ChunkOrder, ParquetFile};
 use db::catalog::chunk::{CatalogChunk, ChunkMetadata, ChunkMetrics as CatalogChunkMetrics};
 use iox_object_store::IoxObjectStore;
-use object_store::ObjectStore;
+use object_store::DynObjectStore;
 use parquet_file::chunk::{
     new_parquet_chunk, ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk,
 };
@@ -30,14 +30,14 @@ impl ParquetChunkAdapter {
     /// Create new adapter with empty cache.
     pub fn new(
         catalog_cache: Arc<CatalogCache>,
-        object_store: Arc<ObjectStore>,
+        object_store: Arc<DynObjectStore>,
         metric_registry: Arc<metric::Registry>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         // create a virtual IOx object store, the UUID won't be used anyways
         let iox_object_store = Arc::new(IoxObjectStore::existing(
             Arc::clone(&object_store),
-            IoxObjectStore::root_path_for(&object_store, uuid::Uuid::new_v4()),
+            IoxObjectStore::root_path_for(&*object_store, uuid::Uuid::new_v4()),
         ));
 
         Self {
