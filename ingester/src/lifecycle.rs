@@ -11,6 +11,7 @@ use crate::{
     poison::{PoisonCabinet, PoisonPill},
 };
 use data_types2::{PartitionId, SequenceNumber, SequencerId};
+use metric::{Metric, U64Counter};
 use observability_deps::tracing::{error, info};
 use parking_lot::Mutex;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
@@ -101,6 +102,15 @@ pub struct LifecycleManager {
     /// [`LifecycleHandle`] instances update statistics directly by calling
     /// [`LifecycleHandle::log_write()`].
     state: Arc<Mutex<LifecycleState>>,
+
+    /// Counter for memory pressure triggering a persist.
+    persist_memory_counter: U64Counter,
+    /// Counter for the size of a partition triggering a persist.
+    persist_size_counter: U64Counter,
+    /// Counter for the age of a partition triggering a persist.
+    persist_age_counter: U64Counter,
+    /// Counter for a partition going cold for writes triggering a persist.
+    persist_cold_counter: U64Counter,
 }
 
 /// The configuration options for the lifecycle on the ingester.
@@ -202,6 +212,16 @@ impl LifecycleManager {
         metric_registry: Arc<metric::Registry>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
+        let persist_counter: Metric<U64Counter> = metric_registry.register_metric(
+            "ingester_lifecycle_persist_count",
+            "counter for different triggers that cause partition persistence",
+        );
+
+        let persist_memory_counter = persist_counter.recorder(&[("trigger", "memory")]);
+        let persist_size_counter = persist_counter.recorder(&[("trigger", "size")]);
+        let persist_age_counter = persist_counter.recorder(&[("trigger", "age")]);
+        let persist_cold_counter = persist_counter.recorder(&[("trigger", "cold")]);
+
         let job_registry = Arc::new(JobRegistry::new(
             metric_registry,
             Arc::clone(&time_provider),
@@ -211,6 +231,10 @@ impl LifecycleManager {
             time_provider,
             job_registry,
             state: Default::default(),
+            persist_memory_counter,
+            persist_size_counter,
+            persist_age_counter,
+            persist_cold_counter,
         }
     }
 
@@ -244,11 +268,22 @@ impl LifecycleManager {
                 .checked_duration_since(s.first_write)
                 .map(|age| age > self.config.partition_age_threshold)
                 .unwrap_or(false);
+            if aged_out {
+                self.persist_age_counter.inc(1);
+            }
+
             let is_cold = now
                 .checked_duration_since(s.last_write)
                 .map(|age| age > self.config.partition_cold_threshold)
                 .unwrap_or(false);
+            if is_cold {
+                self.persist_cold_counter.inc(1);
+            }
+
             let sized_out = s.bytes_written > self.config.partition_size_threshold;
+            if sized_out {
+                self.persist_size_counter.inc(1);
+            }
 
             aged_out || sized_out || is_cold
         });
@@ -266,14 +301,18 @@ impl LifecycleManager {
 
             let mut remaining = vec![];
 
+            let mut memory_persist_counter = 0;
             for s in rest {
                 if total_bytes >= self.config.persist_memory_threshold {
                     total_bytes -= s.bytes_written;
                     to_persist.push(s);
+                    memory_persist_counter += 1;
                 } else {
                     remaining.push(s);
                 }
             }
+
+            self.persist_memory_counter.inc(memory_persist_counter);
 
             rest = remaining;
         }
@@ -390,6 +429,7 @@ pub(crate) async fn run_lifecycle_manager<P: Persister>(
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use metric::{Attributes, Registry};
     use std::collections::BTreeSet;
     use time::MockProvider;
 
@@ -437,7 +477,9 @@ mod tests {
             partition_age_threshold: Duration::from_nanos(0),
             partition_cold_threshold: Duration::from_secs(500),
         };
-        let TestLifecycleManger { m, time_provider } = TestLifecycleManger::new(config);
+        let TestLifecycleManger {
+            m, time_provider, ..
+        } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
         let h = m.handle();
 
@@ -514,6 +556,7 @@ mod tests {
         let TestLifecycleManger {
             mut m,
             time_provider,
+            metric_registry,
         } = TestLifecycleManger::new(config);
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
@@ -549,6 +592,9 @@ mod tests {
         assert_eq!(stats.total_bytes, 6);
         assert_eq!(stats.partition_stats.len(), 1);
         assert_eq!(stats.partition_stats[0].partition_id, PartitionId::new(2));
+
+        let age_counter = get_counter(&metric_registry, "age");
+        assert_eq!(age_counter, 1);
     }
 
     #[tokio::test]
@@ -560,7 +606,11 @@ mod tests {
             partition_age_threshold: Duration::from_millis(100),
             partition_cold_threshold: Duration::from_secs(500),
         };
-        let TestLifecycleManger { mut m, .. } = TestLifecycleManger::new(config);
+        let TestLifecycleManger {
+            mut m,
+            metric_registry,
+            ..
+        } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
         let h = m.handle();
 
@@ -592,6 +642,9 @@ mod tests {
         assert_eq!(stats.total_bytes, 3);
         assert_eq!(stats.partition_stats.len(), 1);
         assert_eq!(stats.partition_stats[0].partition_id, PartitionId::new(2));
+
+        let size_counter = get_counter(&metric_registry, "size");
+        assert_eq!(size_counter, 1);
     }
 
     #[tokio::test]
@@ -604,7 +657,11 @@ mod tests {
             partition_cold_threshold: Duration::from_secs(500),
         };
         let sequencer_id = SequencerId::new(1);
-        let TestLifecycleManger { mut m, .. } = TestLifecycleManger::new(config);
+        let TestLifecycleManger {
+            mut m,
+            metric_registry,
+            ..
+        } = TestLifecycleManger::new(config);
         let h = m.handle();
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
@@ -657,6 +714,9 @@ mod tests {
         let stats = m.stats();
         assert_eq!(stats.total_bytes, 0);
         assert_eq!(stats.partition_stats.len(), 0);
+
+        let mem_counter = get_counter(&metric_registry, "memory");
+        assert_eq!(mem_counter, 1);
     }
 
     #[tokio::test]
@@ -672,6 +732,7 @@ mod tests {
         let TestLifecycleManger {
             mut m,
             time_provider,
+            metric_registry,
         } = TestLifecycleManger::new(config);
         let h = m.handle();
         let persister = Arc::new(TestPersister::default());
@@ -694,6 +755,9 @@ mod tests {
             persister.update_min_calls(),
             vec![(sequencer_id, SequenceNumber::new(3))]
         );
+
+        let memory_counter = get_counter(&metric_registry, "memory");
+        assert_eq!(memory_counter, 1);
     }
 
     #[tokio::test]
@@ -708,6 +772,7 @@ mod tests {
         let TestLifecycleManger {
             mut m,
             time_provider,
+            metric_registry,
         } = TestLifecycleManger::new(config);
         let h = m.handle();
         let partition_id = PartitionId::new(1);
@@ -743,11 +808,15 @@ mod tests {
         assert_eq!(stats.total_bytes, 6);
         assert_eq!(stats.partition_stats.len(), 1);
         assert_eq!(stats.partition_stats[0].partition_id, PartitionId::new(2));
+
+        let cold_counter = get_counter(&metric_registry, "cold");
+        assert_eq!(cold_counter, 1);
     }
 
     struct TestLifecycleManger {
         m: LifecycleManager,
         time_provider: Arc<MockProvider>,
+        metric_registry: Arc<Registry>,
     }
 
     impl TestLifecycleManger {
@@ -756,10 +825,25 @@ mod tests {
             let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
             let m = LifecycleManager::new(
                 config,
-                metric_registry,
+                Arc::clone(&metric_registry),
                 Arc::<MockProvider>::clone(&time_provider),
             );
-            Self { m, time_provider }
+            Self {
+                m,
+                time_provider,
+                metric_registry,
+            }
         }
+    }
+
+    fn get_counter(registry: &Registry, trigger: &'static str) -> u64 {
+        let m: Metric<U64Counter> = registry
+            .get_instrument("ingester_lifecycle_persist_count")
+            .unwrap();
+        let v = m
+            .get_observer(&Attributes::from(&[("trigger", trigger)]))
+            .unwrap()
+            .fetch();
+        v
     }
 }
