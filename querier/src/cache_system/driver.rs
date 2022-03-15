@@ -4,8 +4,12 @@ use futures::{
     future::{BoxFuture, Shared},
     FutureExt, TryFutureExt,
 };
+use observability_deps::tracing::debug;
 use parking_lot::Mutex;
-use tokio::{sync::oneshot::error::RecvError, task::JoinHandle};
+use tokio::{
+    sync::oneshot::{error::RecvError, Sender},
+    task::JoinHandle,
+};
 
 use super::{backend::CacheBackend, loader::Loader};
 
@@ -61,51 +65,83 @@ where
             }
 
             // check if there is already a query for this key running
-            if let Some((receiver, _handle)) = state.running_queries.get(&k) {
-                receiver.clone()
+            if let Some(running_query) = state.running_queries.get(&k) {
+                running_query.recv.clone()
             } else {
                 // requires new query
-                let (tx, rx) = tokio::sync::oneshot::channel();
-                let receiver = rx
+                let (tx_main, rx_main) = tokio::sync::oneshot::channel();
+                let receiver = rx_main
                     .map_ok(|v| Arc::new(Mutex::new(v)))
                     .map_err(Arc::new)
                     .boxed()
                     .shared();
+                let (tx_set, rx_set) = tokio::sync::oneshot::channel();
 
                 // need to wrap the query into a tokio task so that it doesn't get cancelled when this very request is canceled
                 let state_captured = Arc::clone(&self.state);
                 let loader = Arc::clone(&self.loader);
                 let k_captured = k.clone();
                 let handle = tokio::spawn(async move {
-                    // need to clone K and bind it so rustc doesn't require `K: Sync`
-                    let k_for_loader = k_captured.clone();
+                    let loader_fut = async move {
+                        // need to clone K and bind it so rustc doesn't require `K: Sync`
+                        let k_for_loader = k_captured.clone();
 
-                    // execute the loader
-                    // If we panic here then `tx` will be dropped and the receivers will be notified.
-                    let v = loader.load(k_for_loader).await;
+                        // execute the loader
+                        // If we panic here then `tx` will be dropped and the receivers will be notified.
+                        let v = loader.load(k_for_loader).await;
+
+                        // remove "running" state and store result
+                        //
+                        // Note: we need to manually drop the result of `.remove(...).expect(...)` here to convince rustc
+                        //       that we don't need the shared future within the resulting tuple. The warning we would get
+                        //       is:
+                        //
+                        //       warning: unused `futures::future::Shared` in tuple element 0 that must be used
+                        let mut state = state_captured.lock();
+                        drop(
+                            state
+                                .running_queries
+                                .remove(&k_captured)
+                                .expect("query should be running"),
+                        );
+                        state.cached_entries.set(k_captured, v.clone());
+
+                        v
+                    };
+
+                    let v = tokio::select! {
+                        v = loader_fut => v,
+                        maybe_v = rx_set => {
+                            match maybe_v {
+                                Ok(v) => {
+                                    // data get side-loaded via `Cache::set`. In this case, we do NOT modify the state
+                                    // because there would be a lock-gap. The `set` function will do that for us instead.
+                                    v
+                                }
+                                Err(_) => {
+                                    // sender side is gone, very likely the cache is shutting down
+                                    debug!(
+                                        "Sender for side-loading data into running query gone.",
+                                    );
+                                    return;
+                                }
+                            }
+                        }
+                    };
 
                     // broadcast result
                     // It's OK if the receiver side is gone. This might happen during shutdown
-                    tx.send(v.clone()).ok();
-
-                    // remove "running" state and store result
-                    //
-                    // Note: we need to manually drop the result of `.remove(...).expect(...)` here to convince rustc
-                    //       that we don't need the shared future within the resulting tuple. The warning we would get
-                    //       is:
-                    //
-                    //       warning: unused `futures::future::Shared` in tuple element 0 that must be used
-                    let mut state = state_captured.lock();
-                    drop(
-                        state
-                            .running_queries
-                            .remove(&k_captured)
-                            .expect("query should be running"),
-                    );
-                    state.cached_entries.set(k_captured, v);
+                    tx_main.send(v).ok();
                 });
 
-                state.running_queries.insert(k, (receiver.clone(), handle));
+                state.running_queries.insert(
+                    k,
+                    RunningQuery {
+                        recv: receiver.clone(),
+                        set: tx_set,
+                        join_handle: handle,
+                    },
+                );
                 receiver
             }
         };
@@ -116,6 +152,24 @@ where
             .lock()
             .clone()
     }
+
+    /// Side-load an entry into the cache.
+    ///
+    /// This will also complete a currently running request for this key.
+    pub fn set(&self, k: K, v: V) {
+        let mut state = self.state.lock();
+
+        if let Some(running_query) = state.running_queries.remove(&k) {
+            // it's OK when the receiver side is gone (likely panicked)
+            running_query.set.send(v.clone()).ok();
+
+            // When we side-load data into the running task, the task does NOT modify the backend, so we have to do
+            // that. The reason for not letting the task feed the side-loaded data back into `cached_entries` is that we
+            // would need to drop the state lock here before the task could acquire it, leading to a lock gap.
+        }
+
+        state.cached_entries.set(k, v);
+    }
 }
 
 impl<K, V> Drop for Cache<K, V>
@@ -124,11 +178,11 @@ where
     V: Clone + std::fmt::Debug + Send + 'static,
 {
     fn drop(&mut self) {
-        for (_k, (_receiver, handle)) in self.state.lock().running_queries.drain() {
+        for (_k, running_query) in self.state.lock().running_queries.drain() {
             // It's unlikely that anyone is still using the shared receiver at this point, because Cache::get borrow
             // the self. If it is still in use, aborting the task will cancel the contained future which in turn will
             // drop the sender of the oneshot channel. The receivers will be notified.
-            handle.abort();
+            running_query.join_handle.abort();
         }
     }
 }
@@ -144,6 +198,21 @@ where
 /// - `Shared`: Allow the receiver to be cloned and be awaited from multiple places.
 type SharedReceiver<V> = Shared<BoxFuture<'static, Result<Arc<Mutex<V>>, Arc<RecvError>>>>;
 
+/// State for coordinating the execution of a single running query.
+#[derive(Debug)]
+struct RunningQuery<V> {
+    /// A receiver that can await the result as well.
+    recv: SharedReceiver<V>,
+
+    /// A sender that enables setting entries while the query is running.
+    set: Sender<V>,
+
+    /// A handle for the task that is currently executing the query.
+    ///
+    /// The handle can be used to abort the running query, e.g. when dropping the cache.
+    join_handle: JoinHandle<()>,
+}
+
 /// Inner cache state that is usually guarded by a lock.
 ///
 /// The state parts must be updated in a consistent manner, i.e. while using the same lock guard.
@@ -153,10 +222,7 @@ struct CacheState<K, V> {
     cached_entries: Box<dyn CacheBackend<K = K, V = V>>,
 
     /// Currently running queries indexed by cache key.
-    ///
-    /// For each query we have a receiver that can await the result as well as a handle for the task that is currently
-    /// executing the query. The handle can be used to abort the running query, e.g. when dropping the cache.
-    running_queries: HashMap<K, (SharedReceiver<V>, JoinHandle<()>)>,
+    running_queries: HashMap<K, RunningQuery<V>>,
 }
 
 #[cfg(test)]
@@ -306,6 +372,50 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         assert_eq!(Arc::strong_count(&loader), 1);
+    }
+
+    #[tokio::test]
+    async fn test_set_before_request() {
+        let (cache, loader) = setup();
+
+        loader.block();
+
+        cache.set(1, String::from("foo"));
+
+        // blocked loader is not used
+        let res = tokio::time::timeout(Duration::from_millis(10), cache.get(1))
+            .await
+            .unwrap();
+        assert_eq!(res, String::from("foo"));
+        assert_eq!(loader.loaded(), Vec::<u8>::new());
+    }
+
+    #[tokio::test]
+    async fn test_set_during_request() {
+        let (cache, loader) = setup();
+
+        loader.block();
+
+        let cache_captured = Arc::clone(&cache);
+        let handle = tokio::spawn(async move { cache_captured.get(1).await });
+        tokio::time::sleep(Duration::from_millis(10)).await;
+
+        cache.set(1, String::from("foo"));
+
+        // request succeeds even though the loader is blocked
+        let res = tokio::time::timeout(Duration::from_millis(10), handle)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(res, String::from("foo"));
+        assert_eq!(loader.loaded(), vec![1]);
+
+        // still cached
+        let res = tokio::time::timeout(Duration::from_millis(10), cache.get(1))
+            .await
+            .unwrap();
+        assert_eq!(res, String::from("foo"));
+        assert_eq!(loader.loaded(), vec![1]);
     }
 
     fn setup() -> (Arc<Cache<u8, String>>, Arc<TestLoader>) {
