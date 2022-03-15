@@ -55,7 +55,7 @@ func (w *windowTableSplitter) Do(f func(flux.Table) error) error {
 
 		// Iterate through each time to produce a table
 		// using the start and stop values.
-		arrs := make([]array.Interface, len(cr.Cols()))
+		arrs := make([]array.Array, len(cr.Cols()))
 		for j := range cr.Cols() {
 			arrs[j] = getColumnValues(cr, j)
 		}
@@ -82,7 +82,7 @@ func (w *windowTableSplitter) Do(f func(flux.Table) error) error {
 			buffer := arrow.TableBuffer{
 				GroupKey: key,
 				Columns:  cr.Cols(),
-				Values:   make([]array.Interface, len(cr.Cols())),
+				Values:   make([]array.Array, len(cr.Cols())),
 			}
 			for j, arr := range arrs {
 				buffer.Values[j] = arrow.Slice(arr, int64(i), int64(i+1))
@@ -179,7 +179,7 @@ func groupKeyForWindow(key flux.GroupKey, start, stop int64) flux.GroupKey {
 }
 
 // getColumnValues returns the array from the column reader as an array.Interface.
-func getColumnValues(cr flux.ColReader, j int) array.Interface {
+func getColumnValues(cr flux.ColReader, j int) array.Array {
 	switch typ := cr.Cols()[j].Type; typ {
 	case flux.TInt:
 		return cr.Ints(j)
