@@ -207,7 +207,7 @@ where
                         started_at,
                         self.get_success_duration_ms.clone(),
                         self.get_error_duration_ms.clone(),
-                        self.get_bytes.clone(),
+                        BytesStreamDelegate(self.get_bytes.clone()),
                     )
                     .fuse(),
                 ))))
@@ -282,6 +282,30 @@ where
     }
 }
 
+/// A [`MetricDelegate`] is called whenever the [`StreamMetricRecorder`]
+/// observes an `Ok(Item)` in the stream.
+trait MetricDelegate {
+    /// The type this delegate observes.
+    type Item;
+    /// Invoked when the stream yields an `Ok(Item)`.
+    fn observe_ok(&self, value: &Self::Item);
+}
+
+/// A [`MetricDelegate`] for instrumented streams of [`Bytes`].
+///
+/// This impl is used to record the number of bytes yielded for
+/// [`ObjectStoreApi::get()`] calls.
+#[derive(Debug)]
+struct BytesStreamDelegate(U64Counter);
+
+impl MetricDelegate for BytesStreamDelegate {
+    type Item = Bytes;
+
+    fn observe_ok(&self, bytes: &Self::Item) {
+        self.0.inc(bytes.len() as _);
+    }
+}
+
 /// [`StreamMetricRecorder`] decorates an underlying [`Stream`] for "get"
 /// catalog operations, recording the wall clock duration and number of bytes
 /// read over the lifetime of the stream.
@@ -297,9 +321,10 @@ where
 /// error only if the last poll performed by the caller returned an error.
 #[derive(Debug)]
 #[pin_project(PinnedDrop)]
-struct StreamMetricRecorder<S, P = SystemProvider>
+struct StreamMetricRecorder<S, D, P = SystemProvider>
 where
     P: TimeProvider,
+    D: MetricDelegate,
 {
     #[pin]
     inner: S,
@@ -327,21 +352,25 @@ where
     // the operation duration.
     last_call_ok: bool,
 
-    get_success_duration: U64Histogram,
-    get_error_duration: U64Histogram,
-    get_bytes: U64Counter,
+    // Called when the stream yields an `Ok(T)` to allow the delegate to inspect
+    // the `T`.
+    metric_delegate: D,
+
+    success_duration_ms: U64Histogram,
+    error_duration_ms: U64Histogram,
 }
 
-impl<S> StreamMetricRecorder<S>
+impl<S, D> StreamMetricRecorder<S, D>
 where
     S: Stream,
+    D: MetricDelegate,
 {
     fn new(
         stream: S,
         started_at: Time,
-        get_success_duration: U64Histogram,
-        get_error_duration: U64Histogram,
-        get_bytes: U64Counter,
+        success_duration_ms: U64Histogram,
+        error_duration_ms: U64Histogram,
+        metric_delegate: D,
     ) -> Self {
         let time_provider = SystemProvider::default();
         Self {
@@ -358,17 +387,18 @@ where
             started_at,
             time_provider,
 
-            get_success_duration,
-            get_error_duration,
-            get_bytes,
+            success_duration_ms,
+            error_duration_ms,
+            metric_delegate,
         }
     }
 }
 
-impl<S, P, E> Stream for StreamMetricRecorder<S, P>
+impl<S, T, D, P, E> Stream for StreamMetricRecorder<S, D, P>
 where
-    S: Stream<Item = Result<Bytes, E>>,
+    S: Stream<Item = Result<T, E>>,
     P: TimeProvider,
+    D: MetricDelegate<Item = T>,
 {
     type Item = S::Item;
 
@@ -378,11 +408,14 @@ where
         let res = this.inner.poll_next(cx);
 
         match res {
-            Poll::Ready(Some(Ok(bytes))) => {
+            Poll::Ready(Some(Ok(value))) => {
                 *this.last_call_ok = true;
                 *this.last_yielded_at.as_mut().unwrap() = this.time_provider.now();
-                this.get_bytes.inc(bytes.len() as _);
-                Poll::Ready(Some(Ok(bytes)))
+
+                // Allow the pluggable metric delegate to record the value of T
+                this.metric_delegate.observe_ok(&value);
+
+                Poll::Ready(Some(Ok(value)))
             }
             Poll::Ready(Some(Err(e))) => {
                 *this.last_call_ok = false;
@@ -393,8 +426,8 @@ where
                 // The stream has terminated - record the wall clock duration
                 // immediately.
                 let hist = match this.last_call_ok {
-                    true => this.get_success_duration,
-                    false => this.get_error_duration,
+                    true => this.success_duration_ms,
+                    false => this.error_duration_ms,
                 };
 
                 // Take the last_yielded_at option, marking metrics as emitted
@@ -422,17 +455,18 @@ where
 }
 
 #[pinned_drop]
-impl<S, P> PinnedDrop for StreamMetricRecorder<S, P>
+impl<S, D, P> PinnedDrop for StreamMetricRecorder<S, D, P>
 where
     P: TimeProvider,
+    D: MetricDelegate,
 {
     fn drop(self: Pin<&mut Self>) {
         // Only emit metrics if the end of the stream was not observed (and
         // therefore last_yielded_at is still Some).
         if let Some(last) = self.last_yielded_at {
             let hist = match self.last_call_ok {
-                true => &self.get_success_duration,
-                false => &self.get_error_duration,
+                true => &self.success_duration_ms,
+                false => &self.error_duration_ms,
             };
 
             if let Some(d) = last.checked_duration_since(self.started_at) {
@@ -725,7 +759,7 @@ mod tests {
             time_provider.now(),
             hist.recorder(&[("result", "success")]),
             hist.recorder(&[("result", "error")]),
-            bytes,
+            BytesStreamDelegate(bytes),
         );
 
         let got = stream
@@ -827,7 +861,7 @@ mod tests {
             time_provider.now(),
             hist.recorder(&[("result", "success")]),
             hist.recorder(&[("result", "error")]),
-            bytes,
+            BytesStreamDelegate(bytes),
         );
 
         let got = stream
@@ -895,7 +929,7 @@ mod tests {
             time_provider.now(),
             hist.recorder(&[("result", "success")]),
             hist.recorder(&[("result", "error")]),
-            bytes,
+            BytesStreamDelegate(bytes),
         );
 
         let got = stream
@@ -963,7 +997,7 @@ mod tests {
             time_provider.now(),
             hist.recorder(&[("result", "success")]),
             hist.recorder(&[("result", "error")]),
-            bytes,
+            BytesStreamDelegate(bytes),
         );
 
         let got = stream
@@ -1036,7 +1070,7 @@ mod tests {
             time_provider.now(),
             hist.recorder(&[("result", "success")]),
             hist.recorder(&[("result", "error")]),
-            bytes,
+            BytesStreamDelegate(bytes),
         );
 
         // Drop immediately
@@ -1085,7 +1119,7 @@ mod tests {
             time_provider.now(),
             hist.recorder(&[("result", "success")]),
             hist.recorder(&[("result", "error")]),
-            bytes,
+            BytesStreamDelegate(bytes),
         );
 
         assert!(stream.next().await.is_none());
