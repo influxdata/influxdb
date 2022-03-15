@@ -16,7 +16,7 @@ use ingester::{
 };
 use iox_catalog::interface::Catalog;
 use metric::Registry;
-use object_store::ObjectStoreImpl;
+use object_store::DynObjectStore;
 use query::exec::Executor;
 use trace::TraceCollector;
 
@@ -134,7 +134,7 @@ pub async fn create_ingester_server_type(
     common_state: &CommonServerState,
     metric_registry: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
-    object_store: Arc<ObjectStoreImpl>,
+    object_store: Arc<DynObjectStore>,
     exec: Arc<Executor>,
     write_buffer_config: &WriteBufferConfig,
     ingester_config: IngesterConfig,
