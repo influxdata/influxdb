@@ -220,7 +220,14 @@ mod tests {
             false,
         ));
 
-        serve(common_state, grpc_listener, http_listener, server_type).await
+        serve(
+            common_state,
+            CancellationToken::new(),
+            grpc_listener,
+            Some(http_listener),
+            server_type,
+        )
+        .await
     }
 
     #[tokio::test]
@@ -413,7 +420,13 @@ mod tests {
             false,
         ));
 
-        let fut = serve(common_state, grpc_listener, http_listener, server_type);
+        let fut = serve(
+            common_state,
+            CancellationToken::new(),
+            grpc_listener,
+            Some(http_listener),
+            server_type,
+        );
 
         let join = tokio::spawn(fut);
         (addr, server, join)

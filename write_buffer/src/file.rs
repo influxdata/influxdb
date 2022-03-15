@@ -616,7 +616,7 @@ async fn maybe_auto_create_directories(
                 continue;
             }
         } else {
-            return Err("no sequencers initialized".to_string().into());
+            return Err("no file sequencers initialized".to_string().into());
         }
     }
 }

@@ -11,6 +11,7 @@ use influxdb_ioxd::{
         common_state::{CommonServerState, CommonServerStateError},
         router2::create_router2_server_type,
     },
+    Service,
 };
 use observability_deps::tracing::*;
 use thiserror::Error;
@@ -85,5 +86,6 @@ pub async fn command(config: Config) -> Result<()> {
     .await?;
 
     info!("starting router2");
-    Ok(influxdb_ioxd::main(common_state, server_type).await?)
+    let services = vec![Service::create(server_type, common_state.run_config())];
+    Ok(influxdb_ioxd::main(common_state, services).await?)
 }

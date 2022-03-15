@@ -1,5 +1,5 @@
 //! IOx ingester implementation.
-//! Design doc: https://docs.google.com/document/d/14NlzBiWwn0H37QxnE0k3ybTU58SKyUZmdgYpVw6az0Q/edit#
+//! Design doc: <https://docs.google.com/document/d/14NlzBiWwn0H37QxnE0k3ybTU58SKyUZmdgYpVw6az0Q/edit#>
 //!
 
 #![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]

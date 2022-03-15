@@ -15,6 +15,7 @@ use influxdb_ioxd::{
         common_state::{CommonServerState, CommonServerStateError},
         compactor::create_compactor_server_type,
     },
+    Service,
 };
 
 #[derive(Debug, Error)]
@@ -106,5 +107,6 @@ pub async fn command(config: Config) -> Result<(), Error> {
 
     info!("starting compactor");
 
-    Ok(influxdb_ioxd::main(common_state, server_type).await?)
+    let services = vec![Service::create(server_type, common_state.run_config())];
+    Ok(influxdb_ioxd::main(common_state, services).await?)
 }

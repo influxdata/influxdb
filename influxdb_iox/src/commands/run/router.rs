@@ -13,6 +13,7 @@ use influxdb_ioxd::{
         common_state::{CommonServerState, CommonServerStateError},
         router::RouterServerType,
     },
+    Service,
 };
 use observability_deps::tracing::warn;
 use router::{resolver::RemoteTemplate, server::RouterServer};
@@ -160,5 +161,6 @@ pub async fn command(config: Config) -> Result<()> {
         config_immutable,
     ));
 
-    Ok(influxdb_ioxd::main(common_state, server_type).await?)
+    let services = vec![Service::create(server_type, common_state.run_config())];
+    Ok(influxdb_ioxd::main(common_state, services).await?)
 }

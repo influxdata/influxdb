@@ -9,6 +9,7 @@ use influxdb_ioxd::{
         common_state::{CommonServerState, CommonServerStateError},
         test::{TestAction, TestServerType},
     },
+    Service,
 };
 use metric::Registry;
 use thiserror::Error;
@@ -62,5 +63,6 @@ pub async fn command(config: Config) -> Result<()> {
         config.test_action,
     ));
 
-    Ok(influxdb_ioxd::main(common_state, server_type).await?)
+    let services = vec![Service::create(server_type, common_state.run_config())];
+    Ok(influxdb_ioxd::main(common_state, services).await?)
 }

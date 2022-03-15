@@ -14,6 +14,7 @@ use influxdb_ioxd::{
         common_state::{CommonServerState, CommonServerStateError},
         querier::create_querier_server_type,
     },
+    Service,
 };
 
 #[derive(Debug, Error)]
@@ -95,5 +96,6 @@ pub async fn command(config: Config) -> Result<(), Error> {
 
     info!("starting querier");
 
-    Ok(influxdb_ioxd::main(common_state, server_type).await?)
+    let services = vec![Service::create(server_type, common_state.run_config())];
+    Ok(influxdb_ioxd::main(common_state, services).await?)
 }

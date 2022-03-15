@@ -10,6 +10,7 @@ use influxdb_ioxd::{
         common_state::{CommonServerState, CommonServerStateError},
         ingester::create_ingester_server_type,
     },
+    Service,
 };
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
@@ -101,5 +102,6 @@ pub async fn command(config: Config) -> Result<()> {
 
     info!("starting ingester");
 
-    Ok(influxdb_ioxd::main(common_state, server_type).await?)
+    let services = vec![Service::create(server_type, common_state.run_config())];
+    Ok(influxdb_ioxd::main(common_state, services).await?)
 }

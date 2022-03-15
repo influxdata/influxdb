@@ -12,7 +12,7 @@ pub enum CommonServerStateError {
 }
 
 /// Common state used by all server types (e.g. `Database` and `Router`)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CommonServerState {
     run_config: RunConfig,
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,

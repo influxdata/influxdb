@@ -120,6 +120,16 @@ impl WriteBufferConfig {
     pub fn topic(&self) -> &str {
         self.topic.as_ref()
     }
+
+    /// Get the write buffer config's auto create topics.
+    pub fn auto_create_topics(&self) -> Option<NonZeroU32> {
+        self.auto_create_topics
+    }
+
+    /// Set the write buffer config's auto create topics.
+    pub fn set_auto_create_topics(&mut self, auto_create_topics: Option<NonZeroU32>) {
+        self.auto_create_topics = auto_create_topics;
+    }
 }
 
 #[cfg(test)]
