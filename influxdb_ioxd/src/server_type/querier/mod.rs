@@ -15,7 +15,6 @@ use querier::{
 };
 use query::exec::Executor;
 use time::TimeProvider;
-use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 use crate::{
@@ -30,7 +29,6 @@ mod rpc;
 pub struct QuerierServerType<C: QuerierHandler> {
     database: Arc<QuerierDatabase>,
     server: QuerierServer<C>,
-    shutdown: CancellationToken,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
@@ -43,7 +41,6 @@ impl<C: QuerierHandler> QuerierServerType<C> {
         Self {
             server,
             database,
-            shutdown: CancellationToken::new(),
             trace_collector: common_state.trace_collector(),
         }
     }
@@ -86,11 +83,11 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
     }
 
     async fn join(self: Arc<Self>) {
-        self.shutdown.cancelled().await;
+        self.server.join().await;
     }
 
     fn shutdown(&self) {
-        self.shutdown.cancel();
+        self.server.shutdown();
     }
 }
 
