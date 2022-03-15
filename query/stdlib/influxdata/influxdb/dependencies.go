@@ -5,7 +5,9 @@ import (
 
 	"github.com/influxdata/flux"
 	fluxfeature "github.com/influxdata/flux/dependencies/feature"
+	"github.com/influxdata/flux/dependencies/http"
 	influxdeps "github.com/influxdata/flux/dependencies/influxdb"
+	"github.com/influxdata/flux/dependencies/url"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
@@ -86,6 +88,7 @@ func NewDependencies(
 	metricLabelKeys []string,
 ) (Dependencies, error) {
 	fdeps := flux.NewDefaultDependencies()
+	fdeps.Deps.HTTPClient = http.NewDefaultClient(url.PassValidator{})
 	fdeps.Deps.SecretService = query.FromSecretService(ss)
 	deps := Dependencies{FluxDeps: fdeps}
 	bucketLookupSvc := query.FromBucketService(bucketSvc)
