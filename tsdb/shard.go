@@ -1939,6 +1939,20 @@ func (fs *MeasurementFieldSet) Bytes() int {
 	return b
 }
 
+// MeasurementNames returns the names of all of the measurements in the field set in
+// lexographical order.
+func (fs *MeasurementFieldSet) MeasurementNames() []string {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	names := make([]string, 0, len(fs.fields))
+	for name := range fs.fields {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 // Fields returns fields for a measurement by name.
 func (fs *MeasurementFieldSet) Fields(name []byte) *MeasurementFields {
 	fs.mu.RLock()
