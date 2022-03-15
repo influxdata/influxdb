@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influx-cli/v2/pkg/tabwriter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
@@ -29,6 +30,7 @@ func NewUserCommand() *cobra.Command {
 
 	base.AddCommand(NewUserListCommand())
 	base.AddCommand(NewUserCreateCommand())
+	base.AddCommand(NewUserUpdateCommand())
 
 	return base
 }
@@ -183,4 +185,86 @@ func PrintUsers(ctx context.Context, w io.Writer, v []*influxdb.User) error {
 		}
 	}
 	return nil
+}
+
+type userUpdateCommand struct {
+	logger   *zap.Logger
+	boltPath string
+	out      io.Writer
+	username string
+	id       string
+	password string
+}
+
+func NewUserUpdateCommand() *cobra.Command {
+	var userCmd userUpdateCommand
+	cmd := &cobra.Command{
+		Use:   "update",
+		Short: "Update user",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			config := logger.NewConfig()
+			config.Level = zapcore.InfoLevel
+
+			newLogger, err := config.New(cmd.ErrOrStderr())
+			if err != nil {
+				return err
+			}
+			userCmd.logger = newLogger
+			userCmd.out = cmd.OutOrStdout()
+			return userCmd.run()
+		},
+	}
+
+	defaultPath := filepath.Join(os.Getenv("HOME"), ".influxdbv2", "influxd.bolt")
+	cmd.Flags().StringVar(&userCmd.boltPath, "bolt-path", defaultPath, "Path to the BoltDB file")
+	cmd.Flags().StringVar(&userCmd.username, "username", "", "Name of the user")
+	cmd.Flags().StringVar(&userCmd.id, "id", "", "ID of the user")
+	cmd.Flags().StringVar(&userCmd.password, "password", "", "New password for new user")
+
+	return cmd
+}
+
+func (cmd *userUpdateCommand) run() error {
+	ctx := context.Background()
+	store := bolt.NewKVStore(cmd.logger.With(zap.String("system", "bolt-kvstore")), cmd.boltPath)
+	if err := store.Open(ctx); err != nil {
+		return err
+	}
+	defer store.Close()
+	tenantStore := tenant.NewStore(store)
+	tenantService := tenant.NewService(tenantStore)
+
+	if cmd.password == "" {
+		return fmt.Errorf("must provide a new password to set, with --password")
+	}
+
+	filter := influxdb.UserFilter{}
+	if cmd.id != "" {
+		userID, err := platform.IDFromString(cmd.id)
+		if err != nil {
+			return fmt.Errorf("invalid id %q: %w", cmd.id, err)
+		}
+		filter.ID = userID
+	} else if cmd.username != "" {
+		filter.Name = &cmd.username
+	}
+
+	users, _, err := tenantService.FindUsers(ctx, filter)
+	if err != nil {
+		return err
+	}
+	if len(users) != 1 {
+		return fmt.Errorf("expected 1 user, found %d", len(users))
+	}
+
+	if err := tenantService.SetPassword(ctx, users[0].ID, cmd.password); err != nil {
+		return err
+	}
+
+	// Print all users now that we have added one
+	users, _, err = tenantService.FindUsers(ctx, filter)
+	if err != nil {
+		return err
+	}
+	return PrintUsers(ctx, cmd.out, users)
 }
