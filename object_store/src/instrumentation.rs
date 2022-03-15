@@ -1,6 +1,7 @@
 //! A metric instrumentation wrapper over [`ObjectStoreApi`] implementations.
 
 use std::{
+    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -245,20 +246,33 @@ where
         &'a self,
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>, Self::Error>>, Self::Error> {
-        let t = self.time_provider.now();
+        let started_at = self.time_provider.now();
 
         let res = self.inner.list(prefix).await;
 
-        // Avoid exploding if time goes backwards - simply drop the measurement
-        // if it happens.
-        if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
-            match &res {
-                Ok(_) => self.list_success_duration_ms.record(delta.as_millis() as _),
-                Err(_) => self.list_error_duration_ms.record(delta.as_millis() as _),
-            };
+        match res {
+            Ok(s) => {
+                // Wrap the object store data stream in a decorator to track the
+                // yielded data / wall clock, inclusive of the inner call above.
+                Ok(Box::pin(Box::new(
+                    StreamMetricRecorder::new(
+                        s,
+                        started_at,
+                        self.list_success_duration_ms.clone(),
+                        self.list_error_duration_ms.clone(),
+                        NopStreamDelegate::default(),
+                    )
+                    .fuse(),
+                )))
+            }
+            Err(e) => {
+                // Record the call duration in the error histogram.
+                if let Some(delta) = self.time_provider.now().checked_duration_since(started_at) {
+                    self.list_error_duration_ms.record(delta.as_millis() as _);
+                }
+                Err(e)
+            }
         }
-
-        res
     }
 
     async fn list_with_delimiter(
@@ -306,15 +320,27 @@ impl MetricDelegate for BytesStreamDelegate {
     }
 }
 
-/// [`StreamMetricRecorder`] decorates an underlying [`Stream`] for "get"
-/// catalog operations, recording the wall clock duration and number of bytes
-/// read over the lifetime of the stream.
+#[derive(Debug, Default)]
+struct NopStreamDelegate<T>(PhantomData<T>);
+
+impl<T> MetricDelegate for NopStreamDelegate<T> {
+    type Item = T;
+
+    fn observe_ok(&self, _value: &Self::Item) {
+        // it does nothing!
+    }
+}
+
+/// [`StreamMetricRecorder`] decorates an underlying [`Stream`] for "get" /
+/// "list" catalog operations, recording the wall clock duration and invoking
+/// the metric delegate with the `Ok(T)` values.
 ///
-/// The bytes read counter is incremented each time [`Self::poll_next()`] yields
-/// a buffer, and once the [`StreamMetricRecorder`] is read to completion
-/// (specifically, until it yields `Poll::Ready(None)`), or when it is dropped
-/// (whichever is sooner) the decorator emits the wall clock measurement into
-/// the relevant histogram, bucketed by operation result.
+/// For "gets" using the [`BytesStreamDelegate`], the bytes read counter is
+/// incremented each time [`Self::poll_next()`] yields a buffer, and once the
+/// [`StreamMetricRecorder`] is read to completion (specifically, until it
+/// yields `Poll::Ready(None)`), or when it is dropped (whichever is sooner) the
+/// decorator emits the wall clock measurement into the relevant histogram,
+/// bucketed by operation result.
 ///
 /// A stream may return a transient error when polled, and later successfully
 /// emit all data in subsequent polls - therefore the duration is logged as an
