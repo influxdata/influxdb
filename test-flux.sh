@@ -31,9 +31,15 @@ build_test_harness() {
   "$GO" build -o fluxtest ./internal/cmd/fluxtest-harness-influxdb
 }
 
+# Many tests targeting 3rd party databases are not yet supported in CI and should be filtered out.
+DB_INTEGRATION_WRITE_TESTS=integration_sqlite_write_to,integration_vertica_write_to,integration_mssql_write_to,integration_mysql_write_to,integration_mariadb_write_to,integration_pg_write_to,integration_hdb_write_to
+DB_INTEGRATION_READ_TESTS=integration_sqlite_read_from_seed,integration_sqlite_read_from_nonseed,integration_vertica_read_from_seed,integration_vertica_read_from_nonseed,integration_mssql_read_from_seed,integration_mssql_read_from_nonseed,integration_mariadb_read_from_seed,integration_mariadb_read_from_nonseed,integration_mysql_read_from_seed,integration_mysql_read_from_nonseed,integration_pg_read_from_seed,integration_pg_read_from_nonseed,integration_hdb_read_from_seed,integration_hdb_read_from_nonseed
+DB_INTEGRATION_INJECTION_TESTS="integration_sqlite_injection,integration_hdb_injection,integration_pg_injection,integration_mysql_injection,integration_mariadb_injection,integration_mssql_injection"
+DB_TESTS="${DB_INTEGRATION_WRITE_TESTS},${DB_INTEGRATION_READ_TESTS},${DB_INTEGRATION_INJECTION_TESTS}"
+
 run_integration_tests() {
   log "Running integration tests..."
-  ./fluxtest -v -p flux.zip -p flux/stdlib
+  ./fluxtest -v -p flux.zip -p flux/stdlib --skip "$DB_TESTS"
 }
 
 cleanup() {

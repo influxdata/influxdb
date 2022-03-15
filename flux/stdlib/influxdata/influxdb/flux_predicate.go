@@ -143,10 +143,10 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 		}, nil
 	case *semantic.MemberExpression:
 		// Sanity check that the object is the objectName identifier
-		if ident, ok := n.Object.(*semantic.IdentifierExpression); !ok || ident.Name != objectName {
+		if ident, ok := n.Object.(*semantic.IdentifierExpression); !ok || ident.Name.Name() != objectName {
 			return nil, fmt.Errorf("unknown object %q", n.Object)
 		}
-		switch n.Property {
+		switch n.Property.Name() {
 		case fieldKey:
 			return &datatypes.Node{
 				NodeType: datatypes.Node_TypeTagRef,
@@ -173,7 +173,7 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 		return &datatypes.Node{
 			NodeType: datatypes.Node_TypeTagRef,
 			Value: &datatypes.Node_TagRefValue{
-				TagRefValue: []byte(n.Property),
+				TagRefValue: []byte(n.Property.Name()),
 			},
 		}, nil
 	case *semantic.DurationLiteral:
