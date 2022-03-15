@@ -31,6 +31,7 @@ mod throttle;
 
 pub mod cache;
 pub mod dummy;
+pub mod instrumentation;
 
 #[cfg(not(feature = "aws"))]
 use dummy as aws;
