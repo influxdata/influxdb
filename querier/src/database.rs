@@ -63,7 +63,10 @@ impl QuerierDatabase {
         time_provider: Arc<dyn TimeProvider>,
         exec: Arc<Executor>,
     ) -> Self {
-        let catalog_cache = Arc::new(CatalogCache::new(Arc::clone(&catalog)));
+        let catalog_cache = Arc::new(CatalogCache::new(
+            Arc::clone(&catalog),
+            Arc::clone(&time_provider),
+        ));
 
         Self {
             backoff_config: BackoffConfig::default(),

@@ -11,12 +11,14 @@
 )]
 
 use influxdb_line_protocol::FieldValue;
-use predicate::Predicate;
+use predicate::{delete_predicate::parse_delete_predicate, Predicate};
 use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema};
 use std::{
     collections::BTreeMap,
     convert::TryFrom,
     fmt::{Debug, Formatter},
+    ops::{Add, Sub},
+    sync::Arc,
 };
 use uuid::Uuid;
 
@@ -188,6 +190,29 @@ impl std::fmt::Display for PartitionId {
     }
 }
 
+/// Combination of Sequencer ID, Table ID, and Partition ID useful for identifying groups of
+/// Parquet files to be compacted together.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
+pub struct TablePartition {
+    /// The sequencer ID
+    pub sequencer_id: SequencerId,
+    /// The table ID
+    pub table_id: TableId,
+    /// The partition ID
+    pub partition_id: PartitionId,
+}
+
+impl TablePartition {
+    /// Combine the relevant parts
+    pub fn new(sequencer_id: SequencerId, table_id: TableId, partition_id: PartitionId) -> Self {
+        Self {
+            sequencer_id,
+            table_id,
+            partition_id,
+        }
+    }
+}
+
 /// Unique ID for a `Tombstone`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
@@ -230,6 +255,22 @@ impl Timestamp {
     }
     pub fn get(&self) -> i64 {
         self.0
+    }
+}
+
+impl Add<i64> for Timestamp {
+    type Output = Self;
+
+    fn add(self, other: i64) -> Self {
+        Self(self.0 + other)
+    }
+}
+
+impl Sub<i64> for Timestamp {
+    type Output = Self;
+
+    fn sub(self, other: i64) -> Self {
+        Self(self.0 - other)
     }
 }
 
@@ -617,6 +658,27 @@ pub struct Tombstone {
     pub max_time: Timestamp,
     /// the full delete predicate
     pub serialized_predicate: String,
+}
+
+/// Convert tombstones to delete predicates
+pub fn tombstones_to_delete_predicates(tombstones: &[Tombstone]) -> Vec<Arc<DeletePredicate>> {
+    tombstones_to_delete_predicates_iter(tombstones).collect()
+}
+
+/// Return Iterator of delete predicates
+pub fn tombstones_to_delete_predicates_iter(
+    tombstones: &[Tombstone],
+) -> impl Iterator<Item = Arc<DeletePredicate>> + '_ {
+    tombstones.iter().map(|tombstone| {
+        Arc::new(
+            parse_delete_predicate(
+                &tombstone.min_time.get().to_string(),
+                &tombstone.max_time.get().to_string(),
+                &tombstone.serialized_predicate,
+            )
+            .expect("Error building delete predicate"),
+        )
+    })
 }
 
 /// Data for a parquet file reference that has been inserted in the catalog.

@@ -5,8 +5,16 @@ use std::{
 
 use async_trait::async_trait;
 use hyper::{Body, Request, Response};
+use iox_catalog::interface::Catalog;
 use metric::Registry;
-use querier::{database::QuerierDatabase, handler::QuerierHandler, server::QuerierServer};
+use object_store::ObjectStore;
+use querier::{
+    database::QuerierDatabase,
+    handler::{QuerierHandler, QuerierHandlerImpl},
+    server::QuerierServer,
+};
+use query::exec::Executor;
+use time::TimeProvider;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
@@ -112,4 +120,26 @@ impl HttpApiErrorSource for IoxHttpError {
     fn to_http_api_error(&self) -> HttpApiError {
         HttpApiError::new(self.status_code(), self.to_string())
     }
+}
+
+/// Instantiate a querier server
+pub async fn create_querier_server_type(
+    common_state: &CommonServerState,
+    metric_registry: Arc<metric::Registry>,
+    catalog: Arc<dyn Catalog>,
+    object_store: Arc<ObjectStore>,
+    time_provider: Arc<dyn TimeProvider>,
+    exec: Arc<Executor>,
+) -> Arc<dyn ServerType> {
+    let database = Arc::new(QuerierDatabase::new(
+        catalog,
+        Arc::clone(&metric_registry),
+        object_store,
+        time_provider,
+        exec,
+    ));
+    let querier_handler = Arc::new(QuerierHandlerImpl::new(Arc::clone(&database)));
+
+    let querier = QuerierServer::new(metric_registry, querier_handler);
+    Arc::new(QuerierServerType::new(querier, database, common_state))
 }

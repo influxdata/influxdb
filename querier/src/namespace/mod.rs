@@ -575,17 +575,11 @@ impl QuerierNamespace {
 
                     let mut predicates_filtered = vec![];
                     for (tombstone_id, predicate) in predicates {
-                        let is_processed = Backoff::new(&self.backoff_config)
-                            .retry_all_errors("processed tombstone exists", || async {
-                                self.catalog
-                                    .repositories()
-                                    .await
-                                    .processed_tombstones()
-                                    .exist(parquet_file_id, *tombstone_id)
-                                    .await
-                            })
-                            .await
-                            .expect("retry forever");
+                        let is_processed = self
+                            .catalog_cache
+                            .processed_tombstones()
+                            .exists(parquet_file_id, *tombstone_id)
+                            .await;
 
                         if !is_processed {
                             predicates_filtered.push(Arc::clone(predicate));
@@ -606,7 +600,9 @@ impl QuerierNamespace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::namespace::test_util::querier_namespace;
+    use crate::{
+        cache::processed_tombstones::TTL_NOT_PROCESSED, namespace::test_util::querier_namespace,
+    };
     use data_types2::{ChunkAddr, ChunkId, ColumnType, PartitionAddr};
     use iox_tests::util::{TestCatalog, TestParquetFile};
     use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
@@ -617,7 +613,10 @@ mod tests {
         let catalog = TestCatalog::new();
 
         let querier_namespace = QuerierNamespace::new(
-            Arc::new(CatalogCache::new(catalog.catalog())),
+            Arc::new(CatalogCache::new(
+                catalog.catalog(),
+                catalog.time_provider(),
+            )),
             "ns".into(),
             NamespaceId::new(1),
             catalog.metric_registry(),
@@ -935,6 +934,7 @@ mod tests {
             .with_sequencer(&sequencer1)
             .create_tombstone(4, 1, 10, "foo=4")
             .await;
+        catalog.mock_time_provider().inc(TTL_NOT_PROCESSED); // cache timeout for processed tombstones
         querier_namespace.sync().await;
         assert_eq!(
             delete_predicates(&querier_namespace),

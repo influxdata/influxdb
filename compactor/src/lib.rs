@@ -14,4 +14,6 @@
 
 pub mod compact;
 pub mod handler;
+pub mod query;
 pub mod server;
+pub mod utils;

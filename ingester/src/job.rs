@@ -65,11 +65,5 @@ impl JobRegistry {
 }
 
 fn f_attributes(job: &Job) -> metric::Attributes {
-    let mut attributes = metric::Attributes::from(&[("name", job.name())]);
-
-    if let Some(partition_id) = job.partition_id() {
-        attributes.insert("partition_id", partition_id.get().to_string());
-    }
-
-    attributes
+    metric::Attributes::from(&[("name", job.name())])
 }

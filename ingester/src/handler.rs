@@ -116,7 +116,7 @@ impl IngestHandlerImpl {
         catalog: Arc<dyn Catalog>,
         object_store: Arc<ObjectStore>,
         write_buffer: Arc<dyn WriteBufferReading>,
-        exec: Executor,
+        exec: Arc<Executor>,
         metric_registry: Arc<metric::Registry>,
     ) -> Result<Self> {
         // build the initial ingester data state
@@ -729,7 +729,7 @@ mod tests {
             Arc::clone(&catalog),
             object_store,
             reading,
-            Executor::new(1),
+            Arc::new(Executor::new(1)),
             Arc::clone(&metrics),
         )
         .await
@@ -829,7 +829,7 @@ mod tests {
                 Arc::clone(&catalog),
                 object_store,
                 reading,
-                Executor::new(1),
+                Arc::new(Executor::new(1)),
                 Arc::clone(&metrics),
             )
             .await

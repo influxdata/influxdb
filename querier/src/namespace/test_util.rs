@@ -7,7 +7,10 @@ use super::QuerierNamespace;
 
 pub fn querier_namespace(catalog: &Arc<TestCatalog>, ns: &Arc<TestNamespace>) -> QuerierNamespace {
     QuerierNamespace::new(
-        Arc::new(CatalogCache::new(catalog.catalog())),
+        Arc::new(CatalogCache::new(
+            catalog.catalog(),
+            catalog.time_provider(),
+        )),
         ns.namespace.name.clone().into(),
         ns.namespace.id,
         catalog.metric_registry(),

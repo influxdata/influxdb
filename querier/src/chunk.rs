@@ -165,7 +165,10 @@ mod tests {
         let catalog = TestCatalog::new();
 
         let adapter = ParquetChunkAdapter::new(
-            Arc::new(CatalogCache::new(catalog.catalog())),
+            Arc::new(CatalogCache::new(
+                catalog.catalog(),
+                catalog.time_provider(),
+            )),
             catalog.object_store(),
             catalog.metric_registry(),
             catalog.time_provider(),

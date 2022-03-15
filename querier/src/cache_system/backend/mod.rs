@@ -1,6 +1,8 @@
-use std::{fmt::Debug, hash::Hash};
+use std::{any::Any, fmt::Debug, hash::Hash};
 
+mod addressable_heap;
 pub mod hash_map;
+pub mod ttl;
 
 #[cfg(test)]
 mod test_util;
@@ -27,4 +29,7 @@ pub trait CacheBackend: Debug + Send + 'static {
     ///
     /// It is OK to remove a key even when it does not exist.
     fn remove(&mut self, k: &Self::K);
+
+    /// Return backend as [`Any`] which can be used to downcast to a specifc implementation.
+    fn as_any(&self) -> &dyn Any;
 }

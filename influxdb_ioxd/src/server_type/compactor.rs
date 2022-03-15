@@ -4,9 +4,17 @@ use std::{
 };
 
 use async_trait::async_trait;
-use compactor::{handler::CompactorHandler, server::CompactorServer};
+use compactor::{
+    handler::{CompactorHandler, CompactorHandlerImpl},
+    server::CompactorServer,
+};
+use data_types2::SequencerId;
 use hyper::{Body, Request, Response};
+use iox_catalog::interface::Catalog;
 use metric::Registry;
+use object_store::ObjectStore;
+use query::exec::Executor;
+use time::TimeProvider;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
@@ -97,4 +105,27 @@ impl HttpApiErrorSource for IoxHttpError {
     fn to_http_api_error(&self) -> HttpApiError {
         HttpApiError::new(self.status_code(), self.to_string())
     }
+}
+
+/// Instantiate a compactor server
+pub async fn create_compactor_server_type(
+    common_state: &CommonServerState,
+    metric_registry: Arc<metric::Registry>,
+    catalog: Arc<dyn Catalog>,
+    object_store: Arc<ObjectStore>,
+    exec: Arc<Executor>,
+    time_provider: Arc<dyn TimeProvider>,
+    sequencers: Vec<SequencerId>,
+) -> Arc<dyn ServerType> {
+    let compactor_handler = Arc::new(CompactorHandlerImpl::new(
+        sequencers,
+        catalog,
+        object_store,
+        exec,
+        time_provider,
+        &metric_registry,
+    ));
+
+    let compactor = CompactorServer::new(metric_registry, compactor_handler);
+    Arc::new(CompactorServerType::new(compactor, common_state))
 }

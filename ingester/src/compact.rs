@@ -1,17 +1,17 @@
 //! This module is responsible for compacting Ingester's data
 
 use crate::data::{PersistingBatch, QueryableBatch};
-use arrow::{array::TimestampNanosecondArray, record_batch::RecordBatch};
+use arrow::record_batch::RecordBatch;
 use data_types2::NamespaceId;
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use parquet_file::metadata::IoxMetadata;
 use query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
+    util::compute_timenanosecond_min_max,
     QueryChunkMeta,
 };
-use schema::TIME_COLUMN_NAME;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 use time::{Time, TimeProvider};
 
@@ -40,70 +40,15 @@ pub enum Error {
         predicate: String,
     },
 
-    #[snafu(display("The Record batch is empty"))]
-    EmptyBatch,
-
-    #[snafu(display("Error while searching Time column in a Record Batch"))]
-    TimeColumn { source: arrow::error::ArrowError },
-
-    #[snafu(display("Error while casting Timenanosecond on Time column"))]
-    TimeCasting,
-
     #[snafu(display("Could not convert row count to i64"))]
     RowCountTypeConversion { source: std::num::TryFromIntError },
+
+    #[snafu(display("Error computing min and max for record batches: {}", source))]
+    MinMax { source: query::util::Error },
 }
 
 /// A specialized `Error` for Ingester's Compact errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/// Return min and max for column `time` of the given set of record batches
-pub fn compute_timenanosecond_min_max(batches: &[RecordBatch]) -> Result<(i64, i64)> {
-    let mut min_time = i64::MAX;
-    let mut max_time = i64::MIN;
-    for batch in batches {
-        let (min, max) = compute_timenanosecond_min_max_for_one_record_bacth(batch)?;
-        if min_time > min {
-            min_time = min;
-        }
-        if max_time < max {
-            max_time = max;
-        }
-    }
-    Ok((min_time, max_time))
-}
-
-/// Return min and max for column `time` in the given record batch
-pub fn compute_timenanosecond_min_max_for_one_record_bacth(
-    batch: &RecordBatch,
-) -> Result<(i64, i64)> {
-    if batch.num_columns() == 0 {
-        return Err(Error::EmptyBatch);
-    }
-
-    let index = batch
-        .schema()
-        .index_of(TIME_COLUMN_NAME)
-        .context(TimeColumnSnafu {})?;
-
-    let time_col = batch
-        .column(index)
-        .as_any()
-        .downcast_ref::<TimestampNanosecondArray>()
-        .context(TimeCastingSnafu {})?;
-
-    let min = time_col
-        .iter()
-        .min()
-        .expect("Time column must have values")
-        .expect("Time column cannot be NULL");
-    let max = time_col
-        .iter()
-        .max()
-        .expect("Time column must have values")
-        .expect("Time column cannot be NULL");
-
-    Ok((min, max))
-}
 
 /// Compact a given persisting batch
 /// Return compacted data with its metadata
@@ -138,7 +83,8 @@ pub async fn compact_persisting_batch(
     let row_count = row_count.try_into().context(RowCountTypeConversionSnafu)?;
 
     // Compute min and max of the `time` column
-    let (min_time, max_time) = compute_timenanosecond_min_max(&output_batches)?;
+    let (min_time, max_time) =
+        compute_timenanosecond_min_max(&output_batches).context(MinMaxSnafu)?;
 
     // Compute min and max sequence numbers
     let (min_seq, max_seq) = batch.data.min_max_sequence_numbers();
