@@ -1,11 +1,16 @@
 use backoff::BackoffConfig;
 use iox_catalog::interface::Catalog;
 use std::sync::Arc;
+use time::TimeProvider;
 
-use self::{namespace::NamespaceCache, partition::PartitionCache, table::TableCache};
+use self::{
+    namespace::NamespaceCache, partition::PartitionCache,
+    processed_tombstones::ProcessedTombstonesCache, table::TableCache,
+};
 
 pub mod namespace;
 pub mod partition;
+pub mod processed_tombstones;
 pub mod table;
 
 #[cfg(test)]
@@ -25,22 +30,28 @@ pub struct CatalogCache {
 
     /// Namespace cache.
     namespace_cache: NamespaceCache,
+
+    /// Processed tombstone cache.
+    processed_tombstones: ProcessedTombstonesCache,
 }
 
 impl CatalogCache {
     /// Create empty cache.
-    pub fn new(catalog: Arc<dyn Catalog>) -> Self {
+    pub fn new(catalog: Arc<dyn Catalog>, time_provider: Arc<dyn TimeProvider>) -> Self {
         let backoff_config = BackoffConfig::default();
 
         let namespace_cache = NamespaceCache::new(Arc::clone(&catalog), backoff_config.clone());
         let table_cache = TableCache::new(Arc::clone(&catalog), backoff_config.clone());
-        let partition_cache = PartitionCache::new(Arc::clone(&catalog), backoff_config);
+        let partition_cache = PartitionCache::new(Arc::clone(&catalog), backoff_config.clone());
+        let processed_tombstones =
+            ProcessedTombstonesCache::new(Arc::clone(&catalog), backoff_config, time_provider);
 
         Self {
             catalog,
             partition_cache,
             table_cache,
             namespace_cache,
+            processed_tombstones,
         }
     }
 
@@ -62,5 +73,10 @@ impl CatalogCache {
     /// Partition cache
     pub fn partition(&self) -> &PartitionCache {
         &self.partition_cache
+    }
+
+    /// Processed tombstone cache.
+    pub fn processed_tombstones(&self) -> &ProcessedTombstonesCache {
+        &self.processed_tombstones
     }
 }

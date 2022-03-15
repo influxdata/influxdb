@@ -24,7 +24,7 @@ pub struct TestCatalog {
     pub catalog: Arc<dyn Catalog>,
     pub metric_registry: Arc<metric::Registry>,
     pub object_store: Arc<ObjectStore>,
-    pub time_provider: Arc<dyn TimeProvider>,
+    pub time_provider: Arc<MockProvider>,
     pub exec: Arc<Executor>,
 }
 
@@ -61,9 +61,18 @@ impl TestCatalog {
         Arc::clone(&self.object_store)
     }
 
+    /// Return the mockable version of the catalog's time provider.
+    ///
+    /// If you need a generic time provider, use [`time_provider`](Self::time_provider) instead.
+    pub fn mock_time_provider(&self) -> &MockProvider {
+        self.time_provider.as_ref()
+    }
+
     /// Return the catalog's time provider
+    ///
+    /// If you need to mock the time, use [`mock_time_provider`](Self::mock_time_provider) instead.
     pub fn time_provider(&self) -> Arc<dyn TimeProvider> {
-        Arc::clone(&self.time_provider)
+        Arc::clone(&self.time_provider) as _
     }
 
     /// Return the catalog's executor
