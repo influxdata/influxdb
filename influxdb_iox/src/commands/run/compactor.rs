@@ -1,7 +1,7 @@
 //! Implementation of command line option for running the compactor
 
 use data_types2::SequencerId;
-use object_store::ObjectStoreImpl;
+use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use std::sync::Arc;
@@ -76,10 +76,11 @@ pub async fn command(config: Config) -> Result<(), Error> {
         .get_catalog("compactor", Arc::clone(&metric_registry))
         .await?;
 
-    let object_store = Arc::new(
-        ObjectStoreImpl::try_from(config.run_config().object_store_config())
-            .map_err(Error::ObjectStoreParsing)?,
-    );
+    let object_store = ObjectStoreImpl::try_from(config.run_config.object_store_config())
+        .map_err(Error::ObjectStoreParsing)?;
+    // Decorate the object store with a metric recorder.
+    let object_store: Arc<DynObjectStore> =
+        Arc::new(ObjectStoreMetrics::new(object_store, &*metric_registry));
 
     let exec = Arc::new(Executor::new(config.query_exect_thread_count));
     let time_provider = Arc::new(SystemProvider::new());

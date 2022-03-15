@@ -12,7 +12,7 @@ use data_types2::SequencerId;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use metric::Registry;
-use object_store::ObjectStoreImpl;
+use object_store::DynObjectStore;
 use query::exec::Executor;
 use time::TimeProvider;
 use tokio_util::sync::CancellationToken;
@@ -112,7 +112,7 @@ pub async fn create_compactor_server_type(
     common_state: &CommonServerState,
     metric_registry: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
-    object_store: Arc<ObjectStoreImpl>,
+    object_store: Arc<DynObjectStore>,
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
     sequencers: Vec<SequencerId>,
