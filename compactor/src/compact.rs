@@ -141,6 +141,11 @@ pub enum Error {
     Update {
         source: iox_catalog::interface::Error,
     },
+
+    #[snafu(display("Error querying for tombstones for a parquet file {}", source))]
+    QueryingTombstones {
+        source: iox_catalog::interface::Error,
+    },
 }
 
 /// A specialized `Error` for Compactor Data errors
@@ -269,18 +274,34 @@ impl Compactor {
             val.extend(level_1_files);
         }
 
-        // Each partition may contain non-overlapped files,
-        // groups overlapped files in each partition
-        let overlapped_file_groups: Vec<_> = partitions
+        // Each partition may contain non-overlapped files. Group overlapped files in each
+        // partition. Once the groups are created, the partitions aren't needed.
+        let overlapped_file_groups: Vec<Vec<ParquetFile>> = partitions
             .into_iter()
-            .map(|(_key, parquet_files)| Self::overlapped_groups(parquet_files))
+            .flat_map(|(_key, parquet_files)| Self::overlapped_groups(parquet_files))
             .collect();
 
-        // Find and attach tombstones to each parquet file
-        let mut overlapped_file_with_tombstones_groups = vec![];
-        for _files in overlapped_file_groups {
-            let overlapped_file_with_tombstones: Vec<ParquetFileWithTombstone> = vec![]; // TODO: #3948
-            overlapped_file_with_tombstones_groups.push(overlapped_file_with_tombstones);
+        let mut repo = self.catalog.repositories().await;
+        let tombstone_repo = repo.tombstones();
+        let mut overlapped_file_with_tombstones_groups =
+            Vec::with_capacity(overlapped_file_groups.len());
+
+        // For each group of overlapping parquet files,
+        for parquet_files in overlapped_file_groups {
+            let mut parquet_files_with_tombstones = Vec::with_capacity(parquet_files.len());
+            // Attach to each individual parquet file the relevant tombstones.
+            for parquet_file in parquet_files {
+                let tombstones = tombstone_repo
+                    .list_tombstones_for_parquet_file(&parquet_file)
+                    .await
+                    .context(QueryingTombstonesSnafu)?;
+                parquet_files_with_tombstones.push(ParquetFileWithTombstone {
+                    data: Arc::new(parquet_file),
+                    tombstones,
+                });
+            }
+
+            overlapped_file_with_tombstones_groups.push(parquet_files_with_tombstones);
         }
 
         // Compact, persist,and update catalog accordingly for each overlaped file
