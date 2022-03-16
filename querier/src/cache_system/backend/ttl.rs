@@ -51,6 +51,57 @@ impl<K, V> TtlProvider for NeverTtlProvider<K, V> {
     }
 }
 
+/// [`TtlProvider`] that returns different values for `None`/`Some(...)` values.
+pub struct OptionalValueTtlProvider<K, V>
+where
+    K: 'static,
+    V: 'static,
+{
+    // phantom data that is Send and Sync, see https://stackoverflow.com/a/50201389
+    _k: PhantomData<fn() -> K>,
+    _v: PhantomData<fn() -> V>,
+
+    ttl_none: Option<Duration>,
+    ttl_some: Option<Duration>,
+}
+
+impl<K, V> OptionalValueTtlProvider<K, V>
+where
+    K: 'static,
+    V: 'static,
+{
+    /// Create new provider with the given TTL values for `None` and `Some(...)`.
+    pub fn new(ttl_none: Option<Duration>, ttl_some: Option<Duration>) -> Self {
+        Self {
+            _k: PhantomData::default(),
+            _v: PhantomData::default(),
+            ttl_none,
+            ttl_some,
+        }
+    }
+}
+
+impl<K, V> std::fmt::Debug for OptionalValueTtlProvider<K, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OptionalValueTtlProvider")
+            .field("ttl_none", &self.ttl_none)
+            .field("ttl_some", &self.ttl_some)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<K, V> TtlProvider for OptionalValueTtlProvider<K, V> {
+    type K = K;
+    type V = Option<V>;
+
+    fn expires_in(&self, _k: &Self::K, v: &Self::V) -> Option<Duration> {
+        match v {
+            None => self.ttl_none,
+            Some(_) => self.ttl_some,
+        }
+    }
+}
+
 /// Cache backend that implements Time To Life.
 ///
 /// # Cache Eviction
@@ -177,6 +228,21 @@ mod tests {
     use time::MockProvider;
 
     use super::*;
+
+    #[test]
+    fn test_never_ttl_provider() {
+        let provider = NeverTtlProvider::<u8, i8>::default();
+        assert_eq!(provider.expires_in(&1, &2), None);
+    }
+
+    #[test]
+    fn test_optional_value_ttl_provider() {
+        let ttl_none = Some(Duration::from_secs(1));
+        let ttl_some = Some(Duration::from_secs(2));
+        let provider = OptionalValueTtlProvider::<u8, i8>::new(ttl_none, ttl_some);
+        assert_eq!(provider.expires_in(&1, &None), ttl_none);
+        assert_eq!(provider.expires_in(&1, &Some(2)), ttl_some);
+    }
 
     #[test]
     fn test_expires_single() {
