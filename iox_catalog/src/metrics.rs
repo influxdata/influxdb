@@ -254,6 +254,7 @@ decorate!(
         "tombstone_list_by_namespace" = list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Tombstone>>;
         "tombstone_list_by_table" = list_by_table(&mut self, table_id: TableId) -> Result<Vec<Tombstone>>;
         "tombstone_list_tombstones_by_sequencer_greater_than" = list_tombstones_by_sequencer_greater_than(&mut self, sequencer_id: SequencerId, sequence_number: SequenceNumber) -> Result<Vec<Tombstone>>;
+        "tombstone_list_tombstones_for_parquet_file" = list_tombstones_for_parquet_file(&mut self, parquet_file: &ParquetFile) -> Result<Vec<Tombstone>>;
     ]
 );
 

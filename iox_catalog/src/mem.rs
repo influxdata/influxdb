@@ -836,6 +836,29 @@ impl TombstoneRepo for MemTxn {
             .collect();
         Ok(tombstones)
     }
+
+    async fn list_tombstones_for_parquet_file(
+        &mut self,
+        parquet_file: &ParquetFile,
+    ) -> Result<Vec<Tombstone>> {
+        let stage = self.stage();
+
+        let tombstones: Vec<_> = stage
+            .tombstones
+            .iter()
+            .filter(|t| {
+                t.sequencer_id == parquet_file.sequencer_id
+                    && t.table_id == parquet_file.table_id
+                    && t.sequence_number > parquet_file.max_sequence_number
+                    && ((t.min_time <= parquet_file.min_time
+                        && t.max_time >= parquet_file.min_time)
+                        || (t.min_time > parquet_file.min_time
+                            && t.min_time <= parquet_file.max_time))
+            })
+            .cloned()
+            .collect();
+        Ok(tombstones)
+    }
 }
 
 #[async_trait]

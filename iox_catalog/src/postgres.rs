@@ -1277,6 +1277,32 @@ ORDER BY id;
         .await
         .map_err(|e| Error::SqlxError { source: e })
     }
+
+    async fn list_tombstones_for_parquet_file(
+        &mut self,
+        parquet_file: &ParquetFile,
+    ) -> Result<Vec<Tombstone>> {
+        sqlx::query_as::<_, Tombstone>(
+            r#"
+SELECT *
+FROM tombstone
+WHERE sequencer_id = $1
+  AND table_id = $2
+  AND sequence_number > $3
+  AND ((min_time <= $4 AND max_time >= $4)
+        OR (min_time > $4 AND min_time <= $5))
+ORDER BY id;
+            "#,
+        )
+        .bind(&parquet_file.sequencer_id) // $1
+        .bind(&parquet_file.table_id) // $2
+        .bind(&parquet_file.max_sequence_number) // $3
+        .bind(&parquet_file.min_time) // $4
+        .bind(&parquet_file.max_time) // $5
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
 }
 
 #[async_trait]
