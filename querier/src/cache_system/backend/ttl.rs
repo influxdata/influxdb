@@ -131,18 +131,30 @@ where
         let now = self.time_provider.now();
         self.evict_expired(now);
 
-        if let Some(ttl) = self
-            .ttl_provider
-            .expires_in(&k, &v)
-            .and_then(|d| now.checked_add(d))
-        {
-            self.expiration.insert(k.clone(), (), ttl);
+        let should_store = if let Some(ttl) = self.ttl_provider.expires_in(&k, &v) {
+            let should_store = !ttl.is_zero();
+
+            match now.checked_add(ttl) {
+                Some(t) => {
+                    self.expiration.insert(k.clone(), (), t);
+                }
+                None => {
+                    // Still need to ensure that any current expiration is disabled
+                    self.expiration.remove(&k);
+                }
+            }
+
+            should_store
         } else {
             // Still need to ensure that any current expiration is disabled
             self.expiration.remove(&k);
-        }
 
-        self.inner_backend.set(k, v);
+            true
+        };
+
+        if should_store {
+            self.inner_backend.set(k, v);
+        }
     }
 
     fn remove(&mut self, k: &Self::K) {
@@ -281,6 +293,29 @@ mod tests {
     }
 
     #[test]
+    fn test_override_with_overflow() {
+        let ttl_provider = Arc::new(TestTtlProvider::new());
+
+        // init time provider at nearly MAX!
+        let time_provider = Arc::new(MockProvider::new(Time::MAX - Duration::from_secs(2)));
+        let mut backend = TtlBackend::new(
+            Box::new(HashMap::<u8, String>::new()),
+            Arc::clone(&ttl_provider) as _,
+            Arc::clone(&time_provider) as _,
+        );
+
+        ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
+        backend.set(1, String::from("a"));
+        assert_eq!(backend.get(&1), Some(String::from("a")));
+
+        ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(u64::MAX)));
+        backend.set(1, String::from("a"));
+
+        time_provider.inc(Duration::from_secs(2));
+        assert_eq!(backend.get(&1), Some(String::from("a")));
+    }
+
+    #[test]
     fn test_readd_with_different_expiration() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
@@ -401,6 +436,29 @@ mod tests {
         backend.set(2, String::from("b"));
         assert_eq!(backend.get(&1), None);
         assert_eq!(backend.get(&2), Some(String::from("b")));
+    }
+
+    #[test]
+    fn test_expire_immediately() {
+        let ttl_provider = Arc::new(TestTtlProvider::new());
+        let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let mut backend = TtlBackend::new(
+            Box::new(HashMap::<u8, String>::new()),
+            Arc::clone(&ttl_provider) as _,
+            Arc::clone(&time_provider) as _,
+        );
+
+        ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(0)));
+        backend.set(1, String::from("a"));
+
+        let inner_backend = backend
+            .inner_backend()
+            .as_any()
+            .downcast_ref::<HashMap<u8, String>>()
+            .unwrap();
+        assert!(inner_backend.is_empty());
+
+        assert_eq!(backend.get(&1), None);
     }
 
     #[test]
