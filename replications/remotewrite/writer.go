@@ -86,7 +86,7 @@ func NewWriter(replicationID platform.ID, store HttpConfigStore, metrics *metric
 	}
 }
 
-func (w *writer) Write(data []byte, attempts int) (time.Duration, error) {
+func (w *writer) Write(data []byte, attempts int) (backoff time.Duration, shouldRetry bool, err error) {
 	cancelOnce := &sync.Once{}
 	// Cancel any outstanding HTTP requests if the replicationQueue is closed.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,14 +107,14 @@ func (w *writer) Write(data []byte, attempts int) (time.Duration, error) {
 	// Get the most recent config on every attempt, in case the user has updated the config to correct errors.
 	conf, err := w.configStore.GetFullHTTPConfig(ctx, w.replicationID)
 	if err != nil {
-		return w.backoff(attempts), err
+		return w.backoff(attempts), true, err
 	}
 
 	res, postWriteErr := PostWrite(ctx, conf, data, w.clientTimeout)
 	res, msg, ok := normalizeResponse(res, postWriteErr)
 	if !ok {
 		// bail out
-		return w.backoff(attempts), postWriteErr
+		return w.backoff(attempts), true, postWriteErr
 	}
 
 	// Update metrics and most recent error diagnostic information.
@@ -124,14 +124,14 @@ func (w *writer) Write(data []byte, attempts int) (time.Duration, error) {
 		// w.logger.Warn("failed to update config store with latest remote write response info", zap.Error(err))
 		// Unfortunately this will mess up a lot of tests that are using UpdateResponseInfo failures as a proxy for
 		// write failures.
-		return w.backoff(attempts), err
+		return w.backoff(attempts), true, err
 	}
 
 	if postWriteErr == nil {
 		// Successful write
 		w.metrics.RemoteWriteSent(w.replicationID, len(data))
 		w.logger.Debug("remote write successful", zap.Int("attempt", attempts), zap.Int("bytes", len(data)))
-		return 0, nil
+		return 0, true, nil
 	}
 
 	w.metrics.RemoteWriteError(w.replicationID, res.StatusCode)
@@ -145,7 +145,7 @@ func (w *writer) Write(data []byte, attempts int) (time.Duration, error) {
 		if conf.DropNonRetryableData {
 			w.logger.Debug("dropped data", zap.Int("bytes", len(data)))
 			w.metrics.RemoteWriteDropped(w.replicationID, len(data))
-			return 0, nil
+			return 0, false, nil
 		}
 	case http.StatusTooManyRequests:
 		headerTime := w.waitTimeFromHeader(res)
@@ -159,10 +159,10 @@ func (w *writer) Write(data []byte, attempts int) (time.Duration, error) {
 		waitTime = w.backoff(attempts)
 	}
 
-	return waitTime, postWriteErr
+	return waitTime, true, postWriteErr
 }
 
-// normalizeReponse returns a guaranteed non-nil value for *http.Response, and an extracted error message string for use
+// normalizeResponse returns a guaranteed non-nil value for *http.Response, and an extracted error message string for use
 // in logging. The returned bool indicates that the response is retryable - false means that the write request should be
 // aborted due to a malformed request.
 func normalizeResponse(r *http.Response, err error) (*http.Response, string, bool) {

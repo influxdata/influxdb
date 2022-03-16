@@ -29,6 +29,7 @@ var (
 		LocalBucketID:     platform.ID(1000),
 		RemoteBucketID:    platform.ID(99999),
 		MaxQueueSizeBytes: 3 * influxdb.DefaultReplicationMaxQueueSizeBytes,
+		MaxAgeSeconds:     0,
 	}
 	createReq = influxdb.CreateReplicationRequest{
 		OrgID:             replication.OrgID,
@@ -38,6 +39,7 @@ var (
 		LocalBucketID:     replication.LocalBucketID,
 		RemoteBucketID:    replication.RemoteBucketID,
 		MaxQueueSizeBytes: replication.MaxQueueSizeBytes,
+		MaxAgeSeconds:     replication.MaxAgeSeconds,
 	}
 	httpConfig = influxdb.ReplicationHTTPConfig{
 		RemoteURL:        fmt.Sprintf("http://%s.cloud", replication.RemoteID),
@@ -63,6 +65,7 @@ var (
 		RemoteBucketID:       replication.RemoteBucketID,
 		MaxQueueSizeBytes:    *updateReq.MaxQueueSizeBytes,
 		DropNonRetryableData: true,
+		MaxAgeSeconds:        replication.MaxAgeSeconds,
 	}
 )
 

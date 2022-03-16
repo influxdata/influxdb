@@ -49,7 +49,8 @@ func (s *Store) Unlock() {
 func (s *Store) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
 	q := sq.Select(
 		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id",
-		"max_queue_size_bytes", "latest_response_code", "latest_error_message", "drop_non_retryable_data").
+		"max_queue_size_bytes", "latest_response_code", "latest_error_message", "drop_non_retryable_data",
+		"max_age_seconds").
 		From("replications")
 
 	if filter.OrgID.Valid() {
@@ -91,10 +92,11 @@ func (s *Store) CreateReplication(ctx context.Context, newID platform.ID, reques
 			"remote_bucket_id":        request.RemoteBucketID,
 			"max_queue_size_bytes":    request.MaxQueueSizeBytes,
 			"drop_non_retryable_data": request.DropNonRetryableData,
+			"max_age_seconds":         request.MaxAgeSeconds,
 			"created_at":              "datetime('now')",
 			"updated_at":              "datetime('now')",
 		}).
-		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes, drop_non_retryable_data")
+		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes, drop_non_retryable_data, max_age_seconds")
 
 	query, args, err := q.ToSql()
 	if err != nil {
@@ -117,7 +119,8 @@ func (s *Store) CreateReplication(ctx context.Context, newID platform.ID, reques
 func (s *Store) GetReplication(ctx context.Context, id platform.ID) (*influxdb.Replication, error) {
 	q := sq.Select(
 		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id",
-		"max_queue_size_bytes", "latest_response_code", "latest_error_message", "drop_non_retryable_data").
+		"max_queue_size_bytes", "latest_response_code", "latest_error_message", "drop_non_retryable_data",
+		"max_age_seconds").
 		From("replications").
 		Where(sq.Eq{"id": id})
 
@@ -158,9 +161,12 @@ func (s *Store) UpdateReplication(ctx context.Context, id platform.ID, request i
 	if request.DropNonRetryableData != nil {
 		updates["drop_non_retryable_data"] = *request.DropNonRetryableData
 	}
+	if request.MaxAgeSeconds != nil {
+		updates["max_age_seconds"] = *request.MaxAgeSeconds
+	}
 
 	q := sq.Update("replications").SetMap(updates).Where(sq.Eq{"id": id}).
-		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes, drop_non_retryable_data")
+		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes, drop_non_retryable_data, max_age_seconds")
 
 	query, args, err := q.ToSql()
 	if err != nil {
