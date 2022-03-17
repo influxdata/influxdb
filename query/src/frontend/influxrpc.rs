@@ -223,7 +223,7 @@ impl InfluxRpcPlanner {
     ///   . A set of plans of tables of either
     ///       . chunks with deleted data or
     ///       . chunks without deleted data but cannot be decided from meta data
-    pub fn table_names<D>(
+    pub async fn table_names<D>(
         &self,
         database: &D,
         rpc_predicate: InfluxRpcPredicate,
@@ -248,7 +248,7 @@ impl InfluxRpcPlanner {
         for (table_name, predicate) in &table_predicates {
             // Identify which chunks can answer from its metadata and then record its table,
             // and which chunks needs full plan and group them into their table
-            for chunk in database.chunks(table_name, predicate) {
+            for chunk in database.chunks(table_name, predicate).await {
                 trace!(chunk_id=%chunk.id(), %table_name, "Considering table");
 
                 // Table is already in the returned table list, no longer needs to discover it from other chunks
@@ -325,7 +325,7 @@ impl InfluxRpcPlanner {
     /// columns (as defined in the InfluxDB Data model) names in this
     /// database that have more than zero rows which pass the
     /// conditions specified by `predicate`.
-    pub fn tag_keys<D>(
+    pub async fn tag_keys<D>(
         &self,
         database: &D,
         rpc_predicate: InfluxRpcPredicate,
@@ -356,7 +356,7 @@ impl InfluxRpcPlanner {
             .table_predicates(database)
             .context(CreatingPredicatesSnafu)?;
         for (table_name, predicate) in &table_predicates {
-            for chunk in database.chunks(table_name, predicate) {
+            for chunk in database.chunks(table_name, predicate).await {
                 // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
                 // deleted data before getting tag keys
                 let mut do_full_plan = chunk.has_delete_predicates();
@@ -469,7 +469,7 @@ impl InfluxRpcPlanner {
     /// Returns a plan which finds the distinct, non-null tag values
     /// in the specified `tag_name` column of this database which pass
     /// the conditions specified by `predicate`.
-    pub fn tag_values<D>(
+    pub async fn tag_values<D>(
         &self,
         database: &D,
         tag_name: &str,
@@ -499,7 +499,7 @@ impl InfluxRpcPlanner {
             .table_predicates(database)
             .context(CreatingPredicatesSnafu)?;
         for (table_name, predicate) in &table_predicates {
-            for chunk in database.chunks(table_name, predicate) {
+            for chunk in database.chunks(table_name, predicate).await {
                 // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
                 // deleted data before getting tag values
                 let mut do_full_plan = chunk.has_delete_predicates();
@@ -652,7 +652,7 @@ impl InfluxRpcPlanner {
     /// datatypes (as defined in the data written via `write_lines`),
     /// and which have more than zero rows which pass the conditions
     /// specified by `predicate`.
-    pub fn field_columns<D>(
+    pub async fn field_columns<D>(
         &self,
         database: &D,
         rpc_predicate: InfluxRpcPredicate,
@@ -678,7 +678,7 @@ impl InfluxRpcPlanner {
         let mut field_list_plan = FieldListPlan::with_capacity(table_predicates.len());
 
         for (table_name, predicate) in &table_predicates {
-            let chunks = database.chunks(table_name, predicate);
+            let chunks = database.chunks(table_name, predicate).await;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
@@ -721,7 +721,7 @@ impl InfluxRpcPlanner {
     /// The data is sorted on (tag_col1, tag_col2, ...) so that all
     /// rows for a particular series (groups where all tags are the
     /// same) occur together in the plan
-    pub fn read_filter<D>(
+    pub async fn read_filter<D>(
         &self,
         database: &D,
         rpc_predicate: InfluxRpcPredicate,
@@ -737,7 +737,7 @@ impl InfluxRpcPlanner {
             .context(CreatingPredicatesSnafu)?;
         let mut ss_plans = Vec::with_capacity(table_predicates.len());
         for (table_name, predicate) in &table_predicates {
-            let chunks = database.chunks(table_name, predicate);
+            let chunks = database.chunks(table_name, predicate).await;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
@@ -784,12 +784,12 @@ impl InfluxRpcPlanner {
     /// (order by {group_coumns, remaining tags})
     ///   (aggregate by group -- agg, gby_exprs=tags)
     ///      (apply filters)
-    pub fn read_group<D>(
+    pub async fn read_group<D>(
         &self,
         database: &D,
         rpc_predicate: InfluxRpcPredicate,
         agg: Aggregate,
-        group_columns: &[impl AsRef<str>],
+        group_columns: &[impl AsRef<str> + Send + Sync],
     ) -> Result<SeriesSetPlans>
     where
         D: QueryDatabase + 'static,
@@ -803,7 +803,7 @@ impl InfluxRpcPlanner {
         let mut ss_plans = Vec::with_capacity(table_predicates.len());
 
         for (table_name, predicate) in &table_predicates {
-            let chunks = database.chunks(table_name, predicate);
+            let chunks = database.chunks(table_name, predicate).await;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
@@ -852,7 +852,7 @@ impl InfluxRpcPlanner {
 
     /// Creates a GroupedSeriesSet plan that produces an output table with rows
     /// that are grouped by window definitions
-    pub fn read_window_aggregate<D>(
+    pub async fn read_window_aggregate<D>(
         &self,
         database: &D,
         rpc_predicate: InfluxRpcPredicate,
@@ -878,7 +878,7 @@ impl InfluxRpcPlanner {
             .context(CreatingPredicatesSnafu)?;
         let mut ss_plans = Vec::with_capacity(table_predicates.len());
         for (table_name, predicate) in &table_predicates {
-            let chunks = database.chunks(table_name, predicate);
+            let chunks = database.chunks(table_name, predicate).await;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
@@ -1874,6 +1874,7 @@ fn make_selector_expr<'a>(
 #[cfg(test)]
 mod tests {
     use datafusion::logical_plan::lit;
+    use futures::{future::BoxFuture, FutureExt};
     use predicate::PredicateBuilder;
 
     use crate::{
@@ -1885,87 +1886,113 @@ mod tests {
 
     #[tokio::test]
     async fn test_predicate_rewrite_table_names() {
-        run_test(&|test_db, rpc_predicate| {
-            InfluxRpcPlanner::new()
-                .table_names(test_db, rpc_predicate)
-                .expect("creating plan");
+        run_test(|test_db, rpc_predicate| {
+            async move {
+                InfluxRpcPlanner::new()
+                    .table_names(test_db, rpc_predicate)
+                    .await
+                    .expect("creating plan");
+            }
+            .boxed()
         })
         .await
     }
 
     #[tokio::test]
     async fn test_predicate_rewrite_tag_keys() {
-        run_test(&|test_db, rpc_predicate| {
-            InfluxRpcPlanner::new()
-                .tag_keys(test_db, rpc_predicate)
-                .expect("creating plan");
+        run_test(|test_db, rpc_predicate| {
+            async move {
+                InfluxRpcPlanner::new()
+                    .tag_keys(test_db, rpc_predicate)
+                    .await
+                    .expect("creating plan");
+            }
+            .boxed()
         })
         .await
     }
 
     #[tokio::test]
     async fn test_predicate_rewrite_tag_values() {
-        run_test(&|test_db, rpc_predicate| {
-            InfluxRpcPlanner::new()
-                .tag_values(test_db, "foo", rpc_predicate)
-                .expect("creating plan");
+        run_test(|test_db, rpc_predicate| {
+            async move {
+                InfluxRpcPlanner::new()
+                    .tag_values(test_db, "foo", rpc_predicate)
+                    .await
+                    .expect("creating plan");
+            }
+            .boxed()
         })
         .await
     }
 
     #[tokio::test]
     async fn test_predicate_rewrite_field_columns() {
-        run_test(&|test_db, rpc_predicate| {
-            InfluxRpcPlanner::new()
-                .field_columns(test_db, rpc_predicate)
-                .expect("creating plan");
+        run_test(|test_db, rpc_predicate| {
+            async move {
+                InfluxRpcPlanner::new()
+                    .field_columns(test_db, rpc_predicate)
+                    .await
+                    .expect("creating plan");
+            }
+            .boxed()
         })
         .await
     }
 
     #[tokio::test]
     async fn test_predicate_rewrite_read_filter() {
-        run_test(&|test_db, rpc_predicate| {
-            InfluxRpcPlanner::new()
-                .read_filter(test_db, rpc_predicate)
-                .expect("creating plan");
+        run_test(|test_db, rpc_predicate| {
+            async move {
+                InfluxRpcPlanner::new()
+                    .read_filter(test_db, rpc_predicate)
+                    .await
+                    .expect("creating plan");
+            }
+            .boxed()
         })
         .await
     }
 
     #[tokio::test]
     async fn test_predicate_read_group() {
-        run_test(&|test_db, rpc_predicate| {
-            let agg = Aggregate::None;
-            let group_columns = &["foo"];
-            InfluxRpcPlanner::new()
-                .read_group(test_db, rpc_predicate, agg, group_columns)
-                .expect("creating plan");
+        run_test(|test_db, rpc_predicate| {
+            async move {
+                let agg = Aggregate::None;
+                let group_columns = &["foo"];
+                InfluxRpcPlanner::new()
+                    .read_group(test_db, rpc_predicate, agg, group_columns)
+                    .await
+                    .expect("creating plan");
+            }
+            .boxed()
         })
         .await
     }
 
     #[tokio::test]
     async fn test_predicate_read_window_aggregate() {
-        run_test(&|test_db, rpc_predicate| {
-            let agg = Aggregate::First;
-            let every = WindowDuration::from_months(1, false);
-            let offset = WindowDuration::from_months(1, false);
-            InfluxRpcPlanner::new()
-                .read_window_aggregate(test_db, rpc_predicate, agg, every, offset)
-                .expect("creating plan");
+        run_test(|test_db, rpc_predicate| {
+            async move {
+                let agg = Aggregate::First;
+                let every = WindowDuration::from_months(1, false);
+                let offset = WindowDuration::from_months(1, false);
+                InfluxRpcPlanner::new()
+                    .read_window_aggregate(test_db, rpc_predicate, agg, every, offset)
+                    .await
+                    .expect("creating plan");
+            }
+            .boxed()
         })
         .await
     }
 
-    /// Given a `TestDatabase` plans a InfluxRPC query
-    /// (e.g. read_filter, read_window_aggregate, etc). The test below
-    /// ensures that predicates are simplified during query planning.
-    type PlanRPCFunc = dyn Fn(&TestDatabase, InfluxRpcPredicate) + Send + Sync;
-
     /// Runs func() and checks that predicates are simplified prior to
     /// sending them down to the chunks for processing.
-    async fn run_test(func: &'static PlanRPCFunc) {
+    async fn run_test<T>(func: T)
+    where
+        T: for<'a> Fn(&'a TestDatabase, InfluxRpcPredicate) -> BoxFuture<'a, ()> + Send + Sync,
+    {
         // ------------- Test 1 ----------------
 
         // this is what happens with a grpc predicate on a tag
@@ -2028,11 +2055,13 @@ mod tests {
 
     /// Runs func() with the specified predicate and verifies
     /// `expected_predicate` is received by the chunk
-    async fn run_test_with_predicate(
-        func: &PlanRPCFunc,
+    async fn run_test_with_predicate<T>(
+        func: &T,
         predicate: Predicate,
         expected_predicate: Predicate,
-    ) {
+    ) where
+        T: for<'a> Fn(&'a TestDatabase, InfluxRpcPredicate) -> BoxFuture<'a, ()> + Send + Sync,
+    {
         let chunk0 = Arc::new(
             TestChunk::new("h2o")
                 .with_id(0)
@@ -2047,7 +2076,7 @@ mod tests {
         let rpc_predicate = InfluxRpcPredicate::new(None, predicate);
 
         // run the function
-        func(&test_db, rpc_predicate);
+        func(&test_db, rpc_predicate).await;
 
         let actual_predicate = test_db.get_chunks_predicate();
 

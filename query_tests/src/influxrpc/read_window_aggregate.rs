@@ -39,6 +39,7 @@ async fn run_read_window_aggregate_test_case<D>(
                 every.clone(),
                 offset.clone(),
             )
+            .await
             .expect("built plan successfully");
 
         let string_results = run_series_set_plan(&ctx, plan).await;

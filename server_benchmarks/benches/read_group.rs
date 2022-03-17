@@ -124,6 +124,7 @@ async fn build_and_execute_plan(
 ) {
     let plan = planner
         .read_group(db, predicate, agg, group)
+        .await
         .expect("built plan successfully");
 
     let results = executor

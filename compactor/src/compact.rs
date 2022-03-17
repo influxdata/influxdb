@@ -239,11 +239,10 @@ impl Compactor {
 
         // Each partition may contain non-overlapped files,
         // groups overlapped files in each partition
-        let mut overlapped_file_groups = vec![];
-        for _val in partitions.values_mut() {
-            let overlapped_files: Vec<Vec<ParquetFile>> = vec![]; // TODO: #3949
-            overlapped_file_groups.extend(overlapped_files);
-        }
+        let overlapped_file_groups: Vec<_> = partitions
+            .into_iter()
+            .map(|(_key, parquet_files)| Self::overlapped_groups(parquet_files))
+            .collect();
 
         // Find and attach tombstones to each parquet file
         let mut overlapped_file_with_tombstones_groups = vec![];
@@ -456,13 +455,48 @@ impl Compactor {
 
         Ok(Some(compacted_data))
     }
+
+    /// Given a list of parquet files that come from the same Table Partition, group files together
+    /// if their (min_time, max_time) ranges overlap. Does not preserve or guarantee any ordering.
+    fn overlapped_groups(mut parquet_files: Vec<ParquetFile>) -> Vec<Vec<ParquetFile>> {
+        let mut groups = Vec::with_capacity(parquet_files.len());
+
+        // While there are still files not in any group
+        while !parquet_files.is_empty() {
+            // Start a group containing only the first file
+            let mut in_group = Vec::with_capacity(parquet_files.len());
+            in_group.push(parquet_files.swap_remove(0));
+
+            // Start a group for the remaining files that don't overlap
+            let mut out_group = Vec::with_capacity(parquet_files.len());
+
+            // Consider each file; if it overlaps with any file in the current group, add it to
+            // the group. If not, add it to the non-overlapping group.
+            for file in parquet_files {
+                if in_group.iter().any(|group_file| {
+                    (file.min_time <= group_file.min_time && file.max_time >= group_file.min_time)
+                        || (file.min_time > group_file.min_time
+                            && file.min_time <= group_file.max_time)
+                }) {
+                    in_group.push(file);
+                } else {
+                    out_group.push(file);
+                }
+            }
+
+            groups.push(in_group);
+            parquet_files = out_group;
+        }
+
+        groups
+    }
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
+    use data_types2::SequenceNumber;
     use iox_tests::util::TestCatalog;
     use time::SystemProvider;
 
@@ -729,5 +763,136 @@ mod tests {
             .data;
         // Should have 6 rows
         assert_batches_sorted_eq!(&expected, &batches);
+    }
+
+    /// A test utility function to make minimially-viable ParquetFile records with particular
+    /// min/max times. Does not involve the catalog at all.
+    fn arbitrary_parquet_file(min_time: i64, max_time: i64) -> ParquetFile {
+        ParquetFile {
+            id: ParquetFileId::new(0),
+            sequencer_id: SequencerId::new(0),
+            table_id: TableId::new(0),
+            partition_id: PartitionId::new(0),
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(0),
+            max_sequence_number: SequenceNumber::new(1),
+            min_time: Timestamp::new(min_time),
+            max_time: Timestamp::new(max_time),
+            to_delete: false,
+            file_size_bytes: 0,
+            parquet_metadata: vec![],
+            row_count: 0,
+            compaction_level: 0,
+            created_at: Timestamp::new(1),
+        }
+    }
+
+    #[test]
+    fn test_overlapped_groups_no_overlap() {
+        // Given two files that don't overlap,
+        let pf1 = arbitrary_parquet_file(1, 2);
+        let pf2 = arbitrary_parquet_file(3, 4);
+
+        let groups = Compactor::overlapped_groups(vec![pf1.clone(), pf2.clone()]);
+
+        // They should each be in their own group
+        assert_eq!(groups, vec![vec![pf1], vec![pf2]]);
+    }
+
+    #[test]
+    fn test_overlapped_groups_with_overlap() {
+        // Given two files that do overlap,
+        let pf1 = arbitrary_parquet_file(1, 3);
+        let pf2 = arbitrary_parquet_file(2, 4);
+
+        let groups = Compactor::overlapped_groups(vec![pf1.clone(), pf2.clone()]);
+
+        // They should be in one group (order not guaranteed)
+        assert_eq!(groups.len(), 1, "There should have only been one group");
+
+        let group = &groups[0];
+        assert_eq!(
+            group.len(),
+            2,
+            "The one group should have contained 2 items"
+        );
+        assert!(group.contains(&pf1));
+        assert!(group.contains(&pf2));
+    }
+
+    #[test]
+    fn test_overlapped_groups_many_groups() {
+        let overlaps_many = arbitrary_parquet_file(5, 10);
+        let contained_completely_within = arbitrary_parquet_file(6, 7);
+        let max_equals_min = arbitrary_parquet_file(3, 5);
+        let min_equals_max = arbitrary_parquet_file(10, 12);
+
+        let alone = arbitrary_parquet_file(30, 35);
+
+        let another = arbitrary_parquet_file(13, 15);
+        let partial_overlap = arbitrary_parquet_file(14, 16);
+
+        // Given a bunch of files in an arbitrary order,
+        let all = vec![
+            min_equals_max.clone(),
+            overlaps_many.clone(),
+            alone.clone(),
+            another.clone(),
+            max_equals_min.clone(),
+            contained_completely_within.clone(),
+            partial_overlap.clone(),
+        ];
+
+        let mut groups = Compactor::overlapped_groups(all);
+        dbg!(&groups);
+
+        assert_eq!(groups.len(), 3);
+
+        // Order of the groups is not guaranteed; sort by length of group so we can test membership
+        groups.sort_by_key(|g| g.len());
+
+        let alone_group = &groups[0];
+        assert_eq!(alone_group.len(), 1);
+        assert!(
+            alone_group.contains(&alone),
+            "Actually contains: {:#?}",
+            alone_group
+        );
+
+        let another_group = &groups[1];
+        assert_eq!(another_group.len(), 2);
+        assert!(
+            another_group.contains(&another),
+            "Actually contains: {:#?}",
+            another_group
+        );
+        assert!(
+            another_group.contains(&partial_overlap),
+            "Actually contains: {:#?}",
+            another_group
+        );
+
+        let many_group = &groups[2];
+        assert_eq!(many_group.len(), 4);
+        assert!(
+            many_group.contains(&overlaps_many),
+            "Actually contains: {:#?}",
+            many_group
+        );
+        assert!(
+            many_group.contains(&contained_completely_within),
+            "Actually contains: {:#?}",
+            many_group
+        );
+        assert!(
+            many_group.contains(&max_equals_min),
+            "Actually contains: {:#?}",
+            many_group
+        );
+        assert!(
+            many_group.contains(&min_equals_max),
+            "Actually contains: {:#?}",
+            many_group
+        );
     }
 }

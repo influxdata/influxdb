@@ -34,6 +34,7 @@ async fn run_tag_keys_test_case<D>(
 
         let plan = planner
             .tag_keys(db.as_ref(), predicate.clone())
+            .await
             .expect("built plan successfully");
         let names = ctx
             .to_string_set(plan)

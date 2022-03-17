@@ -31,6 +31,7 @@ async fn run_tag_values_test_case<D>(
 
         let plan = planner
             .tag_values(db.as_ref(), tag_name, predicate.clone())
+            .await
             .expect("built plan successfully");
         let names = ctx
             .to_string_set(plan)
@@ -323,7 +324,9 @@ async fn list_tag_values_field_col_on_tag() {
 
         // Test: temp is a field, not a tag
         let tag_name = "temp";
-        let plan_result = planner.tag_values(db.as_ref(), tag_name, InfluxRpcPredicate::default());
+        let plan_result = planner
+            .tag_values(db.as_ref(), tag_name, InfluxRpcPredicate::default())
+            .await;
 
         assert_eq!(
             plan_result.unwrap_err().to_string(),

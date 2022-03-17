@@ -60,6 +60,7 @@ async fn run_read_filter(
 
     let plan = planner
         .read_filter(db.as_ref(), predicate)
+        .await
         .map_err(|e| e.to_string())?;
 
     let ctx = db.executor().new_context(query::exec::ExecutorType::Query);

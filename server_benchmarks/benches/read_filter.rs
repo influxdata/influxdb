@@ -117,6 +117,7 @@ async fn build_and_execute_plan(
 ) {
     let plan = planner
         .read_filter(db, predicate)
+        .await
         .expect("built plan successfully");
 
     let results = executor

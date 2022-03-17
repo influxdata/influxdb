@@ -122,6 +122,7 @@ async fn chunk_pruning_influxrpc() {
 
     let plan = InfluxRpcPlanner::default()
         .table_names(db.as_ref(), rpc_predicate)
+        .await
         .unwrap();
 
     let result = ctx.to_string_set(plan).await.unwrap();

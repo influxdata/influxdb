@@ -137,24 +137,29 @@ async fn delete_predicate_preservation() {
 
     // ==================== check: delete predicates ====================
 
-    let closure_check_delete_predicates = |db: &Db| {
-        for chunk in db.chunks(table_name, &Default::default()) {
-            let partition_key = chunk.addr().partition_key.as_ref();
-            if partition_key == "part_b" {
-                // Strictly speaking not required because the chunk was persisted AFTER the delete predicate was
-                // registered so we can get away with materializing it during persistence.
-                continue;
+    let closure_check_delete_predicates = |db: &Arc<Db>| {
+        let db = Arc::clone(db);
+        let pred = pred.clone();
+
+        async move {
+            for chunk in db.chunks(table_name, &Default::default()).await {
+                let partition_key = chunk.addr().partition_key.as_ref();
+                if partition_key == "part_b" {
+                    // Strictly speaking not required because the chunk was persisted AFTER the delete predicate was
+                    // registered so we can get away with materializing it during persistence.
+                    continue;
+                }
+                if partition_key == "part_c" {
+                    // This partition was compacted, so the delete predicates were materialized.
+                    continue;
+                }
+                let predicates = chunk.delete_predicates();
+                assert_eq!(predicates.len(), 1);
+                assert_eq!(predicates[0].as_ref(), pred.as_ref());
             }
-            if partition_key == "part_c" {
-                // This partition was compacted, so the delete predicates were materialized.
-                continue;
-            }
-            let predicates = chunk.delete_predicates();
-            assert_eq!(predicates.len(), 1);
-            assert_eq!(predicates[0].as_ref(), pred.as_ref());
         }
     };
-    closure_check_delete_predicates(&db);
+    closure_check_delete_predicates(&db).await;
 
     // ==================== check: query ====================
     let expected = vec![
@@ -176,7 +181,7 @@ async fn delete_predicate_preservation() {
     let db = database.initialized_db().unwrap();
 
     // ==================== check: delete predicates ====================
-    closure_check_delete_predicates(&db);
+    closure_check_delete_predicates(&db).await;
 
     // ==================== check: query ====================
     // NOTE: partition "c" is gone here because it was not written to object store
@@ -224,7 +229,7 @@ async fn delete_predicate_preservation() {
     let db = database.initialized_db().unwrap();
 
     // ==================== check: delete predicates ====================
-    closure_check_delete_predicates(&db);
+    closure_check_delete_predicates(&db).await;
 
     // ==================== check: query ====================
     // NOTE: partition "c" is gone here because it was not written to object store

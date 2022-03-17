@@ -1230,8 +1230,8 @@ impl Db {
 impl QueryDatabase for Db {
     type Chunk = DbChunk;
 
-    fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
-        self.catalog_access.chunks(table_name, predicate)
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+        self.catalog_access.chunks(table_name, predicate).await
     }
 
     fn record_query(

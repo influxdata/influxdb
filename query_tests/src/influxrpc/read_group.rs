@@ -42,6 +42,7 @@ async fn run_read_group_test_case<D>(
 
         let plans = planner
             .read_group(db.as_ref(), predicate.clone(), agg, &group_columns)
+            .await
             .expect("built plan successfully");
 
         let string_results = run_series_set_plan(&ctx, plans).await;
