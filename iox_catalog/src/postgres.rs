@@ -22,7 +22,7 @@ use sqlx_hotswap_pool::HotSwapPool;
 use std::{sync::Arc, time::Duration};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
-const IDLE_TIMEOUT: Duration = Duration::from_secs(500);
+const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 /// the default schema name to use in Postgres
 pub const SCHEMA_NAME: &str = "iox_catalog";
 
