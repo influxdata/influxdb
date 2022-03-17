@@ -32,6 +32,7 @@ async fn run_table_names_test_case<D>(
 
         let plan = planner
             .table_names(db.as_ref(), predicate.clone())
+            .await
             .expect("built plan successfully");
 
         let names = ctx

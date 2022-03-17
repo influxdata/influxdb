@@ -15,6 +15,7 @@ use arrow::{
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
+use async_trait::async_trait;
 use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
 use data_types::{
     delete_predicate::DeletePredicate,
@@ -113,10 +114,11 @@ impl TestDatabase {
     }
 }
 
+#[async_trait]
 impl QueryDatabase for TestDatabase {
     type Chunk = TestChunk;
 
-    fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         // save last predicate
         *self.chunks_predicate.lock() = predicate.clone();
 

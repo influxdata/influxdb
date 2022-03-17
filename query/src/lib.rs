@@ -8,6 +8,7 @@
     clippy::future_not_send
 )]
 
+use async_trait::async_trait;
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
     delete_predicate::DeletePredicate,
@@ -134,13 +135,14 @@ pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 ///
 /// Databases store data organized by partitions and each partition stores
 /// data in Chunks.
+#[async_trait]
 pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     type Chunk: QueryChunk;
 
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate. If possible, chunks which have no rows that can
     /// possibly match the predicate may be omitted.
-    fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>>;
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>>;
 
     /// Record that particular type of query was run / planned
     fn record_query(

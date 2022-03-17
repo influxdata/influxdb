@@ -60,6 +60,7 @@ impl Planner {
             .run(async move {
                 planner
                     .table_names(database.as_ref(), predicate)
+                    .await
                     .map_err(|e| Error::Plan(format!("table_names error: {}", e)))
             })
             .await
@@ -82,6 +83,7 @@ impl Planner {
             .run(async move {
                 planner
                     .tag_keys(database.as_ref(), predicate)
+                    .await
                     .map_err(|e| Error::Plan(format!("tag_keys error: {}", e)))
             })
             .await
@@ -106,6 +108,7 @@ impl Planner {
             .run(async move {
                 planner
                     .tag_values(database.as_ref(), &tag_name, predicate)
+                    .await
                     .map_err(|e| Error::Plan(format!("tag_values error: {}", e)))
             })
             .await
@@ -128,6 +131,7 @@ impl Planner {
             .run(async move {
                 planner
                     .field_columns(database.as_ref(), predicate)
+                    .await
                     .map_err(|e| Error::Plan(format!("field_columns error: {}", e)))
             })
             .await
@@ -150,6 +154,7 @@ impl Planner {
             .run(async move {
                 planner
                     .read_filter(database.as_ref(), predicate)
+                    .await
                     .map_err(|e| Error::Plan(format!("read_filter error: {}", e)))
             })
             .await
@@ -174,6 +179,7 @@ impl Planner {
             .run(async move {
                 planner
                     .read_group(database.as_ref(), predicate, agg, &group_columns)
+                    .await
                     .map_err(|e| Error::Plan(format!("read_group error: {}", e)))
             })
             .await
@@ -198,6 +204,7 @@ impl Planner {
             .run(async move {
                 planner
                     .read_window_aggregate(database.as_ref(), predicate, agg, every, offset)
+                    .await
                     .map_err(|e| Error::Plan(format!("read_window_aggregate error: {}", e)))
             })
             .await

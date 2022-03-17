@@ -285,7 +285,7 @@ impl QueryDatabase for QueryCatalogAccess {
     type Chunk = DbChunk;
 
     /// Return a covering set of chunks for a particular table and predicate
-    fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
         self.chunk_access.candidate_chunks(table_name, predicate)
     }
 
@@ -424,21 +424,21 @@ mod tests {
         write_lp(&db, "cpu foo=1 4");
 
         let predicate = Default::default();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 3);
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 3);
 
         let predicate = PredicateBuilder::new().timestamp_range(0, 1).build();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 0);
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 0);
 
         let predicate = PredicateBuilder::new().timestamp_range(0, 2).build();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 1);
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 1);
 
         let predicate = PredicateBuilder::new().timestamp_range(2, 3).build();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 1);
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 1);
 
         let predicate = PredicateBuilder::new().timestamp_range(2, 4).build();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 2);
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 2);
 
         let predicate = PredicateBuilder::new().timestamp_range(2, 5).build();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).len(), 3);
+        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 3);
     }
 }
