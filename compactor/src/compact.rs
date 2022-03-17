@@ -9,7 +9,7 @@ use backoff::{Backoff, BackoffConfig};
 use bytes::Bytes;
 use data_types2::{
     ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, ProcessedTombstone, SequencerId,
-    TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    TableId, TablePartition, Timestamp, TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::{Catalog, Transaction};
@@ -546,7 +546,7 @@ impl Compactor {
 
     async fn add_parquet_file_with_tombstones(
         parquet_file: ParquetFileParams,
-        tombstones: &[Tombstone],
+        tombstone_ids: &[TombstoneId],
         txn: &mut dyn Transaction,
     ) -> Result<(ParquetFile, Vec<ProcessedTombstone>), Error> {
         // create a parquet file in the catalog first
@@ -557,11 +557,11 @@ impl Compactor {
             .context(UpdateSnafu)?;
 
         // Now the parquet available, create its processed tombstones
-        let mut processed_tombstones = Vec::with_capacity(tombstones.len());
-        for tombstone in tombstones {
+        let mut processed_tombstones = Vec::with_capacity(tombstone_ids.len());
+        for &tombstone_id in tombstone_ids {
             processed_tombstones.push(
                 txn.processed_tombstones()
-                    .create(parquet.id, tombstone.id)
+                    .create(parquet.id, tombstone_id)
                     .await
                     .context(UpdateSnafu)?,
             );
@@ -1193,7 +1193,7 @@ mod tests {
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let (parquet_file, p_tombstones) = Compactor::add_parquet_file_with_tombstones(
             parquet.clone(),
-            &[t1.clone(), t2.clone()],
+            &[t1.id, t2.id],
             txn.deref_mut(),
         )
         .await
@@ -1227,13 +1227,9 @@ mod tests {
 
         // Error due to duplicate parquet file
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        Compactor::add_parquet_file_with_tombstones(
-            parquet,
-            &[t3.clone(), t1.clone()],
-            txn.deref_mut(),
-        )
-        .await
-        .unwrap_err();
+        Compactor::add_parquet_file_with_tombstones(parquet, &[t3.id, t1.id], txn.deref_mut())
+            .await
+            .unwrap_err();
         txn.abort().await.unwrap();
 
         // Since the transaction is rollback, t3 is not yet added
@@ -1245,13 +1241,10 @@ mod tests {
             .unwrap());
 
         // Add new parquet and new tombstone. Should go trhough
-        let (parquet_file, p_tombstones) = Compactor::add_parquet_file_with_tombstones(
-            other_parquet,
-            &[t3.clone()],
-            txn.deref_mut(),
-        )
-        .await
-        .unwrap();
+        let (parquet_file, p_tombstones) =
+            Compactor::add_parquet_file_with_tombstones(other_parquet, &[t3.id], txn.deref_mut())
+                .await
+                .unwrap();
         assert_eq!(p_tombstones.len(), 1);
         assert_eq!(t3.id, p_tombstones[0].tombstone_id);
         assert!(txn
@@ -1273,7 +1266,7 @@ mod tests {
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let mut t4 = t3.clone();
         t4.id = TombstoneId::new(t4.id.get() + 10);
-        Compactor::add_parquet_file_with_tombstones(another_parquet, &[t4], txn.deref_mut())
+        Compactor::add_parquet_file_with_tombstones(another_parquet, &[t4.id], txn.deref_mut())
             .await
             .unwrap_err();
         txn.abort().await.unwrap();
