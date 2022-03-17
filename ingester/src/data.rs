@@ -15,6 +15,7 @@ use data_types2::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
 use iox_catalog::interface::Catalog;
+use metric::U64Counter;
 use mutable_batch::{column::ColumnData, MutableBatch};
 use object_store::DynObjectStore;
 use observability_deps::tracing::warn;
@@ -23,7 +24,11 @@ use predicate::Predicate;
 use query::exec::Executor;
 use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::{collections::BTreeMap, convert::TryFrom, sync::Arc};
+use std::{
+    collections::{btree_map::Entry, BTreeMap},
+    convert::TryFrom,
+    sync::Arc,
+};
 use time::SystemProvider;
 use uuid::Uuid;
 
@@ -278,18 +283,39 @@ impl Persister for IngesterData {
 }
 
 /// Data of a Shard
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SequencerData {
     // New namespaces can come in at any time so we need to be able to add new ones
     namespaces: RwLock<BTreeMap<String, Arc<NamespaceData>>>,
+
+    metrics: Arc<metric::Registry>,
+    namespace_count: U64Counter,
 }
 
 impl SequencerData {
+    /// Initialise a new [`SequencerData`] that emits metrics to `metrics`.
+    pub fn new(metrics: Arc<metric::Registry>) -> Self {
+        let namespace_count = metrics
+            .register_metric::<U64Counter>(
+                "ingester_namespaces_total",
+                "Number of namespaces known to the ingester",
+            )
+            .recorder(&[]);
+
+        Self {
+            namespaces: Default::default(),
+            metrics,
+            namespace_count,
+        }
+    }
+
     /// Initialize new SequncerData with namespace for testing purpose only
     #[cfg(test)]
     pub fn new_for_test(namespaces: BTreeMap<String, Arc<NamespaceData>>) -> Self {
         Self {
             namespaces: RwLock::new(namespaces),
+            metrics: Default::default(),
+            namespace_count: Default::default(),
         }
     }
 
@@ -346,10 +372,15 @@ impl SequencerData {
             .context(NamespaceNotFoundSnafu { namespace })?;
 
         let mut n = self.namespaces.write();
-        let data = Arc::clone(
-            n.entry(namespace.name)
-                .or_insert_with(|| Arc::new(NamespaceData::new(namespace.id))),
-        );
+
+        let data = match n.entry(namespace.name) {
+            Entry::Vacant(v) => {
+                let v = v.insert(Arc::new(NamespaceData::new(namespace.id, &*self.metrics)));
+                self.namespace_count.inc(1);
+                Arc::clone(v)
+            }
+            Entry::Occupied(v) => Arc::clone(v.get()),
+        };
 
         Ok(data)
     }
@@ -360,14 +391,24 @@ impl SequencerData {
 pub struct NamespaceData {
     namespace_id: NamespaceId,
     tables: RwLock<BTreeMap<String, Arc<tokio::sync::RwLock<TableData>>>>,
+
+    table_count: U64Counter,
 }
 
 impl NamespaceData {
     /// Initialize new tables with default partition template of daily
-    pub fn new(namespace_id: NamespaceId) -> Self {
+    pub fn new(namespace_id: NamespaceId, metrics: &metric::Registry) -> Self {
+        let table_count = metrics
+            .register_metric::<U64Counter>(
+                "ingester_tables_total",
+                "Number of tables known to the ingester",
+            )
+            .recorder(&[]);
+
         Self {
             namespace_id,
             tables: Default::default(),
+            table_count,
         }
     }
 
@@ -380,6 +421,7 @@ impl NamespaceData {
         Self {
             namespace_id,
             tables: RwLock::new(tables),
+            table_count: Default::default(),
         }
     }
 
@@ -522,13 +564,19 @@ impl NamespaceData {
             .context(TableNotFoundSnafu { table_name })?;
 
         let mut t = self.tables.write();
-        let data = Arc::clone(t.entry(table_name.to_string()).or_insert_with(|| {
-            Arc::new(tokio::sync::RwLock::new(TableData::new(
-                info.table_id,
-                info.parquet_max_sequence_number,
-                info.tombstone_max_sequence_number,
-            )))
-        }));
+
+        let data = match t.entry(table_name.to_string()) {
+            Entry::Vacant(v) => {
+                let v = v.insert(Arc::new(tokio::sync::RwLock::new(TableData::new(
+                    info.table_id,
+                    info.parquet_max_sequence_number,
+                    info.tombstone_max_sequence_number,
+                ))));
+                self.table_count.inc(1);
+                Arc::clone(v)
+            }
+            Entry::Occupied(v) => Arc::clone(v.get()),
+        };
 
         Ok(data)
     }
@@ -1247,10 +1295,12 @@ mod tests {
         test_util::create_tombstone,
     };
     use arrow_util::assert_batches_sorted_eq;
+    use assert_matches::assert_matches;
     use data_types2::{NamespaceSchema, ParquetFileParams, Sequence};
     use dml::{DmlMeta, DmlWrite};
     use futures::TryStreamExt;
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
+    use metric::{MetricObserver, Observation};
     use mutable_batch_lp::{lines_to_batches, test_helpers::lp_to_mutable_batch};
     use object_store::ObjectStoreImpl;
     use std::{ops::DerefMut, time::Duration};
@@ -1418,7 +1468,7 @@ mod tests {
             .unwrap();
 
         let mut sequencers = BTreeMap::new();
-        sequencers.insert(sequencer1.id, SequencerData::default());
+        sequencers.insert(sequencer1.id, SequencerData::new(Arc::clone(&metrics)));
 
         let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
 
@@ -1498,8 +1548,8 @@ mod tests {
             .await
             .unwrap();
         let mut sequencers = BTreeMap::new();
-        sequencers.insert(sequencer1.id, SequencerData::default());
-        sequencers.insert(sequencer2.id, SequencerData::default());
+        sequencers.insert(sequencer1.id, SequencerData::new(Arc::clone(&metrics)));
+        sequencers.insert(sequencer2.id, SequencerData::new(Arc::clone(&metrics)));
 
         let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
 
@@ -1921,12 +1971,12 @@ mod tests {
 
         let manager = LifecycleManager::new(
             LifecycleConfig::new(1, 0, 0, Duration::from_secs(1), Duration::from_secs(1)),
-            metrics,
+            Arc::clone(&metrics),
             Arc::new(SystemProvider::new()),
         );
         let exec = Executor::new(1);
 
-        let data = NamespaceData::new(namespace.id);
+        let data = NamespaceData::new(namespace.id, &*metrics);
 
         // w1 should be ignored so it shouldn't be present in the buffer
         let should_pause = data
@@ -1965,5 +2015,9 @@ mod tests {
         let table = tables.get("mem").unwrap().read().await;
         let partition = table.partition_data.get("1970-01-01").unwrap();
         assert_eq!(partition.data.buffer.len(), 1);
+
+        assert_matches!(data.table_count.observe(), Observation::U64Counter(v) => {
+            assert_eq!(v, 1, "unexpected table count metric value");
+        });
     }
 }

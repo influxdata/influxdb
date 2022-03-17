@@ -48,5 +48,6 @@ tokio-util = { version = "0.7.0" }
 trace = { path = "../trace" }
 
 [dev-dependencies]
+assert_matches = "1.5.0"
 bitflags = {version = "1.3.2"}
 test_helpers = { path = "../test_helpers" }

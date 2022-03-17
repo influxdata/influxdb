@@ -123,7 +123,7 @@ impl IngestHandlerImpl {
         // build the initial ingester data state
         let mut sequencers = BTreeMap::new();
         for s in sequencer_states.values() {
-            sequencers.insert(s.id, SequencerData::default());
+            sequencers.insert(s.id, SequencerData::new(Arc::clone(&metric_registry)));
         }
         let data = Arc::new(IngesterData {
             object_store,
