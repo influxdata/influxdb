@@ -214,8 +214,8 @@ impl TestServer {
             let container_name = format!("influxdb2_{}", http_port);
 
             Command::new("docker")
+                .arg("container")
                 .arg("run")
-                .arg("database")
                 .arg("--name")
                 .arg(&container_name)
                 .arg("--publish")
