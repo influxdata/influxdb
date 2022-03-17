@@ -606,7 +606,7 @@ bitflags! {
 pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterData {
     // Whatever data because they won't be used in the tests
     let metrics: Arc<metric::Registry> = Default::default();
-    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
     let object_store = Arc::new(object_store::ObjectStoreImpl::new_in_memory());
     let exec = Arc::new(query::exec::Executor::new(1));
 
@@ -636,7 +636,7 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
 
     // Two namespaces: one empty and one with data of 2 tables
     let mut namespaces = BTreeMap::new();
-    let empty_ns = Arc::new(NamespaceData::new(NamespaceId::new(1)));
+    let empty_ns = Arc::new(NamespaceData::new(NamespaceId::new(1), &*metrics));
     let data_ns = Arc::new(NamespaceData::new_for_test(NamespaceId::new(2), tables));
     namespaces.insert(TEST_NAMESPACE_EMPTY.to_string(), empty_ns);
     namespaces.insert(TEST_NAMESPACE.to_string(), data_ns);

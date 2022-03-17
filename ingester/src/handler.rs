@@ -17,6 +17,7 @@ use futures::{
     FutureExt, StreamExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
+use metric::U64Counter;
 use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, error, info, warn};
 use query::exec::Executor;
@@ -122,7 +123,7 @@ impl IngestHandlerImpl {
         // build the initial ingester data state
         let mut sequencers = BTreeMap::new();
         for s in sequencer_states.values() {
-            sequencers.insert(s.id, SequencerData::default());
+            sequencers.insert(s.id, SequencerData::new(Arc::clone(&metric_registry)));
         }
         let data = Arc::new(IngesterData {
             object_store,
@@ -140,7 +141,7 @@ impl IngestHandlerImpl {
         let persister = Arc::clone(&data);
         let lifecycle_manager = LifecycleManager::new(
             lifecycle_config,
-            metric_registry,
+            Arc::clone(&metric_registry),
             Arc::new(SystemProvider::new()),
         );
         let lifecycle_handle = lifecycle_manager.handle();
@@ -165,6 +166,7 @@ impl IngestHandlerImpl {
             let metrics = ingest_metrics.new_sequencer_metrics(kafka_partition.get() as u32);
             let ingester_data = Arc::clone(&ingester_data);
             let kafka_topic_name = kafka_topic_name.clone();
+            let metric_registry = Arc::clone(&metric_registry);
 
             let mut stream_handler = write_buffer
                 .stream_handler(kafka_partition.get() as u32)
@@ -185,6 +187,7 @@ impl IngestHandlerImpl {
                 Arc::clone(&write_buffer),
                 stream_handler,
                 metrics,
+                metric_registry,
                 shutdown.clone(),
                 Arc::clone(&poison_cabinet),
             ));
@@ -271,6 +274,7 @@ async fn stream_in_sequenced_entries(
     write_buffer: Arc<dyn WriteBufferReading>,
     mut write_buffer_stream: Box<dyn WriteBufferStreamHandler>,
     mut metrics: SequencerMetrics,
+    metric_registry: Arc<metric::Registry>,
     shutdown: CancellationToken,
     poison_cabinet: Arc<PoisonCabinet>,
 ) {
@@ -285,6 +289,13 @@ async fn stream_in_sequenced_entries(
     let poison_wait_exit = poison_cabinet
         .wait_for(PoisonPill::StreamExit(kafka_partition))
         .fuse();
+
+    let pause_duration_ms = metric_registry
+        .register_metric::<U64Counter>(
+            "ingest_paused_duration_ms_total",
+            "Duration of time ingestion has been paused by the lifecycle manager in milliseconds",
+        )
+        .recorder(&[]);
 
     pin_mut!(shutdown_cancelled);
     pin_mut!(poison_wait_panic);
@@ -389,8 +400,16 @@ async fn stream_in_sequenced_entries(
                     warn!(%sequencer_id, "pausing ingest until persistence has run");
                     while !lifecycle_manager.can_resume_ingest() {
                         tokio::time::sleep(INGEST_PAUSE_DELAY).await;
+                        // Incrementally report on the sleeps (as opposed to
+                        // measuring the start/end duration) in order to report
+                        // a blocked ingester _before_ it recovers.
+                        //
+                        // While the actual sleep may be slightly longer than
+                        // INGEST_PAUSE_DELAY, it's not likely to be a useful
+                        // distinction in the metrics.
+                        pause_duration_ms.inc(INGEST_PAUSE_DELAY.as_millis() as _);
                     }
-                    warn!(%sequencer_id, "resuming ingest");
+                    info!(%sequencer_id, "resuming ingest");
                 }
             }
             Err(e) => {
