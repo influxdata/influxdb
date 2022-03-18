@@ -165,9 +165,10 @@ const cookieSessionName = "influxdb-oss-session"
 
 func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session) {
 	c := &http.Cookie{
-		Name:  cookieSessionName,
-		Value: s.Key,
-		Path:  "/api/",
+		Name:    cookieSessionName,
+		Value:   s.Key,
+		Path:    "/api/",
+		Expires: s.ExpiresAt,
 	}
 
 	http.SetCookie(w, c)
