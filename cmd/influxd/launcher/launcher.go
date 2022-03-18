@@ -15,6 +15,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/dependencies/testing"
+	"github.com/influxdata/flux/dependencies/url"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/annotations"
 	annotationTransport "github.com/influxdata/influxdb/v2/annotations/transport"
@@ -386,6 +387,15 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	pointsWriter = replicationSvc
 
+	// When --hardening-enabled, use an HTTP IP validator that restricts
+	// flux and pkger HTTP requests to private addressess.
+	var urlValidator url.Validator
+	if opts.HardeningEnabled {
+		urlValidator = url.PrivateIPValidator{}
+	} else {
+		urlValidator = url.PassValidator{}
+	}
+
 	deps, err := influxdb.NewDependencies(
 		storageflux.NewReader(storage2.NewStore(m.engine.TSDBStore(), m.engine.MetaClient())),
 		pointsWriter,
@@ -393,6 +403,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		authorizer.NewOrgService(ts.OrganizationService),
 		authorizer.NewSecretService(secretSvc),
 		nil,
+		influxdb.WithURLValidator(urlValidator),
 	)
 	if err != nil {
 		m.log.Error("Failed to get query controller dependencies", zap.Error(err))
@@ -735,6 +746,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		authedUrmSVC := authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
 		pkgerLogger := m.log.With(zap.String("service", "pkger"))
 		pkgSVC = pkger.NewService(
+			pkger.WithHTTPClient(pkger.NewDefaultHTTPClient(urlValidator)),
 			pkger.WithLogger(pkgerLogger),
 			pkger.WithStore(pkger.NewStoreKV(m.kvStore)),
 			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
@@ -764,7 +776,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	var templatesHTTPServer *pkger.HTTPServerTemplates
 	{
 		tLogger := m.log.With(zap.String("handler", "templates"))
-		templatesHTTPServer = pkger.NewHTTPServerTemplates(tLogger, pkgSVC)
+		templatesHTTPServer = pkger.NewHTTPServerTemplates(tLogger, pkgSVC, pkger.NewDefaultHTTPClient(urlValidator))
 	}
 
 	userHTTPServer := ts.NewUserHTTPHandler(m.log)

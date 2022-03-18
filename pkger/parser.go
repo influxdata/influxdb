@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -14,10 +15,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
+	fluxurl "github.com/influxdata/flux/dependencies/url"
 	"github.com/influxdata/flux/parser"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
@@ -145,15 +148,39 @@ func FromString(s string) ReaderFn {
 	}
 }
 
-var defaultHTTPClient = &http.Client{
-	Timeout: time.Minute,
+// NewDefaultHTTPClient creates a client with the specified flux IP validator.
+// This is copied from flux/dependencies/http/http.go
+func NewDefaultHTTPClient(urlValidator fluxurl.Validator) *http.Client {
+	// Control is called after DNS lookup, but before the network
+	// connection is initiated.
+	control := func(network, address string, c syscall.RawConn) error {
+		host, _, err := net.SplitHostPort(address)
+		if err != nil {
+			return err
+		}
+
+		ip := net.ParseIP(host)
+		return urlValidator.ValidateIP(ip)
+	}
+
+	dialer := &net.Dialer{
+		Timeout: time.Minute,
+		Control: control,
+		// DualStack is deprecated
+	}
+
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: dialer.DialContext,
+		},
+	}
 }
 
 // FromHTTPRequest parses a pkg from the request body of a HTTP request. This is
 // very useful when using packages that are hosted..
-func FromHTTPRequest(addr string) ReaderFn {
+func FromHTTPRequest(addr string, client *http.Client) ReaderFn {
 	return func() (io.Reader, string, error) {
-		resp, err := defaultHTTPClient.Get(normalizeGithubURLToContent(addr))
+		resp, err := client.Get(normalizeGithubURLToContent(addr))
 		if err != nil {
 			return nil, addr, err
 		}

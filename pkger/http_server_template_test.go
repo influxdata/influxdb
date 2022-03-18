@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi"
+	fluxurl "github.com/influxdata/flux/dependencies/url"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -43,6 +44,8 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 	filesvr := httptest.NewServer(mux)
 	defer filesvr.Close()
 
+	defaultClient := pkger.NewDefaultHTTPClient(fluxurl.PassValidator{})
+
 	newPkgURL := func(t *testing.T, svrURL string, pkgPath string) string {
 		t.Helper()
 
@@ -65,7 +68,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 				}, nil
 			}
 			svc := pkger.NewService(pkger.WithLabelSVC(fakeLabelSVC))
-			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc, defaultClient)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
@@ -95,7 +98,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 		})
 
 		t.Run("should be invalid if not org ids or resources provided", func(t *testing.T) {
-			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), nil)
+			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), nil, defaultClient)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
@@ -177,7 +180,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 					}
 
 					core, sink := observer.New(zap.InfoLevel)
-					pkgHandler := pkger.NewHTTPServerTemplates(zap.New(core), svc)
+					pkgHandler := pkger.NewHTTPServerTemplates(zap.New(core), svc, defaultClient)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					ctx := context.Background()
@@ -308,7 +311,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 					}
 
 					core, _ := observer.New(zap.InfoLevel)
-					pkgHandler := pkger.NewHTTPServerTemplates(zap.New(core), svc)
+					pkgHandler := pkger.NewHTTPServerTemplates(zap.New(core), svc, defaultClient)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -375,7 +378,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 						},
 					}
 
-					pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc, defaultClient)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					body := newReqApplyYMLBody(t, platform.ID(9000), true)
@@ -406,7 +409,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 				},
 			}
 
-			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc, defaultClient)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
@@ -523,7 +526,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 						},
 					}
 
-					pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc, defaultClient)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -593,7 +596,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 						},
 					}
 
-					pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc, defaultClient)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -609,12 +612,12 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 
 		t.Run("resp apply err response", func(t *testing.T) {
 			tests := []struct {
-				name string
+				name        string
 				contentType string
-				reqBody pkger.ReqApply
+				reqBody     pkger.ReqApply
 			}{
 				{
-					name: "invalid json",
+					name:        "invalid json",
 					contentType: "application/json",
 					reqBody: pkger.ReqApply{
 						DryRun:      true,
@@ -655,7 +658,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 						},
 					}
 
-					pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+					pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc, defaultClient)
 					svr := newMountedHandler(pkgHandler, 1)
 
 					testttp.
@@ -713,7 +716,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 				},
 			}
 
-			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc, defaultClient)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
@@ -743,7 +746,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 				},
 			}
 
-			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc)
+			pkgHandler := pkger.NewHTTPServerTemplates(zap.NewNop(), svc, defaultClient)
 			svr := newMountedHandler(pkgHandler, 1)
 
 			testttp.
@@ -781,7 +784,7 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 				reqBody: pkger.ReqApply{
 					OrgID: platform.ID(9000).String(),
 					Remotes: []pkger.ReqTemplateRemote{{
-						URL: newPkgURL(t, filesvr.URL, "testdata/bucket_associates_labels_one.jsonnet"),
+						URL: newPkgURL(t, filesvr.URL, "testdata/bucket_associates_labels.jsonnet"),
 					}},
 				},
 				encoding: pkger.EncodingJsonnet,
@@ -797,10 +800,75 @@ func TestPkgerHTTPServerTemplate(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			tmpl, err := tt.reqBody.Templates(tt.encoding)
+			tmpl, err := tt.reqBody.Templates(tt.encoding, defaultClient)
 			assert.Nil(t, tmpl)
 			require.Error(t, err)
 			assert.Equal(t, "unprocessable entity", influxerror.ErrorCode(err))
+			assert.Contains(t, influxerror.ErrorMessage(err), "invalid encoding provided: jsonnet")
+		}
+	})
+
+	t.Run("Templates() remotes with IP validation", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			client  *http.Client
+			expCode int
+			expErr  string
+		}{
+			{
+				name:    "no filter ip",
+				client:  pkger.NewDefaultHTTPClient(fluxurl.PassValidator{}),
+				expCode: http.StatusOK,
+				expErr:  "",
+			},
+			{
+				name:    "filter ip",
+				client:  pkger.NewDefaultHTTPClient(fluxurl.PrivateIPValidator{}),
+				expCode: http.StatusUnprocessableEntity,
+				expErr:  "no such host",
+			},
+		}
+
+		svc := &fakeSVC{
+			dryRunFn: func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+				return pkger.ImpactSummary{}, nil
+			},
+		}
+		for _, tt := range tests {
+			core, sink := observer.New(zap.InfoLevel)
+			pkgHandler := pkger.NewHTTPServerTemplates(zap.New(core), svc, tt.client)
+			svr := newMountedHandler(pkgHandler, 1)
+
+			reqBody := pkger.ReqApply{
+				DryRun: true,
+				OrgID:  platform.ID(9000).String(),
+				Remotes: []pkger.ReqTemplateRemote{{
+					URL: newPkgURL(t, filesvr.URL, "testdata/remote_bucket.json"),
+				}},
+			}
+
+			ctx := context.Background()
+			testttp.
+				PostJSON(t, "/api/v2/templates/apply", reqBody).
+				Headers("Content-Type", "application/json").
+				WithCtx(ctx).
+				Do(svr).
+				ExpectStatus(tt.expCode).
+				ExpectBody(func(buf *bytes.Buffer) {
+					var resp pkger.RespApply
+					decodeBody(t, buf, &resp)
+
+					assert.Len(t, resp.Summary.Buckets, 0)
+					assert.Len(t, resp.Diff.Buckets, 0)
+				})
+
+			if tt.expErr != "" {
+				// Verify logging output has the expected generic flux message
+				entries := sink.TakeAll() // resets to 0
+				fmt.Printf("%+v\n", entries)
+				require.Equal(t, 1, len(entries))
+				assert.Contains(t, fmt.Sprintf("%s", entries[0].Context[0].Interface), tt.expErr)
+			}
 		}
 	})
 }

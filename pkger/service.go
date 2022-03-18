@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"path"
 	"regexp"
@@ -149,6 +150,7 @@ type serviceOpt struct {
 	logger *zap.Logger
 
 	applyReqLimit int
+	client        *http.Client
 	idGen         platform.IDGenerator
 	nameGen       NameGenerator
 	timeGen       influxdb.TimeGenerator
@@ -169,6 +171,13 @@ type serviceOpt struct {
 
 // ServiceSetterFn is a means of setting dependencies on the Service type.
 type ServiceSetterFn func(opt *serviceOpt)
+
+// WithHTTPClient sets the http client for the service.
+func WithHTTPClient(c *http.Client) ServiceSetterFn {
+	return func(o *serviceOpt) {
+		o.client = c
+	}
+}
 
 // WithLogger sets the logger for the service.
 func WithLogger(log *zap.Logger) ServiceSetterFn {
@@ -297,6 +306,7 @@ type Service struct {
 
 	// internal dependencies
 	applyReqLimit int
+	client        *http.Client
 	idGen         platform.IDGenerator
 	nameGen       NameGenerator
 	store         Store
@@ -335,6 +345,7 @@ func NewService(opts ...ServiceSetterFn) *Service {
 		log: opt.logger,
 
 		applyReqLimit: opt.applyReqLimit,
+		client:        opt.client,
 		idGen:         opt.idGen,
 		nameGen:       opt.nameGen,
 		store:         opt.store,
@@ -3088,7 +3099,7 @@ func (s *Service) getStackRemoteTemplates(ctx context.Context, stackID platform.
 			encoding = EncodingYAML
 		}
 
-		readerFn := FromHTTPRequest(u.String())
+		readerFn := FromHTTPRequest(u.String(), s.client)
 		if u.Scheme == "file" {
 			readerFn = FromFile(u.Path)
 		}
