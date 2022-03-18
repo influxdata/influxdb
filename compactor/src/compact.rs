@@ -109,6 +109,11 @@ pub enum Error {
         source: iox_catalog::interface::Error,
     },
 
+    #[snafu(display("Error while flagging a parquet file for deletion {}", source))]
+    FlagForDelete {
+        source: iox_catalog::interface::Error,
+    },
+
     #[snafu(display("Error while requesting level 0 parquet files {}", source))]
     Level0 {
         source: iox_catalog::interface::Error,
@@ -290,6 +295,11 @@ impl Compactor {
                 continue;
             }
 
+            // Collect all the parquet file IDs, to be able to set their catalog records to be
+            // deleted. These should already be unique, no need to dedupe.
+            let original_parquet_file_ids: Vec<_> =
+                overlapped_files.iter().map(|f| f.data.id).collect();
+
             // compact
             let compacted_data = self.compact(overlapped_files).await?;
             if let Some(compacted) = compacted_data {
@@ -321,7 +331,8 @@ impl Compactor {
                     }
                 }
 
-                self.update_catalog(catalog_update_info).await?;
+                self.update_catalog(catalog_update_info, original_parquet_file_ids)
+                    .await?;
             } else {
                 // If there was nothing to compact, go on to the next group
                 continue;
@@ -601,7 +612,11 @@ impl Compactor {
         Ok((parquet, processed_tombstones))
     }
 
-    async fn update_catalog(&self, catalog_update_info: Vec<CatalogUpdate>) -> Result<()> {
+    async fn update_catalog(
+        &self,
+        catalog_update_info: Vec<CatalogUpdate>,
+        original_parquet_file_ids: Vec<ParquetFileId>,
+    ) -> Result<()> {
         let mut txn = self
             .catalog
             .start_transaction()
@@ -615,6 +630,13 @@ impl Compactor {
                 txn.deref_mut(),
             )
             .await?;
+        }
+
+        for original_parquet_file_id in original_parquet_file_ids {
+            txn.parquet_files()
+                .flag_for_delete(original_parquet_file_id)
+                .await
+                .context(FlagForDeleteSnafu)?;
         }
 
         txn.commit().await.context(TransactionCommitSnafu)?;
