@@ -237,14 +237,16 @@ func TestWrite_Metrics(t *testing.T) {
 	tests := []struct {
 		name                 string
 		status               func(int) int
+		expectedErr          error
 		data                 []byte
 		registerExpectations func(*testing.T, *replicationsMock.MockHttpConfigStore, *influxdb.ReplicationHTTPConfig)
 		checkMetrics         func(*testing.T, *prom.Registry)
 	}{
 		{
-			name:         "server errors",
-			status:       constantStatus(http.StatusTeapot),
-			data:         []byte{},
+			name:        "server errors",
+			status:      constantStatus(http.StatusTeapot),
+			expectedErr: invalidResponseCode(http.StatusTeapot),
+			data:        []byte{},
 			registerExpectations: func(t *testing.T, store *replicationsMock.MockHttpConfigStore, conf *influxdb.ReplicationHTTPConfig) {
 				store.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(conf, nil)
 				store.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusTeapot, invalidResponseCode(http.StatusTeapot).Error()).Return(nil)
@@ -313,7 +315,7 @@ func TestWrite_Metrics(t *testing.T) {
 
 			tt.registerExpectations(t, configStore, testConfig)
 			_, _, actualErr := w.Write(tt.data, 1)
-			require.NoError(t, actualErr)
+			require.Equal(t, tt.expectedErr, actualErr)
 			tt.checkMetrics(t, reg)
 		})
 	}

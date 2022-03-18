@@ -79,9 +79,6 @@ func TestEnqueueScan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.name == "multiple points with unsuccessful write" {
-				t.Skip("Fix this test when https://github.com/influxdata/influxdb/issues/23109 is fixed")
-			}
 			queuePath, qm := initQueueManager(t)
 			defer os.RemoveAll(filepath.Dir(queuePath))
 
@@ -89,16 +86,16 @@ func TestEnqueueScan(t *testing.T) {
 			err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID1, localBucketID1, 0)
 			require.NoError(t, err)
 			rq := qm.replicationQueues[id1]
-			var writeCounter sync.WaitGroup
-			rq.remoteWriter = getTestRemoteWriterSequenced(t, tt.testData, tt.writeFuncReturn, &writeCounter)
+			//var writeCounter sync.WaitGroup
+			rq.remoteWriter = getTestRemoteWriterSequenced(t, tt.testData, tt.writeFuncReturn, nil)
 
 			// Enqueue the data
 			for _, dat := range tt.testData {
-				writeCounter.Add(1)
+				//writeCounter.Add(1)
 				err = qm.EnqueueData(id1, []byte(dat), 1)
 				require.NoError(t, err)
 			}
-			writeCounter.Wait()
+			//writeCounter.Wait()
 
 			// Check queue position
 			closeRq(rq)
@@ -374,7 +371,7 @@ func getTestRemoteWriterSequenced(t *testing.T, expected []string, returning err
 		if count >= len(expected) {
 			t.Fatalf("count larger than expected len, %d > %d", count, len(expected))
 		}
-		require.Equal(t, expected, string(b))
+		require.Equal(t, expected[count], string(b))
 		if wg != nil {
 			wg.Done()
 		}
