@@ -219,4 +219,25 @@ mod tests {
         assert_eq!(*hasher.shard("4242", &namespace, &1), 230);
         assert_eq!(*hasher.shard("bananas", &namespace, &2), 183);
     }
+
+    #[test]
+    fn test_distribution() {
+        let hasher = JumpHash::new(0..100);
+        let namespace = DatabaseName::try_from("bananas").unwrap();
+
+        let mut mapping = HashMap::<_, usize>::new();
+
+        for i in 0..10_000_000 {
+            let bucket = hasher.shard(format!("{}", i).as_str(), &namespace, &0);
+            *mapping.entry(bucket).or_default() += 1;
+        }
+
+        let (min, max) = mapping.values().fold((usize::MAX, 0), |acc, &v| {
+            let (min, max) = acc;
+            (min.min(v), max.max(v))
+        });
+
+        // ± 0.05%
+        assert!(max - min < 5000, "min: {}, max: {}", min, max);
+    }
 }
