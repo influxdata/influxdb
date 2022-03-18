@@ -23,6 +23,8 @@ func Test_User_Basic(t *testing.T) {
 	assert.EqualError(t, testhelper.RunCommand(t, NewUserCommand(), "create", "--bolt-path", db.Name(), "--username", "testuser2", "--password", "foo"), "passwords must be at least 8 characters long")
 	assert.NoError(t, testhelper.RunCommand(t, NewUserCommand(), "create", "--bolt-path", db.Name(), "--username", "testuser2", "--password", "my_password"), "")
 
+	// at least run the update code
+	assert.NoError(t, testhelper.RunCommand(t, NewUserCommand(), "update", "--bolt-path", db.Name(), "--username", "testuser2", "--password", "some_other_password"), "")
 	assert.Regexp(t, "\ttestuser2\n",
 		testhelper.MustRunCommand(t, NewUserCommand(), "list", "--bolt-path", db.Name()))
 }
