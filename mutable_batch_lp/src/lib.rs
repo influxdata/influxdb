@@ -35,6 +35,9 @@ pub enum Error {
 
     #[snafu(display("empty write payload"))]
     EmptyPayload,
+
+    #[snafu(display("timestamp overflows i64"))]
+    TimestampOverflow,
 }
 
 /// Result type for line protocol conversion
@@ -84,7 +87,9 @@ impl LinesConverter {
             let mut line = maybe_line.context(LineProtocolSnafu { line: line_idx + 1 })?;
 
             if let Some(t) = line.timestamp.as_mut() {
-                *t *= self.timestamp_base
+                *t = t
+                    .checked_mul(self.timestamp_base)
+                    .ok_or(Error::TimestampOverflow)?;
             }
 
             self.stats.num_lines += 1;
