@@ -12,7 +12,7 @@ use parquet_file::{chunk::ParquetChunk, metadata::IoxMetadata};
 use predicate::{Predicate, PredicateMatch};
 use query::{
     exec::{stringset::StringSet, IOxExecutionContext},
-    QueryChunk, QueryChunkMeta,
+    QueryChunk, QueryChunkError, QueryChunkMeta,
 };
 use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
@@ -102,8 +102,6 @@ impl QueryChunkMeta for QueryableParquetChunk {
 }
 
 impl QueryChunk for QueryableParquetChunk {
-    type Error = Error;
-
     // Todo: This function should not be used in this NG chunk context
     // For now, since we also use scan for both OG and NG, the chunk id
     // is used as second key in build_deduplicate_plan_for_overlapped_chunks
@@ -141,7 +139,7 @@ impl QueryChunk for QueryableParquetChunk {
     fn apply_predicate_to_metadata(
         &self,
         _predicate: &Predicate,
-    ) -> Result<PredicateMatch, Self::Error> {
+    ) -> Result<PredicateMatch, QueryChunkError> {
         Ok(PredicateMatch::Unknown)
     }
 
@@ -154,7 +152,7 @@ impl QueryChunk for QueryableParquetChunk {
         _ctx: IOxExecutionContext,
         _predicate: &Predicate,
         _columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         Ok(None)
     }
 
@@ -168,7 +166,7 @@ impl QueryChunk for QueryableParquetChunk {
         _ctx: IOxExecutionContext,
         _column_name: &str,
         _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         Ok(None)
     }
 
@@ -190,7 +188,7 @@ impl QueryChunk for QueryableParquetChunk {
         mut ctx: IOxExecutionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
         ctx.set_metadata("storage", "compactor");
         ctx.set_metadata("projection", format!("{}", selection));
         trace!(?selection, "selection");
@@ -198,6 +196,7 @@ impl QueryChunk for QueryableParquetChunk {
         self.data
             .read_filter(predicate, selection)
             .context(ReadParquetSnafu)
+            .map_err(|e| Box::new(e) as _)
     }
 
     /// Returns chunk type

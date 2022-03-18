@@ -24,7 +24,7 @@ use predicate::{Predicate, PredicateMatch};
 use query::{
     exec::{stringset::StringSet, IOxExecutionContext},
     util::{df_physical_expr_from_schema_and_expr, MissingColumnsToNull},
-    QueryChunk, QueryChunkMeta,
+    QueryChunk, QueryChunkError, QueryChunkMeta,
 };
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
@@ -127,8 +127,6 @@ impl QueryChunkMeta for QueryableBatch {
 }
 
 impl QueryChunk for QueryableBatch {
-    type Error = Error;
-
     // This function should not be used in QueryBatch context
     fn id(&self) -> ChunkId {
         // always return id 0 for debugging mode
@@ -162,7 +160,7 @@ impl QueryChunk for QueryableBatch {
     fn apply_predicate_to_metadata(
         &self,
         _predicate: &Predicate,
-    ) -> Result<PredicateMatch, Self::Error> {
+    ) -> Result<PredicateMatch, QueryChunkError> {
         Ok(PredicateMatch::Unknown)
     }
 
@@ -175,7 +173,7 @@ impl QueryChunk for QueryableBatch {
         _ctx: IOxExecutionContext,
         _predicate: &Predicate,
         _columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         Ok(None)
     }
 
@@ -189,7 +187,7 @@ impl QueryChunk for QueryableBatch {
         _ctx: IOxExecutionContext,
         _column_name: &str,
         _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         Ok(None)
     }
 
@@ -211,7 +209,7 @@ impl QueryChunk for QueryableBatch {
         mut ctx: IOxExecutionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
         ctx.set_metadata("storage", "ingester");
         ctx.set_metadata("projection", format!("{}", selection));
         trace!(?selection, "selection");

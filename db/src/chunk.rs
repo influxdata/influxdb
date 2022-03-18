@@ -17,6 +17,7 @@ use parquet_file::chunk::ParquetChunk;
 use partition_metadata::TableSummary;
 use predicate::{Predicate, PredicateMatch};
 use query::exec::IOxExecutionContext;
+use query::QueryChunkError;
 use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
 use read_buffer::RBChunk;
 use schema::InfluxColumnType;
@@ -290,8 +291,6 @@ impl DbChunk {
 }
 
 impl QueryChunk for DbChunk {
-    type Error = Error;
-
     fn id(&self) -> ChunkId {
         self.addr.chunk_id
     }
@@ -313,7 +312,10 @@ impl QueryChunk for DbChunk {
         matches!(self.state, State::MutableBuffer { .. })
     }
 
-    fn apply_predicate_to_metadata(&self, predicate: &Predicate) -> Result<PredicateMatch> {
+    fn apply_predicate_to_metadata(
+        &self,
+        predicate: &Predicate,
+    ) -> Result<PredicateMatch, QueryChunkError> {
         let pred_result = match &self.state {
             State::MutableBuffer { chunk, .. } => {
                 if predicate.has_exprs() || chunk.has_timerange(&predicate.range) {
@@ -373,7 +375,7 @@ impl QueryChunk for DbChunk {
         mut ctx: IOxExecutionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
         // Predicate is not required to be applied for correctness. We only pushed it down
         // when possible for performance gain
 
@@ -451,6 +453,7 @@ impl QueryChunk for DbChunk {
                     .context(ParquetFileChunkSnafu {
                         chunk_id: self.id(),
                     })
+                    .map_err(|e| Box::new(e) as _)
             }
         }
     }
@@ -460,7 +463,7 @@ impl QueryChunk for DbChunk {
         mut ctx: IOxExecutionContext,
         predicate: &Predicate,
         columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         ctx.set_metadata("storage", self.state.state_name());
         ctx.set_metadata("projection", format!("{}", columns));
         ctx.set_metadata("predicate", format!("{}", &predicate));
@@ -513,7 +516,7 @@ impl QueryChunk for DbChunk {
         mut ctx: IOxExecutionContext,
         column_name: &str,
         predicate: &Predicate,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         ctx.set_metadata("storage", self.state.state_name());
         ctx.set_metadata("column_name", column_name.to_string());
         ctx.set_metadata("predicate", format!("{}", &predicate));
