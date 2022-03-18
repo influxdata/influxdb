@@ -24,4 +24,5 @@ pub mod sql;
 pub mod table_schema;
 
 // Used by the `server_benchmark` crate in addition to tests in this crate
+pub mod db;
 pub mod scenarios;

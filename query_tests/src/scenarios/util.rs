@@ -1,5 +1,7 @@
 //! This module contains util functions for testing scenarios
 
+use crate::db::AbstractDb;
+
 use super::DbScenario;
 use data_types::{chunk_metadata::ChunkId, delete_predicate::DeletePredicate};
 use db::test_helpers::chunk_ids_rub;
@@ -290,6 +292,7 @@ pub async fn make_chunk_with_deletes_at_different_stages(
             if no_more_data {
                 let scenario_name =
                     format!("Deleted data from one {} chunk{}", chunk_stage, display);
+                let db = Arc::new(AbstractDb::create_old(db));
                 return DbScenario { scenario_name, db };
             }
         }
@@ -351,6 +354,7 @@ pub async fn make_chunk_with_deletes_at_different_stages(
             if no_more_data {
                 let scenario_name =
                     format!("Deleted data from one {} chunk{}", chunk_stage, display);
+                let db = Arc::new(AbstractDb::create_old(db));
                 return DbScenario { scenario_name, db };
             }
         }
@@ -408,6 +412,7 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     }
 
     let scenario_name = format!("Deleted data from one {} chunk{}", chunk_stage, display);
+    let db = Arc::new(AbstractDb::create_old(db));
     DbScenario { scenario_name, db }
 }
 
@@ -500,6 +505,7 @@ pub async fn make_different_stage_chunks_with_deletes_scenario(
         display,
         preds.len()
     );
+    let db = Arc::new(AbstractDb::create_old(db));
     DbScenario { scenario_name, db }
 }
 
@@ -521,6 +527,7 @@ pub async fn make_os_chunks_and_then_compact_with_different_scenarios_with_delet
         .await;
 
     let scenario_name = "Deletes and then compact all OS chunks".to_string();
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario_1 = DbScenario { scenario_name, db };
 
     // Scenario 2: compact all 3 chunks and apply deletes
@@ -534,6 +541,7 @@ pub async fn make_os_chunks_and_then_compact_with_different_scenarios_with_delet
         db.delete(table_name, Arc::new((*pred).clone())).unwrap();
     }
     let scenario_name = "Compact all OS chunks and then deletes".to_string();
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario_2 = DbScenario { scenario_name, db };
 
     // Scenario 3: apply deletes then compact the first n-1 chunks
@@ -548,6 +556,7 @@ pub async fn make_os_chunks_and_then_compact_with_different_scenarios_with_delet
         .join()
         .await;
     let scenario_name = "Deletes and then compact all but last OS chunk".to_string();
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario_3 = DbScenario { scenario_name, db };
 
     // Scenario 4: compact the first n-1 chunks then apply deletes
@@ -562,6 +571,7 @@ pub async fn make_os_chunks_and_then_compact_with_different_scenarios_with_delet
         db.delete(table_name, Arc::new((*pred).clone())).unwrap();
     }
     let scenario_name = "Compact all but last OS chunk and then deletes".to_string();
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario_4 = DbScenario { scenario_name, db };
 
     vec![scenario_1, scenario_2, scenario_3, scenario_4]
@@ -595,7 +605,7 @@ pub async fn make_contiguous_os_chunks(
     .await;
 
     // Get chunk ids in contiguous order
-    let db = scenario.db;
+    let db = scenario.db.old_db().unwrap();
     let partition = db.partition(table_name, partition_key).unwrap();
     let partition = partition.read();
     let mut keyed_chunks: Vec<(_, _)> = partition
@@ -616,6 +626,7 @@ pub(crate) async fn make_one_chunk_mub_scenario(data: &str) -> Vec<DbScenario> {
     // Scenario 1: One open chunk in MUB
     let db = make_db().await.db;
     write_lp(&db, data);
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario = DbScenario {
         scenario_name: "Data in open chunk of mutable buffer".into(),
         db,
@@ -641,6 +652,7 @@ pub(crate) async fn make_one_chunk_rub_scenario(
             .await
             .unwrap();
     }
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario = DbScenario {
         scenario_name: "Data in read buffer".into(),
         db,
@@ -663,6 +675,7 @@ pub async fn make_two_chunk_scenarios(
     let db = make_db().await.db;
     write_lp(&db, data1);
     write_lp(&db, data2);
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario1 = DbScenario {
         scenario_name: "Data in single open chunk of mutable buffer".into(),
         db,
@@ -677,6 +690,7 @@ pub async fn make_two_chunk_scenarios(
             .unwrap();
     }
     write_lp(&db, data2);
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario2 = DbScenario {
         scenario_name: "Data in one open chunk and one closed chunk of mutable buffer".into(),
         db,
@@ -691,6 +705,7 @@ pub async fn make_two_chunk_scenarios(
             .unwrap();
     }
     write_lp(&db, data2);
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario3 = DbScenario {
         scenario_name: "Data in open chunk of mutable buffer, and one chunk of read buffer".into(),
         db,
@@ -711,6 +726,7 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
     }
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario4 = DbScenario {
         scenario_name: "Data in two read buffer chunks".into(),
         db,
@@ -730,6 +746,7 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
     }
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario5 = DbScenario {
         scenario_name: "Data in two read buffer chunks and two parquet file chunks".into(),
         db,
@@ -760,6 +777,7 @@ pub async fn make_two_chunk_scenarios(
         db.unload_read_buffer(table_name, partition_key, id)
             .unwrap();
     }
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario6 = DbScenario {
         scenario_name: "Data in 2 parquet chunks in object store only".into(),
         db,
@@ -781,6 +799,7 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
     }
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario7 = DbScenario {
         scenario_name: "Data in one compacted read buffer chunk".into(),
         db,
@@ -811,6 +830,7 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
             .await
             .unwrap();
     }
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario1 = DbScenario {
         scenario_name: "--------------------- Data in read buffer".into(),
         db,
@@ -829,6 +849,7 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
         db.unload_read_buffer(table_name, partition_key, id)
             .unwrap();
     }
+    let db = Arc::new(AbstractDb::create_old(db));
     let scenario2 = DbScenario {
         scenario_name: "--------------------- Data in object store only ".into(),
         db,

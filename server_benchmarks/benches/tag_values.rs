@@ -79,6 +79,9 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
         let DbScenario { scenario_name, db } = scenario;
         let mut group = c.benchmark_group(scenario_name);
 
+        // downcast Db for performance
+        let db = db.old_db().unwrap();
+
         for (predicate, pred_name) in &predicates {
             for tag_key in tag_keys {
                 group.bench_with_input(
@@ -90,7 +93,7 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
                             run_tag_values_query(
                                 &planner,
                                 executor.as_ref(),
-                                db,
+                                &db,
                                 tag_key,
                                 predicate.clone(),
                             )

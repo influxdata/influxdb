@@ -77,6 +77,9 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
         let DbScenario { scenario_name, db } = scenario;
         let mut group = c.benchmark_group(format!("read_filter/{}", scenario_name));
 
+        // downcast Db for performance
+        let db = db.old_db().unwrap();
+
         for (predicate, pred_name) in &predicates {
             let chunks = db
                 .filtered_chunk_summaries(None, Some("2021-04-26T13"))
@@ -94,7 +97,7 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
                         build_and_execute_plan(
                             &planner,
                             executor.as_ref(),
-                            db,
+                            &db,
                             predicate.clone(),
                             exp_data_frames,
                         )

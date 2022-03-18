@@ -5,7 +5,6 @@ pub mod library;
 pub mod util;
 
 use async_trait::async_trait;
-use db::Db;
 use delete::{
     OneDeleteMultiExprsOneChunk, OneDeleteSimpleExprOneChunk, OneDeleteSimpleExprOneChunkDeleteAll,
     ThreeDeleteThreeChunks, TwoDeletesMultiExprsOneChunk,
@@ -16,11 +15,13 @@ use std::{collections::HashMap, sync::Arc};
 /// Reexport library of scenarios
 pub use library::*;
 
+use crate::db::AbstractDb;
+
 /// Holds a database and a description of how its data was configured
 #[derive(Debug)]
 pub struct DbScenario {
     pub scenario_name: String,
-    pub db: Arc<Db>,
+    pub db: Arc<AbstractDb>,
 }
 
 #[async_trait]

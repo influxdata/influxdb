@@ -37,7 +37,7 @@ async fn run_table_schema_test_case<D>(
         let mut chunks_with_table = 0;
 
         for chunk in db.chunks(table_name, &Default::default()).await {
-            if chunk.table_name().as_ref() == table_name {
+            if chunk.table_name() == table_name {
                 chunks_with_table += 1;
                 let actual_schema = chunk.schema().select(selection).unwrap();
 

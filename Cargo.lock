@@ -4246,6 +4246,7 @@ dependencies = [
  "tempfile",
  "test_helpers",
  "tokio",
+ "trace",
  "workspace-hack",
 ]
 

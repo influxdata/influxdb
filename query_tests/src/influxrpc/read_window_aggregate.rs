@@ -4,6 +4,7 @@ use datafusion::prelude::*;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
 use query::{
+    exec::ExecutionContextProvider,
     frontend::influxrpc::InfluxRpcPlanner,
     group_by::{Aggregate, WindowDuration},
 };
@@ -29,7 +30,7 @@ async fn run_read_window_aggregate_test_case<D>(
         println!("Running scenario '{}'", scenario_name);
         println!("Predicate: '{:#?}'", predicate);
         let planner = InfluxRpcPlanner::default();
-        let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
+        let ctx = db.new_query_context(None);
 
         let plan = planner
             .read_window_aggregate(

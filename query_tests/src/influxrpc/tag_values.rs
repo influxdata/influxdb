@@ -2,7 +2,10 @@ use datafusion::logical_plan::{col, lit};
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
 use query::{
-    exec::stringset::{IntoStringSet, StringSetRef},
+    exec::{
+        stringset::{IntoStringSet, StringSetRef},
+        ExecutionContextProvider,
+    },
     frontend::influxrpc::InfluxRpcPlanner,
 };
 
@@ -27,7 +30,7 @@ async fn run_tag_values_test_case<D>(
         println!("Running scenario '{}'", scenario_name);
         println!("Predicate: '{:#?}'", predicate);
         let planner = InfluxRpcPlanner::default();
-        let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
+        let ctx = db.new_query_context(None);
 
         let plan = planner
             .tag_values(db.as_ref(), tag_name, predicate.clone())

@@ -78,6 +78,9 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
         let DbScenario { scenario_name, db } = scenario;
         let mut group = c.benchmark_group(format!("read_group/{}", scenario_name));
 
+        // downcast Db for performance
+        let db = db.old_db().unwrap();
+
         for (predicate, pred_name) in &predicates {
             // The number of expected frames, based on the expected number of
             // individual series keys, which for grouping is the same no matter
@@ -97,7 +100,7 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
                         build_and_execute_plan(
                             &planner,
                             executor.as_ref(),
-                            db,
+                            &db,
                             predicate.clone(),
                             Aggregate::Sum,
                             &["tag2"],
