@@ -699,7 +699,9 @@ func TestReadTagKeysRule(t *testing.T) {
 				Parameters: &semantic.FunctionParameters{
 					List: []*semantic.FunctionParameter{{
 						Key: &semantic.Identifier{
-							Name: "r",
+							Name: semantic.Symbol{
+								LocalName: "r",
+							},
 						},
 					}},
 				},
@@ -710,9 +712,13 @@ func TestReadTagKeysRule(t *testing.T) {
 								Operator: ast.EqualOperator,
 								Left: &semantic.MemberExpression{
 									Object: &semantic.IdentifierExpression{
-										Name: "r",
+										Name: semantic.Symbol{
+											LocalName: "r",
+										},
 									},
-									Property: "_measurement",
+									Property: semantic.Symbol{
+										LocalName: "_measurement",
+									},
 								},
 								Right: &semantic.StringLiteral{
 									Value: "cpu",
@@ -918,7 +924,9 @@ func TestReadTagValuesRule(t *testing.T) {
 				Parameters: &semantic.FunctionParameters{
 					List: []*semantic.FunctionParameter{{
 						Key: &semantic.Identifier{
-							Name: "r",
+							Name: semantic.Symbol{
+								LocalName: "r",
+							},
 						},
 					}},
 				},
@@ -929,9 +937,13 @@ func TestReadTagValuesRule(t *testing.T) {
 								Operator: ast.EqualOperator,
 								Left: &semantic.MemberExpression{
 									Object: &semantic.IdentifierExpression{
-										Name: "r",
+										Name: semantic.Symbol{
+											LocalName: "r",
+										},
 									},
-									Property: "_measurement",
+									Property: semantic.Symbol{
+										LocalName: "_measurement",
+									},
 								},
 								Right: &semantic.StringLiteral{
 									Value: "cpu",
