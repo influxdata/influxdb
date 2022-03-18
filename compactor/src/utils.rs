@@ -103,6 +103,7 @@ impl CompactedData {
 }
 
 /// Information needed to update the catalog after compacting a group of files
+#[derive(Debug)]
 pub struct CatalogUpdate {
     pub(crate) meta: IoxMetadata,
     pub(crate) tombstone_ids: HashSet<TombstoneId>,

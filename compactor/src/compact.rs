@@ -8,8 +8,8 @@ use arrow::record_batch::RecordBatch;
 use backoff::{Backoff, BackoffConfig};
 use bytes::Bytes;
 use data_types2::{
-    ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, ProcessedTombstone, SequencerId,
-    TableId, TablePartition, Timestamp, TombstoneId,
+    ParquetFile, ParquetFileId, PartitionId, SequencerId, TableId, TablePartition, Timestamp,
+    TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::{Catalog, Transaction};
@@ -330,9 +330,20 @@ impl Compactor {
                         ));
                     }
                 }
+                let mut txn = self
+                    .catalog
+                    .start_transaction()
+                    .await
+                    .context(TransactionSnafu)?;
 
-                self.update_catalog(catalog_update_info, original_parquet_file_ids)
-                    .await?;
+                self.update_catalog(
+                    catalog_update_info,
+                    original_parquet_file_ids,
+                    txn.deref_mut(),
+                )
+                .await?;
+
+                txn.commit().await.context(TransactionCommitSnafu)?;
             } else {
                 // If there was nothing to compact, go on to the next group
                 continue;
@@ -586,50 +597,27 @@ impl Compactor {
         Ok(Some((file_size, md)))
     }
 
-    async fn add_parquet_file_with_tombstones(
-        parquet_file: ParquetFileParams,
-        tombstone_ids: &HashSet<TombstoneId>,
-        txn: &mut dyn Transaction,
-    ) -> Result<(ParquetFile, Vec<ProcessedTombstone>), Error> {
-        // create a parquet file in the catalog first
-        let parquet = txn
-            .parquet_files()
-            .create(parquet_file)
-            .await
-            .context(UpdateSnafu)?;
-
-        // Now the parquet available, create its processed tombstones
-        let mut processed_tombstones = Vec::with_capacity(tombstone_ids.len());
-        for &tombstone_id in tombstone_ids {
-            processed_tombstones.push(
-                txn.processed_tombstones()
-                    .create(parquet.id, tombstone_id)
-                    .await
-                    .context(UpdateSnafu)?,
-            );
-        }
-
-        Ok((parquet, processed_tombstones))
-    }
-
     async fn update_catalog(
         &self,
         catalog_update_info: Vec<CatalogUpdate>,
         original_parquet_file_ids: Vec<ParquetFileId>,
+        txn: &mut dyn Transaction,
     ) -> Result<()> {
-        let mut txn = self
-            .catalog
-            .start_transaction()
-            .await
-            .context(TransactionSnafu)?;
-
         for catalog_update in catalog_update_info {
-            Self::add_parquet_file_with_tombstones(
-                catalog_update.parquet_file.clone(),
-                &catalog_update.tombstone_ids,
-                txn.deref_mut(),
-            )
-            .await?;
+            // create a parquet file in the catalog first
+            let parquet = txn
+                .parquet_files()
+                .create(catalog_update.parquet_file)
+                .await
+                .context(UpdateSnafu)?;
+
+            // Now that the parquet file is available, create its processed tombstones
+            for tombstone_id in catalog_update.tombstone_ids {
+                txn.processed_tombstones()
+                    .create(parquet.id, tombstone_id)
+                    .await
+                    .context(UpdateSnafu)?;
+            }
         }
 
         for original_parquet_file_id in original_parquet_file_ids {
@@ -638,8 +626,6 @@ impl Compactor {
                 .await
                 .context(FlagForDeleteSnafu)?;
         }
-
-        txn.commit().await.context(TransactionCommitSnafu)?;
 
         Ok(())
     }
@@ -684,7 +670,7 @@ impl Compactor {
 mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types2::{KafkaPartition, NamespaceId, SequenceNumber};
+    use data_types2::{KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
     use futures::{stream, StreamExt, TryStreamExt};
     use iox_tests::util::TestCatalog;
     use object_store::path::Path;
@@ -1174,6 +1160,15 @@ mod tests {
     async fn test_add_parquet_file_with_tombstones() {
         let catalog = TestCatalog::new();
 
+        let compactor = Compactor {
+            sequencers: vec![],
+            object_store: Arc::clone(&catalog.object_store),
+            catalog: Arc::clone(&catalog.catalog),
+            exec: Arc::new(Executor::new(1)),
+            time_provider: Arc::new(SystemProvider::new()),
+            backoff_config: BackoffConfig::default(),
+        };
+
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
         let pool = txn.query_pools().create_or_get("foo").await.unwrap();
@@ -1243,6 +1238,23 @@ mod tests {
             .await
             .unwrap();
 
+        let meta = IoxMetadata {
+            object_store_id: Uuid::new_v4(),
+            creation_timestamp: compactor.time_provider.now(),
+            namespace_id: NamespaceId::new(1),
+            namespace_name: "mydata".into(),
+            sequencer_id: sequencer.id,
+            table_id: table.id,
+            table_name: "temperature".into(),
+            partition_id: PartitionId::new(4),
+            partition_key: "somehour".into(),
+            time_of_first_write: compactor.time_provider.now(),
+            time_of_last_write: compactor.time_provider.now(),
+            min_sequence_number: SequenceNumber::new(5),
+            max_sequence_number: SequenceNumber::new(6),
+            row_count: 3,
+        };
+
         // Prepare metadata in form of ParquetFileParams to get added with tombstone
         let parquet = ParquetFileParams {
             sequencer_id: sequencer.id,
@@ -1277,76 +1289,56 @@ mod tests {
 
         // Add parquet and processed tombstone in one transaction
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        let (parquet_file, p_tombstones) = Compactor::add_parquet_file_with_tombstones(
-            parquet.clone(),
-            &HashSet::from([t1.id, t2.id]),
-            txn.deref_mut(),
-        )
-        .await
-        .unwrap();
+        let catalog_updates = vec![CatalogUpdate {
+            meta: meta.clone(),
+            tombstone_ids: HashSet::from([t1.id, t2.id]),
+            parquet_file: parquet.clone(),
+        }];
+        compactor
+            .update_catalog(catalog_updates, vec![], txn.deref_mut())
+            .await
+            .unwrap();
         txn.commit().await.unwrap();
-        assert_eq!(p_tombstones.len(), 2);
-        let mut actual_ids: Vec<_> = p_tombstones.iter().map(|pt| pt.tombstone_id).collect();
-        actual_ids.sort();
-        assert_eq!(&actual_ids, &[t1.id, t2.id]);
 
         // verify the catalog
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let parquet_file_count_after = txn.parquet_files().count().await.unwrap();
         let pt_count_after = txn.processed_tombstones().count().await.unwrap();
+
         assert_eq!(pt_count_after - pt_count_before, 2);
         assert_eq!(parquet_file_count_after - parquet_file_count_before, 1);
         let pt_count_before = pt_count_after;
         let parquet_file_count_before = parquet_file_count_after;
-
-        assert!(txn.parquet_files().exist(parquet_file.id).await.unwrap());
-        assert!(txn
-            .processed_tombstones()
-            .exist(parquet_file.id, t1.id)
-            .await
-            .unwrap());
-        assert!(txn
-            .processed_tombstones()
-            .exist(parquet_file.id, t1.id)
-            .await
-            .unwrap());
         txn.commit().await.unwrap();
 
         // Error due to duplicate parquet file
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        Compactor::add_parquet_file_with_tombstones(
-            parquet,
-            &HashSet::from([t3.id, t1.id]),
-            txn.deref_mut(),
-        )
-        .await
-        .unwrap_err();
+        let catalog_updates = vec![CatalogUpdate {
+            meta: meta.clone(),
+            tombstone_ids: HashSet::from([t3.id, t1.id]),
+            parquet_file: parquet.clone(),
+        }];
+        compactor
+            .update_catalog(catalog_updates, vec![], txn.deref_mut())
+            .await
+            .unwrap_err();
         txn.abort().await.unwrap();
 
-        // Since the transaction is rollback, t3 is not yet added
+        // Since the transaction is rolled back, t3 is not yet added
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        assert!(!txn
-            .processed_tombstones()
-            .exist(parquet_file.id, t3.id)
-            .await
-            .unwrap());
+        let pt_count_after = txn.processed_tombstones().count().await.unwrap();
+        assert_eq!(pt_count_after, pt_count_before);
 
-        // Add new parquet and new tombstone. Should go trhough
-        let (parquet_file, p_tombstones) = Compactor::add_parquet_file_with_tombstones(
-            other_parquet,
-            &HashSet::from([t3.id]),
-            txn.deref_mut(),
-        )
-        .await
-        .unwrap();
-        assert_eq!(p_tombstones.len(), 1);
-        assert_eq!(t3.id, p_tombstones[0].tombstone_id);
-        assert!(txn
-            .processed_tombstones()
-            .exist(parquet_file.id, t3.id)
+        // Add new parquet and new tombstone. Should go through
+        let catalog_updates = vec![CatalogUpdate {
+            meta: meta.clone(),
+            tombstone_ids: HashSet::from([t3.id]),
+            parquet_file: other_parquet.clone(),
+        }];
+        compactor
+            .update_catalog(catalog_updates, vec![], txn.deref_mut())
             .await
-            .unwrap());
-        assert!(txn.parquet_files().exist(parquet_file.id).await.unwrap());
+            .unwrap();
 
         let pt_count_after = txn.processed_tombstones().count().await.unwrap();
         let parquet_file_count_after = txn.parquet_files().count().await.unwrap();
@@ -1360,13 +1352,15 @@ mod tests {
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let mut t4 = t3.clone();
         t4.id = TombstoneId::new(t4.id.get() + 10);
-        Compactor::add_parquet_file_with_tombstones(
-            another_parquet,
-            &HashSet::from([t4.id]),
-            txn.deref_mut(),
-        )
-        .await
-        .unwrap_err();
+        let catalog_updates = vec![CatalogUpdate {
+            meta: meta.clone(),
+            tombstone_ids: HashSet::from([t4.id]),
+            parquet_file: another_parquet.clone(),
+        }];
+        compactor
+            .update_catalog(catalog_updates, vec![], txn.deref_mut())
+            .await
+            .unwrap_err();
         txn.abort().await.unwrap();
 
         // Still same count as before
