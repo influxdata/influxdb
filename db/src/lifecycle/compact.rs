@@ -9,7 +9,7 @@ use crate::{
 };
 use data_types::{chunk_metadata::ChunkOrder, delete_predicate::DeletePredicate, job::Job};
 use lifecycle::LifecycleWriteGuard;
-use observability_deps::tracing::info;
+use observability_deps::tracing::*;
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use std::{collections::HashSet, future::Future, sync::Arc};
 use time::Time;
@@ -36,7 +36,7 @@ pub(crate) fn compact_chunks(
     let addr = partition.addr().clone();
     let chunk_ids: Vec<_> = chunks.iter().map(|x| x.id()).collect();
 
-    info!(%addr, ?chunk_ids, "compacting chunks");
+    debug!(%addr, ?chunk_ids, "compacting chunks");
 
     let (tracker, registration) = db.jobs.register(Job::CompactChunks {
         partition: partition.addr().clone(),
@@ -159,7 +159,7 @@ pub(crate) fn compact_chunks(
         let elapsed = now.elapsed();
         let throughput = (input_rows as u128 * 1_000_000_000) / elapsed.as_nanos();
 
-        info!(input_chunks=chunk_ids.len(), %rub_row_groups,
+        debug!(input_chunks=chunk_ids.len(), %rub_row_groups,
                         %input_rows, %output_rows,
                         %sort_key, compaction_took = ?elapsed, fut_execution_duration= ?fut_now.elapsed(),
                         rows_per_sec=?throughput,  "chunk(s) compacted");
