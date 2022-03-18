@@ -672,10 +672,24 @@ RETURNING *;
 #[async_trait]
 impl TableRepo for PostgresTxn {
     async fn create_or_get(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
+        // A simple insert statement becomes quite complicated in order to avoid checking the table
+        // limits in a select and then conditionally inserting (which would be racey).
+        //
+        // from https://www.postgresql.org/docs/current/sql-insert.html
+        //   "INSERT inserts new rows into a table. One can insert one or more rows specified by
+        //   value expressions, or zero or more rows resulting from a query."
+        // By using SELECT rather than VALUES it will insert zero rows if it finds a null in the
+        // subquery, i.e. if count >= max_tables. fetch_one() will return a RowNotFound error if
+        // nothing was inserted. Not pretty!
         let rec = sqlx::query_as::<_, Table>(
             r#"
 INSERT INTO table_name ( name, namespace_id )
-VALUES ( $1, $2 )
+SELECT $1, id FROM (
+    SELECT namespace.id AS id, max_tables, COUNT(table_name.*) AS count
+    FROM namespace LEFT JOIN table_name ON namespace.id = table_name.namespace_id
+    WHERE namespace.id = $2
+    GROUP BY namespace.max_tables, table_name.namespace_id, namespace.id
+) AS get_count WHERE count < max_tables
 ON CONFLICT ON CONSTRAINT table_name_unique
 DO UPDATE SET name = table_name.name
 RETURNING *;
@@ -685,11 +699,17 @@ RETURNING *;
         .bind(&namespace_id) // $2
         .fetch_one(&mut self.inner)
         .await
-        .map_err(|e| {
-            if is_fk_violation(&e) {
-                Error::ForeignKeyViolation { source: e }
-            } else {
-                Error::SqlxError { source: e }
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => Error::TableCreateLimitError {
+                table_name: name.to_string(),
+                namespace_id,
+            },
+            _ => {
+                if is_fk_violation(&e) {
+                    Error::ForeignKeyViolation { source: e }
+                } else {
+                    Error::SqlxError { source: e }
+                }
             }
         })?;
 
@@ -787,11 +807,16 @@ impl ColumnRepo for PostgresTxn {
         column_type: ColumnType,
     ) -> Result<Column> {
         let ct = column_type as i16;
-
         let rec = sqlx::query_as::<_, Column>(
             r#"
 INSERT INTO column_name ( name, table_id, column_type )
-VALUES ( $1, $2, $3 )
+SELECT $1, table_id, $3 FROM (
+    SELECT max_columns_per_table, namespace.id, table_name.id as table_id, COUNT(column_name.*) AS count
+    FROM namespace LEFT JOIN table_name ON namespace.id = table_name.namespace_id
+                   LEFT JOIN column_name ON table_name.id = column_name.table_id
+    WHERE table_name.id = $2
+    GROUP BY namespace.max_columns_per_table, namespace.id, table_name.id
+) AS get_count WHERE count < max_columns_per_table
 ON CONFLICT ON CONSTRAINT column_name_unique
 DO UPDATE SET name = column_name.name
 RETURNING *;
@@ -802,13 +827,18 @@ RETURNING *;
         .bind(&ct) // $3
         .fetch_one(&mut self.inner)
         .await
-        .map_err(|e| {
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => Error::ColumnCreateLimitError {
+                column_name: name.to_string(),
+                table_id,
+            },
+            _ => {
             if is_fk_violation(&e) {
                 Error::ForeignKeyViolation { source: e }
             } else {
                 Error::SqlxError { source: e }
             }
-        })?;
+        }})?;
 
         if rec.column_type != ct {
             return Err(Error::ColumnTypeMismatch {

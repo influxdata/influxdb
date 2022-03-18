@@ -342,6 +342,34 @@ impl TableRepo for MemTxn {
     async fn create_or_get(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
         let stage = self.stage();
 
+        // this block is just to ensure the mem impl correctly creates TableCreateLimitError in
+        // tests, we don't care about any of the errors it is discarding
+        stage
+            .namespaces
+            .iter()
+            .find(|n| n.id == namespace_id)
+            .cloned()
+            .ok_or_else(|| Error::NamespaceNotFound {
+                // we're never going to use this error, this is just for flow control,
+                // so it doesn't matter that we only have the ID, not the name
+                name: "".to_string(),
+            })
+            .and_then(|n| {
+                let max_tables = n.max_tables;
+                let tables_count = stage
+                    .tables
+                    .iter()
+                    .filter(|t| t.namespace_id == namespace_id)
+                    .count();
+                if tables_count >= max_tables.try_into().unwrap() {
+                    return Err(Error::TableCreateLimitError {
+                        table_name: name.to_string(),
+                        namespace_id,
+                    });
+                }
+                Ok(())
+            })?;
+
         let table = match stage
             .tables
             .iter()
@@ -427,6 +455,43 @@ impl ColumnRepo for MemTxn {
         column_type: ColumnType,
     ) -> Result<Column> {
         let stage = self.stage();
+
+        // this block is just to ensure the mem impl correctly creates ColumnCreateLimitError in
+        // tests, we don't care about any of the errors it is discarding
+        stage
+            .tables
+            .iter()
+            .find(|t| t.id == table_id)
+            .cloned()
+            .ok_or(Error::TableNotFound { id: table_id }) // error never used, this is just for flow control
+            .and_then(|t| {
+                stage
+                    .namespaces
+                    .iter()
+                    .find(|n| n.id == t.namespace_id)
+                    .cloned()
+                    .ok_or_else(|| Error::NamespaceNotFound {
+                        // we're never going to use this error, this is just for flow control,
+                        // so it doesn't matter that we only have the ID, not the name
+                        name: "".to_string(),
+                    })
+                    .and_then(|n| {
+                        let max_columns_per_table = n.max_columns_per_table;
+                        let columns_count = stage
+                            .columns
+                            .iter()
+                            .filter(|t| t.table_id == table_id)
+                            .count();
+                        if columns_count >= max_columns_per_table.try_into().unwrap() {
+                            return Err(Error::ColumnCreateLimitError {
+                                column_name: name.to_string(),
+                                table_id,
+                            });
+                        }
+                        Ok(())
+                    })?;
+                Ok(())
+            })?;
 
         let column = match stage
             .columns

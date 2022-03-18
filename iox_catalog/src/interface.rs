@@ -41,6 +41,29 @@ pub enum Error {
     #[snafu(display("namespace {} not found", name))]
     NamespaceNotFound { name: String },
 
+    #[snafu(display("table {} not found", id))]
+    TableNotFound { id: TableId },
+
+    #[snafu(display(
+        "couldn't create column {} in table {}; limit reached on namespace",
+        column_name,
+        table_id,
+    ))]
+    ColumnCreateLimitError {
+        column_name: String,
+        table_id: TableId,
+    },
+
+    #[snafu(display(
+        "couldn't create table {}; limit reached on namespace {}",
+        table_name,
+        namespace_id
+    ))]
+    TableCreateLimitError {
+        table_name: String,
+        namespace_id: NamespaceId,
+    },
+
     #[snafu(display("parquet file with object_store_id {} already exists", object_store_id))]
     FileExists { object_store_id: Uuid },
 
@@ -862,6 +885,25 @@ pub(crate) mod test_helpers {
                 tombstone_max_sequence_number: Some(tombstone.sequence_number),
             }
         );
+
+        // test per-namespace table limits
+        let latest = repos
+            .namespaces()
+            .update_table_limit("namespace_table_test", 1)
+            .await
+            .expect("namespace should be updateable");
+        let err = repos
+            .tables()
+            .create_or_get("definitely_unique", latest.id)
+            .await
+            .expect_err("should error with table create limit error");
+        assert!(matches!(
+            err,
+            Error::TableCreateLimitError {
+                table_name: _,
+                namespace_id: _
+            }
+        ));
     }
 
     async fn test_column(catalog: Arc<dyn Catalog>) {
@@ -948,6 +990,25 @@ pub(crate) mod test_helpers {
         let mut want = vec![c, ccc];
         want.extend(cols3);
         assert_eq!(want, columns);
+
+        // test per-namespace column limits
+        repos
+            .namespaces()
+            .update_column_limit("namespace_column_test", 1)
+            .await
+            .expect("namespace should be updateable");
+        let err = repos
+            .columns()
+            .create_or_get("definitely unique", table.id, ColumnType::Tag)
+            .await
+            .expect_err("should error with table create limit error");
+        assert!(matches!(
+            err,
+            Error::ColumnCreateLimitError {
+                column_name: _,
+                table_id: _,
+            }
+        ));
     }
 
     async fn test_sequencer(catalog: Arc<dyn Catalog>) {
