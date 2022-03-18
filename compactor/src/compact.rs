@@ -1304,6 +1304,12 @@ mod tests {
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let parquet_file_count_after = txn.parquet_files().count().await.unwrap();
         let pt_count_after = txn.processed_tombstones().count().await.unwrap();
+        let catalog_parquet_files = txn
+            .parquet_files()
+            .list_by_namespace_not_to_delete(namespace.id)
+            .await
+            .unwrap();
+        assert_eq!(catalog_parquet_files.len(), 1);
 
         assert_eq!(pt_count_after - pt_count_before, 2);
         assert_eq!(parquet_file_count_after - parquet_file_count_before, 1);
@@ -1329,14 +1335,19 @@ mod tests {
         let pt_count_after = txn.processed_tombstones().count().await.unwrap();
         assert_eq!(pt_count_after, pt_count_before);
 
-        // Add new parquet and new tombstone. Should go through
+        // Add new parquet and new tombstone, plus pretend this file was compacted from the first
+        // parquet file so that one should now be deleted. Should go through
         let catalog_updates = vec![CatalogUpdate {
             meta: meta.clone(),
             tombstone_ids: HashSet::from([t3.id]),
             parquet_file: other_parquet.clone(),
         }];
         compactor
-            .update_catalog(catalog_updates, vec![], txn.deref_mut())
+            .update_catalog(
+                catalog_updates,
+                vec![catalog_parquet_files[0].id],
+                txn.deref_mut(),
+            )
             .await
             .unwrap();
 
@@ -1346,6 +1357,14 @@ mod tests {
         assert_eq!(parquet_file_count_after - parquet_file_count_before, 1);
         let pt_count_before = pt_count_after;
         let parquet_file_count_before = parquet_file_count_after;
+        let catalog_parquet_files = txn
+            .parquet_files()
+            .list_by_namespace_not_to_delete(namespace.id)
+            .await
+            .unwrap();
+        // There should still only be one non-deleted file because we added one new one and marked
+        // the existing one as deleted
+        assert_eq!(catalog_parquet_files.len(), 1);
         txn.commit().await.unwrap();
 
         // Add non-exist tombstone t4 and should fail
