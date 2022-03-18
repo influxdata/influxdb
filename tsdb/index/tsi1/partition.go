@@ -1452,7 +1452,7 @@ func IsPartitionDir(path string) (bool, error) {
 
 type filterDeletedSeriesIDIterator struct {
 	itr tsdb.SeriesIDIterator
-	p *Partition
+	p   *Partition
 }
 
 func newFilterDeletedSeriesIDIterator(p *Partition, itr tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
