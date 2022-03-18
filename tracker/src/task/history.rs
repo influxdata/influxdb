@@ -2,7 +2,7 @@ use super::registry::AbstractTaskRegistry;
 use super::{TaskId, TaskRegistration, TaskTracker};
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
-use observability_deps::tracing::info;
+use observability_deps::tracing::*;
 use std::hash::Hash;
 
 /// A wrapper around a TaskRegistry that automatically retains a history
@@ -63,7 +63,7 @@ where
         let mut pruned = vec![];
 
         for job in self.registry.reclaim() {
-            info!(?job, "job finished");
+            debug!(?job, "job finished");
             if let Some((_pruned_id, pruned_job)) = self.history.push(job.id(), job) {
                 pruned.push(pruned_job);
             }

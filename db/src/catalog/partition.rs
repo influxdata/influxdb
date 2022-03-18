@@ -9,7 +9,7 @@ use data_types::{
     partition_metadata::{PartitionAddr, PartitionSummary},
 };
 use hashbrown::HashMap;
-use observability_deps::tracing::info;
+use observability_deps::tracing::*;
 use persistence_windows::{
     min_max_sequence::OptionalMinMaxSequence, persistence_windows::PersistenceWindows,
 };
@@ -261,7 +261,7 @@ impl Partition {
         );
 
         let addr = ChunkAddr::new(&self.addr, chunk_id);
-        info!(%addr, row_count=chunk.rows(), "inserting RUB chunk to catalog");
+        debug!(%addr, row_count=chunk.rows(), "inserting RUB chunk to catalog");
 
         let chunk = CatalogChunk::new_rub_chunk(
             addr,
