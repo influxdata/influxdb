@@ -39,7 +39,7 @@ use schema::sort::SortKeyBuilder;
 
 /// Trait for an object (designed to be a Chunk) which can provide
 /// metadata
-pub trait QueryChunkMeta: Sized {
+pub trait QueryChunkMeta {
     /// Return a reference to the summary of the data
     fn summary(&self) -> Option<&TableSummary>;
 
@@ -153,10 +153,11 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     ) -> QueryCompletedToken;
 }
 
-/// Collection of data that shares the same partition key
-pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
-    type Error: std::error::Error + Send + Sync + 'static;
+/// Error type for [`QueryChunk`] operations.
+pub type QueryChunkError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
+/// Collection of data that shares the same partition key
+pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     /// returns the Id of this chunk. Ids are unique within a
     /// particular partition.
     fn id(&self) -> ChunkId;
@@ -180,7 +181,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     fn apply_predicate_to_metadata(
         &self,
         predicate: &Predicate,
-    ) -> Result<PredicateMatch, Self::Error>;
+    ) -> Result<PredicateMatch, QueryChunkError>;
 
     /// Returns a set of Strings with column names from the specified
     /// table that have at least one row that matches `predicate`, if
@@ -191,7 +192,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
         ctx: IOxExecutionContext,
         predicate: &Predicate,
         columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, Self::Error>;
+    ) -> Result<Option<StringSet>, QueryChunkError>;
 
     /// Return a set of Strings containing the distinct values in the
     /// specified columns. If the predicate can be evaluated entirely
@@ -203,7 +204,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
         ctx: IOxExecutionContext,
         column_name: &str,
         predicate: &Predicate,
-    ) -> Result<Option<StringSet>, Self::Error>;
+    ) -> Result<Option<StringSet>, QueryChunkError>;
 
     /// Provides access to raw `QueryChunk` data as an
     /// asynchronous stream of `RecordBatch`es filtered by a *required*
@@ -223,7 +224,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
         ctx: IOxExecutionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, Self::Error>;
+    ) -> Result<SendableRecordBatchStream, QueryChunkError>;
 
     /// Returns chunk type which is either MUB, RUB, OS
     fn chunk_type(&self) -> &str;

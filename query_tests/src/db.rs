@@ -1,45 +1,16 @@
-use std::{
-    any::Any,
-    fmt::{Debug, Display},
-    sync::Arc,
-};
+use std::{any::Any, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
 use datafusion::catalog::catalog::CatalogProvider;
-use db::{chunk::DbChunk, Db};
+use db::Db;
 use predicate::rpc_predicate::QueryDatabaseMeta;
 use query::{
     exec::{ExecutionContextProvider, IOxExecutionContext},
-    QueryChunk, QueryChunkMeta, QueryDatabase,
+    QueryChunk, QueryChunkError, QueryChunkMeta, QueryDatabase,
 };
 
-use self::sealed::{AbstractChunkInterface, AbstractDbInterface};
-
-pub struct Error(String);
-
-impl Error {
-    fn new<E>(e: E) -> Self
-    where
-        E: std::error::Error,
-    {
-        Self(e.to_string())
-    }
-}
-
-impl Debug for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Error").field(&self.0).finish()
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.0, f)
-    }
-}
-
-impl std::error::Error for Error {}
+use self::sealed::AbstractDbInterface;
 
 /// Abstract database used during testing.
 ///
@@ -116,17 +87,9 @@ impl QueryDatabaseMeta for AbstractDb {
 }
 
 #[derive(Debug)]
-pub struct AbstractChunk(Box<dyn AbstractChunkInterface>);
-
-impl AbstractChunk {
-    fn create_old(chunk: Arc<DbChunk>) -> Self {
-        Self(Box::new(OldChunk(chunk)))
-    }
-}
+pub struct AbstractChunk(Arc<dyn QueryChunk>);
 
 impl QueryChunk for AbstractChunk {
-    type Error = Error;
-
     fn id(&self) -> ChunkId {
         self.0.id()
     }
@@ -146,7 +109,7 @@ impl QueryChunk for AbstractChunk {
     fn apply_predicate_to_metadata(
         &self,
         predicate: &predicate::Predicate,
-    ) -> Result<predicate::PredicateMatch, Self::Error> {
+    ) -> Result<predicate::PredicateMatch, QueryChunkError> {
         self.0.apply_predicate_to_metadata(predicate)
     }
 
@@ -155,7 +118,7 @@ impl QueryChunk for AbstractChunk {
         ctx: IOxExecutionContext,
         predicate: &predicate::Predicate,
         columns: schema::selection::Selection<'_>,
-    ) -> Result<Option<query::exec::stringset::StringSet>, Self::Error> {
+    ) -> Result<Option<query::exec::stringset::StringSet>, QueryChunkError> {
         self.0.column_names(ctx, predicate, columns)
     }
 
@@ -164,7 +127,7 @@ impl QueryChunk for AbstractChunk {
         ctx: IOxExecutionContext,
         column_name: &str,
         predicate: &predicate::Predicate,
-    ) -> Result<Option<query::exec::stringset::StringSet>, Self::Error> {
+    ) -> Result<Option<query::exec::stringset::StringSet>, QueryChunkError> {
         self.0.column_values(ctx, column_name, predicate)
     }
 
@@ -173,7 +136,7 @@ impl QueryChunk for AbstractChunk {
         ctx: IOxExecutionContext,
         predicate: &predicate::Predicate,
         selection: schema::selection::Selection<'_>,
-    ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, Self::Error> {
+    ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, QueryChunkError> {
         self.0.read_filter(ctx, predicate, selection)
     }
 
@@ -235,54 +198,6 @@ mod sealed {
 
         fn table_schema(&self, table_name: &str) -> Option<Arc<schema::Schema>>;
     }
-
-    pub trait AbstractChunkInterface: Debug + Send + Sync + 'static {
-        fn id(&self) -> ChunkId;
-
-        fn addr(&self) -> ChunkAddr;
-
-        fn table_name(&self) -> &str;
-
-        fn may_contain_pk_duplicates(&self) -> bool;
-
-        fn apply_predicate_to_metadata(
-            &self,
-            predicate: &predicate::Predicate,
-        ) -> Result<predicate::PredicateMatch, Error>;
-
-        fn column_names(
-            &self,
-            ctx: IOxExecutionContext,
-            predicate: &predicate::Predicate,
-            columns: schema::selection::Selection<'_>,
-        ) -> Result<Option<query::exec::stringset::StringSet>, Error>;
-
-        fn column_values(
-            &self,
-            ctx: IOxExecutionContext,
-            column_name: &str,
-            predicate: &predicate::Predicate,
-        ) -> Result<Option<query::exec::stringset::StringSet>, Error>;
-
-        fn read_filter(
-            &self,
-            ctx: IOxExecutionContext,
-            predicate: &predicate::Predicate,
-            selection: schema::selection::Selection<'_>,
-        ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, Error>;
-
-        fn chunk_type(&self) -> &str;
-
-        fn order(&self) -> ChunkOrder;
-
-        fn summary(&self) -> Option<&data_types::partition_metadata::TableSummary>;
-
-        fn schema(&self) -> Arc<schema::Schema>;
-
-        fn sort_key(&self) -> Option<&schema::sort::SortKey>;
-
-        fn delete_predicates(&self) -> &[Arc<data_types::delete_predicate::DeletePredicate>];
-    }
 }
 
 #[derive(Debug)]
@@ -311,7 +226,7 @@ impl AbstractDbInterface for OldDb {
             .chunks(table_name, predicate)
             .await
             .into_iter()
-            .map(|c| Arc::new(AbstractChunk::create_old(c)))
+            .map(|c| Arc::new(AbstractChunk(c as _)))
             .collect()
     }
 
@@ -330,92 +245,5 @@ impl AbstractDbInterface for OldDb {
 
     fn table_schema(&self, table_name: &str) -> Option<Arc<schema::Schema>> {
         self.0.table_schema(table_name)
-    }
-}
-
-#[derive(Debug)]
-struct OldChunk(Arc<DbChunk>);
-
-impl AbstractChunkInterface for OldChunk {
-    fn id(&self) -> ChunkId {
-        self.0.id()
-    }
-
-    fn addr(&self) -> ChunkAddr {
-        self.0.addr().clone()
-    }
-
-    fn table_name(&self) -> &str {
-        self.0.table_name()
-    }
-
-    fn may_contain_pk_duplicates(&self) -> bool {
-        self.0.may_contain_pk_duplicates()
-    }
-
-    fn apply_predicate_to_metadata(
-        &self,
-        predicate: &predicate::Predicate,
-    ) -> Result<predicate::PredicateMatch, Error> {
-        self.0
-            .apply_predicate_to_metadata(predicate)
-            .map_err(Error::new)
-    }
-
-    fn column_names(
-        &self,
-        ctx: IOxExecutionContext,
-        predicate: &predicate::Predicate,
-        columns: schema::selection::Selection<'_>,
-    ) -> Result<Option<query::exec::stringset::StringSet>, Error> {
-        self.0
-            .column_names(ctx, predicate, columns)
-            .map_err(Error::new)
-    }
-
-    fn column_values(
-        &self,
-        ctx: IOxExecutionContext,
-        column_name: &str,
-        predicate: &predicate::Predicate,
-    ) -> Result<Option<query::exec::stringset::StringSet>, Error> {
-        self.0
-            .column_values(ctx, column_name, predicate)
-            .map_err(Error::new)
-    }
-
-    fn read_filter(
-        &self,
-        ctx: IOxExecutionContext,
-        predicate: &predicate::Predicate,
-        selection: schema::selection::Selection<'_>,
-    ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, Error> {
-        self.0
-            .read_filter(ctx, predicate, selection)
-            .map_err(Error::new)
-    }
-
-    fn chunk_type(&self) -> &str {
-        self.0.chunk_type()
-    }
-
-    fn order(&self) -> ChunkOrder {
-        self.0.order()
-    }
-
-    fn summary(&self) -> Option<&data_types::partition_metadata::TableSummary> {
-        self.0.summary()
-    }
-
-    fn schema(&self) -> Arc<schema::Schema> {
-        self.0.schema()
-    }
-
-    fn sort_key(&self) -> Option<&schema::sort::SortKey> {
-        self.0.sort_key()
-    }
-
-    fn delete_predicates(&self) -> &[Arc<data_types::delete_predicate::DeletePredicate>] {
-        self.0.delete_predicates()
     }
 }

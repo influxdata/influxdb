@@ -8,7 +8,7 @@ use crate::{
     exec::stringset::{StringSet, StringSetRef},
     Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
 };
-use crate::{QueryCompletedToken, QueryText};
+use crate::{QueryChunkError, QueryCompletedToken, QueryText};
 use arrow::array::UInt64Array;
 use arrow::{
     array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
@@ -32,7 +32,6 @@ use schema::selection::Selection;
 use schema::{
     builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema,
 };
-use snafu::Snafu;
 use std::num::NonZeroU64;
 use std::{collections::BTreeMap, fmt, sync::Arc};
 use trace::ctx::SpanContext;
@@ -51,19 +50,6 @@ pub struct TestDatabase {
     /// The predicate passed to the most recent call to `chunks()`
     chunks_predicate: Mutex<Predicate>,
 }
-
-#[derive(Snafu, Debug)]
-pub enum TestError {
-    #[snafu(display("Test database error: {}", message))]
-    General { message: String },
-
-    #[snafu(display("Test error writing to database: {}", source))]
-    DatabaseWrite {
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
-    },
-}
-
-pub type Result<T, E = TestError> = std::result::Result<T, E>;
 
 impl TestDatabase {
     pub fn new(executor: Arc<Executor>) -> Self {
@@ -316,9 +302,9 @@ impl TestChunk {
     }
 
     /// Checks the saved error, and returns it if any, otherwise returns OK
-    fn check_error(&self) -> Result<()> {
+    fn check_error(&self) -> Result<(), QueryChunkError> {
         if let Some(message) = self.saved_error.as_ref() {
-            GeneralSnafu { message }.fail()
+            Err(message.clone().into())
         } else {
             Ok(())
         }
@@ -874,8 +860,6 @@ impl fmt::Display for TestChunk {
 }
 
 impl QueryChunk for TestChunk {
-    type Error = TestError;
-
     fn id(&self) -> ChunkId {
         self.id
     }
@@ -902,7 +886,7 @@ impl QueryChunk for TestChunk {
         _ctx: IOxExecutionContext,
         predicate: &Predicate,
         _selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
         self.check_error()?;
 
         // save the predicate
@@ -916,7 +900,10 @@ impl QueryChunk for TestChunk {
         "Test Chunk"
     }
 
-    fn apply_predicate_to_metadata(&self, predicate: &Predicate) -> Result<PredicateMatch> {
+    fn apply_predicate_to_metadata(
+        &self,
+        predicate: &Predicate,
+    ) -> Result<PredicateMatch, QueryChunkError> {
         self.check_error()?;
 
         // save the predicate
@@ -935,7 +922,7 @@ impl QueryChunk for TestChunk {
         _ctx: IOxExecutionContext,
         _column_name: &str,
         _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         // Model not being able to get column values from metadata
         Ok(None)
     }
@@ -945,7 +932,7 @@ impl QueryChunk for TestChunk {
         _ctx: IOxExecutionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         self.check_error()?;
 
         // save the predicate

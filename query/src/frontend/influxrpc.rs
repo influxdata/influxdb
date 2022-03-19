@@ -266,12 +266,11 @@ impl InfluxRpcPlanner {
                         .push(Arc::clone(&chunk));
                 } else {
                     // Try and apply the predicate using only metadata
-                    let pred_result = chunk
-                        .apply_predicate_to_metadata(predicate)
-                        .map_err(|e| Box::new(e) as _)
-                        .context(CheckingChunkPredicateSnafu {
+                    let pred_result = chunk.apply_predicate_to_metadata(predicate).context(
+                        CheckingChunkPredicateSnafu {
                             chunk_id: chunk.id(),
-                        })?;
+                        },
+                    )?;
 
                     match pred_result {
                         PredicateMatch::AtLeastOneNonNullField => {
@@ -362,12 +361,11 @@ impl InfluxRpcPlanner {
                 let mut do_full_plan = chunk.has_delete_predicates();
 
                 // Try and apply the predicate using only metadata
-                let pred_result = chunk
-                    .apply_predicate_to_metadata(predicate)
-                    .map_err(|e| Box::new(e) as _)
-                    .context(CheckingChunkPredicateSnafu {
+                let pred_result = chunk.apply_predicate_to_metadata(predicate).context(
+                    CheckingChunkPredicateSnafu {
                         chunk_id: chunk.id(),
-                    })?;
+                    },
+                )?;
 
                 if matches!(pred_result, PredicateMatch::Zero) {
                     continue;
@@ -391,7 +389,6 @@ impl InfluxRpcPlanner {
                             predicate,
                             selection,
                         )
-                        .map_err(|e| Box::new(e) as _)
                         .context(FindingColumnNamesSnafu)?;
 
                     match maybe_names {
@@ -505,12 +502,11 @@ impl InfluxRpcPlanner {
                 let mut do_full_plan = chunk.has_delete_predicates();
 
                 // Try and apply the predicate using only metadata
-                let pred_result = chunk
-                    .apply_predicate_to_metadata(predicate)
-                    .map_err(|e| Box::new(e) as _)
-                    .context(CheckingChunkPredicateSnafu {
+                let pred_result = chunk.apply_predicate_to_metadata(predicate).context(
+                    CheckingChunkPredicateSnafu {
                         chunk_id: chunk.id(),
-                    })?;
+                    },
+                )?;
 
                 if matches!(pred_result, PredicateMatch::Zero) {
                     continue;
@@ -553,7 +549,6 @@ impl InfluxRpcPlanner {
                             tag_name,
                             predicate,
                         )
-                        .map_err(|e| Box::new(e) as _)
                         .context(FindingColumnValuesSnafu)?;
 
                     match maybe_values {
@@ -1517,12 +1512,12 @@ where
     let mut filtered = Vec::with_capacity(chunks.len());
     for chunk in chunks {
         // Try and apply the predicate using only metadata
-        let pred_result = chunk
-            .apply_predicate_to_metadata(predicate)
-            .map_err(|e| Box::new(e) as _)
-            .context(CheckingChunkPredicateSnafu {
-                chunk_id: chunk.id(),
-            })?;
+        let pred_result =
+            chunk
+                .apply_predicate_to_metadata(predicate)
+                .context(CheckingChunkPredicateSnafu {
+                    chunk_id: chunk.id(),
+                })?;
 
         trace!(?pred_result, chunk_id=?chunk.id(), "applied predicate to metadata");
 

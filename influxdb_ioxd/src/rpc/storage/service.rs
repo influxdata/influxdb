@@ -1381,7 +1381,7 @@ mod tests {
     use predicate::{PredicateBuilder, PredicateMatch};
     use query::{
         exec::Executor,
-        test::{TestChunk, TestDatabase, TestError},
+        test::{TestChunk, TestDatabase},
     };
     use test_helpers::{assert_contains, tracing::TracingCapture};
 
@@ -1465,7 +1465,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk0))
             .add_chunk("my_partition_key", Arc::new(chunk1));
 
@@ -1567,7 +1566,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk0))
             .add_chunk("my_partition_key", Arc::new(chunk1));
 
@@ -1617,7 +1615,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -1662,7 +1659,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk0))
             .add_chunk("my_partition_key", Arc::new(chunk1));
 
@@ -1724,7 +1720,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -1766,7 +1761,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -1816,7 +1810,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let tag_values = vec!["h2o"];
@@ -1848,7 +1841,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -1887,7 +1879,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -1956,7 +1947,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk1))
             .add_chunk("my_partition_key", Arc::new(chunk2));
 
@@ -2173,7 +2163,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2216,7 +2205,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2257,7 +2245,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2359,7 +2346,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2424,7 +2410,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2476,7 +2461,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2516,7 +2500,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2559,7 +2542,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2610,7 +2592,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2664,7 +2645,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2724,7 +2704,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2778,7 +2757,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2819,7 +2797,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2999,7 +2976,6 @@ mod tests {
                 .test_storage
                 .db_or_create(db_name)
                 .await
-                .expect("getting db")
                 .get_chunk(partition_key, ChunkId::new_test(chunk_id))
                 .unwrap()
                 .predicates();
@@ -3025,15 +3001,15 @@ mod tests {
             Self::default()
         }
 
-        async fn db_or_create(&self, name: &str) -> Result<Arc<TestDatabase>, TestError> {
+        async fn db_or_create(&self, name: &str) -> Arc<TestDatabase> {
             let mut databases = self.databases.lock();
 
             if let Some(db) = databases.get(name) {
-                Ok(Arc::clone(db))
+                Arc::clone(db)
             } else {
                 let new_db = Arc::new(TestDatabase::new(Arc::clone(&self.executor)));
                 databases.insert(name.to_string(), Arc::clone(&new_db));
-                Ok(new_db)
+                new_db
             }
         }
     }
