@@ -32,10 +32,7 @@ impl AbstractDb {
 }
 
 impl ExecutionContextProvider for AbstractDb {
-    fn new_query_context(
-        self: &Arc<Self>,
-        span_ctx: Option<trace::ctx::SpanContext>,
-    ) -> IOxExecutionContext {
+    fn new_query_context(&self, span_ctx: Option<trace::ctx::SpanContext>) -> IOxExecutionContext {
         self.0.new_query_context(span_ctx)
     }
 }

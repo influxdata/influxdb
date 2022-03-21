@@ -159,7 +159,7 @@ impl QueryDatabaseMeta for TestDatabase {
 }
 
 impl ExecutionContextProvider for TestDatabase {
-    fn new_query_context(self: &Arc<Self>, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
+    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
         // Note: unlike Db this does not register a catalog provider
         self.executor
             .new_execution_config(ExecutorType::Query)
