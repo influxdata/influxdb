@@ -2,11 +2,10 @@ use std::{any::Any, sync::Arc};
 
 use async_trait::async_trait;
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
-use db::chunk::DbChunk;
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use query::{
     exec::{ExecutionContextProvider, ExecutorType, IOxExecutionContext},
-    QueryCompletedToken, QueryDatabase, QueryText,
+    QueryChunk, QueryCompletedToken, QueryDatabase, QueryText,
 };
 use schema::Schema;
 use trace::ctx::SpanContext;
@@ -25,9 +24,7 @@ impl QueryDatabaseMeta for QuerierNamespace {
 
 #[async_trait]
 impl QueryDatabase for QuerierNamespace {
-    type Chunk = DbChunk;
-
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
         self.catalog_access.chunks(table_name, predicate).await
     }
 

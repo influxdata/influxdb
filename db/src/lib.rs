@@ -44,6 +44,7 @@ use parquet_catalog::{
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
+use query::QueryChunk;
 use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
     QueryCompletedToken, QueryDatabase, QueryText,
@@ -1228,9 +1229,7 @@ impl Db {
 /// can just use Db as a `Database` even though the implementation
 /// lives in `catalog_access`
 impl QueryDatabase for Db {
-    type Chunk = DbChunk;
-
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
         self.catalog_access.chunks(table_name, predicate).await
     }
 

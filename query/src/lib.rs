@@ -137,12 +137,10 @@ pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 /// data in Chunks.
 #[async_trait]
 pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
-    type Chunk: QueryChunk;
-
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate. If possible, chunks which have no rows that can
     /// possibly match the predicate may be omitted.
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>>;
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>>;
 
     /// Record that particular type of query was run / planned
     fn record_query(
@@ -258,20 +256,14 @@ where
 }
 
 /// return true if all the chunks inlcude statistics
-pub fn chunks_have_stats<C>(chunks: &[C]) -> bool
-where
-    C: QueryChunkMeta,
-{
+pub fn chunks_have_stats(chunks: &[Arc<dyn QueryChunk>]) -> bool {
     // If at least one of the provided chunk cannot provide stats,
     // do not need to compute potential duplicates. We will treat
     // as all of them have duplicates
     chunks.iter().all(|c| c.summary().is_some())
 }
 
-pub fn compute_sort_key_for_chunks<C>(schema: &Schema, chunks: &[C]) -> SortKey
-where
-    C: QueryChunkMeta,
-{
+pub fn compute_sort_key_for_chunks(schema: &Schema, chunks: &[Arc<dyn QueryChunk>]) -> SortKey {
     if !chunks_have_stats(chunks) {
         // chunks have not enough stats, return its  pk that is
         // sorted lexicographically but time column always last

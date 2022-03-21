@@ -25,12 +25,12 @@ use super::adapter::SchemaAdapterStream;
 
 /// Implements the DataFusion physical plan interface
 #[derive(Debug)]
-pub(crate) struct IOxReadFilterNode<C: QueryChunk + 'static> {
+pub(crate) struct IOxReadFilterNode {
     table_name: Arc<str>,
     /// The desired output schema (includes selection)
     /// note that the chunk may not have all these columns.
     iox_schema: Arc<Schema>,
-    chunks: Vec<Arc<C>>,
+    chunks: Vec<Arc<dyn QueryChunk>>,
     predicate: Predicate,
     /// Execution metrics
     metrics: ExecutionPlanMetricsSet,
@@ -39,7 +39,7 @@ pub(crate) struct IOxReadFilterNode<C: QueryChunk + 'static> {
     ctx: IOxExecutionContext,
 }
 
-impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
+impl IOxReadFilterNode {
     /// Create a execution plan node that reads data from `chunks` producing
     /// output according to schema, while applying `predicate` and
     /// returns
@@ -47,7 +47,7 @@ impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
         ctx: IOxExecutionContext,
         table_name: Arc<str>,
         iox_schema: Arc<Schema>,
-        chunks: Vec<Arc<C>>,
+        chunks: Vec<Arc<dyn QueryChunk>>,
         predicate: Predicate,
     ) -> Self {
         Self {
@@ -62,7 +62,7 @@ impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
 }
 
 #[async_trait]
-impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
+impl ExecutionPlan for IOxReadFilterNode {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -91,7 +91,7 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
         assert!(children.is_empty(), "no children expected in iox plan");
 
-        let chunks: Vec<Arc<C>> = self.chunks.to_vec();
+        let chunks: Vec<Arc<dyn QueryChunk>> = self.chunks.to_vec();
 
         // For some reason when I used an automatically derived `Clone` implementation
         // the compiler didn't recognize the trait implementation
