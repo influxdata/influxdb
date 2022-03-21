@@ -120,7 +120,7 @@ impl QueryDatabase for TestDatabase {
     fn record_query(
         &self,
         _ctx: &IOxExecutionContext,
-        _query_type: impl Into<String>,
+        _query_type: &str,
         _query_text: QueryText,
     ) -> QueryCompletedToken {
         QueryCompletedToken::new(|_| {})

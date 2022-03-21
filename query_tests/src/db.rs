@@ -66,10 +66,10 @@ impl QueryDatabase for AbstractDb {
     fn record_query(
         &self,
         ctx: &IOxExecutionContext,
-        query_type: impl Into<String>,
+        query_type: &str,
         query_text: query::QueryText,
     ) -> query::QueryCompletedToken {
-        self.0.record_query(ctx, query_type.into(), query_text)
+        self.0.record_query(ctx, query_type, query_text)
     }
 }
 
@@ -187,7 +187,7 @@ mod sealed {
         fn record_query(
             &self,
             ctx: &IOxExecutionContext,
-            query_type: String,
+            query_type: &str,
             query_text: query::QueryText,
         ) -> query::QueryCompletedToken;
 
@@ -230,7 +230,7 @@ impl AbstractDbInterface for OldDb {
     fn record_query(
         &self,
         ctx: &IOxExecutionContext,
-        query_type: String,
+        query_type: &str,
         query_text: query::QueryText,
     ) -> query::QueryCompletedToken {
         self.0.record_query(ctx, query_type, query_text)

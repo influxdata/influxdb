@@ -292,7 +292,7 @@ impl QueryDatabase for QueryCatalogAccess {
     fn record_query(
         &self,
         ctx: &IOxExecutionContext,
-        query_type: impl Into<String>,
+        query_type: &str,
         query_text: QueryText,
     ) -> QueryCompletedToken {
         // When the query token is dropped the query entry's completion time

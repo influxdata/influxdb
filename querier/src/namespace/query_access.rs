@@ -34,7 +34,7 @@ impl QueryDatabase for QuerierNamespace {
     fn record_query(
         &self,
         ctx: &IOxExecutionContext,
-        query_type: impl Into<String>,
+        query_type: &str,
         query_text: QueryText,
     ) -> QueryCompletedToken {
         self.catalog_access
