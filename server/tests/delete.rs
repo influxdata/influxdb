@@ -12,7 +12,7 @@ use db::{
     Db,
 };
 use futures::TryStreamExt;
-use query::{QueryChunk, QueryChunkMeta, QueryDatabase};
+use query::{QueryChunk, QueryDatabase};
 use server::{
     rules::ProvidedDatabaseRules,
     test_utils::{make_application, make_initialized_server},
@@ -143,7 +143,8 @@ async fn delete_predicate_preservation() {
 
         async move {
             for chunk in db.chunks(table_name, &Default::default()).await {
-                let partition_key = chunk.addr().partition_key.as_ref();
+                let addr = chunk.addr();
+                let partition_key = addr.partition_key.as_ref();
                 if partition_key == "part_b" {
                     // Strictly speaking not required because the chunk was persisted AFTER the delete predicate was
                     // registered so we can get away with materializing it during persistence.

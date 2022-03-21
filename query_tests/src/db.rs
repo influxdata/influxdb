@@ -1,13 +1,12 @@
 use std::{any::Any, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
 use datafusion::catalog::catalog::CatalogProvider;
 use db::Db;
 use predicate::rpc_predicate::QueryDatabaseMeta;
 use query::{
     exec::{ExecutionContextProvider, IOxExecutionContext},
-    QueryChunk, QueryChunkError, QueryChunkMeta, QueryDatabase,
+    QueryChunk, QueryDatabase,
 };
 
 use self::sealed::AbstractDbInterface;
@@ -53,13 +52,11 @@ impl CatalogProvider for AbstractDb {
 
 #[async_trait]
 impl QueryDatabase for AbstractDb {
-    type Chunk = AbstractChunk;
-
     async fn chunks(
         &self,
         table_name: &str,
         predicate: &predicate::Predicate,
-    ) -> Vec<Arc<Self::Chunk>> {
+    ) -> Vec<Arc<dyn QueryChunk>> {
         self.0.chunks(table_name, predicate).await
     }
 
@@ -83,87 +80,6 @@ impl QueryDatabaseMeta for AbstractDb {
     }
 }
 
-#[derive(Debug)]
-pub struct AbstractChunk(Arc<dyn QueryChunk>);
-
-impl QueryChunk for AbstractChunk {
-    fn id(&self) -> ChunkId {
-        self.0.id()
-    }
-
-    fn addr(&self) -> ChunkAddr {
-        self.0.addr()
-    }
-
-    fn table_name(&self) -> &str {
-        self.0.table_name()
-    }
-
-    fn may_contain_pk_duplicates(&self) -> bool {
-        self.0.may_contain_pk_duplicates()
-    }
-
-    fn apply_predicate_to_metadata(
-        &self,
-        predicate: &predicate::Predicate,
-    ) -> Result<predicate::PredicateMatch, QueryChunkError> {
-        self.0.apply_predicate_to_metadata(predicate)
-    }
-
-    fn column_names(
-        &self,
-        ctx: IOxExecutionContext,
-        predicate: &predicate::Predicate,
-        columns: schema::selection::Selection<'_>,
-    ) -> Result<Option<query::exec::stringset::StringSet>, QueryChunkError> {
-        self.0.column_names(ctx, predicate, columns)
-    }
-
-    fn column_values(
-        &self,
-        ctx: IOxExecutionContext,
-        column_name: &str,
-        predicate: &predicate::Predicate,
-    ) -> Result<Option<query::exec::stringset::StringSet>, QueryChunkError> {
-        self.0.column_values(ctx, column_name, predicate)
-    }
-
-    fn read_filter(
-        &self,
-        ctx: IOxExecutionContext,
-        predicate: &predicate::Predicate,
-        selection: schema::selection::Selection<'_>,
-    ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, QueryChunkError> {
-        self.0.read_filter(ctx, predicate, selection)
-    }
-
-    fn chunk_type(&self) -> &str {
-        self.0.chunk_type()
-    }
-
-    fn order(&self) -> ChunkOrder {
-        self.0.order()
-    }
-}
-
-impl QueryChunkMeta for AbstractChunk {
-    fn summary(&self) -> Option<&data_types::partition_metadata::TableSummary> {
-        self.0.summary()
-    }
-
-    fn schema(&self) -> Arc<schema::Schema> {
-        self.0.schema()
-    }
-
-    fn sort_key(&self) -> Option<&schema::sort::SortKey> {
-        self.0.sort_key()
-    }
-
-    fn delete_predicates(&self) -> &[Arc<data_types::delete_predicate::DeletePredicate>] {
-        self.0.delete_predicates()
-    }
-}
-
 mod sealed {
     use super::*;
 
@@ -182,7 +98,7 @@ mod sealed {
             &self,
             table_name: &str,
             predicate: &predicate::Predicate,
-        ) -> Vec<Arc<AbstractChunk>>;
+        ) -> Vec<Arc<dyn QueryChunk>>;
 
         fn record_query(
             &self,
@@ -218,13 +134,8 @@ impl AbstractDbInterface for OldDb {
         &self,
         table_name: &str,
         predicate: &predicate::Predicate,
-    ) -> Vec<Arc<AbstractChunk>> {
-        self.0
-            .chunks(table_name, predicate)
-            .await
-            .into_iter()
-            .map(|c| Arc::new(AbstractChunk(c as _)))
-            .collect()
+    ) -> Vec<Arc<dyn QueryChunk>> {
+        self.0.chunks(table_name, predicate).await
     }
 
     fn record_query(

@@ -1,4 +1,3 @@
-use super::DbChunk;
 use crate::{
     catalog::{chunk::CatalogChunk, partition::Partition},
     Db,
@@ -25,7 +24,7 @@ use lifecycle::{
 use observability_deps::tracing::{info, trace, warn};
 use parking_lot::Mutex;
 use persistence_windows::persistence_windows::FlushHandle;
-use query::QueryChunkMeta;
+use query::QueryChunk;
 use schema::{merge::SchemaMerger, Schema, TIME_COLUMN_NAME};
 use std::{future::Future, sync::Arc};
 use time::{Time, TimeProvider};
@@ -395,7 +394,7 @@ fn collect_rub(
 /// This is infallable because the schemas of chunks within a
 /// partition are assumed to be compatible because that schema was
 /// enforced as part of writing into the partition
-fn merge_schemas(chunks: &[Arc<DbChunk>]) -> Arc<Schema> {
+fn merge_schemas(chunks: &[Arc<dyn QueryChunk>]) -> Arc<Schema> {
     let mut merger = SchemaMerger::new();
     for db_chunk in chunks {
         merger = merger

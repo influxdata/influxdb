@@ -62,12 +62,10 @@ impl QueryableParquetChunk {
     }
 
     /// Merge schema of the given chunks
-    pub fn merge_schemas(chunks: &[Self]) -> Arc<Schema> {
+    pub fn merge_schemas(chunks: &[Arc<dyn QueryChunk>]) -> Arc<Schema> {
         let mut merger = SchemaMerger::new();
         for chunk in chunks {
-            merger = merger
-                .merge(&chunk.data.schema())
-                .expect("schemas compatible");
+            merger = merger.merge(&chunk.schema()).expect("schemas compatible");
         }
         Arc::new(merger.build())
     }

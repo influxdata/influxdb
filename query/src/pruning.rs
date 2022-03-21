@@ -16,14 +16,13 @@ use observability_deps::tracing::{debug, trace};
 use predicate::Predicate;
 use schema::Schema;
 
-use crate::{group_by::Aggregate, QueryChunkMeta};
+use crate::group_by::Aggregate;
+use crate::QueryChunk;
 
 /// Something that cares to be notified when pruning of chunks occurs
 pub trait PruningObserver {
-    type Observed;
-
     /// Called when the specified chunk was pruned from observation
-    fn was_pruned(&self, _chunk: &Self::Observed) {}
+    fn was_pruned(&self, _chunk: &dyn QueryChunk) {}
 
     /// Called when no pruning can happen at all for some reason
     fn could_not_prune(&self, _reason: &str) {}
@@ -35,15 +34,14 @@ pub trait PruningObserver {
 ///
 /// TODO(raphael): Perhaps this should return `Result<Vec<bool>>` instead of
 /// the [`PruningObserver`] plumbing
-pub fn prune_chunks<C, O>(
+pub fn prune_chunks<O>(
     observer: &O,
     table_schema: Arc<Schema>,
-    chunks: Vec<Arc<C>>,
+    chunks: Vec<Arc<dyn QueryChunk>>,
     predicate: &Predicate,
-) -> Vec<Arc<C>>
+) -> Vec<Arc<dyn QueryChunk>>
 where
-    C: QueryChunkMeta,
-    O: PruningObserver<Observed = C>,
+    O: PruningObserver,
 {
     let num_chunks = chunks.len();
     trace!(num_chunks, %predicate, "Pruning chunks");
@@ -104,14 +102,14 @@ where
     pruned_chunks
 }
 
-/// Wraps a collection of [`QueryChunkMeta`] and implements the [`PruningStatistics`]
+/// Wraps a collection of [`QueryChunk`] and implements the [`PruningStatistics`]
 /// interface required by [`PruningPredicate`]
-struct ChunkPruningStatistics<'a, C> {
+struct ChunkPruningStatistics<'a> {
     table_schema: &'a Schema,
-    chunks: &'a [Arc<C>],
+    chunks: &'a [Arc<dyn QueryChunk>],
 }
 
-impl<'a, C: QueryChunkMeta> ChunkPruningStatistics<'a, C> {
+impl<'a> ChunkPruningStatistics<'a> {
     /// Returns the [`DataType`] for `column`
     fn column_type(&self, column: &Column) -> Option<&DataType> {
         let index = self.table_schema.find_index_of(&column.name)?;
@@ -130,10 +128,7 @@ impl<'a, C: QueryChunkMeta> ChunkPruningStatistics<'a, C> {
     }
 }
 
-impl<'a, C> PruningStatistics for ChunkPruningStatistics<'a, C>
-where
-    C: QueryChunkMeta,
-{
+impl<'a> PruningStatistics for ChunkPruningStatistics<'a> {
     fn min_values(&self, column: &Column) -> Option<ArrayRef> {
         let data_type = self.column_type(column)?;
         let summaries = self.column_summaries(column);
@@ -232,7 +227,7 @@ mod test {
     use predicate::PredicateBuilder;
     use schema::merge::SchemaMerger;
 
-    use crate::{test::TestChunk, QueryChunk};
+    use crate::{test::TestChunk, QueryChunk, QueryChunkMeta};
 
     use super::*;
 
@@ -478,7 +473,7 @@ mod test {
         assert_eq!(names(&pruned), vec!["chunk1"]);
     }
 
-    fn merge_schema(chunks: &[Arc<TestChunk>]) -> Arc<Schema> {
+    fn merge_schema(chunks: &[Arc<dyn QueryChunk>]) -> Arc<Schema> {
         let mut merger = SchemaMerger::new();
         for chunk in chunks {
             merger = merger.merge(chunk.schema().as_ref()).unwrap();
@@ -500,19 +495,20 @@ mod test {
             "column1",
             None,
             Some(10),
-        ));
+        )) as Arc<dyn QueryChunk>;
 
         let c2 = Arc::new(TestChunk::new("chunk2").with_i64_field_column_with_stats(
             "column1",
             Some(0),
             None,
-        ));
+        )) as Arc<dyn QueryChunk>;
 
         let c3 = Arc::new(
             TestChunk::new("chunk3").with_i64_field_column_with_stats("column1", None, None),
-        );
+        ) as Arc<dyn QueryChunk>;
 
-        let c4 = Arc::new(TestChunk::new("chunk4").with_i64_field_column_no_stats("column1"));
+        let c4 = Arc::new(TestChunk::new("chunk4").with_i64_field_column_no_stats("column1"))
+            as Arc<dyn QueryChunk>;
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").gt(lit(100)))
@@ -543,35 +539,35 @@ mod test {
             "column1",
             Some(0),
             Some(10),
-        ));
+        )) as Arc<dyn QueryChunk>;
 
         let c2 = Arc::new(TestChunk::new("chunk2").with_i64_field_column_with_stats(
             "column1",
             Some(0),
             Some(1000),
-        ));
+        )) as Arc<dyn QueryChunk>;
 
         let c3 = Arc::new(TestChunk::new("chunk3").with_i64_field_column_with_stats(
             "column1",
             Some(10),
             Some(20),
-        ));
+        )) as Arc<dyn QueryChunk>;
 
         let c4 = Arc::new(
             TestChunk::new("chunk4").with_i64_field_column_with_stats("column1", None, None),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let c5 = Arc::new(TestChunk::new("chunk5").with_i64_field_column_with_stats(
             "column1",
             Some(10),
             None,
-        ));
+        )) as Arc<dyn QueryChunk>;
 
         let c6 = Arc::new(TestChunk::new("chunk6").with_i64_field_column_with_stats(
             "column1",
             None,
             Some(20),
-        ));
+        )) as Arc<dyn QueryChunk>;
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").gt(lit(100)))
@@ -601,19 +597,19 @@ mod test {
             TestChunk::new("chunk1")
                 .with_i64_field_column_with_stats("column1", Some(0), Some(100))
                 .with_i64_field_column_with_stats("column2", Some(0), Some(4)),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let c2 = Arc::new(
             TestChunk::new("chunk2")
                 .with_i64_field_column_with_stats("column1", Some(0), Some(1000))
                 .with_i64_field_column_with_stats("column2", Some(0), Some(4)),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let c3 = Arc::new(TestChunk::new("chunk3").with_i64_field_column_with_stats(
             "column2",
             Some(0),
             Some(4),
-        ));
+        )) as Arc<dyn QueryChunk>;
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").gt(lit(100)))
@@ -645,7 +641,7 @@ mod test {
                 None,
                 0,
             ),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Has no nulls, can prune it out based on statistics alone
         let c2 = Arc::new(
@@ -657,7 +653,7 @@ mod test {
                 None,
                 0,
             ),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Has nulls, can still can prune it out based on statistics alone
         let c3 = Arc::new(
@@ -669,7 +665,7 @@ mod test {
                 None,
                 1, // that one peksy null!
             ),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let predicate = PredicateBuilder::new()
             .add_expr(
@@ -705,37 +701,37 @@ mod test {
             TestChunk::new("chunk1")
                 .with_i64_field_column_with_stats("column1", Some(0), Some(1000))
                 .with_i64_field_column_with_stats("column2", Some(0), Some(4)),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let c2 = Arc::new(
             TestChunk::new("chunk2")
                 .with_i64_field_column_with_stats("column1", Some(0), Some(10))
                 .with_i64_field_column_with_stats("column2", Some(0), Some(4)),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let c3 = Arc::new(
             TestChunk::new("chunk3")
                 .with_i64_field_column_with_stats("column1", Some(0), Some(10))
                 .with_i64_field_column_with_stats("column2", Some(5), Some(10)),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let c4 = Arc::new(
             TestChunk::new("chunk4")
                 .with_i64_field_column_with_stats("column1", Some(1000), Some(2000))
                 .with_i64_field_column_with_stats("column2", Some(0), Some(4)),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let c5 = Arc::new(
             TestChunk::new("chunk5")
                 .with_i64_field_column_with_stats("column1", Some(0), Some(10))
                 .with_i64_field_column_no_stats("column2"),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let c6 = Arc::new(
             TestChunk::new("chunk6")
                 .with_i64_field_column_no_stats("column1")
                 .with_i64_field_column_with_stats("column2", Some(0), Some(4)),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let predicate = PredicateBuilder::new()
             .add_expr(col("column1").gt(lit(100)).and(col("column2").lt(lit(5))))
@@ -753,7 +749,7 @@ mod test {
         assert_eq!(names(&pruned), vec!["chunk1", "chunk4", "chunk6"]);
     }
 
-    fn names(pruned: &[Arc<TestChunk>]) -> Vec<&str> {
+    fn names(pruned: &[Arc<dyn QueryChunk>]) -> Vec<&str> {
         pruned.iter().map(|p| p.table_name()).collect()
     }
 
@@ -773,10 +769,10 @@ mod test {
     }
 
     impl PruningObserver for TestObserver {
-        type Observed = TestChunk;
-
-        fn was_pruned(&self, chunk: &Self::Observed) {
-            self.events.borrow_mut().push(format!("{}: Pruned", chunk))
+        fn was_pruned(&self, chunk: &dyn QueryChunk) {
+            self.events
+                .borrow_mut()
+                .push(format!("{}: Pruned", chunk.table_name()))
         }
 
         fn could_not_prune(&self, reason: &str) {

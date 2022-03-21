@@ -14,11 +14,11 @@ use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
 use observability_deps::tracing::warn;
 use parquet_file::metadata::IoxMetadata;
-use query::exec::Executor;
 use query::{
     compute_sort_key_for_chunks, exec::ExecutorType, frontend::reorg::ReorgPlanner,
     util::compute_timenanosecond_min_max,
 };
+use query::{exec::Executor, QueryChunk};
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     cmp::{max, min},
@@ -387,6 +387,10 @@ impl Compactor {
         }
 
         // Merge schema of the compacting chunks
+        let query_chunks: Vec<_> = query_chunks
+            .into_iter()
+            .map(|c| Arc::new(c) as Arc<dyn QueryChunk>)
+            .collect();
         let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
 
         // Compute the sorted output of the compacting result
@@ -394,11 +398,7 @@ impl Compactor {
 
         // Build compact query plan
         let plan = ReorgPlanner::new()
-            .compact_plan(
-                Arc::clone(&merged_schema),
-                query_chunks.into_iter().map(Arc::new),
-                sort_key.clone(),
-            )
+            .compact_plan(Arc::clone(&merged_schema), query_chunks, sort_key.clone())
             .context(CompactLogicalPlanSnafu)?;
         let ctx = self.exec.new_context(ExecutorType::Reorg);
         let physical_plan = ctx

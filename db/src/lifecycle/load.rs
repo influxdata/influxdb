@@ -8,7 +8,7 @@ use crate::{catalog::chunk::CatalogChunk, lifecycle::collect_rub, DbChunk};
 use data_types::job::Job;
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
-use query::{exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use query::{exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunk};
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
@@ -30,7 +30,7 @@ pub fn load_chunk(
     chunk.set_loading_to_read_buffer(&registration)?;
 
     // Get queryable chunk
-    let db_chunk = DbChunk::snapshot(&*chunk);
+    let db_chunk = DbChunk::snapshot(&*chunk) as Arc<dyn QueryChunk>;
 
     // Drop locks
     let chunk = chunk.into_data().chunk;

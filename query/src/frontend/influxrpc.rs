@@ -37,7 +37,7 @@ use crate::{
     },
     provider::ProviderBuilder,
     util::MissingColumnsToNull,
-    QueryChunk, QueryChunkMeta, QueryDatabase,
+    QueryChunk, QueryDatabase,
 };
 
 #[derive(Debug, Snafu)]
@@ -914,17 +914,14 @@ impl InfluxRpcPlanner {
     ///    Filter(predicate)
     ///      TableScan (of chunks)
     /// ```
-    fn tag_keys_plan<C>(
+    fn tag_keys_plan(
         &self,
         ctx: IOxExecutionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
-        chunks: Vec<Arc<C>>,
-    ) -> Result<Option<StringSetPlan>>
-    where
-        C: QueryChunk + 'static,
-    {
+        chunks: Vec<Arc<dyn QueryChunk>>,
+    ) -> Result<Option<StringSetPlan>> {
         let scan_and_filter = self.scan_and_filter(
             ctx.child_ctx("scan_and_filter planning"),
             table_name,
@@ -989,17 +986,14 @@ impl InfluxRpcPlanner {
     ///      Filter(predicate) [optional]
     ///        Scan
     /// ```
-    fn field_columns_plan<C>(
+    fn field_columns_plan(
         &self,
         ctx: IOxExecutionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
-        chunks: Vec<Arc<C>>,
-    ) -> Result<Option<LogicalPlan>>
-    where
-        C: QueryChunk + 'static,
-    {
+        chunks: Vec<Arc<dyn QueryChunk>>,
+    ) -> Result<Option<LogicalPlan>> {
         let scan_and_filter = self.scan_and_filter(
             ctx.child_ctx("scan_and_filter planning"),
             table_name,
@@ -1054,16 +1048,13 @@ impl InfluxRpcPlanner {
     ///      Filter(predicate) [optional]
     ///        Scan
     /// ```
-    fn table_name_plan<C>(
+    fn table_name_plan(
         &self,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
-        chunks: Vec<Arc<C>>,
-    ) -> Result<Option<LogicalPlan>>
-    where
-        C: QueryChunk + 'static,
-    {
+        chunks: Vec<Arc<dyn QueryChunk>>,
+    ) -> Result<Option<LogicalPlan>> {
         debug!(%table_name, "Creating table_name full plan");
         let scan_and_filter = self.scan_and_filter(
             self.ctx.child_ctx("scan_and_filter planning"),
@@ -1107,17 +1098,14 @@ impl InfluxRpcPlanner {
     ///      Order by (tag_columns, timestamp_column)
     ///        Filter(predicate)
     ///          Scan
-    fn read_filter_plan<C>(
+    fn read_filter_plan(
         &self,
         ctx: IOxExecutionContext,
         table_name: impl AsRef<str>,
         schema: Arc<Schema>,
         predicate: &Predicate,
-        chunks: Vec<Arc<C>>,
-    ) -> Result<Option<SeriesSetPlan>>
-    where
-        C: QueryChunk + 'static,
-    {
+        chunks: Vec<Arc<dyn QueryChunk>>,
+    ) -> Result<Option<SeriesSetPlan>> {
         let table_name = table_name.as_ref();
         let scan_and_filter = self.scan_and_filter(
             ctx.child_ctx("scan_and_filter planning"),
@@ -1223,18 +1211,15 @@ impl InfluxRpcPlanner {
     ///     GroupBy(gby cols, aggs, time cols)
     ///       Filter(predicate)
     ///          Scan
-    fn read_group_plan<C>(
+    fn read_group_plan(
         &self,
         ctx: IOxExecutionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
         agg: Aggregate,
-        chunks: Vec<Arc<C>>,
-    ) -> Result<Option<SeriesSetPlan>>
-    where
-        C: QueryChunk + 'static,
-    {
+        chunks: Vec<Arc<dyn QueryChunk>>,
+    ) -> Result<Option<SeriesSetPlan>> {
         let scan_and_filter = self.scan_and_filter(
             ctx.child_ctx("scan_and_filter planning"),
             table_name,
@@ -1341,7 +1326,7 @@ impl InfluxRpcPlanner {
     ///        Filter(predicate)
     ///          Scan
     #[allow(clippy::too_many_arguments)]
-    fn read_window_aggregate_plan<C>(
+    fn read_window_aggregate_plan(
         &self,
         ctx: IOxExecutionContext,
         table_name: impl Into<String>,
@@ -1350,11 +1335,8 @@ impl InfluxRpcPlanner {
         agg: Aggregate,
         every: &WindowDuration,
         offset: &WindowDuration,
-        chunks: Vec<Arc<C>>,
-    ) -> Result<Option<SeriesSetPlan>>
-    where
-        C: QueryChunk + 'static,
-    {
+        chunks: Vec<Arc<dyn QueryChunk>>,
+    ) -> Result<Option<SeriesSetPlan>> {
         let table_name = table_name.into();
         let scan_and_filter = self.scan_and_filter(
             ctx.child_ctx("scan_and_filter planning"),
@@ -1429,17 +1411,14 @@ impl InfluxRpcPlanner {
     ///   Filter(predicate) [optional]
     ///     Scan
     /// ```
-    fn scan_and_filter<C>(
+    fn scan_and_filter(
         &self,
         ctx: IOxExecutionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
-        chunks: Vec<Arc<C>>,
-    ) -> Result<Option<TableScanAndFilter>>
-    where
-        C: QueryChunk + 'static,
-    {
+        chunks: Vec<Arc<dyn QueryChunk>>,
+    ) -> Result<Option<TableScanAndFilter>> {
         // Scan all columns to begin with (DataFusion projection
         // push-down optimization will prune out unneeded columns later)
         let projection = None;
@@ -1505,10 +1484,10 @@ impl InfluxRpcPlanner {
 /// Prunes the provided list of chunks using [`QueryChunk::apply_predicate_to_metadata`]
 ///
 /// TODO: Should this logic live with the rest of the chunk pruning logic?
-fn prune_chunks_metadata<C>(chunks: Vec<Arc<C>>, predicate: &Predicate) -> Result<Vec<Arc<C>>>
-where
-    C: QueryChunk + 'static,
-{
+fn prune_chunks_metadata(
+    chunks: Vec<Arc<dyn QueryChunk>>,
+    predicate: &Predicate,
+) -> Result<Vec<Arc<dyn QueryChunk>>> {
     let mut filtered = Vec::with_capacity(chunks.len());
     for chunk in chunks {
         // Try and apply the predicate using only metadata

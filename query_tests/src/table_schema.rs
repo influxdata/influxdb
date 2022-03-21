@@ -1,7 +1,7 @@
 //! Tests for the table_names implementation
 
 use arrow::datatypes::DataType;
-use query::{QueryChunk, QueryChunkMeta, QueryDatabase};
+use query::QueryDatabase;
 use schema::selection::Selection;
 use schema::{builder::SchemaBuilder, sort::SortKey, Schema, TIME_COLUMN_NAME};
 

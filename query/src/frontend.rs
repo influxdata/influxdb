@@ -19,7 +19,7 @@ mod test {
         frontend::reorg::ReorgPlanner,
         provider::{DeduplicateExec, IOxReadFilterNode},
         test::TestChunk,
-        QueryChunkMeta,
+        QueryChunk, QueryChunkMeta,
     };
 
     /// A macro to asserts the contents of the extracted metrics is reasonable
@@ -89,9 +89,7 @@ mod test {
 
         // now validate metrics are good
         let extracted = extract_metrics(plan.as_ref(), |plan| {
-            plan.as_any()
-                .downcast_ref::<IOxReadFilterNode<TestChunk>>()
-                .is_some()
+            plan.as_any().downcast_ref::<IOxReadFilterNode>().is_some()
         })
         .unwrap();
 
@@ -197,7 +195,7 @@ mod test {
         extractor.inner
     }
 
-    fn get_test_chunks() -> (Arc<Schema>, Vec<Arc<TestChunk>>) {
+    fn get_test_chunks() -> (Arc<Schema>, Vec<Arc<dyn QueryChunk>>) {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_time_column_with_stats(Some(50), Some(7000))

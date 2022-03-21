@@ -48,28 +48,22 @@ impl ReorgPlanner {
     /// Creates an execution plan for a full scan of a single chunk.
     /// This plan is primarilty used to load chunks from one storage medium to
     /// another.
-    pub fn scan_single_chunk_plan<C>(
+    pub fn scan_single_chunk_plan(
         &self,
         schema: Arc<Schema>,
-        chunk: Arc<C>,
-    ) -> Result<LogicalPlan>
-    where
-        C: QueryChunk + 'static,
-    {
+        chunk: Arc<dyn QueryChunk>,
+    ) -> Result<LogicalPlan> {
         self.scan_single_chunk_plan_with_filter(schema, chunk, None, vec![])
     }
 
     /// Creates an execution plan for a scan and filter data of a single chunk
-    pub fn scan_single_chunk_plan_with_filter<C>(
+    pub fn scan_single_chunk_plan_with_filter(
         &self,
         schema: Arc<Schema>,
-        chunk: Arc<C>,
+        chunk: Arc<dyn QueryChunk>,
         projection: Option<Vec<usize>>,
         filters: Vec<Expr>,
-    ) -> Result<LogicalPlan>
-    where
-        C: QueryChunk + 'static,
-    {
+    ) -> Result<LogicalPlan> {
         let table_name = chunk.table_name();
         // Prepare the plan for the table
         let mut builder = ProviderBuilder::new(table_name, schema);
@@ -108,15 +102,14 @@ impl ReorgPlanner {
     ///
     /// (Sort on output_sort)
     ///   (Scan chunks) <-- any needed deduplication happens here
-    pub fn compact_plan<C, I>(
+    pub fn compact_plan<I>(
         &self,
         schema: Arc<Schema>,
         chunks: I,
         sort_key: SortKey,
     ) -> Result<LogicalPlan>
     where
-        C: QueryChunk + 'static,
-        I: IntoIterator<Item = Arc<C>>,
+        I: IntoIterator<Item = Arc<dyn QueryChunk>>,
     {
         let ScanPlan {
             plan_builder,
@@ -174,7 +167,7 @@ impl ReorgPlanner {
     ///  e | 3000
     ///  c | 4000
     /// ```
-    pub fn split_plan<C, I>(
+    pub fn split_plan<I>(
         &self,
         schema: Arc<Schema>,
         chunks: I,
@@ -182,8 +175,7 @@ impl ReorgPlanner {
         split_time: i64,
     ) -> Result<LogicalPlan>
     where
-        C: QueryChunk + 'static,
-        I: IntoIterator<Item = Arc<C>>,
+        I: IntoIterator<Item = Arc<dyn QueryChunk>>,
     {
         let ScanPlan {
             plan_builder,
@@ -209,15 +201,14 @@ impl ReorgPlanner {
     ///
     /// Refer to query::provider::build_scan_plan for the detail of the plan
     ///
-    fn sorted_scan_plan<C, I>(
+    fn sorted_scan_plan<I>(
         &self,
         schema: Arc<Schema>,
         chunks: I,
         sort_key: SortKey,
-    ) -> Result<ScanPlan<C>>
+    ) -> Result<ScanPlan>
     where
-        C: QueryChunk + 'static,
-        I: IntoIterator<Item = Arc<C>>,
+        I: IntoIterator<Item = Arc<dyn QueryChunk>>,
     {
         let mut chunks = chunks.into_iter().peekable();
         let table_name = match chunks.peek() {
@@ -265,9 +256,9 @@ impl ReorgPlanner {
     }
 }
 
-struct ScanPlan<C: QueryChunk + 'static> {
+struct ScanPlan {
     plan_builder: LogicalPlanBuilder,
-    provider: Arc<ChunkTableProvider<C>>,
+    provider: Arc<ChunkTableProvider>,
 }
 
 #[cfg(test)]
@@ -280,12 +271,11 @@ mod test {
     use crate::{
         exec::{Executor, ExecutorType},
         test::{raw_data, TestChunk},
-        QueryChunkMeta,
     };
 
     use super::*;
 
-    async fn get_test_chunks() -> (Arc<Schema>, Vec<Arc<TestChunk>>) {
+    async fn get_test_chunks() -> (Arc<Schema>, Vec<Arc<dyn QueryChunk>>) {
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
             TestChunk::new("t")
@@ -293,7 +283,7 @@ mod test {
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Chunk 2 has an extra field, and only 4 fields
         let chunk2 = Arc::new(
@@ -304,7 +294,7 @@ mod test {
                 .with_i64_field_column("field_int2")
                 .with_may_contain_pk_duplicates(true)
                 .with_four_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let expected = vec![
             "+-----------+------+--------------------------------+",

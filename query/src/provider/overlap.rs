@@ -7,9 +7,9 @@
 use data_types::partition_metadata::{ColumnSummary, StatOverlap, Statistics};
 use schema::TIME_COLUMN_NAME;
 use snafu::Snafu;
-use std::cmp::Ordering;
+use std::{cmp::Ordering, sync::Arc};
 
-use crate::QueryChunkMeta;
+use crate::QueryChunk;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -32,7 +32,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Groups [`QueryChunkMeta`] objects into disjoint sets using values of
+/// Groups [`QueryChunk`] objects into disjoint sets using values of
 /// min/max statistics. The groups are formed such that each group
 /// *may* contain InfluxDB data model primary key duplicates with
 /// others in that set.
@@ -48,17 +48,16 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// Note 2: this algorithm is O(n^2) worst case (when no chunks have
 /// any overlap)
-pub fn group_potential_duplicates<C>(chunks: Vec<C>) -> Result<Vec<Vec<C>>>
-where
-    C: QueryChunkMeta,
-{
-    let mut groups: Vec<Vec<KeyStats<'_, _>>> = vec![];
+pub fn group_potential_duplicates(
+    chunks: Vec<Arc<dyn QueryChunk>>,
+) -> Result<Vec<Vec<Arc<dyn QueryChunk>>>> {
+    let mut groups: Vec<Vec<KeyStats<'_>>> = vec![];
 
     // Step 1: find the up groups using references to `chunks` stored
     // in KeyStats views
     for (idx, chunk) in chunks.iter().enumerate() {
         // try to find a place to put this chunk
-        let mut key_stats = Some(KeyStats::new(idx, chunk));
+        let mut key_stats = Some(KeyStats::new(idx, chunk.as_ref()));
 
         'outer: for group in &mut groups {
             // If this chunk overlaps any existing chunk in group add
@@ -89,7 +88,7 @@ where
         .map(|group| group.into_iter().map(|key_stats| key_stats.index).collect())
         .collect();
 
-    let mut chunks: Vec<Option<C>> = chunks.into_iter().map(Some).collect();
+    let mut chunks: Vec<Option<Arc<dyn QueryChunk>>> = chunks.into_iter().map(Some).collect();
 
     let groups = groups
         .into_iter()
@@ -101,9 +100,9 @@ where
                         .take()
                         .expect("Internal mismatch while gathering into groups")
                 })
-                .collect::<Vec<C>>()
+                .collect::<Vec<_>>()
         })
-        .collect::<Vec<Vec<C>>>();
+        .collect::<Vec<Vec<_>>>();
 
     Ok(groups)
 }
@@ -111,29 +110,23 @@ where
 /// Holds a view to a chunk along with information about its columns
 /// in an easy to compare form
 #[derive(Debug)]
-struct KeyStats<'a, C>
-where
-    C: QueryChunkMeta,
-{
+struct KeyStats<'a> {
     /// The index of the chunk
     index: usize,
 
     /// The underlying chunk
     #[allow(dead_code)]
-    chunk: &'a C,
+    chunk: &'a dyn QueryChunk,
 
     /// the ColumnSummaries for the chunk's 'primary_key' columns, in
     /// "lexographical" order (aka sorted by name)
     key_summaries: Vec<&'a ColumnSummary>,
 }
 
-impl<'a, C> KeyStats<'a, C>
-where
-    C: QueryChunkMeta,
-{
+impl<'a> KeyStats<'a> {
     /// Create a new view for the specified chunk at index `index`,
     /// computing the columns to be used in the primary key comparison
-    pub fn new(index: usize, chunk: &'a C) -> Self {
+    pub fn new(index: usize, chunk: &'a dyn QueryChunk) -> Self {
         // find summaries for each primary key column:
         let key_summaries = chunk
             .schema()
@@ -297,17 +290,17 @@ mod test {
 
     #[test]
     fn one_column_no_overlap() {
-        let c1 = TestChunk::new("chunk1").with_tag_column_with_stats(
+        let c1 = Arc::new(TestChunk::new("chunk1").with_tag_column_with_stats(
             "tag1",
             Some("boston"),
             Some("mumbai"),
-        );
+        ));
 
-        let c2 = TestChunk::new("chunk2").with_tag_column_with_stats(
+        let c2 = Arc::new(TestChunk::new("chunk2").with_tag_column_with_stats(
             "tag1",
             Some("new york"),
             Some("zoo york"),
-        );
+        ));
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -317,17 +310,17 @@ mod test {
 
     #[test]
     fn one_column_overlap() {
-        let c1 = TestChunk::new("chunk1").with_tag_column_with_stats(
+        let c1 = Arc::new(TestChunk::new("chunk1").with_tag_column_with_stats(
             "tag1",
             Some("boston"),
             Some("new york"),
-        );
+        ));
 
-        let c2 = TestChunk::new("chunk2").with_tag_column_with_stats(
+        let c2 = Arc::new(TestChunk::new("chunk2").with_tag_column_with_stats(
             "tag1",
             Some("denver"),
             Some("zoo york"),
-        );
+        ));
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -337,9 +330,11 @@ mod test {
 
     #[test]
     fn one_time_column_overlap() {
-        let c1 = TestChunk::new("chunk1").with_time_column_with_stats(Some(100), Some(1000));
+        let c1 =
+            Arc::new(TestChunk::new("chunk1").with_time_column_with_stats(Some(100), Some(1000)));
 
-        let c2 = TestChunk::new("chunk2").with_time_column_with_stats(Some(200), Some(500));
+        let c2 =
+            Arc::new(TestChunk::new("chunk2").with_time_column_with_stats(Some(200), Some(500)));
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -349,24 +344,32 @@ mod test {
 
     #[test]
     fn multi_columns() {
-        let c1 = TestChunk::new("chunk1")
-            .with_time_column_with_stats(Some(0), Some(1000))
-            .with_tag_column_with_stats("tag1", Some("boston"), Some("new york"));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_time_column_with_stats(Some(0), Some(1000))
+                .with_tag_column_with_stats("tag1", Some("boston"), Some("new york")),
+        );
 
         // Overlaps in tag1, but not in time
-        let c2 = TestChunk::new("chunk2")
-            .with_tag_column_with_stats("tag1", Some("denver"), Some("zoo york"))
-            .with_time_column_with_stats(Some(2000), Some(3000));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_tag_column_with_stats("tag1", Some("denver"), Some("zoo york"))
+                .with_time_column_with_stats(Some(2000), Some(3000)),
+        );
 
         // Overlaps in time, but not in tag1
-        let c3 = TestChunk::new("chunk3")
-            .with_tag_column_with_stats("tag1", Some("zzx"), Some("zzy"))
-            .with_time_column_with_stats(Some(500), Some(1500));
+        let c3 = Arc::new(
+            TestChunk::new("chunk3")
+                .with_tag_column_with_stats("tag1", Some("zzx"), Some("zzy"))
+                .with_time_column_with_stats(Some(500), Some(1500)),
+        );
 
         // Overlaps in time, and in tag1
-        let c4 = TestChunk::new("chunk4")
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("zzz"))
-            .with_time_column_with_stats(Some(500), Some(1500));
+        let c4 = Arc::new(
+            TestChunk::new("chunk4")
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("zzz"))
+                .with_time_column_with_stats(Some(500), Some(1500)),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
 
@@ -380,37 +383,49 @@ mod test {
 
     #[test]
     fn missing_columns() {
-        let c1 = TestChunk::new("chunk1")
-            .with_time_column_with_stats(Some(0), Some(1000))
-            .with_tag_column_with_stats("tag1", Some("boston"), Some("new york"))
-            .with_tag_column_with_stats("tag2", Some("boston"), Some("new york"))
-            .with_tag_column_with_stats("z", Some("a"), Some("b"));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_time_column_with_stats(Some(0), Some(1000))
+                .with_tag_column_with_stats("tag1", Some("boston"), Some("new york"))
+                .with_tag_column_with_stats("tag2", Some("boston"), Some("new york"))
+                .with_tag_column_with_stats("z", Some("a"), Some("b")),
+        );
 
         // Overlaps in tag1, but not in time
-        let c2 = TestChunk::new("chunk2")
-            .with_tag_column_with_stats("tag1", Some("denver"), Some("zoo york"))
-            .with_time_column_with_stats(Some(2000), Some(3000));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_tag_column_with_stats("tag1", Some("denver"), Some("zoo york"))
+                .with_time_column_with_stats(Some(2000), Some(3000)),
+        );
 
         // Overlaps in time and z, but not in tag2
-        let c3 = TestChunk::new("chunk3")
-            .with_tag_column_with_stats("tag2", Some("zzx"), Some("zzy"))
-            .with_tag_column_with_stats("z", Some("a"), Some("b"))
-            .with_time_column_with_stats(Some(0), Some(1000));
+        let c3 = Arc::new(
+            TestChunk::new("chunk3")
+                .with_tag_column_with_stats("tag2", Some("zzx"), Some("zzy"))
+                .with_tag_column_with_stats("z", Some("a"), Some("b"))
+                .with_time_column_with_stats(Some(0), Some(1000)),
+        );
 
         // Overlaps in time, but not in tag1
-        let c4 = TestChunk::new("chunk4")
-            .with_tag_column_with_stats("tag1", Some("zzx"), Some("zzy"))
-            .with_time_column_with_stats(Some(2000), Some(3000));
+        let c4 = Arc::new(
+            TestChunk::new("chunk4")
+                .with_tag_column_with_stats("tag1", Some("zzx"), Some("zzy"))
+                .with_time_column_with_stats(Some(2000), Some(3000)),
+        );
 
         // Overlaps in time, but not z
-        let c5 = TestChunk::new("chunk5")
-            .with_tag_column_with_stats("z", Some("c"), Some("d"))
-            .with_time_column_with_stats(Some(0), Some(1000));
+        let c5 = Arc::new(
+            TestChunk::new("chunk5")
+                .with_tag_column_with_stats("z", Some("c"), Some("d"))
+                .with_time_column_with_stats(Some(0), Some(1000)),
+        );
 
         // Overlaps in z, but not in time
-        let c6 = TestChunk::new("chunk6")
-            .with_tag_column_with_stats("z", Some("a"), Some("b"))
-            .with_time_column_with_stats(Some(4000), Some(5000));
+        let c6 = Arc::new(
+            TestChunk::new("chunk6")
+                .with_tag_column_with_stats("z", Some("a"), Some("b"))
+                .with_time_column_with_stats(Some(4000), Some(5000)),
+        );
 
         let groups =
             group_potential_duplicates(vec![c1, c2, c3, c4, c5, c6]).expect("grouping succeeded");
@@ -436,24 +451,32 @@ mod test {
         // Even "time" column is stored in front of "url", the primary_key function
         // invoked inside potential_overlap invoked by group_potential_duplicates
         //  will return "url", "time"
-        let c1 = TestChunk::new("chunk1")
-            .with_time_column_with_stats(Some(0), Some(1000))
-            .with_tag_column_with_stats("url", Some("boston"), Some("new york")); // "url" > "time"
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_time_column_with_stats(Some(0), Some(1000))
+                .with_tag_column_with_stats("url", Some("boston"), Some("new york")),
+        ); // "url" > "time"
 
         // Overlaps in tag1, but not in time
-        let c2 = TestChunk::new("chunk2")
-            .with_tag_column_with_stats("url", Some("denver"), Some("zoo york"))
-            .with_time_column_with_stats(Some(2000), Some(3000));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_tag_column_with_stats("url", Some("denver"), Some("zoo york"))
+                .with_time_column_with_stats(Some(2000), Some(3000)),
+        );
 
         // Overlaps in time, but not in tag1
-        let c3 = TestChunk::new("chunk3")
-            .with_tag_column_with_stats("url", Some("zzx"), Some("zzy"))
-            .with_time_column_with_stats(Some(500), Some(1500));
+        let c3 = Arc::new(
+            TestChunk::new("chunk3")
+                .with_tag_column_with_stats("url", Some("zzx"), Some("zzy"))
+                .with_time_column_with_stats(Some(500), Some(1500)),
+        );
 
         // Overlaps in time, and in tag1
-        let c4 = TestChunk::new("chunk4")
-            .with_tag_column_with_stats("url", Some("aaa"), Some("zzz"))
-            .with_time_column_with_stats(Some(500), Some(1500));
+        let c4 = Arc::new(
+            TestChunk::new("chunk4")
+                .with_tag_column_with_stats("url", Some("aaa"), Some("zzz"))
+                .with_time_column_with_stats(Some(500), Some(1500)),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
 
@@ -468,10 +491,16 @@ mod test {
     #[test]
     fn boundary() {
         // check that overlap calculations include the bound
-        let c1 =
-            TestChunk::new("chunk1").with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"));
-        let c2 =
-            TestChunk::new("chunk2").with_tag_column_with_stats("tag1", Some("bbb"), Some("ccc"));
+        let c1 = Arc::new(TestChunk::new("chunk1").with_tag_column_with_stats(
+            "tag1",
+            Some("aaa"),
+            Some("bbb"),
+        ));
+        let c2 = Arc::new(TestChunk::new("chunk2").with_tag_column_with_stats(
+            "tag1",
+            Some("bbb"),
+            Some("ccc"),
+        ));
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -482,10 +511,16 @@ mod test {
     #[test]
     fn same() {
         // check that if chunks overlap exactly on the boundaries they are still grouped
-        let c1 =
-            TestChunk::new("chunk1").with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"));
-        let c2 =
-            TestChunk::new("chunk2").with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"));
+        let c1 = Arc::new(TestChunk::new("chunk1").with_tag_column_with_stats(
+            "tag1",
+            Some("aaa"),
+            Some("bbb"),
+        ));
+        let c2 = Arc::new(TestChunk::new("chunk2").with_tag_column_with_stats(
+            "tag1",
+            Some("aaa"),
+            Some("bbb"),
+        ));
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -496,10 +531,16 @@ mod test {
     #[test]
     fn different_tag_names() {
         // check that if chunks overlap but in different tag names
-        let c1 =
-            TestChunk::new("chunk1").with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"));
-        let c2 =
-            TestChunk::new("chunk2").with_tag_column_with_stats("tag2", Some("aaa"), Some("bbb"));
+        let c1 = Arc::new(TestChunk::new("chunk1").with_tag_column_with_stats(
+            "tag1",
+            Some("aaa"),
+            Some("bbb"),
+        ));
+        let c2 = Arc::new(TestChunk::new("chunk2").with_tag_column_with_stats(
+            "tag2",
+            Some("aaa"),
+            Some("bbb"),
+        ));
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -512,13 +553,17 @@ mod test {
     #[test]
     fn different_tag_names_multi_tags() {
         // check that if chunks overlap but in different tag names
-        let c1 = TestChunk::new("chunk1")
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_tag_column_with_stats("tag2", Some("aaa"), Some("bbb"));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_tag_column_with_stats("tag2", Some("aaa"), Some("bbb")),
+        );
 
-        let c2 = TestChunk::new("chunk2")
-            .with_tag_column_with_stats("tag2", Some("aaa"), Some("bbb"))
-            .with_tag_column_with_stats("tag3", Some("aaa"), Some("bbb"));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_tag_column_with_stats("tag2", Some("aaa"), Some("bbb"))
+                .with_tag_column_with_stats("tag3", Some("aaa"), Some("bbb")),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -529,22 +574,28 @@ mod test {
 
     #[test]
     fn three_column() {
-        let c1 = TestChunk::new("chunk1")
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_tag_column_with_stats("tag2", Some("xxx"), Some("yyy"))
-            .with_time_column_with_stats(Some(0), Some(1000));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_tag_column_with_stats("tag2", Some("xxx"), Some("yyy"))
+                .with_time_column_with_stats(Some(0), Some(1000)),
+        );
 
-        let c2 = TestChunk::new("chunk2")
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_tag_column_with_stats("tag2", Some("xxx"), Some("yyy"))
-            // Timestamp doesn't overlap, but the two tags do
-            .with_time_column_with_stats(Some(2001), Some(3000));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_tag_column_with_stats("tag2", Some("xxx"), Some("yyy"))
+                // Timestamp doesn't overlap, but the two tags do
+                .with_time_column_with_stats(Some(2001), Some(3000)),
+        );
 
-        let c3 = TestChunk::new("chunk3")
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_tag_column_with_stats("tag2", Some("aaa"), Some("zzz"))
-            // all three overlap
-            .with_time_column_with_stats(Some(1000), Some(2000));
+        let c3 = Arc::new(
+            TestChunk::new("chunk3")
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_tag_column_with_stats("tag2", Some("aaa"), Some("zzz"))
+                // all three overlap
+                .with_time_column_with_stats(Some(1000), Some(2000)),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2, c3]).expect("grouping succeeded");
 
@@ -554,16 +605,20 @@ mod test {
 
     #[test]
     fn tag_order() {
-        let c1 = TestChunk::new("chunk1")
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_tag_column_with_stats("tag2", Some("xxx"), Some("yyy"))
-            .with_time_column_with_stats(Some(0), Some(1000));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_tag_column_with_stats("tag2", Some("xxx"), Some("yyy"))
+                .with_time_column_with_stats(Some(0), Some(1000)),
+        );
 
-        let c2 = TestChunk::new("chunk2")
-            .with_tag_column_with_stats("tag2", Some("aaa"), Some("zzz"))
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            // all three overlap, but tags in different order
-            .with_time_column_with_stats(Some(500), Some(1000));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_tag_column_with_stats("tag2", Some("aaa"), Some("zzz"))
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                // all three overlap, but tags in different order
+                .with_time_column_with_stats(Some(500), Some(1000)),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -573,16 +628,20 @@ mod test {
 
     #[test]
     fn tag_order_no_tags() {
-        let c1 = TestChunk::new("chunk1")
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_tag_column_with_stats("tag2", Some("xxx"), Some("yyy"))
-            .with_time_column_with_stats(Some(0), Some(1000));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_tag_column_with_stats("tag2", Some("xxx"), Some("yyy"))
+                .with_time_column_with_stats(Some(0), Some(1000)),
+        );
 
-        let c2 = TestChunk::new("chunk2")
-            // tag1 and timestamp overlap, but no tag2 (aka it is all null)
-            // so it could overlap if there was a null tag2 value in chunk1
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_time_column_with_stats(Some(500), Some(1000));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                // tag1 and timestamp overlap, but no tag2 (aka it is all null)
+                // so it could overlap if there was a null tag2 value in chunk1
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_time_column_with_stats(Some(500), Some(1000)),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -592,17 +651,21 @@ mod test {
 
     #[test]
     fn tag_order_null_stats() {
-        let c1 = TestChunk::new("chunk1")
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_tag_column_with_stats("tag2", Some("xxx"), Some("yyy"))
-            .with_time_column_with_stats(Some(0), Some(1000));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_tag_column_with_stats("tag2", Some("xxx"), Some("yyy"))
+                .with_time_column_with_stats(Some(0), Some(1000)),
+        );
 
-        let c2 = TestChunk::new("chunk2")
-            // tag1 and timestamp overlap, tag2 has no stats (is all null)
-            // so they might overlap if chunk1 had a null in tag 2
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_tag_column_with_stats("tag2", None, None)
-            .with_time_column_with_stats(Some(500), Some(1000));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                // tag1 and timestamp overlap, tag2 has no stats (is all null)
+                // so they might overlap if chunk1 had a null in tag 2
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_tag_column_with_stats("tag2", None, None)
+                .with_time_column_with_stats(Some(500), Some(1000)),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -612,14 +675,18 @@ mod test {
 
     #[test]
     fn tag_order_partial_stats() {
-        let c1 = TestChunk::new("chunk1")
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_time_column_with_stats(Some(0), Some(1000));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_time_column_with_stats(Some(0), Some(1000)),
+        );
 
-        let c2 = TestChunk::new("chunk2")
-            // tag1 has a min but not a max. Should result in error
-            .with_tag_column_with_stats("tag1", Some("aaa"), None)
-            .with_time_column_with_stats(Some(500), Some(1000));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                // tag1 has a min but not a max. Should result in error
+                .with_tag_column_with_stats("tag1", Some("aaa"), None)
+                .with_time_column_with_stats(Some(500), Some(1000)),
+        );
 
         let result = group_potential_duplicates(vec![c1, c2]).unwrap_err();
 
@@ -636,17 +703,21 @@ mod test {
 
     #[test]
     fn tag_fields_not_counted() {
-        let c1 = TestChunk::new("chunk1")
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_i64_field_column_with_stats("field", Some(0), Some(2))
-            .with_time_column_with_stats(Some(0), Some(1000));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_i64_field_column_with_stats("field", Some(0), Some(2))
+                .with_time_column_with_stats(Some(0), Some(1000)),
+        );
 
-        let c2 = TestChunk::new("chunk2")
-            // tag1 and timestamp overlap, but field value does not
-            // should still overlap
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_i64_field_column_with_stats("field", Some(100), Some(200))
-            .with_time_column_with_stats(Some(500), Some(1000));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                // tag1 and timestamp overlap, but field value does not
+                // should still overlap
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_i64_field_column_with_stats("field", Some(100), Some(200))
+                .with_time_column_with_stats(Some(500), Some(1000)),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -659,16 +730,20 @@ mod test {
         // When the same column has different types in different
         // chunks; this will likely cause errors elsewhere in practice
         // as the schemas are incompatible (and can't be merged)
-        let c1 = TestChunk::new("chunk1")
-            .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
-            .with_time_column_with_stats(Some(0), Some(1000));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_tag_column_with_stats("tag1", Some("aaa"), Some("bbb"))
+                .with_time_column_with_stats(Some(0), Some(1000)),
+        );
 
-        let c2 = TestChunk::new("chunk2")
-            // tag1 column is actually a field is different in chunk
-            // 2, so since the timestamps overlap these chunks
-            // might also have duplicates (if tag1 was null in c1)
-            .with_i64_field_column_with_stats("tag1", Some(100), Some(200))
-            .with_time_column_with_stats(Some(0), Some(1000));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                // tag1 column is actually a field is different in chunk
+                // 2, so since the timestamps overlap these chunks
+                // might also have duplicates (if tag1 was null in c1)
+                .with_i64_field_column_with_stats("tag1", Some(100), Some(200))
+                .with_time_column_with_stats(Some(0), Some(1000)),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
 
@@ -678,7 +753,7 @@ mod test {
 
     // --- Test infrastructure --
 
-    fn to_string(groups: Vec<Vec<TestChunk>>) -> Vec<String> {
+    fn to_string(groups: Vec<Vec<Arc<dyn QueryChunk>>>) -> Vec<String> {
         let mut s = vec![];
         for (idx, group) in groups.iter().enumerate() {
             let names = group.iter().map(|c| c.table_name()).collect::<Vec<_>>();

@@ -102,9 +102,7 @@ impl TestDatabase {
 
 #[async_trait]
 impl QueryDatabase for TestDatabase {
-    type Chunk = TestChunk;
-
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
         // save last predicate
         *self.chunks_predicate.lock() = predicate.clone();
 
@@ -113,7 +111,7 @@ impl QueryDatabase for TestDatabase {
             .values()
             .flat_map(|x| x.values())
             .filter(|x| x.table_name == table_name)
-            .cloned()
+            .map(|x| Arc::clone(x) as _)
             .collect()
     }
 
@@ -975,7 +973,7 @@ impl QueryChunkMeta for TestChunk {
 }
 
 /// Return the raw data from the list of chunks
-pub async fn raw_data(chunks: &[Arc<TestChunk>]) -> Vec<RecordBatch> {
+pub async fn raw_data(chunks: &[Arc<dyn QueryChunk>]) -> Vec<RecordBatch> {
     let mut batches = vec![];
     for c in chunks {
         let pred = Predicate::default();
