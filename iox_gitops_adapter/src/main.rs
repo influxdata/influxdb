@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use dotenv::dotenv;
 use futures::StreamExt;
 use kube::{api::ListParams, Api, Client as K8sClient};
-use kube_runtime::controller::{Context, Controller, ReconcilerAction};
+use kube_runtime::controller::{Action, Context, Controller};
 use std::process::Command as Cmd;
 use thiserror::Error;
 use tracing::*;
@@ -208,7 +208,7 @@ async fn reconcile_topics(
 async fn reconcile<T>(
     topics: Arc<KafkaTopicList>,
     ctx: Context<Data<T>>,
-) -> Result<ReconcilerAction, CatalogError>
+) -> Result<Action, CatalogError>
 where
     T: KafkaTopicListApi,
 {
@@ -240,9 +240,7 @@ where
         Some(gen) => {
             if topics_status.observed_generation() == gen {
                 info!("Nothing to reconcile; observedGeneration == generation");
-                return Ok(ReconcilerAction {
-                    requeue_after: None,
-                });
+                return Ok(Action::await_change());
             }
             gen
         }
@@ -313,23 +311,19 @@ where
         }
     }
 
-    reconcile_result.map(|_| ReconcilerAction {
-        requeue_after: None,
-    })
+    reconcile_result.map(|_| Action::await_change())
 }
 
 /// an error handler that will be called when the reconciler fails
-fn error_policy<T>(error: &CatalogError, _ctx: Context<Data<T>>) -> ReconcilerAction
+fn error_policy<T>(error: &CatalogError, _ctx: Context<Data<T>>) -> Action
 where
     T: KafkaTopicListApi,
 {
     error!(%error, "reconciliation error");
-    ReconcilerAction {
-        // if a sync fails we want to retry- it could simply be in the process of
-        // doing another redeploy. there may be a deeper problem, in which case it'll keep trying
-        // and we'll see errors and investigate. arbitrary duration chosen ¯\_(ツ)_/¯
-        requeue_after: Some(Duration::from_secs(5)),
-    }
+    // if a sync fails we want to retry- it could simply be in the process of
+    // doing another redeploy. there may be a deeper problem, in which case it'll keep trying
+    // and we'll see errors and investigate. arbitrary duration chosen ¯\_(ツ)_/¯
+    Action::requeue(Duration::from_secs(5))
 }
 
 // Data we want access to in error/reconcile calls
@@ -448,7 +442,7 @@ mod tests {
         );
         let result = reconcile(Arc::new(c), Context::new(data)).await;
         // whole operation returns a successful result.
-        assert_matches!(result, Ok(ReconcilerAction { .. }));
+        result.unwrap();
         // ensure status was updated accordingly.
         // alas, we don't have a success patch result either, due to the above
         assert_eq!(
@@ -484,7 +478,7 @@ mod tests {
         );
         let result = reconcile(Arc::new(c), Context::new(data)).await;
         // whole operation returns a successful result.
-        assert_matches!(result, Ok(ReconcilerAction { .. }));
+        result.unwrap();
         // ensure status was updated accordingly.
         assert_eq!(
             mock_topics_api.get_calls(),
