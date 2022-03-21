@@ -1231,6 +1231,173 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn add_tombstones_to_parquet_files_in_groups() {
+        let catalog = TestCatalog::new();
+
+        let compactor = Compactor {
+            sequencers: vec![],
+            object_store: Arc::clone(&catalog.object_store),
+            catalog: Arc::clone(&catalog.catalog),
+            exec: Arc::new(Executor::new(1)),
+            time_provider: Arc::new(SystemProvider::new()),
+            backoff_config: BackoffConfig::default(),
+        };
+
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+
+        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = txn
+            .namespaces()
+            .create(
+                "namespace_add_tombstones_to_parquet_files_in_groups",
+                "inf",
+                kafka.id,
+                pool.id,
+            )
+            .await
+            .unwrap();
+        let table = txn
+            .tables()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = txn
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(1))
+            .await
+            .unwrap();
+        let partition = txn
+            .partitions()
+            .create_or_get("one", sequencer.id, table.id)
+            .await
+            .unwrap();
+
+        let p1 = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            table_id: table.id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(4),
+            max_sequence_number: SequenceNumber::new(100),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(5),
+            file_size_bytes: 1337,
+            parquet_metadata: b"md1".to_vec(),
+            row_count: 0,
+            created_at: Timestamp::new(1),
+        };
+
+        let p2 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(200),
+            min_time: Timestamp::new(4),
+            max_time: Timestamp::new(7),
+
+            ..p1.clone()
+        };
+        let pf1 = txn.parquet_files().create(p1).await.unwrap();
+        let pf2 = txn.parquet_files().create(p2).await.unwrap();
+
+        let parquet_files = vec![pf1.clone(), pf2.clone()];
+        let groups = vec![
+            vec![], // empty group should get filtered out
+            parquet_files,
+        ];
+
+        // Tombstone with a sequence number that's too low for both files, even though it overlaps
+        // with the time range. Shouldn't be included in the group
+        let _t1 = txn
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(1),
+                Timestamp::new(3),
+                Timestamp::new(6),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Tombstone with a sequence number too low for one file but not the other, time range
+        // overlaps both files
+        let t2 = txn
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(150),
+                Timestamp::new(3),
+                Timestamp::new(6),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Tombstone with a time range that only overlaps with one file
+        let t3 = txn
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(300),
+                Timestamp::new(6),
+                Timestamp::new(8),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Tombstone with a time range that overlaps both files and has a sequence number large
+        // enough for both files
+        let t4 = txn
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(400),
+                Timestamp::new(1),
+                Timestamp::new(10),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+        txn.commit().await.unwrap();
+
+        let groups_with_tombstones = compactor.add_tombstones_to_groups(groups).await.unwrap();
+
+        assert_eq!(groups_with_tombstones.len(), 1);
+        let group_with_tombstones = &groups_with_tombstones[0];
+
+        let actual_group_tombstone_ids = group_with_tombstones.tombstone_ids();
+        assert_eq!(
+            actual_group_tombstone_ids,
+            HashSet::from([t2.id, t3.id, t4.id])
+        );
+
+        let actual_pf1 = group_with_tombstones
+            .parquet_files
+            .iter()
+            .find(|pf| pf.parquet_file_id() == pf1.id)
+            .unwrap();
+        let mut actual_pf1_tombstones: Vec<_> =
+            actual_pf1.tombstones.iter().map(|t| t.id).collect();
+        actual_pf1_tombstones.sort();
+        assert_eq!(actual_pf1_tombstones, &[t2.id, t4.id]);
+
+        let actual_pf2 = group_with_tombstones
+            .parquet_files
+            .iter()
+            .find(|pf| pf.parquet_file_id() == pf2.id)
+            .unwrap();
+        let mut actual_pf2_tombstones: Vec<_> =
+            actual_pf2.tombstones.iter().map(|t| t.id).collect();
+        actual_pf2_tombstones.sort();
+        assert_eq!(actual_pf2_tombstones, &[t3.id, t4.id]);
+    }
+
     async fn list_all(object_store: &DynObjectStore) -> Result<Vec<Path>, object_store::Error> {
         object_store
             .list(None)
