@@ -34,7 +34,7 @@ impl QueryDatabase for QuerierNamespace {
     fn record_query(
         &self,
         ctx: &IOxExecutionContext,
-        query_type: impl Into<String>,
+        query_type: &str,
         query_text: QueryText,
     ) -> QueryCompletedToken {
         self.catalog_access
@@ -57,10 +57,10 @@ impl CatalogProvider for QuerierNamespace {
 }
 
 impl ExecutionContextProvider for QuerierNamespace {
-    fn new_query_context(self: &Arc<Self>, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
+    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
         self.exec
             .new_execution_config(ExecutorType::Query)
-            .with_default_catalog(Arc::<Self>::clone(self))
+            .with_default_catalog(Arc::clone(&self.catalog_access) as _)
             .with_span_context(span_ctx)
             .build()
     }

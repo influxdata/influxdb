@@ -120,7 +120,7 @@ impl QueryDatabase for TestDatabase {
     fn record_query(
         &self,
         _ctx: &IOxExecutionContext,
-        _query_type: impl Into<String>,
+        _query_type: &str,
         _query_text: QueryText,
     ) -> QueryCompletedToken {
         QueryCompletedToken::new(|_| {})
@@ -159,7 +159,7 @@ impl QueryDatabaseMeta for TestDatabase {
 }
 
 impl ExecutionContextProvider for TestDatabase {
-    fn new_query_context(self: &Arc<Self>, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
+    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
         // Note: unlike Db this does not register a catalog provider
         self.executor
             .new_execution_config(ExecutorType::Query)

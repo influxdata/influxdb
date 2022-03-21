@@ -32,10 +32,7 @@ impl AbstractDb {
 }
 
 impl ExecutionContextProvider for AbstractDb {
-    fn new_query_context(
-        self: &Arc<Self>,
-        span_ctx: Option<trace::ctx::SpanContext>,
-    ) -> IOxExecutionContext {
+    fn new_query_context(&self, span_ctx: Option<trace::ctx::SpanContext>) -> IOxExecutionContext {
         self.0.new_query_context(span_ctx)
     }
 }
@@ -69,10 +66,10 @@ impl QueryDatabase for AbstractDb {
     fn record_query(
         &self,
         ctx: &IOxExecutionContext,
-        query_type: impl Into<String>,
+        query_type: &str,
         query_text: query::QueryText,
     ) -> query::QueryCompletedToken {
-        self.0.record_query(ctx, query_type.into(), query_text)
+        self.0.record_query(ctx, query_type, query_text)
     }
 }
 
@@ -190,7 +187,7 @@ mod sealed {
         fn record_query(
             &self,
             ctx: &IOxExecutionContext,
-            query_type: String,
+            query_type: &str,
             query_text: query::QueryText,
         ) -> query::QueryCompletedToken;
 
@@ -233,7 +230,7 @@ impl AbstractDbInterface for OldDb {
     fn record_query(
         &self,
         ctx: &IOxExecutionContext,
-        query_type: String,
+        query_type: &str,
         query_text: query::QueryText,
     ) -> query::QueryCompletedToken {
         self.0.record_query(ctx, query_type, query_text)
