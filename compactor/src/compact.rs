@@ -4,16 +4,19 @@ use crate::{
     query::QueryableParquetChunk,
     utils::{CompactedData, ParquetFileWithTombstone},
 };
-use backoff::BackoffConfig;
+use arrow::record_batch::RecordBatch;
+use backoff::{Backoff, BackoffConfig};
+use bytes::Bytes;
 use data_types2::{
     ParquetFile, ParquetFileId, PartitionId, SequencerId, TableId, TablePartition, Timestamp,
     TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::Catalog;
+use iox_object_store::ParquetFilePath;
 use object_store::DynObjectStore;
 use observability_deps::tracing::warn;
-use parquet_file::metadata::IoxMetadata;
+use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use query::{
     compute_sort_key_for_chunks, exec::ExecutorType, frontend::reorg::ReorgPlanner,
     util::compute_timenanosecond_min_max,
@@ -104,6 +107,14 @@ pub enum Error {
     Level1 {
         source: iox_catalog::interface::Error,
     },
+
+    #[snafu(display("Error converting the parquet stream to bytes: {}", source))]
+    ConvertingToBytes {
+        source: parquet_file::storage::Error,
+    },
+
+    #[snafu(display("Error writing to object store: {}", source))]
+    WritingToObjectStore { source: object_store::Error },
 
     #[snafu(display("Error updating catalog {}", source))]
     Update {
@@ -269,17 +280,27 @@ impl Compactor {
             }
 
             // compact
-            let _compacted_data = self.compact(overlapped_files).await;
+            let compacted_data = self.compact(overlapped_files).await?;
+            if let Some(compacted) = compacted_data {
+                let split_compacted_files = Self::split_compacted(compacted)?;
 
-            // split the compacted data into 2 files 90/10
-            let output_parquet_files: Vec<ParquetFile> = vec![]; // TODO: #3999
+                for split_file in &split_compacted_files {
+                    let _file_size_and_md = Backoff::new(&self.backoff_config)
+                        .retry_all_errors("persist to object store", || {
+                            Self::persist(
+                                &split_file.meta,
+                                split_file.data.clone(),
+                                Arc::clone(&self.object_store),
+                            )
+                        })
+                        .await
+                        .expect("retry forever");
+                }
 
-            for _file in output_parquet_files {
-                // persist the file
-                // TODO: #3951
-
-                // update the catalog
-                // TODO: #3952
+                self.update_catalog(split_compacted_files)?;
+            } else {
+                // If there was nothing to compact, go on to the next group
+                continue;
             }
         }
 
@@ -456,6 +477,79 @@ impl Compactor {
         Ok(Some(compacted_data))
     }
 
+    fn split_compacted(_compacted_data: CompactedData) -> Result<Vec<CompactedData>> {
+        // split the compacted data into N files 90/10
+        // TODO: #3999
+        unimplemented!()
+    }
+
+    /// Write the given data to the given location in the given object storage.
+    ///
+    /// Returns the persisted file size (in bytes) and metadata if a file was created.
+    async fn persist(
+        metadata: &IoxMetadata,
+        record_batches: Vec<RecordBatch>,
+        object_store: Arc<DynObjectStore>,
+    ) -> Result<Option<(usize, IoxParquetMetaData)>> {
+        if record_batches.is_empty() {
+            return Ok(None);
+        }
+        // All record batches have the same schema.
+        let schema = record_batches
+            .first()
+            .expect("record_batches.is_empty was just checked")
+            .schema();
+
+        // Make a fake IOx object store to conform to the parquet file
+        // interface, but note this isn't actually used to find parquet
+        // paths to write to
+        use iox_object_store::IoxObjectStore;
+        let iox_object_store = Arc::new(IoxObjectStore::existing(
+            Arc::clone(&object_store),
+            IoxObjectStore::root_path_for(&*object_store, uuid::Uuid::new_v4()),
+        ));
+
+        let data = parquet_file::storage::Storage::new(Arc::clone(&iox_object_store))
+            .parquet_bytes(record_batches, schema, metadata)
+            .await
+            .context(ConvertingToBytesSnafu)?;
+
+        if data.is_empty() {
+            return Ok(None);
+        }
+
+        // extract metadata
+        let data = Arc::new(data);
+        let md = IoxParquetMetaData::from_file_bytes(Arc::clone(&data))
+            .expect("cannot read parquet file metadata")
+            .expect("no metadata in parquet file");
+        let data = Arc::try_unwrap(data).expect("dangling reference to data");
+
+        let file_size = data.len();
+        let bytes = Bytes::from(data);
+
+        let path = ParquetFilePath::new_new_gen(
+            metadata.namespace_id,
+            metadata.table_id,
+            metadata.sequencer_id,
+            metadata.partition_id,
+            metadata.object_store_id,
+        );
+
+        iox_object_store
+            .put_parquet_file(&path, bytes)
+            .await
+            .context(WritingToObjectStoreSnafu)?;
+
+        Ok(Some((file_size, md)))
+    }
+
+    fn update_catalog(&self, _split_compacted_files: Vec<CompactedData>) -> Result<()> {
+        // update the catalog
+        // TODO: #3952
+        unimplemented!();
+    }
+
     /// Given a list of parquet files that come from the same Table Partition, group files together
     /// if their (min_time, max_time) ranges overlap. Does not preserve or guarantee any ordering.
     fn overlapped_groups(mut parquet_files: Vec<ParquetFile>) -> Vec<Vec<ParquetFile>> {
@@ -496,8 +590,11 @@ impl Compactor {
 mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types2::SequenceNumber;
+    use data_types2::{NamespaceId, SequenceNumber};
+    use futures::{stream, StreamExt, TryStreamExt};
     use iox_tests::util::TestCatalog;
+    use object_store::path::Path;
+    use query::test::{raw_data, TestChunk};
     use time::SystemProvider;
 
     #[tokio::test]
@@ -894,5 +991,69 @@ mod tests {
             "Actually contains: {:#?}",
             many_group
         );
+    }
+
+    async fn list_all(object_store: &DynObjectStore) -> Result<Vec<Path>, object_store::Error> {
+        object_store
+            .list(None)
+            .await?
+            .map_ok(|v| stream::iter(v).map(Ok))
+            .try_flatten()
+            .try_collect()
+            .await
+    }
+
+    #[tokio::test]
+    async fn persist_adds_to_object_store() {
+        let catalog = TestCatalog::new();
+
+        let compactor = Compactor {
+            sequencers: vec![],
+            object_store: Arc::clone(&catalog.object_store),
+            catalog: Arc::clone(&catalog.catalog),
+            exec: Arc::new(Executor::new(1)),
+            time_provider: Arc::new(SystemProvider::new()),
+            backoff_config: BackoffConfig::default(),
+        };
+
+        let meta = IoxMetadata {
+            object_store_id: Uuid::new_v4(),
+            creation_timestamp: compactor.time_provider.now(),
+            namespace_id: NamespaceId::new(1),
+            namespace_name: "mydata".into(),
+            sequencer_id: SequencerId::new(2),
+            table_id: TableId::new(3),
+            table_name: "temperature".into(),
+            partition_id: PartitionId::new(4),
+            partition_key: "somehour".into(),
+            time_of_first_write: compactor.time_provider.now(),
+            time_of_last_write: compactor.time_provider.now(),
+            min_sequence_number: SequenceNumber::new(5),
+            max_sequence_number: SequenceNumber::new(6),
+            row_count: 3,
+        };
+
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column() //_with_full_stats(
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_three_rows_of_data(),
+        );
+        let data = raw_data(&[chunk1]).await;
+
+        let compacted_data = CompactedData::new(data, meta);
+
+        Compactor::persist(
+            &compacted_data.meta,
+            compacted_data.data,
+            Arc::clone(&compactor.object_store),
+        )
+        .await
+        .unwrap();
+
+        let object_store_files = list_all(&*compactor.object_store).await.unwrap();
+        assert_eq!(object_store_files.len(), 1);
     }
 }

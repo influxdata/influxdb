@@ -742,6 +742,7 @@ dependencies = [
  "arrow_util",
  "async-trait",
  "backoff 0.1.0",
+ "bytes",
  "data_types2",
  "datafusion 0.1.0",
  "futures",
