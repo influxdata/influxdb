@@ -2,7 +2,7 @@
 
 use crate::{
     query::QueryableParquetChunk,
-    utils::{CatalogUpdate, CompactedData, ParquetFileWithTombstone},
+    utils::{CatalogUpdate, CompactedData, GroupWithTombstones, ParquetFileWithTombstone},
 };
 use arrow::record_batch::RecordBatch;
 use backoff::{Backoff, BackoffConfig};
@@ -281,48 +281,23 @@ impl Compactor {
             .flat_map(|(_key, parquet_files)| Self::overlapped_groups(parquet_files))
             .collect();
 
-        let mut repo = self.catalog.repositories().await;
-        let tombstone_repo = repo.tombstones();
-        let mut overlapped_file_with_tombstones_groups =
-            Vec::with_capacity(overlapped_file_groups.len());
-
-        // For each group of overlapping parquet files,
-        for parquet_files in overlapped_file_groups {
-            let mut parquet_files_with_tombstones = Vec::with_capacity(parquet_files.len());
-            // Attach to each individual parquet file the relevant tombstones.
-            for parquet_file in parquet_files {
-                let tombstones = tombstone_repo
-                    .list_tombstones_for_time_range(
-                        parquet_file.sequencer_id,
-                        parquet_file.table_id,
-                        parquet_file.max_sequence_number,
-                        parquet_file.min_time,
-                        parquet_file.max_time,
-                    )
-                    .await
-                    .context(QueryingTombstonesSnafu)?;
-                parquet_files_with_tombstones.push(ParquetFileWithTombstone {
-                    data: Arc::new(parquet_file),
-                    tombstones,
-                });
-            }
-
-            overlapped_file_with_tombstones_groups.push(parquet_files_with_tombstones);
-        }
+        let groups_with_tombstones = self
+            .add_tombstones_to_groups(overlapped_file_groups)
+            .await?;
 
         // Compact, persist,and update catalog accordingly for each overlaped file
         let mut tombstones: HashSet<TombstoneId> = HashSet::new();
         let mut upgrade_level_list: Vec<ParquetFileId> = vec![];
-        for overlapped_files in overlapped_file_with_tombstones_groups {
+        for group in groups_with_tombstones {
             // keep tombstone ids
-            tombstones = Self::union_tombstone_ids(tombstones, &overlapped_files);
+            tombstones = Self::union_tombstone_ids(tombstones, &group);
 
             // Only one file without tombstones, no need to compact
-            if overlapped_files.len() == 1 && overlapped_files[0].no_tombstones() {
+            if group.parquet_files.len() == 1 && group.tombstones.is_empty() {
                 // If the file is old enough, it would not have any overlaps. Add it
                 // to the list to be upgraded to level 1
-                if overlapped_files[0].level_upgradable(Arc::clone(&self.time_provider)) {
-                    upgrade_level_list.push(overlapped_files[0].parquet_file_id());
+                if group.parquet_files[0].level_upgradable(Arc::clone(&self.time_provider)) {
+                    upgrade_level_list.push(group.parquet_files[0].parquet_file_id());
                 }
                 continue;
             }
@@ -330,10 +305,10 @@ impl Compactor {
             // Collect all the parquet file IDs, to be able to set their catalog records to be
             // deleted. These should already be unique, no need to dedupe.
             let original_parquet_file_ids: Vec<_> =
-                overlapped_files.iter().map(|f| f.data.id).collect();
+                group.parquet_files.iter().map(|f| f.data.id).collect();
 
             // compact
-            let split_compacted_files = self.compact(overlapped_files).await?;
+            let split_compacted_files = self.compact(group.parquet_files).await?;
             let mut catalog_update_info = Vec::with_capacity(split_compacted_files.len());
 
             for split_file in split_compacted_files {
@@ -404,12 +379,10 @@ impl Compactor {
     // Extract tombstones id
     fn union_tombstone_ids(
         mut tombstones: HashSet<TombstoneId>,
-        parquet_with_tombstones: &[ParquetFileWithTombstone],
+        group_with_tombstones: &GroupWithTombstones,
     ) -> HashSet<TombstoneId> {
-        for file in parquet_with_tombstones {
-            for id in file.tombstone_ids() {
-                tombstones.insert(id);
-            }
+        for id in group_with_tombstones.tombstone_ids() {
+            tombstones.insert(id);
         }
         tombstones
     }
@@ -709,6 +682,90 @@ impl Compactor {
     // Compute time to split data
     fn compute_split_time(min_time: i64, max_time: i64) -> i64 {
         min_time + (max_time - min_time) * SPLIT_PERCENTAGE / 100
+    }
+
+    async fn add_tombstones_to_groups(
+        &self,
+        groups: Vec<Vec<ParquetFile>>,
+    ) -> Result<Vec<GroupWithTombstones>> {
+        let mut repo = self.catalog.repositories().await;
+        let tombstone_repo = repo.tombstones();
+
+        let mut overlapped_file_with_tombstones_groups = Vec::with_capacity(groups.len());
+
+        // For each group of overlapping parquet files,
+        for parquet_files in groups {
+            // Skip over any empty groups
+            if parquet_files.is_empty() {
+                continue;
+            }
+
+            // Find the time range of the group
+            let overall_min_time = parquet_files
+                .iter()
+                .map(|pf| pf.min_time)
+                .min()
+                .expect("The group was checked for emptiness above");
+            let overall_max_time = parquet_files
+                .iter()
+                .map(|pf| pf.max_time)
+                .max()
+                .expect("The group was checked for emptiness above");
+            // For a tombstone to be relevant to any parquet file, the tombstone must have a
+            // sequence number greater than the parquet file's max_sequence_number. If we query
+            // for all tombstones with a sequence number greater than the smallest parquet file
+            // max_sequence_number in the group, we'll get all tombstones that could possibly
+            // be relevant for this group.
+            let overall_min_max_sequence_number = parquet_files
+                .iter()
+                .map(|pf| pf.max_sequence_number)
+                .min()
+                .expect("The group was checked for emptiness above");
+
+            // Query the catalog for the tombstones that could be relevant to any parquet files
+            // in this group.
+            let tombstones = tombstone_repo
+                .list_tombstones_for_time_range(
+                    // We've previously grouped the parquet files by sequence and table IDs, so
+                    // these values will be the same for all parquet files in the group.
+                    parquet_files[0].sequencer_id,
+                    parquet_files[0].table_id,
+                    overall_min_max_sequence_number,
+                    overall_min_time,
+                    overall_max_time,
+                )
+                .await
+                .context(QueryingTombstonesSnafu)?;
+
+            let parquet_files = parquet_files
+                .into_iter()
+                .map(|data| {
+                    // Filter the set of tombstones relevant to any file in the group to just those
+                    // relevant to this particular parquet file.
+                    let relevant_tombstones = tombstones
+                        .iter()
+                        .cloned()
+                        .filter(|t| {
+                            t.sequence_number > data.max_sequence_number
+                                && ((t.min_time <= data.min_time && t.max_time >= data.min_time)
+                                    || (t.min_time > data.min_time && t.min_time <= data.max_time))
+                        })
+                        .collect();
+
+                    ParquetFileWithTombstone {
+                        data: Arc::new(data),
+                        tombstones: relevant_tombstones,
+                    }
+                })
+                .collect();
+
+            overlapped_file_with_tombstones_groups.push(GroupWithTombstones {
+                parquet_files,
+                tombstones,
+            });
+        }
+
+        Ok(overlapped_file_with_tombstones_groups)
     }
 }
 
