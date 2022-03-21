@@ -240,12 +240,20 @@ impl QuerierNamespace {
 
         let mut desired_partitions = HashSet::with_capacity(partitions.len());
         for partition in partitions {
-            let table = self.catalog_cache.table().name(partition.table_id).await;
+            let table = match self.catalog_cache.table().name(partition.table_id).await {
+                Some(table) => table,
+                None => {
+                    // table gone in the meantime, skip partition
+                    continue;
+                }
+            };
+
             let key = self
                 .catalog_cache
                 .partition()
                 .old_gen_partition_key(partition.id)
                 .await;
+
             desired_partitions.insert((table, key));
         }
 
@@ -335,7 +343,14 @@ impl QuerierNamespace {
 
         let mut desired_chunks: HashMap<_, _> = HashMap::with_capacity(parquet_files.len());
         for parquet_file in parquet_files {
-            let addr = self.chunk_adapter.old_gen_chunk_addr(&parquet_file).await;
+            let addr = match self.chunk_adapter.old_gen_chunk_addr(&parquet_file).await {
+                Some(addr) => addr,
+                None => {
+                    // chunk gone, skip it
+                    continue;
+                }
+            };
+
             desired_chunks.insert(addr, parquet_file);
         }
 
@@ -373,7 +388,14 @@ impl QuerierNamespace {
         let to_add2 = to_add;
         let mut to_add = Vec::with_capacity(to_add2.len());
         for (addr, file) in to_add2 {
-            let parts = self.chunk_adapter.new_catalog_chunk_parts(file).await;
+            let parts = match self.chunk_adapter.new_catalog_chunk_parts(file).await {
+                Some(parts) => parts,
+                None => {
+                    // chunk gone
+                    continue;
+                }
+            };
+
             to_add.push((addr, parts));
         }
 
@@ -479,7 +501,19 @@ impl QuerierNamespace {
         let mut predicates_by_table_and_sequencer: HashMap<_, HashMap<_, Vec<_>>> =
             HashMap::with_capacity(tombstones_by_table_and_sequencer.len());
         for (table_id, tombstones_by_sequencer) in tombstones_by_table_and_sequencer {
-            let table_name = self.catalog_cache.table().name(table_id).await;
+            let table_name = match self.catalog_cache.table().name(table_id).await {
+                Some(table_name) => table_name,
+                None => {
+                    warn!(
+                        namespace = self.name.as_ref(),
+                        table_id = table_id.get(),
+                        "Table is gone from catalog, not updating it",
+                    );
+
+                    continue;
+                }
+            };
+
             let mut predicates_by_sequencer = HashMap::with_capacity(tombstones_by_sequencer.len());
             for (sequencer_id, mut tombstones) in tombstones_by_sequencer {
                 // sort tombstones by ID so that predicate lists are stable

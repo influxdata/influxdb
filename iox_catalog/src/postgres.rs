@@ -737,6 +737,32 @@ WHERE id = $1;
         Ok(Some(table))
     }
 
+    async fn get_by_namespace_and_name(
+        &mut self,
+        namespace_id: NamespaceId,
+        name: &str,
+    ) -> Result<Option<Table>> {
+        let rec = sqlx::query_as::<_, Table>(
+            r#"
+SELECT *
+FROM table_name
+WHERE namespace_id = $1 AND name = $2;
+            "#,
+        )
+        .bind(&namespace_id) // $1
+        .bind(&name) // $2
+        .fetch_one(&mut self.inner)
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let table = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(table))
+    }
+
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>> {
         let rec = sqlx::query_as::<_, Table>(
             r#"

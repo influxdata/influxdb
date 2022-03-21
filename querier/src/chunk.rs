@@ -49,9 +49,18 @@ impl ParquetChunkAdapter {
     }
 
     /// Create parquet chunk.
-    async fn new_parquet_chunk(&self, decoded_parquet_file: &DecodedParquetFile) -> ParquetChunk {
+    ///
+    /// Returns `None` if some data required to create this chunk is already gone from the catalog.
+    async fn new_parquet_chunk(
+        &self,
+        decoded_parquet_file: &DecodedParquetFile,
+    ) -> Option<ParquetChunk> {
         let parquet_file = &decoded_parquet_file.parquet_file;
-        let table_name = self.catalog_cache.table().name(parquet_file.table_id).await;
+        let table_name = self
+            .catalog_cache
+            .table()
+            .name(parquet_file.table_id)
+            .await?;
         let partition_key = self
             .catalog_cache
             .partition()
@@ -59,27 +68,29 @@ impl ParquetChunkAdapter {
             .await;
         let metrics = ParquetChunkMetrics::new(self.metric_registry.as_ref());
 
-        new_parquet_chunk(
+        Some(new_parquet_chunk(
             decoded_parquet_file,
             table_name,
             partition_key,
             metrics,
             Arc::clone(&self.iox_object_store),
-        )
+        ))
     }
 
     /// Create all components to create a catalog chunk using
     /// [`Partition::insert_object_store_only_chunk`](db::catalog::partition::Partition::insert_object_store_only_chunk).
+    ///
+    /// Returns `None` if some data required to create this chunk is already gone from the catalog.
     pub async fn new_catalog_chunk_parts(
         &self,
         parquet_file: ParquetFile,
-    ) -> (ChunkAddr, ChunkOrder, ChunkMetadata, Arc<ParquetChunk>) {
+    ) -> Option<(ChunkAddr, ChunkOrder, ChunkMetadata, Arc<ParquetChunk>)> {
         let decoded_parquet_file = DecodedParquetFile::new(parquet_file);
-        let chunk = Arc::new(self.new_parquet_chunk(&decoded_parquet_file).await);
+        let chunk = Arc::new(self.new_parquet_chunk(&decoded_parquet_file).await?);
 
         let addr = self
             .old_gen_chunk_addr(&decoded_parquet_file.parquet_file)
-            .await;
+            .await?;
 
         let iox_metadata = &decoded_parquet_file.iox_metadata;
 
@@ -99,24 +110,26 @@ impl ParquetChunkAdapter {
             sort_key: None,
         };
 
-        (addr, order, metadata, chunk)
+        Some((addr, order, metadata, chunk))
     }
 
     /// Create a catalog chunk.
-    pub async fn new_catalog_chunk(&self, parquet_file: ParquetFile) -> CatalogChunk {
-        let (addr, order, metadata, chunk) = self.new_catalog_chunk_parts(parquet_file).await;
+    ///
+    /// Returns `None` if some data required to create this chunk is already gone from the catalog.
+    pub async fn new_catalog_chunk(&self, parquet_file: ParquetFile) -> Option<CatalogChunk> {
+        let (addr, order, metadata, chunk) = self.new_catalog_chunk_parts(parquet_file).await?;
 
         // TODO: register metrics w/ catalog registry
         let metrics = CatalogChunkMetrics::new_unregistered();
 
-        CatalogChunk::new_object_store_only(
+        Some(CatalogChunk::new_object_store_only(
             addr,
             order,
             metadata,
             chunk,
             metrics,
             Arc::clone(&self.time_provider),
-        )
+        ))
     }
 
     /// Get chunk addr for old gen.
@@ -126,8 +139,10 @@ impl ParquetChunkAdapter {
     /// - `table.name -> table_name`
     /// - `sequencer.id X partition.name -> partition_key`
     /// - `parquet_file.id -> chunk_id`
-    pub async fn old_gen_chunk_addr(&self, parquet_file: &ParquetFile) -> ChunkAddr {
-        ChunkAddr {
+    ///
+    /// Returns `None` if some data required to create this chunk is already gone from the catalog.
+    pub async fn old_gen_chunk_addr(&self, parquet_file: &ParquetFile) -> Option<ChunkAddr> {
+        Some(ChunkAddr {
             db_name: self
                 .catalog_cache
                 .namespace()
@@ -135,17 +150,21 @@ impl ParquetChunkAdapter {
                     self.catalog_cache
                         .table()
                         .namespace_id(parquet_file.table_id)
-                        .await,
+                        .await?,
                 )
                 .await,
-            table_name: self.catalog_cache.table().name(parquet_file.table_id).await,
+            table_name: self
+                .catalog_cache
+                .table()
+                .name(parquet_file.table_id)
+                .await?,
             partition_key: self
                 .catalog_cache
                 .partition()
                 .old_gen_partition_key(parquet_file.partition_id)
                 .await,
             chunk_id: ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _)),
-        }
+        })
     }
 }
 
@@ -192,7 +211,7 @@ mod tests {
             .parquet_file
             .clone();
 
-        let catalog_chunk = adapter.new_catalog_chunk(parquet_file).await;
+        let catalog_chunk = adapter.new_catalog_chunk(parquet_file).await.unwrap();
         assert_eq!(
             catalog_chunk.addr().to_string(),
             "Chunk('ns':'table':'1-part':00000000-0000-0000-0000-000000000001)",

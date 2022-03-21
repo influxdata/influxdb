@@ -396,6 +396,20 @@ impl TableRepo for MemTxn {
         Ok(stage.tables.iter().find(|t| t.id == table_id).cloned())
     }
 
+    async fn get_by_namespace_and_name(
+        &mut self,
+        namespace_id: NamespaceId,
+        name: &str,
+    ) -> Result<Option<Table>> {
+        let stage = self.stage();
+
+        Ok(stage
+            .tables
+            .iter()
+            .find(|t| t.namespace_id == namespace_id && t.name == name)
+            .cloned())
+    }
+
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>> {
         let stage = self.stage();
 

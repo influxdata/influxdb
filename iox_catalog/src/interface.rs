@@ -280,6 +280,13 @@ pub trait TableRepo: Send + Sync {
     /// get table by ID
     async fn get_by_id(&mut self, table_id: TableId) -> Result<Option<Table>>;
 
+    /// get table by namespace ID and name
+    async fn get_by_namespace_and_name(
+        &mut self,
+        namespace_id: NamespaceId,
+        name: &str,
+    ) -> Result<Option<Table>>;
+
     /// Lists all tables in the catalog for the given namespace id.
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>>;
 
@@ -765,6 +772,53 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_ne!(tt, test_table);
         assert_eq!(test_table.namespace_id, namespace2.id);
+
+        // test get by namespace and name
+        let foo_table = repos
+            .tables()
+            .create_or_get("foo", namespace2.id)
+            .await
+            .unwrap();
+        assert_eq!(
+            repos
+                .tables()
+                .get_by_namespace_and_name(NamespaceId::new(i32::MAX), "test_table")
+                .await
+                .unwrap(),
+            None
+        );
+        assert_eq!(
+            repos
+                .tables()
+                .get_by_namespace_and_name(namespace.id, "not_existing")
+                .await
+                .unwrap(),
+            None
+        );
+        assert_eq!(
+            repos
+                .tables()
+                .get_by_namespace_and_name(namespace.id, "test_table")
+                .await
+                .unwrap(),
+            Some(t.clone())
+        );
+        assert_eq!(
+            repos
+                .tables()
+                .get_by_namespace_and_name(namespace2.id, "test_table")
+                .await
+                .unwrap(),
+            Some(test_table)
+        );
+        assert_eq!(
+            repos
+                .tables()
+                .get_by_namespace_and_name(namespace2.id, "foo")
+                .await
+                .unwrap(),
+            Some(foo_table)
+        );
 
         // test we can get table persistence info with no persistence so far
         let seq = repos
