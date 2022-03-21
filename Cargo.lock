@@ -5512,9 +5512,9 @@ dependencies = [
 
 [[package]]
 name = "synchronized-writer"
-version = "1.1.10"
+version = "1.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f886607578031fffb0996a24a5e5b73313f36dca63416b9d1c1004f7cb6084d"
+checksum = "d3543ca0810e71767052bdcdd5653f23998b192642a22c5164bfa6581e40a4a2"
 
 [[package]]
 name = "tempfile"
