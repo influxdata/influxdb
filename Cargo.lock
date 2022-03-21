@@ -1984,7 +1984,7 @@ dependencies = [
  "rustls 0.20.4",
  "rustls-native-certs 0.6.1",
  "tokio",
- "tokio-rustls 0.23.2",
+ "tokio-rustls 0.23.3",
  "webpki-roots 0.22.2",
 ]
 
@@ -4477,7 +4477,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "tokio",
- "tokio-rustls 0.23.2",
+ "tokio-rustls 0.23.3",
  "tokio-util 0.6.9",
  "url",
  "wasm-bindgen",
@@ -5754,9 +5754,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.23.2"
+version = "0.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a27d5f2b839802bd8267fa19b0530f5a08b9c08cd417976be2a65d130fe1c11b"
+checksum = "4151fda0cf2798550ad0b34bcfc9b9dcc2a9d2471c895c68f3a8818e54f2389e"
 dependencies = [
  "rustls 0.20.4",
  "tokio",
@@ -6566,7 +6566,7 @@ dependencies = [
  "sqlx-macros",
  "syn",
  "tokio",
- "tokio-rustls 0.23.2",
+ "tokio-rustls 0.23.3",
  "tokio-stream",
  "tokio-util 0.6.9",
  "tokio-util 0.7.0",
