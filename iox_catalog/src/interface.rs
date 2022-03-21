@@ -571,11 +571,10 @@ where
 #[cfg(test)]
 pub(crate) mod test_helpers {
     use super::*;
-    use crate::add_parquet_file_with_tombstones;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
     use data_types2::ColumnId;
     use metric::{Attributes, Metric, U64Histogram};
-    use std::{ops::DerefMut, sync::Arc, time::Duration};
+    use std::{sync::Arc, time::Duration};
 
     pub(crate) async fn test_catalog(catalog: Arc<dyn Catalog>) {
         test_setup(Arc::clone(&catalog)).await;
@@ -591,7 +590,6 @@ pub(crate) mod test_helpers {
         test_parquet_file_compaction_level_0(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_1(Arc::clone(&catalog)).await;
         test_update_to_compaction_level_1(Arc::clone(&catalog)).await;
-        test_add_parquet_file_with_tombstones(Arc::clone(&catalog)).await;
         test_txn_isolation(Arc::clone(&catalog)).await;
         test_txn_drop(Arc::clone(&catalog)).await;
 
@@ -1989,199 +1987,6 @@ pub(crate) mod test_helpers {
             "\nlevel 1: {:#?}\nexpected: {:#?}",
             level_1, expected,
         );
-    }
-
-    async fn test_add_parquet_file_with_tombstones(catalog: Arc<dyn Catalog>) {
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
-        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = txn
-            .namespaces()
-            .create(
-                "namespace_parquet_file_with_tombstones_test",
-                "inf",
-                kafka.id,
-                pool.id,
-            )
-            .await
-            .unwrap();
-        let table = txn
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
-        let sequencer = txn
-            .sequencers()
-            .create_or_get(&kafka, KafkaPartition::new(1))
-            .await
-            .unwrap();
-        let partition = txn
-            .partitions()
-            .create_or_get("one", sequencer.id, table.id)
-            .await
-            .unwrap();
-
-        // Add tombstones
-        let min_time = Timestamp::new(1);
-        let max_time = Timestamp::new(10);
-        let t1 = txn
-            .tombstones()
-            .create_or_get(
-                table.id,
-                sequencer.id,
-                SequenceNumber::new(1),
-                min_time,
-                max_time,
-                "whatevs",
-            )
-            .await
-            .unwrap();
-        let t2 = txn
-            .tombstones()
-            .create_or_get(
-                table.id,
-                sequencer.id,
-                SequenceNumber::new(2),
-                min_time,
-                max_time,
-                "bleh",
-            )
-            .await
-            .unwrap();
-        let t3 = txn
-            .tombstones()
-            .create_or_get(
-                table.id,
-                sequencer.id,
-                SequenceNumber::new(3),
-                min_time,
-                max_time,
-                "meh",
-            )
-            .await
-            .unwrap();
-
-        // Prepare metadata in form of ParquetFileParams to get added with tombstone
-        let parquet = ParquetFileParams {
-            sequencer_id: sequencer.id,
-            table_id: table.id,
-            partition_id: partition.id,
-            object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(4),
-            max_sequence_number: SequenceNumber::new(10),
-            min_time,
-            max_time,
-            file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
-            row_count: 0,
-            created_at: Timestamp::new(1),
-        };
-        let other_parquet = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(11),
-            max_sequence_number: SequenceNumber::new(20),
-            ..parquet.clone()
-        };
-        let another_parquet = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(21),
-            max_sequence_number: SequenceNumber::new(30),
-            ..parquet.clone()
-        };
-
-        let parquet_file_count_before = txn.parquet_files().count().await.unwrap();
-        let pt_count_before = txn.processed_tombstones().count().await.unwrap();
-        txn.commit().await.unwrap();
-
-        // Add parquet and processed tombstone in one transaction
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let (parquet_file, p_tombstones) = add_parquet_file_with_tombstones(
-            parquet.clone(),
-            &[t1.clone(), t2.clone()],
-            txn.deref_mut(),
-        )
-        .await
-        .unwrap();
-        txn.commit().await.unwrap();
-        assert_eq!(p_tombstones.len(), 2);
-        assert_eq!(t1.id, p_tombstones[0].tombstone_id);
-        assert_eq!(t2.id, p_tombstones[1].tombstone_id);
-
-        // verify the catalog
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let parquet_file_count_after = txn.parquet_files().count().await.unwrap();
-        let pt_count_after = txn.processed_tombstones().count().await.unwrap();
-        assert_eq!(pt_count_after - pt_count_before, 2);
-        assert_eq!(parquet_file_count_after - parquet_file_count_before, 1);
-        let pt_count_before = pt_count_after;
-        let parquet_file_count_before = parquet_file_count_after;
-
-        assert!(txn.parquet_files().exist(parquet_file.id).await.unwrap());
-        assert!(txn
-            .processed_tombstones()
-            .exist(parquet_file.id, t1.id)
-            .await
-            .unwrap());
-        assert!(txn
-            .processed_tombstones()
-            .exist(parquet_file.id, t1.id)
-            .await
-            .unwrap());
-        txn.commit().await.unwrap();
-
-        // Error due to duplicate parquet file
-        let mut txn = catalog.start_transaction().await.unwrap();
-        add_parquet_file_with_tombstones(parquet, &[t3.clone(), t1.clone()], txn.deref_mut())
-            .await
-            .unwrap_err();
-        txn.abort().await.unwrap();
-
-        // Since the transaction is rollback, t3 is not yet added
-        let mut txn = catalog.start_transaction().await.unwrap();
-        assert!(!txn
-            .processed_tombstones()
-            .exist(parquet_file.id, t3.id)
-            .await
-            .unwrap());
-
-        // Add new parquet and new tombstone. Should go trhough
-        let (parquet_file, p_tombstones) =
-            add_parquet_file_with_tombstones(other_parquet, &[t3.clone()], txn.deref_mut())
-                .await
-                .unwrap();
-        assert_eq!(p_tombstones.len(), 1);
-        assert_eq!(t3.id, p_tombstones[0].tombstone_id);
-        assert!(txn
-            .processed_tombstones()
-            .exist(parquet_file.id, t3.id)
-            .await
-            .unwrap());
-        assert!(txn.parquet_files().exist(parquet_file.id).await.unwrap());
-
-        let pt_count_after = txn.processed_tombstones().count().await.unwrap();
-        let parquet_file_count_after = txn.parquet_files().count().await.unwrap();
-        assert_eq!(pt_count_after - pt_count_before, 1);
-        assert_eq!(parquet_file_count_after - parquet_file_count_before, 1);
-        let pt_count_before = pt_count_after;
-        let parquet_file_count_before = parquet_file_count_after;
-        txn.commit().await.unwrap();
-
-        // Add non-exist tombstone t4 and should fail
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let mut t4 = t3.clone();
-        t4.id = TombstoneId::new(t4.id.get() + 10);
-        add_parquet_file_with_tombstones(another_parquet, &[t4], txn.deref_mut())
-            .await
-            .unwrap_err();
-        txn.abort().await.unwrap();
-
-        // Still same count as before
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let pt_count_after = txn.processed_tombstones().count().await.unwrap();
-        let parquet_file_count_after = txn.parquet_files().count().await.unwrap();
-        assert_eq!(pt_count_after - pt_count_before, 0);
-        assert_eq!(parquet_file_count_after - parquet_file_count_before, 0);
-        txn.commit().await.unwrap();
     }
 
     async fn test_txn_isolation(catalog: Arc<dyn Catalog>) {

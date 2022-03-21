@@ -13,8 +13,8 @@
 
 use crate::interface::{Error, Result, Transaction};
 use data_types2::{
-    ColumnType, KafkaPartition, KafkaTopic, NamespaceSchema, ParquetFile, ParquetFileParams,
-    ProcessedTombstone, QueryPool, Sequencer, SequencerId, TableSchema, Tombstone,
+    ColumnType, KafkaPartition, KafkaTopic, NamespaceSchema, QueryPool, Sequencer, SequencerId,
+    TableSchema,
 };
 use interface::{ColumnUpsertRequest, RepoCollection};
 use mutable_batch::MutableBatch;
@@ -191,29 +191,6 @@ pub async fn create_or_get_default_records(
     }
 
     Ok((kafka_topic, query_pool, sequencers))
-}
-
-// TODO: this function is no longer needed in the ingester. It might be needed by the Compactor
-/// Insert the conpacted parquet file and its tombstones
-pub async fn add_parquet_file_with_tombstones(
-    parquet_file: ParquetFileParams,
-    tombstones: &[Tombstone],
-    txn: &mut dyn Transaction,
-) -> Result<(ParquetFile, Vec<ProcessedTombstone>), Error> {
-    // create a parquet file in the catalog first
-    let parquet = txn.parquet_files().create(parquet_file).await?;
-
-    // Now the parquet available, create its processed tombstones
-    let mut processed_tombstones = Vec::with_capacity(tombstones.len());
-    for tombstone in tombstones {
-        processed_tombstones.push(
-            txn.processed_tombstones()
-                .create(parquet.id, tombstone.id)
-                .await?,
-        );
-    }
-
-    Ok((parquet, processed_tombstones))
 }
 
 #[cfg(test)]
