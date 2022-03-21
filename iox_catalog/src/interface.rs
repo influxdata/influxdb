@@ -427,6 +427,9 @@ pub trait TombstoneRepo: Send + Sync {
     /// list all tombstones for a given namespace
     async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Tombstone>>;
 
+    /// list all tombstones for a given table
+    async fn list_by_table(&mut self, table_id: TableId) -> Result<Vec<Tombstone>>;
+
     /// return all tombstones for the sequencer with a sequence number greater than that
     /// passed in. This will be used by the ingester on startup to see what tombstones
     /// might have to be applied to data that is read from the write buffer.
@@ -464,6 +467,9 @@ pub trait ParquetFileRepo: Send + Sync {
         &mut self,
         namespace_id: NamespaceId,
     ) -> Result<Vec<ParquetFile>>;
+
+    /// List all parquet files within a given table that are NOT marked as [`to_delete`](ParquetFile::to_delete).
+    async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>>;
 
     /// List parquet files for a given sequencer with compaction level 0 and other criteria that
     /// define a file as a candidate for compaction
@@ -1314,7 +1320,17 @@ pub(crate) mod test_helpers {
             .list_tombstones_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(1))
             .await
             .unwrap();
-        assert_eq!(vec![t2, t3], listed);
+        assert_eq!(vec![t2.clone(), t3.clone()], listed);
+
+        // test list_by_table
+        let listed = repos.tombstones().list_by_table(table.id).await.unwrap();
+        assert_eq!(vec![t1, t3], listed);
+        let listed = repos
+            .tombstones()
+            .list_by_table(other_table.id)
+            .await
+            .unwrap();
+        assert_eq!(vec![t2], listed);
 
         // test list_by_namespace
         let namespace2 = repos
@@ -1474,6 +1490,20 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(files.first().unwrap().to_delete);
+
+        // test list_by_table_not_to_delete
+        let files = repos
+            .parquet_files()
+            .list_by_table_not_to_delete(table.id)
+            .await
+            .unwrap();
+        assert_eq!(files, vec![]);
+        let files = repos
+            .parquet_files()
+            .list_by_table_not_to_delete(other_table.id)
+            .await
+            .unwrap();
+        assert_eq!(files, vec![other_file]);
 
         // test list_by_namespace_not_to_delete
         let namespace2 = repos

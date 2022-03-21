@@ -1,16 +1,144 @@
 use crate::cache::CatalogCache;
-use data_types2::{ChunkAddr, ChunkId, ChunkOrder, ParquetFile};
-use db::catalog::chunk::{CatalogChunk, ChunkMetadata, ChunkMetrics as CatalogChunkMetrics};
+use data_types2::{
+    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId, SequenceNumber,
+    SequencerId,
+};
+use iox_catalog::interface::Catalog;
 use iox_object_store::IoxObjectStore;
 use object_store::DynObjectStore;
 use parquet_file::chunk::{
     new_parquet_chunk, ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk,
 };
+use schema::sort::SortKey;
 use std::sync::Arc;
 use time::TimeProvider;
 use uuid::Uuid;
 
-/// Adapter that can create old-gen chunks for the new-gen catalog.
+mod query_access;
+
+/// Immutable metadata attached to a [`QuerierChunk`].
+#[derive(Debug)]
+pub struct ChunkMeta {
+    /// Chunk address.
+    addr: ChunkAddr,
+
+    /// Chunk order.
+    order: ChunkOrder,
+
+    /// Sort key.
+    sort_key: Option<SortKey>,
+
+    /// Sequencer that created the data within this chunk.
+    sequencer_id: SequencerId,
+
+    /// The minimum sequence number within this chunk.
+    min_sequence_number: SequenceNumber,
+
+    /// The maximum sequence number within this chunk.
+    max_sequence_number: SequenceNumber,
+}
+
+impl ChunkMeta {
+    /// Chunk address.
+    pub fn addr(&self) -> &ChunkAddr {
+        &self.addr
+    }
+
+    /// Chunk order.
+    pub fn order(&self) -> ChunkOrder {
+        self.order
+    }
+
+    /// Sort key.
+    pub fn sort_key(&self) -> Option<&SortKey> {
+        self.sort_key.as_ref()
+    }
+
+    /// Sequencer that created the data within this chunk.
+    pub fn sequencer_id(&self) -> SequencerId {
+        self.sequencer_id
+    }
+
+    /// The minimum sequence number within this chunk.
+    pub fn min_sequence_number(&self) -> SequenceNumber {
+        self.min_sequence_number
+    }
+
+    /// The maximum sequence number within this chunk.
+    pub fn max_sequence_number(&self) -> SequenceNumber {
+        self.max_sequence_number
+    }
+}
+
+/// Determines how the chunk data is currently accessible.
+#[derive(Debug)]
+pub enum ChunkStorage {
+    /// Data is currently available via parquet file within the object store.
+    Parquet {
+        parquet_file_id: ParquetFileId,
+        chunk: Arc<ParquetChunk>,
+    },
+}
+
+/// Chunk representation for the querier.
+///
+/// These chunks are usually created on-demand. The querier cache system does not really have a notion of chunks (rather
+/// it knows about parquet files, local FS caches, ingester data, cached read buffers) but we need to combine all that
+/// knowledge into chunk objects because this is what the query engine (DataFusion and InfluxRPC) expect.
+#[derive(Debug)]
+pub struct QuerierChunk {
+    /// How the data is currently structured / available for query.
+    storage: ChunkStorage,
+
+    /// Immutable metadata.
+    meta: Arc<ChunkMeta>,
+
+    /// Delete predicates of this chunk
+    delete_predicates: Vec<Arc<DeletePredicate>>,
+}
+
+impl QuerierChunk {
+    /// Create new parquet-backed chunk (object store data).
+    pub fn new_parquet(
+        parquet_file_id: ParquetFileId,
+        chunk: Arc<ParquetChunk>,
+        meta: Arc<ChunkMeta>,
+    ) -> Self {
+        Self {
+            storage: ChunkStorage::Parquet {
+                parquet_file_id,
+                chunk,
+            },
+            meta,
+            delete_predicates: Vec::new(),
+        }
+    }
+
+    /// Set delete predicates of the given chunk.
+    pub fn with_delete_predicates(self, delete_predicates: Vec<Arc<DeletePredicate>>) -> Self {
+        Self {
+            storage: self.storage,
+            meta: self.meta,
+            delete_predicates,
+        }
+    }
+
+    /// Get metadata attached to the given chunk.
+    pub fn meta(&self) -> &ChunkMeta {
+        self.meta.as_ref()
+    }
+
+    /// Parquet file ID if this chunk is backed by a parquet file.
+    pub fn parquet_file_id(&self) -> Option<ParquetFileId> {
+        match &self.storage {
+            ChunkStorage::Parquet {
+                parquet_file_id, ..
+            } => Some(*parquet_file_id),
+        }
+    }
+}
+
+/// Adapter that can create chunks.
 #[derive(Debug)]
 pub struct ParquetChunkAdapter {
     /// Cache
@@ -48,6 +176,16 @@ impl ParquetChunkAdapter {
         }
     }
 
+    /// Get underlying catalog cache.
+    pub fn catalog_cache(&self) -> &Arc<CatalogCache> {
+        &self.catalog_cache
+    }
+
+    /// Get underlying catalog.
+    pub fn catalog(&self) -> Arc<dyn Catalog> {
+        self.catalog_cache.catalog()
+    }
+
     /// Create parquet chunk.
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
@@ -77,14 +215,10 @@ impl ParquetChunkAdapter {
         ))
     }
 
-    /// Create all components to create a catalog chunk using
-    /// [`Partition::insert_object_store_only_chunk`](db::catalog::partition::Partition::insert_object_store_only_chunk).
+    /// Create new querier chunk.
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    pub async fn new_catalog_chunk_parts(
-        &self,
-        parquet_file: ParquetFile,
-    ) -> Option<(ChunkAddr, ChunkOrder, ChunkMetadata, Arc<ParquetChunk>)> {
+    pub async fn new_querier_chunk(&self, parquet_file: ParquetFile) -> Option<QuerierChunk> {
         let decoded_parquet_file = DecodedParquetFile::new(parquet_file);
         let chunk = Arc::new(self.new_parquet_chunk(&decoded_parquet_file).await?);
 
@@ -99,36 +233,20 @@ impl ParquetChunkAdapter {
         let order = ChunkOrder::new(1 + iox_metadata.min_sequence_number.get() as u32)
             .expect("cannot be zero");
 
-        let metadata = ChunkMetadata {
-            table_summary: Arc::clone(chunk.table_summary()),
-            schema: chunk.schema(),
-            // delete predicates will be set/synced by a dedicated process
-            delete_predicates: vec![],
-            time_of_first_write: iox_metadata.time_of_first_write,
-            time_of_last_write: iox_metadata.time_of_last_write,
-            // TODO(marco): get sort key wired up (needs to come via IoxMetadata)
-            sort_key: None,
-        };
-
-        Some((addr, order, metadata, chunk))
-    }
-
-    /// Create a catalog chunk.
-    ///
-    /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    pub async fn new_catalog_chunk(&self, parquet_file: ParquetFile) -> Option<CatalogChunk> {
-        let (addr, order, metadata, chunk) = self.new_catalog_chunk_parts(parquet_file).await?;
-
-        // TODO: register metrics w/ catalog registry
-        let metrics = CatalogChunkMetrics::new_unregistered();
-
-        Some(CatalogChunk::new_object_store_only(
+        let meta = Arc::new(ChunkMeta {
             addr,
             order,
-            metadata,
+            // TODO(marco): get sort key wired up (needs to come via IoxMetadata)
+            sort_key: None,
+            sequencer_id: iox_metadata.sequencer_id,
+            min_sequence_number: decoded_parquet_file.parquet_file.min_sequence_number,
+            max_sequence_number: decoded_parquet_file.parquet_file.max_sequence_number,
+        });
+
+        Some(QuerierChunk::new_parquet(
+            decoded_parquet_file.parquet_file.id,
             chunk,
-            metrics,
-            Arc::clone(&self.time_provider),
+            meta,
         ))
     }
 
@@ -173,7 +291,6 @@ mod tests {
     use super::*;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
-    use db::chunk::DbChunk;
     use futures::StreamExt;
     use iox_tests::util::TestCatalog;
     use query::{exec::IOxExecutionContext, QueryChunk};
@@ -211,14 +328,13 @@ mod tests {
             .parquet_file
             .clone();
 
-        let catalog_chunk = adapter.new_catalog_chunk(parquet_file).await.unwrap();
+        let chunk = adapter.new_querier_chunk(parquet_file).await.unwrap();
         assert_eq!(
-            catalog_chunk.addr().to_string(),
+            chunk.meta().addr().to_string(),
             "Chunk('ns':'table':'1-part':00000000-0000-0000-0000-000000000001)",
         );
 
-        let db_chunk = DbChunk::snapshot(&catalog_chunk);
-        let batches = collect_read_filter(&db_chunk).await;
+        let batches = collect_read_filter(&chunk).await;
         assert_batches_eq!(
             &[
                 "+-----------+------+-----------------------------+",
@@ -233,7 +349,7 @@ mod tests {
         );
     }
 
-    async fn collect_read_filter(chunk: &DbChunk) -> Vec<RecordBatch> {
+    async fn collect_read_filter(chunk: &QuerierChunk) -> Vec<RecordBatch> {
         chunk
             .read_filter(
                 IOxExecutionContext::default(),

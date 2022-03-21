@@ -809,6 +809,18 @@ impl TombstoneRepo for MemTxn {
         Ok(tombstones)
     }
 
+    async fn list_by_table(&mut self, table_id: TableId) -> Result<Vec<Tombstone>> {
+        let stage = self.stage();
+
+        let tombstones: Vec<_> = stage
+            .tombstones
+            .iter()
+            .filter(|t| t.table_id == table_id)
+            .cloned()
+            .collect();
+        Ok(tombstones)
+    }
+
     async fn list_tombstones_by_sequencer_greater_than(
         &mut self,
         sequencer_id: SequencerId,
@@ -917,6 +929,18 @@ impl ParquetFileRepo for MemTxn {
             .parquet_files
             .iter()
             .filter(|f| table_ids.contains(&f.table_id) && !f.to_delete)
+            .cloned()
+            .collect();
+        Ok(parquet_files)
+    }
+
+    async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>> {
+        let stage = self.stage();
+
+        let parquet_files: Vec<_> = stage
+            .parquet_files
+            .iter()
+            .filter(|f| table_id == f.table_id && !f.to_delete)
             .cloned()
             .collect();
         Ok(parquet_files)

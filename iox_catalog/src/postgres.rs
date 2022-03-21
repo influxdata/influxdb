@@ -1242,6 +1242,21 @@ WHERE table_name.namespace_id = $1;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
+    async fn list_by_table(&mut self, table_id: TableId) -> Result<Vec<Tombstone>> {
+        sqlx::query_as::<_, Tombstone>(
+            r#"
+SELECT *
+FROM tombstone
+WHERE table_id = $1
+ORDER BY id;
+            "#,
+        )
+        .bind(&table_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
     async fn list_tombstones_by_sequencer_greater_than(
         &mut self,
         sequencer_id: SequencerId,
@@ -1365,6 +1380,20 @@ WHERE table_name.namespace_id = $1
              "#,
         )
         .bind(&namespace_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>> {
+        sqlx::query_as::<_, ParquetFile>(
+            r#"
+SELECT *
+FROM parquet_file
+WHERE table_id = $1 AND to_delete = false;
+             "#,
+        )
+        .bind(&table_id) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })

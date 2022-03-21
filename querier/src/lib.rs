@@ -23,3 +23,5 @@ pub mod handler;
 pub mod namespace;
 mod poison;
 pub mod server;
+mod table;
+mod tombstone;

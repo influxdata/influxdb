@@ -1,41 +1,112 @@
-use std::{any::Any, sync::Arc};
+use std::{any::Any, collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
+use datafusion::{
+    catalog::{catalog::CatalogProvider, schema::SchemaProvider},
+    datasource::TableProvider,
+};
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use query::{
     exec::{ExecutionContextProvider, ExecutorType, IOxExecutionContext},
-    QueryChunk, QueryCompletedToken, QueryDatabase, QueryText,
+    QueryChunk, QueryCompletedToken, QueryDatabase, QueryText, DEFAULT_SCHEMA,
 };
 use schema::Schema;
 use trace::ctx::SpanContext;
 
-use crate::namespace::QuerierNamespace;
+use crate::{namespace::QuerierNamespace, table::QuerierTable};
 
 impl QueryDatabaseMeta for QuerierNamespace {
     fn table_names(&self) -> Vec<String> {
-        self.catalog_access.table_names()
+        let mut names: Vec<_> = self.tables.read().keys().map(|s| s.to_string()).collect();
+        names.sort();
+        names
     }
 
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
-        self.catalog_access.table_schema(table_name)
+        self.tables
+            .read()
+            .get(table_name)
+            .map(|t| Arc::clone(t.schema()))
     }
 }
 
 #[async_trait]
 impl QueryDatabase for QuerierNamespace {
     async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
-        self.catalog_access.chunks(table_name, predicate).await
+        // get table metadata
+        let table = match self.tables.read().get(table_name).map(Arc::clone) {
+            Some(table) => table,
+            None => {
+                // table gone
+                return vec![];
+            }
+        };
+
+        let mut chunks = table.chunks().await;
+
+        // if there is a field restriction on the predicate, only
+        // chunks with that field should be returned. If the chunk has
+        // none of the fields specified, then it doesn't match
+        // TODO: test this branch
+        if let Some(field_columns) = &predicate.field_columns {
+            chunks.retain(|chunk| {
+                let schema = chunk.schema();
+                // keep chunk if it has any of the columns requested
+                field_columns
+                    .iter()
+                    .any(|col| schema.find_index_of(col).is_some())
+            })
+        }
+
+        let pruner = table.chunk_pruner();
+        pruner.prune_chunks(table_name, Arc::clone(table.schema()), chunks, predicate)
     }
 
     fn record_query(
         &self,
-        ctx: &IOxExecutionContext,
-        query_type: &str,
-        query_text: QueryText,
+        _ctx: &IOxExecutionContext,
+        _query_type: &str,
+        _query_text: QueryText,
     ) -> QueryCompletedToken {
-        self.catalog_access
-            .record_query(ctx, query_type, query_text)
+        // TODO: implement query recording again (https://github.com/influxdata/influxdb_iox/issues/4084)
+        QueryCompletedToken::new(|_success| {})
+    }
+}
+
+pub struct QuerierCatalogProvider {
+    /// A snapshot of all tables.
+    tables: Arc<HashMap<Arc<str>, Arc<QuerierTable>>>,
+}
+
+impl QuerierCatalogProvider {
+    fn from_namespace(namespace: &QuerierNamespace) -> Self {
+        Self {
+            tables: Arc::clone(&namespace.tables.read()),
+        }
+    }
+}
+
+impl CatalogProvider for QuerierCatalogProvider {
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+
+    fn schema_names(&self) -> Vec<String> {
+        // TODO: system tables (https://github.com/influxdata/influxdb_iox/issues/4085)
+        vec![
+            DEFAULT_SCHEMA.to_string(),
+            // system_tables::SYSTEM_SCHEMA.to_string(),
+        ]
+    }
+
+    fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
+        match name {
+            DEFAULT_SCHEMA => Some(Arc::new(UserSchemaProvider {
+                tables: Arc::clone(&self.tables),
+            })),
+            // SYSTEM_SCHEMA => Some(Arc::clone(&self.system_tables) as Arc<dyn SchemaProvider>),
+            _ => None,
+        }
     }
 }
 
@@ -45,11 +116,37 @@ impl CatalogProvider for QuerierNamespace {
     }
 
     fn schema_names(&self) -> Vec<String> {
-        self.catalog_access.schema_names()
+        QuerierCatalogProvider::from_namespace(self).schema_names()
     }
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
-        self.catalog_access.schema(name)
+        QuerierCatalogProvider::from_namespace(self).schema(name)
+    }
+}
+
+/// Provider for user-provided tables in [`DEFAULT_SCHEMA`].
+struct UserSchemaProvider {
+    /// A snapshot of all tables.
+    tables: Arc<HashMap<Arc<str>, Arc<QuerierTable>>>,
+}
+
+impl SchemaProvider for UserSchemaProvider {
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+
+    fn table_names(&self) -> Vec<String> {
+        let mut names: Vec<_> = self.tables.keys().map(|s| s.to_string()).collect();
+        names.sort();
+        names
+    }
+
+    fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
+        self.tables.get(name).map(|t| Arc::clone(t) as _)
+    }
+
+    fn table_exist(&self, name: &str) -> bool {
+        self.tables.contains_key(name)
     }
 }
 
@@ -57,7 +154,7 @@ impl ExecutionContextProvider for QuerierNamespace {
     fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
         self.exec
             .new_execution_config(ExecutorType::Query)
-            .with_default_catalog(Arc::clone(&self.catalog_access) as _)
+            .with_default_catalog(Arc::new(QuerierCatalogProvider::from_namespace(self)) as _)
             .with_span_context(span_ctx)
             .build()
     }
