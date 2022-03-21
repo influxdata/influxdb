@@ -1278,9 +1278,13 @@ ORDER BY id;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn list_tombstones_for_parquet_file(
+    async fn list_tombstones_for_time_range(
         &mut self,
-        parquet_file: &ParquetFile,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+        sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
     ) -> Result<Vec<Tombstone>> {
         sqlx::query_as::<_, Tombstone>(
             r#"
@@ -1294,11 +1298,11 @@ WHERE sequencer_id = $1
 ORDER BY id;
             "#,
         )
-        .bind(&parquet_file.sequencer_id) // $1
-        .bind(&parquet_file.table_id) // $2
-        .bind(&parquet_file.max_sequence_number) // $3
-        .bind(&parquet_file.min_time) // $4
-        .bind(&parquet_file.max_time) // $5
+        .bind(&sequencer_id) // $1
+        .bind(&table_id) // $2
+        .bind(&sequence_number) // $3
+        .bind(&min_time) // $4
+        .bind(&max_time) // $5
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })

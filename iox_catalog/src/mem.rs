@@ -837,9 +837,13 @@ impl TombstoneRepo for MemTxn {
         Ok(tombstones)
     }
 
-    async fn list_tombstones_for_parquet_file(
+    async fn list_tombstones_for_time_range(
         &mut self,
-        parquet_file: &ParquetFile,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+        sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
     ) -> Result<Vec<Tombstone>> {
         let stage = self.stage();
 
@@ -847,13 +851,11 @@ impl TombstoneRepo for MemTxn {
             .tombstones
             .iter()
             .filter(|t| {
-                t.sequencer_id == parquet_file.sequencer_id
-                    && t.table_id == parquet_file.table_id
-                    && t.sequence_number > parquet_file.max_sequence_number
-                    && ((t.min_time <= parquet_file.min_time
-                        && t.max_time >= parquet_file.min_time)
-                        || (t.min_time > parquet_file.min_time
-                            && t.min_time <= parquet_file.max_time))
+                t.sequencer_id == sequencer_id
+                    && t.table_id == table_id
+                    && t.sequence_number > sequence_number
+                    && ((t.min_time <= min_time && t.max_time >= min_time)
+                        || (t.min_time > min_time && t.min_time <= max_time))
             })
             .cloned()
             .collect();

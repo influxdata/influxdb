@@ -292,7 +292,13 @@ impl Compactor {
             // Attach to each individual parquet file the relevant tombstones.
             for parquet_file in parquet_files {
                 let tombstones = tombstone_repo
-                    .list_tombstones_for_parquet_file(&parquet_file)
+                    .list_tombstones_for_time_range(
+                        parquet_file.sequencer_id,
+                        parquet_file.table_id,
+                        parquet_file.max_sequence_number,
+                        parquet_file.min_time,
+                        parquet_file.max_time,
+                    )
                     .await
                     .context(QueryingTombstonesSnafu)?;
                 parquet_files_with_tombstones.push(ParquetFileWithTombstone {

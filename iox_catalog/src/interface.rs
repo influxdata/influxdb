@@ -439,10 +439,20 @@ pub trait TombstoneRepo: Send + Sync {
         sequence_number: SequenceNumber,
     ) -> Result<Vec<Tombstone>>;
 
-    /// Return all tombstones relevant to a particular parquet file. Used during compaction.
-    async fn list_tombstones_for_parquet_file(
+    /// Return all tombstones that have:
+    ///
+    /// - the specified sequencer ID and table ID
+    /// - a sequence number greater than the specified sequence number
+    /// - a time period that overlaps with the specified time period
+    ///
+    /// Used during compaction.
+    async fn list_tombstones_for_time_range(
         &mut self,
-        parquet_file: &ParquetFile,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+        sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
     ) -> Result<Vec<Tombstone>>;
 }
 
@@ -1580,7 +1590,13 @@ pub(crate) mod test_helpers {
 
         let tombstones = repos
             .tombstones()
-            .list_tombstones_for_parquet_file(&parquet_file)
+            .list_tombstones_for_time_range(
+                sequencer.id,
+                table.id,
+                max_sequence_number,
+                min_time,
+                max_time,
+            )
             .await
             .unwrap();
         let mut tombstones_ids: Vec<_> = tombstones.iter().map(|t| t.id).collect();
