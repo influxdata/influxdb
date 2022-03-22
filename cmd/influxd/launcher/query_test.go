@@ -6,10 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	context2 "github.com/influxdata/influxdb/v2/context"
-	"github.com/influxdata/influxdb/v2/mock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -19,6 +15,11 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	context2 "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
@@ -810,11 +811,11 @@ func (s TestQueryProfiler) Name() string {
 	return fmt.Sprintf("query%d", s.start)
 }
 
-func (s TestQueryProfiler) GetSortedResult(q flux.Query, alloc *memory.Allocator, desc bool, sortKeys ...string) (flux.Table, error) {
+func (s TestQueryProfiler) GetSortedResult(q flux.Query, alloc memory.Allocator, desc bool, sortKeys ...string) (flux.Table, error) {
 	return nil, nil
 }
 
-func (s TestQueryProfiler) GetResult(q flux.Query, alloc *memory.Allocator) (flux.Table, error) {
+func (s TestQueryProfiler) GetResult(q flux.Query, alloc memory.Allocator) (flux.Table, error) {
 	groupKey := execute.NewGroupKey(
 		[]flux.ColMeta{
 			{

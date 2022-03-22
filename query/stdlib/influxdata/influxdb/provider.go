@@ -220,9 +220,9 @@ type seriesCardinalityReader struct {
 }
 
 func (s seriesCardinalityReader) Read(ctx context.Context, f func(flux.Table) error, mem arrowmemory.Allocator) error {
-	alloc, ok := mem.(*memory.Allocator)
+	alloc, ok := mem.(memory.Allocator)
 	if !ok {
-		alloc = &memory.Allocator{
+		alloc = &memory.ResourceAllocator{
 			Allocator: mem,
 		}
 	}

@@ -34,7 +34,7 @@ type Source struct {
 	id execute.DatasetID
 	ts []execute.Transformation
 
-	alloc *memory.Allocator
+	alloc memory.Allocator
 	stats cursors.CursorStats
 
 	runner runner

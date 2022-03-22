@@ -43,7 +43,7 @@ type DatabasesDecoder struct {
 	orgID     platform2.ID
 	deps      *DatabasesDependencies
 	databases []*platform.DBRPMapping
-	alloc     *memory.Allocator
+	alloc     memory.Allocator
 }
 
 func (bd *DatabasesDecoder) Connect(ctx context.Context) error {

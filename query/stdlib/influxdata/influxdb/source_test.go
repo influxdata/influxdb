@@ -37,27 +37,27 @@ func (mockTableIterator) Statistics() cursors.CursorStats {
 type mockReader struct {
 }
 
-func (mockReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (mockReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
-func (mockReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (mockReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
-func (mockReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (mockReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
-func (mockReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (mockReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
-func (mockReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (mockReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
-func (mockReader) ReadSeriesCardinality(ctx context.Context, spec query.ReadSeriesCardinalitySpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (mockReader) ReadSeriesCardinality(ctx context.Context, spec query.ReadSeriesCardinalitySpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
 }
 
@@ -89,8 +89,8 @@ func (a mockAdministration) Bounds() *execute.Bounds {
 	return a.StreamBounds
 }
 
-func (mockAdministration) Allocator() *memory.Allocator {
-	return &memory.Allocator{}
+func (mockAdministration) Allocator() memory.Allocator {
+	return memory.DefaultAllocator
 }
 
 func (mockAdministration) Parents() []execute.DatasetID {
@@ -222,7 +222,7 @@ func TestReadWindowAggregateSource(t *testing.T) {
 				},
 			}
 			reader := &mock.StorageReader{
-				ReadWindowAggregateFn: func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+				ReadWindowAggregateFn: func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc memory.Allocator) (query.TableIterator, error) {
 					if want, got := orgID, spec.OrganizationID; want != got {
 						t.Errorf("unexpected organization id -want/+got:\n\t- %s\n\t+ %s", want, got)
 					}

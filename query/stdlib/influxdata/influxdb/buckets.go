@@ -39,7 +39,7 @@ type BucketsDecoder struct {
 	orgID   platform2.ID
 	deps    BucketDependencies
 	buckets []*platform.Bucket
-	alloc   *memory.Allocator
+	alloc   memory.Allocator
 }
 
 func (bd *BucketsDecoder) Connect(ctx context.Context) error {

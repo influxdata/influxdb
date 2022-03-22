@@ -627,7 +627,7 @@ type Query struct {
 	compiler flux.Compiler
 
 	memoryManager *queryMemoryManager
-	alloc         *memory.Allocator
+	alloc         *memory.ResourceAllocator
 }
 
 func (q *Query) ProfilerResults() (flux.ResultIterator, error) {
