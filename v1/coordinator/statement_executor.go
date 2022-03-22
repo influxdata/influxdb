@@ -372,6 +372,14 @@ func (e *StatementExecutor) executeDeleteSeriesStatement(ctx context.Context, q 
 		return err
 	}
 
+	// Require write for DELETE queries
+	_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
+	if err != nil {
+		return ectx.Send(ctx, &query.Result{
+			Err: fmt.Errorf("insufficient permissions"),
+		})
+	}
+
 	// Convert "now()" to current time.
 	q.Condition = influxql.Reduce(q.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
 
@@ -383,6 +391,15 @@ func (e *StatementExecutor) executeDropMeasurementStatement(ctx context.Context,
 	if err != nil {
 		return err
 	}
+
+	// Require write for DROP MEASUREMENT queries
+	_, _, err = authorizer.AuthorizeWrite(ctx, influxdb.BucketsResourceType, mapping.BucketID, ectx.OrgID)
+	if err != nil {
+		return ectx.Send(ctx, &query.Result{
+			Err: fmt.Errorf("insufficient permissions"),
+		})
+	}
+
 	return e.TSDBStore.DeleteMeasurement(ctx, mapping.BucketID.String(), q.Name)
 }
 
