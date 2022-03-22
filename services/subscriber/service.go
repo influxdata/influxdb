@@ -282,11 +282,11 @@ func (s *Service) createSubscription(se subEntry, mode string, destinations []st
 	for _, dest := range destinations {
 		u, err := url.Parse(dest)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse destination: %s", dest)
+			return nil, fmt.Errorf("failed to parse destination %q: %w", dest, err)
 		}
 		w, err := s.NewPointsWriter(*u)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create writer for destination: %s", dest)
+			return nil, fmt.Errorf("failed to create writer for destination %q: %w", dest, err)
 		}
 		writers = append(writers, w)
 		stats = append(stats, writerStats{dest: dest})
