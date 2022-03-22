@@ -143,7 +143,9 @@ func (w *writer) Write(data []byte, attempts int) (backoff time.Duration, should
 	switch res.StatusCode {
 	case http.StatusBadRequest:
 		if conf.DropNonRetryableData {
-			w.logger.Debug("dropped data", zap.Int("bytes", len(data)))
+			var errBody []byte
+			res.Body.Read(errBody)
+			w.logger.Warn("dropped data", zap.Int("bytes", len(data)), zap.String("reason", string(errBody)))
 			w.metrics.RemoteWriteDropped(w.replicationID, len(data))
 			return 0, false, nil
 		}
@@ -163,7 +165,7 @@ func (w *writer) Write(data []byte, attempts int) (backoff time.Duration, should
 }
 
 // normalizeResponse returns a guaranteed non-nil value for *http.Response, and an extracted error message string for use
-// in logging. The returned bool indicates that the response is retryable - false means that the write request should be
+// in logging. The returned bool indicates if the response is a time-out - false means that the write request should be
 // aborted due to a malformed request.
 func normalizeResponse(r *http.Response, err error) (*http.Response, string, bool) {
 	var errMsg string
