@@ -62,7 +62,7 @@ func NewReader(s storage.Store) query.StorageReader {
 	return &storeReader{s: s}
 }
 
-func (r *storeReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (r *storeReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &filterIterator{
 		ctx:   ctx,
 		s:     r.s,
@@ -72,7 +72,7 @@ func (r *storeReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec,
 	}, nil
 }
 
-func (r *storeReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (r *storeReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &groupIterator{
 		ctx:   ctx,
 		s:     r.s,
@@ -82,7 +82,7 @@ func (r *storeReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, a
 	}, nil
 }
 
-func (r *storeReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (r *storeReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &windowAggregateIterator{
 		ctx:   ctx,
 		s:     r.s,
@@ -92,7 +92,7 @@ func (r *storeReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWi
 	}, nil
 }
 
-func (r *storeReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (r *storeReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &tagKeysIterator{
 		ctx:       ctx,
 		bounds:    spec.Bounds,
@@ -103,7 +103,7 @@ func (r *storeReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpe
 	}, nil
 }
 
-func (r *storeReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (r *storeReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &tagValuesIterator{
 		ctx:       ctx,
 		bounds:    spec.Bounds,
@@ -114,7 +114,7 @@ func (r *storeReader) ReadTagValues(ctx context.Context, spec query.ReadTagValue
 	}, nil
 }
 
-func (r *storeReader) ReadSeriesCardinality(ctx context.Context, spec query.ReadSeriesCardinalitySpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (r *storeReader) ReadSeriesCardinality(ctx context.Context, spec query.ReadSeriesCardinalitySpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return &seriesCardinalityIterator{
 		ctx:       ctx,
 		bounds:    spec.Bounds,
@@ -137,7 +137,7 @@ type filterIterator struct {
 	spec  query.ReadFilterSpec
 	stats cursors.CursorStats
 	cache *tagsCache
-	alloc *memory.Allocator
+	alloc memory.Allocator
 }
 
 func (fi *filterIterator) Statistics() cursors.CursorStats { return fi.stats }
@@ -254,7 +254,7 @@ type groupIterator struct {
 	spec  query.ReadGroupSpec
 	stats cursors.CursorStats
 	cache *tagsCache
-	alloc *memory.Allocator
+	alloc memory.Allocator
 }
 
 func (gi *groupIterator) Statistics() cursors.CursorStats { return gi.stats }
@@ -629,7 +629,7 @@ type windowAggregateIterator struct {
 	spec  query.ReadWindowAggregateSpec
 	stats cursors.CursorStats
 	cache *tagsCache
-	alloc *memory.Allocator
+	alloc memory.Allocator
 }
 
 func (wai *windowAggregateIterator) Statistics() cursors.CursorStats { return wai.stats }
@@ -864,7 +864,7 @@ type tagKeysIterator struct {
 	s         storage.Store
 	readSpec  query.ReadTagKeysSpec
 	predicate *datatypes.Predicate
-	alloc     *memory.Allocator
+	alloc     memory.Allocator
 }
 
 func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
@@ -949,7 +949,7 @@ type tagValuesIterator struct {
 	s         storage.Store
 	readSpec  query.ReadTagValuesSpec
 	predicate *datatypes.Predicate
-	alloc     *memory.Allocator
+	alloc     memory.Allocator
 }
 
 func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
@@ -1026,7 +1026,7 @@ type seriesCardinalityIterator struct {
 	s         storage.Store
 	readSpec  query.ReadSeriesCardinalitySpec
 	predicate *datatypes.Predicate
-	alloc     *memory.Allocator
+	alloc     memory.Allocator
 	stats     cursors.CursorStats
 }
 

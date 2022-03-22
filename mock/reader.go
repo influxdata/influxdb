@@ -8,33 +8,33 @@ import (
 )
 
 type StorageReader struct {
-	ReadFilterFn                   func(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error)
-	ReadGroupFn                    func(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error)
-	ReadTagKeysFn                  func(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error)
-	ReadTagValuesFn                func(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error)
-	ReadWindowAggregateFn          func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error)
-	ReadSeriesCardinalityFn        func(ctx context.Context, spec query.ReadSeriesCardinalitySpec, alloc *memory.Allocator) (query.TableIterator, error)
+	ReadFilterFn                   func(ctx context.Context, spec query.ReadFilterSpec, alloc memory.Allocator) (query.TableIterator, error)
+	ReadGroupFn                    func(ctx context.Context, spec query.ReadGroupSpec, alloc memory.Allocator) (query.TableIterator, error)
+	ReadTagKeysFn                  func(ctx context.Context, spec query.ReadTagKeysSpec, alloc memory.Allocator) (query.TableIterator, error)
+	ReadTagValuesFn                func(ctx context.Context, spec query.ReadTagValuesSpec, alloc memory.Allocator) (query.TableIterator, error)
+	ReadWindowAggregateFn          func(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc memory.Allocator) (query.TableIterator, error)
+	ReadSeriesCardinalityFn        func(ctx context.Context, spec query.ReadSeriesCardinalitySpec, alloc memory.Allocator) (query.TableIterator, error)
 	SupportReadSeriesCardinalityFn func(ctx context.Context) bool
 	CloseFn                        func()
 }
 
-func (s *StorageReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (s *StorageReader) ReadFilter(ctx context.Context, spec query.ReadFilterSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return s.ReadFilterFn(ctx, spec, alloc)
 }
 
-func (s *StorageReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (s *StorageReader) ReadGroup(ctx context.Context, spec query.ReadGroupSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return s.ReadGroupFn(ctx, spec, alloc)
 }
 
-func (s *StorageReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (s *StorageReader) ReadTagKeys(ctx context.Context, spec query.ReadTagKeysSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return s.ReadTagKeysFn(ctx, spec, alloc)
 }
 
-func (s *StorageReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (s *StorageReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return s.ReadTagValuesFn(ctx, spec, alloc)
 }
 
-func (s *StorageReader) ReadSeriesCardinality(ctx context.Context, spec query.ReadSeriesCardinalitySpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (s *StorageReader) ReadSeriesCardinality(ctx context.Context, spec query.ReadSeriesCardinalitySpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return s.ReadSeriesCardinalityFn(ctx, spec, alloc)
 
 }
@@ -51,6 +51,6 @@ func (s *StorageReader) Close() {
 	}
 }
 
-func (s *StorageReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
+func (s *StorageReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc memory.Allocator) (query.TableIterator, error) {
 	return s.ReadWindowAggregateFn(ctx, spec, alloc)
 }
