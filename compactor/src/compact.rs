@@ -34,7 +34,7 @@ use uuid::Uuid;
 
 /// 24 hours in nanoseconds
 // TODO: make this a config parameter
-pub const LEVEL_UPGRADE_THRESHOLD_NANO: u64 = 60 * 60 * 24 * 1000000000;
+pub const LEVEL_UPGRADE_THRESHOLD_NANO: i64 = 60 * 60 * 24 * 1000000000;
 
 /// Percentage of least recent data we want to split to reduce compacting non-overlapped data
 /// Must be between 0 and 100
@@ -294,7 +294,7 @@ impl Compactor {
             if overlapped_files.len() == 1 && overlapped_files[0].no_tombstones() {
                 // If the file is old enough, it would not have any overlaps. Add it
                 // to the list to be upgraded to level 1
-                if overlapped_files[0].level_upgradable() {
+                if overlapped_files[0].level_upgradable(Arc::clone(&self.time_provider)) {
                     upgrade_level_list.push(overlapped_files[0].parquet_file_id());
                 }
                 continue;
@@ -989,6 +989,14 @@ mod tests {
     /// A test utility function to make minimially-viable ParquetFile records with particular
     /// min/max times. Does not involve the catalog at all.
     fn arbitrary_parquet_file(min_time: i64, max_time: i64) -> ParquetFile {
+        arbitrary_parquet_file_with_creation_time(min_time, max_time, 1)
+    }
+
+    fn arbitrary_parquet_file_with_creation_time(
+        min_time: i64,
+        max_time: i64,
+        created_at: i64,
+    ) -> ParquetFile {
         ParquetFile {
             id: ParquetFileId::new(0),
             sequencer_id: SequencerId::new(0),
@@ -1004,8 +1012,30 @@ mod tests {
             parquet_metadata: vec![],
             row_count: 0,
             compaction_level: 0,
-            created_at: Timestamp::new(1),
+            created_at: Timestamp::new(created_at),
         }
+    }
+
+    #[test]
+    fn test_level_upgradable() {
+        let time = Arc::new(SystemProvider::new());
+        // file older than one day
+        let pf_old = arbitrary_parquet_file_with_creation_time(1, 10, 1);
+        let pt_old = ParquetFileWithTombstone {
+            data: Arc::new(pf_old),
+            tombstones: vec![],
+        };
+        // upgradable
+        assert!(pt_old.level_upgradable(Arc::<time::SystemProvider>::clone(&time)));
+
+        // file is created today
+        let pf_new = arbitrary_parquet_file_with_creation_time(1, 10, time.now().timestamp_nanos());
+        let pt_new = ParquetFileWithTombstone {
+            data: Arc::new(pf_new),
+            tombstones: vec![],
+        };
+        // not upgradable
+        assert!(!pt_new.level_upgradable(Arc::<time::SystemProvider>::clone(&time)));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 //! Helpers of the Compactor
 
-use crate::query::QueryableParquetChunk;
+use crate::{compact::LEVEL_UPGRADE_THRESHOLD_NANO, query::QueryableParquetChunk};
 use arrow::record_batch::RecordBatch;
 use data_types2::{ParquetFile, ParquetFileId, ParquetFileParams, Tombstone, TombstoneId};
 use iox_object_store::IoxObjectStore;
@@ -10,6 +10,7 @@ use parquet_file::{
     metadata::{IoxMetadata, IoxParquetMetaData},
 };
 use std::{collections::HashSet, sync::Arc};
+use time::TimeProvider;
 
 /// Wrapper of a parquet file and its tombstones
 #[allow(missing_docs)]
@@ -31,10 +32,14 @@ impl ParquetFileWithTombstone {
     }
 
     /// Check if the parquet file is old enough to upgarde its level
-    pub fn level_upgradable(&self) -> bool {
-        // TODO: need to wait for creation_time added
-        // if time_provider.now() - self.data.creation_time > LEVEL_UPGRADE_THRESHOLD_NANO
-        true
+    pub fn level_upgradable(&self, time_provider: Arc<dyn TimeProvider>) -> bool {
+        if time_provider.now().timestamp_nanos() - self.data.created_at.get()
+            > LEVEL_UPGRADE_THRESHOLD_NANO
+        {
+            return true;
+        }
+
+        false
     }
 
     /// Return id of this parquet file
