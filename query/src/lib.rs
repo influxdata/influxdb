@@ -149,6 +149,11 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
         query_type: &str,
         query_text: QueryText,
     ) -> QueryCompletedToken;
+
+    /// Upcast to [`QueryDatabaseMeta`].
+    ///
+    /// This is required until <https://github.com/rust-lang/rust/issues/65991> is fixed.
+    fn as_meta(&self) -> &dyn QueryDatabaseMeta;
 }
 
 /// Error type for [`QueryChunk`] operations.

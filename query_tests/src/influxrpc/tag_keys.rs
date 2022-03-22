@@ -3,10 +3,7 @@ use datafusion::logical_plan::{col, lit};
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
 use query::{
-    exec::{
-        stringset::{IntoStringSet, StringSetRef},
-        ExecutionContextProvider,
-    },
+    exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,
 };
 
@@ -36,7 +33,7 @@ async fn run_tag_keys_test_case<D>(
         let ctx = db.new_query_context(None);
 
         let plan = planner
-            .tag_keys(db.as_ref(), predicate.clone())
+            .tag_keys(db.as_query_database(), predicate.clone())
             .await
             .expect("built plan successfully");
         let names = ctx

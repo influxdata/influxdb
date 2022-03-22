@@ -18,7 +18,7 @@ use crate::{
 use datafusion::logical_plan::{col, lit, when};
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
-use query::{exec::ExecutionContextProvider, frontend::influxrpc::InfluxRpcPlanner};
+use query::frontend::influxrpc::InfluxRpcPlanner;
 use test_helpers::assert_contains;
 
 /// runs read_filter(predicate) and compares it to the expected
@@ -54,12 +54,12 @@ async fn run_read_filter_test_case<D>(
 /// output
 async fn run_read_filter(
     predicate: InfluxRpcPredicate,
-    db: Arc<AbstractDb>,
+    db: Arc<dyn AbstractDb>,
 ) -> Result<Vec<String>, String> {
     let planner = InfluxRpcPlanner::default();
 
     let plan = planner
-        .read_filter(db.as_ref(), predicate)
+        .read_filter(db.as_query_database(), predicate)
         .await
         .map_err(|e| e.to_string())?;
 

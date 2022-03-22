@@ -4,7 +4,6 @@ use datafusion::prelude::*;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
 use query::{
-    exec::ExecutionContextProvider,
     frontend::influxrpc::InfluxRpcPlanner,
     group_by::{Aggregate, WindowDuration},
 };
@@ -34,7 +33,7 @@ async fn run_read_window_aggregate_test_case<D>(
 
         let plan = planner
             .read_window_aggregate(
-                db.as_ref(),
+                db.as_query_database(),
                 predicate.clone(),
                 agg,
                 every.clone(),

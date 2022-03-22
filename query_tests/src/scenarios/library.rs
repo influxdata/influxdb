@@ -1,7 +1,4 @@
 //! Library of test scenarios that can be used in query_tests
-
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use data_types::{
     delete_predicate::{DeleteExpr, DeletePredicate},
@@ -15,8 +12,6 @@ use db::{
     LockableChunk, LockablePartition,
 };
 use query::QueryChunk;
-
-use crate::db::AbstractDb;
 
 use super::{
     util::{
@@ -97,7 +92,6 @@ impl DbSetup for ChunkOrder {
         //
         // So the query engine must use `order` as a primary key to sort chunks, NOT `id`.
 
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario = DbScenario {
             scenario_name: "chunks where chunk ID alone cannot be used for ordering".into(),
             db,
@@ -137,7 +131,6 @@ impl DbSetup for NoData {
         // Scenario 1: No data in the DB yet
         //
         let db = make_db().await.db;
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario1 = DbScenario {
             scenario_name: "New, Empty Database".into(),
             db,
@@ -150,7 +143,6 @@ impl DbSetup for NoData {
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
         assert_eq!(count_object_store_chunks(&db), 0);
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario2 = DbScenario {
             scenario_name: "New, Empty Database after partitions are listed".into(),
             db,
@@ -189,7 +181,6 @@ impl DbSetup for NoData {
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing after dropping chunk 0
         assert_eq!(count_object_store_chunks(&db), 0); // still nothing
 
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario3 = DbScenario {
             scenario_name: "Empty Database after drop chunk that is in read buffer".into(),
             db,
@@ -236,7 +227,6 @@ impl DbSetup for NoData {
         assert_eq!(count_read_buffer_chunks(&db), 0);
         assert_eq!(count_object_store_chunks(&db), 0);
 
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario4 = DbScenario {
             scenario_name:
                 "Empty Database after drop chunk that is in both read buffer and object store"
@@ -653,7 +643,6 @@ impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
         ];
 
         write_lp(&db, &lp_lines.join("\n"));
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "Data in open chunk of mutable buffer".into(),
             db,
@@ -683,7 +672,6 @@ impl DbSetup for TwoMeasurementsManyFieldsOneRubChunk {
         // move all data to RUB
         db.compact_open_chunk("h2o", partition_key).await.unwrap();
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "Data in single chunk of read buffer".into(),
             db,
@@ -719,7 +707,6 @@ impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 0);
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "Data in two open mutable buffer chunks per table and read buffer"
                 .into(),
@@ -758,7 +745,6 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
         assert_eq!(count_read_buffer_chunks(&db), 2);
         assert_eq!(count_object_store_chunks(&db), 0);
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "2 chunks in read buffer".into(),
             db,
@@ -834,7 +820,6 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicates {
         assert_eq!(count_read_buffer_chunks(&db), 4);
         assert_eq!(count_object_store_chunks(&db), 0);
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "Data in four chunks with duplicates".into(),
             db,
@@ -877,7 +862,6 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 1);
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "Data in parquet, RUB, and MUB".into(),
             db,
@@ -1032,7 +1016,6 @@ impl DbSetup for OneMeasurementAllChunksDropped {
             .await
             .unwrap();
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "one measurement but all chunks are dropped".into(),
             db,
@@ -1531,7 +1514,6 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
         let db = make_db().await.db;
         let data = lp_lines.join("\n");
         write_lp(&db, &data);
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario1 = DbScenario {
             scenario_name: "Data in 4 partitions, open chunks of mutable buffer".into(),
             db,
@@ -1542,7 +1524,6 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
         write_lp(&db, &data);
         db.rollover_partition("h2o", "2020-03-01T00").await.unwrap();
         db.rollover_partition("h2o", "2020-03-02T00").await.unwrap();
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario2 = DbScenario {
             scenario_name:
                 "Data in 4 partitions, two open chunk and two closed chunks of mutable buffer"
@@ -1558,7 +1539,6 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
         rollover_and_load(&db, "2020-03-02T00", "h2o").await;
         rollover_and_load(&db, "2020-04-01T00", "h2o").await;
         rollover_and_load(&db, "2020-04-02T00", "h2o").await;
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario3 = DbScenario {
             scenario_name: "Data in 4 partitions, 4 closed chunks in mutable buffer".into(),
             db,

@@ -123,6 +123,10 @@ impl QueryDatabase for TestDatabase {
     ) -> QueryCompletedToken {
         QueryCompletedToken::new(|_| {})
     }
+
+    fn as_meta(&self) -> &dyn QueryDatabaseMeta {
+        self
+    }
 }
 
 impl QueryDatabaseMeta for TestDatabase {

@@ -81,9 +81,9 @@ impl InfluxRpcPredicate {
     /// Convert to a list of [`Predicate`] to apply to specific tables
     ///
     /// Returns a list of [`Predicate`] and their associated table name
-    pub fn table_predicates<D: QueryDatabaseMeta>(
+    pub fn table_predicates(
         &self,
-        table_info: &D,
+        table_info: &dyn QueryDatabaseMeta,
     ) -> DataFusionResult<Vec<(String, Predicate)>> {
         let table_names = match &self.table_names {
             Some(table_names) => itertools::Either::Left(table_names.iter().cloned()),

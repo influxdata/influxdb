@@ -281,7 +281,7 @@ impl<W: Write> Runner<W> {
             }));
             let ctx = executor
                 .new_execution_config(ExecutorType::Query)
-                .with_default_catalog(db)
+                .with_default_catalog(db.as_catalog_provider_arc())
                 .build();
 
             let physical_plan = planner

@@ -71,6 +71,10 @@ impl QueryDatabase for QuerierNamespace {
         // TODO: implement query recording again (https://github.com/influxdata/influxdb_iox/issues/4084)
         QueryCompletedToken::new(|_success| {})
     }
+
+    fn as_meta(&self) -> &dyn QueryDatabaseMeta {
+        self
+    }
 }
 
 pub struct QuerierCatalogProvider {

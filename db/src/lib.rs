@@ -1242,6 +1242,10 @@ impl QueryDatabase for Db {
         self.catalog_access
             .record_query(ctx, query_type, query_text)
     }
+
+    fn as_meta(&self) -> &dyn QueryDatabaseMeta {
+        self
+    }
 }
 
 impl QueryDatabaseMeta for Db {

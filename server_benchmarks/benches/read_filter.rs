@@ -1,6 +1,6 @@
 use criterion::{BenchmarkId, Criterion};
 use datafusion::logical_plan::{col, lit};
-use std::io::Read;
+use std::{io::Read, sync::Arc};
 // This is a struct that tells Criterion.rs to use the "futures" crate's
 // current-thread executor
 use db::Db;
@@ -78,7 +78,7 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DbScenario]) {
         let mut group = c.benchmark_group(format!("read_filter/{}", scenario_name));
 
         // downcast Db for performance
-        let db = db.old_db().unwrap();
+        let db = Arc::downcast::<Db>(Arc::clone(db).as_any_arc()).unwrap();
 
         for (predicate, pred_name) in &predicates {
             let chunks = db

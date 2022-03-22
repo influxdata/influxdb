@@ -21,7 +21,7 @@ use crate::db::AbstractDb;
 #[derive(Debug)]
 pub struct DbScenario {
     pub scenario_name: String,
-    pub db: Arc<AbstractDb>,
+    pub db: Arc<dyn AbstractDb>,
 }
 
 #[async_trait]

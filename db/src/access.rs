@@ -307,6 +307,10 @@ impl QueryDatabase for QueryCatalogAccess {
         let entry = query_log.push(query_type, query_text, trace_id);
         QueryCompletedToken::new(move |success| query_log.set_completed(entry, success))
     }
+
+    fn as_meta(&self) -> &dyn QueryDatabaseMeta {
+        self
+    }
 }
 
 impl QueryDatabaseMeta for QueryCatalogAccess {
