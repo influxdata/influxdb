@@ -79,6 +79,16 @@ impl QueryableParquetChunk {
     pub fn max_sequence_number(&self) -> SequenceNumber {
         self.iox_metadata.max_sequence_number
     }
+
+    /// Return min time
+    pub fn min_time(&self) -> i64 {
+        self.iox_metadata.time_of_first_write.timestamp_nanos()
+    }
+
+    /// Return max time
+    pub fn max_time(&self) -> i64 {
+        self.iox_metadata.time_of_last_write.timestamp_nanos()
+    }
 }
 
 impl QueryChunkMeta for QueryableParquetChunk {

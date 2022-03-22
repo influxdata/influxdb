@@ -154,7 +154,7 @@ impl QuerierTable {
 #[cfg(test)]
 mod tests {
     use data_types2::{ChunkId, ColumnType};
-    use iox_tests::util::TestCatalog;
+    use iox_tests::util::{now, TestCatalog};
 
     use crate::table::test_util::querier_table;
 
@@ -192,22 +192,58 @@ mod tests {
         assert!(querier_table.chunks().await.is_empty());
 
         let file111 = partition11
-            .create_parquet_file_with_sequence_numbers("table1 foo=1 11", 1, 2)
+            .create_parquet_file_with_min_max(
+                "table1 foo=1 11",
+                1,
+                2,
+                now().timestamp_nanos(),
+                now().timestamp_nanos(),
+            )
             .await;
         let file112 = partition11
-            .create_parquet_file_with_sequence_numbers("table1 foo=2 22", 3, 4)
+            .create_parquet_file_with_min_max(
+                "table1 foo=2 22",
+                3,
+                4,
+                now().timestamp_nanos(),
+                now().timestamp_nanos(),
+            )
             .await;
         let file113 = partition11
-            .create_parquet_file_with_sequence_numbers("table1 foo=3 33", 5, 6)
+            .create_parquet_file_with_min_max(
+                "table1 foo=3 33",
+                5,
+                6,
+                now().timestamp_nanos(),
+                now().timestamp_nanos(),
+            )
             .await;
         let file114 = partition11
-            .create_parquet_file_with_sequence_numbers("table1 foo=4 44", 7, 8)
+            .create_parquet_file_with_min_max(
+                "table1 foo=4 44",
+                7,
+                8,
+                now().timestamp_nanos(),
+                now().timestamp_nanos(),
+            )
             .await;
         let file121 = partition12
-            .create_parquet_file_with_sequence_numbers("table1 foo=5 55", 1, 2)
+            .create_parquet_file_with_min_max(
+                "table1 foo=5 55",
+                1,
+                2,
+                now().timestamp_nanos(),
+                now().timestamp_nanos(),
+            )
             .await;
         let _file211 = partition21
-            .create_parquet_file_with_sequence_numbers("table2 foo=6 66", 1, 2)
+            .create_parquet_file_with_min_max(
+                "table2 foo=6 66",
+                1,
+                2,
+                now().timestamp_nanos(),
+                now().timestamp_nanos(),
+            )
             .await;
 
         file111.flag_for_delete().await;

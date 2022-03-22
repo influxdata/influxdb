@@ -3,9 +3,8 @@
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
 use data_types2::{
-    ColumnType, InfluxDbType, KafkaPartition, KafkaTopic, Namespace, ParquetFile,
-    ParquetFileParams, Partition, QueryPool, SequenceNumber, Sequencer, Table, Timestamp,
-    Tombstone,
+    ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileParams, Partition,
+    QueryPool, SequenceNumber, Sequencer, Table, Timestamp, Tombstone,
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
@@ -268,16 +267,24 @@ pub struct TestPartition {
 impl TestPartition {
     /// Create a parquet for the partition
     pub async fn create_parquet_file(self: &Arc<Self>, lp: &str) -> Arc<TestParquetFile> {
-        self.create_parquet_file_with_sequence_numbers(lp, 1, 100)
-            .await
+        self.create_parquet_file_with_min_max(
+            lp,
+            1,
+            100,
+            now().timestamp_nanos(),
+            now().timestamp_nanos(),
+        )
+        .await
     }
 
     /// Create a parquet for the partition
-    pub async fn create_parquet_file_with_sequence_numbers(
+    pub async fn create_parquet_file_with_min_max(
         self: &Arc<Self>,
         lp: &str,
         min_seq: i64,
         max_seq: i64,
+        min_time: i64,
+        max_time: i64,
     ) -> Arc<TestParquetFile> {
         let mut repos = self.catalog.catalog.repositories().await;
 
@@ -299,29 +306,14 @@ impl TestPartition {
             table_name: self.table.table.name.clone().into(),
             partition_id: self.partition.id,
             partition_key: self.partition.partition_key.clone().into(),
-            time_of_first_write: now(),
-            time_of_last_write: now(),
+            time_of_first_write: Time::from_timestamp_nanos(min_time),
+            time_of_last_write: Time::from_timestamp_nanos(max_time),
             min_sequence_number,
             max_sequence_number,
             row_count: row_count as i64,
         };
         let (parquet_metadata_bin, file_size_bytes) =
             create_parquet_file(&self.catalog.object_store, &metadata, record_batch).await;
-
-        // decode metadata because we need to store them within the catalog
-        let parquet_metadata = Arc::new(IoxParquetMetaData::from_thrift_bytes(
-            parquet_metadata_bin.clone(),
-        ));
-        let decoded_metadata = parquet_metadata.decode().unwrap();
-        let schema = decoded_metadata.read_schema().unwrap();
-        let stats = decoded_metadata.read_statistics(&schema).unwrap();
-        let ts_min_max = stats
-            .iter()
-            .find_map(|stat| {
-                (stat.influxdb_type == Some(InfluxDbType::Timestamp))
-                    .then(|| stat.stats.timestamp_min_max().unwrap())
-            })
-            .unwrap();
 
         let parquet_file_params = ParquetFileParams {
             sequencer_id: self.sequencer.sequencer.id,
@@ -330,8 +322,8 @@ impl TestPartition {
             object_store_id,
             min_sequence_number,
             max_sequence_number,
-            min_time: Timestamp::new(ts_min_max.min),
-            max_time: Timestamp::new(ts_min_max.max),
+            min_time: Timestamp::new(min_time),
+            max_time: Timestamp::new(max_time),
             file_size_bytes: file_size_bytes as i64,
             parquet_metadata: parquet_metadata_bin,
             row_count: row_count as i64,
@@ -439,6 +431,7 @@ impl TestTombstone {
     }
 }
 
-fn now() -> Time {
+/// Return the current time
+pub fn now() -> Time {
     Time::from_timestamp(0, 0)
 }
