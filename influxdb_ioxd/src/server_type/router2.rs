@@ -101,6 +101,7 @@ where
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
         add_service!(builder, self.server.grpc().write_service());
+        add_service!(builder, self.server.grpc().schema_service());
         serve_builder!(builder);
 
         Ok(())
@@ -192,6 +193,7 @@ pub async fn create_router2_server_type(
     // This code / auto-creation is for architecture testing purposes only - a
     // prod deployment would expect namespaces to be explicitly created and this
     // layer would be removed.
+    let schema_catalog = Arc::clone(&catalog);
     let mut txn = catalog.start_transaction().await?;
     let topic_id = txn
         .kafka_topics()
@@ -257,7 +259,7 @@ pub async fn create_router2_server_type(
         Arc::clone(&handler_stack),
         &metrics,
     );
-    let grpc = GrpcDelegate::new(handler_stack, Arc::clone(&metrics));
+    let grpc = GrpcDelegate::new(handler_stack, schema_catalog, Arc::clone(&metrics));
 
     let router_server = RouterServer::new(http, grpc, metrics, common_state.trace_collector());
     let server_type = Arc::new(RouterServerType::new(router_server, common_state));

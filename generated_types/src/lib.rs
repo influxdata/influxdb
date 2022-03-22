@@ -124,6 +124,16 @@ pub mod influxdata {
             }
         }
 
+        pub mod schema {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.schema.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.schema.v1.serde.rs"
+                ));
+            }
+        }
+
         pub mod write_buffer {
             pub mod v1 {
                 include!(concat!(

@@ -14,7 +14,7 @@ pub mod http;
 
 /// The [`RouterServer`] manages the lifecycle and contains all state for a
 /// `router2` server instance.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct RouterServer<D> {
     metrics: Arc<metric::Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
