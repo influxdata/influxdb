@@ -87,6 +87,9 @@ pub enum Error {
 
     #[snafu(display("Error while copying buffer to snapshot: {}", source))]
     BufferToSnapshot { source: mutable_batch::Error },
+
+    #[snafu(display("Error adding to buffer in mutable batch: {}", source))]
+    BufferWrite { source: mutable_batch::Error },
 }
 
 /// A specialized `Error` for Ingester Data errors
@@ -711,7 +714,7 @@ impl TableData {
             sequence_number,
             batch.size(),
         );
-        partition_data.buffer_write(sequence_number, batch);
+        partition_data.buffer_write(sequence_number, batch)?;
 
         Ok(should_pause)
     }
@@ -823,7 +826,7 @@ impl PartitionData {
     fn clear_persisting(&mut self) -> bool {
         self.data.persisting = None;
 
-        self.data.snapshots.is_empty() && self.data.buffer.is_empty()
+        self.data.snapshots.is_empty() && self.data.buffer.is_none()
     }
 
     /// Snapshot whatever is in the buffer and return a new vec of the
@@ -844,11 +847,26 @@ impl PartitionData {
     }
 
     /// Write the given mb in the bufer
-    pub(crate) fn buffer_write(&mut self, sequencer_number: SequenceNumber, mb: MutableBatch) {
-        self.data.buffer.push(BufferBatch {
-            sequencer_number,
-            data: mb,
-        })
+    pub(crate) fn buffer_write(
+        &mut self,
+        sequencer_number: SequenceNumber,
+        mb: MutableBatch,
+    ) -> Result<()> {
+        match &mut self.data.buffer {
+            Some(buf) => {
+                buf.max_sequence_number = sequencer_number.max(buf.max_sequence_number);
+                buf.data.extend_from(&mb).context(BufferWriteSnafu)?;
+            }
+            None => {
+                self.data.buffer = Some(BufferBatch {
+                    min_sequencer_number: sequencer_number,
+                    max_sequence_number: sequencer_number,
+                    data: mb,
+                })
+            }
+        }
+
+        Ok(())
     }
 
     /// Buffers a new tombstone:
@@ -953,7 +971,7 @@ impl PartitionData {
 #[derive(Debug, Default)]
 struct DataBuffer {
     /// Buffer of incoming writes
-    pub(crate) buffer: Vec<BufferBatch>,
+    pub(crate) buffer: Option<BufferBatch>,
 
     /// Buffer of tombstones whose time range may overlap with this partition.
     /// All tombstones were already applied to corresponding snapshots. This list
@@ -1000,7 +1018,7 @@ impl DataBuffer {
         let snapshot = self.copy_buffer_to_snapshot()?;
         if let Some(snapshot) = snapshot {
             self.snapshots.push(snapshot);
-            self.buffer.clear();
+            self.buffer = None;
         }
 
         Ok(())
@@ -1010,31 +1028,11 @@ impl DataBuffer {
     pub fn copy_buffer_to_snapshot(
         &self,
     ) -> Result<Option<Arc<SnapshotBatch>>, mutable_batch::Error> {
-        if !self.buffer.is_empty() {
-            let min_sequencer_number = self
-                .buffer
-                .first()
-                .expect("Buffer isn't empty in this block")
-                .sequencer_number;
-            let max_sequencer_number = self
-                .buffer
-                .last()
-                .expect("Buffer isn't empty in this block")
-                .sequencer_number;
-            assert!(min_sequencer_number <= max_sequencer_number);
-
-            let mut batches = self.buffer.iter();
-            let first_batch = batches.next().expect("Buffer isn't empty in this block");
-            let mut mutable_batch = first_batch.data.clone();
-
-            for batch in batches {
-                mutable_batch.extend_from(&batch.data)?;
-            }
-
+        if let Some(buf) = &self.buffer {
             return Ok(Some(Arc::new(SnapshotBatch {
-                min_sequencer_number,
-                max_sequencer_number,
-                data: Arc::new(mutable_batch.to_arrow(Selection::All)?),
+                min_sequencer_number: buf.min_sequencer_number,
+                max_sequencer_number: buf.max_sequence_number,
+                data: Arc::new(buf.data.to_arrow(Selection::All)?),
             })));
         }
 
@@ -1043,7 +1041,7 @@ impl DataBuffer {
 
     /// Returns true if there are no batches in the buffer or snapshots or persisting data
     fn is_empty(&self) -> bool {
-        self.snapshots.is_empty() && self.buffer.is_empty() && self.persisting.is_none()
+        self.snapshots.is_empty() && self.buffer.is_none() && self.persisting.is_none()
     }
 
     /// Snapshots the buffer and make a QueryableBatch for all the snapshots
@@ -1159,8 +1157,10 @@ impl DataBuffer {
 /// helps the ingester keep the batches of data in thier ingesting order
 #[derive(Debug)]
 pub struct BufferBatch {
-    /// Sequencer number of the ingesting data
-    pub(crate) sequencer_number: SequenceNumber,
+    /// Sequence number of the first write in this batch
+    pub(crate) min_sequencer_number: SequenceNumber,
+    /// Sequence number of the last write in this batch
+    pub(crate) max_sequence_number: SequenceNumber,
     /// Ingesting data
     pub(crate) data: MutableBatch,
 }
@@ -1304,7 +1304,6 @@ mod tests {
     use mutable_batch_lp::{lines_to_batches, test_helpers::lp_to_mutable_batch};
     use object_store::ObjectStoreImpl;
     use std::{ops::DerefMut, time::Duration};
-    use test_helpers::assert_error;
     use time::Time;
 
     #[test]
@@ -1317,22 +1316,23 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_buffer_one_buffer_batch_moves_to_snapshots() {
+    fn snapshot_buffer_batch_moves_to_snapshots() {
         let mut data_buffer = DataBuffer::default();
 
         let seq_num1 = SequenceNumber::new(1);
         let (_, mutable_batch1) =
             lp_to_mutable_batch(r#"foo,t1=asdf iv=1i,uv=774u,fv=1.0,bv=true,sv="hi" 1"#);
         let buffer_batch1 = BufferBatch {
-            sequencer_number: seq_num1,
+            min_sequencer_number: seq_num1,
+            max_sequence_number: seq_num1,
             data: mutable_batch1,
         };
         let record_batch1 = buffer_batch1.data.to_arrow(Selection::All).unwrap();
-        data_buffer.buffer.push(buffer_batch1);
+        data_buffer.buffer = Some(buffer_batch1);
 
         data_buffer.snapshot().unwrap();
 
-        assert!(data_buffer.buffer.is_empty());
+        assert!(data_buffer.buffer.is_none());
         assert_eq!(data_buffer.snapshots.len(), 1);
 
         let snapshot = &data_buffer.snapshots[0];
@@ -1342,110 +1342,40 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_buffer_multiple_buffer_batches_combines_into_a_snapshot() {
-        let mut data_buffer = DataBuffer::default();
-
-        let seq_num1 = SequenceNumber::new(1);
-        let (_, mut mutable_batch1) =
-            lp_to_mutable_batch(r#"foo,t1=asdf iv=1i,uv=774u,fv=1.0,bv=true,sv="hi" 1"#);
-        let buffer_batch1 = BufferBatch {
-            sequencer_number: seq_num1,
-            data: mutable_batch1.clone(),
-        };
-        data_buffer.buffer.push(buffer_batch1);
-
-        let seq_num2 = SequenceNumber::new(2);
-        let (_, mutable_batch2) =
-            lp_to_mutable_batch(r#"foo,t1=aoeu iv=2i,uv=1u,fv=12.0,bv=false,sv="bye" 10000"#);
-        let buffer_batch2 = BufferBatch {
-            sequencer_number: seq_num2,
-            data: mutable_batch2.clone(),
-        };
-        data_buffer.buffer.push(buffer_batch2);
-
-        data_buffer.snapshot().unwrap();
-
-        assert!(data_buffer.buffer.is_empty());
-        assert_eq!(data_buffer.snapshots.len(), 1);
-
-        let snapshot = &data_buffer.snapshots[0];
-        assert_eq!(snapshot.min_sequencer_number, seq_num1);
-        assert_eq!(snapshot.max_sequencer_number, seq_num2);
-
-        mutable_batch1.extend_from(&mutable_batch2).unwrap();
-        let combined_record_batch = mutable_batch1.to_arrow(Selection::All).unwrap();
-        assert_eq!(&*snapshot.data, &combined_record_batch);
-    }
-
-    #[test]
     fn snapshot_buffer_different_but_compatible_schemas() {
-        let mut data_buffer = DataBuffer::default();
+        let mut partition_data = PartitionData {
+            id: PartitionId::new(1),
+            data: Default::default(),
+        };
 
         let seq_num1 = SequenceNumber::new(1);
         // Missing tag `t1`
         let (_, mut mutable_batch1) =
             lp_to_mutable_batch(r#"foo iv=1i,uv=774u,fv=1.0,bv=true,sv="hi" 1"#);
-        let buffer_batch1 = BufferBatch {
-            sequencer_number: seq_num1,
-            data: mutable_batch1.clone(),
-        };
-        data_buffer.buffer.push(buffer_batch1);
+        partition_data
+            .buffer_write(seq_num1, mutable_batch1.clone())
+            .unwrap();
 
         let seq_num2 = SequenceNumber::new(2);
         // Missing field `iv`
         let (_, mutable_batch2) =
             lp_to_mutable_batch(r#"foo,t1=aoeu uv=1u,fv=12.0,bv=false,sv="bye" 10000"#);
-        let buffer_batch2 = BufferBatch {
-            sequencer_number: seq_num2,
-            data: mutable_batch2.clone(),
-        };
-        data_buffer.buffer.push(buffer_batch2);
 
-        data_buffer.snapshot().unwrap();
+        partition_data
+            .buffer_write(seq_num2, mutable_batch2.clone())
+            .unwrap();
+        partition_data.data.snapshot().unwrap();
 
-        assert!(data_buffer.buffer.is_empty());
-        assert_eq!(data_buffer.snapshots.len(), 1);
+        assert!(partition_data.data.buffer.is_none());
+        assert_eq!(partition_data.data.snapshots.len(), 1);
 
-        let snapshot = &data_buffer.snapshots[0];
+        let snapshot = &partition_data.data.snapshots[0];
         assert_eq!(snapshot.min_sequencer_number, seq_num1);
         assert_eq!(snapshot.max_sequencer_number, seq_num2);
 
         mutable_batch1.extend_from(&mutable_batch2).unwrap();
         let combined_record_batch = mutable_batch1.to_arrow(Selection::All).unwrap();
         assert_eq!(&*snapshot.data, &combined_record_batch);
-    }
-
-    #[test]
-    fn snapshot_buffer_error_leaves_data_buffer_as_is() {
-        let mut data_buffer = DataBuffer::default();
-
-        let seq_num1 = SequenceNumber::new(1);
-        let (_, mutable_batch1) =
-            lp_to_mutable_batch(r#"foo,t1=asdf iv=1i,uv=774u,fv=1.0,bv=true,sv="hi" 1"#);
-        let buffer_batch1 = BufferBatch {
-            sequencer_number: seq_num1,
-            data: mutable_batch1,
-        };
-        data_buffer.buffer.push(buffer_batch1);
-
-        let seq_num2 = SequenceNumber::new(2);
-        // Create a type mismatch
-        let (_, mutable_batch2) = lp_to_mutable_batch(r#"foo iv=false 10000"#);
-        let buffer_batch2 = BufferBatch {
-            sequencer_number: seq_num2,
-            data: mutable_batch2,
-        };
-        data_buffer.buffer.push(buffer_batch2);
-
-        assert_error!(
-            data_buffer.snapshot(),
-            mutable_batch::Error::WriterError {
-                source: mutable_batch::writer::Error::TypeMismatch { .. }
-            }
-        );
-
-        assert_eq!(data_buffer.buffer.len(), 2);
-        assert!(data_buffer.snapshots.is_empty());
     }
 
     #[tokio::test]
@@ -1680,15 +1610,22 @@ mod tests {
         // Fill `buffer`
         // --- seq_num: 1
         let (_, mb) = lp_to_mutable_batch(r#"restaurant,city=Boston day="fri",temp=50 10"#);
-        p.buffer_write(SequenceNumber::new(1), mb);
+        p.buffer_write(SequenceNumber::new(1), mb).unwrap();
 
         // --- seq_num: 2
         let (_, mb) = lp_to_mutable_batch(r#"restaurant,city=Andover day="thu",temp=44 15"#);
 
-        p.buffer_write(SequenceNumber::new(2), mb);
+        p.buffer_write(SequenceNumber::new(2), mb).unwrap();
 
         // verify data
-        assert_eq!(p.data.buffer.len(), 2);
+        assert_eq!(
+            p.data.buffer.as_ref().unwrap().min_sequencer_number,
+            SequenceNumber::new(1)
+        );
+        assert_eq!(
+            p.data.buffer.as_ref().unwrap().max_sequence_number,
+            SequenceNumber::new(2)
+        );
         assert_eq!(p.data.snapshots.len(), 0);
         assert_eq!(p.data.deletes_during_persisting.len(), 0);
         assert_eq!(p.data.persisting, None);
@@ -1709,7 +1646,7 @@ mod tests {
         p.buffer_tombstone(&exec, "restaurant", ts).await;
 
         // verify data
-        assert_eq!(p.data.buffer.len(), 0); // always empty after delete
+        assert!(p.data.buffer.is_none()); // always empty after delete
         assert_eq!(p.data.snapshots.len(), 1); // one snpashot if there is data
         assert_eq!(p.data.deletes_during_persisting.len(), 0);
         assert_eq!(p.data.persisting, None);
@@ -1735,15 +1672,22 @@ mod tests {
                 restaurant,city=Boston day="sun",temp=57 24
             "#,
         );
-        p.buffer_write(SequenceNumber::new(4), mb);
+        p.buffer_write(SequenceNumber::new(4), mb).unwrap();
 
         // --- seq_num: 5
         let (_, mb) = lp_to_mutable_batch(r#"restaurant,city=Andover day="tue",temp=56 30"#);
 
-        p.buffer_write(SequenceNumber::new(5), mb);
+        p.buffer_write(SequenceNumber::new(5), mb).unwrap();
 
         // verify data
-        assert_eq!(p.data.buffer.len(), 2); // 2 newlly added mutable batches of 3 rows of data
+        assert_eq!(
+            p.data.buffer.as_ref().unwrap().min_sequencer_number,
+            SequenceNumber::new(4)
+        );
+        assert_eq!(
+            p.data.buffer.as_ref().unwrap().max_sequence_number,
+            SequenceNumber::new(5)
+        );
         assert_eq!(p.data.snapshots.len(), 1); // existing sanpshot
         assert_eq!(p.data.deletes_during_persisting.len(), 0);
         assert_eq!(p.data.persisting, None);
@@ -1764,7 +1708,7 @@ mod tests {
         p.buffer_tombstone(&exec, "restaurant", ts).await;
 
         // verify data
-        assert_eq!(p.data.buffer.len(), 0); // always empty after delete
+        assert!(p.data.buffer.is_none()); // always empty after delete
         assert_eq!(p.data.snapshots.len(), 1); // one snpashot
         assert_eq!(p.data.deletes_during_persisting.len(), 0);
         assert_eq!(p.data.persisting, None);
@@ -1792,7 +1736,7 @@ mod tests {
         );
 
         // verify data
-        assert_eq!(p.data.buffer.len(), 0); // always empty after issuing persit
+        assert!(p.data.buffer.is_none()); // always empty after issuing persit
         assert_eq!(p.data.snapshots.len(), 0); // always empty after issuing persit
         assert_eq!(p.data.deletes_during_persisting.len(), 0); // deletes not happen yet
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
@@ -1814,8 +1758,8 @@ mod tests {
         p.buffer_tombstone(&exec, "restaurant", ts).await;
 
         // verify data
-        assert_eq!(p.data.buffer.len(), 0); // always empty after delete
-                                            // no snpashots becasue buffer has not data yet and the sanpshot was empty too
+        assert!(p.data.buffer.is_none()); // always empty after delete
+                                          // no snpashots becasue buffer has not data yet and the sanpshot was empty too
         assert_eq!(p.data.snapshots.len(), 0);
         assert_eq!(p.data.deletes_during_persisting.len(), 1); // tombstone added since data is persisting
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
@@ -1830,10 +1774,13 @@ mod tests {
                 restaurant,city=Boston day="sun",temp=62 38
             "#,
         );
-        p.buffer_write(SequenceNumber::new(8), mb);
+        p.buffer_write(SequenceNumber::new(8), mb).unwrap();
 
         // verify data
-        assert_eq!(p.data.buffer.len(), 1); // 1 newlly added mutable batch of 3 rows of data
+        assert_eq!(
+            p.data.buffer.as_ref().unwrap().min_sequencer_number,
+            SequenceNumber::new(8)
+        ); // 1 newlly added mutable batch of 3 rows of data
         assert_eq!(p.data.snapshots.len(), 0); // still empty
         assert_eq!(p.data.deletes_during_persisting.len(), 1);
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
@@ -1842,7 +1789,7 @@ mod tests {
         // Take snaphot of the `buffer`
         p.snapshot().unwrap();
         // verify data
-        assert_eq!(p.data.buffer.len(), 0); // empty after snaphot
+        assert!(p.data.buffer.is_none()); // empty after snaphot
         assert_eq!(p.data.snapshots.len(), 1); // data moved from buffer
         assert_eq!(p.data.deletes_during_persisting.len(), 1);
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
@@ -1877,7 +1824,7 @@ mod tests {
         p.buffer_tombstone(&exec, "restaurant", ts).await;
 
         // verify data
-        assert_eq!(p.data.buffer.len(), 0); // always empty after delete
+        assert!(p.data.buffer.is_none()); // always empty after delete
         assert_eq!(p.data.snapshots.len(), 1); // new snapshot of the existing with delete applied
         assert_eq!(p.data.deletes_during_persisting.len(), 2); // one more tombstone added make it 2
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
@@ -2014,7 +1961,10 @@ mod tests {
         let tables = data.tables.read();
         let table = tables.get("mem").unwrap().read().await;
         let partition = table.partition_data.get("1970-01-01").unwrap();
-        assert_eq!(partition.data.buffer.len(), 1);
+        assert_eq!(
+            partition.data.buffer.as_ref().unwrap().min_sequencer_number,
+            SequenceNumber::new(2)
+        );
 
         assert_matches!(data.table_count.observe(), Observation::U64Counter(v) => {
             assert_eq!(v, 1, "unexpected table count metric value");

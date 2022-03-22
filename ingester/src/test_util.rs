@@ -745,12 +745,12 @@ pub(crate) fn make_partitions(
         let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
             r#"test_table,city=Medford day="sun",temp=55 22"#,
         );
-        p2.buffer_write(SequenceNumber::new(seq_num), mb);
+        p2.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
         seq_num += 1;
         let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
             r#"test_table,city=Reading day="mon",temp=58 40"#,
         );
-        p2.buffer_write(SequenceNumber::new(seq_num), mb);
+        p2.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
 
         partitions.insert(TEST_PARTITION_2.to_string(), p2);
     } else {
@@ -760,12 +760,12 @@ pub(crate) fn make_partitions(
         let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
             r#"test_table,city=Medford day="sun",temp=55 22"#,
         );
-        p1.buffer_write(SequenceNumber::new(seq_num), mb);
+        p1.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
         seq_num += 1;
         let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
             r#"test_table,city=Reading day="mon",temp=58 40"#,
         );
-        p1.buffer_write(SequenceNumber::new(seq_num), mb);
+        p1.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
     }
 
     partitions.insert(TEST_PARTITION_1.to_string(), p1);
@@ -825,12 +825,12 @@ pub(crate) async fn make_one_partition_with_tombstones(
     let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
         r#"test_table,city=Medford day="sun",temp=55 22"#,
     );
-    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    p1.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
     seq_num += 1;
     let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
         r#"test_table,city=Reading day="mon",temp=58 40"#,
     );
-    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    p1.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
 
     let mut partitions = BTreeMap::new();
     partitions.insert(TEST_PARTITION_1.to_string(), p1);
@@ -872,12 +872,12 @@ fn make_first_partition_data(
         r#"test_table,city=Boston day="sun",temp=60 36"#,
     );
     seq_num += 1;
-    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    p1.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
     seq_num += 1;
     let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
         r#"test_table,city=Andover day="tue",temp=56 30"#,
     );
-    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    p1.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
 
     if loc.contains(DataLocation::PERSISTING) {
         // Move group 1 data to persisting
@@ -895,12 +895,12 @@ fn make_first_partition_data(
     let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
         r#"test_table,city=Andover day="mon" 46"#,
     );
-    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    p1.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
     seq_num += 1;
     let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
         r#"test_table,city=Medford day="wed" 26"#,
     );
-    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    p1.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
 
     if loc.contains(DataLocation::SNAPSHOT) {
         // move group 2 data to snapshot
@@ -915,12 +915,12 @@ fn make_first_partition_data(
     let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
         r#"test_table,city=Boston day="mon" 38"#,
     );
-    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    p1.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
     seq_num += 1;
     let (_, mb) = mutable_batch_lp::test_helpers::lp_to_mutable_batch(
         r#"test_table,city=Wilmington day="mon" 35"#,
     );
-    p1.buffer_write(SequenceNumber::new(seq_num), mb);
+    p1.buffer_write(SequenceNumber::new(seq_num), mb).unwrap();
 
     (p1, SequenceNumber::new(seq_num))
 }
