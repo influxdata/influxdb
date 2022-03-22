@@ -16,7 +16,7 @@ use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use partition_metadata::TableSummary;
 use predicate::{Predicate, PredicateMatch};
-use query::exec::IOxExecutionContext;
+use query::exec::IOxSessionContext;
 use query::QueryChunkError;
 use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
 use read_buffer::RBChunk;
@@ -372,7 +372,7 @@ impl QueryChunk for DbChunk {
 
     fn read_filter(
         &self,
-        mut ctx: IOxExecutionContext,
+        mut ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, QueryChunkError> {
@@ -460,7 +460,7 @@ impl QueryChunk for DbChunk {
 
     fn column_names(
         &self,
-        mut ctx: IOxExecutionContext,
+        mut ctx: IOxSessionContext,
         predicate: &Predicate,
         columns: Selection<'_>,
     ) -> Result<Option<StringSet>, QueryChunkError> {
@@ -513,7 +513,7 @@ impl QueryChunk for DbChunk {
 
     fn column_values(
         &self,
-        mut ctx: IOxExecutionContext,
+        mut ctx: IOxSessionContext,
         column_name: &str,
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, QueryChunkError> {
@@ -628,7 +628,7 @@ mod tests {
         let t1 = time.inc(Duration::from_secs(1));
         snapshot
             .read_filter(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Default::default(),
                 Selection::All,
             )
@@ -638,7 +638,7 @@ mod tests {
         let t2 = time.inc(Duration::from_secs(1));
         let column_names = snapshot
             .column_names(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Default::default(),
                 Selection::All,
             )
@@ -648,7 +648,7 @@ mod tests {
 
         let t3 = time.inc(Duration::from_secs(1));
         let column_values = snapshot
-            .column_values(IOxExecutionContext::default(), "tag", &Default::default())
+            .column_values(IOxSessionContext::default(), "tag", &Default::default())
             .unwrap()
             .is_some();
         let m5 = chunk.access_recorder().get_metrics();

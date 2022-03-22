@@ -78,7 +78,7 @@ impl QueryChunk for QuerierChunk {
 
     fn column_names(
         &self,
-        _ctx: query::exec::IOxExecutionContext,
+        _ctx: query::exec::IOxSessionContext,
         predicate: &predicate::Predicate,
         columns: schema::selection::Selection<'_>,
     ) -> Result<Option<query::exec::stringset::StringSet>, QueryChunkError> {
@@ -95,7 +95,7 @@ impl QueryChunk for QuerierChunk {
 
     fn column_values(
         &self,
-        _ctx: query::exec::IOxExecutionContext,
+        _ctx: query::exec::IOxSessionContext,
         _column_name: &str,
         _predicate: &predicate::Predicate,
     ) -> Result<Option<query::exec::stringset::StringSet>, QueryChunkError> {
@@ -110,7 +110,7 @@ impl QueryChunk for QuerierChunk {
 
     fn read_filter(
         &self,
-        mut ctx: query::exec::IOxExecutionContext,
+        mut ctx: query::exec::IOxSessionContext,
         predicate: &predicate::Predicate,
         selection: schema::selection::Selection<'_>,
     ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, QueryChunkError> {

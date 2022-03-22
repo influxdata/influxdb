@@ -1093,7 +1093,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca952bd33402816dbb1550debb9b8cac3b13e8f2#ca952bd33402816dbb1550debb9b8cac3b13e8f2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=5936edc2a94d5fb20702a41eab2b80695961b9dc#5936edc2a94d5fb20702a41eab2b80695961b9dc"
 dependencies = [
  "ahash",
  "arrow",
@@ -1118,12 +1118,13 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-stream",
+ "uuid",
 ]
 
 [[package]]
 name = "datafusion-common"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca952bd33402816dbb1550debb9b8cac3b13e8f2#ca952bd33402816dbb1550debb9b8cac3b13e8f2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=5936edc2a94d5fb20702a41eab2b80695961b9dc#5936edc2a94d5fb20702a41eab2b80695961b9dc"
 dependencies = [
  "arrow",
  "ordered-float 2.10.0",
@@ -1134,7 +1135,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca952bd33402816dbb1550debb9b8cac3b13e8f2#ca952bd33402816dbb1550debb9b8cac3b13e8f2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=5936edc2a94d5fb20702a41eab2b80695961b9dc#5936edc2a94d5fb20702a41eab2b80695961b9dc"
 dependencies = [
  "ahash",
  "arrow",
@@ -1145,7 +1146,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca952bd33402816dbb1550debb9b8cac3b13e8f2#ca952bd33402816dbb1550debb9b8cac3b13e8f2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=5936edc2a94d5fb20702a41eab2b80695961b9dc#5936edc2a94d5fb20702a41eab2b80695961b9dc"
 dependencies = [
  "ahash",
  "arrow",

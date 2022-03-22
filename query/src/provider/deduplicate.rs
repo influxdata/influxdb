@@ -14,7 +14,7 @@ use datafusion_util::AdapterStream;
 use self::algo::RecordBatchDeduplicator;
 use datafusion::{
     error::{DataFusionError, Result},
-    execution::runtime_env::RuntimeEnv,
+    execution::context::TaskContext,
     physical_plan::{
         expressions::PhysicalSortExpr,
         metrics::{
@@ -186,7 +186,7 @@ impl ExecutionPlan for DeduplicateExec {
     async fn execute(
         &self,
         partition: usize,
-        runtime: Arc<RuntimeEnv>,
+        context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
         if partition != 0 {
             return Err(DataFusionError::Internal(
@@ -195,7 +195,7 @@ impl ExecutionPlan for DeduplicateExec {
         }
         let deduplicate_metrics = DeduplicateMetrics::new(&self.metrics, partition);
 
-        let input_stream = self.input.execute(0, runtime).await?;
+        let input_stream = self.input.execute(0, context).await?;
 
         // the deduplication is performed in a separate task which is
         // then sent via a channel to the output
@@ -1169,7 +1169,7 @@ mod test {
         async fn execute(
             &self,
             partition: usize,
-            _runtime: Arc<RuntimeEnv>,
+            _context: Arc<TaskContext>,
         ) -> Result<SendableRecordBatchStream> {
             assert_eq!(partition, 0);
 

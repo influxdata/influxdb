@@ -23,7 +23,7 @@ use schema::{merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema};
 
 use crate::{
     chunks_have_stats, compute_sort_key_for_chunks,
-    exec::IOxExecutionContext,
+    exec::IOxSessionContext,
     util::{arrow_sort_key_exprs, df_physical_expr},
     QueryChunk,
 };
@@ -109,7 +109,7 @@ pub struct ProviderBuilder {
     sort_key: Option<SortKey>,
 
     // execution context used for tracing
-    ctx: IOxExecutionContext,
+    ctx: IOxSessionContext,
 }
 
 impl ProviderBuilder {
@@ -120,11 +120,11 @@ impl ProviderBuilder {
             chunk_pruner: None,
             chunks: Vec::new(),
             sort_key: None,
-            ctx: IOxExecutionContext::default(),
+            ctx: IOxSessionContext::default(),
         }
     }
 
-    pub fn with_execution_context(self, ctx: IOxExecutionContext) -> Self {
+    pub fn with_execution_context(self, ctx: IOxSessionContext) -> Self {
         Self { ctx, ..self }
     }
 
@@ -204,7 +204,7 @@ pub struct ChunkTableProvider {
     sort_key: Option<SortKey>,
 
     // execution context
-    ctx: IOxExecutionContext,
+    ctx: IOxSessionContext,
 }
 
 impl ChunkTableProvider {
@@ -312,7 +312,7 @@ pub(crate) struct Deduplicater {
     pub no_duplicates_chunks: Vec<Arc<dyn QueryChunk>>,
 
     // execution context
-    ctx: IOxExecutionContext,
+    ctx: IOxSessionContext,
 }
 
 impl Deduplicater {
@@ -321,11 +321,11 @@ impl Deduplicater {
             overlapped_chunks_set: vec![],
             in_chunk_duplicates_chunks: vec![],
             no_duplicates_chunks: vec![],
-            ctx: IOxExecutionContext::default(),
+            ctx: IOxSessionContext::default(),
         }
     }
 
-    pub(crate) fn with_execution_context(self, ctx: IOxExecutionContext) -> Self {
+    pub(crate) fn with_execution_context(self, ctx: IOxSessionContext) -> Self {
         Self { ctx, ..self }
     }
 
@@ -587,7 +587,7 @@ impl Deduplicater {
     ///  └─────────────────┘        └─────────────────┘
     ///```
     fn build_deduplicate_plan_for_overlapped_chunks(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
         chunks: Vec<Arc<dyn QueryChunk>>, // These chunks are identified overlapped
@@ -676,7 +676,7 @@ impl Deduplicater {
     ///                └─────────────────┘
     ///```
     fn build_deduplicate_plan_for_chunk_with_duplicates(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
         chunk: Arc<dyn QueryChunk>, // This chunk is identified having duplicates
@@ -804,7 +804,7 @@ impl Deduplicater {
     ///                └─────────────────┘
     ///```
     fn build_sort_plan_for_read_filter(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
         chunk: Arc<dyn QueryChunk>, // This chunk is identified having duplicates
@@ -949,7 +949,7 @@ impl Deduplicater {
     /// Return the simplest IOx scan plan of a given chunk which is IOxReadFilterNode
     // And some optional operators on top such as applying delete predicates or sort the chunk
     fn build_plan_for_non_duplicates_chunk(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
         chunk: Arc<dyn QueryChunk>, // This chunk is identified having no duplicates
@@ -998,7 +998,7 @@ impl Deduplicater {
     ///   └─────────────────┘                   └─────────────────┘
     ///```
     fn build_plans_for_non_duplicates_chunks(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
         chunks: Vec<Arc<dyn QueryChunk>>, // These chunks is identified having no duplicates
@@ -1177,7 +1177,7 @@ mod test {
 
         // IOx scan operator
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
-            IOxExecutionContext::default(),
+            IOxSessionContext::default(),
             Arc::from("t"),
             chunk.schema(),
             vec![Arc::clone(&chunk)],
@@ -1251,7 +1251,7 @@ mod test {
 
         // IOx scan operator
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
-            IOxExecutionContext::default(),
+            IOxSessionContext::default(),
             Arc::from("t"),
             chunk.schema(),
             vec![Arc::clone(&chunk)],
@@ -1327,7 +1327,7 @@ mod test {
         let schema = chunk.schema();
 
         let sort_plan = Deduplicater::build_sort_plan_for_read_filter(
-            IOxExecutionContext::default(),
+            IOxSessionContext::default(),
             Arc::from("t"),
             schema,
             Arc::clone(&chunk),
@@ -1402,7 +1402,7 @@ mod test {
 
         let output_sort_key = SortKey::from_columns(vec!["tag1", "tag2", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
-            IOxExecutionContext::default(), //TODO(edd): address this.
+            IOxSessionContext::default(), //TODO(edd): address this.
             Arc::from("t"),
             schema,
             chunks,
@@ -1482,7 +1482,7 @@ mod test {
 
         let output_sort_key = SortKey::from_columns(vec!["tag1", "tag2", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
-            IOxExecutionContext::default(), //TODO(edd): address this.
+            IOxSessionContext::default(), //TODO(edd): address this.
             Arc::from("t"),
             Arc::new(schema),
             chunks,
@@ -1576,7 +1576,7 @@ mod test {
 
         let output_sort_key = SortKey::from_columns(vec!["tag2", "tag1", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
-            IOxExecutionContext::default(), //TODO(edd): address this.
+            IOxSessionContext::default(), //TODO(edd): address this.
             Arc::from("t"),
             Arc::new(schema),
             chunks,
@@ -1680,7 +1680,7 @@ mod test {
 
         let output_sort_key = SortKey::from_columns(vec!["tag2", "tag1", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
-            IOxExecutionContext::default(), //TODO(edd): address this.
+            IOxSessionContext::default(), //TODO(edd): address this.
             Arc::from("t"),
             Arc::new(schema),
             chunks,

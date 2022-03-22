@@ -18,7 +18,7 @@ use arrow::{
 };
 use datafusion::{
     error::{DataFusionError, Result},
-    execution::runtime_env::RuntimeEnv,
+    execution::context::TaskContext,
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
         expressions::PhysicalSortExpr,
@@ -197,10 +197,10 @@ impl ExecutionPlan for StreamSplitExec {
     async fn execute(
         &self,
         partition: usize,
-        runtime: Arc<RuntimeEnv>,
+        context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
         trace!(partition, "SplitExec::execute");
-        self.start_if_needed(runtime).await?;
+        self.start_if_needed(context).await?;
 
         let mut state = self.state.lock().await;
         match &mut (*state) {
@@ -240,7 +240,7 @@ impl ExecutionPlan for StreamSplitExec {
 
 impl StreamSplitExec {
     /// if in State::New, sets up the output running and sets self.state --> `Running`
-    async fn start_if_needed(&self, runtime: Arc<RuntimeEnv>) -> Result<()> {
+    async fn start_if_needed(&self, context: Arc<TaskContext>) -> Result<()> {
         let mut state = self.state.lock().await;
         if matches!(*state, State::Running { .. }) {
             return Ok(());
@@ -257,7 +257,7 @@ impl StreamSplitExec {
 
         trace!("Setting up SplitStreamExec state");
 
-        let input_stream = self.input.execute(0, runtime).await?;
+        let input_stream = self.input.execute(0, context).await?;
         let (tx0, rx0) = tokio::sync::mpsc::channel(2);
         let (tx1, rx1) = tokio::sync::mpsc::channel(2);
         let split_expr = Arc::clone(&self.split_expr);

@@ -293,7 +293,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use futures::StreamExt;
     use iox_tests::util::TestCatalog;
-    use query::{exec::IOxExecutionContext, QueryChunk};
+    use query::{exec::IOxSessionContext, QueryChunk};
     use schema::selection::Selection;
 
     #[tokio::test]
@@ -352,7 +352,7 @@ mod tests {
     async fn collect_read_filter(chunk: &QuerierChunk) -> Vec<RecordBatch> {
         chunk
             .read_filter(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Default::default(),
                 Selection::All,
             )

@@ -10,7 +10,7 @@
 use super::{catalog::Catalog, query_log::QueryLog};
 use arrow::{datatypes::SchemaRef, error::Result, record_batch::RecordBatch};
 use async_trait::async_trait;
-use datafusion::execution::runtime_env::RuntimeEnv;
+use datafusion::execution::context::{TaskContext, TaskProperties};
 use datafusion::physical_plan::expressions::PhysicalSortExpr;
 use datafusion::physical_plan::{
     Partitioning, RecordBatchStream, SendableRecordBatchStream, Statistics,
@@ -229,11 +229,19 @@ impl<T: IoxSystemTable + 'static> ExecutionPlan for SystemTableExecutionPlan<T> 
     async fn execute(
         &self,
         _partition: usize,
-        runtime: Arc<RuntimeEnv>,
+        context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
+        let batch_size = {
+            if let TaskProperties::SessionConfig(config) = &context.properties {
+                config.batch_size
+            } else {
+                todo!("Need to always have properties")
+            }
+        };
+
         Ok(Box::pin(SystemTableStream {
             projected_schema: Arc::clone(&self.projected_schema),
-            batches: self.table.scan(runtime.batch_size)?,
+            batches: self.table.scan(batch_size)?,
             projection: self.projection.clone(),
         }))
     }

@@ -7,7 +7,7 @@ use datafusion::{
 };
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use query::{
-    exec::{ExecutionContextProvider, ExecutorType, IOxExecutionContext},
+    exec::{ExecutionContextProvider, ExecutorType, IOxSessionContext},
     QueryChunk, QueryCompletedToken, QueryDatabase, QueryText, DEFAULT_SCHEMA,
 };
 use schema::Schema;
@@ -64,7 +64,7 @@ impl QueryDatabase for QuerierNamespace {
 
     fn record_query(
         &self,
-        _ctx: &IOxExecutionContext,
+        _ctx: &IOxSessionContext,
         _query_type: &str,
         _query_text: QueryText,
     ) -> QueryCompletedToken {
@@ -112,6 +112,15 @@ impl CatalogProvider for QuerierCatalogProvider {
             _ => None,
         }
     }
+
+    fn register_schema(
+        &self,
+        _name: &str,
+        _schema: Arc<dyn SchemaProvider>,
+    ) -> Option<Arc<dyn SchemaProvider>> {
+        // https://github.com/apache/arrow-datafusion/issues/2051
+        unimplemented!("Schemas can not be registered in IOx");
+    }
 }
 
 impl CatalogProvider for QuerierNamespace {
@@ -125,6 +134,15 @@ impl CatalogProvider for QuerierNamespace {
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         QuerierCatalogProvider::from_namespace(self).schema(name)
+    }
+
+    fn register_schema(
+        &self,
+        _name: &str,
+        _schema: Arc<dyn SchemaProvider>,
+    ) -> Option<Arc<dyn SchemaProvider>> {
+        // https://github.com/apache/arrow-datafusion/issues/2051
+        unimplemented!("Schemas can not be registered in IOx");
     }
 }
 
@@ -155,7 +173,7 @@ impl SchemaProvider for UserSchemaProvider {
 }
 
 impl ExecutionContextProvider for QuerierNamespace {
-    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
+    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
         self.exec
             .new_execution_config(ExecutorType::Query)
             .with_default_catalog(Arc::new(QuerierCatalogProvider::from_namespace(self)) as _)

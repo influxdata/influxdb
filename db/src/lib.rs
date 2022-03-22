@@ -46,7 +46,7 @@ use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::Persisten
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use query::QueryChunk;
 use query::{
-    exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
+    exec::{ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext},
     QueryCompletedToken, QueryDatabase, QueryText,
 };
 use rand_distr::{Distribution, Poisson};
@@ -1235,7 +1235,7 @@ impl QueryDatabase for Db {
 
     fn record_query(
         &self,
-        ctx: &IOxExecutionContext,
+        ctx: &IOxSessionContext,
         query_type: &str,
         query_text: QueryText,
     ) -> QueryCompletedToken {
@@ -1259,7 +1259,7 @@ impl QueryDatabaseMeta for Db {
 }
 
 impl ExecutionContextProvider for Db {
-    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
+    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
         self.exec
             .new_execution_config(ExecutorType::Query)
             .with_default_catalog(Arc::clone(&self.catalog_access) as _)
@@ -1282,6 +1282,15 @@ impl CatalogProvider for Db {
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         self.catalog_access.schema(name)
+    }
+
+    fn register_schema(
+        &self,
+        _name: &str,
+        _schema: Arc<dyn SchemaProvider>,
+    ) -> Option<Arc<dyn SchemaProvider>> {
+        // https://github.com/apache/arrow-datafusion/issues/2051
+        unimplemented!("Schemas can not be registered in IOx");
     }
 }
 
@@ -1991,7 +2000,7 @@ mod tests {
     async fn collect_read_filter(chunk: &DbChunk) -> Vec<RecordBatch> {
         chunk
             .read_filter(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Default::default(),
                 Selection::All,
             )

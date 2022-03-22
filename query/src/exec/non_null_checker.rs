@@ -52,7 +52,7 @@ use arrow::{
 };
 use datafusion::{
     error::{DataFusionError as Error, Result},
-    execution::runtime_env::RuntimeEnv,
+    execution::context::TaskContext,
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
     physical_plan::{
         expressions::PhysicalSortExpr,
@@ -249,7 +249,7 @@ impl ExecutionPlan for NonNullCheckerExec {
     async fn execute(
         &self,
         partition: usize,
-        runtime: Arc<RuntimeEnv>,
+        context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
         if self.output_partitioning().partition_count() <= partition {
             return Err(Error::Internal(format!(
@@ -259,7 +259,7 @@ impl ExecutionPlan for NonNullCheckerExec {
         }
 
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
-        let input_stream = self.input.execute(partition, runtime).await?;
+        let input_stream = self.input.execute(partition, context).await?;
 
         let (tx, rx) = mpsc::channel(1);
 

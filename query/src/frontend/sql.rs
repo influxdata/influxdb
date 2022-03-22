@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::exec::context::IOxExecutionContext;
+use crate::exec::context::IOxSessionContext;
 use datafusion::{error::Result, physical_plan::ExecutionPlan};
 
 /// This struct can create plans for running SQL queries against databases
@@ -17,7 +17,7 @@ impl SqlQueryPlanner {
     pub async fn query(
         &self,
         query: &str,
-        ctx: &IOxExecutionContext,
+        ctx: &IOxSessionContext,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         ctx.prepare_sql(query).await
     }

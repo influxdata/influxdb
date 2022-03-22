@@ -22,7 +22,7 @@ use datafusion::{
 use observability_deps::tracing::{debug, trace};
 use predicate::{Predicate, PredicateMatch};
 use query::{
-    exec::{stringset::StringSet, IOxExecutionContext},
+    exec::{stringset::StringSet, IOxSessionContext},
     util::{df_physical_expr_from_schema_and_expr, MissingColumnsToNull},
     QueryChunk, QueryChunkError, QueryChunkMeta,
 };
@@ -170,7 +170,7 @@ impl QueryChunk for QueryableBatch {
     /// this Chunk. Returns `None` otherwise
     fn column_names(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         _predicate: &Predicate,
         _columns: Selection<'_>,
     ) -> Result<Option<StringSet>, QueryChunkError> {
@@ -184,7 +184,7 @@ impl QueryChunk for QueryableBatch {
     /// The requested columns must all have String type.
     fn column_values(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         _column_name: &str,
         _predicate: &Predicate,
     ) -> Result<Option<StringSet>, QueryChunkError> {
@@ -206,7 +206,7 @@ impl QueryChunk for QueryableBatch {
     /// streams from several different `QueryChunk`s.
     fn read_filter(
         &self,
-        mut ctx: IOxExecutionContext,
+        mut ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, QueryChunkError> {
@@ -404,7 +404,7 @@ mod tests {
         let batch = make_queryable_batch("test_table", 1, batches);
         let stream = batch
             .read_filter(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Predicate::default(),
                 Selection::All,
             ) // return all columns
@@ -431,7 +431,7 @@ mod tests {
         let batch = make_queryable_batch("test_table", 1, batches);
         let stream = batch
             .read_filter(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Predicate::default(),
                 Selection::Some(&["time", "field_int"]), // return 2 out of 3 columns
             )
@@ -461,7 +461,7 @@ mod tests {
         let pred = PredicateBuilder::default().add_expr(expr).build();
 
         let stream = batch
-            .read_filter(IOxExecutionContext::default(), &pred, Selection::All)
+            .read_filter(IOxSessionContext::default(), &pred, Selection::All)
             .unwrap();
         let batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -486,7 +486,7 @@ mod tests {
         let pred = PredicateBuilder::default().add_expr(expr).build();
 
         let stream = batch
-            .read_filter(IOxExecutionContext::default(), &pred, Selection::All)
+            .read_filter(IOxSessionContext::default(), &pred, Selection::All)
             .unwrap();
         let batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -506,7 +506,7 @@ mod tests {
         let pred = PredicateBuilder::default().add_expr(expr).build();
 
         let stream = batch
-            .read_filter(IOxExecutionContext::default(), &pred, Selection::All)
+            .read_filter(IOxSessionContext::default(), &pred, Selection::All)
             .unwrap();
         let batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -531,7 +531,7 @@ mod tests {
         let batch = make_queryable_batch("test_table", 1, batches);
         let stream = batch
             .read_filter(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Predicate::default(),
                 Selection::Some(&["foo"]), // column not exist
             )
@@ -550,7 +550,7 @@ mod tests {
         let batch = make_queryable_batch("test_table", 1, batches);
         let stream = batch
             .read_filter(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Predicate::default(),
                 Selection::All,
             ) // return all columns
@@ -596,7 +596,7 @@ mod tests {
         let pred = PredicateBuilder::default().add_expr(expr).build();
 
         let stream = batch
-            .read_filter(IOxExecutionContext::default(), &pred, selection)
+            .read_filter(IOxSessionContext::default(), &pred, selection)
             .unwrap();
         let batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -620,7 +620,7 @@ mod tests {
         let batch = make_queryable_batch("test_table", 1, batches);
         let stream = batch
             .read_filter(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Predicate::default(),
                 Selection::Some(&["foo", "bar"]), // column not exist
             )

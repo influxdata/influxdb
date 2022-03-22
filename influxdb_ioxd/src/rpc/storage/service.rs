@@ -24,7 +24,7 @@ use generated_types::{
     TimestampRange,
 };
 use observability_deps::tracing::{error, info, trace};
-use query::exec::IOxExecutionContext;
+use query::exec::IOxSessionContext;
 use query::{
     exec::{
         fieldlist::FieldList, seriesset::converter::Error as SeriesSetError,
@@ -836,7 +836,7 @@ async fn measurement_name_impl<D>(
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -882,7 +882,7 @@ async fn tag_keys_impl<D>(
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -927,7 +927,7 @@ async fn tag_values_impl<D>(
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -974,7 +974,7 @@ async fn tag_values_grouped_by_measurement_and_tag_key_impl<D>(
     db: Arc<D>,
     db_name: DatabaseName<'static>,
     req: TagValuesGroupedByMeasurementAndTagKeyRequest,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<Vec<TagValuesResponse>, Error>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -1048,7 +1048,7 @@ async fn read_filter_impl<D>(
     db: Arc<D>,
     db_name: DatabaseName<'static>,
     req: ReadFilterRequest,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<Vec<ReadResponse>, Error>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -1097,7 +1097,7 @@ async fn query_group_impl<D>(
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
     gby_agg: GroupByAndAggregate,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<Vec<ReadResponse>, Error>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -1156,7 +1156,7 @@ async fn field_names_impl<D>(
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<FieldList>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -1196,7 +1196,7 @@ async fn materialise_measurement_names<D>(
     db: Arc<D>,
     db_name: DatabaseName<'static>,
     measurement_exprs: Vec<LiteralOrRegex>,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<BTreeSet<String>, Error>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -1275,7 +1275,7 @@ async fn materialise_tag_keys<D>(
     db_name: DatabaseName<'static>,
     measurement_name: String,
     tag_key_predicate: tag_key_predicate::Value,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<BTreeSet<String>, Error>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,

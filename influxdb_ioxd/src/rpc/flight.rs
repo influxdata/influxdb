@@ -25,7 +25,7 @@ use tonic::{Request, Response, Streaming};
 
 use data_types::{DatabaseName, DatabaseNameError};
 use observability_deps::tracing::{info, warn};
-use query::exec::{ExecutionContextProvider, IOxExecutionContext};
+use query::exec::{ExecutionContextProvider, IOxSessionContext};
 
 use crate::planner::Planner;
 
@@ -265,7 +265,7 @@ struct GetStream {
 
 impl GetStream {
     async fn new(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         physical_plan: Arc<dyn ExecutionPlan>,
         database_name: String,
         mut query_completed_token: QueryCompletedToken,

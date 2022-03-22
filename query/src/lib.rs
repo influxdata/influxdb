@@ -15,7 +15,7 @@ use data_types::{
     partition_metadata::{InfluxDbType, TableSummary},
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
-use exec::{stringset::StringSet, IOxExecutionContext};
+use exec::{stringset::StringSet, IOxSessionContext};
 use observability_deps::tracing::{debug, trace};
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, PredicateMatch};
 use schema::selection::Selection;
@@ -145,7 +145,7 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     /// Record that particular type of query was run / planned
     fn record_query(
         &self,
-        ctx: &IOxExecutionContext,
+        ctx: &IOxSessionContext,
         query_type: &str,
         query_text: QueryText,
     ) -> QueryCompletedToken;
@@ -192,7 +192,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     /// this Chunk. Returns `None` otherwise
     fn column_names(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         predicate: &Predicate,
         columns: Selection<'_>,
     ) -> Result<Option<StringSet>, QueryChunkError>;
@@ -204,7 +204,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     /// The requested columns must all have String type.
     fn column_values(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         column_name: &str,
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, QueryChunkError>;
@@ -224,7 +224,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     /// streams from several different `QueryChunk`s.
     fn read_filter(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, QueryChunkError>;

@@ -2,7 +2,7 @@ use arrow_util::assert_batches_sorted_eq;
 use db::{test_helpers::write_lp, utils::TestDb};
 use object_store::{DynObjectStore, ObjectStoreImpl, ObjectStoreIntegration};
 use query::{
-    exec::{ExecutionContextProvider, IOxExecutionContext},
+    exec::{ExecutionContextProvider, IOxSessionContext},
     frontend::sql::SqlQueryPlanner,
     QueryChunk,
 };
@@ -115,7 +115,7 @@ async fn test_query_cancellation_slow_store() {
 }
 
 /// Wait up to 10s for correct task count.
-async fn wait_for_tasks(ctx: &IOxExecutionContext, n: usize) {
+async fn wait_for_tasks(ctx: &IOxSessionContext, n: usize) {
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             if dbg!(ctx.tasks()) == n {

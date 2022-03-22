@@ -14,7 +14,7 @@ use metric::{Attributes, DurationCounter, Metric, U64Counter};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
-use query::{exec::IOxExecutionContext, QueryChunk};
+use query::{exec::IOxSessionContext, QueryChunk};
 use query::{
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
@@ -296,7 +296,7 @@ impl QueryDatabase for QueryCatalogAccess {
 
     fn record_query(
         &self,
-        ctx: &IOxExecutionContext,
+        ctx: &IOxSessionContext,
         query_type: &str,
         query_text: QueryText,
     ) -> QueryCompletedToken {
@@ -345,6 +345,15 @@ impl CatalogProvider for QueryCatalogAccess {
             SYSTEM_SCHEMA => Some(Arc::clone(&self.system_tables) as Arc<dyn SchemaProvider>),
             _ => None,
         }
+    }
+
+    fn register_schema(
+        &self,
+        _name: &str,
+        _schema: Arc<dyn SchemaProvider>,
+    ) -> Option<Arc<dyn SchemaProvider>> {
+        // https://github.com/apache/arrow-datafusion/issues/2051
+        unimplemented!("Schemas can not be registered in IOx");
     }
 }
 

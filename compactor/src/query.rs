@@ -11,7 +11,7 @@ use observability_deps::tracing::trace;
 use parquet_file::{chunk::ParquetChunk, metadata::IoxMetadata};
 use predicate::{Predicate, PredicateMatch};
 use query::{
-    exec::{stringset::StringSet, IOxExecutionContext},
+    exec::{stringset::StringSet, IOxSessionContext},
     QueryChunk, QueryChunkError, QueryChunkMeta,
 };
 use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
@@ -147,7 +147,7 @@ impl QueryChunk for QueryableParquetChunk {
     /// this Chunk. Returns `None` otherwise
     fn column_names(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         _predicate: &Predicate,
         _columns: Selection<'_>,
     ) -> Result<Option<StringSet>, QueryChunkError> {
@@ -161,7 +161,7 @@ impl QueryChunk for QueryableParquetChunk {
     /// The requested columns must all have String type.
     fn column_values(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         _column_name: &str,
         _predicate: &Predicate,
     ) -> Result<Option<StringSet>, QueryChunkError> {
@@ -183,7 +183,7 @@ impl QueryChunk for QueryableParquetChunk {
     /// streams from several different `QueryChunk`s.
     fn read_filter(
         &self,
-        mut ctx: IOxExecutionContext,
+        mut ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, QueryChunkError> {

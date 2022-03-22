@@ -24,7 +24,7 @@ use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use crate::{
-    exec::{field::FieldColumns, make_non_null_checker, make_schema_pivot, IOxExecutionContext},
+    exec::{field::FieldColumns, make_non_null_checker, make_schema_pivot, IOxSessionContext},
     func::{
         selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
         window::make_window_bound_expr,
@@ -202,18 +202,18 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Default, Debug)]
 pub struct InfluxRpcPlanner {
     /// Optional executor currently only used to provide span context for tracing.
-    ctx: IOxExecutionContext,
+    ctx: IOxSessionContext,
 }
 
 impl InfluxRpcPlanner {
     /// Create a new instance of the RPC planner
     pub fn new() -> Self {
         Self {
-            ctx: IOxExecutionContext::default(),
+            ctx: IOxSessionContext::default(),
         }
     }
 
-    pub fn with_execution_context(self, ctx: IOxExecutionContext) -> Self {
+    pub fn with_execution_context(self, ctx: IOxSessionContext) -> Self {
         Self { ctx }
     }
 
@@ -895,7 +895,7 @@ impl InfluxRpcPlanner {
     /// ```
     fn tag_keys_plan(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -967,7 +967,7 @@ impl InfluxRpcPlanner {
     /// ```
     fn field_columns_plan(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -1079,7 +1079,7 @@ impl InfluxRpcPlanner {
     ///          Scan
     fn read_filter_plan(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: impl AsRef<str>,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -1192,7 +1192,7 @@ impl InfluxRpcPlanner {
     ///          Scan
     fn read_group_plan(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -1307,7 +1307,7 @@ impl InfluxRpcPlanner {
     #[allow(clippy::too_many_arguments)]
     fn read_window_aggregate_plan(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: impl Into<String>,
         schema: Arc<Schema>,
         predicate: &Predicate,
@@ -1392,7 +1392,7 @@ impl InfluxRpcPlanner {
     /// ```
     fn scan_and_filter(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: &str,
         schema: Arc<Schema>,
         predicate: &Predicate,

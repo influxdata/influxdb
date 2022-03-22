@@ -12,7 +12,7 @@ use arrow::{
 };
 use datafusion::{
     datasource::MemTable,
-    prelude::{ExecutionConfig, ExecutionContext},
+    prelude::{SessionConfig, SessionContext},
 };
 
 use observability_deps::tracing::{debug, info};
@@ -44,14 +44,14 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// pre-loaded with consolidated system table views.
 pub struct Observer {
     /// DataFusion execution context for executing queries
-    context: ExecutionContext,
+    context: SessionContext,
 }
 
 impl Observer {
     /// Attempt to create a new observer instance, loading from the remote server
     pub async fn try_new(connection: Connection) -> Result<Self> {
         let mut context =
-            ExecutionContext::with_config(ExecutionConfig::new().with_information_schema(true));
+            SessionContext::with_config(SessionConfig::new().with_information_schema(true));
 
         load_remote_system_tables(&mut context, connection).await?;
 
@@ -98,7 +98,7 @@ ORDER BY estimated_mb desc;
 /// remote server into a local copy that also has an extra
 /// `database_name` column for the database
 async fn load_remote_system_tables(
-    context: &mut ExecutionContext,
+    context: &mut SessionContext,
     connection: Connection,
 ) -> Result<()> {
     // all prefixed with "system."
@@ -230,7 +230,7 @@ impl AggregatedTableBuilder {
     }
 
     /// register a table provider for this system table
-    fn build(self, ctx: &mut ExecutionContext) {
+    fn build(self, ctx: &mut SessionContext) {
         let Self { tables } = self;
 
         for (table_name, table_builder) in tables {
@@ -282,7 +282,7 @@ impl VirtualTableBuilder {
     }
 
     /// register a table provider  for this sytem table
-    fn build(self, ctx: &mut ExecutionContext) {
+    fn build(self, ctx: &mut SessionContext) {
         let Self {
             table_name,
             batches,

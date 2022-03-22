@@ -34,7 +34,7 @@ use arrow::{
 };
 use datafusion::{
     error::{DataFusionError as Error, Result},
-    execution::runtime_env::RuntimeEnv,
+    execution::context::TaskContext,
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
     physical_plan::{
         common::SizedRecordBatchStream,
@@ -218,7 +218,7 @@ impl ExecutionPlan for SchemaPivotExec {
     async fn execute(
         &self,
         partition: usize,
-        runtime: Arc<RuntimeEnv>,
+        context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
         if self.output_partitioning().partition_count() <= partition {
             return Err(Error::Internal(format!(
@@ -228,7 +228,7 @@ impl ExecutionPlan for SchemaPivotExec {
         }
 
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
-        let mut input_reader = self.input.execute(partition, runtime).await?;
+        let mut input_reader = self.input.execute(partition, context).await?;
 
         // Algorithm: for each column we haven't seen a value for yet,
         // check each input row;

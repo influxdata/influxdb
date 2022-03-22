@@ -3,7 +3,7 @@
 //!
 //! AKA it is a Mock
 
-use crate::exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext};
+use crate::exec::{ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext};
 use crate::{
     exec::stringset::{StringSet, StringSetRef},
     Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
@@ -117,7 +117,7 @@ impl QueryDatabase for TestDatabase {
 
     fn record_query(
         &self,
-        _ctx: &IOxExecutionContext,
+        _ctx: &IOxSessionContext,
         _query_type: &str,
         _query_text: QueryText,
     ) -> QueryCompletedToken {
@@ -161,7 +161,7 @@ impl QueryDatabaseMeta for TestDatabase {
 }
 
 impl ExecutionContextProvider for TestDatabase {
-    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
+    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
         // Note: unlike Db this does not register a catalog provider
         self.executor
             .new_execution_config(ExecutorType::Query)
@@ -885,7 +885,7 @@ impl QueryChunk for TestChunk {
 
     fn read_filter(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         predicate: &Predicate,
         _selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, QueryChunkError> {
@@ -921,7 +921,7 @@ impl QueryChunk for TestChunk {
 
     fn column_values(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         _column_name: &str,
         _predicate: &Predicate,
     ) -> Result<Option<StringSet>, QueryChunkError> {
@@ -931,7 +931,7 @@ impl QueryChunk for TestChunk {
 
     fn column_names(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<Option<StringSet>, QueryChunkError> {
@@ -983,7 +983,7 @@ pub async fn raw_data(chunks: &[Arc<dyn QueryChunk>]) -> Vec<RecordBatch> {
         let pred = Predicate::default();
         let selection = Selection::All;
         let mut stream = c
-            .read_filter(IOxExecutionContext::default(), &pred, selection)
+            .read_filter(IOxSessionContext::default(), &pred, selection)
             .expect("Error in read_filter");
         while let Some(b) = stream.next().await {
             let b = b.expect("Error in stream");
