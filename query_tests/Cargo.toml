@@ -12,10 +12,13 @@ async-trait = "0.1"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 db = { path = "../db" }
+iox_tests = { path = "../iox_tests" }
+mutable_batch_lp = { path = "../mutable_batch_lp" }
 once_cell = { version = "1.10.0", features = ["parking_lot"] }
 predicate = { path = "../predicate" }
 schema = { path = "../schema" }
 trace = { path = "../trace" }
+querier = { path = "../querier" }
 query = { path = "../query" }
 workspace-hack = { path = "../workspace-hack"}
 

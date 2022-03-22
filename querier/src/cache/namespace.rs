@@ -1,3 +1,4 @@
+//! Namespace cache.
 use std::{collections::HashMap, sync::Arc};
 
 use backoff::{Backoff, BackoffConfig};

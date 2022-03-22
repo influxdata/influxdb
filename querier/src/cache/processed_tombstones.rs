@@ -1,3 +1,4 @@
+//! Processed tombstone cache.
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use backoff::{Backoff, BackoffConfig};

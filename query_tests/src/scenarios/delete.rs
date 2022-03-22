@@ -5,13 +5,12 @@ use data_types::timestamp::TimestampRange;
 
 use async_trait::async_trait;
 
-use crate::scenarios::util::{
-    all_scenarios_for_one_chunk, make_different_stage_chunks_with_deletes_scenario, ChunkData,
-    ChunkStage,
-};
-
-use super::util::make_os_chunks_and_then_compact_with_different_scenarios_with_delete;
 use super::{DbScenario, DbSetup};
+use crate::scenarios::util::{
+    all_scenarios_for_one_chunk, make_different_stage_chunks_with_deletes_scenario_old,
+    make_os_chunks_and_then_compact_with_different_scenarios_with_delete, ChunkDataOld,
+    ChunkStageOld,
+};
 
 // =========================================================================================================================
 // DELETE TEST SETUPS: chunk lp data, how many chunks, their types, how many delete predicates and when they happen
@@ -258,21 +257,21 @@ impl DbSetup for ThreeDeleteThreeChunks {
         // ----------------------
         // 3 chunks: MUB, RUB, OS
         let lp = vec![
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStage::Os,
+                chunk_stage: ChunkStageOld::Os,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStage::Rub,
+                chunk_stage: ChunkStageOld::Rub,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStage::Mubo,
+                chunk_stage: ChunkStageOld::Mubo,
             },
         ];
         let preds = vec![&pred1, &pred2, &pred3];
-        let scenario_mub_rub_os = make_different_stage_chunks_with_deletes_scenario(
+        let scenario_mub_rub_os = make_different_stage_chunks_with_deletes_scenario_old(
             lp,
             preds.clone(),
             table_name,
@@ -283,20 +282,20 @@ impl DbSetup for ThreeDeleteThreeChunks {
         // ----------------------
         // 3 chunks: 1 MUB open, 1 MUB frozen, 1 RUB
         let lp = vec![
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStage::Rub,
+                chunk_stage: ChunkStageOld::Rub,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStage::Mubf,
+                chunk_stage: ChunkStageOld::Mubf,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStage::Mubo,
+                chunk_stage: ChunkStageOld::Mubo,
             },
         ];
-        let scenario_2mub_rub = make_different_stage_chunks_with_deletes_scenario(
+        let scenario_2mub_rub = make_different_stage_chunks_with_deletes_scenario_old(
             lp,
             preds.clone(),
             table_name,
@@ -307,20 +306,20 @@ impl DbSetup for ThreeDeleteThreeChunks {
         // ----------------------
         // 3 chunks: 2 MUB, 1 OS
         let lp = vec![
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStage::Os,
+                chunk_stage: ChunkStageOld::Os,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStage::Mubf,
+                chunk_stage: ChunkStageOld::Mubf,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStage::Mubo,
+                chunk_stage: ChunkStageOld::Mubo,
             },
         ];
-        let scenario_2mub_os = make_different_stage_chunks_with_deletes_scenario(
+        let scenario_2mub_os = make_different_stage_chunks_with_deletes_scenario_old(
             lp,
             preds.clone(),
             table_name,
@@ -331,20 +330,20 @@ impl DbSetup for ThreeDeleteThreeChunks {
         // ----------------------
         // 3 chunks: 2 RUB, 1 OS
         let lp = vec![
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStage::Os,
+                chunk_stage: ChunkStageOld::Os,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStage::Rub,
+                chunk_stage: ChunkStageOld::Rub,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStage::Rub,
+                chunk_stage: ChunkStageOld::Rub,
             },
         ];
-        let scenario_2rub_os = make_different_stage_chunks_with_deletes_scenario(
+        let scenario_2rub_os = make_different_stage_chunks_with_deletes_scenario_old(
             lp,
             preds.clone(),
             table_name,
@@ -355,20 +354,20 @@ impl DbSetup for ThreeDeleteThreeChunks {
         // ----------------------
         // 3 chunks:  RUB, 2 OS
         let lp = vec![
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStage::Os,
+                chunk_stage: ChunkStageOld::Os,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStage::Os,
+                chunk_stage: ChunkStageOld::Os,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStage::Rub,
+                chunk_stage: ChunkStageOld::Rub,
             },
         ];
-        let scenario_rub_2os = make_different_stage_chunks_with_deletes_scenario(
+        let scenario_rub_2os = make_different_stage_chunks_with_deletes_scenario_old(
             lp,
             preds.clone(),
             table_name,
@@ -379,20 +378,20 @@ impl DbSetup for ThreeDeleteThreeChunks {
         // ----------------------
         // 3 chunks:  3 OS
         let lp = vec![
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStage::Os,
+                chunk_stage: ChunkStageOld::Os,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStage::Os,
+                chunk_stage: ChunkStageOld::Os,
             },
-            ChunkData {
+            ChunkDataOld {
                 lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStage::Os,
+                chunk_stage: ChunkStageOld::Os,
             },
         ];
-        let scenario_3os = make_different_stage_chunks_with_deletes_scenario(
+        let scenario_3os = make_different_stage_chunks_with_deletes_scenario_old(
             lp,
             preds.clone(),
             table_name,

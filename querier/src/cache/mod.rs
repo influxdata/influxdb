@@ -1,3 +1,4 @@
+//! Caches used by the querier.
 use backoff::BackoffConfig;
 use iox_catalog::interface::Catalog;
 use std::sync::Arc;

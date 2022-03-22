@@ -2,6 +2,7 @@ use std::{any::Any, sync::Arc};
 
 use datafusion::catalog::catalog::CatalogProvider;
 use db::Db;
+use querier::namespace::QuerierNamespace;
 use query::{exec::ExecutionContextProvider, QueryDatabase};
 
 /// Abstract database used during testing.
@@ -20,6 +21,20 @@ pub trait AbstractDb: CatalogProvider + ExecutionContextProvider + QueryDatabase
 }
 
 impl AbstractDb for Db {
+    fn as_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync + 'static> {
+        self as _
+    }
+
+    fn as_catalog_provider_arc(self: Arc<Self>) -> Arc<dyn CatalogProvider> {
+        self as _
+    }
+
+    fn as_query_database(&self) -> &dyn QueryDatabase {
+        self
+    }
+}
+
+impl AbstractDb for QuerierNamespace {
     fn as_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync + 'static> {
         self as _
     }

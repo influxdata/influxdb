@@ -13,7 +13,7 @@
 
 pub use client_util::connection;
 
-mod cache;
+pub mod cache;
 mod cache_system;
 mod chunk;
 pub mod database;
