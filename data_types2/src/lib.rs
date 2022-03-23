@@ -718,8 +718,8 @@ pub struct ParquetFile {
     pub min_time: Timestamp,
     /// the max timestamp of data in this file
     pub max_time: Timestamp,
-    /// flag to mark that this file should be deleted from object storage
-    pub to_delete: bool,
+    /// When this file was marked for deletion
+    pub to_delete: Option<Timestamp>,
     /// file size in bytes
     pub file_size_bytes: i64,
     /// thrift-encoded parquet metadata

@@ -1092,7 +1092,7 @@ mod tests {
             max_sequence_number: SequenceNumber::new(1),
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
-            to_delete: false,
+            to_delete: None,
             file_size_bytes: 0,
             parquet_metadata: vec![],
             row_count: 0,

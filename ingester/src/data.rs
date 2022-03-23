@@ -1580,7 +1580,7 @@ mod tests {
         assert_eq!(pf.min_sequence_number, SequenceNumber::new(1));
         assert_eq!(pf.max_sequence_number, SequenceNumber::new(2));
         assert_eq!(pf.sequencer_id, sequencer1.id);
-        assert!(!pf.to_delete);
+        assert!(pf.to_delete.is_none());
 
         let mem_table = n.table_data("mem").unwrap();
         let mem_table = mem_table.read().await;

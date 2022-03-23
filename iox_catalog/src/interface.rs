@@ -1712,8 +1712,8 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_eq!(vec![other_file.clone()], files);
 
-        // verify that to_delete is initially set to false and that it can be updated to true
-        assert!(!parquet_file.to_delete);
+        // verify that to_delete is initially set to null and that it can be updated to a timestamp
+        assert!(parquet_file.to_delete.is_none());
         repos
             .parquet_files()
             .flag_for_delete(parquet_file.id)
@@ -1724,7 +1724,7 @@ pub(crate) mod test_helpers {
             .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(1))
             .await
             .unwrap();
-        assert!(files.first().unwrap().to_delete);
+        assert!(files.first().unwrap().to_delete.is_some());
 
         // test list_by_table_not_to_delete
         let files = repos
