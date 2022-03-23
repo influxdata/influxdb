@@ -1714,6 +1714,127 @@ func TestHandler_Write_V2_Precision(t *testing.T) {
 	}
 }
 
+func TestHandler_Delete_V2(t *testing.T) {
+	type test struct {
+		url    string
+		body   httpd.DeleteBody
+		status int
+		errMsg string
+	}
+	tests := []*test{
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T22:56:06Z"},
+			status: http.StatusOK,
+			errMsg: ``,
+		},
+		&test{
+			url:    "/api/v2/delete?/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T22:56:06Z"},
+			status: http.StatusNotFound,
+			errMsg: `delete - bucket: bucket name "" is missing a slash; not in "database/retention-policy" format`,
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T22:56:06Z", Predicate: "?>!!?>?>;;;"},
+			status: http.StatusBadRequest,
+			errMsg: `delete - cannot parse predicate "?>!!?>?>;;; AND time >= '2022-03-23T22:56:06Z' AND time < '2022-03-23T20:56:06Z'": found ?, expected identifier, string, number, bool at line 1, char 1`,
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T22:56:06Z", Predicate: "_measurement='baz' AND t1=tagOne"},
+			status: http.StatusOK,
+			errMsg: ``,
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T22:56:06Z"},
+			status: http.StatusOK,
+			errMsg: ``,
+		},
+
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Start: "2022-03-23T20:56:06Z"},
+			status: http.StatusBadRequest,
+			errMsg: "delete - stop field in RFC3339Nano format required",
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z"},
+			status: http.StatusBadRequest,
+			errMsg: "delete - start field in RFC3339Nano format required",
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Start: "2022-03-23T20:56:06Z", Stop: "NotAValidTime"},
+			status: http.StatusBadRequest,
+			errMsg: `delete - invalid format for stop field "NotAValidTime", please use RFC3339Nano: parsing time "NotAValidTime" as "2006-01-02T15:04:05.999999999Z07:00": cannot parse "NotAValidTime" as "2006"`,
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "NotAValidTime"},
+			status: http.StatusBadRequest,
+			errMsg: `delete - invalid format for start field "NotAValidTime", please use RFC3339Nano: parsing time "NotAValidTime" as "2006-01-02T15:04:05.999999999Z07:00": cannot parse "NotAValidTime" as "2006"`,
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T18:56:06Z", Predicate: `_measurement = "mymeasure" AND "tag0" = "value1"`},
+			status: http.StatusOK,
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T18:56:06Z", Predicate: `_measurement = "mymeasure" AND "tag0" = "value1" AND tag1 = value3`},
+			status: http.StatusOK,
+		},
+		&test{
+			url:    "/api/v2/delete?org=bar&bucket=mydb/myrp",
+			body:   httpd.DeleteBody{Stop: "2022-03-23T20:56:06Z", Start: "2022-03-23T18:56:06Z", Predicate: `_measurement = "mymeasure" AND "tag0" != "value1" AND tag1 = value3`},
+			status: http.StatusBadRequest,
+			errMsg: `delete - predicate only supports equality operators and conjunctions. database: "mydb", retention policy: "myrp", start: "2022-03-23T18:56:06Z", stop: "2022-03-23T20:56:06Z", predicate: "_measurement = \"mymeasure\" AND \"tag0\" != \"value1\" AND tag1 = value3"`,
+		},
+	}
+
+	h := NewHandler(false)
+	h.Store.DeleteFn = func(database string, sources []influxql.Source, condition influxql.Expr) error { return nil }
+	h.MetaClient = &internal.MetaClientMock{
+		DatabaseFn: func(name string) *meta.DatabaseInfo {
+			if name == "mydb" {
+				return &meta.DatabaseInfo{
+					Name:              "mydb",
+					RetentionPolicies: []meta.RetentionPolicyInfo{meta.RetentionPolicyInfo{Name: "myrp"}},
+				}
+			} else {
+				return nil
+			}
+		},
+	}
+	h.Handler.MetaClient = h.MetaClient
+
+	var req *http.Request
+	fn := func(ct *test) {
+		w := httptest.NewRecorder()
+		if body, err := json.Marshal(&ct.body); err != nil {
+			t.Fatalf("error marshaling body: %s", err)
+		} else {
+			req = MustNewJSONRequest("POST", ct.url, bytes.NewReader(body))
+		}
+		h.ServeHTTP(w, req)
+		var errMsg string
+		if w.Code != ct.status {
+			t.Fatalf("error, expected %d got %d: %s", ct.status, w.Code, errMsg)
+		} else if w.Code != http.StatusOK {
+			errMsg = w.Header().Get("X-InfluxDB-Error")
+			if errMsg != ct.errMsg {
+				t.Fatalf("incorrect error message, expected: %q, got: %q", ct.errMsg, errMsg)
+			}
+		}
+	}
+	for _, ct := range tests {
+		fn(ct)
+	}
+}
+
 // Ensure X-Forwarded-For header writes the correct log message.
 func TestHandler_XForwardedFor(t *testing.T) {
 	var buf bytes.Buffer

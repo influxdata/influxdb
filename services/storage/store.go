@@ -496,3 +496,7 @@ func (s *Store) MeasurementNames(ctx context.Context, req *MeasurementNamesReque
 func (s *Store) GetSource(db, rp string) proto.Message {
 	return &ReadSource{Database: db, RetentionPolicy: rp}
 }
+
+func (s *Store) Delete(database string, sources []influxql.Source, condition influxql.Expr) error {
+	return s.TSDBStore.DeleteSeries(database, sources, condition)
+}
