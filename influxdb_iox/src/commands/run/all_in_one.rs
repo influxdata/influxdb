@@ -152,9 +152,6 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) ingester_config: IngesterConfig,
 
-    #[clap(flatten)]
-    pub(crate) compactor_config: CompactorConfig,
-
     /// The address on which IOx will serve Router HTTP API requests
     #[clap(
     long = "--router-http-bind",
@@ -199,33 +196,48 @@ pub struct Config {
 impl Config {
     /// Get a specialized run config to use for each service
     fn specialize(self) -> SpecializedConfig {
-        if self.run_config.http_bind_address != DEFAULT_API_BIND_ADDR.parse().unwrap() {
+        let Self {
+            run_config,
+            catalog_dsn,
+            write_buffer_config,
+            ingester_config,
+            router_http_bind_address,
+            router_grpc_bind_address,
+            querier_grpc_bind_address,
+            ingester_grpc_bind_address,
+            compactor_grpc_bind_address,
+        } = self;
+
+        if run_config.http_bind_address != DEFAULT_API_BIND_ADDR.parse().unwrap() {
             eprintln!("Warning: --http-bind-addr ignored in all in one mode");
         }
-        if self.run_config.grpc_bind_address != DEFAULT_GRPC_BIND_ADDR.parse().unwrap() {
+        if run_config.grpc_bind_address != DEFAULT_GRPC_BIND_ADDR.parse().unwrap() {
             eprintln!("Warning: --grpc-bind-addr ignored in all in one mode");
         }
 
-        let router_run_config = self
-            .run_config
+        let router_run_config = run_config
             .clone()
-            .with_http_bind_address(self.router_http_bind_address)
-            .with_grpc_bind_address(self.router_grpc_bind_address);
+            .with_http_bind_address(router_http_bind_address)
+            .with_grpc_bind_address(router_grpc_bind_address);
 
-        let querier_run_config = self
-            .run_config
+        let querier_run_config = run_config
             .clone()
-            .with_grpc_bind_address(self.querier_grpc_bind_address);
+            .with_grpc_bind_address(querier_grpc_bind_address);
 
-        let ingester_run_config = self
-            .run_config
+        let ingester_run_config = run_config
             .clone()
-            .with_grpc_bind_address(self.ingester_grpc_bind_address);
+            .with_grpc_bind_address(ingester_grpc_bind_address);
 
-        let compactor_run_config = self
-            .run_config
-            .clone()
-            .with_grpc_bind_address(self.compactor_grpc_bind_address);
+        let compactor_run_config = run_config.with_grpc_bind_address(compactor_grpc_bind_address);
+
+        // create a CompactorConfig for the all in one server based on
+        // settings from other configs. Cant use `#clap(flatten)` as the
+        // parameters are redundant with ingesters
+        let compactor_config = CompactorConfig {
+            topic: write_buffer_config.topic().to_string(),
+            write_buffer_partition_range_start: ingester_config.write_buffer_partition_range_start,
+            write_buffer_partition_range_end: ingester_config.write_buffer_partition_range_end,
+        };
 
         SpecializedConfig {
             router_run_config,
@@ -234,10 +246,10 @@ impl Config {
             ingester_run_config,
             compactor_run_config,
 
-            catalog_dsn: self.catalog_dsn,
-            write_buffer_config: self.write_buffer_config,
-            ingester_config: self.ingester_config,
-            compactor_config: self.compactor_config,
+            catalog_dsn,
+            write_buffer_config,
+            ingester_config,
+            compactor_config,
         }
     }
 }
