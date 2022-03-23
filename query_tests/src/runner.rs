@@ -69,10 +69,10 @@ pub enum Error {
 
     #[snafu(display(
         "Answers produced by scenario {} differ from previous answer\
-         \n\nprevious:\n\n{:#?}\ncurrent:\n\n{:#?}\n\n",
+         \n\nprevious:\n{}\n\ncurrent:\n{}\n\n",
         scenario_name,
-        previous_results,
-        current_results
+        previous_results.join("\n"),
+        current_results.join("\n"),
     ))]
     ScenarioMismatch {
         scenario_name: String,
@@ -116,13 +116,13 @@ impl<W: Write> std::fmt::Debug for Runner<W> {
     }
 }
 
-/// Struct that calls println! to print out its data. Used rather than
+/// Struct that calls `print!` to print out its data. Used rather than
 /// `std::io::stdout` which is not captured by the result test runner
 /// for some reason. This writer expects to get valid utf8 sequences
-pub struct PrintlnWriter {}
-impl Write for PrintlnWriter {
+pub struct PrintWriter {}
+impl Write for PrintWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        println!("{}", String::from_utf8_lossy(buf));
+        print!("{}", String::from_utf8_lossy(buf));
         Ok(buf.len())
     }
 
@@ -131,10 +131,10 @@ impl Write for PrintlnWriter {
     }
 }
 
-impl Runner<PrintlnWriter> {
+impl Runner<PrintWriter> {
     /// Create a new runner which writes to std::out
     pub fn new() -> Self {
-        let log = LineWriter::new(PrintlnWriter {});
+        let log = LineWriter::new(PrintWriter {});
         Self { log }
     }
 
@@ -307,12 +307,14 @@ impl<W: Write> Runner<W> {
                 .collect::<Vec<_>>();
 
             if !previous_results.is_empty() && previous_results != current_results {
-                return ScenarioMismatchSnafu {
+                let err = ScenarioMismatchSnafu {
                     scenario_name,
                     previous_results,
                     current_results,
                 }
-                .fail();
+                .build();
+                writeln!(self.log, "{}", err)?;
+                return Err(err);
             }
             previous_results = current_results;
         }
