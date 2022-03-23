@@ -1,10 +1,10 @@
--- Test Setup: TwoMeasurementsManyFieldsOneChunk
+-- Test Setup: OldTwoMeasurementsManyFieldsOneRubChunk
 -- SQL: SELECT partition_key, table_name, storage, memory_bytes, row_count from system.chunks;
 -- Results After Sorting
 +---------------+------------+-------------------+--------------+-----------+
 | partition_key | table_name | storage           | memory_bytes | row_count |
 +---------------+------------+-------------------+--------------+-----------+
-| 1970-01-01T00 | h2o        | OpenMutableBuffer | 1831         | 3         |
+| 1970-01-01T00 | h2o        | ReadBuffer        | 4536         | 3         |
 | 1970-01-01T00 | o2         | OpenMutableBuffer | 1827         | 2         |
 +---------------+------------+-------------------+--------------+-----------+
 -- SQL: SELECT * from system.columns;

@@ -1,4 +1,4 @@
--- Test Setup: TwoMeasurementsManyFieldsOneRubChunk
+-- Test Setup: OldTwoMeasurementsManyFieldsOneRubChunk
 -- SQL: EXPLAIN SELECT count(*) from h2o;
 +---------------+-------------------------------------------------------------+
 | plan_type     | plan                                                        |
