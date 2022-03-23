@@ -89,7 +89,7 @@ require (
 
 require (
 	github.com/apache/arrow/go/v7 v7.0.0
-	github.com/influxdata/influx-cli/v2 v2.2.1-0.20211129214229-4c0fae3a4c0d
+	github.com/influxdata/influx-cli/v2 v2.2.1-0.20220318222112-88ba3464cd07
 )
 
 require (

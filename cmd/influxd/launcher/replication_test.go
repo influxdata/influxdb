@@ -6,7 +6,6 @@ import (
 	nethttp "net/http"
 	"net/http/httptest"
 	"net/http/httputil"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -184,12 +183,12 @@ csv.from(csv: csvData) |> to(bucket: %q)
 	// Format string to be used as a flux query to get data from a bucket.
 	qs := `from(bucket:%q) |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
 
-	// Data that should be in a bucket which received all of the testPoints1.
+	// Data that should be in a bucket which received all the testPoints1.
 	exp1 := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
 		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v1` + "\r\n" +
 		`,_result,1,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,200,f,m,v2` + "\r\n\r\n"
 
-	// Data that should be in a bucket which received all of the points from testPoints1 and testPoints2.
+	// Data that should be in a bucket which received all the points from testPoints1 and testPoints2.
 	exp2 := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
 		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v1` + "\r\n" +
 		`,_result,1,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,200,f,m,v2` + "\r\n" +
@@ -210,24 +209,13 @@ csv.from(csv: csvData) |> to(bucket: %q)
 	remote2BucketName := "remote2"
 
 	// Create a proxy for use in testing. This will proxy requests to the server, and also decrement the waitGroup to
-	// allow for synchronization. The server also returns an error on every other request to verify that remote write
-	// retries work correctly.
+	// allow for synchronization.
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	serverShouldErr := true
 	proxyHandler := httputil.NewSingleHostReverseProxy(l.URL())
 	proxy := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		mu.Lock()
 		defer mu.Unlock()
-
-		if serverShouldErr {
-			serverShouldErr = false
-			w.Header().Set("Retry-After", strconv.Itoa(0)) // writer will use a minimal retry wait time
-			w.WriteHeader(nethttp.StatusTooManyRequests)
-			return
-		}
-
-		serverShouldErr = true
 		proxyHandler.ServeHTTP(w, r)
 		wg.Done()
 	}))
@@ -266,6 +254,7 @@ csv.from(csv: csvData) |> to(bucket: %q)
 		LocalBucketID:     l.Bucket.ID.String(),
 		RemoteBucketID:    remote1Bucket.ID.String(),
 		MaxQueueSizeBytes: influxdb.DefaultReplicationMaxQueueSizeBytes,
+		MaxAgeSeconds:     influxdb.DefaultReplicationMaxAge,
 	}
 
 	_, err = client.ReplicationsApi.PostReplication(ctx).ReplicationCreationRequest(replicationCreateReq).Execute()
@@ -292,6 +281,7 @@ csv.from(csv: csvData) |> to(bucket: %q)
 		LocalBucketID:     l.Bucket.ID.String(),
 		RemoteBucketID:    remote2Bucket.ID.String(),
 		MaxQueueSizeBytes: influxdb.DefaultReplicationMaxQueueSizeBytes,
+		MaxAgeSeconds:     influxdb.DefaultReplicationMaxAge,
 	}
 	_, err = client.ReplicationsApi.PostReplication(ctx).ReplicationCreationRequest(replicationCreateReq).Execute()
 	require.NoError(t, err)
@@ -301,7 +291,7 @@ csv.from(csv: csvData) |> to(bucket: %q)
 	l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(testPoints2, l.Bucket.Name))
 	wg.Wait()
 
-	// All of the data should be in the local bucket and first replicated bucket. Only part of the data should be in the
+	// All the data should be in the local bucket and first replicated bucket. Only part of the data should be in the
 	// second replicated bucket.
 	require.Equal(t, exp2, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(qs, localBucketName)))
 	require.Equal(t, exp2, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(qs, remote1BucketName)))

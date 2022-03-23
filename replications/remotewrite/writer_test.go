@@ -183,6 +183,24 @@ func TestWrite(t *testing.T) {
 		}
 	})
 
+	t.Run("gives backoff time on write response", func(t *testing.T) {
+		svr := testServer(t, constantStatus(http.StatusBadRequest), testData)
+		defer svr.Close()
+
+		testConfig := &influxdb.ReplicationHTTPConfig{
+			RemoteURL: svr.URL,
+		}
+
+		w, configStore, _ := testWriter(t)
+
+		configStore.EXPECT().GetFullHTTPConfig(gomock.Any(), testID).Return(testConfig, nil)
+		configStore.EXPECT().UpdateResponseInfo(gomock.Any(), testID, http.StatusBadRequest, gomock.Any()).Return(nil)
+		backoff, shouldRetry, actualErr := w.Write(testData, 1)
+		require.Equal(t, backoff, w.backoff(1))
+		require.Equal(t, invalidResponseCode(http.StatusBadRequest), actualErr)
+		require.True(t, shouldRetry)
+	})
+
 	t.Run("uses wait time from response header if present", func(t *testing.T) {
 		numSeconds := 5
 		waitTimeFromHeader := 5 * time.Second

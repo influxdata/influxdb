@@ -10,6 +10,7 @@ import (
 const (
 	MinReplicationMaxQueueSizeBytes     int64 = 33554430 // 32 MiB
 	DefaultReplicationMaxQueueSizeBytes       = 2 * MinReplicationMaxQueueSizeBytes
+	DefaultReplicationMaxAge            int64 = 604800 // 1 week, in seconds
 )
 
 var ErrMaxQueueSizeTooSmall = errors.Error{
