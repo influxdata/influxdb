@@ -1277,6 +1277,36 @@ ORDER BY id;
         .await
         .map_err(|e| Error::SqlxError { source: e })
     }
+
+    async fn list_tombstones_for_time_range(
+        &mut self,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+        sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<Vec<Tombstone>> {
+        sqlx::query_as::<_, Tombstone>(
+            r#"
+SELECT *
+FROM tombstone
+WHERE sequencer_id = $1
+  AND table_id = $2
+  AND sequence_number > $3
+  AND ((min_time <= $4 AND max_time >= $4)
+        OR (min_time > $4 AND min_time <= $5))
+ORDER BY id;
+            "#,
+        )
+        .bind(&sequencer_id) // $1
+        .bind(&table_id) // $2
+        .bind(&sequence_number) // $3
+        .bind(&min_time) // $4
+        .bind(&max_time) // $5
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
 }
 
 #[async_trait]

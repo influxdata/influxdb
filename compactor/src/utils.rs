@@ -12,6 +12,22 @@ use parquet_file::{
 use std::{collections::HashSet, sync::Arc};
 use time::TimeProvider;
 
+/// Wrapper of a group of parquet files and their tombstones that overlap in time and should be
+/// considered during compaction.
+pub struct GroupWithTombstones {
+    /// Each file with the set of tombstones relevant to it
+    pub(crate) parquet_files: Vec<ParquetFileWithTombstone>,
+    /// All tombstones relevant to any of the files in the group
+    pub(crate) tombstones: Vec<Tombstone>,
+}
+
+impl GroupWithTombstones {
+    /// Return all tombstone ids
+    pub fn tombstone_ids(&self) -> HashSet<TombstoneId> {
+        self.tombstones.iter().map(|t| t.id).collect()
+    }
+}
+
 /// Wrapper of a parquet file and its tombstones
 #[allow(missing_docs)]
 #[derive(Debug, Clone)]

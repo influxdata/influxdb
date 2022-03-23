@@ -438,6 +438,22 @@ pub trait TombstoneRepo: Send + Sync {
         sequencer_id: SequencerId,
         sequence_number: SequenceNumber,
     ) -> Result<Vec<Tombstone>>;
+
+    /// Return all tombstones that have:
+    ///
+    /// - the specified sequencer ID and table ID
+    /// - a sequence number greater than the specified sequence number
+    /// - a time period that overlaps with the specified time period
+    ///
+    /// Used during compaction.
+    async fn list_tombstones_for_time_range(
+        &mut self,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+        sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<Vec<Tombstone>>;
 }
 
 /// The starting compaction level for parquet files is zero.
@@ -592,6 +608,7 @@ pub(crate) mod test_helpers {
         test_sequencer(Arc::clone(&catalog)).await;
         test_partition(Arc::clone(&catalog)).await;
         test_tombstone(Arc::clone(&catalog)).await;
+        test_tombstones_by_parquet_file(Arc::clone(&catalog)).await;
         test_parquet_file(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_0(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_1(Arc::clone(&catalog)).await;
@@ -1378,7 +1395,225 @@ pub(crate) mod test_helpers {
             .list_by_namespace(NamespaceId::new(i32::MAX))
             .await
             .unwrap();
-        assert_eq!(Vec::<Tombstone>::new(), listed);
+        assert!(listed.is_empty());
+    }
+
+    async fn test_tombstones_by_parquet_file(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = repos
+            .namespaces()
+            .create(
+                "namespace_tombstones_by_parquet_file_test",
+                "inf",
+                kafka.id,
+                pool.id,
+            )
+            .await
+            .unwrap();
+        let table = repos
+            .tables()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let other_table = repos
+            .tables()
+            .create_or_get("other", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = repos
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(57))
+            .await
+            .unwrap();
+        let other_sequencer = repos
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(58))
+            .await
+            .unwrap();
+        let partition = repos
+            .partitions()
+            .create_or_get("one", sequencer.id, table.id)
+            .await
+            .unwrap();
+
+        let min_time = Timestamp::new(10);
+        let max_time = Timestamp::new(20);
+        let max_sequence_number = SequenceNumber::new(140);
+
+        let parquet_file_params = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            table_id: partition.table_id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(10),
+            max_sequence_number,
+            min_time,
+            max_time,
+            file_size_bytes: 1337,
+            parquet_metadata: b"md1".to_vec(),
+            row_count: 0,
+            created_at: Timestamp::new(1),
+        };
+        let parquet_file = repos
+            .parquet_files()
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+
+        // Create a tombstone with another sequencer
+        repos
+            .tombstones()
+            .create_or_get(
+                table.id,
+                other_sequencer.id,
+                max_sequence_number + 100,
+                min_time,
+                max_time,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Create a tombstone with the same sequencer but a different table
+        repos
+            .tombstones()
+            .create_or_get(
+                other_table.id,
+                sequencer.id,
+                max_sequence_number + 101,
+                min_time,
+                max_time,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Create a tombstone with a sequence number before the parquet file's max
+        repos
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                max_sequence_number - 10,
+                min_time,
+                max_time,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Create a tombstone with a sequence number exactly equal to the parquet file's max
+        repos
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                max_sequence_number,
+                min_time,
+                max_time,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Create a tombstone with a time range less than the parquet file's times
+        repos
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                max_sequence_number + 102,
+                min_time - 5,
+                min_time - 4,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Create a tombstone with a time range greater than the parquet file's times
+        repos
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                max_sequence_number + 103,
+                max_time + 1,
+                max_time + 2,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Create a tombstone that matches all criteria
+        let matching_tombstone1 = repos
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                max_sequence_number + 104,
+                min_time,
+                max_time,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Create a tombstone that overlaps the file's min
+        let matching_tombstone2 = repos
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                max_sequence_number + 105,
+                min_time - 1,
+                min_time + 1,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Create a tombstone that overlaps the file's max
+        let matching_tombstone3 = repos
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                max_sequence_number + 106,
+                max_time - 1,
+                max_time + 1,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        let tombstones = repos
+            .tombstones()
+            .list_tombstones_for_time_range(
+                sequencer.id,
+                table.id,
+                max_sequence_number,
+                min_time,
+                max_time,
+            )
+            .await
+            .unwrap();
+        let mut tombstones_ids: Vec<_> = tombstones.iter().map(|t| t.id).collect();
+        tombstones_ids.sort();
+        let expected = vec![
+            matching_tombstone1,
+            matching_tombstone2,
+            matching_tombstone3,
+        ];
+        let mut expected_ids: Vec<_> = expected.iter().map(|t| t.id).collect();
+        expected_ids.sort();
+
+        assert_eq!(
+            tombstones_ids, expected_ids,
+            "\ntombstones: {:#?}\nexpected: {:#?}\nparquet_file: {:#?}",
+            tombstones, expected, parquet_file
+        );
     }
 
     async fn test_parquet_file(catalog: Arc<dyn Catalog>) {
