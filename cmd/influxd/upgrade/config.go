@@ -192,11 +192,7 @@ func fixQueryLimits(v2Config map[string]interface{}) {
 
 func (cu *configUpgrader) lookup(v1Config map[string]interface{}, path string) (interface{}, bool) {
 	for {
-		elem := path
-		rest := ""
-		if i := strings.Index(path, "."); i != -1 {
-			elem, rest = path[0:i], path[i+1:]
-		}
+		elem, rest, _ := strings.Cut(path, ".")
 		val, ok := v1Config[elem]
 		if rest == "" {
 			return val, ok

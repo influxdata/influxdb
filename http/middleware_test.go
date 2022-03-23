@@ -60,15 +60,11 @@ func TestLoggingMW(t *testing.T) {
 	}
 
 	getKVPair := func(s string) (string, string) {
-		kv := strings.Split(s, "=")
-		switch len(kv) {
-		case 1:
-			return kv[0], ""
-		case 2:
-			return kv[0], strings.TrimSuffix(kv[1], "\n")
-		default:
-			return "", ""
+		k, v, _ := strings.Cut(s, "=")
+		if v != "" {
+			v = strings.TrimSuffix(v, "\n")
 		}
+		return k, v
 	}
 
 	echoHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

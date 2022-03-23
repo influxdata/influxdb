@@ -76,17 +76,17 @@ func stickerSliceToMap(stickers []string) (map[string]string, error) {
 	stickerMap := map[string]string{}
 
 	for i := range stickers {
-		sticks := strings.SplitN(stickers[i], "=", 2)
-		if len(sticks) < 2 {
+		if stick0, stick1, found := strings.Cut(stickers[i], "="); found {
+			stickerMap[stick0] = stick1
+		} else {
 			return nil, invalidStickerError(stickers[i])
 		}
-		stickerMap[sticks[0]] = sticks[1]
 	}
 
 	return stickerMap, nil
 }
 
-// Service is the service contract for Annotations
+// AnnotationService is the service contract for Annotations
 type AnnotationService interface {
 	// CreateAnnotations creates annotations.
 	CreateAnnotations(ctx context.Context, orgID platform.ID, create []AnnotationCreate) ([]AnnotationEvent, error)

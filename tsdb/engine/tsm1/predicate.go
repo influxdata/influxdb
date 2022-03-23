@@ -607,16 +607,10 @@ func predicateEval(comp datatypes.Node_Comparison, left, right []byte, rightReg 
 // remainder in rest. it assumes there are no escaped characters in the series.
 func predicatePopTag(series []byte) (tag, value []byte, rest []byte) {
 	// find the first ','
-	i := bytes.IndexByte(series, ',')
-	if i >= 0 && i < len(series) {
-		series, rest = series[:i], series[i+1:]
-	}
+	series, rest, _ = bytes.Cut(series, []byte(","))
 
 	// find the first '='
-	j := bytes.IndexByte(series, '=')
-	if j >= 0 && j < len(series) {
-		tag, value = series[:j], series[j+1:]
-	}
+	tag, value, _ = bytes.Cut(series, []byte("="))
 
 	return tag, value, rest
 }

@@ -155,14 +155,10 @@ func IndexKey(foreignKey, primaryKey []byte) (newKey []byte, err error) {
 
 func indexKeyParts(indexKey []byte) (fk, pk []byte, err error) {
 	// this function is called with items missing in index
-	parts := bytes.SplitN(indexKey, []byte("/"), 2)
-	if len(parts) < 2 {
+	fk, pk, ok := bytes.Cut(indexKey, []byte("/"))
+	if !ok {
 		return nil, nil, errors.New("malformed index key")
 	}
-
-	// parts are fk/pk
-	fk, pk = parts[0], parts[1]
-
 	return
 }
 
