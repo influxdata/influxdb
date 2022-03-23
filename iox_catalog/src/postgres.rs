@@ -269,6 +269,10 @@ impl Catalog for PostgresCatalog {
     fn metrics(&self) -> Arc<metric::Registry> {
         Arc::clone(&self.metrics)
     }
+
+    fn time_provider(&self) -> Arc<dyn TimeProvider> {
+        Arc::clone(&self.time_provider)
+    }
 }
 
 /// Creates a new [`sqlx::Pool`] from a database config and an explicit DSN.
@@ -1486,6 +1490,20 @@ WHERE table_id = $1 AND to_delete IS NULL;
              "#,
         )
         .bind(&table_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>> {
+        sqlx::query_as::<_, ParquetFile>(
+            r#"
+DELETE FROM parquet_file
+WHERE to_delete < $1
+RETURNING *;
+             "#,
+        )
+        .bind(&older_than) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })

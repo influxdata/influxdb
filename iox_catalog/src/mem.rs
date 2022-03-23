@@ -29,6 +29,7 @@ use tokio::sync::{Mutex, OwnedMutexGuard};
 pub struct MemCatalog {
     metrics: Arc<metric::Registry>,
     collections: Arc<Mutex<MemCollections>>,
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl MemCatalog {
@@ -37,6 +38,7 @@ impl MemCatalog {
         Self {
             metrics,
             collections: Default::default(),
+            time_provider: Arc::new(SystemProvider::new()),
         }
     }
 }
@@ -47,7 +49,7 @@ impl std::fmt::Debug for MemCatalog {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 struct MemCollections {
     kafka_topics: Vec<KafkaTopic>,
     query_pools: Vec<QueryPool>,
@@ -59,25 +61,6 @@ struct MemCollections {
     tombstones: Vec<Tombstone>,
     parquet_files: Vec<ParquetFile>,
     processed_tombstones: Vec<ProcessedTombstone>,
-    time_provider: Arc<dyn TimeProvider>,
-}
-
-impl Default for MemCollections {
-    fn default() -> Self {
-        Self {
-            kafka_topics: Default::default(),
-            query_pools: Default::default(),
-            namespaces: Default::default(),
-            tables: Default::default(),
-            columns: Default::default(),
-            sequencers: Default::default(),
-            partitions: Default::default(),
-            tombstones: Default::default(),
-            parquet_files: Default::default(),
-            processed_tombstones: Default::default(),
-            time_provider: Arc::new(SystemProvider::new()),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -97,6 +80,7 @@ enum MemTxnInner {
 #[derive(Debug)]
 pub struct MemTxn {
     inner: MemTxnInner,
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl MemTxn {
@@ -136,6 +120,7 @@ impl Catalog for MemCatalog {
                     stage,
                     finalized: false,
                 },
+                time_provider: self.time_provider(),
             },
             Arc::clone(&self.metrics),
         )))
@@ -146,6 +131,7 @@ impl Catalog for MemCatalog {
         Box::new(MetricDecorator::new(
             MemTxn {
                 inner: MemTxnInner::NoTxn { collections },
+                time_provider: self.time_provider(),
             },
             Arc::clone(&self.metrics),
         ))
@@ -153,6 +139,10 @@ impl Catalog for MemCatalog {
 
     fn metrics(&self) -> Arc<metric::Registry> {
         Arc::clone(&self.metrics)
+    }
+
+    fn time_provider(&self) -> Arc<dyn TimeProvider> {
+        Arc::clone(&self.time_provider)
     }
 }
 
@@ -955,8 +945,8 @@ impl ParquetFileRepo for MemTxn {
     }
 
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
+        let marked_at = Timestamp::new(self.time_provider.now().timestamp_nanos());
         let stage = self.stage();
-        let marked_at = Timestamp::new(stage.time_provider.now().timestamp_nanos());
 
         match stage.parquet_files.iter_mut().find(|p| p.id == id) {
             Some(f) => f.to_delete = Some(marked_at),
@@ -1012,6 +1002,18 @@ impl ParquetFileRepo for MemTxn {
             .cloned()
             .collect();
         Ok(parquet_files)
+    }
+
+    async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>> {
+        let stage = self.stage();
+
+        let (delete, keep): (Vec<_>, Vec<_>) = stage.parquet_files.iter().cloned().partition(
+            |f| matches!(f.to_delete, Some(marked_deleted) if marked_deleted < older_than),
+        );
+
+        stage.parquet_files = keep;
+
+        Ok(delete)
     }
 
     async fn level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>> {
