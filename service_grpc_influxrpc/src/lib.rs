@@ -1,4 +1,4 @@
-//! This module contains gRPC service implementations
+//! This module contains gRPC service implementation for "InfluxRPC" (aka the storage RPC API used for Flux and InfluxQL)
 
 /// `[0x00]` is the magic value that that the storage gRPC layer uses to
 /// encode a tag_key that means "measurement name"
@@ -15,9 +15,8 @@ pub mod input;
 pub mod service;
 
 use generated_types::storage_server::{Storage, StorageServer};
+use service_common::QueryDatabaseProvider;
 use std::sync::Arc;
-
-use crate::rpc::common::QueryDatabaseProvider;
 
 /// Concrete implementation of the gRPC InfluxDB Storage Service API
 #[derive(Debug)]

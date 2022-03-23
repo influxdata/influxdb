@@ -27,6 +27,7 @@ predicate = { path = "../predicate" }
 prost = "0.9"
 query = { path = "../query" }
 rand = "0.8.3"
+service_common = { path = "../service_common" }
 schema = { path = "../schema" }
 snafu = "0.7"
 thiserror = "1.0"

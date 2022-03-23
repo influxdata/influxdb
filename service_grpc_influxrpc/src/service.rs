@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use service_common::QueryDatabaseProvider;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -34,18 +35,15 @@ use query::{
 };
 
 use crate::{
-    planner::Planner,
-    rpc::common::QueryDatabaseProvider,
-    rpc::storage::{
-        data::{
-            fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
-            tag_keys_to_byte_vecs,
-        },
-        expr::{self, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable, SpecialTagKeys},
-        input::GrpcInputs,
-        StorageService,
+    data::{
+        fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
+        tag_keys_to_byte_vecs,
     },
+    expr::{self, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable, SpecialTagKeys},
+    input::GrpcInputs,
+    StorageService,
 };
+use service_common::planner::Planner;
 
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 
@@ -1369,6 +1367,7 @@ mod tests {
     use data_types::chunk_metadata::ChunkId;
     use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
     use parking_lot::Mutex;
+    use service_common::QueryDatabaseProvider;
     use tokio_stream::wrappers::TcpListenerStream;
 
     use datafusion::logical_plan::{col, lit, Expr};
@@ -2309,7 +2308,7 @@ mod tests {
         // Note we don't include the actual line / column in the
         // expected panic message to avoid needing to update the test
         // whenever the source code file changed.
-        let expected_error = "'This is a test panic', influxdb_ioxd/src/rpc/testing.rs:18:9";
+        let expected_error = "'This is a test panic', service_grpc_testing/src/lib.rs:18:9";
         assert_contains!(captured_logs, expected_error);
 
         // Ensure that panics don't exhaust the tokio executor by
@@ -2932,8 +2931,8 @@ mod tests {
                     None,
                     true,
                 ))
-                .add_service(crate::rpc::testing::make_server())
-                .add_service(crate::rpc::storage::make_server(Arc::clone(&test_storage)));
+                .add_service(service_grpc_testing::make_server())
+                .add_service(crate::make_server(Arc::clone(&test_storage)));
 
             let server = async move {
                 let stream = TcpListenerStream::new(socket);

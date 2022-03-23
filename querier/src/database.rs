@@ -12,6 +12,7 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::{error, info};
 use parking_lot::RwLock;
 use query::exec::Executor;
+use service_common::QueryDatabaseProvider;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
@@ -50,6 +51,14 @@ pub struct QuerierDatabase {
 
     /// Executor for queries.
     exec: Arc<Executor>,
+}
+
+impl QueryDatabaseProvider for QuerierDatabase {
+    type Db = QuerierNamespace;
+
+    fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
+        self.namespace(name)
+    }
 }
 
 impl QuerierDatabase {

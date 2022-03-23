@@ -8,11 +8,6 @@ use trace_http::ctx::TraceHeaderParser;
 
 use crate::server_type::{RpcError, ServerType};
 
-pub(crate) mod common;
-pub(crate) mod flight;
-pub(crate) mod storage;
-pub(crate) mod testing;
-
 /// Returns the name of the gRPC service S.
 pub fn service_name<S: NamedService>(_: &S) -> &'static str {
     S::NAME
@@ -81,7 +76,7 @@ macro_rules! setup_builder {
     ($input:ident, $server_type:ident) => {{
         #[allow(unused_imports)]
         use $crate::{
-            rpc::{add_service, testing, RpcBuilder},
+            rpc::{add_service, RpcBuilder},
             server_type::ServerType,
         };
 
@@ -114,7 +109,7 @@ macro_rules! setup_builder {
 
         add_service!(builder, health_service);
         add_service!(builder, reflection_service);
-        add_service!(builder, testing::make_server());
+        add_service!(builder, service_grpc_testing::make_server());
 
         builder
     }};

@@ -1,3 +1,7 @@
+//! Common methods for RPC service implementations
+
+pub mod planner;
+
 use std::sync::Arc;
 
 use query::{exec::ExecutionContextProvider, QueryDatabase};

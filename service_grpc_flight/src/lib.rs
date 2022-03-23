@@ -19,6 +19,7 @@ use futures::{SinkExt, Stream, StreamExt};
 use pin_project::{pin_project, pinned_drop};
 use query::{QueryCompletedToken, QueryDatabase};
 use serde::Deserialize;
+use service_common::QueryDatabaseProvider;
 use snafu::{ResultExt, Snafu};
 use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
@@ -27,9 +28,7 @@ use data_types::{DatabaseName, DatabaseNameError};
 use observability_deps::tracing::{info, warn};
 use query::exec::{ExecutionContextProvider, IOxSessionContext};
 
-use crate::planner::Planner;
-
-use super::common::QueryDatabaseProvider;
+use service_common::planner::Planner;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -68,7 +67,9 @@ pub enum Error {
     DictionaryError { source: ArrowError },
 
     #[snafu(display("Error while planning query: {}", source))]
-    Planning { source: crate::planner::Error },
+    Planning {
+        source: service_common::planner::Error,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

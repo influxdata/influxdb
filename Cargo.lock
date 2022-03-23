@@ -2239,7 +2239,6 @@ dependencies = [
  "csv",
  "data_types",
  "data_types2",
- "datafusion 0.1.0",
  "db",
  "dml",
  "flate2",
@@ -2295,6 +2294,10 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "server",
+ "service_common",
+ "service_grpc_flight",
+ "service_grpc_influxrpc",
+ "service_grpc_testing",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -4186,6 +4189,7 @@ dependencies = [
  "query",
  "rand",
  "schema",
+ "service_common",
  "snafu",
  "thiserror",
  "time 0.1.0",
@@ -5088,6 +5092,7 @@ dependencies = [
  "rand",
  "regex",
  "router",
+ "service_common",
  "snafu",
  "test_helpers",
  "time 0.1.0",
@@ -5121,6 +5126,81 @@ dependencies = [
  "rand",
  "test_helpers",
  "tokio",
+]
+
+[[package]]
+name = "service_common"
+version = "0.1.0"
+dependencies = [
+ "datafusion 0.1.0",
+ "predicate",
+ "query",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_flight"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow-flight",
+ "data_types",
+ "datafusion 0.1.0",
+ "futures",
+ "observability_deps",
+ "pin-project",
+ "query",
+ "serde",
+ "serde_json",
+ "service_common",
+ "snafu",
+ "tokio",
+ "tonic",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_influxrpc"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "async-trait",
+ "data_types",
+ "datafusion 0.1.0",
+ "futures",
+ "generated_types",
+ "influxdb_storage_client",
+ "metric",
+ "observability_deps",
+ "panic_logging",
+ "parking_lot 0.12.0",
+ "predicate",
+ "prost",
+ "query",
+ "regex",
+ "schema",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "service_common",
+ "service_grpc_testing",
+ "snafu",
+ "test_helpers",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "trace_http",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_testing"
+version = "0.1.0"
+dependencies = [
+ "generated_types",
+ "observability_deps",
+ "tonic",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -6555,6 +6635,8 @@ dependencies = [
  "num-traits",
  "once_cell",
  "parquet",
+ "prost",
+ "prost-types",
  "rand",
  "regex",
  "regex-automata",

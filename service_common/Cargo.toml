@@ -1,0 +1,15 @@
+[package]
+name = "service_common"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Workspace dependencies, in alphabetical order
+datafusion = { path = "../datafusion" }
+predicate = { path = "../predicate" }
+query = { path = "../query" }
+workspace-hack = { path = "../workspace-hack"}
+
+# Crates.io dependencies, in alphabetical order
