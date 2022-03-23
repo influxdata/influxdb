@@ -1,6 +1,7 @@
 //! Implementation of command line option for running all in one mode
 use std::{num::NonZeroU32, sync::Arc};
 
+use clap_blocks::compactor::CompactorConfig;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
     ingester::IngesterConfig,
@@ -59,6 +60,9 @@ pub enum Error {
 
     #[error("Ingester error: {0}")]
     Ingester(#[from] influxdb_ioxd::server_type::ingester::Error),
+
+    #[error("error initializing compactor: {0}")]
+    Compactor(#[from] influxdb_ioxd::server_type::compactor::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -148,6 +152,9 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) ingester_config: IngesterConfig,
 
+    #[clap(flatten)]
+    pub(crate) compactor_config: CompactorConfig,
+
     /// The address on which IOx will serve Router HTTP API requests
     #[clap(
     long = "--router-http-bind",
@@ -230,6 +237,7 @@ impl Config {
             catalog_dsn: self.catalog_dsn,
             write_buffer_config: self.write_buffer_config,
             ingester_config: self.ingester_config,
+            compactor_config: self.compactor_config,
         }
     }
 }
@@ -245,6 +253,7 @@ struct SpecializedConfig {
     catalog_dsn: CatalogDsnConfig,
     write_buffer_config: WriteBufferConfig,
     ingester_config: IngesterConfig,
+    compactor_config: CompactorConfig,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -256,6 +265,7 @@ pub async fn command(config: Config) -> Result<()> {
         catalog_dsn,
         mut write_buffer_config,
         ingester_config,
+        compactor_config,
     } = config.specialize();
 
     // Ensure at least one topic is automatically created in all in one mode
@@ -332,7 +342,6 @@ pub async fn command(config: Config) -> Result<()> {
     .await?;
 
     info!("starting compactor");
-    let sequencers = vec![]; // TODO sequencers
     let compactor = create_compactor_server_type(
         &common_state,
         Arc::clone(&metrics),
@@ -340,9 +349,9 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&object_store),
         Arc::clone(&exec),
         Arc::clone(&time_provider),
-        sequencers,
+        compactor_config,
     )
-    .await;
+    .await?;
 
     info!("starting querier");
     let querier = create_querier_server_type(
