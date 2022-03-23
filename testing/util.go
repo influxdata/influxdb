@@ -2,7 +2,6 @@ package testing
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -20,7 +19,7 @@ import (
 )
 
 func NewTestBoltStore(t *testing.T) (kv.SchemaStore, func()) {
-	f, err := ioutil.TempFile("", "influxdata-bolt-")
+	f, err := os.CreateTemp("", "influxdata-bolt-")
 	require.NoError(t, err, "unable to create temporary boltdb file")
 	require.NoError(t, f.Close())
 

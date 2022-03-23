@@ -2,7 +2,6 @@ package pkger
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -16,10 +15,10 @@ var (
 func TestMain(m *testing.M) {
 	// this is to prime the files so we don't have to keep reading from disk for each test
 	// cuts runtime of tests down by 80% on current mac
-	files, _ := ioutil.ReadDir("testdata")
+	files, _ := os.ReadDir("testdata")
 	for _, f := range files {
 		relativeName := path.Join("testdata", f.Name())
-		b, err := ioutil.ReadFile(relativeName)
+		b, err := os.ReadFile(relativeName)
 		if err == nil {
 			availableTemplateFiles[relativeName] = b
 		}

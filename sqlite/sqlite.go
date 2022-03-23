@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -126,7 +125,7 @@ func (s *SqlStore) BackupSqlStore(ctx context.Context, w io.Writer) error {
 	defer span.Finish()
 
 	// create a destination db in a temporary directory to hold the backup.
-	tempDir, err := ioutil.TempDir("", "")
+	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return err
 	}
@@ -213,7 +212,7 @@ func sqliteFromSqlConn(c *sql.Conn) (*sqlite3.SQLiteConn, error) {
 
 // RestoreSqlStore replaces the underlying database with the data from r.
 func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) error {
-	tempDir, err := ioutil.TempDir("", "")
+	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return err
 	}

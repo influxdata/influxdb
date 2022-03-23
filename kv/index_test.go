@@ -3,7 +3,6 @@ package kv_test
 import (
 	"context"
 	"errors"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -177,7 +176,7 @@ func Benchmark_Inmem_Index_Walk(b *testing.B) {
 }
 
 func Benchmark_Bolt_Index_Walk(b *testing.B) {
-	f, err := ioutil.TempFile("", "influxdata-bolt-")
+	f, err := os.CreateTemp("", "influxdata-bolt-")
 	if err != nil {
 		b.Fatal(errors.New("unable to open temporary boltdb file"))
 	}

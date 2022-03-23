@@ -3,7 +3,6 @@ package tsi1_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -286,14 +285,14 @@ func TestLogFile_Open(t *testing.T) {
 		}
 
 		// Corrupt last entry.
-		buf, err := ioutil.ReadFile(f.LogFile.Path())
+		buf, err := os.ReadFile(f.LogFile.Path())
 		if err != nil {
 			t.Fatal(err)
 		}
 		buf[len(buf)-1] = 0
 
 		// Overwrite file with corrupt entry and reopen.
-		if err := ioutil.WriteFile(f.LogFile.Path(), buf, 0666); err != nil {
+		if err := os.WriteFile(f.LogFile.Path(), buf, 0666); err != nil {
 			t.Fatal(err)
 		} else if err := f.LogFile.Open(); err != nil {
 			t.Fatal(err)
@@ -374,7 +373,7 @@ type LogFile struct {
 
 // NewLogFile returns a new instance of LogFile with a temporary file path.
 func NewLogFile(sfile *tsdb.SeriesFile) *LogFile {
-	file, err := ioutil.TempFile("", "tsi1-log-file-")
+	file, err := os.CreateTemp("", "tsi1-log-file-")
 	if err != nil {
 		panic(err)
 	}

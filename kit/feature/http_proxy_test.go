@@ -3,7 +3,7 @@ package feature
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,7 +32,7 @@ func TestHTTPProxy_Proxying(t *testing.T) {
 		t.Error("X-Platform-Proxy-Flag header not populated")
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Error(err)
 	}
@@ -56,7 +56,7 @@ func TestHTTPProxy_DefaultBehavior(t *testing.T) {
 		t.Error("X-Platform-Proxy-Flag header populated")
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Error(err)
 	}

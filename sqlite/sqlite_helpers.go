@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -10,7 +9,7 @@ import (
 )
 
 func NewTestStore(t *testing.T) (*SqlStore, func(t *testing.T)) {
-	tempDir, err := ioutil.TempDir("", "")
+	tempDir, err := os.MkdirTemp("", "")
 	require.NoError(t, err, "unable to create temporary test directory")
 
 	s, err := NewSqlStore(tempDir+"/"+DefaultFilename, zap.NewNop())

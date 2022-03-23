@@ -3,7 +3,7 @@ package v1validation
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -75,7 +75,7 @@ func testSuiteFromPath(t *testing.T, path string) *TestSuite {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := ioutil.ReadAll(f)
+	b, err := io.ReadAll(f)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func validate(t *testing.T, gf *TestSuite) {
 				Header("Content-Type", "application/vnd.influxql").
 				Header("Accept", "application/csv").
 				RespFn(func(resp *http.Response) error {
-					b, err := ioutil.ReadAll(resp.Body)
+					b, err := io.ReadAll(resp.Body)
 					assert.NoError(t, err)
 					assert.Equal(t, test.Result, string(b))
 					return nil

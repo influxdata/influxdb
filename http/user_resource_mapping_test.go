@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -208,7 +208,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 
 				res := w.Result()
 				content := res.Header.Get("Content-Type")
-				body, _ := ioutil.ReadAll(res.Body)
+				body, _ := io.ReadAll(res.Body)
 
 				if res.StatusCode != tt.wants.statusCode {
 					t.Errorf("%q. GetMembersHandler() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -369,7 +369,7 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 
 				res := w.Result()
 				content := res.Header.Get("Content-Type")
-				body, _ := ioutil.ReadAll(res.Body)
+				body, _ := io.ReadAll(res.Body)
 
 				if res.StatusCode != tt.wants.statusCode {
 					t.Errorf("%q. PostMembersHandler() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)

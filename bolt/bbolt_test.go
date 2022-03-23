@@ -3,7 +3,6 @@ package bolt_test
 import (
 	"context"
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,7 +26,7 @@ func NewTestClient(t *testing.T) (*bolt.Client, func(), error) {
 func newTestClient(t *testing.T) (*bolt.Client, func(), error) {
 	c := bolt.NewClient(zaptest.NewLogger(t))
 
-	f, err := ioutil.TempFile("", "influxdata-platform-bolt-")
+	f, err := os.CreateTemp("", "influxdata-platform-bolt-")
 	if err != nil {
 		return nil, nil, errors.New("unable to open temporary boltdb file")
 	}
@@ -44,7 +43,7 @@ func newTestClient(t *testing.T) (*bolt.Client, func(), error) {
 }
 
 func TestClientOpen(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "")
+	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		t.Fatalf("unable to create temporary test directory %v", err)
 	}
@@ -70,7 +69,7 @@ func TestClientOpen(t *testing.T) {
 }
 
 func NewTestKVStore(t *testing.T) (*bolt.KVStore, func(), error) {
-	f, err := ioutil.TempFile("", "influxdata-platform-bolt-")
+	f, err := os.CreateTemp("", "influxdata-platform-bolt-")
 	if err != nil {
 		return nil, nil, errors.New("unable to open temporary boltdb file")
 	}

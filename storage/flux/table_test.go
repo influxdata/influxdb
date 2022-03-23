@@ -3,7 +3,6 @@ package storageflux_test
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"os"
@@ -51,7 +50,7 @@ type StorageReader struct {
 }
 
 func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
-	rootDir, err := ioutil.TempDir("", "storage-flux-test")
+	rootDir, err := os.MkdirTemp("", "storage-flux-test")
 	if err != nil {
 		tb.Fatal(err)
 	}

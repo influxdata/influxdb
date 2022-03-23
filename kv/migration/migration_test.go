@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -103,7 +102,7 @@ func Test_Bolt_MigratorWithBackup(t *testing.T) {
 }
 
 func newTestBoltStoreWithoutMigrations(t *testing.T) (*bolt.KVStore, func(), error) {
-	f, err := ioutil.TempFile("", "influxdata-bolt-")
+	f, err := os.CreateTemp("", "influxdata-bolt-")
 	if err != nil {
 		return nil, nil, errors.New("unable to open temporary boltdb file")
 	}

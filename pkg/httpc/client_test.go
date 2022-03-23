@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"sort"
 	"testing"
@@ -381,7 +380,7 @@ func (f *fakeDoer) Do(r *http.Request) (*http.Response, error) {
 func stubResp(status int, _ *http.Request) (*http.Response, error) {
 	return &http.Response{
 		StatusCode: status,
-		Body:       ioutil.NopCloser(new(bytes.Buffer)),
+		Body:       io.NopCloser(new(bytes.Buffer)),
 	}, nil
 }
 
@@ -403,7 +402,7 @@ func stubRespNGZippedJSON(status int, r *http.Request) (*http.Response, error) {
 
 	return &http.Response{
 		StatusCode: status,
-		Body:       ioutil.NopCloser(&buf),
+		Body:       io.NopCloser(&buf),
 		Header: http.Header{
 			"Content-Encoding": []string{"gzip"},
 			headerContentType:  []string{"application/json"},
@@ -424,7 +423,7 @@ func stubRespNJSONBody(status int, r *http.Request) (*http.Response, error) {
 
 	return &http.Response{
 		StatusCode: status,
-		Body:       ioutil.NopCloser(&buf),
+		Body:       io.NopCloser(&buf),
 		Header:     http.Header{headerContentType: []string{"application/json"}},
 	}, nil
 }
@@ -441,7 +440,7 @@ func stubRespNGobBody(status int, r *http.Request) (*http.Response, error) {
 	}
 	return &http.Response{
 		StatusCode: status,
-		Body:       ioutil.NopCloser(&buf),
+		Body:       io.NopCloser(&buf),
 		Header:     http.Header{headerContentEncoding: []string{"application/gob"}},
 	}, nil
 }

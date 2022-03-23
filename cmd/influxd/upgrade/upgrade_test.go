@@ -3,7 +3,7 @@ package upgrade
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,7 +29,7 @@ import (
 )
 
 func TestPathValidations(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "")
+	tmpdir, err := os.MkdirTemp("", "")
 	require.Nil(t, err)
 
 	defer os.RemoveAll(tmpdir)
@@ -67,7 +67,7 @@ func TestPathValidations(t *testing.T) {
 	require.NotNil(t, err, "Must fail")
 	require.Contains(t, err.Error(), "1.x meta.db")
 
-	err = ioutil.WriteFile(filepath.Join(v1Dir, "meta", "meta.db"), []byte{1}, 0777)
+	err = os.WriteFile(filepath.Join(v1Dir, "meta", "meta.db"), []byte{1}, 0777)
 	require.Nil(t, err)
 
 	err = sourceOpts.validatePaths()
@@ -80,7 +80,7 @@ func TestPathValidations(t *testing.T) {
 	err = os.Remove(filepath.Join(enginePath, "db"))
 	require.Nil(t, err)
 
-	err = ioutil.WriteFile(configsPath, []byte{1}, 0777)
+	err = os.WriteFile(configsPath, []byte{1}, 0777)
 	require.Nil(t, err)
 
 	err = targetOpts.validatePaths()
@@ -89,7 +89,7 @@ func TestPathValidations(t *testing.T) {
 }
 
 func TestClearTargetPaths(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "")
+	tmpdir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
 	defer os.RemoveAll(tmpdir)
@@ -103,13 +103,13 @@ func TestClearTargetPaths(t *testing.T) {
 
 	err = os.MkdirAll(filepath.Join(enginePath, "db"), 0777)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(boltPath, []byte{1}, 0777)
+	err = os.WriteFile(boltPath, []byte{1}, 0777)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(configsPath, []byte{1}, 0777)
+	err = os.WriteFile(configsPath, []byte{1}, 0777)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(cqPath, []byte{1}, 0777)
+	err = os.WriteFile(cqPath, []byte{1}, 0777)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(configPath, []byte{1}, 0777)
+	err = os.WriteFile(configPath, []byte{1}, 0777)
 	require.NoError(t, err)
 
 	targetOpts := &optionsV2{
@@ -176,7 +176,7 @@ func TestDbURL(t *testing.T) {
 func TestUpgradeRealDB(t *testing.T) {
 	ctx := context.Background()
 
-	tmpdir, err := ioutil.TempDir("", "")
+	tmpdir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 
 	defer os.RemoveAll(tmpdir)
@@ -336,7 +336,7 @@ func TestUpgradeRealDB(t *testing.T) {
 			respBody = mustRunQuery(t, tl, "mydb", `select count(line) from mydb."1week".log`, auths[0].Token)
 			require.Contains(t, respBody, `["1970-01-01T00:00:00Z",1]`)
 
-			cqBytes, err := ioutil.ReadFile(cqPath)
+			cqBytes, err := os.ReadFile(cqPath)
 			require.NoError(t, err)
 			cqs := string(cqBytes)
 
@@ -365,7 +365,7 @@ func mustRunQuery(t *testing.T, tl *launcher.TestLauncher, db, rawQ, token strin
 	resp, err := http.DefaultClient.Do(req)
 	require.Nil(t, err)
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	require.Nil(t, err)
 
 	return string(respBody)

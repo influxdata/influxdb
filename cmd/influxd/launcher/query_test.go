@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	nethttp "net/http"
 	"strings"
@@ -986,7 +985,7 @@ error2","query plan",109,110
 				t.Error(err)
 			} else {
 				dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
-				want, err := dec.Decode(ioutil.NopCloser(strings.NewReader(tc.want)))
+				want, err := dec.Decode(io.NopCloser(strings.NewReader(tc.want)))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -2591,7 +2590,7 @@ from(bucket: v.bucket)
 			defer got.Release()
 
 			dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
-			want, err := dec.Decode(ioutil.NopCloser(strings.NewReader(tc.want)))
+			want, err := dec.Decode(io.NopCloser(strings.NewReader(tc.want)))
 			if err != nil {
 				t.Fatal(err)
 			}

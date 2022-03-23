@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"testing"
 	"time"
 
@@ -130,7 +129,7 @@ func TestLoggingProxyQueryService(t *testing.T) {
 		})
 
 		lpqs := query.NewLoggingProxyQueryService(zap.NewNop(), logger, pqs, condLog)
-		_, err := lpqs.Query(context.Background(), ioutil.Discard, req)
+		_, err := lpqs.Query(context.Background(), io.Discard, req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -140,7 +139,7 @@ func TestLoggingProxyQueryService(t *testing.T) {
 		}
 
 		ctx := context.WithValue(context.Background(), loggingCtxKey, true)
-		_, err = lpqs.Query(ctx, ioutil.Discard, req)
+		_, err = lpqs.Query(ctx, io.Discard, req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -158,7 +157,7 @@ func TestLoggingProxyQueryService(t *testing.T) {
 		reqMeta1 := query.RequireMetadataKey("this-metadata-wont-be-found")
 		lpqs1 := query.NewLoggingProxyQueryService(zap.NewNop(), logger, pqs, reqMeta1)
 
-		_, err := lpqs1.Query(context.Background(), ioutil.Discard, req)
+		_, err := lpqs1.Query(context.Background(), io.Discard, req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,7 +169,7 @@ func TestLoggingProxyQueryService(t *testing.T) {
 		reqMeta2 := query.RequireMetadataKey("some-mock-metadata")
 		lpqs2 := query.NewLoggingProxyQueryService(zap.NewNop(), logger, pqs, reqMeta2)
 
-		_, err = lpqs2.Query(context.Background(), ioutil.Discard, req)
+		_, err = lpqs2.Query(context.Background(), io.Discard, req)
 		if err != nil {
 			t.Fatal(err)
 		}

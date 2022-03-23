@@ -2,7 +2,6 @@ package launcher_test
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -19,7 +18,7 @@ func TestBackupRestore_Full(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	backupDir, err := ioutil.TempDir("", "")
+	backupDir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(backupDir)
 
@@ -117,7 +116,7 @@ func TestBackupRestore_Partial(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	backupDir, err := ioutil.TempDir("", "")
+	backupDir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(backupDir)
 

@@ -2,9 +2,10 @@ package legacy
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"mime"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -69,7 +70,7 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 	} else if r.MultipartForm != nil && r.MultipartForm.File != nil {
 		// If we have a multipart/form-data, try to retrieve a file from 'q'.
 		if fhs := r.MultipartForm.File["q"]; len(fhs) > 0 {
-			d, err := ioutil.ReadFile(fhs[0].Filename)
+			d, err := os.ReadFile(fhs[0].Filename)
 			if err != nil {
 				h.HandleHTTPError(ctx, err, w)
 				return
@@ -88,7 +89,7 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 		}
 
 		if mt == "application/vnd.influxql" {
-			if d, err := ioutil.ReadAll(r.Body); err != nil {
+			if d, err := io.ReadAll(r.Body); err != nil {
 				h.HandleHTTPError(ctx, err, w)
 				return
 			} else {

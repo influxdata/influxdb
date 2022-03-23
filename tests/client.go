@@ -3,7 +3,7 @@ package tests
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -101,7 +101,7 @@ func (c *Client) WriteBatch(points string) error {
 func (c *Client) QueryFlux(org, query string) (string, error) {
 	var csv string
 	csvResp := func(resp *http.Response) error {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}

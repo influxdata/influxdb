@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	nethttp "net/http"
 	"net/url"
 	"os"
@@ -83,7 +83,7 @@ func RunAndSetupNewLauncherOrFail(ctx context.Context, tb testing.TB, setters ..
 func NewTestLauncher() *TestLauncher {
 	l := &TestLauncher{Launcher: NewLauncher()}
 
-	path, err := ioutil.TempDir("", "")
+	path, err := os.MkdirTemp("", "")
 	if err != nil {
 		panic(err)
 	}
@@ -216,7 +216,7 @@ func (tl *TestLauncher) WriteOrFail(tb testing.TB, to *influxdb.OnboardingResult
 		tb.Fatal(err)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -242,7 +242,7 @@ func (tl *TestLauncher) WritePoints(data string) error {
 	if err != nil {
 		return err
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}

@@ -2,7 +2,6 @@ package backend_test
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -180,7 +179,7 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 	// Mostly copied out of cmd/influxd/main.go.
 	logger := zaptest.NewLogger(t)
 
-	rootDir, err := ioutil.TempDir("", "task-logreaderwriter-")
+	rootDir, err := os.MkdirTemp("", "task-logreaderwriter-")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,7 +2,6 @@ package upgrade
 
 import (
 	"bytes"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -13,7 +12,7 @@ import (
 )
 
 func TestCopyDirAndDirSize(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "tcd")
+	tmpdir, err := os.MkdirTemp("", "tcd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +49,7 @@ func TestCopyDirAndDirSize(t *testing.T) {
 	}
 	assert.Equal(t, uint64(1600), size)
 
-	targetDir, err := ioutil.TempDir("", "tcd")
+	targetDir, err := os.MkdirTemp("", "tcd")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,7 +3,7 @@ package tsi1_test
 import (
 	"compress/gzip"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -261,7 +261,7 @@ func TestIndex_Open(t *testing.T) {
 			}
 
 			// Log the MANIFEST file.
-			data, err := ioutil.ReadFile(mpath)
+			data, err := os.ReadFile(mpath)
 			if err != nil {
 				panic(err)
 			}
@@ -717,7 +717,7 @@ func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	data, err := ioutil.ReadAll(gzr)
+	data, err := io.ReadAll(gzr)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -798,7 +798,7 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	data, err := ioutil.ReadAll(gzr)
+	data, err := io.ReadAll(gzr)
 	if err != nil {
 		b.Fatal(err)
 	}

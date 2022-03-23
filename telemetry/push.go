@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -90,7 +89,7 @@ func (p *Pusher) push(ctx context.Context) error {
 
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusAccepted {
-		body, _ := ioutil.ReadAll(res.Body)
+		body, _ := io.ReadAll(res.Body)
 		return fmt.Errorf("unable to POST metrics; received status %s: %s", http.StatusText(res.StatusCode), body)
 	}
 	return nil

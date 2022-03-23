@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -322,7 +322,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 
 			res := w.Result()
 			contentType := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetVariables() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -452,7 +452,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 
 			res := w.Result()
 			contentType := res.Header.Get("Content-Type")
-			bodyBytes, _ := ioutil.ReadAll(res.Body)
+			bodyBytes, _ := io.ReadAll(res.Body)
 			body := string(bodyBytes[:])
 
 			if res.StatusCode != tt.wants.statusCode {
@@ -582,7 +582,7 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 
 			res := w.Result()
 			contentType := res.Header.Get("Content-Type")
-			bodyBytes, _ := ioutil.ReadAll(res.Body)
+			bodyBytes, _ := io.ReadAll(res.Body)
 			body := string(bodyBytes[:])
 
 			if res.StatusCode != tt.wants.statusCode {
@@ -685,7 +685,7 @@ func TestVariableService_handlePutVariable(t *testing.T) {
 
 			res := w.Result()
 			contentType := res.Header.Get("Content-Type")
-			bodyBytes, _ := ioutil.ReadAll(res.Body)
+			bodyBytes, _ := io.ReadAll(res.Body)
 			body := string(bodyBytes[:])
 
 			if res.StatusCode != tt.wants.statusCode {
@@ -794,7 +794,7 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 
 			res := w.Result()
 			contentType := res.Header.Get("Content-Type")
-			bodyBytes, _ := ioutil.ReadAll(res.Body)
+			bodyBytes, _ := io.ReadAll(res.Body)
 			body := string(bodyBytes[:])
 
 			if res.StatusCode != tt.wants.statusCode {
@@ -979,7 +979,7 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("got %v, want %v", res.StatusCode, tt.wants.statusCode)

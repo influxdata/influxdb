@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -102,18 +101,18 @@ func (p *SeriesPartition) Open() error {
 }
 
 func (p *SeriesPartition) openSegments() error {
-	fis, err := ioutil.ReadDir(p.path)
+	des, err := os.ReadDir(p.path)
 	if err != nil {
 		return err
 	}
 
-	for _, fi := range fis {
-		segmentID, err := ParseSeriesSegmentFilename(fi.Name())
+	for _, de := range des {
+		segmentID, err := ParseSeriesSegmentFilename(de.Name())
 		if err != nil {
 			continue
 		}
 
-		segment := NewSeriesSegment(segmentID, filepath.Join(p.path, fi.Name()))
+		segment := NewSeriesSegment(segmentID, filepath.Join(p.path, de.Name()))
 		if err := segment.Open(); err != nil {
 			return err
 		}

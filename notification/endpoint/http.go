@@ -3,7 +3,7 @@ package endpoint
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -141,7 +141,7 @@ func (s HTTP) Type() string {
 // ParseResponse will parse the http response from http.
 func (s HTTP) ParseResponse(resp *http.Response) error {
 	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}

@@ -3,7 +3,6 @@ package upgrade
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -102,7 +101,7 @@ func CopyDir(src string, dst string, dirRenameFunc func(path string) string, dir
 		return
 	}
 
-	entries, err := ioutil.ReadDir(src)
+	entries, err := os.ReadDir(src)
 	if err != nil {
 		return
 	}
@@ -122,7 +121,7 @@ func CopyDir(src string, dst string, dirRenameFunc func(path string) string, dir
 			}
 		} else {
 			// Skip symlinks.
-			if entry.Mode()&os.ModeSymlink != 0 {
+			if entry.Type().Perm()&os.ModeSymlink != 0 {
 				continue
 			}
 			if fileFilterFunc != nil && fileFilterFunc(src) {

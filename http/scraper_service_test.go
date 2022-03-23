@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -232,7 +232,7 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetScraperTargets() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -371,7 +371,7 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetScraperTarget() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -477,7 +477,7 @@ func TestService_handleDeleteScraperTarget(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleDeleteScraperTarget() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -605,7 +605,7 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePostScraperTarget() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -797,7 +797,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePatchScraperTarget() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)

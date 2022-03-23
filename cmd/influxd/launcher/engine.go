@@ -3,7 +3,6 @@ package launcher
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"os"
 	"sync"
 	"time"
@@ -78,7 +77,7 @@ func (t *TemporaryEngine) Open(ctx context.Context) error {
 		return nil
 	}
 
-	path, err := ioutil.TempDir("", "e2e")
+	path, err := os.MkdirTemp("", "e2e")
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,7 @@
 package upgrade
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -54,7 +54,7 @@ func TestConfigUpgrade(t *testing.T) {
 			tmpdir := t.TempDir()
 			configFile := filepath.Join(tmpdir, "influxdb.conf")
 			configFileV2 := filepath.Join(filepath.Dir(configFile), "config.toml")
-			err := ioutil.WriteFile(configFile, []byte(tc.config1x), 0444)
+			err := os.WriteFile(configFile, []byte(tc.config1x), 0444)
 			require.NoError(t, err)
 
 			targetOtions := optionsV2{
@@ -127,7 +127,7 @@ func TestConfigLoadFile(t *testing.T) {
 			t.Parallel()
 			tmpdir := t.TempDir()
 			configFile := filepath.Join(tmpdir, "influxdb.conf")
-			err := ioutil.WriteFile(configFile, []byte(tc.config1x), 0444)
+			err := os.WriteFile(configFile, []byte(tc.config1x), 0444)
 			require.NoError(t, err)
 			retval, _, err := loadV1Config(configFile)
 			require.NoError(t, err)

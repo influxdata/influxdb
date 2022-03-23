@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -167,7 +166,7 @@ func (r *Req) do(ctx context.Context) error {
 		return err
 	}
 	defer func() {
-		io.Copy(ioutil.Discard, resp.Body) // drain body completely
+		io.Copy(io.Discard, resp.Body) // drain body completely
 		resp.Body.Close()
 	}()
 

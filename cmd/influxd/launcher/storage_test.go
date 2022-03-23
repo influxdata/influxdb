@@ -3,7 +3,7 @@ package launcher_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	nethttp "net/http"
 	"strings"
 	"testing"
@@ -121,7 +121,7 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestLauncher_BucketDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestLauncher_BucketDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if body, err = ioutil.ReadAll(resp.Body); err != nil {
+	if body, err = io.ReadAll(resp.Body); err != nil {
 		t.Fatal(err)
 	}
 

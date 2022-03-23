@@ -2,7 +2,7 @@ package http
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -36,7 +36,7 @@ func TestHealthHandler(t *testing.T) {
 			HealthHandler(tt.w, tt.r)
 			res := tt.w.Result()
 			contentType := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. HealthHandler() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)

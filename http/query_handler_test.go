@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -369,7 +368,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 			t.Errorf("expected unauthorized status, got %d", resp.StatusCode)
 		}
 
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -557,7 +556,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 		t.Errorf("unexpected status code %s", res.Status)
 	}
 
-	identityBody, _ := ioutil.ReadAll(res.Body)
+	identityBody, _ := io.ReadAll(res.Body)
 	_ = res.Body.Close()
 
 	// now, we try to use gzip
@@ -576,7 +575,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 		t.Fatalf("unable to POST to server: %v", err)
 	}
 
-	gzippedBody, _ := ioutil.ReadAll(res.Body)
+	gzippedBody, _ := io.ReadAll(res.Body)
 	_ = res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
@@ -693,7 +692,7 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 			b.Errorf("unexpected status code %s", res.Status)
 		}
 
-		_, _ = ioutil.ReadAll(res.Body)
+		_, _ = io.ReadAll(res.Body)
 		_ = res.Body.Close()
 
 	}
