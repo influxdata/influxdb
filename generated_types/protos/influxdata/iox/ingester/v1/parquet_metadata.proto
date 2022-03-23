@@ -47,4 +47,24 @@ message IoxMetadata {
 
   // Number of rows of data in this file.
   int64 row_count = 14;
+
+  // The sort key of this chunk
+  SortKey sort_key = 15;
+}
+
+// Sort key of a chunk.
+message SortKey {
+  // A sort expression
+  message Expr {
+    // The name of the column
+    string column = 1;
+
+    /// Whether the data is sorted in descending order
+    bool descending = 2;
+
+    /// Whether the data is sorted with nulls first
+    bool nulls_first = 3;
+  }
+
+  repeated Expr expressions = 1;
 }

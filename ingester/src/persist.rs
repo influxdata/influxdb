@@ -129,6 +129,7 @@ mod tests {
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             row_count: 0,
+            sort_key: None,
         };
         let object_store = object_store();
 
@@ -154,6 +155,7 @@ mod tests {
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             row_count: 3,
+            sort_key: None,
         };
 
         let chunk1 = Arc::new(

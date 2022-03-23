@@ -541,6 +541,7 @@ impl Compactor {
                 min_sequence_number,
                 max_sequence_number,
                 row_count,
+                sort_key: None,
             };
 
             let compacted_data = CompactedData::new(output_batches, meta, tombstone_ids.clone());
@@ -1439,6 +1440,7 @@ mod tests {
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             row_count: 3,
+            sort_key: None,
         };
 
         let chunk1 = Arc::new(
@@ -1578,6 +1580,7 @@ mod tests {
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             row_count: 3,
+            sort_key: None,
         };
 
         // Prepare metadata in form of ParquetFileParams to get added with tombstone

@@ -2569,6 +2569,7 @@ dependencies = [
  "iox_catalog",
  "iox_object_store",
  "metric",
+ "mutable_batch",
  "mutable_batch_lp",
  "object_store",
  "parquet_file",

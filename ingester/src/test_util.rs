@@ -145,6 +145,7 @@ pub fn make_meta(
         min_sequence_number: SequenceNumber::new(min_sequence_number),
         max_sequence_number: SequenceNumber::new(max_sequence_number),
         row_count,
+        sort_key: None,
     }
 }
 
