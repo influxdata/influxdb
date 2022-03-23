@@ -632,7 +632,7 @@ pub struct TwoMeasurementsManyFieldsOneChunk {}
 #[async_trait]
 impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
     async fn make(&self) -> Vec<DbScenario> {
-        let db = make_db().await.db;
+        let partition_key = "1970-01-01T00";
 
         let lp_lines = vec![
             "h2o,state=MA,city=Boston temp=70.4 50",
@@ -642,19 +642,17 @@ impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
             "o2,state=CA temp=79.0 300",
         ];
 
-        write_lp(&db, &lp_lines.join("\n"));
-        vec![DbScenario {
-            scenario_name: "Data in open chunk of mutable buffer".into(),
-            db,
-        }]
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
     }
 }
 
 #[derive(Debug)]
 /// This has a single chunk for queries that check the state of the system
-pub struct TwoMeasurementsManyFieldsOneRubChunk {}
+///
+/// This scenario is OG-specific and can be used for `EXPLAIN` plans and system tables.
+pub struct OldTwoMeasurementsManyFieldsOneRubChunk {}
 #[async_trait]
-impl DbSetup for TwoMeasurementsManyFieldsOneRubChunk {
+impl DbSetup for OldTwoMeasurementsManyFieldsOneRubChunk {
     async fn make(&self) -> Vec<DbScenario> {
         let db = make_db().await.db;
         let partition_key = "1970-01-01T00";
