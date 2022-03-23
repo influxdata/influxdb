@@ -34,5 +34,5 @@ func isExported(id string) bool {
 var messageType = reflect.TypeOf((*proto.Message)(nil)).Elem()
 
 func implementsProtoMessage(t reflect.Type) bool {
-	return t.Implements(messageType) || reflect.PtrTo(t).Implements(messageType)
+	return t.Implements(messageType) || reflect.PointerTo(t).Implements(messageType)
 }
