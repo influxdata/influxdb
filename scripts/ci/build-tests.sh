@@ -24,7 +24,7 @@ function build_linux () {
 }
 
 function build_mac () {
-    CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC=x86_64-apple-darwin16-clang go-test-compile \
+    CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC=x86_64-apple-darwin18-clang go-test-compile \
         -tags sqlite_foreign_keys,sqlite_json -o "${1}/" ./...
 }
 
