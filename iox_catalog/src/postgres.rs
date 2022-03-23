@@ -20,6 +20,7 @@ use observability_deps::tracing::{info, warn};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgres, Row};
 use sqlx_hotswap_pool::HotSwapPool;
 use std::{sync::Arc, time::Duration};
+use time::{SystemProvider, TimeProvider};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
@@ -37,6 +38,7 @@ pub struct PostgresCatalog {
     metrics: Arc<metric::Registry>,
     pool: HotSwapPool<Postgres>,
     schema_name: String,
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 // struct to get return value from "select count(*) ..." query
@@ -69,6 +71,7 @@ impl PostgresCatalog {
             pool,
             metrics,
             schema_name,
+            time_provider: Arc::new(SystemProvider::new()),
         })
     }
 }
@@ -77,6 +80,7 @@ impl PostgresCatalog {
 #[derive(Debug)]
 pub struct PostgresTxn {
     inner: PostgresTxnInner,
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 #[derive(Debug)]
@@ -246,6 +250,7 @@ impl Catalog for PostgresCatalog {
         Ok(Box::new(MetricDecorator::new(
             PostgresTxn {
                 inner: PostgresTxnInner::Txn(Some(transaction)),
+                time_provider: Arc::clone(&self.time_provider),
             },
             Arc::clone(&self.metrics),
         )))
@@ -255,6 +260,7 @@ impl Catalog for PostgresCatalog {
         Box::new(MetricDecorator::new(
             PostgresTxn {
                 inner: PostgresTxnInner::Oneshot(self.pool.clone()),
+                time_provider: Arc::clone(&self.time_provider),
             },
             Arc::clone(&self.metrics),
         ))
@@ -1277,6 +1283,36 @@ ORDER BY id;
         .await
         .map_err(|e| Error::SqlxError { source: e })
     }
+
+    async fn list_tombstones_for_time_range(
+        &mut self,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+        sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<Vec<Tombstone>> {
+        sqlx::query_as::<_, Tombstone>(
+            r#"
+SELECT *
+FROM tombstone
+WHERE sequencer_id = $1
+  AND table_id = $2
+  AND sequence_number > $3
+  AND ((min_time <= $4 AND max_time >= $4)
+        OR (min_time > $4 AND min_time <= $5))
+ORDER BY id;
+            "#,
+        )
+        .bind(&sequencer_id) // $1
+        .bind(&table_id) // $2
+        .bind(&sequence_number) // $3
+        .bind(&min_time) // $4
+        .bind(&max_time) // $5
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
 }
 
 #[async_trait]
@@ -1301,9 +1337,9 @@ impl ParquetFileRepo for PostgresTxn {
             r#"
 INSERT INTO parquet_file (
     sequencer_id, table_id, partition_id, object_store_id, min_sequence_number,
-    max_sequence_number, min_time, max_time, to_delete, file_size_bytes, parquet_metadata,
+    max_sequence_number, min_time, max_time, file_size_bytes, parquet_metadata,
     row_count, compaction_level, created_at )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10, $11, $12, $13 )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
 RETURNING *;
         "#,
         )
@@ -1336,8 +1372,11 @@ RETURNING *;
     }
 
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
-        let _ = sqlx::query(r#"UPDATE parquet_file SET to_delete = true WHERE id = $1;"#)
-            .bind(&id) // $1
+        let marked_at = Timestamp::new(self.time_provider.now().timestamp_nanos());
+
+        let _ = sqlx::query(r#"UPDATE parquet_file SET to_delete = $1 WHERE id = $2;"#)
+            .bind(&marked_at) // $1
+            .bind(&id) // $2
             .execute(&mut self.inner)
             .await
             .map_err(|e| Error::SqlxError { source: e })?;
@@ -1376,7 +1415,7 @@ SELECT parquet_file.*
 FROM parquet_file
 INNER JOIN table_name on table_name.id = parquet_file.table_id
 WHERE table_name.namespace_id = $1
-  AND parquet_file.to_delete = false;
+  AND parquet_file.to_delete IS NULL;
              "#,
         )
         .bind(&namespace_id) // $1
@@ -1390,7 +1429,7 @@ WHERE table_name.namespace_id = $1
             r#"
 SELECT *
 FROM parquet_file
-WHERE table_id = $1 AND to_delete = false;
+WHERE table_id = $1 AND to_delete IS NULL;
              "#,
         )
         .bind(&table_id) // $1
@@ -1406,7 +1445,7 @@ SELECT *
 FROM parquet_file
 WHERE parquet_file.sequencer_id = $1
   AND parquet_file.compaction_level = 0
-  AND parquet_file.to_delete = false;
+  AND parquet_file.to_delete IS NULL;
         "#,
         )
         .bind(&sequencer_id) // $1
@@ -1429,7 +1468,7 @@ WHERE parquet_file.sequencer_id = $1
   AND parquet_file.table_id = $2
   AND parquet_file.partition_id = $3
   AND parquet_file.compaction_level = 1
-  AND parquet_file.to_delete = false
+  AND parquet_file.to_delete IS NULL
   AND ((parquet_file.min_time <= $5 AND parquet_file.max_time >= $4)
       OR (parquet_file.min_time > $5 AND parquet_file.min_time <= $5));
         "#,

@@ -19,6 +19,9 @@ pub mod remote;
 /// Client for router API
 pub mod router;
 
+/// Client for schema API
+pub mod schema;
+
 /// Client for write API
 pub mod write;
 

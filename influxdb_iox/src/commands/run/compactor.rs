@@ -1,6 +1,5 @@
 //! Implementation of command line option for running the compactor
 
-use data_types2::SequencerId;
 use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
@@ -8,7 +7,9 @@ use std::sync::Arc;
 use thiserror::Error;
 use time::SystemProvider;
 
-use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
+use clap_blocks::{
+    catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, run_config::RunConfig,
+};
 use influxdb_ioxd::{
     self,
     server_type::{
@@ -34,6 +35,9 @@ pub enum Error {
 
     #[error("Cannot parse object store config: {0}")]
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
+
+    #[error("error initializing compactor: {0}")]
+    Compactor(#[from] influxdb_ioxd::server_type::compactor::Error),
 }
 
 #[derive(Debug, clap::Parser)]
@@ -58,13 +62,16 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) catalog_dsn: CatalogDsnConfig,
 
+    #[clap(flatten)]
+    pub(crate) compactor_config: CompactorConfig,
+
     /// Number of threads to use for the compactor query execution, compaction and persistence.
     #[clap(
         long = "--query-exec-thread-count",
         env = "INFLUXDB_IOX_QUERY_EXEC_THREAD_COUNT",
         default_value = "4"
     )]
-    pub query_exect_thread_count: usize,
+    pub query_exec_thread_count: usize,
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
@@ -82,11 +89,8 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let object_store: Arc<DynObjectStore> =
         Arc::new(ObjectStoreMetrics::new(object_store, &*metric_registry));
 
-    let exec = Arc::new(Executor::new(config.query_exect_thread_count));
+    let exec = Arc::new(Executor::new(config.query_exec_thread_count));
     let time_provider = Arc::new(SystemProvider::new());
-
-    // TODO: modify config to let us get assigned sequence numbers
-    let sequencers: Vec<SequencerId> = vec![];
 
     let server_type = create_compactor_server_type(
         &common_state,
@@ -95,9 +99,9 @@ pub async fn command(config: Config) -> Result<(), Error> {
         object_store,
         exec,
         time_provider,
-        sequencers,
+        config.compactor_config,
     )
-    .await;
+    .await?;
 
     info!("starting compactor");
 

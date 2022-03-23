@@ -243,6 +243,22 @@ impl SequenceNumber {
     }
 }
 
+impl Add<i64> for SequenceNumber {
+    type Output = Self;
+
+    fn add(self, other: i64) -> Self {
+        Self(self.0 + other)
+    }
+}
+
+impl Sub<i64> for SequenceNumber {
+    type Output = Self;
+
+    fn sub(self, other: i64) -> Self {
+        Self(self.0 - other)
+    }
+}
+
 /// A time in nanoseconds from epoch
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
@@ -702,8 +718,8 @@ pub struct ParquetFile {
     pub min_time: Timestamp,
     /// the max timestamp of data in this file
     pub max_time: Timestamp,
-    /// flag to mark that this file should be deleted from object storage
-    pub to_delete: bool,
+    /// When this file was marked for deletion
+    pub to_delete: Option<Timestamp>,
     /// file size in bytes
     pub file_size_bytes: i64,
     /// thrift-encoded parquet metadata

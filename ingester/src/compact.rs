@@ -104,6 +104,7 @@ pub async fn compact_persisting_batch(
         min_sequence_number: min_seq,
         max_sequence_number: max_seq,
         row_count,
+        sort_key: None,
     };
 
     Ok(Some((output_batches, meta)))

@@ -21,6 +21,7 @@ use observability_deps::tracing::warn;
 use std::fmt::Formatter;
 use std::sync::Arc;
 use std::{collections::HashSet, convert::TryFrom};
+use time::{SystemProvider, TimeProvider};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
 /// In-memory catalog that implements the `RepoCollection` and individual repo traits from
@@ -46,7 +47,7 @@ impl std::fmt::Debug for MemCatalog {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 struct MemCollections {
     kafka_topics: Vec<KafkaTopic>,
     query_pools: Vec<QueryPool>,
@@ -58,6 +59,25 @@ struct MemCollections {
     tombstones: Vec<Tombstone>,
     parquet_files: Vec<ParquetFile>,
     processed_tombstones: Vec<ProcessedTombstone>,
+    time_provider: Arc<dyn TimeProvider>,
+}
+
+impl Default for MemCollections {
+    fn default() -> Self {
+        Self {
+            kafka_topics: Default::default(),
+            query_pools: Default::default(),
+            namespaces: Default::default(),
+            tables: Default::default(),
+            columns: Default::default(),
+            sequencers: Default::default(),
+            partitions: Default::default(),
+            tombstones: Default::default(),
+            parquet_files: Default::default(),
+            processed_tombstones: Default::default(),
+            time_provider: Arc::new(SystemProvider::new()),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -836,6 +856,31 @@ impl TombstoneRepo for MemTxn {
             .collect();
         Ok(tombstones)
     }
+
+    async fn list_tombstones_for_time_range(
+        &mut self,
+        sequencer_id: SequencerId,
+        table_id: TableId,
+        sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<Vec<Tombstone>> {
+        let stage = self.stage();
+
+        let tombstones: Vec<_> = stage
+            .tombstones
+            .iter()
+            .filter(|t| {
+                t.sequencer_id == sequencer_id
+                    && t.table_id == table_id
+                    && t.sequence_number > sequence_number
+                    && ((t.min_time <= min_time && t.max_time >= min_time)
+                        || (t.min_time > min_time && t.min_time <= max_time))
+            })
+            .cloned()
+            .collect();
+        Ok(tombstones)
+    }
 }
 
 #[async_trait]
@@ -877,7 +922,7 @@ impl ParquetFileRepo for MemTxn {
             min_time,
             max_time,
             row_count,
-            to_delete: false,
+            to_delete: None,
             file_size_bytes,
             parquet_metadata,
             compaction_level: INITIAL_COMPACTION_LEVEL,
@@ -889,9 +934,10 @@ impl ParquetFileRepo for MemTxn {
 
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
         let stage = self.stage();
+        let marked_at = Timestamp::new(stage.time_provider.now().timestamp_nanos());
 
         match stage.parquet_files.iter_mut().find(|p| p.id == id) {
-            Some(f) => f.to_delete = true,
+            Some(f) => f.to_delete = Some(marked_at),
             None => return Err(Error::ParquetRecordNotFound { id }),
         }
 
@@ -928,7 +974,7 @@ impl ParquetFileRepo for MemTxn {
         let parquet_files: Vec<_> = stage
             .parquet_files
             .iter()
-            .filter(|f| table_ids.contains(&f.table_id) && !f.to_delete)
+            .filter(|f| table_ids.contains(&f.table_id) && f.to_delete.is_none())
             .cloned()
             .collect();
         Ok(parquet_files)
@@ -940,7 +986,7 @@ impl ParquetFileRepo for MemTxn {
         let parquet_files: Vec<_> = stage
             .parquet_files
             .iter()
-            .filter(|f| table_id == f.table_id && !f.to_delete)
+            .filter(|f| table_id == f.table_id && f.to_delete.is_none())
             .cloned()
             .collect();
         Ok(parquet_files)
@@ -952,7 +998,9 @@ impl ParquetFileRepo for MemTxn {
         Ok(stage
             .parquet_files
             .iter()
-            .filter(|f| f.sequencer_id == sequencer_id && f.compaction_level == 0 && !f.to_delete)
+            .filter(|f| {
+                f.sequencer_id == sequencer_id && f.compaction_level == 0 && f.to_delete.is_none()
+            })
             .cloned()
             .collect())
     }
@@ -973,7 +1021,7 @@ impl ParquetFileRepo for MemTxn {
                     && f.table_id == table_partition.table_id
                     && f.partition_id == table_partition.partition_id
                     && f.compaction_level == 1
-                    && !f.to_delete
+                    && f.to_delete.is_none()
                     && ((f.min_time <= min_time && f.max_time >= min_time)
                         || (f.min_time > min_time && f.min_time <= max_time))
             })

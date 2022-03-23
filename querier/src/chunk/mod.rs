@@ -236,8 +236,7 @@ impl ParquetChunkAdapter {
         let meta = Arc::new(ChunkMeta {
             addr,
             order,
-            // TODO(marco): get sort key wired up (needs to come via IoxMetadata)
-            sort_key: None,
+            sort_key: iox_metadata.sort_key.clone(),
             sequencer_id: iox_metadata.sequencer_id,
             min_sequence_number: decoded_parquet_file.parquet_file.min_sequence_number,
             max_sequence_number: decoded_parquet_file.parquet_file.max_sequence_number,
@@ -289,12 +288,12 @@ impl ParquetChunkAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::record_batch::RecordBatch;
+    use arrow::{datatypes::DataType, record_batch::RecordBatch};
     use arrow_util::assert_batches_eq;
     use futures::StreamExt;
     use iox_tests::util::TestCatalog;
-    use query::{exec::IOxSessionContext, QueryChunk};
-    use schema::selection::Selection;
+    use query::{exec::IOxSessionContext, QueryChunk, QueryChunkMeta};
+    use schema::{builder::SchemaBuilder, selection::Selection, sort::SortKeyBuilder};
 
     #[tokio::test]
     async fn test_create_record() {
@@ -310,10 +309,11 @@ mod tests {
             catalog.time_provider(),
         );
 
+        // set up catalog
         let lp = vec![
-            "table,tag1=WA field_int=1000 8000",
-            "table,tag1=VT field_int=10 10000",
-            "table,tag1=UT field_int=70 20000",
+            "table,tag1=WA field_int=1000i 8000",
+            "table,tag1=VT field_int=10i 10000",
+            "table,tag1=UT field_int=70i 20000",
         ]
         .join("\n");
         let ns = catalog.create_namespace("ns").await;
@@ -328,21 +328,43 @@ mod tests {
             .parquet_file
             .clone();
 
+        // create chunk
         let chunk = adapter.new_querier_chunk(parquet_file).await.unwrap();
+
+        // check chunk addr
         assert_eq!(
             chunk.meta().addr().to_string(),
             "Chunk('ns':'table':'1-part':00000000-0000-0000-0000-000000000001)",
         );
 
+        // check chunk schema
+        let expected_schema = SchemaBuilder::new()
+            .field("field_int", DataType::Int64)
+            .tag("tag1")
+            .timestamp()
+            .build()
+            .unwrap();
+        let actual_schema = chunk.schema();
+        assert_eq!(actual_schema.as_ref(), &expected_schema);
+
+        // check sort key
+        let expected_sort_key = SortKeyBuilder::new()
+            .with_col("tag1")
+            .with_col("time")
+            .build();
+        let actual_sort_key = chunk.sort_key().unwrap();
+        assert_eq!(actual_sort_key, &expected_sort_key);
+
+        // check if chunk can be queried
         let batches = collect_read_filter(&chunk).await;
         assert_batches_eq!(
             &[
                 "+-----------+------+-----------------------------+",
                 "| field_int | tag1 | time                        |",
                 "+-----------+------+-----------------------------+",
-                "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
-                "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
                 "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
+                "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
+                "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
                 "+-----------+------+-----------------------------+",
             ],
             &batches
