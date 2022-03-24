@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2/models"
 )
 
@@ -2425,6 +2426,27 @@ func TestParseName(t *testing.T) {
 				t.Errorf("%s produced measurement %s but expected %s", testCase.input, string(name), testCase.expectedName)
 			}
 		})
+	}
+}
+
+func TestTags_KeyValues(t *testing.T) {
+	tags := models.NewTags(map[string]string{
+		"tag0": "v0",
+		"tag1": "v1",
+		"tag2": "v2",
+	})
+
+	got := tags.KeyValues(nil)
+	exp := [][]byte{[]byte("tag0"), []byte("v0"), []byte("tag1"), []byte("v1"), []byte("tag2"), []byte("v2")}
+	if !cmp.Equal(got, exp) {
+		t.Errorf("unexpected, -got/+exp\n%s", cmp.Diff(got, exp))
+	}
+
+	v := make([][]byte, 0, 10)
+	v = tags.KeyValues(v)
+	got2 := tags.KeyValues(v)
+	if !cmp.Equal(got2, exp) {
+		t.Errorf("unexpected, -got/+exp\n%s", cmp.Diff(got2, exp))
 	}
 }
 

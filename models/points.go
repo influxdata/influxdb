@@ -2119,7 +2119,7 @@ func (a Tags) KeyValues(v [][]byte) [][]byte {
 	if cap(v) < l {
 		v = make([][]byte, 0, l)
 	} else {
-		v = v[:l]
+		v = v[:0]
 	}
 	for i := range a {
 		v = append(v, a[i].Key, a[i].Value)
