@@ -17,7 +17,7 @@ schema = { path = "../schema" }
 service_common = { path = "../service_common" }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "10", features = ["prettyprint"] }
+arrow = { version = "11", features = ["prettyprint"] }
 async-trait = "0.1"
 futures = "0.3"
 prost = "0.9"

@@ -1283,15 +1283,6 @@ impl CatalogProvider for Db {
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         self.catalog_access.schema(name)
     }
-
-    fn register_schema(
-        &self,
-        _name: &str,
-        _schema: Arc<dyn SchemaProvider>,
-    ) -> Option<Arc<dyn SchemaProvider>> {
-        // https://github.com/apache/arrow-datafusion/issues/2051
-        unimplemented!("Schemas can not be registered in IOx");
-    }
 }
 
 pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData {

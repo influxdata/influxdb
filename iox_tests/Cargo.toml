@@ -6,7 +6,7 @@ edition = "2021"
 description = "IOx NG test utils and tests"
 
 [dependencies]
-arrow = "10"
+arrow = "11"
 bytes = "1.0"
 data_types2 = { path = "../data_types2" }
 iox_catalog = { path = "../iox_catalog" }

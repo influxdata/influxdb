@@ -361,4 +361,16 @@ async fn sql_create_external_table() {
     .await;
 }
 
+#[tokio::test]
+async fn sql_create_schema() {
+    let expected_error = "Unsupported logical plan: CreateCatalogSchema";
+    // Datafusion supports CREATE SCHEMA, but IOx should not (as that would be a security hole)
+    run_sql_error_test_case(
+        scenarios::delete::NoDeleteOneChunk {},
+        "CREATE SCHEMA foo;",
+        expected_error,
+    )
+    .await;
+}
+
 // --------------------------------------------------------

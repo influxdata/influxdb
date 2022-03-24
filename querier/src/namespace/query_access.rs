@@ -112,15 +112,6 @@ impl CatalogProvider for QuerierCatalogProvider {
             _ => None,
         }
     }
-
-    fn register_schema(
-        &self,
-        _name: &str,
-        _schema: Arc<dyn SchemaProvider>,
-    ) -> Option<Arc<dyn SchemaProvider>> {
-        // https://github.com/apache/arrow-datafusion/issues/2051
-        unimplemented!("Schemas can not be registered in IOx");
-    }
 }
 
 impl CatalogProvider for QuerierNamespace {
@@ -134,15 +125,6 @@ impl CatalogProvider for QuerierNamespace {
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         QuerierCatalogProvider::from_namespace(self).schema(name)
-    }
-
-    fn register_schema(
-        &self,
-        _name: &str,
-        _schema: Arc<dyn SchemaProvider>,
-    ) -> Option<Arc<dyn SchemaProvider>> {
-        // https://github.com/apache/arrow-datafusion/issues/2051
-        unimplemented!("Schemas can not be registered in IOx");
     }
 }
 

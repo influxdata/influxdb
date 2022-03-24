@@ -11,7 +11,7 @@ influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "
 test_helpers = { path = "../test_helpers" }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "10", features = ["prettyprint"] }
+arrow = { version = "11", features = ["prettyprint"] }
 assert_cmd = "2.0.2"
 futures = "0.3"
 http = "0.2.0"
