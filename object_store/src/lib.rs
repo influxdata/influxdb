@@ -752,6 +752,28 @@ impl From<dummy::Error> for Error {
     }
 }
 
+/// Convenience functions for object stores that are only appropriate to use in tests. Not marked
+/// with cfg(test) to make this accessible to other crates.
+#[async_trait]
+pub trait ObjectStoreTestConvenience {
+    /// A convenience function for getting all results from a list operation without a prefix. Only
+    /// appropriate for tests because production code should handle the stream of potentially a
+    /// large number of returned paths.
+    async fn list_all(&self) -> Result<Vec<Path>>;
+}
+
+#[async_trait]
+impl ObjectStoreTestConvenience for dyn ObjectStoreApi<Path = path::Path, Error = Error> {
+    async fn list_all(&self) -> Result<Vec<Path>> {
+        self.list(None)
+            .await?
+            .map_ok(|v| futures::stream::iter(v).map(Ok))
+            .try_flatten()
+            .try_collect()
+            .await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
