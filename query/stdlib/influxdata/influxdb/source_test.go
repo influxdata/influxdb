@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/dependencies/dependenciestest"
+	"github.com/influxdata/flux/dependency"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/memory"
@@ -131,7 +132,8 @@ func TestMetrics(t *testing.T) {
 	// This key/value pair added to the context will appear as a label in the prometheus histogram.
 	ctx := context.WithValue(context.Background(), labelKey, labelValue) //lint:ignore SA1029 this is a temporary ignore until we have time to create an appropriate type
 	// Injecting deps
-	ctx = deps.Inject(ctx)
+	ctx, span := dependency.Inject(ctx, deps)
+	defer span.Finish()
 	a := &mockAdministration{Ctx: ctx}
 	rfs := influxdb.ReadFilterSource(
 		execute.DatasetID(uuid.FromTime(time.Now())),
@@ -282,7 +284,8 @@ func TestReadWindowAggregateSource(t *testing.T) {
 					Metrics: metrics,
 				},
 			}
-			ctx := deps.Inject(context.Background())
+			ctx, span := dependency.Inject(context.Background(), deps)
+			defer span.Finish()
 			ctx = query.ContextWithRequest(ctx, &query.Request{
 				OrganizationID: orgID,
 			})

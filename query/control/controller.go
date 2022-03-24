@@ -27,6 +27,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
+	"github.com/influxdata/flux/dependency"
 	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
@@ -244,11 +245,10 @@ func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query,
 	// Set the org label value for controller metrics
 	ctx = context.WithValue(ctx, orgLabel, req.OrganizationID.String()) //lint:ignore SA1029 this is a temporary ignore until we have time to create an appropriate type
 	// The controller injects the dependencies for each incoming request.
-	for _, dep := range c.dependencies {
-		ctx = dep.Inject(ctx)
-	}
-	q, err := c.query(ctx, req.Compiler)
+	ctx, deps := dependency.Inject(ctx, c.dependencies...)
+	q, err := c.query(ctx, req.Compiler, deps)
 	if err != nil {
+		deps.Finish()
 		return q, err
 	}
 
@@ -257,8 +257,8 @@ func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query,
 
 // query submits a query for execution returning immediately.
 // Done must be called on any returned Query objects.
-func (c *Controller) query(ctx context.Context, compiler flux.Compiler) (flux.Query, error) {
-	q, err := c.createQuery(ctx, compiler)
+func (c *Controller) query(ctx context.Context, compiler flux.Compiler, deps *dependency.Span) (flux.Query, error) {
+	q, err := c.createQuery(ctx, compiler, deps)
 	if err != nil {
 		return nil, handleFluxError(err)
 	}
@@ -278,7 +278,7 @@ func (c *Controller) query(ctx context.Context, compiler flux.Compiler) (flux.Qu
 	return q, nil
 }
 
-func (c *Controller) createQuery(ctx context.Context, compiler flux.Compiler) (*Query, error) {
+func (c *Controller) createQuery(ctx context.Context, compiler flux.Compiler, deps *dependency.Span) (*Query, error) {
 	c.queriesMu.RLock()
 	if c.shutdown {
 		c.queriesMu.RUnlock()
@@ -321,6 +321,7 @@ func (c *Controller) createQuery(ctx context.Context, compiler flux.Compiler) (*
 		parentSpan:         parentSpan,
 		cancel:             cancel,
 		doneCh:             make(chan struct{}),
+		deps:               deps,
 		compiler:           compiler,
 	}
 
@@ -628,6 +629,7 @@ type Query struct {
 
 	memoryManager *queryMemoryManager
 	alloc         *memory.ResourceAllocator
+	deps          *dependency.Span
 }
 
 func (q *Query) ProfilerResults() (flux.ResultIterator, error) {
@@ -722,6 +724,9 @@ func (q *Query) Done() {
 			errMsgs = append(errMsgs, e.Error())
 		}
 		q.stats.RuntimeErrors = errMsgs
+
+		// Clean up the dependencies.
+		q.deps.Finish()
 
 		// Mark the query as finished so it is removed from the query map.
 		q.c.finish(q)
