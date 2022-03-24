@@ -1,19 +1,15 @@
 use http::StatusCode;
 use test_helpers_end_to_end_ng::{
-    maybe_skip_integration, rand_name, write_to_router, ServerFixture, ServerType, TestConfig,
+    maybe_skip_integration, rand_name, write_to_router, ServerFixture, TestConfig,
 };
 
 use arrow_util::assert_batches_sorted_eq;
 use data_types2::{IngesterQueryRequest, SequencerId};
-use tempfile::TempDir;
 
 #[tokio::test]
 async fn router2_through_ingester() {
     let database_url = maybe_skip_integration!();
 
-    let write_buffer_dir = TempDir::new().unwrap();
-    let write_buffer_string = write_buffer_dir.path().display().to_string();
-    let n_sequencers = 1;
     let sequencer_id = SequencerId::new(1);
     let org = rand_name();
     let bucket = rand_name();
@@ -22,15 +18,10 @@ async fn router2_through_ingester() {
 
     // Set up router2 ====================================
 
-    let test_config = TestConfig::new(ServerType::Router2)
-        .with_postgres_catalog(&database_url)
-        .with_env("INFLUXDB_IOX_WRITE_BUFFER_TYPE", "file")
-        .with_env(
-            "INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS",
-            n_sequencers.to_string(),
-        )
-        .with_env("INFLUXDB_IOX_WRITE_BUFFER_ADDR", &write_buffer_string);
-    let router2 = ServerFixture::create_single_use_with_config(test_config).await;
+    let router2_config = TestConfig::new_router2(&database_url);
+    let ingester_config = TestConfig::new_ingester(&router2_config);
+
+    let router2 = ServerFixture::create(router2_config).await;
 
     // Write some data into the v2 HTTP API ==============
     let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
@@ -40,20 +31,7 @@ async fn router2_through_ingester() {
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     // Set up ingester ===================================
-
-    let test_config = TestConfig::new(ServerType::Ingester)
-        .with_postgres_catalog(&database_url)
-        .with_env("INFLUXDB_IOX_WRITE_BUFFER_TYPE", "file")
-        .with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "20")
-        .with_env("INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES", "10")
-        .with_env("INFLUXDB_IOX_WRITE_BUFFER_ADDR", &write_buffer_string)
-        .with_env("INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START", "0")
-        .with_env("INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END", "0")
-        .with_env(
-            "INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS",
-            n_sequencers.to_string(),
-        );
-    let ingester = ServerFixture::create_single_use_with_config(test_config).await;
+    let ingester = ServerFixture::create(ingester_config).await;
 
     let mut querier_flight =
         querier::flight::Client::new(ingester.server().ingester_grpc_connection());

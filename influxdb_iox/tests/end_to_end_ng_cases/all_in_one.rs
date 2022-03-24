@@ -1,18 +1,14 @@
 use arrow_util::assert_batches_sorted_eq;
 use http::StatusCode;
-use tempfile::TempDir;
 use test_helpers_end_to_end_ng::{
     maybe_skip_integration, query_until_results, rand_name, write_to_router, ServerFixture,
-    ServerType, TestConfig,
+    TestConfig,
 };
 
 #[tokio::test]
 async fn smoke() {
     let database_url = maybe_skip_integration!();
 
-    let write_buffer_dir = TempDir::new().unwrap();
-    let write_buffer_string = write_buffer_dir.path().display().to_string();
-    let n_sequencers = "1";
     let org = rand_name();
     let bucket = rand_name();
     let namespace = format!("{}_{}", org, bucket);
@@ -20,18 +16,9 @@ async fn smoke() {
 
     // Set up all_in_one ====================================
 
-    let test_config = TestConfig::new(ServerType::AllInOne)
-        .with_postgres_catalog(&database_url)
-        .with_env("INFLUXDB_IOX_WRITE_BUFFER_TYPE", "file")
-        .with_env("INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS", n_sequencers)
-        .with_env("INFLUXDB_IOX_WRITE_BUFFER_ADDR", &write_buffer_string)
-        .with_env("INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START", "0")
-        .with_env("INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END", "0")
-        // Aggressive expulsion of parquet files
-        .with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "2")
-        .with_env("INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES", "1");
+    let test_config = TestConfig::new_all_in_one(database_url);
 
-    let all_in_one = ServerFixture::create_single_use_with_config(test_config).await;
+    let all_in_one = ServerFixture::create(test_config).await;
 
     // Write some data into the v2 HTTP API ==============
     let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
