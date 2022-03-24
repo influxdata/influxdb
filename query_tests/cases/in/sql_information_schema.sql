@@ -1,8 +1,8 @@
 -- IOX_SETUP: TwoMeasurementsManyFields
 
--- validate we have access to information schema for listing table names
+-- validate we have access to information schema for listing table names (w/o system tables)
 -- IOX_COMPARE: sorted
-SELECT * from information_schema.tables;
+SELECT * from information_schema.tables where table_schema != 'system';
 
 -- validate we have access to information schema for listing columns names/types
 -- IOX_COMPARE: sorted

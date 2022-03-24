@@ -7,10 +7,13 @@ use db::{
     utils::{count_mub_table_chunks, count_os_table_chunks, count_rub_table_chunks, make_db},
     Db,
 };
+use iox_tests::util::{TestCatalog, TestNamespace};
+use querier::namespace::QuerierNamespace;
 use query::QueryChunk;
 use schema::merge::SchemaMerger;
 use schema::selection::Selection;
 use std::collections::BTreeMap;
+use std::fmt::Write;
 use std::{fmt::Display, sync::Arc};
 
 // Structs, enums, and functions used to exhaust all test scenarios of chunk life cycle
@@ -609,136 +612,21 @@ async fn make_chunk_with_deletes_at_different_stages_new(
     delete_table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
-    use iox_tests::util::TestCatalog;
-    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-    use querier::{cache::CatalogCache, namespace::QuerierNamespace};
-
-    // detect table names and schemas from LP lines
-    let (lp_lines_grouped, schemas) = {
-        let mut lp_lines_grouped: BTreeMap<_, Vec<_>> = BTreeMap::new();
-        let mut schemas: BTreeMap<_, SchemaMerger> = BTreeMap::new();
-
-        for lp in lp_lines {
-            let (table_name, batch) = lp_to_mutable_batch(lp);
-
-            lp_lines_grouped
-                .entry(table_name.clone())
-                .or_default()
-                .push(lp);
-
-            let schema = batch.schema(Selection::All).unwrap();
-            let merger = schemas.entry(table_name).or_default();
-            *merger = merger.clone().merge(&schema).unwrap();
-        }
-
-        let schemas: BTreeMap<_, _> = schemas
-            .into_iter()
-            .map(|(table_name, merger)| (table_name, merger.build()))
-            .collect();
-
-        (lp_lines_grouped, schemas)
-    };
-
-    // set up catalog
     let catalog = TestCatalog::new();
     let ns = catalog.create_namespace("test_db").await;
-    let sequencer = ns.create_sequencer(1).await;
-    let tables = {
-        // need to use a temporary vector because BTree iterators ain't `Send`
-        let table_names: Vec<_> = lp_lines_grouped.keys().cloned().collect();
 
-        let mut tables = BTreeMap::new();
-        for table_name in table_names {
-            let table = ns.create_table(&table_name).await;
-            tables.insert(table_name, table);
-        }
-        tables
-    };
-    let partitions = {
-        // need to use a temporary vector because BTree iterators ain't `Send`
-        let tables: Vec<_> = tables.values().cloned().collect();
+    let scenario_name = make_ng_chunk(
+        Arc::clone(&ns),
+        &lp_lines,
+        chunk_stage,
+        &preds,
+        delete_table_name,
+        partition_key,
+    )
+    .await;
 
-        let mut partitions = BTreeMap::new();
-        for table in tables {
-            let partition = table
-                .with_sequencer(&sequencer)
-                .create_partition(partition_key)
-                .await;
-            partitions.insert(table.table.name.clone(), partition);
-        }
-        partitions
-    };
-    for (table_name, schema) in schemas {
-        let table = tables.get(&table_name).unwrap();
+    let db = make_querier_namespace(ns).await;
 
-        for (t, field) in schema.iter() {
-            let t = t.unwrap();
-            table.create_column(field.name(), t.into()).await;
-        }
-    }
-
-    // create chunks
-    match chunk_stage {
-        ChunkStageNew::Parquet => {
-            // need to use a temporary vector because BTree iterators ain't `Send`
-            let lp_lines_grouped: Vec<_> = lp_lines_grouped.into_iter().collect();
-
-            for (table_name, lp_lines) in lp_lines_grouped {
-                let partition = partitions.get(&table_name).unwrap();
-                let min_seq = 1;
-                let max_seq = 1;
-                let min_time = 0;
-                let max_time = 0;
-                partition
-                    .create_parquet_file_with_min_max(
-                        &lp_lines.join("\n"),
-                        min_seq,
-                        max_seq,
-                        min_time,
-                        max_time,
-                    )
-                    .await;
-            }
-        }
-    }
-
-    // attach delete predicates
-    let n_preds = preds.len();
-    if let Some(table) = tables.get(delete_table_name) {
-        for (i, pred) in preds.into_iter().enumerate() {
-            match pred.delete_time {
-                DeleteTimeNew::Parquet => {
-                    // parquet files got created w/ sequence number = 1
-                    let sequence_number = 2 + i;
-
-                    let min_time = pred.predicate.range.start();
-                    let max_time = pred.predicate.range.end();
-                    let predicate = pred.predicate.expr_sql_string();
-                    table
-                        .with_sequencer(&sequencer)
-                        .create_tombstone(sequence_number as i64, min_time, max_time, &predicate)
-                        .await;
-                }
-            }
-        }
-    }
-
-    let catalog_cache = Arc::new(CatalogCache::new(
-        catalog.catalog(),
-        catalog.time_provider(),
-    ));
-    let db = Arc::new(QuerierNamespace::new(
-        catalog_cache,
-        ns.namespace.name.clone().into(),
-        ns.namespace.id,
-        catalog.metric_registry(),
-        catalog.object_store(),
-        catalog.time_provider(),
-        catalog.exec(),
-    ));
-    db.sync().await;
-
-    let scenario_name = format!("NG Chunk {} with {} deletes", chunk_stage, n_preds);
     DbScenario { scenario_name, db }
 }
 
@@ -962,6 +850,18 @@ pub async fn make_two_chunk_scenarios(
     data1: &str,
     data2: &str,
 ) -> Vec<DbScenario> {
+    make_two_chunk_scenarios_old(partition_key, data1, data2)
+        .await
+        .into_iter()
+        .chain(make_two_chunk_scenarios_new(partition_key, data1, data2).await)
+        .collect()
+}
+
+async fn make_two_chunk_scenarios_old(
+    partition_key: &str,
+    data1: &str,
+    data2: &str,
+) -> Vec<DbScenario> {
     let db = make_db().await.db;
     write_lp(&db, data1);
     write_lp(&db, data2);
@@ -1093,6 +993,49 @@ pub async fn make_two_chunk_scenarios(
     ]
 }
 
+async fn make_two_chunk_scenarios_new(
+    partition_key: &str,
+    data1: &str,
+    data2: &str,
+) -> Vec<DbScenario> {
+    let mut scenarios = vec![];
+
+    let lp_lines1: Vec<_> = data1.split('\n').collect();
+    let lp_lines2: Vec<_> = data2.split('\n').collect();
+
+    for chunk_stage1 in ChunkStageNew::all() {
+        for chunk_stage2 in ChunkStageNew::all() {
+            let catalog = TestCatalog::new();
+            let ns = catalog.create_namespace("test_db").await;
+
+            let name1 = make_ng_chunk(
+                Arc::clone(&ns),
+                &lp_lines1,
+                chunk_stage1,
+                &[],
+                "not_important",
+                partition_key,
+            )
+            .await;
+            let name2 = make_ng_chunk(
+                Arc::clone(&ns),
+                &lp_lines2,
+                chunk_stage2,
+                &[],
+                "not_important",
+                partition_key,
+            )
+            .await;
+
+            let db = make_querier_namespace(ns).await;
+            let scenario_name = format!("Two chunks: {}; {}", name1, name2);
+            scenarios.push(DbScenario { scenario_name, db });
+        }
+    }
+
+    scenarios
+}
+
 /// Rollover the mutable buffer and load chunk 0 to the read buffer and object store
 pub async fn rollover_and_load(db: &Arc<Db>, partition_key: &str, table_name: &str) {
     db.persist_partition(table_name, partition_key, true)
@@ -1137,4 +1080,152 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     };
 
     vec![scenario1, scenario2]
+}
+
+async fn make_ng_chunk(
+    ns: Arc<TestNamespace>,
+    lp_lines: &[&str],
+    chunk_stage: ChunkStageNew,
+    preds: &[PredNew<'_>],
+    delete_table_name: &str,
+    partition_key: &str,
+) -> String {
+    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
+
+    // detect table names and schemas from LP lines
+    let (lp_lines_grouped, schemas) = {
+        let mut lp_lines_grouped: BTreeMap<_, Vec<_>> = BTreeMap::new();
+        let mut schemas: BTreeMap<_, SchemaMerger> = BTreeMap::new();
+
+        for lp in lp_lines {
+            let lp = *lp;
+
+            let (table_name, batch) = lp_to_mutable_batch(lp);
+
+            lp_lines_grouped
+                .entry(table_name.clone())
+                .or_default()
+                .push(lp);
+
+            let schema = batch.schema(Selection::All).unwrap();
+            let merger = schemas.entry(table_name).or_default();
+            *merger = merger.clone().merge(&schema).unwrap();
+        }
+
+        let schemas: BTreeMap<_, _> = schemas
+            .into_iter()
+            .map(|(table_name, merger)| (table_name, merger.build()))
+            .collect();
+
+        (lp_lines_grouped, schemas)
+    };
+
+    // set up catalog
+    let sequencer = ns.create_sequencer(1).await;
+    let tables = {
+        // need to use a temporary vector because BTree iterators ain't `Send`
+        let table_names: Vec<_> = lp_lines_grouped.keys().cloned().collect();
+
+        let mut tables = BTreeMap::new();
+        for table_name in table_names {
+            let table = ns.create_table(&table_name).await;
+            tables.insert(table_name, table);
+        }
+        tables
+    };
+    let partitions = {
+        // need to use a temporary vector because BTree iterators ain't `Send`
+        let tables: Vec<_> = tables.values().cloned().collect();
+
+        let mut partitions = BTreeMap::new();
+        for table in tables {
+            let partition = table
+                .with_sequencer(&sequencer)
+                .create_partition(partition_key)
+                .await;
+            partitions.insert(table.table.name.clone(), partition);
+        }
+        partitions
+    };
+    for (table_name, schema) in schemas {
+        let table = tables.get(&table_name).unwrap();
+
+        for (t, field) in schema.iter() {
+            let t = t.unwrap();
+            table.create_column(field.name(), t.into()).await;
+        }
+    }
+
+    // create chunk
+    match chunk_stage {
+        ChunkStageNew::Parquet => {
+            // need to use a temporary vector because BTree iterators ain't `Send`
+            let lp_lines_grouped: Vec<_> = lp_lines_grouped.into_iter().collect();
+
+            for (table_name, lp_lines) in lp_lines_grouped {
+                let partition = partitions.get(&table_name).unwrap();
+                let min_seq = 1;
+                let max_seq = 1;
+                let min_time = 0;
+                let max_time = 0;
+                partition
+                    .create_parquet_file_with_min_max(
+                        &lp_lines.join("\n"),
+                        min_seq,
+                        max_seq,
+                        min_time,
+                        max_time,
+                    )
+                    .await;
+            }
+        }
+    }
+
+    // attach delete predicates
+    let n_preds = preds.len();
+    if let Some(table) = tables.get(delete_table_name) {
+        for (i, pred) in preds.iter().enumerate() {
+            match pred.delete_time {
+                DeleteTimeNew::Parquet => {
+                    // parquet files got created w/ sequence number = 1
+                    let sequence_number = 2 + i;
+
+                    let min_time = pred.predicate.range.start();
+                    let max_time = pred.predicate.range.end();
+                    let predicate = pred.predicate.expr_sql_string();
+                    table
+                        .with_sequencer(&sequencer)
+                        .create_tombstone(sequence_number as i64, min_time, max_time, &predicate)
+                        .await;
+                }
+            }
+        }
+    }
+
+    let mut name = format!("NG Chunk {}", chunk_stage);
+    if n_preds > 0 {
+        write!(name, " with {} deletes", n_preds).unwrap();
+    }
+    name
+}
+
+async fn make_querier_namespace(ns: Arc<TestNamespace>) -> Arc<QuerierNamespace> {
+    use querier::cache::CatalogCache;
+
+    let catalog_cache = Arc::new(CatalogCache::new(
+        ns.catalog.catalog(),
+        ns.catalog.time_provider(),
+    ));
+    let db = Arc::new(QuerierNamespace::new(
+        catalog_cache,
+        ns.namespace.name.clone().into(),
+        ns.namespace.id,
+        ns.catalog.metric_registry(),
+        ns.catalog.object_store(),
+        ns.catalog.time_provider(),
+        ns.catalog.exec(),
+    ));
+    db.sync().await;
+
+    db
 }

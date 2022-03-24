@@ -544,7 +544,7 @@ impl DbSetup for TwoMeasurementsManyNulls {
             "h2o,state=CA,city=LA,county=LA temp=70.4 100",
             "h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250",
             "o2,state=MA,city=Boston temp=50.4 200",
-            "o2,state=CA temp=79.0 300\n",
+            "o2,state=CA temp=79.0 300",
         ];
         let lp_lines2 = [
             "o2,state=NY temp=60.8 400",

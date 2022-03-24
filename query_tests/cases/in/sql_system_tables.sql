@@ -5,6 +5,9 @@
 -- with different chunk configurations.
 --
 
+-- validate we have access to information schema for listing system tables
+-- IOX_COMPARE: sorted
+SELECT * from information_schema.tables where table_schema = 'system';
 
 -- ensures the tables / plumbing are hooked up (so no need to
 -- test timestamps, etc)
