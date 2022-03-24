@@ -2,6 +2,46 @@
 
 This document covers details that are only relevant if you are developing IOx and running the tests.
 
+## "End to End" tests
+
+The purpose of the "end to end tests" is highest level "integration"
+test that can be run entirely within the `influxdb_iox` repository
+with minimum dependencies that ensure all the plumbing is connected
+correctly.
+
+It is NOT meant to cover corner cases in implementation, which are
+better tested with targeted tests in the various sub modules that make
+up IOx.
+
+Each of these tests starts up IOx as a sub process (aka runs the
+`influxdb_iox` binary) and manipulates it either via a client or the
+CLI. These tests should *not* manipulate or use the contents of any
+subsystem crate.
+
+### Prerequisites
+The end to end tests currently require a connection to postgres
+specified by a `DSN`, such as
+`postgresql://localhost:5432/alamb`. Note that the required schema is
+created automatically.
+
+### Running
+The end to end tests are run using the `cargo test --test
+end_to_end_ng` command, after setting the `TEST_INTEGRATION` and
+`TEST_INFLUXDB_IOX_CATALOG_DSN` environment variables. NOTE if you
+don't set these variables the tests will "pass" locally (really they
+will be skipped).
+
+For example, to run the end to end tests assuming the example postgres DSN:
+```shell
+TEST_INTEGRATION=1  TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://localhost:5432/alamb cargo test --test end_to_end_ng
+```
+
+You can also see more logging using the `LOG_FILTER` variable. For example:
+
+```shell
+LOG_FILTER=debug,sqlx=warn,h2=warn TEST_INTEGRATION=1  TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://localhost:5432/alamb cargo test --test end_to_end_ng
+```
+
 
 ## Running the IOx server from source
 
@@ -111,7 +151,7 @@ If you do not want to use Docker locally, but you do have `influxd` for InfluxDB
 
 ## Kafka Write Buffer
 
-By default, the integration tests for the Kafka-based write buffer are not run. 
+By default, the integration tests for the Kafka-based write buffer are not run.
 
 In order to run them you must set two environment variables:
 
@@ -123,7 +163,7 @@ In order to run them you must set two environment variables:
 [Redpanda](https://vectorized.io/redpanda/) is a Kafka-compatible broker that can be used to run the tests, and is used
 by the CI to test IOx.
 
-Either follow the instructions on the website to install redpanda directly onto your system, or alternatively 
+Either follow the instructions on the website to install redpanda directly onto your system, or alternatively
 it can be run in a docker container with:
 
 ```

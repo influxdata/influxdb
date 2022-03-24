@@ -1,0 +1,25 @@
+[package]
+name = "test_helpers_end_to_end_ng"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Workspace dependencies, in alphabetical order
+influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
+test_helpers = { path = "../test_helpers" }
+
+# Crates.io dependencies, in alphabetical order
+arrow = { version = "10", features = ["prettyprint"] }
+assert_cmd = "2.0.2"
+futures = "0.3"
+http = "0.2.0"
+hyper = "0.14"
+once_cell = { version = "1.10.0", features = ["parking_lot"] }
+rand = "0.8.3"
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
+tempfile = "3.1.0"
+tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+workspace-hack = { path = "../workspace-hack"}

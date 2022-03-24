@@ -1,13 +1,10 @@
-use crate::{
-    common_ng::{
-        rand_name,
-        server_fixture::{ServerFixture, ServerType, TestConfig},
-    },
-    maybe_skip_integration,
+use http::StatusCode;
+use test_helpers_end_to_end_ng::{
+    maybe_skip_integration, rand_name, write_to_router, ServerFixture, ServerType, TestConfig,
 };
+
 use arrow_util::assert_batches_sorted_eq;
 use data_types2::{IngesterQueryRequest, SequencerId};
-use hyper::{Body, Client, Request, StatusCode};
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -36,23 +33,10 @@ async fn router2_through_ingester() {
     let router2 = ServerFixture::create_single_use_with_config(test_config).await;
 
     // Write some data into the v2 HTTP API ==============
+    let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
 
-    let client = Client::new();
-    let request = Request::builder()
-        .uri(format!(
-            "{}/api/v2/write?org={}&bucket={}",
-            router2.http_base(),
-            org,
-            bucket,
-        ))
-        .method("POST")
-        .body(Body::from(format!(
-            "{},tag1=A,tag2=B val=42i 123456",
-            table_name
-        )))
-        .expect("failed to construct HTTP request");
+    let response = write_to_router(lp, org, bucket, router2.server.router_http_base()).await;
 
-    let response = client.request(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     // Set up ingester ===================================
@@ -71,7 +55,8 @@ async fn router2_through_ingester() {
         );
     let ingester = ServerFixture::create_single_use_with_config(test_config).await;
 
-    let mut querier_flight = ingester.querier_flight_client();
+    let mut querier_flight =
+        querier::flight::Client::new(ingester.server.ingester_grpc_connection());
 
     let query = IngesterQueryRequest::new(
         namespace,

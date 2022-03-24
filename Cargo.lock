@@ -2172,6 +2172,7 @@ dependencies = [
  "sqlx",
  "tempfile",
  "test_helpers",
+ "test_helpers_end_to_end_ng",
  "thiserror",
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
@@ -5644,6 +5645,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "test_helpers_end_to_end_ng"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "assert_cmd",
+ "futures",
+ "http",
+ "hyper",
+ "influxdb_iox_client",
+ "once_cell",
+ "rand",
+ "reqwest",
+ "sqlx",
+ "tempfile",
+ "test_helpers",
+ "tokio",
+ "workspace-hack",
+]
+
+[[package]]
 name = "textwrap"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6635,6 +6656,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "parquet",
+ "predicates",
  "prost",
  "prost-types",
  "rand",

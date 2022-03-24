@@ -1,6 +1,16 @@
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
-pub mod server_fixture;
+mod addrs;
+mod client;
+mod config;
+mod database;
+mod server_fixture;
+mod server_type;
+
+pub use client::*;
+pub use config::TestConfig;
+pub use server_fixture::ServerFixture;
+pub use server_type::ServerType;
 
 /// Return a random string suitable for use as a database name
 pub fn rand_name() -> String {

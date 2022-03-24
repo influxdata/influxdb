@@ -110,6 +110,7 @@ arrow_util = { path = "../arrow_util" }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 iox_tests = { path = "../iox_tests" }
 test_helpers = { path = "../test_helpers" }
+test_helpers_end_to_end_ng = { path = "../test_helpers_end_to_end_ng" }
 schema = { path = "../schema" }
 
 # Crates.io dependencies, in alphabetical order
