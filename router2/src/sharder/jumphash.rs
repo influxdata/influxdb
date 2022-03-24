@@ -237,7 +237,8 @@ mod tests {
             (min.min(v), max.max(v))
         });
 
-        // ± 0.05%
+        // Expect that the number of values of each bucket are all within ±0.05%
+        // of the total 10M values
         assert!(max - min < 5000, "min: {}, max: {}", min, max);
     }
 }
