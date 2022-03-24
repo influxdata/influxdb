@@ -18,7 +18,7 @@ use super::{addrs::BindAddresses, ServerType, TestConfig};
 /// Represents a server that has been started and is available for
 /// testing.
 pub struct ServerFixture {
-    pub server: Arc<TestServer>,
+    server: Arc<TestServer>,
 }
 
 impl ServerFixture {
@@ -65,6 +65,12 @@ impl ServerFixture {
     /// Directory used for data storage.
     pub fn dir(&self) -> &Path {
         self.server.dir.path()
+    }
+
+    /// Get a reference to the underlying server.
+    #[must_use]
+    pub fn server(&self) -> &TestServer {
+        self.server.as_ref()
     }
 }
 
