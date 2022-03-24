@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/codes"
+	"github.com/influxdata/flux/dependency"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/lang"
@@ -1448,6 +1449,56 @@ func TestController_ReserveMemoryWithoutExceedingMax(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	validateUnusedMemory(t, reg, config)
+}
+
+func TestController_OnFinish(t *testing.T) {
+	closed := false
+	config := control.Config{
+		ConcurrencyQuota:         1,
+		MemoryBytesQuotaPerQuery: 1024,
+		QueueSize:                1,
+		ExecutorDependencies: []flux.Dependency{
+			mock.Dependency{
+				InjectFn: func(ctx context.Context) context.Context {
+					dependency.OnFinishFunc(ctx, func() error {
+						closed = true
+						return nil
+					})
+					return ctx
+				},
+			},
+		},
+	}
+
+	logger := zaptest.NewLogger(t)
+	ctrl, err := control.New(config, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	done := make(chan struct{})
+	defer close(done)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{}, nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	q, err := ctrl.Query(ctx, makeRequest(compiler))
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	consumeResults(t, q)
+
+	// The dependency should be closed.
+	if !closed {
+		t.Error("finish function was not executed")
+	}
 }
 
 func consumeResults(tb testing.TB, q flux.Query) {
